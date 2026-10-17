@@ -2155,8 +2155,9 @@ constexpr static uint32_t
                                                                // + feather
                                                                // atlas + images
 constexpr static uint32_t kMaxSampledImageUpdates = 1;         // tess
-constexpr static uint32_t kMaxStorageImageUpdates = 4; // color/coverage/clip/scratch
-                                                       // in clockwise mode.
+constexpr static uint32_t
+    kMaxStorageImageUpdates = 4; // color/coverage/clip/scratch
+                                 // in clockwise mode.
 constexpr static uint32_t
     kMaxStorageBufferUpdates = 7 + // path/paint/uniform buffers
                                1;  // coverage buffer in clockwiseAtomic mode

@@ -191,7 +191,7 @@ public:
   {
     // Each feature corresponds to a specific index in the namespaceID.
     // These must stay in sync with generate_draw_combinations.py.
-    char namespaceID[] = "00000000000";
+    char namespaceID[] = "000000000000";
     static_assert(
         sizeof(namespaceID) ==
         gpu::ShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
@@ -207,11 +207,12 @@ public:
       static_assert((int)ShaderFeatures::ENABLE_CLIP_RECT == 1 << 1);
       static_assert((int)ShaderFeatures::ENABLE_ADVANCED_BLEND == 1 << 2);
       static_assert((int)ShaderFeatures::ENABLE_FEATHER == 1 << 3);
-      static_assert((int)ShaderFeatures::ENABLE_EVEN_ODD == 1 << 4);
-      static_assert((int)ShaderFeatures::ENABLE_NESTED_CLIPPING == 1 << 5);
-      static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES == 1 << 6);
-      static_assert((int)ShaderFeatures::ENABLE_DITHER == 1 << 7);
-      static_assert((int)ShaderFeatures::ENABLE_MODULATED_IMAGE == 1 << 8);
+      static_assert((int)ShaderFeatures::ENABLE_MODULATED_IMAGE == 1 << 4);
+      static_assert((int)ShaderFeatures::ENABLE_EVEN_ODD == 1 << 5);
+      static_assert((int)ShaderFeatures::ENABLE_NESTED_CLIPPING == 1 << 6);
+      static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES == 1 << 7);
+      static_assert((int)ShaderFeatures::ENABLE_DITHER == 1 << 8);
+      static_assert((int)ShaderFeatures::ENABLE_ANGULAR_GRADIENT == 1 << 9);
     }
     if (drawType == DrawType::interiorTriangulation)
     {

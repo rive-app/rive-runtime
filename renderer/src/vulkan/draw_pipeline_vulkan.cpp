@@ -267,6 +267,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
           gpu::ShaderFeatures::ENABLE_FEATHER),
       enums::is_flag_set(
           props.shaderFeatures,
+          gpu::ShaderFeatures::ENABLE_MODULATED_IMAGE),
+      enums::is_flag_set(
+          props.shaderFeatures,
           gpu::ShaderFeatures::ENABLE_EVEN_ODD),
       enums::is_flag_set(
           props.shaderFeatures,
@@ -279,7 +282,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
           gpu::ShaderFeatures::ENABLE_DITHER),
       enums::is_flag_set(
           props.shaderFeatures,
-          gpu::ShaderFeatures::ENABLE_MODULATED_IMAGE),
+          gpu::ShaderFeatures::ENABLE_ANGULAR_GRADIENT),
       enums::is_flag_set(
           props.shaderMiscFlags,
           gpu::ShaderMiscFlags::clockwiseFill),
@@ -304,20 +307,21 @@ DrawPipelineVulkan::DrawPipelineVulkan(
   static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
   static_assert(ADVANCED_BLEND_SPECIALIZATION_IDX == 2);
   static_assert(FEATHER_SPECIALIZATION_IDX == 3);
-  static_assert(EVEN_ODD_SPECIALIZATION_IDX == 4);
-  static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
-  static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
-  static_assert(DITHER_SPECIALIZATION_IDX == 7);
-  static_assert(MODULATED_IMAGE_SPECIALIZATION_IDX == 8);
-  static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
-  static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
-  static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
-  static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
-  static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
-  static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
-  static_assert(DS_POLAR_STROKE_SPECIALIZATION_IDX == 15);
-  static_assert(DS_HAIRLINE_STROKE_SPECIALIZATION_IDX == 16);
-  static_assert(SPECIALIZATION_COUNT == 17);
+  static_assert(MODULATED_IMAGE_SPECIALIZATION_IDX == 4);
+  static_assert(EVEN_ODD_SPECIALIZATION_IDX == 5);
+  static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 6);
+  static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 7);
+  static_assert(DITHER_SPECIALIZATION_IDX == 8);
+  static_assert(ANGULAR_GRADIENT_SPECIALIZATION_IDX == 9);
+  static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 10);
+  static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 11);
+  static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 12);
+  static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
+  static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
+  static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
+  static_assert(DS_POLAR_STROKE_SPECIALIZATION_IDX == 16);
+  static_assert(DS_HAIRLINE_STROKE_SPECIALIZATION_IDX == 17);
+  static_assert(SPECIALIZATION_COUNT == 18);
 
   VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
   for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)

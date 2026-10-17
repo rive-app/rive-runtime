@@ -4532,6 +4532,12 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         break;
     }
   }
+
+  if (paintType == PaintType::angularGradient)
+  {
+    shaderFeatures |= ShaderFeatures::ENABLE_ANGULAR_GRADIENT;
+  }
+
   if (draw->imageTexture() != nullptr)
   {
     if (m_ctx->frameInterlockMode() != gpu::InterlockMode::atomics &&

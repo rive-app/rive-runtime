@@ -627,9 +627,8 @@ constexpr static uint32_t
 constexpr static uint32_t
     kMidpointFanPatchVertexCount = kMidpointFanPatchSegmentSpan *
                                        4 /*Stroke and/or AA outer ramp*/
-                                   +
-                                   (kMidpointFanPatchSegmentSpan +
-                                    1) /*Curve fan*/
+                                   + (kMidpointFanPatchSegmentSpan +
+                                      1) /*Curve fan*/
                                    + 1 /*Triangle from path midpoint*/;
 constexpr static uint32_t
     kMidpointFanPatchBorderIndexCount = kMidpointFanPatchSegmentSpan *
@@ -639,9 +638,8 @@ constexpr static uint32_t
                                                                        and/or AA
                                                                        outer
                                                                        ramp*/
-                                  +
-                                  (kMidpointFanPatchSegmentSpan - 1) *
-                                      3 /*Curve fan*/
+                                  + (kMidpointFanPatchSegmentSpan - 1) *
+                                        3 /*Curve fan*/
                                   + 3 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
 static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
@@ -649,9 +647,8 @@ static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t
     kMidpointFanCenterAAPatchVertexCount = kMidpointFanPatchSegmentSpan * 4 *
                                                2 /*Stroke and/or AA outer ramp*/
-                                           +
-                                           (kMidpointFanPatchSegmentSpan +
-                                            1) /*Curve fan*/
+                                           + (kMidpointFanPatchSegmentSpan +
+                                              1) /*Curve fan*/
                                            + 1 /*Triangle from path midpoint*/;
 constexpr static uint32_t
     kMidpointFanCenterAAPatchBorderIndexCount = kMidpointFanPatchSegmentSpan *
@@ -1108,16 +1105,17 @@ enum class ShaderFeatures
   ENABLE_CLIP_RECT = 1 << 1,
   ENABLE_ADVANCED_BLEND = 1 << 2,
   ENABLE_FEATHER = 1 << 3,
+  ENABLE_MODULATED_IMAGE = 1 << 4,
 
   // Fragment-only features.
-  ENABLE_EVEN_ODD = 1 << 4,
-  ENABLE_NESTED_CLIPPING = 1 << 5,
-  ENABLE_HSL_BLEND_MODES = 1 << 6,
-  ENABLE_DITHER = 1 << 7,
-  ENABLE_MODULATED_IMAGE = 1 << 8,
+  ENABLE_EVEN_ODD = 1 << 5,
+  ENABLE_NESTED_CLIPPING = 1 << 6,
+  ENABLE_HSL_BLEND_MODES = 1 << 7,
+  ENABLE_DITHER = 1 << 8,
+  ENABLE_ANGULAR_GRADIENT = 1 << 9,
 };
 
-constexpr static size_t ShaderFeatureCount = 9;
+constexpr static size_t ShaderFeatureCount = 10;
 constexpr static ShaderFeatures
     kAllShaderFeatures = static_cast<gpu::ShaderFeatures>(
         (1 << ShaderFeatureCount) - 1);
@@ -1159,7 +1157,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
              ShaderFeatures::ENABLE_ADVANCED_BLEND |
              ShaderFeatures::ENABLE_HSL_BLEND_MODES |
              ShaderFeatures::ENABLE_DITHER |
-             ShaderFeatures::ENABLE_MODULATED_IMAGE;
+             ShaderFeatures::ENABLE_MODULATED_IMAGE |
+             ShaderFeatures::ENABLE_ANGULAR_GRADIENT;
   }
   RIVE_UNREACHABLE();
 }
@@ -1259,6 +1258,11 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                ShaderFeatures::ENABLE_ADVANCED_BLEND |
                ShaderFeatures::ENABLE_HSL_BLEND_MODES |
                ShaderFeatures::ENABLE_DITHER;
+
+        if (drawType != DrawType::imageMesh)
+        {
+          mask |= ShaderFeatures::ENABLE_ANGULAR_GRADIENT;
+        }
         if (drawType == DrawType::featherAtlasBlit)
         {
           mask |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
@@ -1394,7 +1398,7 @@ uint32_t ShaderUniqueKey(
     InterlockMode,
     ShaderMiscFlags);
 
-// ShaderUniqueKey() is currently 21 bits. Be careful when adding to it because
+// ShaderUniqueKey() is currently 22 bits. Be careful when adding to it because
 // some backends pack their own private state into keys, and still need to fit
 // in 64 bits.
 constexpr static uint32_t DrawTypeKeyBitCount = 4;
@@ -1402,7 +1406,7 @@ constexpr static uint32_t ShaderUniqueKeyBitCount = ShaderMiscFlagKeyBitCount +
                                                     InterlockModeBitCount +
                                                     ShaderFeatureCount +
                                                     DrawTypeKeyBitCount;
-static_assert(ShaderUniqueKeyBitCount == 21);
+static_assert(ShaderUniqueKeyBitCount == 22);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
@@ -2513,7 +2517,7 @@ constexpr static uint32_t
                                 BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
                                 3 /*colorWrite, depthTest, depthWrite*/ +
                                 CullFaceBitCount;
-static_assert(PipelineUniqueKeyBitCount == 40);
+static_assert(PipelineUniqueKeyBitCount == 41);
 
 PipelineState get_pipeline_state(
     DrawType,

@@ -614,6 +614,8 @@ const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
       return GLSL_ENABLE_DITHER;
     case ShaderFeatures::ENABLE_MODULATED_IMAGE:
       return GLSL_ENABLE_MODULATED_IMAGE;
+    case ShaderFeatures::ENABLE_ANGULAR_GRADIENT:
+      return GLSL_ENABLE_ANGULAR_GRADIENT;
   }
   RIVE_UNREACHABLE();
 }

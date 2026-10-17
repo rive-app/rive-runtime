@@ -62,13 +62,13 @@ INLINE float2 getGradientUVFromOriginUV(
     bool isComplex)
 {
   // Calculate the gradient t value based on the type.
-  if (type == float(ANGULAR_GRADIENT_PAINT_TYPE))
+  #ifdef @ENABLE_ANGULAR_GRADIENT
+  if (@ENABLE_ANGULAR_GRADIENT && type == float(ANGULAR_GRADIENT_PAINT_TYPE))
   {
     // angular gradient types always span the whole texture, *including* to
     // the next texel (i.e. it's not first to last texel, there's always a
     // wrap involved).
-    float t = atan2(float2(gradientCoord.x, -gradientCoord.y)) /
-              (3.14159 * 2.0);
+    float t = atan2(float2(gradientCoord.x, -gradientCoord.y)) * (1.0 / _2PI);
 
     // Note: don't add the half-texel offset here, it causes the angle to be
     // slightly off - we actually want angle 0 to be directly in between
@@ -80,6 +80,7 @@ INLINE float2 getGradientUVFromOriginUV(
     return float2(t, originUV.y);
   }
   else
+  #endif
   {
     float t = (type == float(LINEAR_GRADIENT_PAINT_TYPE))
                   ? /*linear*/ gradientCoord.x
