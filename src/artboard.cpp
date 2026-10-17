@@ -4383,7 +4383,9 @@ static void collapseBoundarySubtree(SemanticNode* node, bool value)
 // Semantic-only collapse for this artboard's semantic nodes.
 // When collapsing, walks the boundary's semantic subtree (O(K) semantic
 // nodes). When uncollapsing, falls back to m_Objects because
-// SemanticData::collapse(false) re-parents nodes outside the boundary.
+// SemanticData::collapse(false) re-parents nodes outside the boundary, then
+// recurses into hosted artboards sharing the manager: the collapse walk
+// crossed their boundary nodes, so they have to be re-added here too.
 void Artboard::collapseSemanticBoundary(bool value)
 {
   if (m_activeSemanticManager == nullptr)
@@ -4403,9 +4405,47 @@ void Artboard::collapseSemanticBoundary(bool value)
       if (obj != nullptr && obj->is<SemanticData>())
       {
         auto* sd = obj->as<SemanticData>();
-        if (sd->isCollapsed() != value)
+        if (sd->isCollapsed() == value)
         {
-          sd->collapse(value);
+          continue;
+        }
+        // A SemanticData whose own component is still collapsed by an inner
+        // hidden layout stays out; that component re-adds it when it
+        // uncollapses.
+        if (!value && sd->parent() != nullptr && sd->parent()->isCollapsed())
+        {
+          continue;
+        }
+        sd->collapse(value);
+      }
+    }
+    for (auto* nestedArtboardHost : m_NestedArtboards)
+    {
+      if (nestedArtboardHost->isCollapsed())
+      {
+        continue;
+      }
+      auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
+      if (nestedArtboard != nullptr &&
+          nestedArtboard->semanticManager() == m_activeSemanticManager)
+      {
+        nestedArtboard->collapseSemanticBoundary(value);
+      }
+    }
+    for (auto* componentList : m_ComponentLists)
+    {
+      if (componentList->isCollapsed())
+      {
+        continue;
+      }
+      for (size_t i = 0; i < componentList->artboardCount(); i++)
+      {
+        auto* nestedArtboard =
+            componentList->artboardInstance(static_cast<int>(i));
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->semanticManager() == m_activeSemanticManager)
+        {
+          nestedArtboard->collapseSemanticBoundary(value);
         }
       }
     }

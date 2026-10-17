@@ -76,10 +76,14 @@ rcp<SemanticNode> SemanticData::semanticNode()
   return m_semanticNode;
 }
 
-// Finds parent SemanticData by walking up the component hierarchy.
+// Finds parent SemanticData by walking up the component hierarchy. The walk
+// starts above the component this SemanticData is attached to: another
+// SemanticData on that same component is a sibling, and treating siblings as
+// parents links them into a cycle that detaches all of them from the tree.
 SemanticData* SemanticData::findParentSemanticData() const
 {
-  auto* current = parent();
+  auto* owner = parent();
+  auto* current = owner != nullptr ? owner->parent() : nullptr;
   while (current != nullptr)
   {
     if (current->is<Node>())
@@ -87,7 +91,7 @@ SemanticData* SemanticData::findParentSemanticData() const
       auto* node = current->as<Node>();
       for (auto* child : node->children())
       {
-        if (child->is<SemanticData>() && child != this)
+        if (child->is<SemanticData>())
         {
           return child->as<SemanticData>();
         }
