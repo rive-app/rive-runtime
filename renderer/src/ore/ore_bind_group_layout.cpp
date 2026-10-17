@@ -1560,6 +1560,19 @@ bool validateSamplerDesc(
         a);
     return scriptGuardFailed(message, outError);
   }
+  // WebGPU refuses anisotropy unless every filter is linear.
+  if (a > 1 &&
+      (desc.minFilter != Filter::linear || desc.magFilter != Filter::linear ||
+       desc.mipmapFilter != Filter::linear))
+  {
+    snprintf(
+        message,
+        sizeof(message),
+        "GPUSampler.new: maxAnisotropy=%u needs linear min, mag and "
+        "mipmap filters",
+        a);
+    return scriptGuardFailed(message, outError);
+  }
   if (a > 1 && context != nullptr && context->featuresKnown() &&
       !context->features().anisotropicFiltering)
   {

@@ -155,8 +155,8 @@ function rive_tools_project(name, project_kind)
             links({ 'luau_vm' })
         end
     end
-    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
-    then
+    -- Unset on the web, where script modules run on the browser's engine.
+    if wamr then
         -- librive.a's WasmScriptingVM needs the WAMR runtime.
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
         do
@@ -432,6 +432,20 @@ function rive_tools_project(name, project_kind)
             '-sINITIAL_HEAP=134217728',
             '-lwebsocket.js',
         })
+    end
+
+    -- Script modules run on the browser's wasm engine through the page's
+    -- script runner.
+    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    then
+        filter({ 'system:emscripten', 'options:with_rive_scripting' })
+        do
+            linkoptions({
+                '--pre-js '
+                    .. RIVE_RUNTIME_DIR
+                    .. '/src/wasm/web/rive_scripting_pre.js',
+            })
+        end
     end
 
     filter({

@@ -464,8 +464,7 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
   f.textureViewSampling = true;
   f.drawBaseInstance = true;
   f.depthBiasClamp = true;
-  f.anisotropicFiltering = false; // Requires
-                                  // wgpu::FeatureName::TextureCompressionBC
+  f.anisotropicFiltering = true;
   f.texture3D = true;
   f.textureArrays = true;
   f.computeShaders = true;

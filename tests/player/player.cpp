@@ -16,15 +16,15 @@
 #include "rive/file.hpp"
 #include "rive/input/gamepad_batch.hpp"
 #include "rive/renderer.hpp"
+#include "rive/renderer/render_context.hpp"
 #include "rive/renderer/scoped_autorelease_pool.hpp"
 #include "rive/scene.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/raw_text.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/lua/scripting_vm.hpp"
-#include "rive/renderer/render_context.hpp"
 #endif
 #ifdef RIVE_CANVAS
 #include "common/testing_window_sink.hpp"
@@ -507,6 +507,9 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
   }
   m_file = rive::File::import(rivBytes, m_factory);
   assert(m_file);
+#if defined(__EMSCRIPTEN__) && defined(WITH_RIVE_SCRIPTING_WASM)
+  m_file->startScripts();
+#endif
 
   m_artboard = m_file->artboardDefault();
   assert(m_artboard);

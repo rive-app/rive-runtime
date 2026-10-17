@@ -239,3 +239,21 @@ TEST_CASE("setBindGroup validation catches misuse", "[ore][cmd]")
       &err));
   CHECK(err.find("exceeds maximum") != std::string::npos);
 }
+
+TEST_CASE("anisotropic samplers need linear filters", "[ore][cmd]")
+{
+  SamplerDesc desc;
+  desc.minFilter = desc.magFilter = desc.mipmapFilter = Filter::linear;
+  desc.maxAnisotropy = 4;
+  std::string err;
+  CHECK(validateSamplerDesc(nullptr, desc, &err));
+
+  desc.mipmapFilter = Filter::nearest;
+  CHECK_FALSE(validateSamplerDesc(nullptr, desc, &err));
+  CHECK(
+      err.find("needs linear min, mag and mipmap filters") !=
+      std::string::npos);
+
+  desc.maxAnisotropy = 1;
+  CHECK(validateSamplerDesc(nullptr, desc, &err));
+}
