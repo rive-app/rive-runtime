@@ -71,7 +71,7 @@ private:
   ID3D11DeviceContext* m_d3d11Context = nullptr; // weak ref
   rcp<PipelineD3D11> m_currentPipeline;
   D3D11_PRIMITIVE_TOPOLOGY
-      m_d3d11Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+  m_d3d11Topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
   DXGI_FORMAT m_d3d11IndexFormat = DXGI_FORMAT_R16_UINT;
   uint32_t m_d3d11IndexOffset = 0;
   uint32_t m_d3d11StencilRef = 0;

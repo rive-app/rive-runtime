@@ -1918,9 +1918,9 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
       // buffer once; each image draw selects its record via the draw
       // call's base instance (batch.baseElement).
       D3D12_VERTEX_BUFFER_VIEW
-          imageRectInstanceVBV = m_imageRectInstanceBuffer->resource()
-                                     ->vertexBufferView(
-                                         sizeof(gpu::ImageRectInstance));
+      imageRectInstanceVBV = m_imageRectInstanceBuffer->resource()
+                                 ->vertexBufferView(
+                                     sizeof(gpu::ImageRectInstance));
       cmdList->IASetVertexBuffers(
           IMAGE_DRAW_INSTANCE_DATA_SLOT,
           1,
@@ -1935,9 +1935,9 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
       // buffer once; each image draw selects its record via the draw
       // call's base instance (batch.baseElement).
       D3D12_VERTEX_BUFFER_VIEW
-          imageMeshInstanceVBV = m_imageMeshInstanceBuffer->resource()
-                                     ->vertexBufferView(
-                                         sizeof(gpu::ImageMeshInstance));
+      imageMeshInstanceVBV = m_imageMeshInstanceBuffer->resource()
+                                 ->vertexBufferView(
+                                     sizeof(gpu::ImageMeshInstance));
       cmdList->IASetVertexBuffers(
           IMAGE_DRAW_INSTANCE_DATA_SLOT,
           1,

@@ -525,7 +525,7 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   // --- Null SRV (2D texture, for unused descriptor-table slots) ---
   {
     D3D12_CPU_DESCRIPTOR_HANDLE
-        handle = ctx->m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
+    handle = ctx->m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
     handle.ptr += ctx->m_d3dCpuSrvAllocated++ * ctx->m_d3dSrvDescSize;
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -539,7 +539,7 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   // --- Null Sampler ---
   {
     D3D12_CPU_DESCRIPTOR_HANDLE
-        handle = ctx->m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
+    handle = ctx->m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
     handle.ptr += ctx->m_d3dCpuSamplerAllocated++ * ctx->m_d3dSamplerDescSize;
     D3D12_SAMPLER_DESC sampDesc = {};
     sampDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -963,7 +963,7 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
     if (m_d3dCpuSrvAllocated >= 1024)
       return nullptr; // CPU SRV descriptor heap exhausted.
     D3D12_CPU_DESCRIPTOR_HANDLE
-        handle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
+    handle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
     handle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -1044,7 +1044,7 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
       fmtInfo.rtv != DXGI_FORMAT_UNKNOWN)
   {
     D3D12_CPU_DESCRIPTOR_HANDLE
-        handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
+    handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
     handle.ptr += (SIZE_T)m_d3dCpuRtvAllocated++ * m_d3dRtvDescSize;
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
@@ -1107,7 +1107,7 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
   if (fmtInfo.isDepth && fmtInfo.dsv != DXGI_FORMAT_UNKNOWN)
   {
     D3D12_CPU_DESCRIPTOR_HANDLE
-        handle = m_d3dCpuDsvHeap->GetCPUDescriptorHandleForHeapStart();
+    handle = m_d3dCpuDsvHeap->GetCPUDescriptorHandleForHeapStart();
     handle.ptr += (SIZE_T)m_d3dCpuDsvAllocated++ * m_d3dDsvDescSize;
 
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
@@ -1168,7 +1168,7 @@ rcp<Sampler> ContextD3D12::d3d12MakeSampler(const SamplerDesc& desc)
   auto sampler = rcp<SamplerD3D12>(new SamplerD3D12(m_manager));
 
   D3D12_CPU_DESCRIPTOR_HANDLE
-      handle = m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
+  handle = m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
   handle.ptr += (SIZE_T)m_d3dCpuSamplerAllocated++ * m_d3dSamplerDescSize;
 
   D3D12_SAMPLER_DESC sd = {};
@@ -1946,7 +1946,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapTarget(
   if (canvas && m_d3dCpuSrvAllocated < 1024)
   {
     D3D12_CPU_DESCRIPTOR_HANDLE
-        srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
+    srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
     srvHandle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -1978,7 +1978,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapTarget(
     rtvIndex = m_d3dTargetRtvIndex;
   }
   D3D12_CPU_DESCRIPTOR_HANDLE
-      handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
+  handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
   handle.ptr += (SIZE_T)rtvIndex * m_d3dRtvDescSize;
 
   D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
@@ -2086,7 +2086,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(
   if (m_d3dCpuSrvAllocated >= 1024)
     return nullptr; // CPU SRV descriptor heap exhausted.
   D3D12_CPU_DESCRIPTOR_HANDLE
-      srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
+  srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
   srvHandle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
 
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};

@@ -129,7 +129,7 @@ private:
     D3D12_RESOURCE_STATES resolvePriorState = D3D12_RESOURCE_STATE_COMMON;
     // Resolve target's final state (what finish() should leave it in).
     D3D12_RESOURCE_STATES
-        resolveFinalState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    resolveFinalState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
   };
   D3D12ResolveEntry m_d3dResolves[4] = {};
   uint32_t m_d3dResolveCount = 0;

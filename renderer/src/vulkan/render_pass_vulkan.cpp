@@ -47,8 +47,8 @@ static uint32_t vk_sparse_format_index(VkFormat format)
   assert(format > LAST_NON_SPARSE_VK_FORMAT);
   switch (format)
   {
-    // Turn off clang-format so we can fit our case labels on one line.
-    // clang-format off
+      // Turn off clang-format so we can fit our case labels on one line.
+      // clang-format off
         case VK_FORMAT_G8B8G8R8_422_UNORM: return 0;
         case VK_FORMAT_B8G8R8G8_422_UNORM: return 1;
         case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM: return 2;

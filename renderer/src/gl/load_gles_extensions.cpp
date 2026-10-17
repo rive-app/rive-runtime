@@ -17,7 +17,7 @@ PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM = nullptr;
 PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
 glFramebufferTexture2DMultisampleEXT = nullptr;
 PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC
-    glRenderbufferStorageMultisampleEXT = nullptr;
+glRenderbufferStorageMultisampleEXT = nullptr;
 PFNGLBLENDBARRIERKHRPROC glBlendBarrierKHR = nullptr;
 PFNGLFRAMEBUFFERPIXELLOCALSTORAGESIZEEXTPROC
 glFramebufferPixelLocalStorageSizeEXT = nullptr;

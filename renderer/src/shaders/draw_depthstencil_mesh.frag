@@ -9,8 +9,8 @@
   #ifdef @DRAW_IMAGE_MESH
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-    // The Qualcomm compiler can't handle line breaks in #ifs.
-    // clang-format off
+  // The Qualcomm compiler can't handle line breaks in #ifs.
+  // clang-format off
 #if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@RENDER_TO_UAV)
 // clang-format on
 DST_COLOR_TEXTURE(@dstColorTexture);

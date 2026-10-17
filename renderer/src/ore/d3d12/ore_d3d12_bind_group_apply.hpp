@@ -206,9 +206,9 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
       D3D12_CPU_DESCRIPTOR_HANDLE dst = m_d3dContext->d3d12GpuSamplerCpuHandle(
           heapStart + i);
       D3D12_CPU_DESCRIPTOR_HANDLE
-          src = (bg->m_d3dSamplerSlotMask & (1u << globalSlot))
-                    ? bg->m_d3dSamplerHandles[globalSlot]
-                    : m_d3dContext->m_d3dNullSampler;
+      src = (bg->m_d3dSamplerSlotMask & (1u << globalSlot))
+                ? bg->m_d3dSamplerHandles[globalSlot]
+                : m_d3dContext->m_d3dNullSampler;
       m_d3dDevice->CopyDescriptorsSimple(
           1,
           dst,
@@ -216,7 +216,7 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
           D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
     D3D12_GPU_DESCRIPTOR_HANDLE
-        gpuHandle = m_d3dContext->d3d12GpuSamplerGpuHandle(heapStart);
+    gpuHandle = m_d3dContext->d3d12GpuSamplerGpuHandle(heapStart);
     m_d3dCmdList->SetGraphicsRootDescriptorTable(
         static_cast<UINT>(gp.samplerRootParamIdx),
         gpuHandle);
