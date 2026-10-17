@@ -149,6 +149,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
             break;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
+        case DrawType::clipReset:
             result->m_layoutDesc.push_back({
                 GLSL_a_triangleVertex,
                 0,
@@ -192,8 +193,9 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
             });
             addInstanceElements<ImageMeshInstance>(result->m_layoutDesc);
             break;
+        // depthStencil path draws derive everything from the vertex index, so
+        // they bind no attributes at all.
         case DrawType::renderPassResolve:
-            break;
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -206,11 +208,11 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::stencilOuterCubics:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
         case DrawType::depthAAOuterHairline:
+            break;
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
 
@@ -226,10 +228,74 @@ std::unique_ptr<D3D12DrawPixelShader> D3D12PipelineManager::
     return result;
 }
 
+static D3D12_STENCIL_OP d3d12_stencil_op(gpu::StencilOp op)
+{
+    switch (op)
+    {
+        case gpu::StencilOp::keep:
+            return D3D12_STENCIL_OP_KEEP;
+        case gpu::StencilOp::replace:
+            return D3D12_STENCIL_OP_REPLACE;
+        case gpu::StencilOp::zero:
+            return D3D12_STENCIL_OP_ZERO;
+        case gpu::StencilOp::decrClamp:
+            return D3D12_STENCIL_OP_DECR_SAT;
+        case gpu::StencilOp::incrWrap:
+            return D3D12_STENCIL_OP_INCR;
+        case gpu::StencilOp::decrWrap:
+            return D3D12_STENCIL_OP_DECR;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static D3D12_COMPARISON_FUNC d3d12_stencil_compare(gpu::StencilCompareOp op)
+{
+    switch (op)
+    {
+        case gpu::StencilCompareOp::less:
+            return D3D12_COMPARISON_FUNC_LESS;
+        case gpu::StencilCompareOp::equal:
+            return D3D12_COMPARISON_FUNC_EQUAL;
+        case gpu::StencilCompareOp::lessOrEqual:
+            return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        case gpu::StencilCompareOp::notEqual:
+            return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+        case gpu::StencilCompareOp::always:
+            return D3D12_COMPARISON_FUNC_ALWAYS;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static void fill_stencil_face(const gpu::StencilFaceOps& ops,
+                              D3D12_DEPTH_STENCILOP_DESC* out)
+{
+    out->StencilFailOp = d3d12_stencil_op(ops.stencilFailOp);
+    out->StencilDepthFailOp = d3d12_stencil_op(ops.depthFailOp);
+    out->StencilPassOp = d3d12_stencil_op(ops.depthStencilPassOp);
+    out->StencilFunc = d3d12_stencil_compare(ops.compareOp);
+}
+
+// D3D's front face is rive's clockwise front (FrontCounterClockwise=FALSE), so
+// the faces map straight across with no swap.
+static D3D12_CULL_MODE d3d12_cull_mode(gpu::CullFace cull)
+{
+    switch (cull)
+    {
+        case gpu::CullFace::none:
+            return D3D12_CULL_MODE_NONE;
+        case gpu::CullFace::clockwise:
+            return D3D12_CULL_MODE_FRONT;
+        case gpu::CullFace::counterclockwise:
+            return D3D12_CULL_MODE_BACK;
+    }
+    RIVE_UNREACHABLE();
+}
+
 std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     const PipelineProps& props,
     const D3D12DrawVertexShader& vs,
-    const D3D12DrawPixelShader& ps)
+    const D3D12DrawPixelShader& ps,
+    const PlatformFeatures& platformFeatures)
 {
     ComPtr<ID3D12PipelineState> pipelineState;
 
@@ -299,6 +365,54 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
             ? D3D12_COLOR_WRITE_ENABLE_ALL
             : 0;
 
+    D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
+    const bool isDepthStencil =
+        props.interlockMode == InterlockMode::depthStencil;
+    if (isDepthStencil)
+    {
+        const gpu::PipelineState pipelineState =
+            gpu::get_pipeline_state(props.drawType,
+                                    props.interlockMode,
+                                    props.shaderMiscFlags,
+                                    props.drawContents,
+                                    props.fixedFunctionColorOutput,
+                                    props.blendMode,
+                                    platformFeatures);
+
+        rasterDesc.CullMode = d3d12_cull_mode(pipelineState.cullFace);
+
+        depthStencilDesc.DepthEnable =
+            pipelineState.depthTestEnabled || pipelineState.depthWriteEnabled;
+        depthStencilDesc.DepthWriteMask = pipelineState.depthWriteEnabled
+                                              ? D3D12_DEPTH_WRITE_MASK_ALL
+                                              : D3D12_DEPTH_WRITE_MASK_ZERO;
+        depthStencilDesc.DepthFunc = pipelineState.depthTestEnabled
+                                         ? D3D12_COMPARISON_FUNC_GREATER
+                                         : D3D12_COMPARISON_FUNC_ALWAYS;
+        depthStencilDesc.StencilEnable = pipelineState.stencilTestEnabled;
+        depthStencilDesc.StencilReadMask = pipelineState.stencilCompareMask;
+        depthStencilDesc.StencilWriteMask = pipelineState.stencilWriteMask;
+        fill_stencil_face(pipelineState.stencilFrontOps,
+                          &depthStencilDesc.FrontFace);
+        fill_stencil_face(pipelineState.stencilDoubleSided
+                              ? pipelineState.stencilBackOps
+                              : pipelineState.stencilFrontOps,
+                          &depthStencilDesc.BackFace);
+
+        // Advanced blend draws composite into the UAV and bind no render
+        // target. Everything else blends src-over into the attachment.
+        const bool rendersToUAV =
+            enums::is_flag_set(props.shaderFeatures,
+                               ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+            !enums::is_flag_set(props.shaderMiscFlags,
+                                ShaderMiscFlags::fixedFunctionColorOutput);
+        blendDesc.RenderTarget[0].BlendEnable = !rendersToUAV;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask =
+            !rendersToUAV && pipelineState.colorWriteEnabled
+                ? D3D12_COLOR_WRITE_ENABLE_ALL
+                : 0;
+    }
+
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.InputLayout = {vs.m_layoutDesc.data(), vs.m_layoutDesc.size()};
     psoDesc.pRootSignature = m_rootSignature.Get();
@@ -306,12 +420,13 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(ps.m_shader.Get());
     psoDesc.RasterizerState = rasterDesc;
     psoDesc.BlendState = blendDesc;
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
-    psoDesc.DepthStencilState.StencilEnable = FALSE;
+    psoDesc.DepthStencilState = depthStencilDesc;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.DSVFormat =
+        isDepthStencil ? DXGI_FORMAT_D24_UNORM_S8_UINT : DXGI_FORMAT_UNKNOWN;
     psoDesc.SampleDesc.Count = 1;
 
     auto result = std::make_unique<D3D12Pipeline>();

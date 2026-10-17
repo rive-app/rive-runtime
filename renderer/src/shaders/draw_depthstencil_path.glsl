@@ -476,7 +476,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 
 #ifdef @FRAGMENT
 
+#ifdef @RENDER_TO_UAV
+PLS_MAIN(@drawFragmentMain)
+#else
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
+#endif
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @ENABLE_MODULATED_IMAGE
@@ -569,7 +573,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif
 
+#ifdef @RENDER_TO_UAV
+    EMIT_PLS
+#else
     EMIT_FRAG_DATA(color);
+#endif
 }
 
 #endif // FRAGMENT

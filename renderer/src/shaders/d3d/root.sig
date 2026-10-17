@@ -66,6 +66,7 @@
 #define TESS_RTV_HEAP_OFFSET 1
 #define FEATHER_ATLAS_RTV_HEAP_OFFSET 2
 #define TARGET_RTV_HEAP_OFFSET 3
+#define OFFSCREEN_RTV_HEAP_OFFSET 4
 
 // ROOT_SIG is only consumed by fxc when compiling the root signature. Guard it
 // (and its constants.glsl include) out of the C++ translation units that pull in
@@ -79,7 +80,7 @@
 
 #define ROOT_SIG "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
     "CBV(b" RIVE_STR(FLUSH_UNIFORM_BUFFER_IDX) ", flags=DATA_VOLATILE, visibility=SHADER_VISIBILITY_ALL), "\
-    "RootConstants(num32BitConstants=1, b" RIVE_STR(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX) ", visibility=SHADER_VISIBILITY_VERTEX), "\
+    "RootConstants(num32BitConstants=2, b" RIVE_STR(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX) ", visibility=SHADER_VISIBILITY_VERTEX), "\
     "DescriptorTable(SRV(t" RIVE_STR(PATH_BUFFER_IDX) "), "\
                     "SRV(t" RIVE_STR(PAINT_BUFFER_IDX) "),"\
                     "SRV(t" RIVE_STR(PAINT_AUX_BUFFER_IDX) "),"\

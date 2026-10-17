@@ -9,7 +9,10 @@
 #ifdef @DRAW_IMAGE_MESH
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@RENDER_TO_UAV)
+// The Qualcomm compiler can't handle line breaks in #ifs.
+// clang-format off
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@RENDER_TO_UAV)
+// clang-format on
 DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
@@ -25,7 +28,11 @@ SAMPLER_DYNAMIC_IMAGE(imageSampler)
 DYNAMIC_SAMPLER_BLOCK_END
 #endif // @DRAW_IMAGE_MESH
 
+#ifdef @RENDER_TO_UAV
+PLS_MAIN(@drawFragmentMain)
+#else
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
+#endif
 {
 #ifdef @DRAW_IMAGE_MESH
     VARYING_UNPACK(v_imageTexCoord, float2);
@@ -112,7 +119,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif
 
+#ifdef @RENDER_TO_UAV
+    EMIT_PLS
+#else
     EMIT_FRAG_DATA(color);
+#endif
 }
 
 #endif // FRAGMENT

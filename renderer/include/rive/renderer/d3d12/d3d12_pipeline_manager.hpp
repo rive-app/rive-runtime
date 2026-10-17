@@ -19,19 +19,28 @@ struct D3D12PipelineProps
     ShaderFeatures shaderFeatures;
     InterlockMode interlockMode;
     ShaderMiscFlags shaderMiscFlags;
+    DrawContents drawContents;
+    bool fixedFunctionColorOutput;
+    BlendMode blendMode;
     bool wireframe;
 #ifdef WITH_RIVE_TOOLS
     SynthesizedFailureType synthesizedFailureType =
         SynthesizedFailureType::none;
 #endif
 
-    uint32_t createKey(const PlatformFeatures&) const
+    // depthStencil bakes depth/stencil/cull/color-write state into the PSO,
+    // so the key has to separate variants that share a shader.
+    uint64_t createKey(const PlatformFeatures& platformFeatures) const
     {
-        uint32_t key = gpu::ShaderUniqueKey(drawType,
-                                            shaderFeatures,
-                                            interlockMode,
-                                            shaderMiscFlags);
-        return math::add_bits_to_key(key, uint32_t(wireframe), 1);
+        uint64_t key = gpu::getPipelineUniqueKey(drawType,
+                                                 shaderFeatures,
+                                                 interlockMode,
+                                                 shaderMiscFlags,
+                                                 drawContents,
+                                                 fixedFunctionColorOutput,
+                                                 blendMode,
+                                                 platformFeatures);
+        return math::add_bits_to_key(key, uint64_t(wireframe), 1);
     }
 };
 
@@ -116,7 +125,8 @@ protected:
     virtual std::unique_ptr<D3D12Pipeline> linkPipeline(
         const PipelineProps&,
         const D3D12DrawVertexShader&,
-        const D3D12DrawPixelShader&) override;
+        const D3D12DrawPixelShader&,
+        const PlatformFeatures&) override;
 
 private:
     // maybe these could be moved to D3DPipelineState but to do so

@@ -8,6 +8,7 @@
 #include "rive/renderer/d3d11/d3d11.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include <map>
+#include <unordered_map>
 #include <string>
 
 namespace rive::gpu
@@ -29,11 +30,14 @@ public:
 
     // Alternate rendering target when targetTextureSupportsUAV() is false.
     ID3D11Texture2D* offscreenTexture();
+    ID3D11RenderTargetView* offscreenRTV();
 
     // Returns an unordered access view of targetTexture(), if
     // targetTextureSupportsUAV() is true, otherwise returns a UAV of
     // offscreenTexture().
     ID3D11UnorderedAccessView* targetUAV();
+
+    ID3D11DepthStencilView* depthStencilView();
 
     ID3D11UnorderedAccessView* clipUAV();
     ID3D11UnorderedAccessView* scratchColorUAV();
@@ -51,8 +55,11 @@ private:
     ComPtr<ID3D11Texture2D> m_coverageTexture;
     ComPtr<ID3D11Texture2D> m_scratchColorTexture;
     ComPtr<ID3D11Texture2D> m_clipTexture;
+    ComPtr<ID3D11Texture2D> m_depthStencilTexture;
 
     ComPtr<ID3D11RenderTargetView> m_targetRTV;
+    ComPtr<ID3D11RenderTargetView> m_offscreenRTV;
+    ComPtr<ID3D11DepthStencilView> m_depthStencilView;
     ComPtr<ID3D11UnorderedAccessView> m_targetUAV;
     ComPtr<ID3D11UnorderedAccessView> m_coverageUAV;
     ComPtr<ID3D11UnorderedAccessView> m_clipUAV;
@@ -150,7 +157,8 @@ protected:
     virtual std::unique_ptr<D3D11DrawPipeline> linkPipeline(
         const PipelineProps&,
         const D3D11DrawVertexShader&,
-        const D3D11DrawPixelShader&) override;
+        const D3D11DrawPixelShader&,
+        const PlatformFeatures&) override;
 
 private:
     ComPtr<ID3D11DeviceContext> m_context;
@@ -291,9 +299,11 @@ private:
 
     struct DrawUniforms
     {
-        DrawUniforms(uint32_t baseInstance_) : baseInstance(baseInstance_) {}
+        DrawUniforms(uint32_t baseInstance_, uint32_t baseVertex_ = 0) :
+            baseInstance(baseInstance_), baseVertex(baseVertex_)
+        {}
         uint32_t baseInstance;
-        uint32_t pad0;
+        uint32_t baseVertex;
         uint32_t pad1;
         uint32_t pad2;
     };
@@ -309,6 +319,18 @@ private:
     ComPtr<ID3D11RasterizerState> m_featherAtlasStrokeRasterState;
     ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];
     ComPtr<ID3D11RasterizerState> m_doubleSidedRasterState[2];
+
+    ID3D11DepthStencilState* depthStencilStateFor(
+        const gpu::PipelineState& pipelineState);
+    ID3D11RasterizerState* rasterStateFor(gpu::CullFace, bool wireframe);
+    void setColorOnlyPipelineState();
+    void applyDepthStencilPipelineState(const gpu::PipelineState&,
+                                        bool wireframe);
+
+    std::unordered_map<uint64_t, ComPtr<ID3D11DepthStencilState>>
+        m_depthStencilStates;
+    ComPtr<ID3D11RasterizerState> m_frontCulledRasterState[2];
+    ComPtr<ID3D11BlendState> m_colorWriteDisabledBlendState;
 
     ComPtr<ID3D11BlendState> m_srcOverBlendState;
     ComPtr<ID3D11BlendState> m_plusBlendState;

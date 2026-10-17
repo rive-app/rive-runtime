@@ -103,6 +103,9 @@ public:
     void markRtvToIndex(ID3D12Device* device,
                         D3D12Texture* resource,
                         UINT index);
+    void markDsvToIndex(ID3D12Device* device,
+                        D3D12Texture* resource,
+                        UINT index);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandleForUpload(UINT index) const
     {

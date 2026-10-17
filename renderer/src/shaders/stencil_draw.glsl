@@ -2,6 +2,9 @@
  * Copyright 2024 Rive
  */
 
+VARYING_BLOCK_BEGIN
+VARYING_BLOCK_END
+
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, packed_float3, @a_triangleVertex);

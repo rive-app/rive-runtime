@@ -479,7 +479,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 // clang-format on
 INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 {
-    if (sampleMask == 0xf)
+    if (sampleMask == int(0xf))
     {
         // Average together all samples for this fragment.
         return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *

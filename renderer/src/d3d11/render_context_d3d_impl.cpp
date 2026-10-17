@@ -6,6 +6,8 @@
 
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
+#include "rive/renderer/range_chunker.hpp"
+
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
 #include <rive/renderer/ore/ore_context_d3d11.hpp>
@@ -334,6 +336,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
             break;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
+        case DrawType::clipReset:
             layoutDesc.push_back({GLSL_a_triangleVertex,
                                   0,
                                   DXGI_FORMAT_R32G32B32_FLOAT,
@@ -383,21 +386,24 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::stencilOuterCubics:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
         case DrawType::depthAAOuterHairline:
+            break;
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
 
     auto result = std::make_unique<D3D11DrawVertexShader>();
 
-    VERIFY_OK(device()->CreateInputLayout(layoutDesc.data(),
-                                          layoutDesc.size(),
-                                          blob->GetBufferPointer(),
-                                          blob->GetBufferSize(),
-                                          &result->layout));
+    if (!layoutDesc.empty())
+    {
+        VERIFY_OK(device()->CreateInputLayout(layoutDesc.data(),
+                                              layoutDesc.size(),
+                                              blob->GetBufferPointer(),
+                                              blob->GetBufferSize(),
+                                              &result->layout));
+    }
     VERIFY_OK(device()->CreateVertexShader(blob->GetBufferPointer(),
                                            blob->GetBufferSize(),
                                            nullptr,
@@ -421,7 +427,8 @@ std::unique_ptr<D3D11DrawPixelShader> D3D11PipelineManager ::
 std::unique_ptr<D3D11DrawPipeline> D3D11PipelineManager::linkPipeline(
     const PipelineProps& props,
     const D3D11DrawVertexShader& vs,
-    const D3D11DrawPixelShader& ps)
+    const D3D11DrawPixelShader& ps,
+    const PlatformFeatures&)
 {
     // For D3D11 this just puts the vs and ps into a single structure together.
     auto pipeline = std::make_unique<D3D11DrawPipeline>();
@@ -577,6 +584,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     m_gpu(std::move(gpu)),
     m_gpuContext(std::move(gpuContext))
 {
+    m_platformFeatures.supportsPipelineDynamicState = true;
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.supportsRasterOrderingMode =
@@ -630,6 +638,17 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
         m_backCulledRasterState[1].ReleaseAndGetAddressOf()));
+
+    rasterDesc.FillMode = D3D11_FILL_SOLID;
+    rasterDesc.CullMode = D3D11_CULL_FRONT;
+    VERIFY_OK(m_gpu->CreateRasterizerState(
+        &rasterDesc,
+        m_frontCulledRasterState[0].ReleaseAndGetAddressOf()));
+
+    rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+    VERIFY_OK(m_gpu->CreateRasterizerState(
+        &rasterDesc,
+        m_frontCulledRasterState[1].ReleaseAndGetAddressOf()));
 
     // Create a raster state without face culling for drawing image meshes.
     rasterDesc.FillMode = D3D11_FILL_SOLID;
@@ -799,6 +818,12 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     VERIFY_OK(
         m_gpu->CreateBlendState(&maxDesc,
                                 m_maxBlendState.ReleaseAndGetAddressOf()));
+
+    D3D11_BLEND_DESC colorWriteDisabledDesc = srcOverDesc;
+    colorWriteDisabledDesc.RenderTarget[0].RenderTargetWriteMask = 0;
+    VERIFY_OK(m_gpu->CreateBlendState(
+        &colorWriteDisabledDesc,
+        m_colorWriteDisabledBlendState.ReleaseAndGetAddressOf()));
 }
 
 ComPtr<ID3D11Texture2D> RenderContextD3DImpl::makeSimple2DTexture(
@@ -1391,15 +1416,30 @@ ID3D11Texture2D* RenderTargetD3D::offscreenTexture()
     assert(!m_targetTextureSupportsUAV);
     if (m_offscreenTexture == nullptr)
     {
-        m_offscreenTexture =
-            make_simple_2d_texture(m_gpu.Get(),
-                                   DXGI_FORMAT_R8G8B8A8_TYPELESS,
-                                   width(),
-                                   height(),
-                                   1,
-                                   D3D11_BIND_UNORDERED_ACCESS);
+        m_offscreenTexture = make_simple_2d_texture(
+            m_gpu.Get(),
+            DXGI_FORMAT_R8G8B8A8_TYPELESS,
+            width(),
+            height(),
+            1,
+            D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET);
     }
     return m_offscreenTexture.Get();
+}
+
+ID3D11RenderTargetView* RenderTargetD3D::offscreenRTV()
+{
+    if (m_offscreenRTV == nullptr)
+    {
+        D3D11_RENDER_TARGET_VIEW_DESC desc{};
+        desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        VERIFY_OK(m_gpu->CreateRenderTargetView(
+            offscreenTexture(),
+            &desc,
+            m_offscreenRTV.ReleaseAndGetAddressOf()));
+    }
+    return m_offscreenRTV.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::targetUAV()
@@ -1433,6 +1473,96 @@ ID3D11UnorderedAccessView* RenderTargetD3D::targetUAV()
         }
     }
     return m_targetUAV.Get();
+}
+
+static D3D11_STENCIL_OP d3d_stencil_op(gpu::StencilOp op)
+{
+    switch (op)
+    {
+        case gpu::StencilOp::keep:
+            return D3D11_STENCIL_OP_KEEP;
+        case gpu::StencilOp::replace:
+            return D3D11_STENCIL_OP_REPLACE;
+        case gpu::StencilOp::zero:
+            return D3D11_STENCIL_OP_ZERO;
+        case gpu::StencilOp::decrClamp:
+            return D3D11_STENCIL_OP_DECR_SAT;
+        case gpu::StencilOp::incrWrap:
+            return D3D11_STENCIL_OP_INCR;
+        case gpu::StencilOp::decrWrap:
+            return D3D11_STENCIL_OP_DECR;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static D3D11_COMPARISON_FUNC d3d_stencil_compare(gpu::StencilCompareOp op)
+{
+    switch (op)
+    {
+        case gpu::StencilCompareOp::less:
+            return D3D11_COMPARISON_LESS;
+        case gpu::StencilCompareOp::equal:
+            return D3D11_COMPARISON_EQUAL;
+        case gpu::StencilCompareOp::lessOrEqual:
+            return D3D11_COMPARISON_LESS_EQUAL;
+        case gpu::StencilCompareOp::notEqual:
+            return D3D11_COMPARISON_NOT_EQUAL;
+        case gpu::StencilCompareOp::always:
+            return D3D11_COMPARISON_ALWAYS;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static void fill_stencil_face(const gpu::StencilFaceOps& ops,
+                              D3D11_DEPTH_STENCILOP_DESC* out)
+{
+    out->StencilFailOp = d3d_stencil_op(ops.stencilFailOp);
+    out->StencilDepthFailOp = d3d_stencil_op(ops.depthFailOp);
+    out->StencilPassOp = d3d_stencil_op(ops.depthStencilPassOp);
+    out->StencilFunc = d3d_stencil_compare(ops.compareOp);
+}
+
+static uint64_t depth_stencil_state_key(const gpu::PipelineState& p)
+{
+    auto faceKey = [](const gpu::StencilFaceOps& ops) -> uint64_t {
+        return static_cast<uint64_t>(ops.stencilFailOp) |
+               (static_cast<uint64_t>(ops.depthFailOp) << 3) |
+               (static_cast<uint64_t>(ops.depthStencilPassOp) << 6) |
+               (static_cast<uint64_t>(ops.compareOp) << 9);
+    };
+    return (p.depthTestEnabled ? 1ull : 0ull) |
+           (p.depthWriteEnabled ? 2ull : 0ull) |
+           (p.stencilTestEnabled ? 4ull : 0ull) |
+           (p.stencilDoubleSided ? 8ull : 0ull) |
+           (static_cast<uint64_t>(p.stencilCompareMask) << 4) |
+           (static_cast<uint64_t>(p.stencilWriteMask) << 12) |
+           (faceKey(p.stencilFrontOps) << 20) |
+           (faceKey(p.stencilBackOps) << 33);
+}
+
+ID3D11DepthStencilView* RenderTargetD3D::depthStencilView()
+{
+    if (m_depthStencilTexture == nullptr)
+    {
+        m_depthStencilTexture =
+            make_simple_2d_texture(m_gpu.Get(),
+                                   DXGI_FORMAT_D24_UNORM_S8_UINT,
+                                   width(),
+                                   height(),
+                                   1,
+                                   D3D11_BIND_DEPTH_STENCIL);
+    }
+    if (m_depthStencilView == nullptr)
+    {
+        D3D11_DEPTH_STENCIL_VIEW_DESC desc{};
+        desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        VERIFY_OK(m_gpu->CreateDepthStencilView(
+            m_depthStencilTexture.Get(),
+            &desc,
+            m_depthStencilView.ReleaseAndGetAddressOf()));
+    }
+    return m_depthStencilView.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::clipUAV()
@@ -1643,6 +1773,76 @@ static D3D11_RECT make_scissor(const AABBu16 scissor)
     return rect;
 }
 
+ID3D11DepthStencilState* RenderContextD3DImpl::depthStencilStateFor(
+    const gpu::PipelineState& pipelineState)
+{
+    const uint64_t key = depth_stencil_state_key(pipelineState);
+    auto iter = m_depthStencilStates.find(key);
+    if (iter != m_depthStencilStates.end())
+    {
+        return iter->second.Get();
+    }
+
+    D3D11_DEPTH_STENCIL_DESC desc{};
+    desc.DepthEnable =
+        pipelineState.depthTestEnabled || pipelineState.depthWriteEnabled;
+    desc.DepthWriteMask = pipelineState.depthWriteEnabled
+                              ? D3D11_DEPTH_WRITE_MASK_ALL
+                              : D3D11_DEPTH_WRITE_MASK_ZERO;
+    desc.DepthFunc = pipelineState.depthTestEnabled ? D3D11_COMPARISON_GREATER
+                                                    : D3D11_COMPARISON_ALWAYS;
+    desc.StencilEnable = pipelineState.stencilTestEnabled;
+    desc.StencilReadMask = pipelineState.stencilCompareMask;
+    desc.StencilWriteMask = pipelineState.stencilWriteMask;
+    fill_stencil_face(pipelineState.stencilFrontOps, &desc.FrontFace);
+    fill_stencil_face(pipelineState.stencilDoubleSided
+                          ? pipelineState.stencilBackOps
+                          : pipelineState.stencilFrontOps,
+                      &desc.BackFace);
+
+    ComPtr<ID3D11DepthStencilState> state;
+    VERIFY_OK(
+        m_gpu->CreateDepthStencilState(&desc, state.ReleaseAndGetAddressOf()));
+    return m_depthStencilStates.insert({key, std::move(state)})
+        .first->second.Get();
+}
+
+ID3D11RasterizerState* RenderContextD3DImpl::rasterStateFor(gpu::CullFace cull,
+                                                            bool wireframe)
+{
+    const int fill = wireframe ? 1 : 0;
+    switch (cull)
+    {
+        case gpu::CullFace::none:
+            return m_doubleSidedRasterState[fill].Get();
+        case gpu::CullFace::clockwise:
+            return m_frontCulledRasterState[fill].Get();
+        case gpu::CullFace::counterclockwise:
+            return m_backCulledRasterState[fill].Get();
+    }
+    RIVE_UNREACHABLE();
+}
+
+void RenderContextD3DImpl::setColorOnlyPipelineState()
+{
+    m_gpuContext->RSSetState(m_doubleSidedRasterState[0].Get());
+    m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+}
+
+void RenderContextD3DImpl::applyDepthStencilPipelineState(
+    const gpu::PipelineState& pipelineState,
+    bool wireframe)
+{
+    m_gpuContext->OMSetDepthStencilState(depthStencilStateFor(pipelineState),
+                                         pipelineState.stencilReference);
+    m_gpuContext->RSSetState(rasterStateFor(pipelineState.cullFace, wireframe));
+    m_gpuContext->OMSetBlendState(pipelineState.colorWriteEnabled
+                                      ? m_srcOverBlendState.Get()
+                                      : m_colorWriteDisabledBlendState.Get(),
+                                  NULL,
+                                  0xffffffff);
+}
+
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     RIVE_PROF_GPUNAME_L(0, "RiveFlush");
@@ -1761,6 +1961,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_pipelineManager.setColorRampState();
 
+        setColorOnlyPipelineState();
+
         D3D11_VIEWPORT viewport = {0,
                                    0,
                                    static_cast<float>(kGradTextureWidth),
@@ -1768,6 +1970,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                    0,
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
+        D3D11_RECT scissor = {0,
+                              0,
+                              static_cast<LONG>(kGradTextureWidth),
+                              static_cast<LONG>(desc.gradDataHeight)};
+        m_gpuContext->RSSetScissorRects(1, &scissor);
 
         // Unbind the gradient texture before rendering it.
         ID3D11ShaderResourceView* nullTextureView = nullptr;
@@ -1808,6 +2015,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->IASetPrimitiveTopology(
             D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+        setColorOnlyPipelineState();
+
         // Unbind the tessellation texture before rendering it.
         ID3D11ShaderResourceView* nullTessTextureView = NULL;
         m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
@@ -1821,6 +2030,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                    0,
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
+        D3D11_RECT scissor = {0,
+                              0,
+                              static_cast<LONG>(kTessTextureWidth),
+                              static_cast<LONG>(desc.tessDataHeight)};
+        m_gpuContext->RSSetScissorRects(1, &scissor);
 
         m_gpuContext->OMSetRenderTargets(1,
                                          m_tessTextureRTV.GetAddressOf(),
@@ -2030,29 +2244,57 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     RIVE_PROF_GPUNAME_L(1, "DrawList");
 
     // Execute the DrawList.
-    ID3D11RenderTargetView* targetRTV =
-        desc.fixedFunctionColorOutput ? renderTarget->targetRTV() : NULL;
-    ID3D11UnorderedAccessView* plsUAVs[] = {
-        desc.fixedFunctionColorOutput ? NULL : renderTarget->targetUAV(),
-        renderTarget->clipUAV(),
-        desc.interlockMode == gpu::InterlockMode::rasterOrdering
-            ? renderTarget->scratchColorUAV()
-            : NULL, // Atomic mode doesn't use the scratchColor.
-        renderTarget->coverageUAV(),
-    };
-    static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(CLIP_PLANE_IDX == 1);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-    static_assert(COVERAGE_PLANE_IDX == 3);
-    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
-        desc.fixedFunctionColorOutput ? 1 : 0,
-        &targetRTV,
-        NULL,
-        desc.fixedFunctionColorOutput ? 1 : 0,
-        desc.fixedFunctionColorOutput ? std::size(plsUAVs) - 1
-                                      : std::size(plsUAVs),
-        desc.fixedFunctionColorOutput ? plsUAVs + 1 : plsUAVs,
-        NULL);
+    ID3D11DepthStencilView* dsDepthStencilView = NULL;
+    ID3D11RenderTargetView* dsColorRTV = NULL;
+    ID3D11UnorderedAccessView* dsColorUAV = NULL;
+    bool dsColorBoundAsUAV = false;
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    {
+        dsDepthStencilView = renderTarget->depthStencilView();
+        m_gpuContext->ClearDepthStencilView(dsDepthStencilView,
+                                            D3D11_CLEAR_DEPTH |
+                                                D3D11_CLEAR_STENCIL,
+                                            desc.depthClearValue,
+                                            desc.stencilClearValue);
+        if (desc.fixedFunctionColorOutput)
+        {
+            dsColorRTV = renderTarget->targetRTV();
+        }
+        else
+        {
+            dsColorUAV = renderTarget->targetUAV();
+            dsColorRTV = renderTarget->targetTextureSupportsUAV()
+                             ? renderTarget->targetRTV()
+                             : renderTarget->offscreenRTV();
+        }
+        m_gpuContext->OMSetRenderTargets(1, &dsColorRTV, dsDepthStencilView);
+    }
+    else
+    {
+        ID3D11RenderTargetView* targetRTV =
+            desc.fixedFunctionColorOutput ? renderTarget->targetRTV() : NULL;
+        ID3D11UnorderedAccessView* plsUAVs[] = {
+            desc.fixedFunctionColorOutput ? NULL : renderTarget->targetUAV(),
+            renderTarget->clipUAV(),
+            desc.interlockMode == gpu::InterlockMode::rasterOrdering
+                ? renderTarget->scratchColorUAV()
+                : NULL, // Atomic mode doesn't use the scratchColor.
+            renderTarget->coverageUAV(),
+        };
+        static_assert(COLOR_PLANE_IDX == 0);
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
+        m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
+            desc.fixedFunctionColorOutput ? 1 : 0,
+            &targetRTV,
+            NULL,
+            desc.fixedFunctionColorOutput ? 1 : 0,
+            desc.fixedFunctionColorOutput ? std::size(plsUAVs) - 1
+                                          : std::size(plsUAVs),
+            desc.fixedFunctionColorOutput ? plsUAVs + 1 : plsUAVs,
+            NULL);
+    }
 
     if (desc.fixedFunctionColorOutput)
     {
@@ -2190,6 +2432,49 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             ID3D11SamplerState* samplers[1] = {
                 m_samplerStates[batch.imageSampler.asKey()].Get()};
             m_gpuContext->PSSetSamplers(IMAGE_TEXTURE_IDX, 1, samplers);
+        }
+
+        if (dsColorUAV != NULL)
+        {
+            const bool batchUsesUAV =
+                enums::is_flag_set(
+                    shaderFeatures,
+                    gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+                !enums::is_flag_set(
+                    shaderMiscFlags,
+                    gpu::ShaderMiscFlags::fixedFunctionColorOutput);
+            if (batchUsesUAV != dsColorBoundAsUAV)
+            {
+                dsColorBoundAsUAV = batchUsesUAV;
+                if (batchUsesUAV)
+                {
+                    static_assert(COLOR_PLANE_IDX == 0);
+                    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
+                        0,
+                        NULL,
+                        dsDepthStencilView,
+                        COLOR_PLANE_IDX,
+                        1,
+                        &dsColorUAV,
+                        NULL);
+                }
+                else
+                {
+                    m_gpuContext->OMSetRenderTargets(1,
+                                                     &dsColorRTV,
+                                                     dsDepthStencilView);
+                }
+            }
+        }
+
+        gpu::PipelineState dsPipelineState;
+        if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+        {
+            gpu::get_pipeline_state(batch,
+                                    desc,
+                                    m_platformFeatures,
+                                    &dsPipelineState);
+            applyDepthStencilPipelineState(dsPipelineState, desc.wireframe);
         }
 
         switch (drawType)
@@ -2334,8 +2619,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             break;
             case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilDynamicMidpointFans:
-            case DrawType::stencilDynamicOuterCubics:
             case DrawType::stencilMidpointFans:
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
@@ -2345,16 +2628,106 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicWinding:
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
-            case DrawType::clipReset:
-            case DrawType::renderPassInitialize:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
             case DrawType::depthAAOuterHairline:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "depthStencilFill");
+                m_gpuContext->IASetPrimitiveTopology(
+                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
+                                               DXGI_FORMAT_R16_UINT,
+                                               0);
+                for (auto [chunkIndexCount, chunkBaseVertex] :
+                     gpu::DSIndexRangeChunker(batch))
+                {
+                    DrawUniforms drawUniforms(
+                        0,
+                        static_cast<uint32_t>(chunkBaseVertex));
+                    m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
+                                                    0,
+                                                    NULL,
+                                                    &drawUniforms,
+                                                    0,
+                                                    0);
+                    m_gpuContext->DrawIndexed(chunkIndexCount,
+                                              batch.baseIndex,
+                                              0);
+                }
+                break;
+            }
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "depthStencilDynamicFill");
+                m_gpuContext->IASetPrimitiveTopology(
+                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
+                                               DXGI_FORMAT_R16_UINT,
+                                               0);
+                for (DrawType pass :
+                     {DrawType::stencilMidpointFanBorrowedCoverage,
+                      DrawType::stencilMidpointFans,
+                      DrawType::stencilMidpointFanReset})
+                {
+                    gpu::PipelineState passState =
+                        gpu::get_pipeline_state(pass,
+                                                desc.interlockMode,
+                                                batch.shaderMiscFlags,
+                                                batch.drawContents,
+                                                desc.fixedFunctionColorOutput,
+                                                batch.firstBlendMode,
+                                                m_platformFeatures);
+                    applyDepthStencilPipelineState(passState, desc.wireframe);
+                    for (auto [chunkIndexCount, chunkBaseVertex] :
+                         gpu::DSIndexRangeChunker(
+                             batch,
+                             passState.colorWriteEnabled
+                                 ? 0
+                                 : VERTEX_FLAG_DISABLE_COLOR_WRITE))
+                    {
+                        DrawUniforms drawUniforms(
+                            0,
+                            static_cast<uint32_t>(chunkBaseVertex));
+                        m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
+                                                        0,
+                                                        NULL,
+                                                        &drawUniforms,
+                                                        0,
+                                                        0);
+                        m_gpuContext->DrawIndexed(chunkIndexCount,
+                                                  batch.baseIndex,
+                                                  0);
+                    }
+                }
+                break;
+            }
+            case DrawType::clipReset:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "clipReset");
+                m_gpuContext->IASetPrimitiveTopology(
+                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                DrawUniforms drawUniforms(0);
+                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
+                                                0,
+                                                NULL,
+                                                &drawUniforms,
+                                                0,
+                                                0);
+                m_gpuContext->Draw(batch.elementCount, batch.baseElement);
+                break;
+            }
+            case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }
     }
 
-    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+    if ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+         desc.interlockMode == gpu::InterlockMode::depthStencil) &&
+        !desc.fixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV())
     {
         RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");

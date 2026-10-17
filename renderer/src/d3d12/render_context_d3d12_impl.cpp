@@ -15,12 +15,16 @@
 #include "shaders/d3d/root.sig"
 
 #include <sstream>
+#include "rive/renderer/range_chunker.hpp"
 #include <vector>
 #include <D3DCompiler.h>
 
 // this is defined here instead of root_sig becaise the gpu does not care about
-// the number of rtvs. This is gradient, tess, feather atlas, and color
-static constexpr UINT NUM_RTV_HEAP_DESCRIPTORS = 4;
+// the number of rtvs. This is gradient, tess, feather atlas, color, and the
+// offscreen color used when the target can't be bound as a UAV.
+static constexpr UINT NUM_RTV_HEAP_DESCRIPTORS = 5;
+static constexpr UINT NUM_DSV_HEAP_DESCRIPTORS = 1;
+static constexpr UINT TARGET_DSV_HEAP_OFFSET = 0;
 namespace rive::gpu
 {
 
@@ -438,17 +442,40 @@ D3D12Texture* RenderTargetD3D12::offscreenTexture()
 {
     if (!m_offscreenTexture)
     {
-        m_offscreenTexture =
-            m_manager->make2DTexture(width(),
-                                     height(),
-                                     1,
-                                     DXGI_FORMAT_R8G8B8A8_TYPELESS,
-                                     D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                                     D3D12_HEAP_FLAG_ALLOW_SHADER_ATOMICS);
+        m_offscreenTexture = m_manager->make2DTexture(
+            width(),
+            height(),
+            1,
+            DXGI_FORMAT_R8G8B8A8_TYPELESS,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
+                D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            D3D12_HEAP_FLAG_ALLOW_SHADER_ATOMICS);
         SNAME_D3D12_OBJECT(m_offscreenTexture, "offscreenColor");
     }
     return m_offscreenTexture.get();
+}
+
+D3D12Texture* RenderTargetD3D12::depthStencilTexture()
+{
+    if (!m_depthStencilTexture)
+    {
+        D3D12_CLEAR_VALUE clearValue = {};
+        clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        clearValue.DepthStencil.Depth = DEPTH_MIN;
+        clearValue.DepthStencil.Stencil = STENCIL_CLEAR;
+        m_depthStencilTexture =
+            m_manager->make2DTexture(width(),
+                                     height(),
+                                     1,
+                                     DXGI_FORMAT_D24_UNORM_S8_UINT,
+                                     D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+                                     D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                                     D3D12_HEAP_FLAG_NONE,
+                                     &clearValue);
+        SNAME_D3D12_OBJECT(m_depthStencilTexture, "depthStencil");
+    }
+    return m_depthStencilTexture.get();
 }
 
 void RenderTargetD3D12::markTargetUAV(D3D12DescriptorHeap* heap)
@@ -656,6 +683,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
                       D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE)
 {
 
+    m_platformFeatures.supportsPipelineDynamicState = true;
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.supportsRasterOrderingMode =
@@ -670,6 +698,10 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
 
     m_rtvHeap = m_resourceManager->makeHeap(NUM_RTV_HEAP_DESCRIPTORS,
                                             D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+                                            D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+
+    m_dsvHeap = m_resourceManager->makeHeap(NUM_DSV_HEAP_DESCRIPTORS,
+                                            D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
                                             D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
 
     m_pipelineManager.compileGradientPipeline();
@@ -1735,6 +1767,60 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
     }
 
+    // depthStencil renders color through the attachment, except for advanced
+    // blend draws, which read-modify-write the UAV. Only one of the two can be
+    // bound at a time, so the pass alternates as the mode changes and both
+    // views have to name the same surface.
+    const bool dsUsesColorUAV =
+        desc.interlockMode == gpu::InterlockMode::depthStencil &&
+        !desc.fixedFunctionColorOutput;
+    D3D12Texture* dsColorTexture = nullptr;
+    UINT dsColorRTVIndex = TARGET_RTV_HEAP_OFFSET;
+    bool dsColorBoundAsUAV = false;
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    {
+        D3D12Texture* depthStencil = renderTarget->depthStencilTexture();
+        m_dsvHeap->markDsvToIndex(m_device.Get(),
+                                  depthStencil,
+                                  TARGET_DSV_HEAP_OFFSET);
+        if (depthStencil->lastState() != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+        {
+            m_resourceManager->transition(cmdList,
+                                          depthStencil,
+                                          D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        }
+        auto dsvHandle = m_dsvHeap->cpuHandleForIndex(TARGET_DSV_HEAP_OFFSET);
+        cmdList->ClearDepthStencilView(dsvHandle,
+                                       D3D12_CLEAR_FLAG_DEPTH |
+                                           D3D12_CLEAR_FLAG_STENCIL,
+                                       desc.depthClearValue,
+                                       desc.stencilClearValue,
+                                       0,
+                                       nullptr);
+
+        if (dsUsesColorUAV && !renderTarget->targetTextureSupportsUAV())
+        {
+            dsColorTexture = renderTarget->offscreenTexture();
+            dsColorRTVIndex = OFFSCREEN_RTV_HEAP_OFFSET;
+            m_rtvHeap->markRtvToIndex(m_device.Get(),
+                                      dsColorTexture,
+                                      OFFSCREEN_RTV_HEAP_OFFSET);
+        }
+        else
+        {
+            dsColorTexture = renderTarget->targetTexture();
+        }
+
+        if (dsColorTexture->lastState() != D3D12_RESOURCE_STATE_RENDER_TARGET)
+        {
+            m_resourceManager->transition(cmdList,
+                                          dsColorTexture,
+                                          D3D12_RESOURCE_STATE_RENDER_TARGET);
+        }
+        auto rtvHandle = m_rtvHeap->cpuHandleForIndex(dsColorRTVIndex);
+        cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    }
+
     m_heapDescriptorOffset += imageDescriptorOffset;
 
     const auto fullUpdateScissorRect =
@@ -1799,12 +1885,71 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 .shaderFeatures = shaderFeatures,
                 .interlockMode = desc.interlockMode,
                 .shaderMiscFlags = shaderMiscFlags,
+                .drawContents = batch.drawContents,
+                .fixedFunctionColorOutput = desc.fixedFunctionColorOutput,
+                .blendMode = batch.firstBlendMode,
                 .wireframe = desc.wireframe,
 #ifdef WITH_RIVE_TOOLS
                 .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
             },
             m_platformFeatures);
+
+        if (dsUsesColorUAV)
+        {
+            const bool batchUsesUAV =
+                enums::is_flag_set(
+                    shaderFeatures,
+                    gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+                !enums::is_flag_set(
+                    shaderMiscFlags,
+                    gpu::ShaderMiscFlags::fixedFunctionColorOutput);
+            if (batchUsesUAV != dsColorBoundAsUAV)
+            {
+                dsColorBoundAsUAV = batchUsesUAV;
+                auto dsvHandle =
+                    m_dsvHeap->cpuHandleForIndex(TARGET_DSV_HEAP_OFFSET);
+                if (batchUsesUAV)
+                {
+                    cmdList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+                    m_resourceManager->transition(
+                        cmdList,
+                        dsColorTexture,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                }
+                else
+                {
+                    m_resourceManager->transition(
+                        cmdList,
+                        dsColorTexture,
+                        D3D12_RESOURCE_STATE_RENDER_TARGET);
+                    auto rtvHandle =
+                        m_rtvHeap->cpuHandleForIndex(dsColorRTVIndex);
+                    cmdList->OMSetRenderTargets(1,
+                                                &rtvHandle,
+                                                FALSE,
+                                                &dsvHandle);
+                }
+            }
+        }
+
+        if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+        {
+            gpu::PipelineState pipelineState;
+            gpu::get_pipeline_state(batch,
+                                    desc,
+                                    m_platformFeatures,
+                                    &pipelineState);
+            cmdList->OMSetStencilRef(pipelineState.stencilReference);
+        }
+
+        if (dsUsesColorUAV &&
+            enums::is_flag_set(batch.barriers, BarrierFlags::dstBlend))
+        {
+            D3D12_RESOURCE_BARRIER barrier =
+                CD3DX12_RESOURCE_BARRIER::UAV(dsColorTexture->resource());
+            cmdList->ResourceBarrier(1, &barrier);
+        }
 
         // all atomic barriers are the same for dx12
         if (enums::any_flag_set(batch.barriers,
@@ -2066,8 +2211,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             }
 
             case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilDynamicMidpointFans:
-            case DrawType::stencilDynamicOuterCubics:
             case DrawType::stencilMidpointFans:
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
@@ -2077,16 +2220,125 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicWinding:
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
-            case DrawType::clipReset:
-            case DrawType::renderPassInitialize:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
             case DrawType::depthAAOuterHairline:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "depthStencilFill");
+                cmdList->IASetPrimitiveTopology(
+                    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                auto IBV = m_pathPatchIndexBuffer->indexBufferView();
+                cmdList->IASetIndexBuffer(&IBV);
+                for (auto [chunkIndexCount, chunkBaseVertex] :
+                     gpu::DSIndexRangeChunker(batch))
+                {
+                    cmdList->SetGraphicsRoot32BitConstant(
+                        VERTEX_DRAW_UNIFORM_SIG_INDEX,
+                        static_cast<UINT>(chunkBaseVertex),
+                        1);
+                    cmdList->DrawIndexedInstanced(chunkIndexCount,
+                                                  1,
+                                                  batch.baseIndex,
+                                                  0,
+                                                  0);
+                }
+                break;
+            }
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "depthStencilDynamicFill");
+                cmdList->IASetPrimitiveTopology(
+                    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                auto IBV = m_pathPatchIndexBuffer->indexBufferView();
+                cmdList->IASetIndexBuffer(&IBV);
+                // The dynamic types fold borrowed coverage, the main fill and
+                // the stencil reset into one batch. D3D12 bakes the state into
+                // the PSO, so each pass needs its own pipeline. Despite this,
+                // we are still faster in dynamic state mode by about 5%.
+                for (DrawType pass :
+                     {DrawType::stencilMidpointFanBorrowedCoverage,
+                      DrawType::stencilMidpointFans,
+                      DrawType::stencilMidpointFanReset})
+                {
+                    auto* passPipeline = m_pipelineManager.tryGetPipeline(
+                        {
+                            .drawType = pass,
+                            .shaderFeatures = shaderFeatures,
+                            .interlockMode = desc.interlockMode,
+                            .shaderMiscFlags = shaderMiscFlags,
+                            .drawContents = batch.drawContents,
+                            .fixedFunctionColorOutput =
+                                desc.fixedFunctionColorOutput,
+                            .blendMode = batch.firstBlendMode,
+                            .wireframe = desc.wireframe,
+#ifdef WITH_RIVE_TOOLS
+                            .synthesizedFailureType =
+                                desc.synthesizedFailureType,
+#endif
+                        },
+                        m_platformFeatures);
+                    if (passPipeline == nullptr)
+                    {
+                        continue;
+                    }
+                    cmdList->SetPipelineState(
+                        passPipeline->m_d3dPipelineState.Get());
+                    gpu::PipelineState passState =
+                        gpu::get_pipeline_state(pass,
+                                                desc.interlockMode,
+                                                shaderMiscFlags,
+                                                batch.drawContents,
+                                                desc.fixedFunctionColorOutput,
+                                                batch.firstBlendMode,
+                                                m_platformFeatures);
+                    cmdList->OMSetStencilRef(passState.stencilReference);
+                    for (auto [chunkIndexCount, chunkBaseVertex] :
+                         gpu::DSIndexRangeChunker(
+                             batch,
+                             passState.colorWriteEnabled
+                                 ? 0
+                                 : VERTEX_FLAG_DISABLE_COLOR_WRITE))
+                    {
+                        cmdList->SetGraphicsRoot32BitConstant(
+                            VERTEX_DRAW_UNIFORM_SIG_INDEX,
+                            static_cast<UINT>(chunkBaseVertex),
+                            1);
+                        cmdList->DrawIndexedInstanced(chunkIndexCount,
+                                                      1,
+                                                      batch.baseIndex,
+                                                      0,
+                                                      0);
+                    }
+                }
+                break;
+            }
+            case DrawType::clipReset:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                RIVE_PROF_GPUNAME_L(2, "clipReset");
+                cmdList->IASetPrimitiveTopology(
+                    D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                cmdList->SetGraphicsRoot32BitConstant(
+                    VERTEX_DRAW_UNIFORM_SIG_INDEX,
+                    0,
+                    1);
+                cmdList->DrawInstanced(batch.elementCount,
+                                       1,
+                                       batch.baseElement,
+                                       0);
+                break;
+            }
+            case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }
     }
 
-    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+    if ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+         desc.interlockMode == gpu::InterlockMode::depthStencil) &&
+        !desc.fixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV())
     {
         RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");

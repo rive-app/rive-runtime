@@ -16,6 +16,9 @@
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
+#include "generated/shaders/draw_depthstencil_path.glsl.hpp"
+#include "generated/shaders/draw_depthstencil_mesh.frag.hpp"
+#include "generated/shaders/stencil_draw.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
 #include "generated/shaders/gradient_packing_common.glsl.hpp"
@@ -71,6 +74,22 @@ static std::string build_shader(DrawType drawType,
               << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
         }
     }
+    if (interlockMode == InterlockMode::depthStencil)
+    {
+        s << "#define " << GLSL_RENDER_MODE_DEPTH_STENCIL << '\n';
+        if (enums::is_flag_set(shaderFeatures,
+                               ShaderFeatures::ENABLE_CLIP_RECT))
+        {
+            s << "#define " << GLSL_NEEDS_CLIP_DISTANCE << '\n';
+        }
+        if (enums::is_flag_set(shaderFeatures,
+                               ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+            !enums::is_flag_set(shaderMiscFlags,
+                                ShaderMiscFlags::fixedFunctionColorOutput))
+        {
+            s << "#define " << GLSL_RENDER_TO_UAV << " 1\n";
+        }
+    }
     if (enums::is_flag_set(shaderMiscFlags, ShaderMiscFlags::clockwiseFill))
     {
         s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
@@ -102,6 +121,15 @@ static std::string build_shader(DrawType drawType,
             s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
             s << "#define " << GLSL_RESOLVE_PLS << '\n';
             break;
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
+            s << "#define "
+              << (drawType == DrawType::depthAAOuterHairline
+                      ? GLSL_DS_HAIRLINE_STROKE
+                      : GLSL_DS_POLAR_STROKE)
+              << " 1\n";
+            [[fallthrough]];
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -114,11 +142,14 @@ static std::string build_shader(DrawType drawType,
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::stencilOuterCubics:
+            assert(interlockMode == InterlockMode::depthStencil);
+            s << "#define " << GLSL_ENABLE_BASE_VERTEX << '\n';
+            s << "#define " << GLSL_DRAW_PATH << '\n';
+            break;
         case DrawType::clipReset:
+            assert(interlockMode == InterlockMode::depthStencil);
+            break;
         case DrawType::renderPassInitialize:
-        case DrawType::depthStrokes:
-        case DrawType::depthAAStrokes:
-        case DrawType::depthAAOuterHairline:
             RIVE_UNREACHABLE();
     }
     s << glsl::constants << '\n';
@@ -172,6 +203,52 @@ static std::string build_shader(DrawType drawType,
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
             case DrawType::depthAAOuterHairline:
+                RIVE_UNREACHABLE();
+        }
+    }
+    else if (interlockMode == InterlockMode::depthStencil)
+    {
+        switch (drawType)
+        {
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
+                s << glsl::draw_path_common << '\n';
+                s << glsl::gradient_packing_common << '\n';
+                s << glsl::draw_depthstencil_path << '\n';
+                break;
+            case DrawType::interiorTriangulation:
+            case DrawType::featherAtlasBlit:
+                s << glsl::draw_path_common << '\n';
+                s << glsl::gradient_packing_common << '\n';
+                s << glsl::draw_path_vert << '\n';
+                s << glsl::draw_depthstencil_mesh_frag << '\n';
+                break;
+            case DrawType::imageMesh:
+                s << glsl::draw_image_mesh_vert << '\n';
+                s << glsl::draw_depthstencil_mesh_frag << '\n';
+                break;
+            case DrawType::clipReset:
+                s << glsl::stencil_draw << '\n';
+                break;
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+            case DrawType::imageRect:
+            case DrawType::renderPassInitialize:
+            case DrawType::renderPassResolve:
                 RIVE_UNREACHABLE();
         }
     }

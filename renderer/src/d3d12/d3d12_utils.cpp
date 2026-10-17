@@ -349,6 +349,22 @@ void D3D12DescriptorHeap::markRtvToIndex(ID3D12Device* device,
     device->CreateRenderTargetView(resource->resource(), &RTVDesc, rtvHandle);
 }
 
+void D3D12DescriptorHeap::markDsvToIndex(ID3D12Device* device,
+                                         D3D12Texture* resource,
+                                         UINT index)
+{
+    assert(m_type == D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
+    D3D12_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+    DSVDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    DSVDesc.Format = resource->desc().Format;
+    DSVDesc.Texture2D.MipSlice = 0;
+
+    device->CreateDepthStencilView(resource->resource(),
+                                   &DSVDesc,
+                                   cpuHandleForIndex(index));
+}
+
 D3D12Resource::D3D12Resource(rcp<GPUResourceManager> manager,
                              ComPtr<ID3D12Resource> resource,
                              D3D12_RESOURCE_STATES initialState) :

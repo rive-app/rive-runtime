@@ -96,10 +96,18 @@ $typedef float3 packed_float3;
 #define FLAT $nointerpolation
 #define VARYING(IDX, TYPE, NAME) TYPE NAME : $TEXCOORD##IDX
 
+#ifdef @NEEDS_CLIP_DISTANCE
+#define VARYING_BLOCK_END                                                      \
+    float4 _pos : $SV_Position;                                                \
+    float4 _clip : $SV_ClipDistance;                                           \
+    }                                                                          \
+    ;
+#else
 #define VARYING_BLOCK_END                                                      \
     float4 _pos : $SV_Position;                                                \
     }                                                                          \
     ;
+#endif
 
 #define VARYING_INIT(NAME, TYPE) TYPE NAME
 #define VARYING_PACK(NAME) _varyings.NAME = NAME
@@ -179,6 +187,9 @@ $typedef float3 packed_float3;
 #define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #endif
 #define PLS_DECL4F_READONLY PLS_DECL4F
+#define PLS_DECL4F_UAV PLS_DECL4F
+#define PLS_LOAD4F_UAV PLS_LOAD4F
+#define PLS_STORE4F_UAV PLS_STORE4F
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #define PLS_DECLUI_UAV PLS_DECLUI
 #define PLS_LOADUI_UAV PLS_LOADUI
@@ -225,24 +236,49 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define TEXTURE_CONTEXT_DECL
 #define TEXTURE_CONTEXT_FORWARD
 
+#ifdef @NEEDS_CLIP_DISTANCE
+#define CLIP_CONTEXT_FORWARD , out float4 gl_ClipDistance
+#define CLIP_CONTEXT_UNPACK , _varyings._clip
+#else
 #define CLIP_CONTEXT_FORWARD
 #define CLIP_CONTEXT_UNPACK
+#endif
 
+#ifdef @ENABLE_BASE_VERTEX
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
     $cbuffer DrawUniforms                                                      \
         : UNIFORM_BUFFER_REGISTER(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)       \
     {                                                                          \
         uint baseInstance;                                                     \
-        uint NAME##_pad0;                                                      \
+        uint baseVertex;                                                       \
         uint NAME##_pad1;                                                      \
         uint NAME##_pad2;                                                      \
     }                                                                          \
     Varyings main(Attrs attrs,                                                 \
-                  uint _vertexID : $SV_VertexID,                               \
+                  uint _vertexIDWithoutBase : $SV_VertexID,                    \
                   uint _instanceIDWithoutBase : $SV_InstanceID)                \
     {                                                                          \
         uint _instanceID = _instanceIDWithoutBase + baseInstance;              \
+        uint _vertexID = _vertexIDWithoutBase + baseVertex;                    \
         Varyings _varyings;
+#else
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
+    $cbuffer DrawUniforms                                                      \
+        : UNIFORM_BUFFER_REGISTER(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)       \
+    {                                                                          \
+        uint baseInstance;                                                     \
+        uint baseVertex;                                                       \
+        uint NAME##_pad1;                                                      \
+        uint NAME##_pad2;                                                      \
+    }                                                                          \
+    Varyings main(Attrs attrs,                                                 \
+                  uint _vertexIDWithoutBase : $SV_VertexID,                    \
+                  uint _instanceIDWithoutBase : $SV_InstanceID)                \
+    {                                                                          \
+        uint _instanceID = _instanceIDWithoutBase + baseInstance;              \
+        uint _vertexID = _vertexIDWithoutBase;                                 \
+        Varyings _varyings;
+#endif
 
 #define IMAGE_RECT_VERTEX_MAIN(NAME,                                           \
                                Attrs,                                          \
@@ -279,9 +315,17 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     }                                                                          \
     return _varyings;
 
+#ifdef @RENDER_MODE_DEPTH_STENCIL
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
+    [$earlydepthstencil] DATA_TYPE main(Varyings _varyings) : $SV_Target       \
+    {                                                                          \
+        float2 _fragCoord = _varyings._pos.xy;                                 \
+        int2 _plsCoord = int2(floor(_fragCoord));
+#else
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     DATA_TYPE main(Varyings _varyings) : $SV_Target                            \
     {
+#endif
 
 #define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
     DATA_TYPE main(Varyings _varyings, bool _clockwise : $SV_IsFrontFace) :    \

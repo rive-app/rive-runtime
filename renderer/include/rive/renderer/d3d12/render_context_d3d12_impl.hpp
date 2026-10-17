@@ -36,12 +36,15 @@ public:
             m_scratchColorTexture->forceReleaseResource();
         if (m_clipTexture)
             m_clipTexture->forceReleaseResource();
+        if (m_depthStencilTexture)
+            m_depthStencilTexture->forceReleaseResource();
 
         m_targetTexture = nullptr;
         m_offscreenTexture = nullptr;
         m_coverageTexture = nullptr;
         m_scratchColorTexture = nullptr;
         m_clipTexture = nullptr;
+        m_depthStencilTexture = nullptr;
     }
 
     D3D12Texture* targetTexture() const { return m_targetTexture.get(); }
@@ -49,6 +52,7 @@ public:
     D3D12Texture* coverage() const { return m_coverageTexture.get(); }
 
     D3D12Texture* offscreenTexture();
+    D3D12Texture* depthStencilTexture();
 
     bool targetTextureSupportsUAV() const { return m_targetTextureSupportsUAV; }
 
@@ -67,6 +71,7 @@ private:
     DXGI_FORMAT m_targetFormat = DXGI_FORMAT_UNKNOWN;
 
     rcp<D3D12Texture> m_offscreenTexture;
+    rcp<D3D12Texture> m_depthStencilTexture;
     rcp<D3D12Texture> m_coverageTexture;
     rcp<D3D12Texture> m_scratchColorTexture;
     rcp<D3D12Texture> m_clipTexture;
@@ -283,6 +288,7 @@ private:
     // this doesn't need to be pooled because rtv heaps are not sent to the gpu,
     // they are only used cpu side
     rcp<D3D12DescriptorHeap> m_rtvHeap;
+    rcp<D3D12DescriptorHeap> m_dsvHeap;
 
     // this is needed for multiple logical flushes and is also used for images
     UINT m_heapDescriptorOffset;

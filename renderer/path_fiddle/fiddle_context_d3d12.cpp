@@ -385,7 +385,24 @@ public:
                 swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
                 swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
                 swapChainDesc.SampleDesc.Count = 1;
-                swapChainDesc.Flags = 0;
+                // A flip-model swapchain still paces to the display refresh at
+                // sync interval 0 unless tearing is allowed, which would cap
+                // benchmark numbers at the monitor's rate.
+                m_allowTearing = false;
+                ComPtr<IDXGIFactory5> factory5;
+                if (SUCCEEDED(m_factory.As(&factory5)))
+                {
+                    BOOL tearingSupported = FALSE;
+                    if (SUCCEEDED(factory5->CheckFeatureSupport(
+                            DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+                            &tearingSupported,
+                            sizeof(tearingSupported))))
+                    {
+                        m_allowTearing = tearingSupported;
+                    }
+                }
+                swapChainDesc.Flags =
+                    m_allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
                 ComPtr<IDXGISwapChain1> swapChain;
                 VERIFY_OK(m_factory->CreateSwapChainForHwnd(
@@ -705,7 +722,9 @@ public:
         }
 
         if (!m_isHeadless)
-            m_swapChain->Present(0, 0);
+            m_swapChain->Present(0,
+                                 m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING
+                                                : 0);
 
         RIVE_PROF_GPUFLIP();
     }
@@ -724,6 +743,7 @@ private:
     UINT64 m_frameIndex = 0;
     UINT64 m_safeFrame = 0;
     const bool m_isHeadless;
+    bool m_allowTearing = false;
 
     ComPtr<IDXGIFactory4> m_factory;
     ComPtr<IDXGISwapChain3> m_swapChain;

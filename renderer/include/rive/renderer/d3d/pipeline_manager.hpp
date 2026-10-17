@@ -62,7 +62,8 @@ protected:
     virtual std::unique_ptr<PipelineType> linkPipeline(
         const PipelineProps& props,
         const VertexShaderType& vs,
-        const FragmentShaderType& ps) = 0;
+        const FragmentShaderType& ps,
+        const PlatformFeatures& platformFeatures) = 0;
 
     virtual PipelineStatus getPipelineStatus(
         const PipelineType& pipeline) const override final
@@ -107,7 +108,7 @@ private:
 
     virtual std::unique_ptr<PipelineType> createPipeline(
         PipelineCreateType createType,
-        uint32_t key,
+        typename Super::PipelineKey key,
         const PipelineProps& props,
         const PlatformFeatures& platformFeatures) override final
     {
@@ -126,7 +127,7 @@ private:
                                                       props.interlockMode,
                                                       props.shaderMiscFlags);
 
-        return linkPipeline(props, vs, ps);
+        return linkPipeline(props, vs, ps, platformFeatures);
     }
 
     ComPtr<DeviceType> m_device;
