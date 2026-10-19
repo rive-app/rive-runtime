@@ -13,10 +13,10 @@ ATTR_BLOCK_END
 
 ATTR_BLOCK_BEGIN(ImageDrawAttrs)
 ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
-ATTR(
-    IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-    float4,
-    @a_imageDrawClipRectInverseMatrix);
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX, float4, @a_imageDrawClipRectInverseMatrix);
+// clang-format on
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
 ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);

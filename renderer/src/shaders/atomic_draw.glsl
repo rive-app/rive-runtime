@@ -5,10 +5,10 @@
 #ifdef @DRAW_PATH
   #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-ATTR(
-    0,
-    float4,
-    @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+// clang-format on
 ATTR(1, float4, @a_mirroredVertexData);
 ATTR_BLOCK_END
   #endif
@@ -134,10 +134,10 @@ ATTR_BLOCK_END
 
 ATTR_BLOCK_BEGIN(ImageDrawAttrs)
 ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
-ATTR(
-    IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-    float4,
-    @a_imageDrawClipRectInverseMatrix);
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX, float4, @a_imageDrawClipRectInverseMatrix);
+// clang-format on
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
 ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
@@ -145,10 +145,10 @@ ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
 ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
 ATTR(IMAGE_RECT_IMAGE_MATRIX_ATTRIB_IDX, float4, @a_imageRectImageMatrix);
 ATTR(IMAGE_RECT_GRADIENT_MATRIX_ATTRIB_IDX, float4, @a_imageRectGradientMatrix);
-ATTR(
-    IMAGE_RECT_IMAGE_AND_GRADIENT_TRANSLATES_ATTRIB_IDX,
-    float4,
-    @a_imageRectImageAndGradientTranslates);
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(IMAGE_RECT_IMAGE_AND_GRADIENT_TRANSLATES_ATTRIB_IDX, float4, @a_imageRectImageAndGradientTranslates);
+// clang-format on
 ATTR(IMAGE_RECT_PACKED_GRADIENT_DATA, float4, @a_imageRectPackedGradientData);
 
 ATTR_BLOCK_END
@@ -352,10 +352,10 @@ ATTR_BLOCK_END
 
 ATTR_BLOCK_BEGIN(ImageDrawAttrs)
 ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
-ATTR(
-    IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-    float4,
-    @a_imageDrawClipRectInverseMatrix);
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX, float4, @a_imageDrawClipRectInverseMatrix);
+// clang-format on
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
 ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);

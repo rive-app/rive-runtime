@@ -16,10 +16,10 @@ ATTR_BLOCK_BEGIN(Attrs)
   #if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
 ATTR(0, packed_float3, @a_triangleVertex);
   #else
-ATTR(
-    0,
-    float4,
-    @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+// clang-format on
 ATTR(1, float4, @a_mirroredVertexData);
   #endif
 ATTR_BLOCK_END
