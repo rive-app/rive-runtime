@@ -127,3 +127,10 @@ void Feather::strengthChanged()
 }
 void Feather::offsetXChanged() { strengthChanged(); }
 void Feather::offsetYChanged() { strengthChanged(); }
+
+// The inner path is only built while inner, so switching to inner has to
+// rebuild it (it's empty, or stale if the shape changed while outer).
+void Feather::innerChanged()
+{
+  addDirt(ComponentDirt::Paint | ComponentDirt::WorldTransform);
+}

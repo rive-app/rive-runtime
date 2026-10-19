@@ -93,6 +93,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(innerPropertyKey, &m_Inner, &value);
     m_Inner = value;
+    RIVE_EDITOR_CHANGED(innerChanged());
     notifyPropertyChanged(innerPropertyKey);
   }
 
@@ -136,6 +137,7 @@ protected:
   virtual void strengthChanged() {}
   virtual void offsetXChanged() {}
   virtual void offsetYChanged() {}
+  virtual void innerChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/feather_ext.inl"
 #endif

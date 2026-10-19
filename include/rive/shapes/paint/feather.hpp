@@ -38,6 +38,7 @@ protected:
   void strengthChanged() override;
   void offsetXChanged() override;
   void offsetYChanged() override;
+  void innerChanged() override;
 
 private:
   ShapePaintPath m_innerPath;

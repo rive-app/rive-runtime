@@ -524,6 +524,51 @@ TEST_CASE("Path  with feather render", "[path]")
   REQUIRE(feather->renderCount == 2);
 }
 
+TEST_CASE(
+    "Feather switched from outer to inner builds its inner path",
+    "[path]")
+{
+  TestNoOpFactory emptyFactory;
+  auto file = ReadRiveFile("assets/feather_render_test.riv", &emptyFactory);
+
+  auto artboard = file->artboard("button 2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto node = artboard->find("button_shape");
+  REQUIRE(node != nullptr);
+  REQUIRE(node->is<rive::Shape>());
+  auto fill = node->as<rive::Shape>()->children()[2];
+  REQUIRE(fill != nullptr);
+  auto feather = fill->as<rive::Fill>()->feather();
+  REQUIRE(feather != nullptr);
+
+  // Start outer so the inner path is never built.
+  feather->inner(false);
+  artboard->advance(0.0f);
+  REQUIRE(feather->renderCount == 0);
+  REQUIRE(feather->innerPath()->rawPath()->empty());
+
+  // Switching to inner alone (no geometry change) must build it.
+  feather->inner(true);
+  artboard->advance(0.0f);
+  REQUIRE(feather->renderCount == 1);
+  REQUIRE(!feather->innerPath()->rawPath()->empty());
+  auto width = feather->innerPath()->rawPath()->bounds().width();
+
+  // Changes made while outer must be picked up when switching back to
+  // inner. The inner path is padded by strength * 1.5 on each side.
+  feather->inner(false);
+  artboard->advance(0.0f);
+  feather->strength(feather->strength() + 10.0f);
+  artboard->advance(0.0f);
+  REQUIRE(feather->renderCount == 1);
+  feather->inner(true);
+  artboard->advance(0.0f);
+  REQUIRE(feather->renderCount == 2);
+  REQUIRE(
+      feather->innerPath()->rawPath()->bounds().width() ==
+      Approx(width + 30.0f));
+}
+
 TEST_CASE("Apply stacked path effects to paths", "[silver]")
 {
   rive::SerializingFactory silver;
