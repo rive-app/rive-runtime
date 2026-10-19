@@ -589,6 +589,12 @@ public:
   void clearInheritedInterpolation();
   void interruptAnimation();
   bool isLeaf();
+  // Older files encode a hug as fixed scales on both axes of an
+  // intrinsically sized leaf, so its scale types alone don't say it hugs.
+  bool usesLegacyHugEncoding();
+  // Whether the layout engine sizes this layout's width to its content: a
+  // hug width, or the legacy encoding of one.
+  bool hugsContentWidth();
   void positionTypeChanged();
   void scaleTypeChanged();
   void displayChanged();

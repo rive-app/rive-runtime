@@ -500,6 +500,162 @@ TEST_CASE("text input textInput method inserts text", "[text_input]")
   CHECK(textInput->rawTextInput()->text() == "hello world");
 }
 
+TEST_CASE("text input max limits reach the raw text input", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  CHECK(textInput->maxCharacters() == 0);
+  CHECK(textInput->maxLines() == 0);
+  CHECK(textInput->rawTextInput()->maxCharacters() == 0);
+  CHECK(textInput->rawTextInput()->maxLines() == 0);
+
+  textInput->text("");
+  textInput->maxCharacters(4);
+  textInput->maxLines(2);
+  CHECK(textInput->rawTextInput()->maxCharacters() == 4);
+  CHECK(textInput->rawTextInput()->maxLines() == 2);
+  artboard->advance(0.0f);
+
+  // Typing is capped, and a refused insert still counts as handled.
+  CHECK(textInput->textInput("hello"));
+  CHECK(textInput->text() == "hell");
+  CHECK(textInput->textInput("!"));
+  CHECK(textInput->text() == "hell");
+
+  // Enter is held to the line limit too.
+  textInput->maxCharacters(0);
+  textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(4)));
+  CHECK(textInput->keyInput(Key::enter, KeyModifiers::none, true, false));
+  CHECK(textInput->text() == "hell\n");
+  CHECK(textInput->keyInput(Key::enter, KeyModifiers::none, true, false));
+  CHECK(textInput->text() == "hell\n");
+  CHECK(textInput->rawTextInput()->text() == "hell\n");
+
+  // Text set on the component is never trimmed.
+  textInput->maxCharacters(2);
+  textInput->text("much longer\nthan\nthe limits");
+  artboard->advance(0.0f);
+  CHECK(textInput->rawTextInput()->text() == "much longer\nthan\nthe limits");
+}
+
+TEST_CASE("text input hugs a layout in the legacy hug encoding", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  LayoutComponent* layout = contentSizingLayout(textInput->parent());
+  REQUIRE(layout != nullptr);
+  REQUIRE(layout->style() != nullptr);
+  REQUIRE(layout->isLeaf());
+  auto* style = layout->style();
+
+  // Older files store a hug as fixed scales on both axes of an intrinsically
+  // sized leaf, with no point or percent width.
+  style->layoutWidthScaleType((uint8_t)LayoutScaleType::fixed);
+  style->layoutHeightScaleType((uint8_t)LayoutScaleType::fixed);
+  style->intrinsicallySizedValue(true);
+  style->widthUnitsValue((uint8_t)YGUnitAuto);
+  CHECK(layout->hugsContentWidth());
+  textInput->controlSize(
+      Vec2D(120.0f, 40.0f),
+      LayoutScaleType::fixed,
+      LayoutScaleType::fixed,
+      LayoutDirection::ltr);
+  CHECK(textInput->rawTextInput()->hugsWidth());
+
+  // A stored point width is a real fixed width.
+  style->widthUnitsValue((uint8_t)YGUnitPoint);
+  CHECK_FALSE(layout->hugsContentWidth());
+  textInput->controlSize(
+      Vec2D(120.0f, 40.0f),
+      LayoutScaleType::fixed,
+      LayoutScaleType::fixed,
+      LayoutDirection::ltr);
+  CHECK_FALSE(textInput->rawTextInput()->hugsWidth());
+}
+
+TEST_CASE("text input hugs its width only in a hugging layout", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  artboard->advance(0.0f);
+  CHECK_FALSE(textInput->rawTextInput()->hugsWidth());
+
+  textInput->controlSize(
+      Vec2D(120.0f, 40.0f),
+      LayoutScaleType::hug,
+      LayoutScaleType::hug,
+      LayoutDirection::ltr);
+  CHECK(textInput->rawTextInput()->hugsWidth());
+
+  textInput->controlSize(
+      Vec2D(120.0f, 40.0f),
+      LayoutScaleType::fill,
+      LayoutScaleType::hug,
+      LayoutDirection::ltr);
+  CHECK_FALSE(textInput->rawTextInput()->hugsWidth());
+}
+
+TEST_CASE(
+    "a refused keystroke leaves a single line input's source text alone",
+    "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+
+  // A single line input displays the source's line break as a space.
+  textInput->multiline(false);
+  textInput->text("a\nb");
+  textInput->maxCharacters(3);
+  artboard->advance(0.0f);
+  REQUIRE(textInput->rawTextInput()->text() == "a b");
+
+  // Full, so nothing goes in, and the source keeps its line break.
+  CHECK(textInput->textInput("x"));
+  CHECK(textInput->rawTextInput()->text() == "a b");
+  CHECK(textInput->text() == "a\nb");
+}
+
+TEST_CASE(
+    "text input maxLines lets a full field's lines grow wider",
+    "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  REQUIRE(textInput->multiline());
+
+  textInput->text("123\n123\n123");
+  textInput->maxLines(3);
+  artboard->advance(0.0f);
+  artboard->advance(0.0f);
+  REQUIRE(textInput->rawTextInput()->shape().lineCount() == 3);
+
+  // The input hugs its text, so the first line is as wide as the field is
+  // laid out; typing at its end has to grow the field, not wrap.
+  textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(3)));
+  CHECK(textInput->textInput("4"));
+  CHECK(textInput->text() == "1234\n123\n123");
+  artboard->advance(0.0f);
+  CHECK(textInput->rawTextInput()->shape().lineCount() == 3);
+}
+
 TEST_CASE(
     "text input multiline toggles line breaks in displayed text",
     "[text_input]")

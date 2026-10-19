@@ -116,39 +116,208 @@ void RawTextInput::erase()
   flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
-void RawTextInput::insert(Unichar codePoint)
+bool RawTextInput::insert(Unichar codePoint)
 {
+  return insertCodePoints(Span<const Unichar>(&codePoint, 1));
+}
+
+bool RawTextInput::insert(const std::string& text)
+{
+  std::vector<Unichar> codePoints;
+  const uint8_t* ptr = (const uint8_t*)text.c_str();
+  while (*ptr)
+  {
+    codePoints.push_back(UTF::NextUTF8(&ptr));
+  }
+  return insertCodePoints(codePoints);
+}
+
+bool RawTextInput::insertCodePoints(Span<const Unichar> codePoints)
+{
+  size_t count = fittingCount(codePoints);
+  if (count == 0 && !codePoints.empty())
+  {
+    // Nothing fits, so the text, selection and undo history stay as they
+    // are.
+    return false;
+  }
+
   Cursor startingCursor = m_cursor;
   erase();
 
   assert(m_cursor.isCollapsed());
 
-  m_text.insert(m_text.begin() + m_cursor.start().codePointIndex(), codePoint);
-
-  auto position = CursorPosition(m_cursor.first().codePointIndex(1));
+  uint32_t codePointIndex = m_cursor.start().codePointIndex();
+  m_text.insert(
+      m_text.begin() + codePointIndex,
+      codePoints.begin(),
+      codePoints.begin() + count);
+  auto position = CursorPosition(codePointIndex + (uint32_t)count);
   m_cursor = Cursor::collapsed(position);
-  captureJournalEntry(startingCursor);
   flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+  captureJournalEntry(startingCursor);
+  return true;
 }
 
-void RawTextInput::insert(const std::string& text)
+// How many of codePoints, from the front, can replace the selection without
+// going over maxCharacters or maxLines.
+size_t RawTextInput::fittingCount(Span<const Unichar> codePoints)
 {
-  Cursor startingCursor = m_cursor;
-  erase();
-
-  uint32_t codePointIndex = m_cursor.start().codePointIndex();
-
-  const uint8_t* ptr = (const uint8_t*)text.c_str();
-  while (*ptr)
+  size_t count = codePoints.size();
+  if (count != 0 && m_maxCharacters != 0)
   {
-    Unichar codePoint = UTF::NextUTF8(&ptr);
-    m_text.insert(m_text.begin() + codePointIndex, codePoint);
-    codePointIndex++;
+    size_t first = std::min(
+        (size_t)m_cursor.first().codePointIndex(),
+        length());
+    size_t last = std::min((size_t)m_cursor.last().codePointIndex(), length());
+    size_t kept = length() - (last - first);
+    size_t room = m_maxCharacters > kept ? m_maxCharacters - kept : 0;
+    count = std::min(count, room);
   }
-  auto position = CursorPosition(codePointIndex);
-  m_cursor = Cursor::collapsed(position);
-  flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
-  captureJournalEntry(startingCursor);
+  if (count != 0 && m_maxLines != 0 && m_textRun.font != nullptr &&
+      lineCountWith(codePoints, count, true) > m_maxLines)
+  {
+    // Already over at the insertion point: nothing goes in, as with
+    // maxCharacters.
+    if (lineCountWith(codePoints, 0, true) > m_maxLines)
+    {
+      return 0;
+    }
+    // Wrapping isn't monotonic in the prefix: one ending mid-word joins the
+    // word after the selection and can wrap onto more lines than a longer one
+    // ending in a space. Without the rest of the selection's paragraph it is,
+    // as appending only ever adds lines, and putting that rest back can't
+    // take any away. The paragraphs after it don't join, so they stay in and
+    // keep the bound tight. So the longest prefix that fits without the rest
+    // bounds the answer; count down from there to the first that fits with
+    // it.
+    size_t low = 0;
+    size_t high = count - 1;
+    while (low < high)
+    {
+      size_t middle = (low + high + 1) / 2;
+      if (lineCountWith(codePoints, middle, false) <= m_maxLines)
+      {
+        low = middle;
+      }
+      else
+      {
+        high = middle - 1;
+      }
+    }
+    // The count down is about as long as the rest of the paragraph is wide,
+    // and every step shapes the whole text. Past a budget, settle for a
+    // binary search on the real count: what it finds fits, it just isn't
+    // always the longest prefix that does.
+    const size_t countdownBudget = 64;
+    size_t steps = 0;
+    while (low > 0 && lineCountWith(codePoints, low, true) > m_maxLines)
+    {
+      low--;
+      if (++steps == countdownBudget)
+      {
+        size_t fits = 0;
+        while (fits < low)
+        {
+          size_t middle = (fits + low + 1) / 2;
+          if (lineCountWith(codePoints, middle, true) <= m_maxLines)
+          {
+            fits = middle;
+          }
+          else
+          {
+            low = middle - 1;
+          }
+        }
+        low = fits;
+        break;
+      }
+    }
+    count = low;
+  }
+  return count;
+}
+
+// The number of displayed lines the text would wrap to with the selection
+// replaced by the first count code points, and with the rest of the
+// selection's paragraph (the text after it, up to its line break) dropped
+// unless withRestOfParagraph.
+uint32_t RawTextInput::lineCountWith(
+    Span<const Unichar> codePoints,
+    size_t count,
+    bool withRestOfParagraph)
+{
+  size_t first = std::min((size_t)m_cursor.first().codePointIndex(), length());
+  size_t last = std::min((size_t)m_cursor.last().codePointIndex(), length());
+
+  std::vector<Unichar> candidate;
+  candidate.reserve(m_text.size() - (last - first) + count);
+  candidate.insert(candidate.end(), m_text.begin(), m_text.begin() + first);
+  candidate.insert(
+      candidate.end(),
+      codePoints.begin(),
+      codePoints.begin() + count);
+  size_t after = last;
+  if (!withRestOfParagraph)
+  {
+    while (after < length() && m_text[after] != '\n' && m_text[after] != '\r' &&
+           m_text[after] != 0x2029)
+    {
+      after++;
+    }
+  }
+  // Ends with the sentinel either way.
+  candidate.insert(candidate.end(), m_text.begin() + after, m_text.end());
+  if (flagged(Flags::obscured))
+  {
+    // Count what would be displayed, keeping the trailing sentinel.
+    std::fill(candidate.begin(), candidate.end() - 1, obscuringBullet);
+  }
+
+  // Borrow the measuring shape rather than keep another one around, and
+  // have the next measure() shape again.
+  if (!m_measuringShape)
+  {
+    m_measuringShape = std::make_unique<FullyShapedText>();
+  }
+  flag(Flags::measureDirty);
+#ifdef TESTING
+  limitShapeCount++;
+#endif
+
+  // Wrap where the text will display. A hugging layout narrows maxWidth to
+  // the text's current width, so wrapping there would push any line that
+  // grows wider onto a new one: there the width measure() was last offered
+  // is the room the text can grow into.
+  float wrapWidth = flagged(Flags::hugsWidth) && flagged(Flags::measured)
+                        ? m_lastMeasureMaxWidth
+                        : m_maxWidth;
+
+  TextRun run = m_textRun;
+  run.unicharCount = (uint32_t)candidate.size();
+  m_measuringShape->shape(
+      candidate,
+      Span<TextRun>(&run, 1),
+      m_sizing,
+      wrapWidth,
+      m_maxHeight,
+      m_align,
+      m_wrap,
+      m_origin,
+      m_overflow,
+      m_paragraphSpacing,
+      m_alignWidth,
+      m_verticalAlign,
+      m_alignHeight);
+
+  // Every line the breaker produced, which lineCount() can fall short of
+  // when overflow stops it early.
+  uint32_t lines = 0;
+  for (const auto& paragraphLines : m_measuringShape->paragraphLines())
+  {
+    lines += (uint32_t)paragraphLines.size();
+  }
+  return lines;
 }
 
 void RawTextInput::selectionCornerRadius(float value)
@@ -1065,6 +1234,20 @@ void RawTextInput::separateSelectionText(bool value)
 
 bool RawTextInput::obscured() const { return flagged(Flags::obscured); }
 
+bool RawTextInput::hugsWidth() const { return flagged(Flags::hugsWidth); }
+
+void RawTextInput::hugsWidth(bool value)
+{
+  if (value)
+  {
+    flag(Flags::hugsWidth);
+  }
+  else
+  {
+    unflag(Flags::hugsWidth);
+  }
+}
+
 static Cursor withoutLineIndices(const Cursor& cursor)
 {
   return Cursor(
@@ -1131,6 +1314,7 @@ AABB RawTextInput::measure(float maxWidth, float maxHeight)
         m_alignHeight);
     m_lastMeasureMaxWidth = maxWidth;
     m_lastMeasureMaxHeight = maxHeight;
+    flag(Flags::measured);
 #ifdef TESTING
     measureCount++;
 #endif

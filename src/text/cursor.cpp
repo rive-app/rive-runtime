@@ -115,6 +115,14 @@ CursorPosition CursorPosition::fromOrderedLine(
 {
   const GlyphLookup& glyphLookup = shape.glyphLookup();
 
+  // An empty line has no glyph to land after, so the cursor goes before its
+  // line break; landing after it would put it at the start of the next line.
+  uint32_t breakIndex;
+  if (orderedLine.emptyLineCodePointIndex(breakIndex))
+  {
+    return CursorPosition(lineIndex, breakIndex).clamped(shape);
+  }
+
   float x = orderedLine.glyphLine().startX;
   /// Iterate each glyph and see if it's the one we're looking for.
   auto end = orderedLine.end();

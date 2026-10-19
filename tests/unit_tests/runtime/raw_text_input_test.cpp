@@ -1231,4 +1231,572 @@ TEST_CASE("obscured toggle re-resolves journaled cursor lines", "[text_input]")
   CHECK(textInput.cursor().end().lineIndex() == 0);
   CHECK(textInput.cursorVisualPosition().found());
 }
+
+TEST_CASE("maxCharacters caps typing and truncates pastes", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.maxCharacters(5);
+  CHECK(textInput.maxCharacters() == 5);
+
+  CHECK(textInput.insert("abc"));
+  CHECK(textInput.text() == "abc");
+
+  // A paste keeps only what fits.
+  CHECK(textInput.insert("defgh"));
+  CHECK(textInput.text() == "abcde");
+  CHECK(textInput.cursor().end().codePointIndex() == 5);
+
+  // Full: nothing more goes in.
+  CHECK_FALSE(textInput.insert('x'));
+  CHECK_FALSE(textInput.insert("xyz"));
+  CHECK(textInput.text() == "abcde");
+
+  // Deleting makes room again.
+  textInput.update(&factory);
+  textInput.backspace(-1);
+  CHECK(textInput.text() == "abcd");
+  CHECK(textInput.insert('x'));
+  CHECK(textInput.text() == "abcdx");
+
+  // Replacing a selection counts the selected code points as free.
+  textInput.cursor(Cursor(CursorPosition(0), CursorPosition(2)));
+  CHECK(textInput.insert("XYZ"));
+  CHECK(textInput.text() == "XYcdx");
+
+  // Code points, not bytes: each of these is several UTF-8 bytes.
+  RawTextInput unicode;
+  unicode.maxCharacters(3);
+  CHECK(unicode.insert("\xC3\xA9\xE2\x82\xAC\xF0\x9F\x99\x82\xC3\xA9"));
+  CHECK(unicode.length() == 3);
+  CHECK(unicode.text() == "\xC3\xA9\xE2\x82\xAC\xF0\x9F\x99\x82");
+}
+
+TEST_CASE("maxCharacters of 0 is unlimited", "[text_input]")
+{
+  RawTextInput textInput;
+  CHECK(textInput.maxCharacters() == 0);
+  CHECK(textInput.maxLines() == 0);
+  std::string longText(500, 'a');
+  CHECK(textInput.insert(longText));
+  CHECK(textInput.length() == 500);
+}
+
+TEST_CASE(
+    "a rejected insert leaves selection and undo history alone",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.maxCharacters(3);
+  CHECK(textInput.insert("abc"));
+  textInput.cursor(Cursor(CursorPosition(1), CursorPosition(1)));
+  CHECK_FALSE(textInput.insert('x'));
+  CHECK(textInput.cursor().start().codePointIndex() == 1);
+  CHECK(textInput.cursor().end().codePointIndex() == 1);
+
+  // The rejected insert added no journal entry: one undo takes back the
+  // "abc" insert.
+  textInput.undo();
+  CHECK(textInput.text() == "");
+  textInput.redo();
+  CHECK(textInput.text() == "abc");
+}
+
+TEST_CASE("text set from outside is kept even over the limits", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(10000.0f);
+  textInput.maxCharacters(3);
+  textInput.maxLines(1);
+
+  textInput.text("abcdef\nghi");
+  CHECK(textInput.text() == "abcdef\nghi");
+  textInput.textPreserveCursor("abcdef\nghij");
+  CHECK(textInput.text() == "abcdef\nghij");
+
+  // Still over, so a selection replaced by something just as long is
+  // refused...
+  textInput.cursor(Cursor(CursorPosition(0), CursorPosition(1)));
+  CHECK_FALSE(textInput.insert('x'));
+  CHECK(textInput.text() == "abcdef\nghij");
+
+  // ...while deleting always works.
+  textInput.update(&factory);
+  textInput.backspace(-1);
+  CHECK(textInput.text() == "bcdef\nghij");
+}
+
+TEST_CASE("maxLines caps line breaks and truncates pastes", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(10000.0f);
+  textInput.maxLines(2);
+  CHECK(textInput.maxLines() == 2);
+
+  // A trailing newline puts the cursor on a second (empty) line.
+  CHECK(textInput.insert("one\n"));
+  CHECK(textInput.text() == "one\n");
+  CHECK_FALSE(textInput.insert("\n"));
+  CHECK(textInput.text() == "one\n");
+
+  // The paste stops before the line break that would start a third line.
+  CHECK(textInput.insert("two\nthree\nfour"));
+  CHECK(textInput.text() == "one\ntwo");
+  textInput.update(&factory);
+  CHECK(textInput.shape().lineCount() == 2);
+
+  // More on the same line still goes in.
+  CHECK(textInput.insert("!"));
+  CHECK(textInput.text() == "one\ntwo!");
+}
+
+TEST_CASE("maxLines counts wrapped lines", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  float wordWidth;
+  {
+    RawTextInput probe;
+    probe.font(font);
+    probe.fontSize(32.0f);
+    probe.insert("word");
+    probe.update(&factory);
+    wordWidth = probe.bounds().width();
+  }
+  REQUIRE(wordWidth > 0.0f);
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  // Room for one word per line, never two.
+  textInput.maxWidth(wordWidth * 1.5f);
+
+  // Without a limit the paste wraps onto four lines.
+  std::string paste = "word word word word";
+  CHECK(textInput.insert(paste));
+  textInput.update(&factory);
+  REQUIRE(textInput.shape().lineCount() == 4);
+
+  textInput.text("");
+  textInput.maxLines(2);
+  CHECK(textInput.insert(paste));
+  std::string kept = textInput.text();
+  CHECK(kept.size() < paste.size());
+  CHECK(kept.rfind("word word", 0) == 0);
+  textInput.update(&factory);
+  CHECK(textInput.shape().lineCount() <= 2);
+
+  // A line break on the last allowed line is refused.
+  textInput.cursor(Cursor::collapsed(CursorPosition(0)));
+  CHECK_FALSE(textInput.insert("\n"));
+  CHECK(textInput.text() == kept);
+}
+
+TEST_CASE(
+    "maxLines wraps against the space the layout offers, not the hug",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+  const float available = 900.0f;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.hugsWidth(true);
+  textInput.insert("123\n123\n123");
+
+  // Lay out the way TextInput does: measure against the space available,
+  // then wrap at the width the text actually took (it hugs its text).
+  auto layout = [&]() {
+    AABB measured = textInput.measure(
+        available,
+        std::numeric_limits<float>::max());
+    textInput.maxWidth(measured.width());
+    textInput.update(&factory);
+  };
+  layout();
+  REQUIRE(textInput.shape().lineCount() == 3);
+  textInput.maxLines(3);
+
+  // Widening the widest line just grows the field, it doesn't wrap.
+  textInput.cursor(Cursor::collapsed(CursorPosition(3)));
+  CHECK(textInput.insert('4'));
+  CHECK(textInput.text() == "1234\n123\n123");
+  layout();
+  CHECK(textInput.shape().lineCount() == 3);
+
+  // Running past the space available does wrap, so it's held back.
+  textInput.cursor(Cursor::collapsed(CursorPosition(4)));
+  CHECK(textInput.insert(" and a much longer run of words that cannot "
+                         "possibly fit in the space that is available"));
+  layout();
+  CHECK(textInput.shape().lineCount() == 3);
+  CHECK(textInput.text().rfind("1234 and a", 0) == 0);
+  CHECK(
+      textInput.text().size() <
+      std::string("1234 and a much longer run of words that cannot "
+                  "possibly fit in the space that is available\n123\n123")
+          .size());
+}
+
+TEST_CASE(
+    "the cursor lands on an empty line, not the line after it",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(900.0f);
+  textInput.insert("123\n\n123");
+  textInput.update(&factory);
+  REQUIRE(textInput.shape().lineCount() == 3);
+
+  // The empty middle line is just the line break at index 4; index 5 is
+  // already the start of the last line.
+  auto middle = textInput.cursorVisualPosition(CursorPosition(1, 4));
+  REQUIRE(middle.found());
+  float middleY = (middle.top() + middle.bottom()) / 2.0f;
+  for (float x : {0.0f, 60.0f})
+  {
+    textInput.moveCursorTo(Vec2D(x, middleY));
+    CHECK(textInput.cursor().end().codePointIndex() == 4);
+    CHECK(textInput.cursor().end().lineIndex() == 1);
+  }
+
+  textInput.cursor(Cursor::collapsed(CursorPosition(8)));
+  textInput.update(&factory);
+  textInput.cursorUp();
+  CHECK(textInput.cursor().end().codePointIndex() == 4);
+
+  textInput.cursor(Cursor::collapsed(CursorPosition(0)));
+  textInput.update(&factory);
+  textInput.cursorDown();
+  CHECK(textInput.cursor().end().codePointIndex() == 4);
+
+  CHECK(textInput.insert('x'));
+  CHECK(textInput.text() == "123\nx\n123");
+}
+
+TEST_CASE(
+    "Enter that leaves an empty line keeps the caret with the text",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  struct Case
+  {
+    const char* text;
+    uint32_t enterAt;
+    uint32_t lineAfter;
+  };
+  // Enter at the start of a line leaves an empty line behind the caret;
+  // the caret must draw on the line it types into.
+  for (Case c : {Case{"123", 0, 1}, Case{"123\n123", 4, 2}})
+  {
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.sizing(TextSizing::autoHeight);
+    textInput.maxWidth(900.0f);
+    textInput.insert(c.text);
+    textInput.cursor(Cursor::collapsed(CursorPosition(c.enterAt)));
+    textInput.update(&factory);
+
+    CHECK(textInput.insert("\n"));
+    textInput.update(&factory);
+    CHECK(textInput.cursor().end().codePointIndex() == c.enterAt + 1);
+    CHECK(textInput.cursor().end().lineIndex() == c.lineAfter);
+
+    // Where it draws is where it types.
+    auto drawn = textInput.cursorVisualPosition();
+    auto line = textInput.cursorVisualPosition(
+        CursorPosition(c.lineAfter, c.enterAt + 1));
+    REQUIRE(drawn.found());
+    CHECK(drawn.top() == line.top());
+
+    // Home and End stay on the empty line rather than running into the
+    // next one.
+    textInput.cursor(Cursor::collapsed(CursorPosition(c.enterAt)));
+    textInput.update(&factory);
+    REQUIRE(textInput.cursor().end().lineIndex() == c.lineAfter - 1);
+    textInput.cursorRight(CursorBoundary::line);
+    CHECK(textInput.cursor().end().codePointIndex() == c.enterAt);
+  }
+}
+
+TEST_CASE(
+    "maxLines lets a full field's empty line be typed into",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.hugsWidth(true);
+  textInput.insert("123\n\n123");
+  AABB measured = textInput.measure(900.0f, std::numeric_limits<float>::max());
+  textInput.maxWidth(measured.width());
+  textInput.update(&factory);
+  textInput.maxLines(3);
+
+  textInput.cursorUp();
+  CHECK(textInput.insert('x'));
+  CHECK(textInput.text() == "123\nx\n123");
+}
+
+TEST_CASE(
+    "maxLines keeps the longest paste that fits when wrapping isn't monotonic",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+  // Wide enough for "aa cc", "cbbbb" and "xbbbb", too narrow for "ccbbbb" and
+  // "xxbbbb", which then break mid-word onto a third line.
+  const float width = 100.0f;
+  auto lines = [&](const char* text) {
+    RawTextInput probe;
+    probe.font(font);
+    probe.fontSize(32.0f);
+    probe.sizing(TextSizing::autoHeight);
+    probe.maxWidth(width);
+    probe.insert(text);
+    probe.update(&factory);
+    return probe.shape().lineCount();
+  };
+  // Pasting "cc xx" before "bbbb": a prefix ending mid-word joins "bbbb", so
+  // the line counts for prefixes 1 to 5 go 2, 3, 2, 2, 3.
+  REQUIRE(lines("aa cbbbb") == 2);
+  REQUIRE(lines("aa ccbbbb") == 3);
+  REQUIRE(lines("aa cc bbbb") == 2);
+  REQUIRE(lines("aa cc xbbbb") == 2);
+  REQUIRE(lines("aa cc xxbbbb") == 3);
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(width);
+  textInput.insert("aa bbbb");
+  textInput.maxLines(2);
+  textInput.cursor(Cursor::collapsed(CursorPosition(3)));
+  CHECK(textInput.insert("cc xx"));
+  CHECK(textInput.text() == "aa cc xbbbb");
+}
+
+TEST_CASE(
+    "maxLines wraps at maxWidth unless the layout hugs the text",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  float wordWidth;
+  {
+    RawTextInput probe;
+    probe.font(font);
+    probe.fontSize(32.0f);
+    probe.insert("word");
+    probe.update(&factory);
+    wordWidth = probe.bounds().width();
+  }
+
+  for (bool hugs : {false, true})
+  {
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.sizing(TextSizing::autoHeight);
+    textInput.hugsWidth(hugs);
+    // Measured with plenty of room, then narrowed to one word per line.
+    textInput.measure(10000.0f, std::numeric_limits<float>::max());
+    textInput.maxWidth(wordWidth * 1.5f);
+    textInput.maxLines(2);
+
+    CHECK(textInput.insert("word word word word"));
+    if (hugs)
+    {
+      // A hugging field grows to the measured width, where it all fits.
+      CHECK(textInput.text() == "word word word word");
+    }
+    else
+    {
+      // A field held at maxWidth keeps what fits on its two lines there.
+      textInput.update(&factory);
+      CHECK(textInput.shape().lineCount() <= 2);
+      CHECK(textInput.text().rfind("word word", 0) == 0);
+      CHECK(textInput.text().rfind("word word word") == std::string::npos);
+    }
+  }
+}
+
+TEST_CASE(
+    "maxLines refuses a large paste into a full field quickly",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(900.0f);
+  // 999 line breaks make 1000 lines: full.
+  const std::string full(999, '\n');
+  textInput.insert(full);
+  textInput.maxLines(1000);
+  textInput.cursor(Cursor::collapsed(CursorPosition(0)));
+  textInput.limitShapeCount = 0;
+
+  CHECK_FALSE(textInput.insert(std::string(1000, '\n')));
+  CHECK(textInput.text() == full);
+  // The paragraphs after the insertion point stay in the bound, so the
+  // search never counts down through the paste.
+  CHECK(textInput.limitShapeCount < 20);
+}
+
+TEST_CASE(
+    "maxLines keeps a large paste into a long paragraph within the limit",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  NoOpFactory factory;
+
+  std::string words;
+  for (int i = 0; i < 200; i++)
+  {
+    words += "word ";
+  }
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(300.0f);
+  textInput.insert(words);
+  textInput.update(&factory);
+  // One more line than the paragraph takes, then paste at its start: the
+  // rest of the paragraph spans far more than the count down's budget.
+  uint32_t lines = textInput.shape().lineCount();
+  textInput.maxLines(lines + 1);
+  textInput.cursor(Cursor::collapsed(CursorPosition(0)));
+  textInput.limitShapeCount = 0;
+
+  CHECK(textInput.insert(words));
+  textInput.update(&factory);
+  CHECK(textInput.shape().lineCount() <= lines + 1);
+  CHECK(textInput.text().size() > words.size());
+  CHECK(textInput.limitShapeCount < 100);
+}
+
+TEST_CASE("an empty right to left line holds its own break", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf");
+  NoOpFactory factory;
+
+  // Two line separators inside one right to left run: the middle line is
+  // empty and its break is the separator at index 2. Its iterator begins at
+  // the glyph before, the separator ending the line above.
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(900.0f);
+  textInput.insert("\xD8\xA8\xE2\x80\xA8\xE2\x80\xA8\xD8\xA8");
+  textInput.update(&factory);
+  const auto& shape = textInput.shape();
+  REQUIRE(shape.lineCount() == 3);
+  const OrderedLine& middle = shape.orderedLines()[1];
+  REQUIRE(middle.isEmpty());
+  REQUIRE(middle.lastRun()->dir() == TextDirection::rtl);
+
+  CHECK(middle.firstCodePointIndex(shape.glyphLookup()) == 2);
+  CHECK(middle.lastCodePointIndex(shape.glyphLookup()) == 2);
+  for (float x : {0.0f, 60.0f})
+  {
+    CHECK(CursorPosition::fromLineX(1, x, shape).codePointIndex() == 2);
+  }
+
+  // Its line boundaries are where the cursor already is.
+  textInput.cursor(Cursor::collapsed(CursorPosition(1, 2)));
+  textInput.cursorLeft(CursorBoundary::line);
+  CHECK(textInput.cursor().end().codePointIndex() == 2);
+  textInput.cursorRight(CursorBoundary::line);
+  CHECK(textInput.cursor().end().codePointIndex() == 2);
+}
+
+TEST_CASE(
+    "maxLines counts the lines an obscured input displays",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(10000.0f);
+  textInput.maxLines(1);
+
+  CHECK(textInput.insert("a\nb"));
+  CHECK(textInput.text() == "a");
+
+  // Obscured, the line break displays as a bullet on the same line.
+  textInput.text("");
+  textInput.obscured(true);
+  CHECK(textInput.insert("a\nb"));
+  CHECK(textInput.text() == "a\nb");
+}
+
+TEST_CASE("the maxLines check leaves measure() correct", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+  RawTextInput textInput;
+  textInput.font(font);
+  textInput.fontSize(32.0f);
+  textInput.sizing(TextSizing::autoHeight);
+  textInput.maxWidth(10000.0f);
+  textInput.insert("hello");
+  AABB before = textInput.measure(10000.0f, 10000.0f);
+
+  // A rejected insert shapes its candidate in the measuring shape.
+  textInput.maxLines(1);
+  CHECK_FALSE(textInput.insert("\nsecond line that is much wider"));
+  AABB after = textInput.measure(10000.0f, 10000.0f);
+  CHECK(after.width() == before.width());
+  CHECK(after.height() == before.height());
+}
 #endif

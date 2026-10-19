@@ -24,6 +24,8 @@ class RawTextInput
 public:
 #ifdef TESTING
   uint32_t measureCount = 0;
+  // Shapes run to check maxLines.
+  uint32_t limitShapeCount = 0;
 #endif
   RawTextInput();
 
@@ -85,6 +87,23 @@ public:
   bool obscured() const;
   void obscured(bool value);
 
+  // Most code points insert() lets the text grow to, 0 for no limit. Only
+  // edits are held to it: text set from outside and undo/redo are kept as
+  // they are, even when they exceed it.
+  uint32_t maxCharacters() const { return m_maxCharacters; }
+  void maxCharacters(uint32_t value) { m_maxCharacters = value; }
+
+  // Most displayed (wrapped) lines insert() lets the text grow to, 0 for no
+  // limit. Held to edits only, like maxCharacters.
+  uint32_t maxLines() const { return m_maxLines; }
+  void maxLines(uint32_t value) { m_maxLines = value; }
+
+  // Whether the layout hugs the text's width, so the field grows with its
+  // text up to the width measure() was last offered: maxLines then wraps
+  // there. Otherwise it wraps at maxWidth, where the text displays.
+  bool hugsWidth() const;
+  void hugsWidth(bool value);
+
   enum class Flags : uint8_t
   {
     none = 0,
@@ -92,7 +111,10 @@ public:
     selectionDirty = 1 << 1,
     separateSelectionText = 1 << 2,
     measureDirty = 1 << 3,
-    obscured = 1 << 4
+    obscured = 1 << 4,
+    // measure() has run, so the layout's width is known.
+    measured = 1 << 5,
+    hugsWidth = 1 << 6
   };
 
   Flags update(Factory* factory);
@@ -116,8 +138,11 @@ public:
     return m_cursorVisualPosition;
   }
 
-  void insert(const std::string& text);
-  void insert(Unichar codePoint);
+  // Replace the selection with text, truncated to what fits within
+  // maxCharacters and maxLines. Returns false, changing nothing, when none
+  // of it fits.
+  bool insert(const std::string& text);
+  bool insert(Unichar codePoint);
   void erase();
   void backspace(int32_t direction);
 
@@ -198,6 +223,12 @@ private:
 
   const OrderedLine* orderedLine(CursorPosition position) const;
 
+  bool insertCodePoints(Span<const Unichar> codePoints);
+  size_t fittingCount(Span<const Unichar> codePoints);
+  uint32_t lineCountWith(
+      Span<const Unichar> codePoints,
+      size_t count,
+      bool withRestOfParagraph);
   void ensureShape();
   std::vector<Unichar>& shapeableText();
   void buildTextPaths(Factory* factory);
@@ -241,6 +272,7 @@ private:
   std::vector<AABB> m_selectionRects;
 
   float m_selectionCornerRadius = 5.0f;
+  uint32_t m_maxCharacters = 0;
 
   struct JournalEntry
   {
@@ -250,6 +282,7 @@ private:
   };
   std::vector<JournalEntry> m_journal;
   uint32_t m_journalIndex = 0;
+  uint32_t m_maxLines = 0;
 };
 
 // Helper for performing bitwise and with Delineator.

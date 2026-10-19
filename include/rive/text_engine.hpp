@@ -582,6 +582,14 @@ public:
   float y() const { return m_y; }
   float bottom() const;
 
+  // An empty line holds only the line break that ends it, which belongs to
+  // no line.
+  bool isEmpty() const { return !(begin() != end()); }
+  // Where a cursor on an empty line sits: just before its line break. Found
+  // by the break's own glyph, as iterating can't reach it: an empty right to
+  // left line begins at the glyph before.
+  bool emptyLineCodePointIndex(uint32_t& outIndex) const;
+
   uint32_t firstCodePointIndex(const GlyphLookup& glyphLookup) const;
   uint32_t lastCodePointIndex(const GlyphLookup& glyphLookup) const;
   bool containsCodePointIndex(

@@ -1006,6 +1006,51 @@ bool LayoutComponent::isLeaf()
   return leaf;
 }
 
+bool LayoutComponent::usesLegacyHugEncoding()
+{
+#ifdef WITH_RIVE_LAYOUT
+  return m_style != nullptr &&
+         m_style->widthScaleType() == LayoutScaleType::fixed &&
+         m_style->heightScaleType() == LayoutScaleType::fixed &&
+         m_style->intrinsicallySized() && isLeaf();
+#else
+  return false;
+#endif
+}
+
+bool LayoutComponent::hugsContentWidth()
+{
+#ifdef WITH_RIVE_LAYOUT
+  if (m_style == nullptr)
+  {
+    return false;
+  }
+  // Mirrors the width units applyBaseStyle hands the layout engine: content
+  // sizes the width wherever they come out auto, apart from a fill.
+  switch (m_style->widthScaleType())
+  {
+    case LayoutScaleType::hug:
+      return true;
+    case LayoutScaleType::fill:
+      return false;
+    case LayoutScaleType::fixed:
+      break;
+  }
+  YGUnit units = m_style->widthUnits();
+  if (m_style->positionType() == YGPositionTypeAbsolute)
+  {
+    return units == YGUnitAuto;
+  }
+  if (units == YGUnitPoint || units == YGUnitPercent)
+  {
+    return false;
+  }
+  return usesLegacyHugEncoding();
+#else
+  return false;
+#endif
+}
+
 void* LayoutComponent::layoutNode(int index)
 {
   if (m_layoutData != nullptr)
@@ -1059,11 +1104,7 @@ void LayoutComponent::applyBaseStyle(
   //     positionType becomes absolute, since absolute children sit outside
   //     flex flow).
   bool isAbsolute = m_style->positionType() == YGPositionTypeAbsolute;
-  bool isLegacyHugEncoding = m_style->widthScaleType() ==
-                                 LayoutScaleType::fixed &&
-                             m_style->heightScaleType() ==
-                                 LayoutScaleType::fixed &&
-                             m_style->intrinsicallySized() && isLeaf();
+  bool isLegacyHugEncoding = usesLegacyHugEncoding();
   auto effectiveUnits =
       [isAbsolute,
        isLegacyHugEncoding](LayoutScaleType scaleType, YGUnit storedUnits) {

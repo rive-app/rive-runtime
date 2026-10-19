@@ -104,8 +104,24 @@ OrderedLine::OrderedLine(
   m_runs = std::move(logicalRuns);
 }
 
+bool OrderedLine::emptyLineCodePointIndex(uint32_t& outIndex) const
+{
+  if (!isEmpty() || m_startLogical == nullptr ||
+      m_startGlyphIndex >= m_startLogical->textIndices.size())
+  {
+    return false;
+  }
+  outIndex = m_startLogical->textIndices[m_startGlyphIndex];
+  return true;
+}
+
 uint32_t OrderedLine::firstCodePointIndex(const GlyphLookup& glyphLookup) const
 {
+  uint32_t breakIndex;
+  if (emptyLineCodePointIndex(breakIndex))
+  {
+    return std::min(breakIndex, glyphLookup.lastCodePointIndex() - 1);
+  }
   GlyphItr index = begin();
   auto glyphIndex = index.glyphIndex();
   auto run = index.run();
@@ -122,6 +138,13 @@ uint32_t OrderedLine::firstCodePointIndex(const GlyphLookup& glyphLookup) const
 
 uint32_t OrderedLine::lastCodePointIndex(const GlyphLookup& glyphLookup) const
 {
+  // Counting an empty line's break would run it into the start of the next
+  // line.
+  uint32_t breakIndex;
+  if (emptyLineCodePointIndex(breakIndex))
+  {
+    return std::min(breakIndex, glyphLookup.lastCodePointIndex() - 1);
+  }
   GlyphItr index = begin();
   GlyphItr lastIndex = index;
 

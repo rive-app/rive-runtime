@@ -28,6 +28,8 @@ public:
   static const uint16_t verticalAlignValuePropertyKey = 1094;
   static const uint16_t obscuredPropertyKey = 1095;
   static const uint16_t selectAllOnFocusPropertyKey = 1099;
+  static const uint16_t maxCharactersPropertyKey = 489;
+  static const uint16_t maxLinesPropertyKey = 490;
 
 protected:
   std::string m_Text = "";
@@ -37,6 +39,8 @@ protected:
   uint32_t m_VerticalAlignValue = 0;
   bool m_Obscured = false;
   bool m_SelectAllOnFocus = false;
+  uint32_t m_MaxCharacters = 0;
+  uint32_t m_MaxLines = 0;
 
 public:
   inline const std::string& text() const { return m_Text; }
@@ -138,6 +142,32 @@ public:
     notifyPropertyChanged(selectAllOnFocusPropertyKey);
   }
 
+  inline uint32_t maxCharacters() const { return m_MaxCharacters; }
+  void maxCharacters(uint32_t value)
+  {
+    if (m_MaxCharacters == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_CHANGING(maxCharactersPropertyKey, &m_MaxCharacters, &value);
+    m_MaxCharacters = value;
+    RIVE_EDITOR_CHANGED(maxCharactersChanged());
+    notifyPropertyChanged(maxCharactersPropertyKey);
+  }
+
+  inline uint32_t maxLines() const { return m_MaxLines; }
+  void maxLines(uint32_t value)
+  {
+    if (m_MaxLines == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_CHANGING(maxLinesPropertyKey, &m_MaxLines, &value);
+    m_MaxLines = value;
+    RIVE_EDITOR_CHANGED(maxLinesChanged());
+    notifyPropertyChanged(maxLinesPropertyKey);
+  }
+
   Core* clone() const override;
   void copy(const TextInputBase& object)
   {
@@ -148,6 +178,8 @@ public:
     m_VerticalAlignValue = object.m_VerticalAlignValue;
     m_Obscured = object.m_Obscured;
     m_SelectAllOnFocus = object.m_SelectAllOnFocus;
+    m_MaxCharacters = object.m_MaxCharacters;
+    m_MaxLines = object.m_MaxLines;
     RIVE_EDITOR_COPY(object);
     Drawable::copy(object);
   }
@@ -177,6 +209,12 @@ public:
       case selectAllOnFocusPropertyKey:
         m_SelectAllOnFocus = CoreBoolType::deserialize(reader);
         return true;
+      case maxCharactersPropertyKey:
+        m_MaxCharacters = CoreUintType::deserialize(reader);
+        return true;
+      case maxLinesPropertyKey:
+        m_MaxLines = CoreUintType::deserialize(reader);
+        return true;
     }
     RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
     return Drawable::deserialize(propertyKey, reader);
@@ -189,6 +227,8 @@ protected:
   virtual void alignValueChanged() {}
   virtual void verticalAlignValueChanged() {}
   virtual void obscuredChanged() {}
+  virtual void maxCharactersChanged() {}
+  virtual void maxLinesChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_input_ext.inl"
 #endif

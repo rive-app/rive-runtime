@@ -1886,6 +1886,12 @@ public:
       case TextInputBase::verticalAlignValuePropertyKey:
         object->as<TextInputBase>()->verticalAlignValue(value);
         break;
+      case TextInputBase::maxCharactersPropertyKey:
+        object->as<TextInputBase>()->maxCharacters(value);
+        break;
+      case TextInputBase::maxLinesPropertyKey:
+        object->as<TextInputBase>()->maxLines(value);
+        break;
       case TextStyleAxisBase::tagPropertyKey:
         object->as<TextStyleAxisBase>()->tag(value);
         break;
@@ -3937,6 +3943,10 @@ public:
         return object->as<TextInputBase>()->alignValue();
       case TextInputBase::verticalAlignValuePropertyKey:
         return object->as<TextInputBase>()->verticalAlignValue();
+      case TextInputBase::maxCharactersPropertyKey:
+        return object->as<TextInputBase>()->maxCharacters();
+      case TextInputBase::maxLinesPropertyKey:
+        return object->as<TextInputBase>()->maxLines();
       case TextStyleAxisBase::tagPropertyKey:
         return object->as<TextStyleAxisBase>()->tag();
       case TextBase::alignValuePropertyKey:
@@ -5185,6 +5195,8 @@ public:
       case TextModifierGroupBase::modifierFlagsPropertyKey:
       case TextInputBase::alignValuePropertyKey:
       case TextInputBase::verticalAlignValuePropertyKey:
+      case TextInputBase::maxCharactersPropertyKey:
+      case TextInputBase::maxLinesPropertyKey:
       case TextStyleAxisBase::tagPropertyKey:
       case TextBase::alignValuePropertyKey:
       case TextBase::sizingValuePropertyKey:
@@ -6193,6 +6205,10 @@ public:
       case TextInputBase::alignValuePropertyKey:
         return TextInputBase::typeKey;
       case TextInputBase::verticalAlignValuePropertyKey:
+        return TextInputBase::typeKey;
+      case TextInputBase::maxCharactersPropertyKey:
+        return TextInputBase::typeKey;
+      case TextInputBase::maxLinesPropertyKey:
         return TextInputBase::typeKey;
       case TextStyleAxisBase::tagPropertyKey:
         return TextStyleAxisBase::typeKey;

@@ -115,6 +115,21 @@ void TextInput::obscuredChanged()
   markShapeDirty();
 }
 
+// The limits only hold back later edits, so nothing displayed changes.
+void TextInput::maxCharactersChanged()
+{
+#ifdef WITH_RIVE_TEXT
+  m_rawTextInput.maxCharacters(maxCharacters());
+#endif
+}
+
+void TextInput::maxLinesChanged()
+{
+#ifdef WITH_RIVE_TEXT
+  m_rawTextInput.maxLines(maxLines());
+#endif
+}
+
 void TextInput::alignValueChanged()
 {
   updateAlignment();
@@ -282,6 +297,8 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
     m_rawTextInput.fontSize(m_textStyle->fontSize());
   }
   m_rawTextInput.obscured(obscured());
+  m_rawTextInput.maxCharacters(maxCharacters());
+  m_rawTextInput.maxLines(maxLines());
   syncDisplayedTextFromSource(false);
 #endif
 
@@ -418,6 +435,14 @@ void TextInput::controlSize(
 {
   m_layoutWidth = size.x;
   m_layoutHeight = size.y;
+#ifdef WITH_RIVE_TEXT
+  // A legacy file encodes a hugging layout as fixed scales, so ask the layout
+  // sizing us rather than going by the scale type alone.
+  LayoutComponent* layout = contentSizingLayout(parent());
+  m_rawTextInput.hugsWidth(
+      widthScaleType == LayoutScaleType::hug ||
+      (layout != nullptr && layout->hugsContentWidth()));
+#endif
   updateMultiline();
 }
 
@@ -650,9 +675,13 @@ bool TextInput::keyInput(
         {
           return false;
         }
-        m_rawTextInput.insert("\n");
-        syncSourceTextFromRaw();
-        markPaintDirty();
+        // Handled even when the limits refuse it, which leaves the source
+        // text alone.
+        if (m_rawTextInput.insert("\n"))
+        {
+          syncSourceTextFromRaw();
+          markPaintDirty();
+        }
         return true;
       default:
         return false;
@@ -670,9 +699,14 @@ bool TextInput::textInput(const std::string& value)
   {
     return true;
   }
-  m_rawTextInput.insert(textToInsert);
-  syncSourceTextFromRaw();
-  markShapeDirty();
+  // A refused insert changes nothing, so the source text stays as it is:
+  // syncing it from the display would turn a single line input's line
+  // breaks into the spaces it shows them as.
+  if (m_rawTextInput.insert(textToInsert))
+  {
+    syncSourceTextFromRaw();
+    markShapeDirty();
+  }
 #endif
   return true;
 }

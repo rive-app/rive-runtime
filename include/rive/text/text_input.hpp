@@ -118,6 +118,8 @@ protected:
   void alignValueChanged() override;
   void verticalAlignValueChanged() override;
   void obscuredChanged() override;
+  void maxCharactersChanged() override;
+  void maxLinesChanged() override;
 
 private:
   /// Push the current alignment and the width to align it within down to the
