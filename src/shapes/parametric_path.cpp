@@ -31,8 +31,10 @@ void ParametricPath::controlSize(
     LayoutScaleType heightScaleType,
     LayoutDirection direction)
 {
+  m_layoutControllingSize = true;
   width(size.x);
   height(size.y);
+  m_layoutControllingSize = false;
   markWorldTransformDirty();
   markPathDirty(false);
 }
@@ -65,7 +67,10 @@ void ParametricPath::markPathDirty(bool sendToLayout)
 #endif
 }
 
-void ParametricPath::widthChanged() { markPathDirty(); }
-void ParametricPath::heightChanged() { markPathDirty(); }
+void ParametricPath::widthChanged() { markPathDirty(!m_layoutControllingSize); }
+void ParametricPath::heightChanged()
+{
+  markPathDirty(!m_layoutControllingSize);
+}
 void ParametricPath::originXChanged() { markPathDirty(); }
 void ParametricPath::originYChanged() { markPathDirty(); }

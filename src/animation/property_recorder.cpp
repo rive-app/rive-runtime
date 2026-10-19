@@ -87,7 +87,12 @@ void PropertyRecorder::complete(
 
 void PropertyRecorder::recordArtboard(const Artboard* artboard)
 {
-  auto sm = artboard->stateMachine(0);
+  // The machine a list row runs: the artboard's default, else the first (see
+  // ArtboardComponentList::createStateMachineInstance). Recording another one
+  // resets the wrong inputs and properties when the row is reused.
+  const int defaultIndex = artboard->defaultStateMachineIndex();
+  auto sm = artboard->stateMachine(
+      defaultIndex >= 0 ? static_cast<size_t>(defaultIndex) : 0u);
   recordStateMachineInputs(sm);
   recordStateMachine(sm);
   recordDataBinds(artboard);
@@ -322,11 +327,15 @@ void PropertyRecorder::apply(StateMachineInstance* stateMachineInstace)
   while (!m_binaryReaderSM.isEOF() && index < 20)
   {
     auto inputType = m_binaryReaderSM.readVarUint32();
+    // An instance of a machine with fewer inputs than were recorded has none
+    // at this index; the value is still read to stay aligned.
     auto smInput = stateMachineInstace->input(index);
     if (inputType == 0)
     {
       auto value = m_binaryReaderSM.readFloat32();
-      auto smInputNumber = stateMachineInstace->getNumber(smInput->name());
+      auto smInputNumber = smInput != nullptr
+                               ? stateMachineInstace->getNumber(smInput->name())
+                               : nullptr;
       if (smInputNumber != nullptr)
       {
         smInputNumber->value(value);
@@ -335,7 +344,9 @@ void PropertyRecorder::apply(StateMachineInstance* stateMachineInstace)
     else if (inputType == 1)
     {
       auto value = m_binaryReaderSM.readByte();
-      auto smInputBool = stateMachineInstace->getBool(smInput->name());
+      auto smInputBool = smInput != nullptr
+                             ? stateMachineInstace->getBool(smInput->name())
+                             : nullptr;
       if (smInputBool != nullptr)
       {
         smInputBool->value(value);

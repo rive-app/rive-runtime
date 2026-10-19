@@ -81,6 +81,7 @@ public:
   {
     return m_scriptedObjects;
   }
+  bool hasScriptedObjects() const { return !m_scriptedObjects.empty(); }
 
   const StateMachineInput* input(std::string name) const;
   const StateMachineInput* input(size_t index) const;

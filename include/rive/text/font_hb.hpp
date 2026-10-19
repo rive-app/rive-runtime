@@ -164,6 +164,10 @@ private:
   std::vector<hb_color_t> m_paletteColors;
   mutable std::unordered_map<rive::GlyphID, std::vector<ColorGlyphLayer>>
       m_colorLayerCache;
+  // Outlines already drawn, so a text that reshapes (or a list row made for
+  // a new item) copies its glyphs instead of walking the glyf table again.
+  // Bounded; it starts over once full.
+  mutable std::unordered_map<rive::GlyphID, rive::RawPath> m_glyphPathCache;
 };
 
 #endif

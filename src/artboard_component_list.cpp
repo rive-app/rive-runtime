@@ -422,6 +422,79 @@ void ArtboardComponentList::disposeListItem(
   removeArtboard(listItem);
 }
 
+void ArtboardComponentList::poolListItem(
+    const rcp<ViewModelInstanceListItem>& listItem)
+{
+  auto artboard = findArtboard(listItem);
+  auto itr = m_artboardInstancesMap.find(listItem);
+  // A row that hosts artboards (nested artboards, lists, artboard paints)
+  // carries their state machines' progress, and a row that runs scripts
+  // carries their state; reuse resets neither. Such a row is destroyed
+  // rather than handed to another item.
+  if (artboard == nullptr || artboard->hostsArtboards() ||
+      artboard->usesScripts() || itr == m_artboardInstancesMap.end() ||
+      itr->second == nullptr)
+  {
+    removeArtboard(listItem);
+    return;
+  }
+  // What removeArtboard does for a row it destroys, minus the destroy: the
+  // row leaves the semantic and focus trees and its override, then the
+  // instances move to the pools (state machine paired with its artboard,
+  // since reuse pops both from the back).
+  auto smItr = m_stateMachinesMap.find(listItem);
+  StateMachineInstance* stateMachine = smItr != m_stateMachinesMap.end()
+                                           ? smItr->second.get()
+                                           : nullptr;
+  if (stateMachine != nullptr)
+  {
+    // Through the state machine, which also forgets the list's manager:
+    // reuse hands the same manager back, and an unchanged manager would not
+    // build the new item's tree.
+    stateMachine->setExternalSemanticManager(nullptr, nullptr);
+  }
+  itr->second->cleanupSemanticTree();
+  itr->second->cleanupFocusTree();
+  clearArtboardOverride(itr->second.get());
+  m_resourcePool[artboard].push_back(std::move(itr->second));
+  if (stateMachine != nullptr)
+  {
+    m_stateMachinesPool[artboard].push_back(std::move(smItr->second));
+  }
+  removeArtboard(listItem);
+}
+
+void ArtboardComponentList::createOrReuseArtboardAt(int index)
+{
+  auto item = listItem(index);
+  auto artboard = item != nullptr ? findArtboard(item) : nullptr;
+  if (artboard == nullptr)
+  {
+    createArtboardAt(index, false);
+    return;
+  }
+  auto poolItr = m_resourcePool.find(artboard);
+  if (poolItr == m_resourcePool.end() || poolItr->second.empty())
+  {
+    createArtboardAt(index, false);
+    return;
+  }
+  createArtboardRecorders(artboard);
+  auto& pool = poolItr->second;
+  auto pooledArtboard = std::move(pool.back());
+  pool.pop_back();
+  applyRecorders(pooledArtboard.get(), artboard);
+  attachArtboardOverride(pooledArtboard.get(), item);
+  addArtboardAt(std::move(pooledArtboard), index, false);
+}
+
+void ArtboardComponentList::releasePools()
+{
+  // State machines before the artboards they drive (see clear()).
+  m_stateMachinesPool.clear();
+  m_resourcePool.clear();
+}
+
 std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
     Component* target,
     rcp<ViewModelInstanceListItem> listItem) const
@@ -654,6 +727,16 @@ void ArtboardComponentList::syncListRowNodesWithList(
   const int n = static_cast<int>(m_listItems.size());
   if (n == 0)
   {
+    // The rows leave the scope with their items, as they do below for the
+    // items a non-empty list drops. Clearing only our references left them
+    // under the scope, so every list emptied and refilled grew it.
+    for (const auto& row : previousRowNodes)
+    {
+      if (row != nullptr && row->manager() != nullptr)
+      {
+        row->manager()->removeChild(row);
+      }
+    }
     m_listRowFocusNodes.clear();
     return;
   }
@@ -868,14 +951,21 @@ void ArtboardComponentList::updateList(
   // We need to dispose old items after the layout children of the parent have
   // updated to ensure no bad YGNodes are being hosted from the old data
   // during clearLayoutChildren.
+  const bool virtualized = virtualizationEnabled();
   for (const auto& item : preListItems)
   {
     if (!std::binary_search(sorted.begin(), sorted.end(), item.get()))
     {
-      disposeListItem(item);
+      if (virtualized)
+      {
+        disposeListItem(item);
+      }
+      else
+      {
+        poolListItem(item);
+      }
     }
   }
-  const bool virtualized = virtualizationEnabled();
   uint32_t index = 0;
   for (auto& item : m_listItems)
   {
@@ -900,9 +990,26 @@ void ArtboardComponentList::updateList(
     }
     else if (!virtualized)
     {
-      createArtboardAt(index, false);
+      createOrReuseArtboardAt(index);
+      // Enter the new row's initial state now, the way the settle pass would
+      // a step later, so the first layout solve and text shape already see
+      // what that state keys (font sizes, visibility). Otherwise the row is
+      // laid out and shaped twice in its first frame. Only when the host
+      // advances the rows' state machines at all: one that doesn't (an
+      // editor in design mode) shows rows as authored.
+      auto stateMachine = m_stateMachinesByIndex[index];
+      if (m_advancesNested && stateMachine != nullptr &&
+          stateMachine->tryChangeState())
+      {
+        stateMachine->advance(0.0f, false);
+      }
     }
     index++;
+  }
+  if (!virtualized)
+  {
+    // Rows nothing took are the ones this update removed for good.
+    releasePools();
   }
   m_itemsVersion = ++s_itemsVersion;
   computeLayoutBounds();
@@ -1196,6 +1303,8 @@ bool ArtboardComponentList::advanceComponent(
     float elapsedSeconds,
     AdvanceFlags flags)
 {
+  m_advancesNested = (flags & AdvanceFlags::AdvanceNested) ==
+                     AdvanceFlags::AdvanceNested;
   if (artboardCount() == 0)
   {
     return false;

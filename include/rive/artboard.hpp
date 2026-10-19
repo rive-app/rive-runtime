@@ -462,6 +462,10 @@ public:
   const Mat2D& shapeWorldTransform() const override { return worldTransform(); }
   Component* virtualizableComponent() override { return this; }
   bool updatesOwnLayout() { return m_updatesOwnLayout; }
+  // Layouts marked dirty since the last solve. A layout dirtied while the
+  // components update (a row's first cascade, a text that reshaped) waits
+  // for the next updatePass to be solved.
+  bool hasDirtyLayout() const { return !m_dirtyLayout.empty(); }
   StatusCode onAddedClean(CoreContext* context) override;
   void addDirtyDataBind(DataBind*) override;
 
@@ -790,6 +794,10 @@ public:
   /// Whether this artboard holds nested artboards or artboard lists, which
   /// make state machines of their own as they advance.
   bool hostsArtboards() const { return !m_ArtboardHosts.empty(); }
+  /// Whether this artboard runs scripts: scripted components, scripts in its
+  /// state machines, or scripted converters on their data binds. Each
+  /// instance keeps its scripts' state. Walks the artboard on every call.
+  bool usesScripts() const;
   const std::vector<ArtboardComponentList*> artboardComponentLists() const
   {
     return m_ComponentLists;

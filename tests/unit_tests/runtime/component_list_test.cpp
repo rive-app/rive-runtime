@@ -2,10 +2,13 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/input/focus_manager.hpp"
+#include "rive/input/focus_node.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -243,7 +246,8 @@ TEST_CASE("Number To List Artboard Count", "[component_list]")
 
   artboard->advance(0.0f);
 
-  REQUIRE(list->syncStyleChanges() == true);
+  // The advance laid the rows out and left no style changes behind.
+  REQUIRE(list->syncStyleChanges() == false);
   REQUIRE(list->artboardCount() == 12);
   REQUIRE(list->layoutNode(13) == nullptr);
   REQUIRE(list->artboardInstance(13) == nullptr);
@@ -1652,4 +1656,327 @@ TEST_CASE(
 
   REQUIRE(list->artboardCount() == 23);
   CHECK(scope->children().size() == 23);
+}
+
+// Emptying a list takes its rows out of the focus scope too, so a list that
+// is emptied and refilled holds only the rows of its new items.
+TEST_CASE(
+    "Component List drops its focus rows when it empties",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  auto scope = list->listScopeFocusNode();
+  REQUIRE(scope != nullptr);
+  REQUIRE(list->artboardCount() > 0);
+  CHECK(scope->children().size() == list->artboardCount());
+
+  rive::ViewModelInstanceList* items = nullptr;
+  for (auto& value : viewModelInstance->propertyValues())
+  {
+    if (value->is<rive::ViewModelInstanceList>())
+    {
+      items = value->as<rive::ViewModelInstanceList>();
+      break;
+    }
+  }
+  REQUIRE(items != nullptr);
+  auto viewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+
+  items->removeAllItems();
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(list->artboardCount() == 0);
+  CHECK(scope->children().empty());
+
+  for (int i = 0; i < 3; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(viewModel));
+    items->addItem(item);
+  }
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(list->artboardCount() == 3);
+  CHECK(scope->children().size() == 3);
+}
+
+// A row runs its artboard's default state machine, which need not be the
+// first. When the list reuses the row for a new item, that machine's inputs go
+// back to their authored values.
+TEST_CASE(
+    "Component List reuses a row that runs a later default state machine",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_default_state_machine.riv");
+
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+  auto rowMachine = list->stateMachineInstance(0);
+  REQUIRE(rowMachine != nullptr);
+  CHECK(rowMachine->name() == "Default");
+  auto level = rowMachine->getNumber("level");
+  REQUIRE(level != nullptr);
+  CHECK(level->value() == 5.0f);
+  level->value(9.0f);
+
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  items->removeAllItems();
+  auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+  items->addItem(item);
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(list->artboardCount() == 1);
+  auto reusedMachine = list->stateMachineInstance(0);
+  REQUIRE(reusedMachine == rowMachine);
+  CHECK(reusedMachine->name() == "Default");
+  CHECK(reusedMachine->getNumber("level")->value() == 5.0f);
+}
+
+// Taking a focused row out of a list blurs it, which queues the blur on the
+// row's state machine. When the list reuses that row for a new item, the
+// blur's actions must not run against the new item.
+TEST_CASE(
+    "Component List reuses a focused row without replaying its blur",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/semantic/data_binding_lists.riv");
+
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  // Let the menu finish opening, so its rows can take focus.
+  for (int frame = 0; frame < 10; frame++)
+  {
+    stateMachine->advanceAndApply(0.1f);
+  }
+  auto* focusManager = stateMachine->focusManager();
+  REQUIRE(focusManager != nullptr);
+
+  auto items = viewModelInstance->propertyValue("menu")
+                   ->as<rive::ViewModelInstanceList>();
+  REQUIRE(items->listItems().size() == 4);
+  rive::ArtboardComponentList* list = nullptr;
+  for (auto* candidate : artboard->artboardComponentLists())
+  {
+    if (candidate->artboardCount() > 0 &&
+        candidate->listItem(0) == items->listItems()[0])
+    {
+      list = candidate;
+    }
+  }
+  REQUIRE(list != nullptr);
+  REQUIRE(list->virtualizationEnabled() == false);
+
+  auto hovered = [](rive::ViewModelInstance* item) {
+    return item->propertyValue("isHovered")
+        ->as<rive::ViewModelInstanceBoolean>();
+  };
+
+  // Focus the first row: its focus listener sets the item's isHovered.
+  auto scope = list->listScopeFocusNode();
+  REQUIRE(scope != nullptr);
+  REQUIRE(!scope->children().empty());
+  auto row = scope->children()[0];
+  REQUIRE(!row->children().empty());
+  focusManager->setFocus(row->children()[0]);
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(
+      hovered(items->listItems()[0]->viewModelInstance().get())
+          ->propertyValue() == true);
+
+  // Replace every item with a new one that starts hovered. The rows are
+  // reused, the focused one included.
+  auto itemViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  std::vector<rive::rcp<rive::ViewModelInstance>> replacements;
+  items->removeAllItems();
+  for (int i = 0; i < 4; i++)
+  {
+    auto replacement = file->createDefaultViewModelInstance(itemViewModel);
+    hovered(replacement.get())->propertyValue(true);
+    replacements.push_back(replacement);
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(replacement);
+    items->addItem(item);
+  }
+  for (int frame = 0; frame < 3; frame++)
+  {
+    stateMachine->advanceAndApply(0.016f);
+  }
+
+  REQUIRE(list->artboardCount() == 4);
+  for (auto& replacement : replacements)
+  {
+    CHECK(hovered(replacement.get())->propertyValue() == true);
+  }
+}
+
+// A list enters a new row's initial state before its first layout only when
+// its host advances nested state machines. A host that doesn't, like an
+// editor in design mode, keeps new rows at their authored values.
+TEST_CASE(
+    "Component List leaves new rows authored without nested advancing",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_default_state_machine.riv");
+
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  const auto designFlags = rive::AdvanceFlags::Animate |
+                           rive::AdvanceFlags::NewFrame;
+  const auto playFlags = designFlags | rive::AdvanceFlags::AdvanceNested;
+  artboard->advance(0.0f, designFlags);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+  // The row's initial state grows its bar from the authored 100 to 150.
+  auto barWidth = [&](int index) {
+    auto bar = list->artboardInstance(index)->find<rive::Rectangle>("Bar Path");
+    REQUIRE(bar != nullptr);
+    return bar->width();
+  };
+  CHECK(barWidth(0) == 100.0f);
+
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  auto addRow = [&]() {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+    items->addItem(item);
+  };
+
+  addRow();
+  artboard->advance(0.0f, designFlags);
+  REQUIRE(list->artboardCount() == 2);
+  CHECK(barWidth(1) == 100.0f);
+
+  // Advancing nested state machines enters the rows' states, and a row added
+  // then starts in its state.
+  artboard->advance(0.0f, playFlags);
+  CHECK(barWidth(0) == 150.0f);
+  CHECK(barWidth(1) == 150.0f);
+  addRow();
+  artboard->advance(0.0f, playFlags);
+  REQUIRE(list->artboardCount() == 3);
+  CHECK(barWidth(2) == 150.0f);
+}
+
+// A list doesn't reuse rows that run scripts, since each row keeps its
+// scripts' state. Scripts can sit on the artboard, in its state machines or
+// in the converters of its data binds.
+TEST_CASE("Artboard knows whether it runs scripts", "[component_list]")
+{
+  auto component = ReadRiveFile("assets/clear_viewmodel_list.riv");
+  REQUIRE(component->artboard("Artboard") != nullptr);
+  CHECK(component->artboard("Artboard")->usesScripts());
+  REQUIRE(component->artboard("Child") != nullptr);
+  CHECK_FALSE(component->artboard("Child")->usesScripts());
+
+  auto listenerAction = ReadRiveFile("assets/listener_action_inputs.riv");
+  REQUIRE(listenerAction->artboard("Artboard") != nullptr);
+  CHECK(listenerAction->artboard("Artboard")->usesScripts());
+
+  auto converter = ReadRiveFile("assets/script_color_data_test.riv");
+  REQUIRE(converter->artboard("Artboard") != nullptr);
+  CHECK(converter->artboard("Artboard")->usesScripts());
+
+  auto plain = ReadRiveFile("assets/component_list_default_state_machine.riv");
+  REQUIRE(plain->artboard("Row") != nullptr);
+  CHECK_FALSE(plain->artboard("Row")->usesScripts());
+}
+
+// A row reused for a new item forgets the pointers its old item was
+// tracking. A press on the old item doesn't become a click on the new one.
+TEST_CASE(
+    "Component List reuses a pressed row without its press",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_row_click.riv");
+
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto clicked = [](rive::ViewModelInstance* item) {
+    return item->propertyValue("clicked")
+        ->as<rive::ViewModelInstanceBoolean>()
+        ->propertyValue();
+  };
+  const rive::Vec2D overRow(100.0f, 20.0f);
+
+  // A press and release over the row clicks it.
+  stateMachine->pointerDown(overRow);
+  stateMachine->pointerUp(overRow);
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(clicked(items->listItems()[0]->viewModelInstance().get()));
+
+  // Press the row, then replace its item in one update: the list reuses the
+  // row for the new item.
+  stateMachine->pointerDown(overRow);
+  stateMachine->advanceAndApply(0.016f);
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  items->removeAllItems();
+  auto replacement = file->createDefaultViewModelInstance(rowViewModel);
+  auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  item->viewModelInstance(replacement);
+  items->addItem(item);
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(list->artboardCount() == 1);
+
+  // Releasing over it doesn't click the new item, which was never pressed.
+  stateMachine->pointerUp(overRow);
+  stateMachine->advanceAndApply(0.016f);
+  CHECK_FALSE(clicked(replacement.get()));
+
+  // A press and release on the new item still clicks it.
+  stateMachine->pointerDown(overRow);
+  stateMachine->pointerUp(overRow);
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(clicked(replacement.get()));
 }

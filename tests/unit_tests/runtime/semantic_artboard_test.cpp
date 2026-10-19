@@ -18,6 +18,9 @@
 #include <rive/semantic/semantic_trait.hpp>
 #include <rive/viewmodel/viewmodel_instance.hpp>
 #include <rive/viewmodel/viewmodel_instance_artboard.hpp>
+#include <rive/viewmodel/viewmodel_instance_list.hpp>
+#include <rive/viewmodel/viewmodel_instance_list_item.hpp>
+#include <rive/viewmodel/viewmodel_instance_string.hpp>
 #include "rive_file_reader.hpp"
 #include "semantic_test_helpers.hpp"
 #include <catch.hpp>
@@ -316,6 +319,50 @@ TEST_CASE(
       }
     }
     CHECK(count == 4);
+  }
+}
+
+TEST_CASE(
+    "Replacing every list item keeps the new rows in the semantic tree",
+    "[semantics][artboard]")
+{
+  auto s = loadDataBindingLists();
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
+
+  // Replacing the items in one update reuses their rows for the new items.
+  auto items = s.fixture.vmi->propertyValue("menu")
+                   ->as<ViewModelInstanceList>();
+  REQUIRE(items->listItems().size() == 4);
+  auto itemViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  const std::set<std::string> replacementLabels = {
+      "First replacement",
+      "Second replacement",
+      "Third replacement",
+      "Fourth replacement",
+  };
+  items->removeAllItems();
+  for (const auto& label : replacementLabels)
+  {
+    auto replacement = s.fixture.file->createDefaultViewModelInstance(
+        itemViewModel);
+    replacement->propertyValue("label")
+        ->as<ViewModelInstanceString>()
+        ->propertyValue(label);
+    auto item = make_rcp<ViewModelInstanceListItem>();
+    item->viewModelInstance(replacement);
+    items->addItem(item);
+  }
+  s.settle();
+
+  CHECK(s.fandomLabelsPresent().empty());
+  auto* mgr = s.sm()->semanticManager();
+  for (const auto& label : replacementLabels)
+  {
+    CAPTURE(label);
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    CHECK(entry->role == static_cast<uint32_t>(SemanticRole::text));
+    CHECK(mgr->nodeById(entry->id) != nullptr);
   }
 }
 

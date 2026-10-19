@@ -421,6 +421,13 @@ void LayoutComponent::update(ComponentDirt value)
 
 void LayoutComponent::widthOverride(float width, int unitValue, bool isRow)
 {
+  if ((m_widthOverride == width ||
+       (std::isnan(m_widthOverride) && std::isnan(width))) &&
+      m_widthUnitValueOverride == unitValue &&
+      hasLayoutFlag(LayoutComponentFlags::ParentIsRow) == isRow)
+  {
+    return;
+  }
   m_widthOverride = width;
   m_widthUnitValueOverride = static_cast<int8_t>(unitValue);
   setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
@@ -429,6 +436,13 @@ void LayoutComponent::widthOverride(float width, int unitValue, bool isRow)
 
 void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
 {
+  if ((m_heightOverride == height ||
+       (std::isnan(m_heightOverride) && std::isnan(height))) &&
+      m_heightUnitValueOverride == unitValue &&
+      hasLayoutFlag(LayoutComponentFlags::ParentIsRow) == isRow)
+  {
+    return;
+  }
   m_heightOverride = height;
   m_heightUnitValueOverride = static_cast<int8_t>(unitValue);
   setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
@@ -437,6 +451,10 @@ void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
 
 void LayoutComponent::parentIsRow(bool isRow)
 {
+  if (hasLayoutFlag(LayoutComponentFlags::ParentIsRow) == isRow)
+  {
+    return;
+  }
   setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
   markLayoutNodeDirty();
 }
@@ -526,6 +544,12 @@ void LayoutComponent::parentIsStack(bool isStack)
 
 void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 {
+  if (hasLayoutFlag(LayoutComponentFlags::WidthIntrinsicallySizeOverride) ==
+          intrinsic &&
+      m_widthUnitValueOverride == (intrinsic ? 3 : 1))
+  {
+    return;
+  }
   setLayoutFlag(
       LayoutComponentFlags::WidthIntrinsicallySizeOverride,
       intrinsic);
@@ -537,6 +561,12 @@ void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 
 void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
 {
+  if (hasLayoutFlag(LayoutComponentFlags::HeightIntrinsicallySizeOverride) ==
+          intrinsic &&
+      m_heightUnitValueOverride == (intrinsic ? 3 : 1))
+  {
+    return;
+  }
   setLayoutFlag(
       LayoutComponentFlags::HeightIntrinsicallySizeOverride,
       intrinsic);

@@ -4267,7 +4267,8 @@ bool StateMachineInstance::advanceAndApply(
       keepGoing = true;
     }
 
-    if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
+    if (!m_artboardInstance->hasDirt(ComponentDirt::Components) &&
+        !m_artboardInstance->hasDirtyLayout())
     {
       break;
     }
@@ -4295,6 +4296,19 @@ void StateMachineInstance::resetState()
   // Starting over, e.g. as a list reuses this instance for another item:
   // nothing pending from before carries into the new run.
   forgetViewModelChanges();
+  // Focus and semantic events queued for the previous run (the blur a row
+  // gets when it leaves its list) would act on the next one's data.
+  if (auto* extras = inputExtras())
+  {
+    extras->queuedFocusEvents.clear();
+    extras->queuedSemanticEvents.clear();
+  }
+  // So would a gesture still in flight: a press on the previous item would
+  // complete as a click on the next one.
+  for (auto& listenerGroup : m_listenerGroups)
+  {
+    listenerGroup->releaseAllPointers();
+  }
   for (size_t i = 0; i < m_layerCount; i++)
   {
     m_layers[i].resetState(this);

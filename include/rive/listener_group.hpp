@@ -46,6 +46,9 @@ public:
   void hover(int id);
   void reset(int pointerId);
   void releaseEvent(int pointerId);
+  /// Forgets every pointer this group tracks (presses, hovers, drags)
+  /// without dispatching anything, for a state machine starting over.
+  void releaseAllPointers();
   /// Ends whatever gesture pointerId has in flight. Returns true when a drag
   /// was live for it, leaving the caller to dispatch the matching dragEnd
   /// once every group has been cancelled.

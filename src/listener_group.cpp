@@ -145,6 +145,14 @@ void ListenerGroup::releaseEvent(int pointerId)
   }
 }
 
+void ListenerGroup::releaseAllPointers()
+{
+  while (!m_pointers.empty())
+  {
+    releaseEvent(m_pointers.begin()->first);
+  }
+}
+
 void ListenerGroup::enable(int pointerId)
 {
   auto pointer = pointerData(pointerId);

@@ -179,6 +179,13 @@ public:
 private:
   void updateArtboardsWorldTransform();
   void disposeListItem(const rcp<ViewModelInstanceListItem>& listItem);
+  // Moves a removed item's row into the pools so an item added in the same
+  // update can take it instead of instancing a new one.
+  void poolListItem(const rcp<ViewModelInstanceListItem>& listItem);
+  // Builds the row for the item at index, from the pool when one is there.
+  void createOrReuseArtboardAt(int index);
+  // Destroys the pooled rows, state machines first.
+  void releasePools();
   std::unique_ptr<ArtboardInstance> createArtboard(
       Component* target,
       rcp<ViewModelInstanceListItem> listItem) const;
@@ -359,6 +366,9 @@ private:
   bool m_orderedListIndicesCacheValid = false;
   // Set while updateList runs, which syncs the focus rows once at its end.
   bool m_updatingList = false;
+  // Whether the last advance ran the rows' state machines (AdvanceNested).
+  // updateList only enters a new row's initial state early when it did.
+  bool m_advancesNested = true;
   /// Always paint / scroll order (ascending drawIndex when enabled).
   std::vector<int> m_cachedOrderedListIndices;
   std::unordered_map<

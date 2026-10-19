@@ -43,7 +43,6 @@ void NestedArtboardLayout::markHostingLayoutDirty(
   if (artboard() != nullptr)
   {
     artboard()->markLayoutDirty(this->artboardInstance());
-    artboard()->markLayoutStyleDirty();
   }
 }
 

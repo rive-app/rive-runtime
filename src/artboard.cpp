@@ -69,6 +69,9 @@
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
+#include "rive/scripted/scripted_data_converter.hpp"
+#include "rive/data_bind/converters/data_converter_group.hpp"
+#include "rive/data_bind/converters/data_converter_group_item.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
@@ -1542,6 +1545,62 @@ void Artboard::initScriptedObjects()
       }
     }
   }
+}
+
+static bool converterRunsScript(DataConverter* converter)
+{
+  if (converter == nullptr)
+  {
+    return false;
+  }
+  if (converter->is<ScriptedDataConverter>())
+  {
+    return true;
+  }
+  if (converter->is<DataConverterGroup>())
+  {
+    for (auto* item : converter->as<DataConverterGroup>()->items())
+    {
+      if (converterRunsScript(item->converter()))
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool Artboard::usesScripts() const
+{
+  for (auto* object : m_Objects)
+  {
+    if (object != nullptr && ScriptedObject::from(object) != nullptr)
+    {
+      return true;
+    }
+  }
+  for (auto* machine : m_StateMachines)
+  {
+    if (machine->hasScriptedObjects())
+    {
+      return true;
+    }
+    for (size_t i = 0; i < machine->dataBindCount(); i++)
+    {
+      if (converterRunsScript(machine->dataBind(i)->converter()))
+      {
+        return true;
+      }
+    }
+  }
+  for (auto* dataBind : dataBinds())
+  {
+    if (converterRunsScript(dataBind->converter()))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 void Artboard::pollAsyncWork()

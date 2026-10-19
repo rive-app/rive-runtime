@@ -532,6 +532,14 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
   // that fits. If nothing fits we fall back to the minimum size (1).
   int lo = 1;
   int hi = (int)std::min(maxSize, kMaxSearchSize);
+  // Most texts fit at their authored size, which the search below only
+  // reaches after shaping every halving on the way up. The predicate is
+  // monotonic, so checking the top first returns the same size.
+  if (fits(hi))
+  {
+    return (float)hi / maxSize;
+  }
+  hi--;
   int best = 1;
   while (lo <= hi)
   {
@@ -928,9 +936,14 @@ skipLines:
   // change too, since a recolor rebuilds the render styles. It is still owed
   // when the shape and the measurement disagree: a modifier reshaped the
   // text without telling the layout, or the solve handed us scale types or
-  // a direction that change what measure() reports.
-  if (m_shapedKey != m_measuredKey)
+  // a direction that change what measure() reports. A solve that sizes us
+  // from the style alone (a fixed or filled slot) never calls measure(), so
+  // the key can go stale with nothing owed: ask once, and a solve that
+  // measures us records a fresh key, while one that doesn't leaves 0, which
+  // stops us asking again until the next measure.
+  if (m_measuredKey != 0 && m_shapedKey != m_measuredKey)
   {
+    m_measuredKey = 0;
     markLayoutNodeDirty();
   }
 #endif

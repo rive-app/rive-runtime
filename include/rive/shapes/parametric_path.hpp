@@ -32,6 +32,9 @@ public:
   }
 
 protected:
+  // Set while a layout sizes us: the size it hands down must not mark that
+  // layout dirty again, or every resize costs the host a second solve.
+  bool m_layoutControllingSize = false;
   void widthChanged() override;
   void heightChanged() override;
   void originXChanged() override;

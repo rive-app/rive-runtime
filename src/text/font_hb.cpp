@@ -976,8 +976,19 @@ rive::rcp<rive::Font> HBFont::withOptions(
 
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
 {
+  auto cached = m_glyphPathCache.find(glyph);
+  if (cached != m_glyphPathCache.end())
+  {
+    return cached->second;
+  }
   rive::RawPath rpath;
   hb_font_draw_glyph(m_font, glyph, m_drawFuncs, &rpath);
+  constexpr size_t kMaxCachedGlyphPaths = 512;
+  if (m_glyphPathCache.size() >= kMaxCachedGlyphPaths)
+  {
+    m_glyphPathCache.clear();
+  }
+  m_glyphPathCache.emplace(glyph, rpath);
   return rpath;
 }
 
