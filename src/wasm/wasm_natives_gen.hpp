@@ -71,18 +71,6 @@ typedef struct rive_gpu_texture_view_desc_v1
     uint32_t layerCount;
 } rive_gpu_texture_view_desc_v1;
 
-typedef struct rive_gpu_shader_module_desc_v1
-{
-    uint32_t language;
-    uint32_t stage;
-    uint32_t codeSize;
-    uint32_t hlslSourceSize;
-    uint32_t hlslEntryPointSize;
-    uint32_t bindingMapSize;
-    uint32_t glFixupSize;
-    uint32_t shaderAssetId;
-} rive_gpu_shader_module_desc_v1;
-
 typedef struct rive_gpu_bind_group_layout_entry_v1
 {
     uint32_t binding;
@@ -424,7 +412,7 @@ uint32_t gpuShaderAssetBytesImpl(WasmScriptingVM* vm, uint32_t object, const cha
 uint32_t gpuShaderAssetIdImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
 uint32_t gpuShaderModuleFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint32_t entry);
 #ifdef WITH_RIVE_TOOLS
-uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+uint32_t gpuShaderModuleFromRstbImpl(WasmScriptingVM* vm, const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry);
 #endif
 void gpuShaderModuleReleaseImpl(WasmScriptingVM* vm, uint32_t shaderModule);
 uint32_t gpuBindGroupLayoutNewImpl(WasmScriptingVM* vm, uint32_t groupIndex, const rive_gpu_bind_group_layout_entry_v1* entries, uint32_t entryByteCount);
@@ -1764,10 +1752,10 @@ uint32_t gpuShaderModuleFromAsset(wasm_exec_env_t env, uint32_t object, const ch
     return gpuShaderModuleFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size(), entry);
 }
 #ifdef WITH_RIVE_TOOLS
-uint32_t gpuShaderModuleNew(wasm_exec_env_t env, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
+uint32_t gpuShaderModuleFromRstb(wasm_exec_env_t env, const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
-    return gpuShaderModuleNewImpl(vm, desc, descByteCount, blob, blobCount);
+    return gpuShaderModuleFromRstbImpl(vm, rstb, rstbCount, assetId, entry);
 }
 #endif
 void gpuShaderModuleRelease(wasm_exec_env_t env, uint32_t shaderModule)
@@ -2528,7 +2516,7 @@ NativeSymbol kGpuNatives[] = {
     {"shader_asset_id", (void*)gpuShaderAssetId, "(i*~)i", nullptr},
     {"shader_module_from_asset", (void*)gpuShaderModuleFromAsset, "(i*~i)i", nullptr},
 #ifdef WITH_RIVE_TOOLS
-    {"shader_module_new", (void*)gpuShaderModuleNew, "(*~*~)i", nullptr},
+    {"shader_module_from_rstb", (void*)gpuShaderModuleFromRstb, "(*~ii)i", nullptr},
 #endif
     {"shader_module_release", (void*)gpuShaderModuleRelease, "(i)", nullptr},
     {"bind_group_layout_new", (void*)gpuBindGroupLayoutNew, "(i*~)i", nullptr},

@@ -49,6 +49,16 @@ public:
     return nullptr;
   }
 
+  // What the named entry point samples, every entry's pairs without a name
+  // or for older bakes.
+  const std::vector<TextureSamplerPair>& samplerPairs(const char* entry) const
+  {
+    const RstbEntryBindings* use = entry != nullptr ? entryBindings(entry)
+                                                    : nullptr;
+    return use != nullptr && use->pairsKnown ? use->pairs
+                                             : m_textureSamplerPairs;
+  }
+
   // (group, binding) → per-backend native slot map for this shader's
   // resources. Parsed from the RSTB binding-map sidecar by each
   // backend's `makeShaderModule` (via `applyBindingMapFromDesc`

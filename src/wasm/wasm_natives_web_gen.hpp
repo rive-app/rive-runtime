@@ -1123,10 +1123,10 @@ uint32_t rive_web_gpu_shader_module_from_asset(uint32_t vmHandle, uint32_t objec
     return gpuShaderModuleFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size(), entry);
 }
 #ifdef WITH_RIVE_TOOLS
-uint32_t rive_web_gpu_shader_module_new(uint32_t vmHandle, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
+uint32_t rive_web_gpu_shader_module_from_rstb(uint32_t vmHandle, const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
-    return gpuShaderModuleNewImpl(vm, desc, descByteCount, blob, blobCount);
+    return gpuShaderModuleFromRstbImpl(vm, rstb, rstbCount, assetId, entry);
 }
 #endif
 void rive_web_gpu_shader_module_release(uint32_t vmHandle, uint32_t shaderModule)
@@ -1803,7 +1803,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_gpu_shader_asset_id,
     (void*)rive_web_gpu_shader_module_from_asset,
 #ifdef WITH_RIVE_TOOLS
-    (void*)rive_web_gpu_shader_module_new,
+    (void*)rive_web_gpu_shader_module_from_rstb,
 #else
     nullptr,
 #endif

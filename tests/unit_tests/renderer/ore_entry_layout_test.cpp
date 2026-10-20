@@ -8,6 +8,7 @@
 #include "rive/renderer/ore/ore_draw_bindings.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
 #include "rive/renderer/ore/ore_shader_asset_modules.hpp"
+#include <algorithm>
 #include <catch.hpp>
 #include <string>
 #include <vector>
@@ -116,6 +117,57 @@ TEST_CASE("entry bindings encode and decode", "[ore][entry_layout]")
   CHECK(!decodeEntryBindings(bytes.data(), bytes.size() - 1, got));
   CHECK(got.empty());
   CHECK(!decodeEntryBindings(nullptr, 0, got));
+}
+
+TEST_CASE(
+    "each entry's sampling pairs follow its bindings",
+    "[ore][entry_layout]")
+{
+  std::vector<RstbEntryBindings> sent = {
+      uses(0, "vs_main", {}),
+      uses(1, "fs_main", {0x0001, 0x0002})};
+  const std::vector<uint8_t> bindingsOnly = encodeEntryBindings(sent);
+  sent[1].pairs = {{0, 1, 0, 2}};
+  for (RstbEntryBindings& e : sent)
+    e.pairsKnown = true;
+  std::vector<uint8_t> bytes = encodeEntryBindings(sent);
+  std::vector<RstbEntryBindings> got;
+  REQUIRE(decodeEntryBindings(bytes.data(), bytes.size(), got));
+  CHECK(got[0].pairsKnown);
+  CHECK(got[0].pairs.empty());
+  REQUIRE(got[1].pairs.size() == 1);
+  CHECK(got[1].pairs[0] == TextureSamplerPair{0, 1, 0, 2});
+
+  // Older readers stop where a bake without pairs ends.
+  REQUIRE(bytes.size() > bindingsOnly.size());
+  CHECK(std::equal(bindingsOnly.begin(), bindingsOnly.end(), bytes.begin()));
+  REQUIRE(decodeEntryBindings(bindingsOnly.data(), bindingsOnly.size(), got));
+  CHECK(!got[1].pairsKnown);
+
+  // A cut pair block keeps the bindings and leaves every entry's pairs
+  // unknown.
+  REQUIRE(decodeEntryBindings(bytes.data(), bytes.size() - 1, got));
+  CHECK(got[1].uses(0, 2));
+  CHECK(!got[0].pairsKnown);
+  CHECK(!got[1].pairsKnown);
+
+  // Pairs go out for every entry or none.
+  sent[0].pairsKnown = false;
+  CHECK(encodeEntryBindings(sent) == bindingsOnly);
+
+  // Pairs that would overflow the section's u16 length are left out.
+  std::vector<RstbEntryBindings> wide(128, uses(1, "e", {}));
+  for (RstbEntryBindings& e : wide)
+  {
+    e.bindings.assign(250, 0x0001);
+    e.pairs.assign(2, {0, 1, 0, 2});
+    e.pairsKnown = true;
+  }
+  std::vector<uint8_t> wideBytes = encodeEntryBindings(wide);
+  REQUIRE(wideBytes.size() <= 0xFFFF);
+  REQUIRE(decodeEntryBindings(wideBytes.data(), wideBytes.size(), got));
+  CHECK(got.size() == 128);
+  CHECK(!got[0].pairsKnown);
 }
 
 struct TestPipeline : Pipeline
@@ -392,7 +444,10 @@ TEST_CASE(
 {
   std::vector<RstbEntryBindings> asset = {
       uses(0, "vertex", {0x0000}),
-      uses(1, "fs_main", {0x0001})};
+      uses(1, "fs_main", {0x0001, 0x0002})};
+  asset[1].pairs = {{0, 1, 0, 2}};
+  for (RstbEntryBindings& e : asset)
+    e.pairsKnown = true;
   std::vector<RstbEntryView> entries(2);
   entries[0].stage = 0;
   entries[0].logical = "vertex";
@@ -408,11 +463,13 @@ TEST_CASE(
   CHECK(got[0].name == "vertex0");
   CHECK(got[0].uses(0, 0));
 
-  // A per entry module carries only its own.
+  // A per entry module carries only its own, pairs included.
   bytes = moduleEntryBindingBytes(asset, entries, 1, 1);
   REQUIRE(decodeEntryBindings(bytes.data(), bytes.size(), got));
   REQUIRE(got.size() == 1);
   CHECK(got[0].name == "fs_main");
+  CHECK(got[0].pairsKnown);
+  CHECK(got[0].pairs == asset[1].pairs);
 
   // An entry the section does not name leaves the module whole.
   entries[1].logical = "fs_other";
@@ -564,4 +621,83 @@ TEST_CASE(
   CHECK(contains(
       validate(bindingMapForStages(vertex.get(), fragment.get())),
       "both land on native slot 1"));
+}
+
+TEST_CASE(
+    "a texture is judged sampled by the pipeline's own entry points",
+    "[ore][entry_layout]")
+{
+  // fs_sample samples t with s. fs_load only loads t, and samples u with s.
+  struct Sampling : ShaderModule
+  {
+    Sampling(bool pairsKnown)
+    {
+      m_bindingMap.push(row(0, 0, ResourceKind::SampledTexture));
+      m_bindingMap.push(row(0, 1, ResourceKind::SampledTexture));
+      m_bindingMap.push(row(0, 2, ResourceKind::Sampler));
+      m_bindingMap.finalize();
+      m_bindingMap.computeLayoutIds();
+      m_textureSamplerPairs = {{0, 0, 0, 2}, {0, 1, 0, 2}};
+      m_entryBindings = {
+          uses(0, "vs", {}),
+          uses(1, "fs_sample", {0x0000, 0x0002}),
+          uses(1, "fs_load", {0x0000, 0x0001, 0x0002})};
+      m_entryBindings[1].pairs = {{0, 0, 0, 2}};
+      m_entryBindings[2].pairs = {{0, 1, 0, 2}};
+      for (RstbEntryBindings& e : m_entryBindings)
+        e.pairsKnown = pairsKnown;
+    }
+  };
+  using SampleType = BindGroupLayoutEntry::SampleType;
+  DeferredOreContext ctx(nullptr);
+  auto textureType = [&](const Sampling& shader, const char* fragment) {
+    auto layout = makeBindGroupLayoutFromBindingMap(
+        ctx,
+        bindingMapForEntries(&shader, "vs", &shader, fragment),
+        0,
+        nullptr,
+        0,
+        &shader,
+        &shader,
+        "vs",
+        fragment);
+    return layout->findEntry(0)->textureSampleType;
+  };
+  Sampling shader(true);
+  CHECK(textureType(shader, "fs_sample") == SampleType::floatFilterable);
+  CHECK(textureType(shader, "fs_load") == SampleType::floatUnfilterable);
+  // Older bakes only know the file's pairs.
+  CHECK(textureType(Sampling(false), "fs_load") == SampleType::floatFilterable);
+
+  // GL binds s only to the texture the entry point samples with it.
+  PipelineDesc desc;
+  desc.vertexModule = &shader;
+  desc.vertexEntryPoint = "vs";
+  desc.fragmentModule = &shader;
+  desc.fragmentEntryPoint = "fs_load";
+  auto pipeline = make_rcp<TestPipeline>(desc);
+  REQUIRE(pipeline->m_textureSamplerPairs.size() == 1);
+  CHECK(pipeline->m_textureSamplerPairs[0] == TextureSamplerPair{0, 1, 0, 2});
+
+  // A layout declaring t unfilterable only refuses the entry that samples t.
+  BindGroupLayoutEntry entries[3]{};
+  populateBindGroupLayoutEntries(entries, 3, shader.m_bindingMap, 0);
+  entries[0].textureSampleType = SampleType::floatUnfilterable;
+  BindGroupLayoutDesc layoutDesc;
+  layoutDesc.entries = entries;
+  layoutDesc.entryCount = 3;
+  auto layout = ctx.makeBindGroupLayout(layoutDesc);
+  BindGroupLayout* layouts[] = {layout.get()};
+  desc.bindGroupLayouts = layouts;
+  desc.bindGroupLayoutCount = 1;
+  auto validate = [&](const char* fragment) {
+    desc.fragmentEntryPoint = fragment;
+    std::string error;
+    validatePipelineDesc(desc, BindingMap(), NativeSlotScope::perStage, &error);
+    return error;
+  };
+  CHECK(validate("fs_load").empty());
+  CHECK(contains(
+      validate("fs_sample"),
+      "the layout declares this texture unfilterable"));
 }

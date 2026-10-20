@@ -88,6 +88,10 @@ BindingMap bindingMapForEntries(
     const ShaderModule* fragment,
     const char* fragmentEntry);
 
+// The pairs a pipeline's entry points sample, unioned since each GLSL entry
+// point knows only its own.
+std::vector<TextureSamplerPair> pipelineSamplerPairs(const PipelineDesc& desc);
+
 // Walk a BindingMap for the given group, populating layout entries with
 // kind / visibility / texture metadata / native slots.
 //
@@ -117,7 +121,7 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
 // for a pipeline whose stages live in different modules. The pair-source
 // modules supply texture-sampler pairs so samplers used only on depth
 // textures declare non-filtering, which WebGPU requires; pass every module
-// the map was merged from.
+// the map was merged from, and the entry points it was narrowed to.
 rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     Context& ctx,
     const BindingMap& bindingMap,
@@ -125,7 +129,9 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     const uint32_t* dynamicUBOBindings = nullptr,
     uint32_t dynamicUBOCount = 0,
     const ShaderModule* vertexPairSource = nullptr,
-    const ShaderModule* fragmentPairSource = nullptr);
+    const ShaderModule* fragmentPairSource = nullptr,
+    const char* vertexEntry = nullptr,
+    const char* fragmentEntry = nullptr);
 
 rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     Context& ctx,

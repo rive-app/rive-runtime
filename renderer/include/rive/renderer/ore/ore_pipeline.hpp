@@ -62,17 +62,7 @@ protected:
         desc.vertexEntryPoint,
         desc.fragmentModule,
         desc.fragmentEntryPoint);
-    // Unioned: each GLSL entry point knows only its own pairs.
-    for (const ShaderModule* shaderModule :
-         {desc.vertexModule, desc.fragmentModule})
-    {
-      if (shaderModule == nullptr)
-        continue;
-      m_textureSamplerPairs.insert(
-          m_textureSamplerPairs.end(),
-          shaderModule->m_textureSamplerPairs.begin(),
-          shaderModule->m_textureSamplerPairs.end());
-    }
+    m_textureSamplerPairs = pipelineSamplerPairs(desc);
 
     // Stash the user-supplied layouts. Backends overwrite NULL
     // entries (groups the shader doesn't bind) with a no-op

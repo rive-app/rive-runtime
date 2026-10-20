@@ -1985,7 +1985,9 @@ static int gpupipeline_construct(lua_State* L)
           nullptr,
           0,
           desc.vertexModule,
-          desc.fragmentModule);
+          desc.fragmentModule,
+          desc.vertexEntryPoint,
+          desc.fragmentEntryPoint);
       layoutPtrs[g] = autoLayouts[g].get();
     }
     layoutCount = maxGroup;

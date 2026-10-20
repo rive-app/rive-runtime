@@ -4035,6 +4035,51 @@ uint32_t mintShaderModule(
       new HostGpuShaderModule{std::move(shaderModule)});
 }
 
+// The module serving entry, built as every lane builds an asset's modules.
+static uint32_t mintAssetEntryModule(
+    WasmScriptingVM* vm,
+    ore::Context* oreContext,
+    const ShaderAsset& asset,
+    uint32_t entry)
+{
+  uint32_t handle = 0;
+  ore::visitShaderAssetModules(
+      oreContext->shaderTarget(),
+      asset,
+      [&](const ore::ShaderModuleDesc& desc,
+          uint32_t first,
+          uint32_t count,
+          const std::vector<ore::RstbEntryView>&) {
+        if (entry < first || entry - first >= count)
+        {
+          return true;
+        }
+        handle = mintShaderModule(vm, oreContext, desc);
+        return false;
+      });
+  return handle;
+}
+
+#ifdef WITH_RIVE_TOOLS
+// The same from a bare RSTB, which only edit time hosts take.
+static uint32_t mintRstbEntryModule(
+    WasmScriptingVM* vm,
+    ore::Context* oreContext,
+    const uint8_t* rstb,
+    uint32_t rstbCount,
+    uint32_t assetId,
+    uint32_t entry)
+{
+  ShaderAsset asset;
+  if (!ore::decodeBareRstb(asset, rstb, rstbCount))
+  {
+    return 0;
+  }
+  asset.assetId(assetId);
+  return mintAssetEntryModule(vm, oreContext, asset, entry);
+}
+#endif
+
 uint32_t gpuShaderModuleFromAssetImpl(
     WasmScriptingVM* vm,
     uint32_t objectHandle,
@@ -4052,120 +4097,41 @@ uint32_t gpuShaderModuleFromAssetImpl(
       objectHandle,
       name,
       nameLength);
-  const ShaderAsset* asset = fileAsset;
 #ifdef WITH_RIVE_TOOLS
   // Editor path first, matching shader_asset_bytes.
-  ShaderAsset compiled;
   if (const std::vector<uint8_t>* rstb = vm->findShaderRstb(
           std::string(name, nameLength)))
   {
-    if (!ore::decodeBareRstb(compiled, rstb->data(), (uint32_t)rstb->size()))
-    {
-      return 0;
-    }
-    compiled.assetId(fileAsset != nullptr ? fileAsset->assetId() : 0);
-    asset = &compiled;
+    return mintRstbEntryModule(
+        vm,
+        oreContext,
+        rstb->data(),
+        (uint32_t)rstb->size(),
+        fileAsset != nullptr ? fileAsset->assetId() : 0,
+        entry);
   }
 #endif
-  if (asset == nullptr)
+  if (fileAsset == nullptr)
   {
     return 0;
   }
-  uint32_t handle = 0;
-  ore::visitShaderAssetModules(
-      oreContext->shaderTarget(),
-      *asset,
-      [&](const ore::ShaderModuleDesc& desc,
-          uint32_t first,
-          uint32_t count,
-          const std::vector<ore::RstbEntryView>&) {
-        if (entry < first || entry - first >= count)
-        {
-          return true;
-        }
-        handle = mintShaderModule(vm, oreContext, desc);
-        return false;
-      });
-  return handle;
+  return mintAssetEntryModule(vm, oreContext, *fileAsset, entry);
 }
 
 #ifdef WITH_RIVE_TOOLS
-uint32_t gpuShaderModuleNewImpl(
+uint32_t gpuShaderModuleFromRstbImpl(
     WasmScriptingVM* vm,
-    const rive_gpu_shader_module_desc_v1* podDesc,
-    uint32_t descByteCount,
-    const uint8_t* blob,
-    uint32_t blobCount)
+    const uint8_t* rstb,
+    uint32_t rstbCount,
+    uint32_t assetId,
+    uint32_t entry)
 {
   ore::Context* oreContext = gpuOreContext(vm);
-  if (oreContext == nullptr || descByteCount < sizeof(*podDesc))
+  if (oreContext == nullptr)
   {
     return 0;
   }
-  uint64_t total = uint64_t(podDesc->codeSize) + podDesc->hlslSourceSize +
-                   podDesc->hlslEntryPointSize + podDesc->bindingMapSize +
-                   podDesc->glFixupSize;
-  if (total > blobCount)
-  {
-    return 0;
-  }
-  const uint8_t* cursor = blob;
-  auto slice = [&cursor](uint32_t size) {
-    const uint8_t* begin = cursor;
-    cursor += size;
-    return size != 0 ? begin : nullptr;
-  };
-  if (!validOre(
-          vm,
-          podDesc->language,
-          ore::ShaderLanguage::wgsl,
-          "ShaderLanguage") ||
-      !validOre(vm, podDesc->stage, ore::ShaderStage::fragment, "ShaderStage"))
-  {
-    return 0;
-  }
-  ore::ShaderModuleDesc desc;
-  desc.code = slice(podDesc->codeSize);
-  desc.codeSize = podDesc->codeSize;
-  desc.language = (ore::ShaderLanguage)podDesc->language;
-  desc.stage = (ore::ShaderStage)podDesc->stage;
-  // hlslSource and entry point are null-terminated strings host side.
-  std::string hlslSource;
-  std::string hlslEntryPoint;
-  if (const uint8_t* bytes = slice(podDesc->hlslSourceSize))
-  {
-    hlslSource.assign((const char*)bytes, podDesc->hlslSourceSize);
-    desc.hlslSource = hlslSource.c_str();
-    desc.hlslSourceSize = podDesc->hlslSourceSize;
-  }
-  if (const uint8_t* bytes = slice(podDesc->hlslEntryPointSize))
-  {
-    hlslEntryPoint.assign((const char*)bytes, podDesc->hlslEntryPointSize);
-    desc.hlslEntryPoint = hlslEntryPoint.c_str();
-  }
-  desc.bindingMapBytes = slice(podDesc->bindingMapSize);
-  desc.bindingMapSize = podDesc->bindingMapSize;
-  desc.glFixupBytes = slice(podDesc->glFixupSize);
-  desc.glFixupSize = podDesc->glFixupSize;
-  desc.shaderAssetId = podDesc->shaderAssetId;
-  // Texture-sampler pairs ride the desc so deferred replay rebuilds them;
-  // resolved host side from the asset like the Luau lane, not the wire.
-  std::vector<uint8_t> pairBytes;
-  if (podDesc->shaderAssetId != 0 && vm->file() != nullptr)
-  {
-    for (const auto& asset : vm->file()->assets())
-    {
-      if (asset->is<ShaderAsset>() &&
-          asset->assetId() == podDesc->shaderAssetId)
-      {
-        pairBytes = ore::textureSamplerPairBytes(*asset->as<ShaderAsset>());
-        break;
-      }
-    }
-  }
-  desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
-  desc.texSamplerPairSize = (uint32_t)pairBytes.size();
-  return mintShaderModule(vm, oreContext, desc);
+  return mintRstbEntryModule(vm, oreContext, rstb, rstbCount, assetId, entry);
 }
 #endif
 
@@ -4359,11 +4325,13 @@ uint32_t gpuBindGroupLayoutFromEntriesImpl(
   {
     return 0;
   }
+  const std::string vertexName(vertexEntry, vertexEntryLength);
+  const std::string fragmentName(fragmentEntry, fragmentEntryLength);
   const ore::BindingMap map = ore::bindingMapForEntries(
       vertex,
-      std::string(vertexEntry, vertexEntryLength).c_str(),
+      vertexName.c_str(),
       fragment,
-      std::string(fragmentEntry, fragmentEntryLength).c_str());
+      fragmentName.c_str());
   bool bound = false;
   for (size_t i = 0; i < map.size() && !bound; ++i)
   {
@@ -4380,7 +4348,9 @@ uint32_t gpuBindGroupLayoutFromEntriesImpl(
       nullptr,
       0,
       vertex,
-      fragment);
+      fragment,
+      vertexName.c_str(),
+      fragmentName.c_str());
   if (layout == nullptr)
   {
     return 0;
@@ -4966,11 +4936,11 @@ uint32_t gpuShaderModuleFromAssetImpl(
   return 0;
 }
 #ifdef WITH_RIVE_TOOLS
-uint32_t gpuShaderModuleNewImpl(
+uint32_t gpuShaderModuleFromRstbImpl(
     WasmScriptingVM*,
-    const rive_gpu_shader_module_desc_v1*,
-    uint32_t,
     const uint8_t*,
+    uint32_t,
+    uint32_t,
     uint32_t)
 {
   return 0;

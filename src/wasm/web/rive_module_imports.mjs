@@ -1142,17 +1142,14 @@ export function createRiveModuleImports(host, moduleMemory) {
                     stackRestore(mark);
                 }
             },
-            'shader_module_new': (desc, descByteCount, blob, blobCount) => {
+            'shader_module_from_rstb': (rstb, rstbCount, assetId, entry) => {
                 const mark = stackSave();
-                let desc_p = 0;
-                let blob_p = 0;
+                let rstb_p = 0;
                 try {
-                    desc_p = stageIn(desc, descByteCount);
-                    blob_p = stageIn(blob, blobCount);
-                    return calls.rive_gpu_shader_module_new(desc_p, descByteCount, blob_p, blobCount);
+                    rstb_p = stageIn(rstb, rstbCount);
+                    return calls.rive_gpu_shader_module_from_rstb(rstb_p, rstbCount, assetId, entry);
                 } finally {
-                    unstage(blob_p, blobCount);
-                    unstage(desc_p, descByteCount);
+                    unstage(rstb_p, rstbCount);
                     stackRestore(mark);
                 }
             },
@@ -3456,7 +3453,7 @@ export function bindRiveHostCalls(hostCall, ctx) {
             if (ctx.raised !== null) raise();
             return ret;
         })(hostCall(214)),
-        rive_gpu_shader_module_new: ((fn) => fn === undefined ? unlinkedImport('rive_gpu_v1', 'shader_module_new') : (a0, a1, a2, a3) => {
+        rive_gpu_shader_module_from_rstb: ((fn) => fn === undefined ? unlinkedImport('rive_gpu_v1', 'shader_module_from_rstb') : (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             let ret;

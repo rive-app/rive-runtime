@@ -501,20 +501,14 @@ void RenderPassGL::applySamplerBindings()
     m_usedSamplers = true;
   };
 
-  for (uint32_t group = 0; group < kMaxBindGroups; ++group)
-  {
-    auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
-    if (glBg == nullptr)
-      continue;
-
-    for (const auto& samp : glBg->m_glSamplers)
-    {
-      bool paired = false;
-      if (pairs != nullptr)
-      {
+  auto forEachPairedUnit =
+      [&](uint32_t group, uint32_t binding, const auto& fn) {
+        bool paired = false;
+        if (pairs == nullptr)
+          return paired;
         for (const auto& pair : *pairs)
         {
-          if (pair.samplerGroup != group || pair.samplerBinding != samp.binding)
+          if (pair.samplerGroup != group || pair.samplerBinding != binding)
             continue;
           auto* texBg = lite_rtti_cast<BindGroupGL*>(
               m_boundGroups[pair.textureGroup].get());
@@ -524,14 +518,35 @@ void RenderPassGL::applySamplerBindings()
           {
             if (tex.binding != pair.textureBinding)
               continue;
-            bindTo(tex.slot, samp.sampler);
+            fn(tex.slot);
             paired = true;
           }
         }
-      }
-      if (!paired)
+        return paired;
+      };
+
+  // Unpaired samplers bind first, so one this pipeline never samples through
+  // cannot take a unit from one it does.
+  for (bool pairedPass : {false, true})
+  {
+    for (uint32_t group = 0; group < kMaxBindGroups; ++group)
+    {
+      auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+      if (glBg == nullptr)
+        continue;
+
+      for (const auto& samp : glBg->m_glSamplers)
       {
-        bindTo(samp.slot, samp.sampler);
+        if (pairedPass)
+        {
+          forEachPairedUnit(group, samp.binding, [&](uint32_t slot) {
+            bindTo(slot, samp.sampler);
+          });
+        }
+        else if (!forEachPairedUnit(group, samp.binding, [](uint32_t) {}))
+        {
+          bindTo(samp.slot, samp.sampler);
+        }
       }
     }
   }

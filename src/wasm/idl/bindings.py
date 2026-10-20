@@ -118,17 +118,6 @@ PODS = [
         u32('baseLayer'),
         u32('layerCount'),
     ]),
-    # Sizes slice the op's blob argument in field order; absent parts are 0.
-    pod('gpu_shader_module_desc', [
-        u32('language'),
-        u32('stage'),
-        u32('codeSize'),
-        u32('hlslSourceSize'),
-        u32('hlslEntryPointSize'),
-        u32('bindingMapSize'),
-        u32('glFixupSize'),
-        u32('shaderAssetId'),
-    ]),
     # Array element pods cross via buf() with a byte count; the count must be
     # an exact multiple of the struct size.
     pod('gpu_bind_group_layout_entry', [
@@ -845,11 +834,12 @@ NAMESPACES = [
             string('name', 'nameLength'),
             u32('entry'),
         ], ret='u32'),
-        # Raw module bytes skip the shader signature check, so only edit
-        # time hosts link it.
-        op('shader_module_new', [
-            podref('gpu_shader_module_desc', 'desc'),
-            buf('uint8_t', 'blob', 'blobCount'),
+        # The same from RSTB bytes the script supplies, which skip the shader
+        # signature check, so only edit time hosts link it.
+        op('shader_module_from_rstb', [
+            buf('uint8_t', 'rstb', 'rstbCount'),
+            u32('assetId'),
+            u32('entry'),
         ], ret='u32', guard='WITH_RIVE_TOOLS'),
         op('shader_module_release', [handle('shaderModule')]),
         op('bind_group_layout_new', [

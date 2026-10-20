@@ -83,18 +83,6 @@ typedef struct rive_gpu_texture_view_desc_v1
     uint32_t layerCount;
 } rive_gpu_texture_view_desc_v1;
 
-typedef struct rive_gpu_shader_module_desc_v1
-{
-    uint32_t language;
-    uint32_t stage;
-    uint32_t codeSize;
-    uint32_t hlslSourceSize;
-    uint32_t hlslEntryPointSize;
-    uint32_t bindingMapSize;
-    uint32_t glFixupSize;
-    uint32_t shaderAssetId;
-} rive_gpu_shader_module_desc_v1;
-
 typedef struct rive_gpu_bind_group_layout_entry_v1
 {
     uint32_t binding;
@@ -667,8 +655,8 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_asset_id")
 uint32_t rive_gpu_shader_asset_id(uint32_t object, const char* name, uint32_t nameLength);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_from_asset")
 uint32_t rive_gpu_shader_module_from_asset(uint32_t object, const char* name, uint32_t nameLength, uint32_t entry);
-RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_new")
-uint32_t rive_gpu_shader_module_new(const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_from_rstb")
+uint32_t rive_gpu_shader_module_from_rstb(const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_release")
 void rive_gpu_shader_module_release(uint32_t shaderModule);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_new")

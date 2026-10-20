@@ -324,16 +324,18 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     const uint32_t* dynamicUBOBindings,
     uint32_t dynamicUBOCount,
     const ShaderModule* vertexPairSource,
-    const ShaderModule* fragmentPairSource)
+    const ShaderModule* fragmentPairSource,
+    const char* vertexEntry,
+    const char* fragmentEntry)
 {
   // Gathered once for both the intern id and the entry flags.
   const std::vector<TextureSamplerPair>*
       vertexPairs = vertexPairSource != nullptr
-                        ? &vertexPairSource->m_textureSamplerPairs
+                        ? &vertexPairSource->samplerPairs(vertexEntry)
                         : nullptr;
   const std::vector<TextureSamplerPair>*
       fragmentPairs = fragmentPairSource != nullptr
-                          ? &fragmentPairSource->m_textureSamplerPairs
+                          ? &fragmentPairSource->samplerPairs(fragmentEntry)
                           : nullptr;
   const std::vector<uint32_t> nonFiltering = depthOnlySamplerBindings(
       bindingMap,
@@ -901,8 +903,25 @@ bool validateStageLimits(
   return true;
 }
 
-// Only a layout built from another file can trip this: a texture that file
-// never samples is unfilterable, and WebGPU refuses one sampled with filtering.
+std::vector<TextureSamplerPair> pipelineSamplerPairs(const PipelineDesc& desc)
+{
+  std::vector<TextureSamplerPair> pairs;
+  const std::pair<const ShaderModule*, const char*> stages[] = {
+      {desc.vertexModule, desc.vertexEntryPoint},
+      {desc.fragmentModule, desc.fragmentEntryPoint}};
+  for (const auto& [module, entry] : stages)
+  {
+    if (module == nullptr)
+      continue;
+    const std::vector<TextureSamplerPair>& stagePairs = module->samplerPairs(
+        entry);
+    pairs.insert(pairs.end(), stagePairs.begin(), stagePairs.end());
+  }
+  return pairs;
+}
+
+// Only a layout derived elsewhere can trip this: a texture its source never
+// samples is unfilterable, and WebGPU refuses one sampled with filtering.
 static bool validateUnfilterableSampling(
     const PipelineDesc& desc,
     std::string* outError)
@@ -915,39 +934,33 @@ static bool validateUnfilterableSampling(
       return nullptr;
     return desc.bindGroupLayouts[group]->findEntry(binding);
   };
-  for (const ShaderModule* module : {desc.vertexModule, desc.fragmentModule})
+  for (const TextureSamplerPair& p : pipelineSamplerPairs(desc))
   {
-    if (module == nullptr)
+    const BindGroupLayoutEntry* tex = entryFor(
+        p.textureGroup,
+        p.textureBinding);
+    const BindGroupLayoutEntry* sampler = entryFor(
+        p.samplerGroup,
+        p.samplerBinding);
+    if (tex == nullptr || sampler == nullptr ||
+        sampler->kind != BindingKind::sampler || sampler->samplerNonFiltering ||
+        tex->textureSampleType !=
+            BindGroupLayoutEntry::SampleType::floatUnfilterable)
       continue;
-    for (const TextureSamplerPair& p : module->m_textureSamplerPairs)
-    {
-      const BindGroupLayoutEntry* tex = entryFor(
-          p.textureGroup,
-          p.textureBinding);
-      const BindGroupLayoutEntry* sampler = entryFor(
-          p.samplerGroup,
-          p.samplerBinding);
-      if (tex == nullptr || sampler == nullptr ||
-          sampler->kind != BindingKind::sampler ||
-          sampler->samplerNonFiltering ||
-          tex->textureSampleType !=
-              BindGroupLayoutEntry::SampleType::floatUnfilterable)
-        continue;
-      char message[224];
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): the layout declares this "
-          "texture unfilterable, but the shader samples it with "
-          "filtering sampler @binding(%u), which WebGPU refuses; "
-          "derive the layout from this shader",
-          p.textureGroup,
-          p.textureBinding,
-          p.samplerBinding);
-      if (outError != nullptr)
-        *outError = message;
-      return false;
-    }
+    char message[224];
+    snprintf(
+        message,
+        sizeof(message),
+        "@group(%u) @binding(%u): the layout declares this "
+        "texture unfilterable, but the shader samples it with "
+        "filtering sampler @binding(%u), which WebGPU refuses; "
+        "derive the layout from this pipeline's entry points",
+        p.textureGroup,
+        p.textureBinding,
+        p.samplerBinding);
+    if (outError != nullptr)
+      *outError = message;
+    return false;
   }
   return true;
 }
