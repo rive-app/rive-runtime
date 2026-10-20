@@ -1056,7 +1056,7 @@ static uint32_t paint_type_to_glsl_id(PaintType paintType)
   static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
   static_assert((int)PaintType::angularGradient == ANGULAR_GRADIENT_PAINT_TYPE);
 
-  // These all need to fit inside of 3 bits for the packing in
+  // The gradient paint types need to fit inside of 3 bits for the packing in
   // gradient_packing_common.hlsl to work.
   static_assert(LINEAR_GRADIENT_PAINT_TYPE < 8u);
   static_assert(RADIAL_GRADIENT_PAINT_TYPE < 8u);

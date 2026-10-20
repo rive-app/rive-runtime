@@ -68,7 +68,7 @@ INLINE float2 getGradientUVFromOriginUV(
     // angular gradient types always span the whole texture, *including* to
     // the next texel (i.e. it's not first to last texel, there's always a
     // wrap involved).
-    float t = atan2(float2(gradientCoord.x, -gradientCoord.y)) * (1.0 / _2PI);
+    float t = atan2(gradientCoord) * (1.0 / _2PI);
 
     // Note: don't add the half-texel offset here, it causes the angle to be
     // slightly off - we actually want angle 0 to be directly in between
