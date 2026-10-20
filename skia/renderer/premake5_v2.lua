@@ -15,7 +15,7 @@ end
 project('rive_skia_renderer')
 do
     kind('StaticLib')
-    includedirs({ 'include', '../../cg_renderer/include', '../../include' })
+    includedirs({ 'include', '../../include' })
 
     libdirs({ '../../build/%{cfg.system}/bin/' .. RIVE_BUILD_CONFIG })
 

@@ -10,7 +10,6 @@ _OPTIONS['with_rive_tools'] = ''
 RIVE_RUNTIME_DOFILE_DIR = path.getabsolute('..')
 
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/premake5_v2.lua')
-dofile(RIVE_RUNTIME_DOFILE_DIR .. '/cg_renderer/premake5.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_libpng_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_glfw_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/decoders/premake5_v2.lua')
@@ -58,7 +57,6 @@ function rive_tools_project(name, project_kind)
         dependson({
             'tools_common',
             'rive_pls_renderer',
-            'rive_cg_renderer',
             'rive_decoders',
             'rive',
             'libpng',
@@ -105,7 +103,6 @@ function rive_tools_project(name, project_kind)
         RIVE_PLS_DIR .. '/shader_hotload',
         RIVE_PLS_DIR .. '/src',
         RIVE_RUNTIME_DIR .. '/include',
-        RIVE_RUNTIME_DIR .. '/cg_renderer/include',
         RIVE_RUNTIME_DIR .. '/decoders/include',
         'unit_tests',
         '%{cfg.targetdir}/include/libpng',
@@ -270,7 +267,6 @@ function rive_tools_project(name, project_kind)
         links({
             'tools_common',
             'rive_pls_renderer',
-            'rive_cg_renderer',
             'rive_decoders',
             'rive',
             'libpng',

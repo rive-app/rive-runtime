@@ -62,7 +62,7 @@ public:
         optional,
         "backend",
         "backend type: [gl, metal, angle_gl, angle_d3d, "
-        "angle_vk, angle_mtl, coregraphics, skia, rhi]",
+        "angle_vk, angle_mtl, skia, rhi]",
         {'b', "backend"});
     args::Flag headless(
         optional,

@@ -79,7 +79,6 @@ public:
     dawn,
     wgpu,
     external,
-    coregraphics,
     skia,
     canvas2d,
     svg,
@@ -428,7 +427,6 @@ public:
       const BackendParams&,
       void* platformWindow);
 #endif
-  static TestingWindow* MakeCoreGraphics();
   static TestingWindow* MakeFiddleContext(
       Backend,
       const BackendParams&,
