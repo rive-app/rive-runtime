@@ -26,6 +26,11 @@ constexpr static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
       return VK_BLEND_OP_MIN;
     case gpu::BlendEquation::max:
       return VK_BLEND_OP_MAX;
+    case gpu::BlendEquation::layerMask:
+      // Needs a src factor of ZERO, which this pipeline builder does not
+      // vary yet, so Vulkan leaves supportsDepthStencilLayerMask off and
+      // is never asked for it.
+      break;
     case gpu::BlendEquation::screen:
     case gpu::BlendEquation::overlay:
     case gpu::BlendEquation::darken:
@@ -58,6 +63,9 @@ constexpr static VkBlendFactor vk_dst_blend_factor(gpu::BlendEquation equation)
     case gpu::BlendEquation::min:
     case gpu::BlendEquation::max:
       return VK_BLEND_FACTOR_ONE;
+    case gpu::BlendEquation::layerMask:
+      // See vk_blend_op().
+      break;
     case gpu::BlendEquation::screen:
     case gpu::BlendEquation::overlay:
     case gpu::BlendEquation::darken:

@@ -426,7 +426,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 
       // Add 1 to the LOD because a z value of 0 means "we don't have an
       // image"
-      v_image = float3(imageCoord.x, imageCoord.y, 1. + paintTranslateAndLOD.z);
+      float imageZ = 1. + paintTranslateAndLOD.z;
+      if ((paintData.x & PAINT_FLAG_LAYER_MASK) != 0u)
+      {
+        // A layer-mask apply. Same sentinel as draw_path.vert: a negative z
+        // with the mode packed into it (see the comment there).
+        uint mode = (paintData.x & PAINT_LAYER_MASK_MODE_MASK) >>
+                    PAINT_LAYER_MASK_MODE_SHIFT;
+        imageZ = -(1. + float(mode));
+      }
+      v_image = float3(imageCoord.x, imageCoord.y, imageZ);
     }
     else
     {
@@ -560,6 +569,29 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
       _fragCoord.xy,
       uniforms.ditherScale,
       uniforms.ditherBias);
+
+  #ifdef @ENABLE_MODULATED_IMAGE
+  if (@ENABLE_MODULATED_IMAGE && v_image.z < .0)
+  {
+    // Layer mask. The texel is coverage, not color, and the pipeline's
+    // BlendEquation::layerMask computes dst * srcAlpha, so emitting the factor
+    // as alpha scales the target by it -- "change this layer's opacity, per
+    // pixel". Nothing above applies: this attenuates a color that is already
+    // quantized rather than producing a new one.
+    //
+    // The mask paint is opaque white, which the vertex shader premultiplied by
+    // coverage, so v_paint.a is this fragment's coverage (less than 1 only on
+    // an inkbleed hairline); the factor lerps back to 1, no change, with it.
+    half4 maskTexel = TEXTURE_SAMPLE_DYNAMIC_LOD(
+        @imageTexture,
+        imageSampler,
+        v_image.rg,
+        make_half(.0));
+    uint maskMode = uint(-v_image.z - 1.);
+    half f = layer_mask_factor(maskTexel, maskMode);
+    color = make_half4(mix(make_half(1.), f, cast_float_to_half(v_paint.a)));
+  }
+  #endif
 
   #ifdef @RENDER_TO_UAV
   if (color.a != .0)

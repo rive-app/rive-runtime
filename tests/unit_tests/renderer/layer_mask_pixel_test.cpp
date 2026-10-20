@@ -41,6 +41,9 @@
 
 #include <catch.hpp>
 #include <cmath>
+#if defined(__APPLE__)
+#include <dlfcn.h>
+#endif
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -408,13 +411,51 @@ std::vector<uint8_t> renderOnce(
   return pixels;
 }
 
-std::unique_ptr<TestingWindow> makeWindow()
+// The two blend sites that implement the op. Every case that asserts masking
+// works runs on both.
+enum class MaskWindow
+{
+  // rasterOrdering: the op happens in draw_raster_order_path.frag.
+  metal,
+  // ANGLE on Metal, an ES 3.0 context with 4x MSAA. Every frame, the
+  // offscreen canvases included (the sink copies the main descriptor), is
+  // depthStencil -- the configuration WebGL2 lands on without
+  // WEBGL_shader_pixel_local_storage, which is to say in every stock
+  // browser. The op is BlendEquation::layerMask there.
+  angleMSAA,
+};
+
+std::unique_ptr<TestingWindow> makeWindow(MaskWindow kind = MaskWindow::metal)
 {
 #if defined(__APPLE__)
-  return std::unique_ptr<TestingWindow>(TestingWindow::MakeMetalTexture({}));
+  switch (kind)
+  {
+    case MaskWindow::metal:
+      return std::unique_ptr<TestingWindow>(
+          TestingWindow::MakeMetalTexture({}));
+    case MaskWindow::angleMSAA:
+      // MakeEGL aborts on a libEGL it cannot load rather than declining,
+      // so look first. Any ANGLE build works, e.g. the libEGL.dylib and
+      // libGLESv2.dylib that ship inside Chrome, via DYLD_LIBRARY_PATH.
+      if (dlopen("libEGL.dylib", RTLD_LAZY) == nullptr)
+      {
+        return nullptr;
+      }
+      return std::unique_ptr<TestingWindow>(TestingWindow::MakeEGL(
+          TestingWindow::Backend::angle,
+          {.msaaSampleCount = 4},
+          nullptr));
+  }
+  return nullptr;
 #else
   return nullptr;
 #endif
+}
+
+const char* windowName(MaskWindow kind)
+{
+  return kind == MaskWindow::metal ? "metal (rasterOrdering)"
+                                   : "angle msaa (depthStencil)";
 }
 } // namespace
 
@@ -425,11 +466,26 @@ TEST_CASE("a fully covering opaque mask is an identity", "[layer-mask-pixel]")
   // left it -- so this catches any error in the raster plan, the shared box
   // and scale, the composite placement, the pixel snap or the scale inverse,
   // none of which a partial mask would isolate from the masking itself.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
+  }
+  printf("[layer-mask] on %s\n", windowName(kind));
+
+  if (kind == MaskWindow::angleMSAA)
+  {
+    // Guards the whole ANGLE half of this file. If this window ever stopped
+    // forcing MSAA -- ANGLE can expose its own pixel local storage -- every
+    // case would quietly retest rasterOrdering.
+    window->resize(16, 16);
+    auto probe = window->beginFrame({.clearColor = 0xff000000});
+    CHECK(
+        window->renderContext()->frameInterlockMode() ==
+        gpu::InterlockMode::depthStencil);
+    window->endFrame(nullptr);
   }
 
   for (float deviceScale : {1.0f, 2.0f})
@@ -466,12 +522,14 @@ TEST_CASE("alpha and inverted alpha partition the layer", "[layer-mask-pixel]")
   // multiply by f and 1-f and the content is common, so they have to sum back
   // to it. Catches a sign error that either mode alone would happily pass,
   // and it holds across the mask's antialiased edge too.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
 
   auto alpha = renderOnce(
       window.get(),
@@ -522,12 +580,14 @@ TEST_CASE(
     "an opaque white mask reads the same by luminance as by alpha",
     "[layer-mask-pixel]")
 {
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
   auto byAlpha = renderOnce(
       window.get(),
       {.present = true, .mode = LayerMaskMode::alpha},
@@ -553,12 +613,14 @@ TEST_CASE(
   // dot((0.5,0.5,0.5), coeffs) = 0.5 -- but only if luminance is taken on the
   // PREMULTIPLIED texel. A shader that "helpfully" unmultiplies first yields
   // f = 1.0 and this fails, which is exactly the bug worth pinning.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
   auto byAlpha = renderOnce(
       window.get(),
       {.present = true, .mode = LayerMaskMode::alpha, .color = 0x80ffffff},
@@ -589,12 +651,14 @@ TEST_CASE("a feather survives the raster edge", "[layer-mask-pixel]")
   // A fully covering alpha mask is an identity, so the masked render has to
   // match the plain vector draw of the same content exactly. Any crop shows
   // up as a diff on the feather's outer edge.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
   auto masked = renderOnce(
       window.get(),
       {.present = true,
@@ -636,6 +700,12 @@ TEST_CASE(
   // Measured at max channel 33 over 1.5% of pixels; the thresholds are that
   // with headroom.
   //
+  // 4x MSAA measures max channel 59 over 1.2%. Its edge coverage comes in
+  // quarters, and the masked render quantizes each edge in a different pass
+  // (into the raster, at raster-space sample positions) from the vector draw,
+  // so the two can land a full step (64) apart on the same pixel. The
+  // fraction, which is what a misplacement actually moves, is no worse.
+  //
   // Note this does NOT exercise the guard band, despite the obvious guess
   // that it would. Setting kGuardTexels to 0 leaves these numbers unchanged
   // to three decimal places, here and with a magnified composite -- the
@@ -643,12 +713,14 @@ TEST_CASE(
   // reads the edge texel, which is the value that belongs there. The
   // bucketing also grows the box right and bottom, so there is usually
   // transparent padding regardless.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
   // Deliberately not a multiple of 90 degrees, which would stay axis aligned
   // and keep the snap -- and so would prove nothing.
   constexpr float kRotation = 0.37f;
@@ -669,7 +741,7 @@ TEST_CASE(
 
   auto d = Diff::between(masked, vectors);
   d.report("identity mask under rotation");
-  CHECK(d.maxChannel <= 48);
+  CHECK(d.maxChannel <= (kind == MaskWindow::metal ? 48u : 72u));
   CHECK(d.significantFraction < 0.03);
 }
 
@@ -687,12 +759,14 @@ TEST_CASE("luminance weights the channels by Rec.601", "[layer-mask-pixel]")
   // The constant has to match lum_from_rgb in advanced_blend.glsl, or a
   // luminance mask disagrees with Rive's own luminosity blending -- and the
   // editor, which mirrors the same numbers.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
 
   // Opaque white by alpha: f is 1 wherever the source covers, so this is the
   // full-strength reference every luminance render is a fraction of.
@@ -755,12 +829,14 @@ TEST_CASE(
   //
   // Both masks cover everything, so the whole arrangement is an identity and
   // any routing mistake shows up as a difference from the plain vector draw.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
 
   auto nested = renderOnce(
       window.get(),
@@ -793,12 +869,14 @@ TEST_CASE("a partial mask only ever removes content", "[layer-mask-pixel]")
   // channel order is the window's business, so pixel probes encode
   // assumptions that have nothing to do with masking. These three properties
   // are what "masking" actually means, and they hold whatever the geometry.
-  auto window = makeWindow();
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
   if (window == nullptr)
   {
-    SUCCEED("no GPU testing window on this platform");
+    SUCCEED("no " << windowName(kind) << " testing window here");
     return;
   }
+  printf("[layer-mask] on %s\n", windowName(kind));
   auto masked = renderOnce(
       window.get(),
       {.present = true, .mode = LayerMaskMode::alpha},
@@ -852,13 +930,17 @@ TEST_CASE(
     "[layer-mask-pixel]")
 {
   // The documented degrade. applyLayerMask no-ops on any interlock mode but
-  // rasterOrdering, so the promise is "unmasked, not wrong" -- but that
+  // rasterOrdering and, where the backend implements the blend,
+  // depthStencil, so the promise is "unmasked, not wrong" -- but that
   // promise is only keepable if the mask never rasterizes in the first place.
   // Once it has, the layer is unmasked *and* clipped to a box computed as
   // content-and-coverage, which is content the author never asked to lose.
   // So this asserts the strong form: byte-for-byte the plain vector draw, and
   // nothing rasterized offscreen at all.
-  auto window = makeWindow();
+  // Metal only: disableRasterOrdering is what leaves its frame unable to
+  // mask, and on a backend with supportsDepthStencilLayerMask the MSAA frame
+  // it falls back to can mask after all.
+  auto window = makeWindow(MaskWindow::metal);
   if (window == nullptr)
   {
     SUCCEED("no GPU testing window on this platform");

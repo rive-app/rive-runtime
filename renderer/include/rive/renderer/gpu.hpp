@@ -151,6 +151,15 @@ struct PlatformFeatures
   bool supportsBlendAdvancedCoherentKHR = false;
   // Required for @ENABLE_CLIP_RECT in depthStencil mode.
   bool supportsClipPlanes = false;
+  // The backend implements BlendEquation::layerMask, so a depthStencil frame
+  // can apply a layer mask. rasterOrdering does the op in the shader and
+  // needs nothing from the backend; depthStencil has to scale the
+  // destination with hardware blending, which takes a src factor of ZERO
+  // that not every backend's blend-state builder can express yet. The backend
+  // must also mask color writes for real on passes that disable them:
+  // VERTEX_FLAG_DISABLE_COLOR_WRITE alone makes the shader emit 0, which
+  // this blend applies as an erase.
+  bool supportsDepthStencilLayerMask = false;
   // The backend supports dynamic state that allows Rive to collapse multiple
   // subpasses onto a single pipeline, namely:
   //  * Depth (Vulkan 1.3)
@@ -1229,11 +1238,19 @@ enum class ShaderMiscFlags : uint32_t
   // a single pass, instead of (1) resolving the offscreen texture, and then
   // (2) copying the offscreen texture to back the renderTarget.
   coalescedResolveAndTransfer = 1 << 9,
+
+  // InterlockMode::depthStencil only. This draw applies a layer mask: it
+  // scales the color already in the target by a per-pixel factor instead of
+  // compositing over it, via BlendEquation::layerMask. The shader itself is
+  // identical (the draw is recognized at runtime by its negative v_image.z);
+  // this flag exists so the pipeline gets the right blend state and the draw
+  // never batches with an ordinary one.
+  layerMask = 1 << 10,
 };
 
-constexpr static size_t ShaderMiscFlagCount = 10;
+constexpr static size_t ShaderMiscFlagCount = 11;
 static_assert(
-    static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
+    static_cast<uint32_t>(ShaderMiscFlags::layerMask) ==
     1 << (ShaderMiscFlagCount - 1));
 
 // Since shader keys also pack the interlockMode and drawType, they don't have
@@ -2436,6 +2453,12 @@ enum class BlendEquation : uint8_t
   plus = srcOver + 1,
   min = srcOver + 2,
   max = srcOver + 3,
+
+  // dst * srcAlpha on every channel (src factor ZERO, dst factor SRC_ALPHA):
+  // a layer-mask apply in depthStencil mode, where the shader emits the mask
+  // factor as alpha. PlatformFeatures::supportsDepthStencilLayerMask is
+  // required.
+  layerMask = srcOver + 4,
 
   // "Advanced" hardware blend equations.
   // PlatformFeatures::supportsKHRBlendEquations is required.

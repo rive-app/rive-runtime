@@ -217,6 +217,10 @@ RenderContextGLImpl::RenderContextGLImpl(
   // Every GL state change is "dynamic", so save ourselves the overhead of
   // splitting out subpasses into separate draws with different pipelines.
   m_platformFeatures.supportsPipelineDynamicState = true;
+  // GLState::setBlendEquation implements BlendEquation::layerMask. This is
+  // what lets WebGL2 mask at all: without WEBGL_shader_pixel_local_storage
+  // every frame is depthStencil.
+  m_platformFeatures.supportsDepthStencilLayerMask = true;
 
   GLint maxTextureSize;
   glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);

@@ -3203,6 +3203,11 @@ static WGPUBlendOperation wgpuBlendOp(gpu::BlendEquation blendEquation)
       return WGPUBlendOperation_Min;
     case gpu::BlendEquation::max:
       return WGPUBlendOperation_Max;
+    case gpu::BlendEquation::layerMask:
+      // Needs a src factor of ZERO, which makeDrawPipeline does not vary
+      // yet, so WebGPU leaves supportsDepthStencilLayerMask off and is
+      // never asked for it.
+      RIVE_UNREACHABLE();
 #ifdef RIVE_WAGYU
     case gpu::BlendEquation::multiply:
       return WGPUBlendOperation_WagyuMultiply;
@@ -3282,6 +3287,9 @@ static WGPUBlendFactor wgpuDstBlendFactor(gpu::BlendEquation blendEquation)
     case gpu::BlendEquation::min:
     case gpu::BlendEquation::max:
       return WGPUBlendFactor_One;
+    case gpu::BlendEquation::layerMask:
+      // See wgpuBlendOp().
+      RIVE_UNREACHABLE();
   }
   RIVE_UNREACHABLE();
 }

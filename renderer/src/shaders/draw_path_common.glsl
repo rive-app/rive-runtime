@@ -66,8 +66,8 @@ TEXTURE_R16F(
     @featherAtlasTexture);
   #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-  // The Qualcomm compiler can't handle line breaks in #ifs.
-  // clang-format off
+// clang-format off
+// The Qualcomm compiler can't handle line breaks in #ifs.
 #if defined(@RENDER_MODE_DEPTH_STENCIL) && defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@RENDER_TO_UAV)
 // clang-format on
 DST_COLOR_TEXTURE(@dstColorTexture);
@@ -97,6 +97,28 @@ DYNAMIC_SAMPLER_BLOCK_END
 #ifdef @FRAGMENT
 INLINE bool is_stroke(float4 coverages) { return coverages.y >= .0; }
 INLINE bool is_stroke(half2 coverages) { return coverages.y >= .0; }
+#endif // FRAGMENT
+
+// Here rather than with find_paint_color in draw_path.vert: depthStencil path
+// draws (draw_depthstencil_path.glsl) apply layer masks too, and they do not
+// include draw_path.vert.
+#ifdef @FRAGMENT
+// The multiplier a layer mask applies to whatever is already in the target.
+// `maskPremul` is the mask's premultiplied texel.
+INLINE half layer_mask_factor(half4 maskPremul, uint mode)
+{
+  // Rec.601, matching lum_from_rgb in advanced_blend.glsl, so a luminance
+  // mask agrees with Rive's own luminosity blending (and with the editor,
+  // which must use the same constant or preview drifts from playback).
+  half luma = dot(maskPremul.rgb, make_half3(.30, .59, .11));
+  if (mode == LAYER_MASK_MODE_ALPHA)
+    return maskPremul.a;
+  if (mode == LAYER_MASK_MODE_INVERTED_ALPHA)
+    return 1. - maskPremul.a;
+  if (mode == LAYER_MASK_MODE_LUMINANCE)
+    return luma;
+  return 1. - luma; // LAYER_MASK_MODE_INVERTED_LUMINANCE
+}
 #endif // FRAGMENT
 
 #if defined(@FRAGMENT) && defined(@ENABLE_FEATHER)

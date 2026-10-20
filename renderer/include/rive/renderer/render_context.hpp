@@ -193,12 +193,15 @@ public:
   // image paint.
   bool frameSupportsImagePaintForPaths() const;
 
-  // Whether this frame can apply a layer mask in-shader. The op replaces
-  // src-over with "multiply the destination by a factor" at each interlock
-  // mode's blend step, and only rasterOrdering's is taught it so far -- there
-  // the destination is already read for every draw, so it costs nothing.
-  // A frame that says no composites the layer unmasked, which is visible but
-  // not wrong; drawing the coverage texture over the content would be.
+  // Whether this frame can apply a layer mask. The op replaces src-over with
+  // "multiply the destination by a factor" at each interlock mode's blend
+  // step. rasterOrdering does it in-shader -- the destination is already read
+  // for every draw, so it costs nothing -- and depthStencil does it with
+  // BlendEquation::layerMask on backends that set
+  // PlatformFeatures::supportsDepthStencilLayerMask. No other mode is taught
+  // it yet. A frame that says no composites the layer unmasked, which is
+  // visible but not wrong; drawing the coverage texture over the content
+  // would be.
   bool frameSupportsLayerMask() const;
 
   // The device's answer, and the one a recording session asks of the context

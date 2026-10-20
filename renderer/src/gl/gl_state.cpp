@@ -274,6 +274,12 @@ void GLState::setBlendEquation(gpu::BlendEquation blendEquation)
       glBlendEquation(GL_MAX);
       glBlendFunc(GL_ONE, GL_ONE);
       break;
+    case gpu::BlendEquation::layerMask:
+      // dst * srcAlpha on every channel, alpha included, so a texel the
+      // content left transparent stays transparent.
+      glBlendEquation(GL_FUNC_ADD);
+      glBlendFunc(GL_ZERO, GL_SRC_ALPHA);
+      break;
     case gpu::BlendEquation::screen:
       glBlendEquation(GL_SCREEN_KHR);
       break;

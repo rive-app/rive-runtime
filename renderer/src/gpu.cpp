@@ -225,9 +225,6 @@ static ShaderMiscFlags get_valid_shader_misc_flags(
       }
       break;
 
-    case DrawType::featherAtlasBlit:
-    case DrawType::imageRect:
-    case DrawType::imageMesh:
     case DrawType::stencilMidpointFanBorrowedCoverage:
     case DrawType::stencilDynamicMidpointFans:
     case DrawType::stencilDynamicOuterCubics:
@@ -240,9 +237,23 @@ static ShaderMiscFlags get_valid_shader_misc_flags(
     case DrawType::stencilOuterCubicReset:
     case DrawType::stencilOuterCubicWinding:
     case DrawType::stencilOuterCubicCover:
+    case DrawType::depthAAOuterHairline:
+      // A layer-mask apply is a unit-rect fill, so it only ever lands on
+      // the depthStencil fill types, plus the hairline pass that antialiases
+      // an inkbleed fill's edge. Every subpass of it carries the flag,
+      // including the stencil-only ones, where it is inert because color
+      // writes are off.
+      if (mode == InterlockMode::depthStencil)
+      {
+        outFlags |= ShaderMiscFlags::layerMask;
+      }
+      break;
+
+    case DrawType::featherAtlasBlit:
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
     case DrawType::depthStrokes:
     case DrawType::depthAAStrokes:
-    case DrawType::depthAAOuterHairline:
       break;
   }
 
@@ -310,7 +321,7 @@ constexpr static ShaderMiscFlags shaderMiscFlagKeyMask(InterlockMode mode)
 
     case InterlockMode::depthStencil:
       return ShaderMiscFlags::fixedFunctionColorOutput |
-             ShaderMiscFlags::msaaDstRead;
+             ShaderMiscFlags::msaaDstRead | ShaderMiscFlags::layerMask;
   }
   RIVE_UNREACHABLE();
 }
@@ -419,6 +430,23 @@ void ForEachUbershaderPermutation(
                       ShaderMiscFlags::fixedFunctionColorOutput))
           {
             continue;
+          }
+          if (enums::is_flag_set(curMiscFlags, ShaderMiscFlags::layerMask))
+          {
+            // A backend that has not implemented the blend
+            // equation must never be asked to build it.
+            if (!platformFeatures.supportsDepthStencilLayerMask)
+            {
+              continue;
+            }
+            // The apply is always a srcOver draw, so it always gets
+            // fixedFunctionColorOutput and never a dst read.
+            if (!enums::is_flag_set(
+                    curMiscFlags,
+                    ShaderMiscFlags::fixedFunctionColorOutput))
+            {
+              continue;
+            }
           }
           break;
 
@@ -2280,6 +2308,16 @@ static BlendEquation get_blend_equation(
       }
 
     case InterlockMode::depthStencil:
+      if (enums::is_flag_set(shaderMiscFlags, ShaderMiscFlags::layerMask))
+      {
+        // A layer-mask apply scales what is already in the target.
+        // src-over cannot express that: emitting (0, 0, 0, 1 - f) gets
+        // the color right but writes 1 - f into the alpha of every
+        // transparent texel, so a masked-out region turns opaque black.
+        assert(platformFeatures.supportsDepthStencilLayerMask);
+        assert(!enums::is_flag_set(drawContents, DrawContents::opaquePaint));
+        return BlendEquation::layerMask;
+      }
       if (enums::is_flag_set(drawContents, DrawContents::opaquePaint))
       {
         // A dynamic-state draw may suppress color writes by outputting

@@ -424,6 +424,28 @@ gpu::InterlockMode RenderContext::selectInterlockMode(
   return gpu::InterlockMode::depthStencil;
 }
 
+// Whether a frame in this mode applies the layer-mask op rather than dropping
+// it. rasterOrdering does it in the shader, on every backend; depthStencil does
+// it with BlendEquation::layerMask, which only some backends implement. Every
+// other mode's blend step has not been taught the op.
+static bool interlock_mode_can_apply_layer_mask(
+    gpu::InterlockMode mode,
+    const gpu::PlatformFeatures& platformFeatures)
+{
+  switch (mode)
+  {
+    case gpu::InterlockMode::rasterOrdering:
+      return true;
+    case gpu::InterlockMode::depthStencil:
+      return platformFeatures.supportsDepthStencilLayerMask;
+    case gpu::InterlockMode::atomics:
+    case gpu::InterlockMode::clockwise:
+    case gpu::InterlockMode::clockwiseAtomic:
+      return false;
+  }
+  RIVE_UNREACHABLE();
+}
+
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
   RIVE_PROF_SCOPE_L(0)
@@ -458,7 +480,9 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
                                        m_frameDescriptor.msaaSampleCount == 1;
   // Republished for the producer thread; see the member's comment.
   m_frameCanApplyLayerMask.store(
-      m_frameInterlockMode == gpu::InterlockMode::rasterOrdering,
+      interlock_mode_can_apply_layer_mask(
+          m_frameInterlockMode,
+          platformFeatures()),
       std::memory_order_relaxed);
   m_frameShaderFeaturesMask = gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);
   m_triangulationController.beginFrame(
@@ -504,7 +528,9 @@ bool RenderContext::frameSupportsLayerMask() const
   // taught it is worse than skipping -- find_paint_color would hand back the
   // coverage texel and src-over would paint it over the content. Safe to read
   // the mode here because this runs on the thread that opened the frame.
-  return m_frameInterlockMode == gpu::InterlockMode::rasterOrdering;
+  return interlock_mode_can_apply_layer_mask(
+      m_frameInterlockMode,
+      platformFeatures());
 }
 
 bool RenderContext::supportsLayerMask() const
@@ -523,10 +549,14 @@ bool RenderContext::supportsLayerMask() const
   // written again, so reading it across threads is safe. The mask rides the
   // modulated-image path to get its texel, which rasterOrdering always has,
   // and select_interlock_mode cannot choose that mode without this flag.
+  // depthStencil is always selectable (MSAA is the universal fallback), so a
+  // backend that implements the blend there can mask on any device -- which
+  // is what makes this work on WebGL2 without pixel local storage.
   //
   // What this cannot know is the descriptor of the frame that will replay the
-  // recording. A capable device whose next frame asks for MSAA lands on
-  // depthStencil, where applyLayerMask no-ops -- and by then the rasters are
+  // recording. A rasterOrdering device whose next frame asks for MSAA lands
+  // on depthStencil, where applyLayerMask no-ops unless the backend has
+  // supportsDepthStencilLayerMask -- and by then the rasters are
   // already sized to the content-and-coverage intersection, so that layer
   // comes back unmasked and cropped. Closing that needs the capability handed
   // in from the target before recording, or an uncropped box whenever the
@@ -547,7 +577,8 @@ bool RenderContext::supportsLayerMask() const
   // that second option gives up the tight bounds this whole change is for.
   // frameSupportsLayerMask() is exact but is only answerable on the replay
   // thread inside the frame, far too late to pick a box.
-  return platformFeatures().supportsRasterOrderingMode &&
+  return (platformFeatures().supportsRasterOrderingMode ||
+          platformFeatures().supportsDepthStencilLayerMask) &&
          m_frameCanApplyLayerMask.load(std::memory_order_relaxed);
 }
 
@@ -4360,6 +4391,17 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
       draw->blendMode() == BlendMode::srcOver)
   {
     shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+  }
+
+  if (m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
+      draw->isLayerMask())
+  {
+    // Gives the apply its own pipeline (BlendEquation::layerMask) and,
+    // because batches only merge on matching misc flags, keeps it from
+    // riding along in an ordinary draw's batch. It cannot go in the sort
+    // key's DrawContents field instead: that key is already 63 bits.
+    assert(draw->blendMode() == BlendMode::srcOver);
+    shaderMiscFlags |= gpu::ShaderMiscFlags::layerMask;
   }
 
   // DrawBatch::baseElement on a depthStencil draw means baseVertex.

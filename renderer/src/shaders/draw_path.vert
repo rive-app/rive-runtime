@@ -370,23 +370,6 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 
 // Add a function here for fragments to unpack the paint since we're the ones
 // who packed it in the vertex shader.
-// The multiplier a layer mask applies to whatever is already in the target.
-// `maskPremul` is the mask's premultiplied texel.
-INLINE half layer_mask_factor(half4 maskPremul, uint mode)
-{
-  // Rec.601, matching lum_from_rgb in advanced_blend.glsl, so a luminance
-  // mask agrees with Rive's own luminosity blending (and with the editor,
-  // which must use the same constant or preview drifts from playback).
-  half luma = dot(maskPremul.rgb, make_half3(.30, .59, .11));
-  if (mode == LAYER_MASK_MODE_ALPHA)
-    return maskPremul.a;
-  if (mode == LAYER_MASK_MODE_INVERTED_ALPHA)
-    return 1. - maskPremul.a;
-  if (mode == LAYER_MASK_MODE_LUMINANCE)
-    return luma;
-  return 1. - luma; // LAYER_MASK_MODE_INVERTED_LUMINANCE
-}
-
 INLINE half4 find_paint_color(
   #ifdef @ENABLE_MODULATED_IMAGE
     float3 image,
