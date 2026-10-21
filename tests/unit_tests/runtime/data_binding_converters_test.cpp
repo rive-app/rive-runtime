@@ -2,6 +2,8 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/data_bind/converters/data_converter_interpolator.hpp"
+#include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -134,6 +136,64 @@ TEST_CASE("data converter interpolator resets on binding", "[silver]")
   }
 
   CHECK(silver.matches("data_converter_interpolator_reset"));
+}
+
+namespace
+{
+// One frame as the runtime runs it: advance the interpolator, then convert the
+// bound value through it.
+float stepInterpolator(DataConverterInterpolator& converter, float target)
+{
+  converter.advance(1.0f / 60.0f);
+  DataValueNumber input(target);
+  return converter.convert(&input, nullptr)->as<DataValueNumber>()->value();
+}
+
+// Runs frames until the value lands on target, checking that every frame moves
+// the value. Returns the number of frames taken.
+int tweenTo(DataConverterInterpolator& converter, float target)
+{
+  float previous = stepInterpolator(converter, target);
+  int frames = 0;
+  while (previous != target && frames < 600)
+  {
+    float value = stepInterpolator(converter, target);
+    INFO("frame " << frames << " value " << value);
+    CHECK(value != previous);
+    previous = value;
+    frames++;
+  }
+  REQUIRE(previous == target);
+  return frames;
+}
+} // namespace
+
+TEST_CASE(
+    "data converter interpolator restarts without holding a frame",
+    "[data binding]")
+{
+  DataConverterInterpolator converter;
+  converter.duration(0.375f);
+  DataValueNumber initial(0);
+  converter.convert(&initial, nullptr);
+  // Get past the first run, which snaps to the value instead of tweening.
+  stepInterpolator(converter, 0);
+  stepInterpolator(converter, 0);
+
+  int firstTweenFrames = tweenTo(converter, 300);
+
+  // A new target after the previous tween landed is a fresh tween, not a
+  // smoothing from the finished one.
+  CHECK(tweenTo(converter, 0) == firstTweenFrames);
+  CHECK(tweenTo(converter, 300) == firstTweenFrames);
+
+  // A new target mid tween smooths from the old one. Its value must keep
+  // moving on the frame the old tween finishes.
+  for (int i = 0; i < 12; i++)
+  {
+    stepInterpolator(converter, 0);
+  }
+  tweenTo(converter, 300);
 }
 
 TEST_CASE(

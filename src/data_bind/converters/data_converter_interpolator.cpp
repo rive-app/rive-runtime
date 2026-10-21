@@ -48,6 +48,9 @@ void InterpolatorAdvancer::advanceAnimationData(float elapsedTime)
     {
       m_animationDataA.copy(m_animationDataB);
       m_isSmoothingAnimation = false;
+      // B now lives in A, so keep advancing A. Advancing B would leave A one
+      // frame behind and repeat this frame's value on the next one.
+      animationData = currentAnimationData();
     }
     else
     {
@@ -97,7 +100,8 @@ bool InterpolatorAdvancer::advance(float elapsedTime)
   {
     m_converter->markConverterDirty();
   }
-  if (animationData->elapsedSeconds < m_converter->duration())
+  // advanceAnimationData may have ended the smoothing animation.
+  if (currentAnimationData()->elapsedSeconds < m_converter->duration())
   {
     return true;
   }

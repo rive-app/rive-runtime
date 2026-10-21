@@ -80,7 +80,11 @@ public:
     auto animationData = currentAnimationData();
     if (!input->compare(animationData->to))
     {
-      if (animationData->elapsedSeconds != 0)
+      // Only smooth from an animation that is still in flight. One that
+      // reached its target keeps its elapsed time, because advance stops
+      // once the value lands.
+      if (animationData->elapsedSeconds != 0 &&
+          !m_currentValue->compare(animationData->to))
       {
         if (m_isSmoothingAnimation)
         {
