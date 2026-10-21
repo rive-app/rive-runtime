@@ -225,7 +225,7 @@ class CheckProcess(threading.Thread):
             # We're not running a client, so clear the command.
             self.cmd = None
 
-        if args.verbose or self.cmd[0] == "":
+        if args.verbose or (self.cmd != None and self.cmd[0] == ""):
             # We were given a blank command, which means we want to
             # print the rest of the command pieces.
             print(' '.join(self.cmd[1:]), flush=True)
