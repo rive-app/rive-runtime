@@ -340,6 +340,7 @@ static Core* readRuntimeObject(
 }
 
 bool File::deterministicMode = false;
+int File::deterministicSeed = 1;
 
 File::File(Factory* factory, rcp<FileAssetLoader> assetLoader)
     : m_factory(factory)

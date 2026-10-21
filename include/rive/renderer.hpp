@@ -252,6 +252,44 @@ public:
 private:
   RenderImageDelegate* m_delegate = nullptr;
 #endif
+
+#ifdef WITH_RIVE_TOOLS
+public:
+  // Tools only: reads 0x0 until revealSize, the way an image on a web
+  // runtime reads before its asynchronous decode lands. Lets a native
+  // preview catch code that sizes things from an image too early.
+  void hideSize()
+  {
+    if (m_hiddenWidth < 0)
+    {
+      m_hiddenWidth = m_Width;
+      m_hiddenHeight = m_Height;
+      m_Width = 0;
+      m_Height = 0;
+    }
+  }
+  void revealSize()
+  {
+    if (m_hiddenWidth >= 0)
+    {
+      m_Width = m_hiddenWidth;
+      m_Height = m_hiddenHeight;
+      m_hiddenWidth = -1;
+      m_hiddenHeight = -1;
+      s_revealGeneration++;
+    }
+  }
+  // Bumped by every reveal, so an artboard a script owns (and draws without
+  // an update) can tell it has layout to settle. Only the CLI preview ever
+  // reveals, so elsewhere this never moves.
+  static uint32_t revealGeneration() { return s_revealGeneration; }
+  bool sizeHidden() const { return m_hiddenWidth >= 0; }
+
+private:
+  int m_hiddenWidth = -1;
+  int m_hiddenHeight = -1;
+  static inline uint32_t s_revealGeneration = 0;
+#endif
 };
 
 class RenderPath : public CommandPath, public ENABLE_LITE_RTTI(RenderPath)

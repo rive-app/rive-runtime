@@ -209,6 +209,8 @@ private:
   rcp<SemanticNode> m_semanticBoundaryNode;
 #ifdef WITH_RIVE_TOOLS
   rcp<FocusNode> m_externalParentFocusNode;
+  uint32_t m_seenImageRevealGeneration = 0;
+  bool m_hasUpdated = false;
 #endif
   static uint64_t sm_frameId;
 #ifdef TESTING
@@ -636,6 +638,21 @@ public:
 
   // Update layouts and components. Returns true if it updated something.
   bool updatePass(bool isRoot);
+#ifdef WITH_RIVE_TOOLS
+  // For artboards a script draws itself: settles this one and everything
+  // it hosts when image sizes were revealed since it last drew, so layout
+  // measured against a 0x0 image does not draw. A no-op unless something
+  // reveals.
+  void settleIfImagesRevealed();
+  // Re-runs layout after image sizes are revealed, without advancing:
+  // every hosted instance (nested artboards, list rows, artboard paints)
+  // bottom up, then each hosted instance once more after the host that
+  // lays it out. At most two update passes per instance, however deep.
+  void settleAfterImageReveal();
+  // Update passes settleAfterImageReveal has run, for tests to bound.
+  static size_t settlePassesForTesting();
+  static void resetSettlePassesForTesting();
+#endif
 
   void onDirty(ComponentDirt dirt) override;
 
@@ -798,6 +815,10 @@ public:
   /// state machines, or scripted converters on their data binds. Each
   /// instance keeps its scripts' state. Walks the artboard on every call.
   bool usesScripts() const;
+  const std::vector<ArtboardHost*>& artboardHosts() const
+  {
+    return m_ArtboardHosts;
+  }
   const std::vector<ArtboardComponentList*> artboardComponentLists() const
   {
     return m_ComponentLists;

@@ -32,6 +32,7 @@
 #include "rive/animation/keyframe.hpp"
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
+#include "rive/artboard_host.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/paint_image.hpp"
 #include "rive/watermark.hpp"
@@ -2421,8 +2422,75 @@ void Artboard::calculateLayout()
   calculateLayoutInternal(NAN, NAN);
 }
 
+#ifdef WITH_RIVE_TOOLS
+namespace
+{
+size_t s_settlePasses = 0;
+
+void settlePass(Artboard* artboard)
+{
+  s_settlePasses++;
+  artboard->updatePass(true);
+}
+
+template <typename Visit> void forEachHosted(Artboard* artboard, Visit visit)
+{
+  for (ArtboardHost* host : artboard->artboardHosts())
+  {
+    for (size_t i = 0; i < host->artboardCount(); i++)
+    {
+      if (ArtboardInstance* instance = host->artboardInstance((int)i))
+      {
+        visit(instance);
+      }
+    }
+  }
+}
+
+void settleBottomUp(Artboard* artboard)
+{
+  forEachHosted(artboard, [](ArtboardInstance* hosted) {
+    settleBottomUp(hosted);
+  });
+  settlePass(artboard);
+}
+
+void flushHostedTopDown(Artboard* artboard)
+{
+  forEachHosted(artboard, [](ArtboardInstance* hosted) {
+    settlePass(hosted);
+    flushHostedTopDown(hosted);
+  });
+}
+} // namespace
+
+void Artboard::settleAfterImageReveal()
+{
+  settleBottomUp(this);
+  flushHostedTopDown(this);
+}
+
+size_t Artboard::settlePassesForTesting() { return s_settlePasses; }
+void Artboard::resetSettlePassesForTesting() { s_settlePasses = 0; }
+
+void Artboard::settleIfImagesRevealed()
+{
+  // Only an artboard that has been updated has layout to correct; one a
+  // script never advanced draws as it would have without the reveal.
+  uint32_t generation = RenderImage::revealGeneration();
+  if (m_hasUpdated && m_seenImageRevealGeneration != generation)
+  {
+    m_seenImageRevealGeneration = generation;
+    settleAfterImageReveal();
+  }
+}
+#endif
+
 bool Artboard::updatePass(bool isRoot)
 {
+#ifdef WITH_RIVE_TOOLS
+  m_hasUpdated = true;
+#endif
   RIVE_PROF_SCOPE()
   updateDataBinds();
   bool didUpdate = false;

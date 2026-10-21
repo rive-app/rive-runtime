@@ -137,6 +137,14 @@ void Image::assetUpdated()
 {
   updateImageScale();
   markWorldTransformDirty();
+#ifdef WITH_RIVE_LAYOUT
+  // A new image can change the size layout measured, as Text's shape does,
+  // so the layouts around it measure again: a participant's own slot, or a
+  // hugging leaf layout that measures the image directly. Without this an
+  // image measured before it decoded (a web runtime's async decode) keeps
+  // a 0x0 slot.
+  markLayoutNodeDirty();
+#endif
 #ifdef WITH_RIVE_EDITOR
   // Editor / coop path: the FileAsset's `renderImage` typically
   // arrives AFTER `Image::setAsset` has already run (bytes are

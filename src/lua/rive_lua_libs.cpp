@@ -1,6 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/async/work_pool.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
@@ -252,6 +253,17 @@ void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 {
   luaopen_rive(state);
   lua_setthreaddata(state, context);
+
+  // luaopen_math seeds from the clock; a deterministic run pins it so
+  // math.random draws the same sequence every time.
+  if (File::deterministicMode)
+  {
+    lua_getglobal(state, "math");
+    lua_getfield(state, -1, "randomseed");
+    lua_pushinteger(state, File::deterministicSeed);
+    lua_call(state, 1, 0);
+    lua_pop(state, 1);
+  }
 
   lua_pushcclosurek(state, lua_require, "require", 0, nullptr);
   lua_setglobal(state, "require");

@@ -208,6 +208,9 @@ static int artboard_draw(lua_State* L)
   auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 2);
 
   auto renderer = scriptedRenderer->validate(L);
+#ifdef WITH_RIVE_TOOLS
+  scriptedArtboard->artboard()->settleIfImagesRevealed();
+#endif
   if (lua_isnoneornil(L, kVisitorIndex))
   {
     scriptedArtboard->artboard()->drawInternal(renderer);
@@ -278,6 +281,9 @@ static int artboard_drawModulated(lua_State* L)
 {
   auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
   auto renderer = lua_torive<ScriptedRenderer>(L, 2)->validate(L);
+#ifdef WITH_RIVE_TOOLS
+  scriptedArtboard->artboard()->settleIfImagesRevealed();
+#endif
   scriptedArtboard->artboard()->drawModulated(
       renderer,
       luaL_checkunsigned(L, 3),

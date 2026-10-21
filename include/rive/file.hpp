@@ -105,6 +105,9 @@ public:
   /// deterministicMode sets a static seed for randomization and uses
   /// timestamps for scrolling.
   static bool deterministicMode;
+  /// The seed scripts' random numbers start from while deterministicMode
+  /// is on, so the same run draws the same sequence every time.
+  static int deterministicSeed;
 
   File(Factory*, rcp<FileAssetLoader>);
 

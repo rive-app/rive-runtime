@@ -1822,9 +1822,15 @@ void cxaThrowNative(
   wasm_runtime_set_exception(inst, "c++ exception");
 }
 
-// Math.random's seed; the fixed date env that pins script time pins it too.
+// Math.random's seed. A deterministic run's seed comes first, so --seed
+// picks the same sequence here as in Luau; the fixed date env that pins
+// script time pins it too, to 1, the deterministic default.
 double envSeed(wasm_exec_env_t)
 {
+  if (File::deterministicMode)
+  {
+    return (double)File::deterministicSeed;
+  }
   if (getenv("RIVE_WASM_FIXED_DATE") != nullptr)
   {
     return 1.0;
@@ -6982,6 +6988,9 @@ void artboardDrawImpl(
   auto renderer = resolveRenderer(vm, rendererHandle);
   if (host != nullptr && renderer != nullptr)
   {
+#ifdef WITH_RIVE_TOOLS
+    host->artboard->settleIfImagesRevealed();
+#endif
     host->artboard->drawInternal(renderer);
   }
 }
@@ -7056,6 +7065,9 @@ void artboardDrawVisitImpl(
     return;
   }
   WasmDrawVisit visit = {vm, rendererHandle};
+#ifdef WITH_RIVE_TOOLS
+  host->artboard->settleIfImagesRevealed();
+#endif
   host->artboard
       ->drawInternal(renderer->renderer, wasmDrawVisitor, &visit, host->file);
 }
@@ -7070,6 +7082,9 @@ void artboardDrawModulatedImpl(
   auto renderer = resolveRenderer(vm, rendererHandle);
   if (host != nullptr && renderer != nullptr)
   {
+#ifdef WITH_RIVE_TOOLS
+    host->artboard->settleIfImagesRevealed();
+#endif
     host->artboard->drawModulated(renderer, key, host->file);
   }
 }
@@ -10803,6 +10818,13 @@ bool WasmScriptingVM::bootModule()
   {
     m_lastError = "host_newstate failed";
     return false;
+  }
+  // A deterministic run pins math.random, as ScriptingVM::init does for
+  // native Luau. Older blobs without the export stay clock-seeded.
+  if (File::deterministicMode && hasExport("host_randomseed"))
+  {
+    uint32_t seedArgs[2] = {m_L, (uint32_t)File::deterministicSeed};
+    callModule("host_randomseed", 2, seedArgs);
   }
   uint32_t largs[1] = {m_L};
   // Same execution budget as the Luau backend's timed pcall.

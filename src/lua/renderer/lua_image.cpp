@@ -1,6 +1,9 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "lua.h"
 #include "lualib.h"
+#ifdef RIVE_WASM_MODULE
+#include "rive/wasm/module_render.hpp"
+#endif
 #include "rive/lua/rive_lua_libs.hpp"
 
 using namespace rive;
@@ -22,9 +25,20 @@ ScriptedImage* ScriptedImage::luaNew(lua_State* L)
 }
 #endif
 
+// In a wasm module the image is a proxy over a host image that may still be
+// decoding, so its size is read live rather than from when it was wrapped.
+static RenderImage* liveImage(ScriptedImage* self)
+{
+#ifdef RIVE_WASM_MODULE
+  wasmModuleRefreshImageSize(self->image.get());
+#endif
+  return self->image.get();
+}
+
 static void image_direct_width(void* udata, void* result)
 {
   auto* self = (ScriptedImage*)udata;
+  liveImage(self);
   lua_userdatadirectfield_setnumber(
       result,
       self->image ? (double)self->image->width() : 0);
@@ -33,6 +47,7 @@ static void image_direct_width(void* udata, void* result)
 static void image_direct_height(void* udata, void* result)
 {
   auto* self = (ScriptedImage*)udata;
+  liveImage(self);
   lua_userdatadirectfield_setnumber(
       result,
       self->image ? (double)self->image->height() : 0);
@@ -51,9 +66,11 @@ static int image_index(lua_State* L)
   switch (atom)
   {
     case (int)LuaAtoms::width:
+      liveImage(image);
       lua_pushnumber(L, image->image ? image->image->width() : 0);
       return 1;
     case (int)LuaAtoms::height:
+      liveImage(image);
       lua_pushnumber(L, image->image ? image->image->height() : 0);
       return 1;
 #ifdef RIVE_ORE

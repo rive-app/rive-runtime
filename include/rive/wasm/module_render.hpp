@@ -69,8 +69,12 @@ std::unique_ptr<Renderer> makeWasmModuleRenderer(uint32_t handle);
 /// The host handle inside a module renderer.
 uint32_t wasmModuleRendererHandle(Renderer* renderer);
 
-/// Wraps a host image handle; dimensions are fetched once at wrap time.
+/// Wraps a host image handle. Dimensions are fetched at wrap time; call
+/// wasmModuleRefreshImageSize to pick up an image that decoded since.
 rcp<RenderImage> makeWasmModuleRenderImage(uint32_t handle);
+
+/// Re-reads a module render image's size from its host image.
+void wasmModuleRefreshImageSize(RenderImage* image);
 
 /// The host handle inside a module render image.
 uint32_t wasmModuleImageHandle(RenderImage* image);

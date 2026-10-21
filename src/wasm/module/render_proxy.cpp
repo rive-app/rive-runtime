@@ -245,10 +245,15 @@ private:
 class ModuleRenderImage : public RenderImage
 {
 public:
-  ModuleRenderImage(uint32_t handle) : m_handle(handle)
+  ModuleRenderImage(uint32_t handle) : m_handle(handle) { refreshSize(); }
+
+  // The host image can still be decoding when it is wrapped (a web
+  // runtime, or the CLI preview copying one), so its size is re-read
+  // rather than trusted from the wrap.
+  void refreshSize()
   {
-    m_Width = (int)rive_image_width(handle);
-    m_Height = (int)rive_image_height(handle);
+    m_Width = (int)rive_image_width(m_handle);
+    m_Height = (int)rive_image_height(m_handle);
   }
   ~ModuleRenderImage() override { rive_image_release(m_handle); }
   uint32_t handle() const { return m_handle; }
@@ -417,6 +422,14 @@ uint32_t wasmModuleImageHandle(RenderImage* image)
 {
   return image != nullptr ? static_cast<ModuleRenderImage*>(image)->handle()
                           : 0;
+}
+
+void wasmModuleRefreshImageSize(RenderImage* image)
+{
+  if (image != nullptr)
+  {
+    static_cast<ModuleRenderImage*>(image)->refreshSize();
+  }
 }
 
 Factory* wasmModuleFactory()
