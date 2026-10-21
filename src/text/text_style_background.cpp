@@ -73,9 +73,13 @@ void TextStyleBackground::draw(Renderer* renderer, const Mat2D& worldTransform)
     {
       continue;
     }
-    shapePaint->blendMode(
-        style()->parent()->as<Text>()->blendMode(),
-        style()->parent()->as<Text>()->additiveAmount());
+    // A global text style's background lives under the style artboard,
+    // not a Text; keep its paint's own blend mode then.
+    if (style()->parent()->is<Text>())
+    {
+      auto text = style()->parent()->as<Text>();
+      shapePaint->blendMode(text->blendMode(), text->additiveAmount());
+    }
     shapePaint->draw(renderer, &m_path, worldTransform, true);
   }
 }

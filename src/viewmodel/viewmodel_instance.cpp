@@ -284,11 +284,14 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
 
 void ViewModelInstance::viewModel(ViewModel* value)
 {
+  if (value != nullptr)
+  {
+    value->ref();
+  }
   if (m_ViewModel != nullptr)
   {
     m_ViewModel->unref();
   }
-  value->ref();
   m_ViewModel = value;
 }
 

@@ -21,6 +21,7 @@ enum class SymbolType : unsigned char
   textContent = 14,
   itemIndex = 15,
   drawIndex = 16,
+  globalTextStyle = 17,
 };
 }
 #endif

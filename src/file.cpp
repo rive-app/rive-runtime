@@ -25,6 +25,8 @@
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/text_asset_importer.hpp"
+#include "rive/text/text_style_global.hpp"
+#include "rive/text/text.hpp"
 #include "rive/importers/import_stack.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_LUAU
@@ -344,6 +346,7 @@ int File::deterministicSeed = 1;
 
 File::File(Factory* factory, rcp<FileAssetLoader> assetLoader)
     : m_factory(factory)
+    , m_textStyleShares(std::make_unique<TextStyleShareCache>(this))
     , m_assetLoader(std::move(assetLoader))
 {
 #if defined(DEBUG)
@@ -374,6 +377,9 @@ File::~File()
 #endif
   m_wasmVMs.clear();
 #endif
+  // Shared text style instances reference the artboards and view models
+  // below (and are gone with their last user, before this).
+  m_textStyleShares = nullptr;
   for (auto artboard : m_artboards)
   {
     delete artboard;
@@ -894,6 +900,13 @@ ImportResult File::readObjects(
       case NestedArtboardLeaf::typeKey:
         object->as<NestedArtboard>()->file(this);
         break;
+      case TextStyleGlobalBase::typeKey:
+        object->as<TextStyleGlobal>()->file(this);
+        break;
+      case TextBase::typeKey:
+        // Resolves global text styles its list runs name by index.
+        object->as<Text>()->file(this);
+        break;
       case ScriptedDataConverter::typeKey:
       case ScriptedDrawable::typeKey:
       case ScriptedLayout::typeKey:
@@ -1092,6 +1105,8 @@ ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
     }
   }
 
+  // What was known about the outgoing artboard as a text style is stale.
+  m_textStyleShares->forget(outgoing);
   m_artboards[index] = imported;
   deleteUnusedRetiredArtboards();
   // Instances share their source's animations and state machines by

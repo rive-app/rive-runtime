@@ -609,7 +609,7 @@ bool DataBind::toTarget()
          !enums::is_flag_set(flagsValue, DataBindFlags::ToSource);
 }
 
-bool DataBind::isNameBased()
+bool DataBind::isNameBased() const
 {
   auto flagsValue = static_cast<DataBindFlags>(flags());
   return enums::is_flag_set(flagsValue, DataBindFlags::NameBased);

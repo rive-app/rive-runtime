@@ -14,6 +14,8 @@
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/shapes/paint/paint_image.hpp"
 #include "rive/text/text_input.hpp"
+#include "rive/text/text_style_global.hpp"
+#include "rive/text/text.hpp"
 
 using namespace rive;
 
@@ -37,6 +39,11 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
       return component->as<ScrollConstraint>();
     case TextInputBase::typeKey:
       return component->as<TextInput>();
+    case TextStyleGlobalBase::typeKey:
+      return component->as<TextStyleGlobal>();
+    case TextBase::typeKey:
+      // Advances global text styles instanced for its list runs.
+      return component->as<Text>();
     case ScriptedDataConverter::typeKey:
       return component->as<ScriptedDataConverter>();
     case ScriptedDrawable::typeKey:

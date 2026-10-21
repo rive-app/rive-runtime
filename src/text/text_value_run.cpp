@@ -48,12 +48,12 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
     return code;
   }
   auto coreObject = context->resolve(styleId());
-  if (coreObject == nullptr || !coreObject->is<TextStylePaint>())
+  if (coreObject == nullptr || !coreObject->is<TextStyleReference>())
   {
     return StatusCode::MissingObject;
   }
 
-  m_style = static_cast<TextStylePaint*>(coreObject);
+  m_styleReference = static_cast<TextStyleReference*>(coreObject);
 
   return StatusCode::Ok;
 }
@@ -61,9 +61,9 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
 void TextValueRun::styleIdChanged()
 {
   auto coreObject = artboard()->resolve(styleId());
-  if (coreObject != nullptr && coreObject->is<TextStylePaint>())
+  if (coreObject != nullptr && coreObject->is<TextStyleReference>())
   {
-    m_style = static_cast<TextStylePaint*>(coreObject);
+    m_styleReference = static_cast<TextStyleReference*>(coreObject);
     textComponent()->markShapeDirty();
   }
 }
@@ -204,8 +204,11 @@ bool TextValueRun::hitTestPoint(
     bool skipOnUnclipped,
     bool isPrimaryHit)
 {
+  // A list-driven run has no parent: its Text clips and hides it.
   if (hitTestAABB(position) &&
-      Component::hitTestPoint(position, skipOnUnclipped, isPrimaryHit))
+      (parent() != nullptr
+           ? Component::hitTestPoint(position, skipOnUnclipped, isPrimaryHit)
+           : textComponent()->hitTestPoint(position, skipOnUnclipped, false)))
   {
     return hitTestHiFi(position, 2);
   }

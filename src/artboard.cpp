@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/data_bind/host_data_context_consumer.hpp"
 #include "rive/file.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
 #include "rive/wasm/wasm_scripting_vm.hpp"
@@ -553,6 +554,11 @@ StatusCode Artboard::initialize()
     if (advancingComponent)
     {
       m_advancingComponents.push_back(advancingComponent);
+    }
+    auto hostDataContextConsumer = HostDataContextConsumer::from(object);
+    if (hostDataContextConsumer)
+    {
+      m_hostDataContextConsumers.push_back(hostDataContextConsumer);
     }
   }
 
@@ -2121,6 +2127,12 @@ void Artboard::updateDataBinds(bool applyTargetToSource)
     artboardHost->updateDataBinds();
   }
   DataBindContainer::updateDataBinds(applyTargetToSource);
+  // After this artboard's own binds: values they just wrote (a text style's
+  // exposed inputs, data a style reads) reach the styles this same frame.
+  for (auto consumer : m_hostDataContextConsumers)
+  {
+    consumer->updateHostedDataBinds();
+  }
 }
 
 // How far the collapsed component at `index` jumps for a run ending at
@@ -4736,6 +4748,10 @@ void Artboard::internalDataContext(rcp<DataContext> value)
   }
   bindDataBindsFromContext();
   sortDataBinds();
+  for (auto consumer : m_hostDataContextConsumers)
+  {
+    consumer->hostDataContext(value);
+  }
   for (auto* scriptedObject : m_ScriptedObjects)
   {
     scriptedObject->dataContext(value);
@@ -4769,6 +4785,10 @@ void Artboard::relinkDataContext()
     }
     artboardHost->relinkDataContext(value);
   }
+  for (auto consumer : m_hostDataContextConsumers)
+  {
+    consumer->relinkHostDataContext();
+  }
 }
 
 void Artboard::rebuildDataBind(DataBind* dataBind)
@@ -4800,6 +4820,10 @@ void Artboard::clearDataContext()
   for (auto artboardHost : m_ArtboardHosts)
   {
     artboardHost->clearDataContext();
+  }
+  for (auto consumer : m_hostDataContextConsumers)
+  {
+    consumer->hostDataContext(nullptr);
   }
   for (auto* scriptedObject : m_ScriptedObjects)
   {

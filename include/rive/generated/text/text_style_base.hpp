@@ -1,18 +1,18 @@
 #ifndef _RIVE_TEXT_STYLE_BASE_HPP_
 #define _RIVE_TEXT_STYLE_BASE_HPP_
-#include "rive/container_component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/id.hpp"
+#include "rive/text/text_style_reference.hpp"
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/editor_field_types.hpp"
 #endif
 namespace rive
 {
-class TextStyleBase : public ContainerComponent
+class TextStyleBase : public TextStyleReference
 {
 protected:
-  typedef ContainerComponent Super;
+  typedef TextStyleReference Super;
 
 public:
   static const uint16_t typeKey = 573;
@@ -90,7 +90,7 @@ public:
     m_LetterSpacing = object.m_LetterSpacing;
     m_FontAssetId = object.m_FontAssetId;
     RIVE_EDITOR_COPY(object);
-    ContainerComponent::copy(object);
+    TextStyleReference::copy(object);
   }
 
   bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -111,7 +111,7 @@ public:
         return true;
     }
     RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-    return ContainerComponent::deserialize(propertyKey, reader);
+    return TextStyleReference::deserialize(propertyKey, reader);
   }
 
 protected:

@@ -40,6 +40,18 @@ void TextStyle::onDirty(ComponentDirt dirt)
       }
     }
   }
+  else if (
+      m_owner != nullptr &&
+      (dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
+  {
+    // A global style's paint: rebuild its variable font, and let the Texts
+    // drawing it re-shape.
+    if (m_variationHelper != nullptr)
+    {
+      m_variationHelper->addDirt(ComponentDirt::TextShape);
+    }
+    m_owner->styleShapeChanged();
+  }
 }
 
 StatusCode TextStyle::onAddedClean(CoreContext* context)
@@ -205,11 +217,27 @@ StatusCode TextStyle::import(ImportStack& importStack)
   return Super::import(importStack);
 }
 
-void TextStyle::fontSizeChanged() { m_text->markShapeDirty(); }
+// A metric change re-shapes the Text the style belongs to. A global text
+// style's paint has none (it's parented to its style Artboard): its owner
+// re-shapes the Texts drawing it. Nothing else dirties the style artboard when
+// a keyframe or bind sets one of these, so this is their only notice.
+void TextStyle::metricsChanged()
+{
+  if (m_text != nullptr)
+  {
+    m_text->markShapeDirty();
+  }
+  else if (m_owner != nullptr)
+  {
+    m_owner->styleShapeChanged();
+  }
+}
 
-void TextStyle::lineHeightChanged() { m_text->markShapeDirty(); }
+void TextStyle::fontSizeChanged() { metricsChanged(); }
 
-void TextStyle::letterSpacingChanged() { m_text->markShapeDirty(); }
+void TextStyle::lineHeightChanged() { metricsChanged(); }
+
+void TextStyle::letterSpacingChanged() { metricsChanged(); }
 
 Core* TextStyle::clone() const
 {
@@ -224,5 +252,10 @@ Core* TextStyle::clone() const
 
 bool TextStyle::validate(CoreContext* context)
 {
-  return TextInterface::from(context->resolve(parentId())) != nullptr;
+  auto parent = context->resolve(parentId());
+  // A style normally lives under a Text (TextInterface). A global text
+  // style's TextStylePaint instead lives directly under the style Artboard,
+  // so accept an Artboard parent too.
+  return TextInterface::from(parent) != nullptr ||
+         (parent != nullptr && parent->is<Artboard>());
 }

@@ -17,12 +17,20 @@ using namespace rive;
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#include "rive/text/text_style_global.hpp"
+#include "rive/text/text_style_instance.hpp"
+#include "rive/text/text_style_on_demand.hpp"
 #include "rive/artboard.hpp"
+#include "rive/bindable_artboard.hpp"
+#include "rive/file.hpp"
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/generated/core_registry.hpp"
+#include <algorithm>
 #include <cstring>
 #include <limits>
+#include <unordered_set>
 
 TextValueRunProperty::TextValueRunProperty(
     Core* textValueRun,
@@ -43,34 +51,20 @@ void TextValueRunProperty::writeValue()
   switch (m_symbolType)
   {
     case SymbolType::textContent:
-      CoreRegistry::setString(
-          m_coreObject,
-          m_propertyKey,
-          m_instanceValue->as<ViewModelInstanceString>()->propertyValue());
-      break;
-    case SymbolType::textStyle:
-    {
-      auto stylePaints = static_cast<TextValueRunListener*>(
-                             m_coreObjectListener)
-                             ->text()
-                             ->textStylePaints();
-      auto styleValue = m_instanceValue->as<ViewModelInstanceString>()
-                            ->propertyValue();
-      for (size_t i = 0; i < stylePaints.size(); i++)
+      if (m_instanceValue->is<ViewModelInstanceString>())
       {
-        auto stylePaint = stylePaints[i];
-        if (stylePaint->name() == styleValue)
-        {
-          m_coreObject->as<TextValueRun>()->style(stylePaint);
-          break;
-        }
-        else if (i == 0)
-        {
-          m_coreObject->as<TextValueRun>()->style(stylePaint);
-        }
+        CoreRegistry::setString(
+            m_coreObject,
+            m_propertyKey,
+            m_instanceValue->as<ViewModelInstanceString>()->propertyValue());
       }
       break;
-    }
+    case SymbolType::textStyle:
+    case SymbolType::globalTextStyle:
+      // Both style symbols resolve together, so whichever fires the
+      // result is the same.
+      static_cast<TextValueRunListener*>(m_coreObjectListener)->resolveStyle();
+      break;
     default:
       break;
   }
@@ -88,10 +82,21 @@ TextValueRunListener::TextValueRunListener(
 
 void TextValueRunListener::markDirty() { m_text->markShapeDirty(); }
 
+void TextValueRunListener::resolveStyle()
+{
+  auto run = textValueRun();
+  if (run != nullptr)
+  {
+    // Never through styleId: list runs aren't in an artboard.
+    run->style(m_text->resolveListRunStyle(m_instance.get()));
+  }
+}
+
 void TextValueRunListener::createProperties()
 {
   CoreObjectListener::createProperties();
   createPropertyListener(SymbolType::textStyle);
+  createPropertyListener(SymbolType::globalTextStyle);
   createPropertyListener(SymbolType::textContent);
 }
 
@@ -99,10 +104,15 @@ TextValueRunProperty* TextValueRunListener::createSinglePropertyListener(
     SymbolType symbolType)
 {
   uint16_t propertyKey = 0;
+  bool expectsString = true;
   switch (symbolType)
   {
     case SymbolType::textStyle:
       propertyKey = TextValueRunBase::styleIdPropertyKey;
+      break;
+    case SymbolType::globalTextStyle:
+      propertyKey = TextValueRunBase::styleIdPropertyKey;
+      expectsString = false;
       break;
     case SymbolType::textContent:
       propertyKey = TextValueRunBase::textPropertyKey;
@@ -111,7 +121,9 @@ TextValueRunProperty* TextValueRunListener::createSinglePropertyListener(
       break;
   }
   auto prop = m_instance->propertyValue(symbolType);
-  if (prop != nullptr && prop->is<ViewModelInstanceValue>())
+  if (prop != nullptr &&
+      (expectsString ? prop->is<ViewModelInstanceString>()
+                     : prop->is<ViewModelInstanceArtboard>()))
   {
     auto vpl = new TextValueRunProperty(
         m_core,
@@ -130,6 +142,7 @@ void TextValueRunListener::createPropertyListener(SymbolType symbolType)
   switch (symbolType)
   {
     case SymbolType::textStyle:
+    case SymbolType::globalTextStyle:
     case SymbolType::textContent:
       listener = createSinglePropertyListener(symbolType);
       break;
@@ -149,10 +162,14 @@ Text::~Text()
   {
     m_selectionController->remove(this);
   }
+  // Listeners own their runs, which point into the on-demand styles: drop
+  // the runs first.
   for (auto& textValueRun : m_valueRunListeners)
   {
     delete textValueRun;
   }
+  m_valueRunListeners.clear();
+  m_onDemandStyles.clear();
 }
 
 Vec2D Text::measureLayout(
@@ -242,6 +259,15 @@ void Text::clearRenderStyles()
   }
   m_renderStyles.clear();
   m_drawCommands.clear();
+  for (auto& entry : m_sharedGeometry)
+  {
+    entry.second->rewind();
+  }
+  for (TextStyleBackground* background : m_globalBackgrounds)
+  {
+    background->resetPath();
+  }
+  m_globalBackgrounds.clear();
 
   // Backgrounds reset off the child list; a style whose glyphs are all
   // emoji never enters m_renderStyles.
@@ -832,7 +858,21 @@ void Text::buildRenderStyles()
           RawPath path = font->getPath(glyphId);
           path.transformInPlace(pathTransform);
 
-          if (style->addPath(path, opacity))
+          if (style->isShared())
+          {
+            // A paint other Texts draw too: keep this Text's
+            // glyphs here, and leave the paint untouched.
+            TextStyleGeometry& geometry = sharedGeometry(style);
+            if (geometry.addPath(path, opacity))
+            {
+              TextDrawCommand cmd;
+              cmd.type = TextDrawCommand::kStylePath;
+              cmd.style = style;
+              cmd.geometry = &geometry;
+              m_drawCommands.push_back(std::move(cmd));
+            }
+          }
+          else if (style->addPath(path, opacity))
           {
             // This was the first path added to the style, so
             // let's mark it in our draw list.
@@ -860,7 +900,19 @@ void Text::buildRenderStyles()
           }
           if (style->background() != nullptr)
           {
-            style->background()->addRect(glyphBounds);
+            TextStyleBackground* background = style->background();
+            // A global style's background isn't one of this
+            // Text's children: remember it to reset, update and
+            // draw it.
+            if (style->parent() != this &&
+                std::find(
+                    m_globalBackgrounds.begin(),
+                    m_globalBackgrounds.end(),
+                    background) == m_globalBackgrounds.end())
+            {
+              m_globalBackgrounds.push_back(background);
+            }
+            background->addRect(glyphBounds);
           }
         }
         curX += advance;
@@ -965,12 +1017,42 @@ skipLines:
       background->propagateOpacity(renderOpacity());
     }
   }
+  for (TextStyleBackground* background : m_globalBackgrounds)
+  {
+    background->updatePath();
+    background->propagateOpacity(renderOpacity());
+  }
+  // Drop the geometry of shared paints this build no longer drew.
+  m_sharedGeometry.erase(
+      std::remove_if(
+          m_sharedGeometry.begin(),
+          m_sharedGeometry.end(),
+          [](const std::pair<
+              TextStylePaint*,
+              std::unique_ptr<TextStyleGeometry>>& entry) {
+            return !entry.second->hasContents();
+          }),
+      m_sharedGeometry.end());
+}
+
+TextStyleGeometry& Text::sharedGeometry(TextStylePaint* paint)
+{
+  for (auto& entry : m_sharedGeometry)
+  {
+    if (entry.first == paint)
+    {
+      return *entry.second;
+    }
+  }
+  m_sharedGeometry.emplace_back(paint, std::make_unique<TextStyleGeometry>());
+  return *m_sharedGeometry.back().second;
 }
 
 const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
 {
-  assert(id < m_runs.size());
-  return m_runs[id]->style();
+  // Shaper ids index every run, list-driven ones included.
+  assert(id < m_allRuns.size());
+  return m_allRuns[id]->style();
 }
 
 void Text::draw(Renderer* renderer)
@@ -997,6 +1079,10 @@ void Text::draw(Renderer* renderer)
       background->draw(renderer, worldTransform);
     }
   }
+  for (TextStyleBackground* background : m_globalBackgrounds)
+  {
+    background->draw(renderer, worldTransform);
+  }
   if (m_selectionController != nullptr)
   {
     m_selectionController->draw(this, renderer);
@@ -1005,7 +1091,18 @@ void Text::draw(Renderer* renderer)
   {
     if (cmd.type == TextDrawCommand::kStylePath)
     {
-      cmd.style->draw(renderer, worldTransform);
+      if (cmd.geometry != nullptr)
+      {
+        cmd.style->drawGeometry(
+            renderer,
+            worldTransform,
+            *cmd.geometry,
+            renderOpacity());
+      }
+      else
+      {
+        cmd.style->draw(renderer, worldTransform);
+      }
     }
     else
     {
@@ -1177,6 +1274,8 @@ void Text::markShapeDirty() { markShapeDirty(true); }
 
 void Text::markShapeDirty(bool sendToLayout)
 {
+  m_listenedRunsDirty = true;
+  m_listItemsDirty = true;
   addDirt(ComponentDirt::Path);
   for (TextModifierGroup* group : m_modifierGroups)
   {
@@ -1194,6 +1293,391 @@ void Text::markShapeDirty(bool sendToLayout)
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
 
 void Text::markPaintDirty() { addDirt(ComponentDirt::Paint); }
+
+void Text::styleReferenceWillChange()
+{
+  // The render list and draw commands hold raw pointers into the outgoing
+  // style instance's paint; drop them before it is destroyed.
+  clearRenderStyles();
+  m_sharedGeometry.clear();
+  markShapeDirty();
+}
+
+void Text::markListenedRuns()
+{
+  if (!m_listenedRunsDirty)
+  {
+    return;
+  }
+  m_listenedRunsDirty = false;
+  Artboard* host = artboard();
+  // Only instances run state machines; the file's own artboards don't.
+  if (host == nullptr || !host->isInstance())
+  {
+    return;
+  }
+  for (auto run : m_allRuns)
+  {
+    auto style = run->styleReference();
+    if (style != nullptr && style->listensToRuns())
+    {
+      run->isHitTarget(true);
+    }
+  }
+}
+
+bool Text::mayHaveListeningRuns()
+{
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>() &&
+        child->as<TextStyleReference>()->listensToRuns())
+    {
+      return true;
+    }
+  }
+  // List runs (and bound handles) may pick any of the file's styles.
+  return m_file != nullptr && m_file->textStyleShares().anyListensToRuns();
+}
+
+void Text::syncStyleListItems()
+{
+  if (!m_listItemsDirty)
+  {
+    return;
+  }
+  m_listItemsDirty = false;
+  Artboard* host = artboard();
+  // Only instances bind their styles; the file's own artboards don't.
+  if (host == nullptr || !host->isInstance())
+  {
+    return;
+  }
+  // The list item of the one run drawn with [style], if it's a list run.
+  auto itemFor = [this](const TextStyleReference* style) {
+    TextValueRun* only = nullptr;
+    for (auto run : m_allRuns)
+    {
+      if (run->styleReference() != style)
+      {
+        continue;
+      }
+      if (only != nullptr)
+      {
+        return rcp<ViewModelInstance>(nullptr);
+      }
+      only = run;
+    }
+    for (auto listener : m_valueRunListeners)
+    {
+      if (only != nullptr && listener->textValueRun() == only)
+      {
+        return listener->viewModelInstance();
+      }
+    }
+    return rcp<ViewModelInstance>(nullptr);
+  };
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>())
+    {
+      auto style = child->as<TextStyleReference>();
+      style->listItem(itemFor(style));
+    }
+  }
+  for (auto& style : m_onDemandStyles)
+  {
+    style->listItem(itemFor(style.get()));
+  }
+}
+
+void Text::runStateMachines(std::vector<StateMachineInstance*>& out)
+{
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>())
+    {
+      if (auto stateMachine = child->as<TextStyleReference>()
+                                  ->runStateMachine())
+      {
+        out.push_back(stateMachine);
+      }
+    }
+  }
+  for (auto& style : m_onDemandStyles)
+  {
+    if (auto stateMachine = style->runStateMachine())
+    {
+      out.push_back(stateMachine);
+    }
+  }
+}
+
+void Text::styleReferenceDidChange()
+{
+  // A handle now shows a different style: list runs that matched it by
+  // style may need another handle or an on-demand style instead.
+  resolveListRunStyles();
+  pruneOnDemandStyles();
+  markShapeDirty();
+}
+
+TextStyleReference* Text::resolveListRunStyle(ViewModelInstance* instance)
+{
+  if (instance == nullptr)
+  {
+    return nullptr;
+  }
+  auto globalValue = instance->propertyValue(SymbolType::globalTextStyle);
+  auto nameValue = instance->propertyValue(SymbolType::textStyle);
+  if (globalValue != nullptr && globalValue->is<ViewModelInstanceArtboard>())
+  {
+    auto style = globalStyleReference(
+        globalValue->as<ViewModelInstanceArtboard>(),
+        instance);
+    if (style != nullptr)
+    {
+      return style;
+    }
+  }
+  // An item with no style symbol keeps no style, as before.
+  if (globalValue == nullptr && nameValue == nullptr)
+  {
+    return nullptr;
+  }
+  if (nameValue != nullptr && nameValue->is<ViewModelInstanceString>())
+  {
+    auto style = styleReferenceNamed(
+        nameValue->as<ViewModelInstanceString>()->propertyValue());
+    if (style != nullptr)
+    {
+      return style;
+    }
+  }
+  return firstStyleReference();
+}
+
+TextStyleReference* Text::globalStyleReference(
+    ViewModelInstanceArtboard* value,
+    ViewModelInstance* item)
+{
+  // The style artboard the value names: a runtime-set BindableArtboard
+  // (normalized to its file-owned source), else a file artboard index.
+  const Artboard* source = nullptr;
+  rcp<const File> crossFile;
+  if (value->asset() != nullptr)
+  {
+    auto artboard = value->asset()->artboard();
+    if (artboard != nullptr)
+    {
+      source = artboard->artboardSource();
+      auto assetFile = artboard->file();
+      if (assetFile != nullptr && assetFile.get() != m_file)
+      {
+        crossFile = assetFile;
+      }
+    }
+  }
+  else if (m_file != nullptr && value->propertyValue() != (uint32_t)-1)
+  {
+    source = m_file->artboard(value->propertyValue());
+  }
+  // Not a text style: let the caller fall back.
+  if (source == nullptr ||
+      TextStyleGlobal::firstTextStylePaint(source) == nullptr)
+  {
+    return nullptr;
+  }
+
+  // A style with a state machine keeps state of its own: each list item
+  // gets an instance of its own, which reads that item (see
+  // syncStyleListItems). Other styles are shared by the runs naming them.
+  TextStyleShareInfo info = crossFile == nullptr && m_file != nullptr
+                                ? m_file->textStyleShares().info(source)
+                                : TextStyleShareCache::analyze(
+                                      source,
+                                      crossFile.get());
+  rcp<ViewModelInstance> perItem = info.hasStateMachine ? ref_rcp(item)
+                                                        : nullptr;
+
+  auto bound = value->boundViewModelInstance();
+  // The values an item's own instance copies.
+  rcp<ViewModelInstance> handleValues;
+  if (bound == nullptr)
+  {
+    // A handle on this Text showing that style keeps its per-text
+    // exposed values: the runs share it, or each item's own instance
+    // copies them (what its state machine writes stays its own).
+    for (auto child : children())
+    {
+      if (child->is<TextStyleGlobal>() &&
+          child->as<TextStyleGlobal>()->instanceSource() == source)
+      {
+        auto handle = child->as<TextStyleGlobal>();
+        if (perItem == nullptr)
+        {
+          return handle;
+        }
+        handleValues = handle->styleViewModelInstance();
+        break;
+      }
+    }
+  }
+
+  for (auto& style : m_onDemandStyles)
+  {
+    if (style->source() == source &&
+        style->boundViewModelInstance() == bound.get() &&
+        style->item() == perItem.get())
+    {
+      return style.get();
+    }
+  }
+  auto host = artboard();
+  m_onDemandStyles.push_back(std::make_unique<TextStyleOnDemand>(
+      source,
+      bound,
+      m_file,
+      crossFile,
+      host != nullptr ? host->factory() : nullptr,
+      host != nullptr ? host->dataContext() : nullptr,
+      this,
+      perItem,
+      handleValues));
+  return m_onDemandStyles.back().get();
+}
+
+void Text::hostDataContext(rcp<DataContext> value)
+{
+  for (auto& style : m_onDemandStyles)
+  {
+    style->hostDataContext(value);
+  }
+}
+
+void Text::relinkHostDataContext()
+{
+  for (auto& style : m_onDemandStyles)
+  {
+    style->relinkHostDataContext();
+  }
+}
+
+void Text::updateHostedDataBinds()
+{
+  for (auto& style : m_onDemandStyles)
+  {
+    style->updateHostedDataBinds();
+  }
+}
+
+TextStyleReference* Text::styleReferenceNamed(const std::string& name)
+{
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>() && child->name() == name)
+    {
+      return child->as<TextStyleReference>();
+    }
+  }
+  return nullptr;
+}
+
+TextStyleReference* Text::firstStyleReference()
+{
+  buildTextStylePaints();
+  if (!m_textStylePaints.empty())
+  {
+    return m_textStylePaints.front();
+  }
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>())
+    {
+      return child->as<TextStyleReference>();
+    }
+  }
+  return nullptr;
+}
+
+void Text::resolveListRunStyles()
+{
+  for (auto listener : m_valueRunListeners)
+  {
+    listener->resolveStyle();
+  }
+}
+
+void Text::pruneOnDemandStyles()
+{
+  if (m_onDemandStyles.empty())
+  {
+    return;
+  }
+  std::unordered_set<const TextStyleReference*> used;
+  for (auto listener : m_valueRunListeners)
+  {
+    auto run = listener->textValueRun();
+    if (run != nullptr)
+    {
+      used.insert(run->styleReference());
+    }
+  }
+  auto unused = [&](const std::unique_ptr<TextStyleOnDemand>& style) {
+    return used.count(style.get()) == 0;
+  };
+  if (std::none_of(m_onDemandStyles.begin(), m_onDemandStyles.end(), unused))
+  {
+    return;
+  }
+  // The render caches hold raw pointers into the paints about to go.
+  clearRenderStyles();
+  m_sharedGeometry.clear();
+  m_onDemandStyles.erase(
+      std::remove_if(m_onDemandStyles.begin(), m_onDemandStyles.end(), unused),
+      m_onDemandStyles.end());
+  markShapeDirty();
+}
+
+bool Text::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
+{
+  syncStyleListItems();
+  bool keepGoing = false;
+  bool changed = false;
+  for (auto& style : m_onDemandStyles)
+  {
+    if (style->advance(elapsedSeconds, flags, changed))
+    {
+      keepGoing = true;
+    }
+  }
+  if (changed)
+  {
+    // Shape-affecting style properties (font, size, spacing) may have
+    // changed.
+    markShapeDirty();
+  }
+  return keepGoing;
+}
+
+AdvancingComponent::QuietState Text::quietState()
+{
+  auto state = QuietState::quiet;
+  for (auto& style : m_onDemandStyles)
+  {
+    switch (style->quietState())
+    {
+      case QuietState::never:
+        return QuietState::never;
+      case QuietState::busy:
+        state = QuietState::busy;
+        break;
+      case QuietState::quiet:
+        break;
+    }
+  }
+  return state;
+}
 
 void Text::alignValueChanged() { markShapeDirty(); }
 
@@ -1410,6 +1894,8 @@ void Text::onDirty(ComponentDirt value)
 void Text::update(ComponentDirt value)
 {
   Super::update(value);
+  markListenedRuns();
+  syncStyleListItems();
 
   if (hasDirt(value, ComponentDirt::Path))
   {
@@ -1776,6 +2262,16 @@ void Text::addRun(TextValueRun* run) {}
 void Text::addModifierGroup(TextModifierGroup* group) {}
 void Text::markShapeDirty(bool sendToLayout) {}
 void Text::markShapeDirty() {}
+void Text::styleReferenceWillChange() {}
+void Text::styleReferenceDidChange() {}
+void Text::hostDataContext(rcp<DataContext> value) {}
+void Text::relinkHostDataContext() {}
+void Text::updateHostedDataBinds() {}
+bool Text::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
+{
+  return false;
+}
+AdvancingComponent::QuietState Text::quietState() { return QuietState::quiet; }
 void Text::update(ComponentDirt value) {}
 void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
@@ -1846,6 +2342,7 @@ Core* Text::clone() const
 {
   Text* twin = TextBase::clone()->as<Text>();
   twin->m_fileFeatures = m_fileFeatures;
+  twin->m_file = m_file;
   return twin;
 }
 
@@ -1972,6 +2469,7 @@ void Text::updateList(std::vector<rcp<ViewModelInstanceListItem>>* list)
     m_valueRunListeners.pop_back();
     delete valueRun;
   }
+  pruneOnDemandStyles();
   markShapeDirty();
 #endif
 }

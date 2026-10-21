@@ -314,7 +314,9 @@
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_background.hpp"
 #include "rive/text/text_style_feature.hpp"
+#include "rive/text/text_style_global.hpp"
 #include "rive/text/text_style_paint.hpp"
+#include "rive/text/text_style_reference.hpp"
 #include "rive/text/text_target_modifier.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_variation_modifier.hpp"
@@ -393,6 +395,8 @@ public:
         return new DataEnumCustom();
       case ViewModelPropertyNumberBase::typeKey:
         return new ViewModelPropertyNumber();
+      case ViewModelInstanceArtboardBase::typeKey:
+        return new ViewModelInstanceArtboard();
       case ViewModelInstanceEnumBase::typeKey:
         return new ViewModelInstanceEnum();
       case ViewModelPropertySymbolListIndexBase::typeKey:
@@ -401,8 +405,6 @@ public:
         return new ViewModelInstanceAsset();
       case ViewModelInstanceAssetBlobBase::typeKey:
         return new ViewModelInstanceAssetBlob();
-      case ViewModelInstanceArtboardBase::typeKey:
-        return new ViewModelInstanceArtboard();
       case ViewModelInstanceStringBase::typeKey:
         return new ViewModelInstanceString();
       case ViewModelPropertyListBase::typeKey:
@@ -923,6 +925,8 @@ public:
         return new TextInputSelectedText();
       case TextInputBase::typeKey:
         return new TextInput();
+      case TextStyleGlobalBase::typeKey:
+        return new TextStyleGlobal();
       case TextStyleAxisBase::typeKey:
         return new TextStyleAxis();
       case TextInputSelectionBase::typeKey:
@@ -989,14 +993,14 @@ public:
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
         object->as<ViewModelPropertyEnumCustomBase>()->enumId(value);
         break;
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+        object->as<ViewModelInstanceArtboardBase>()->propertyValue(value);
+        break;
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
         object->as<ViewModelInstanceEnumBase>()->propertyValue(value);
         break;
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
         object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
-        break;
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
-        object->as<ViewModelInstanceArtboardBase>()->propertyValue(value);
         break;
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
         object->as<ViewModelPropertyViewModelBase>()->viewModelReferenceId(
@@ -1215,6 +1219,9 @@ public:
         break;
       case TextStyleBase::fontAssetIdPropertyKey:
         object->as<TextStyleBase>()->fontAssetId(value);
+        break;
+      case TextStyleGlobalBase::artboardIdPropertyKey:
+        object->as<TextStyleGlobalBase>()->artboardId(value);
         break;
       case TextBase::textRunListSourcePropertyKey:
         object->as<TextBase>()->textRunListSource(value);
@@ -1988,14 +1995,14 @@ public:
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
         object->as<ViewModelPropertyEnumCustomBase>()->enumId(value);
         break;
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+        object->as<ViewModelInstanceArtboardBase>()->propertyValue(value);
+        break;
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
         object->as<ViewModelInstanceEnumBase>()->propertyValue(value);
         break;
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
         object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
-        break;
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
-        object->as<ViewModelInstanceArtboardBase>()->propertyValue(value);
         break;
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
         object->as<ViewModelPropertyViewModelBase>()->viewModelReferenceId(
@@ -2214,6 +2221,9 @@ public:
         break;
       case TextStyleBase::fontAssetIdPropertyKey:
         object->as<TextStyleBase>()->fontAssetId(value);
+        break;
+      case TextStyleGlobalBase::artboardIdPropertyKey:
+        object->as<TextStyleGlobalBase>()->artboardId(value);
         break;
       case TextBase::textRunListSourcePropertyKey:
         object->as<TextBase>()->textRunListSource(value);
@@ -3323,12 +3333,12 @@ public:
         return object->as<ViewModelInstanceValueBase>()->viewModelPropertyId();
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
         return object->as<ViewModelPropertyEnumCustomBase>()->enumId();
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+        return object->as<ViewModelInstanceArtboardBase>()->propertyValue();
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
         return object->as<ViewModelInstanceEnumBase>()->propertyValue();
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
         return object->as<ViewModelInstanceAssetBase>()->propertyValue();
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
-        return object->as<ViewModelInstanceArtboardBase>()->propertyValue();
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
         return object->as<ViewModelPropertyViewModelBase>()
             ->viewModelReferenceId();
@@ -3475,6 +3485,8 @@ public:
         return object->as<TextTargetModifierBase>()->targetId();
       case TextStyleBase::fontAssetIdPropertyKey:
         return object->as<TextStyleBase>()->fontAssetId();
+      case TextStyleGlobalBase::artboardIdPropertyKey:
+        return object->as<TextStyleGlobalBase>()->artboardId();
       case TextBase::textRunListSourcePropertyKey:
         return object->as<TextBase>()->textRunListSource();
       case TextValueRunBase::styleIdPropertyKey:
@@ -4012,12 +4024,12 @@ public:
         return object->as<ViewModelInstanceValueBase>()->viewModelPropertyId();
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
         return object->as<ViewModelPropertyEnumCustomBase>()->enumId();
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+        return object->as<ViewModelInstanceArtboardBase>()->propertyValue();
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
         return object->as<ViewModelInstanceEnumBase>()->propertyValue();
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
         return object->as<ViewModelInstanceAssetBase>()->propertyValue();
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
-        return object->as<ViewModelInstanceArtboardBase>()->propertyValue();
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
         return object->as<ViewModelPropertyViewModelBase>()
             ->viewModelReferenceId();
@@ -4164,6 +4176,8 @@ public:
         return object->as<TextTargetModifierBase>()->targetId();
       case TextStyleBase::fontAssetIdPropertyKey:
         return object->as<TextStyleBase>()->fontAssetId();
+      case TextStyleGlobalBase::artboardIdPropertyKey:
+        return object->as<TextStyleGlobalBase>()->artboardId();
       case TextBase::textRunListSourcePropertyKey:
         return object->as<TextBase>()->textRunListSource();
       case TextValueRunBase::styleIdPropertyKey:
@@ -4906,9 +4920,9 @@ public:
       case ComponentBase::parentIdPropertyKey:
       case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
       case ViewModelInstanceBase::viewModelIdPropertyKey:
       case ViewModelInstanceListBase::listSourcePropertyKey:
@@ -4981,6 +4995,7 @@ public:
       case TextModifierRangeBase::runIdPropertyKey:
       case TextTargetModifierBase::targetIdPropertyKey:
       case TextStyleBase::fontAssetIdPropertyKey:
+      case TextStyleGlobalBase::artboardIdPropertyKey:
       case TextBase::textRunListSourcePropertyKey:
       case TextValueRunBase::styleIdPropertyKey:
       case ArtboardListMapRuleBase::artboardIdPropertyKey:
@@ -5643,12 +5658,12 @@ public:
         return ViewModelInstanceValueBase::typeKey;
       case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
         return ViewModelPropertyEnumCustomBase::typeKey;
+      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+        return ViewModelInstanceArtboardBase::typeKey;
       case ViewModelInstanceEnumBase::propertyValuePropertyKey:
         return ViewModelInstanceEnumBase::typeKey;
       case ViewModelInstanceAssetBase::propertyValuePropertyKey:
         return ViewModelInstanceAssetBase::typeKey;
-      case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
-        return ViewModelInstanceArtboardBase::typeKey;
       case ViewModelPropertyViewModelBase::viewModelReferenceIdPropertyKey:
         return ViewModelPropertyViewModelBase::typeKey;
       case ViewModelInstanceBase::viewModelIdPropertyKey:
@@ -5793,6 +5808,8 @@ public:
         return TextTargetModifierBase::typeKey;
       case TextStyleBase::fontAssetIdPropertyKey:
         return TextStyleBase::typeKey;
+      case TextStyleGlobalBase::artboardIdPropertyKey:
+        return TextStyleGlobalBase::typeKey;
       case TextBase::textRunListSourcePropertyKey:
         return TextBase::typeKey;
       case TextValueRunBase::styleIdPropertyKey:

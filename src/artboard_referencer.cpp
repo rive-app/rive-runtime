@@ -5,6 +5,7 @@
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/script_input_artboard.hpp"
 #include "rive/shapes/paint/paint_image.hpp"
+#include "rive/text/text_style_global.hpp"
 #include "rive/file.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 
@@ -55,6 +56,8 @@ ArtboardReferencer* ArtboardReferencer::from(Core* component)
       return component->as<ScriptInputArtboard>();
     case PaintImageBase::typeKey:
       return component->as<PaintImage>();
+    case TextStyleGlobalBase::typeKey:
+      return component->as<TextStyleGlobal>();
   }
   return nullptr;
 }

@@ -8,6 +8,10 @@
 #include "rive/simple_array.hpp"
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/text_interface.hpp"
+#include "rive/text/text_style_geometry.hpp"
+#include "rive/text/text_style_on_demand.hpp"
+#include "rive/data_bind/host_data_context_consumer.hpp"
+#include "rive/advancing_component.hpp"
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/viewmodel/symbol_type.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -17,6 +21,8 @@
 #include "rive/enums.hpp"
 
 #include <functional>
+#include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -24,9 +30,15 @@ namespace rive
 {
 
 class Factory;
+class File;
 class Renderer;
+class StateMachineInstance;
 class TextModifierGroup;
+class TextStyleBackground;
 class TextStylePaint;
+class TextStyleReference;
+class DataContext;
+class ViewModelInstanceArtboard;
 class LayoutParticipant;
 class TextSelectionController;
 
@@ -40,6 +52,8 @@ struct TextDrawCommand
   };
   Type type;
   TextStylePaint* style = nullptr; // for kStylePath
+  // For a shared style's paint: this Text's glyphs (the paint holds none).
+  TextStyleGeometry* geometry = nullptr;
 
   struct ColorGlyphInfo
   {
@@ -127,7 +141,11 @@ public:
       Text* text);
 
   void markDirty() override;
+  // Points the run at the style its item's style symbols resolve to.
+  void resolveStyle();
   Text* text() { return m_text; }
+  // The list item the run shows.
+  const rcp<ViewModelInstance>& viewModelInstance() const { return m_instance; }
   TextValueRun* textValueRun()
   {
     if (m_core)
@@ -176,7 +194,9 @@ void drawColorGlyphLayer(
 
 class Text : public TextBase,
              public TextInterface,
-             public DataBindListItemConsumer
+             public DataBindListItemConsumer,
+             public AdvancingComponent,
+             public HostDataContextConsumer
 {
 public:
 #ifdef WITH_RIVE_EDITOR
@@ -186,6 +206,24 @@ public:
   ~Text();
   void markShapeDirty() override;
   void markPaintDirty() override;
+  void styleReferenceWillChange() override;
+  void styleReferenceDidChange() override;
+
+  // Advances the global text styles instanced on demand for list runs.
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  QuietState quietState() override;
+
+  // Passes the hosting artboard's data context on to the global text styles
+  // instanced on demand for list runs.
+  void hostDataContext(rcp<DataContext> value) override;
+  void relinkHostDataContext() override;
+  void updateHostedDataBinds() override;
+
+  void file(File* value) { m_file = value; }
+  File* file() const { return m_file; }
 
   void draw(Renderer* renderer) override;
   Core* hitTest(HitInfo*, const Mat2D&) override;
@@ -335,6 +373,21 @@ public:
   {
     return m_textStylePaints;
   }
+  /// The style a list-driven run's item resolves to: its globalTextStyle
+  /// (a handle showing that style, else one instanced on demand), else its
+  /// textStyle name, else the first style. Null when the item has neither
+  /// style symbol.
+  TextStyleReference* resolveListRunStyle(ViewModelInstance* instance);
+  /// Whether a run of this Text may use a style that listens to its runs
+  /// (see TextStyleShareInfo::listensToRuns), so the state machines of
+  /// this Text's artboard forward pointers to those styles' state machines.
+  bool mayHaveListeningRuns();
+  /// Appends to [out] the state machines of this Text's styles that listen
+  /// to the runs drawn with them (see TextStyleReference::runStateMachine).
+  void runStateMachines(std::vector<StateMachineInstance*>& out);
+#ifdef TESTING
+  size_t onDemandStyleCount() const { return m_onDemandStyles.size(); }
+#endif
 #endif
 
   bool haveModifiers() const
@@ -386,6 +439,13 @@ private:
   std::vector<TextValueRun*> m_allRuns;
   std::vector<TextStylePaint*> m_renderStyles;
   std::vector<TextDrawCommand> m_drawCommands;
+  // This Text's glyphs for each shared global style paint it draws (the
+  // paint itself holds none, see TextStylePaint::isShared).
+  std::vector<std::pair<TextStylePaint*, std::unique_ptr<TextStyleGeometry>>>
+      m_sharedGeometry;
+  TextStyleGeometry& sharedGeometry(TextStylePaint* paint);
+  // Backgrounds of global styles' paints this Text used in its last build.
+  std::vector<TextStyleBackground*> m_globalBackgrounds;
   SimpleArray<Paragraph> m_shape;
   SimpleArray<Paragraph> m_modifierShape;
   SimpleArray<SimpleArray<GlyphLine>> m_lines;
@@ -435,6 +495,31 @@ private:
   LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
   void buildTextStylePaints();
   std::vector<TextValueRunListener*> m_valueRunListeners;
+  // Global text styles instanced on demand for list runs, one per style
+  // (and item-supplied view model instance), shared by this Text's runs.
+  std::vector<std::unique_ptr<TextStyleOnDemand>> m_onDemandStyles;
+  // Runs may have started using a style that listens to its runs (see
+  // markListenedRuns); set whenever the shape is dirtied.
+  bool m_listenedRunsDirty = true;
+  /// Makes every run drawn with a style that listens to its runs a hit
+  /// target, so the style's state machine can hit-test it.
+  void markListenedRuns();
+  // A style may now be drawn for one list run alone, or no longer (see
+  // syncStyleListItems); set whenever the shape is dirtied.
+  bool m_listItemsDirty = true;
+  /// Gives each global style drawn for one list run alone that run's list
+  /// item, so the style reads it (see TextStyleInstance::listItem). A style
+  /// several runs share gets none.
+  void syncStyleListItems();
+  /// The style a list run showing [item] draws when its item names the
+  /// style [value] holds (see resolveListRunStyle).
+  TextStyleReference* globalStyleReference(
+      ViewModelInstanceArtboard* value,
+      ViewModelInstance* item);
+  TextStyleReference* styleReferenceNamed(const std::string& name);
+  TextStyleReference* firstStyleReference();
+  void resolveListRunStyles();
+  void pruneOnDemandStyles();
 
   // What measure() last reported to the layout and what update() last
   // shaped, as measureKey hashes. Equal means the layout has already sized
@@ -445,6 +530,7 @@ private:
   uint64_t measureKey(const StyledText& styled, float fontScale) const;
 
 #endif
+  File* m_file = nullptr;
   float m_layoutWidth = NAN;
   float m_layoutHeight = NAN;
   uint8_t m_layoutWidthScaleType = std::numeric_limits<uint8_t>::max();

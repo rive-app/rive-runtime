@@ -2,6 +2,7 @@
 #define _RIVE_TEXT_VALUE_RUN_HPP_
 #include "rive/generated/text/text_value_run_base.hpp"
 #include "rive/text/utf.hpp"
+#include "rive/text/text_style_reference.hpp"
 #include "rive/math/rectangles_to_contour.hpp"
 
 namespace rive
@@ -15,8 +16,15 @@ class TextValueRun : public TextValueRunBase
 public:
   StatusCode onAddedClean(CoreContext* context) override;
   StatusCode onAddedDirty(CoreContext* context) override;
-  TextStylePaint* style() { return m_style; }
-  void style(TextStylePaint* value) { m_style = value; }
+  // Resolves lazily so a global style whose nested-artboard instance is
+  // created after this run is added still returns the current paint.
+  TextStylePaint* style()
+  {
+    return m_styleReference != nullptr ? m_styleReference->resolvedPaint()
+                                       : nullptr;
+  }
+  void style(TextStyleReference* value) { m_styleReference = value; }
+  TextStyleReference* styleReference() const { return m_styleReference; }
   Text* textComponent() const;
   void textComponent(Text* value) { m_textComponent = value; };
   uint32_t length()
@@ -68,7 +76,7 @@ private:
   AABB m_localBounds;
   bool m_isHitTarget = false;
   std::vector<AABB> m_glyphHitRects;
-  TextStylePaint* m_style = nullptr;
+  TextStyleReference* m_styleReference = nullptr;
   uint32_t m_length = -1;
   bool canHitTest() const;
   Text* m_textComponent = nullptr;

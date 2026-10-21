@@ -34,6 +34,7 @@
 
 namespace rive
 {
+class HostDataContextConsumer;
 class KeyFrameInterpolator;
 class KeyFrame;
 class ArtboardComponentList;
@@ -132,6 +133,9 @@ private:
   std::vector<NestedArtboard*> m_NestedArtboards;
   std::vector<ArtboardComponentList*> m_ComponentLists;
   std::vector<ArtboardHost*> m_ArtboardHosts;
+  // Components instancing things bound under this artboard's data context
+  // (Texts' global text styles).
+  std::vector<HostDataContextConsumer*> m_hostDataContextConsumers;
   std::vector<Joystick*> m_Joysticks;
   std::vector<ScriptedObject*> m_ScriptedObjects;
   std::vector<AdvancingComponent*> m_advancingComponents;

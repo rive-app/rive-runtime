@@ -19,6 +19,7 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/data_resolver.hpp"
+#include "rive/text/text_style_share_cache.hpp"
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -408,6 +409,10 @@ public:
   void clearRuntimeViewModelInstances();
 #endif
 
+  /// Which of this file's global text styles every Text can share, and the
+  /// shared instances (see TextStyleShareCache).
+  TextStyleShareCache& textStyleShares() const { return *m_textStyleShares; }
+
 private:
   ImportResult read(BinaryReader&, const RuntimeHeader&);
   ImportResult readObjects(
@@ -467,6 +472,8 @@ private:
   std::vector<DataEnum*> m_Enums;
 
   Factory* m_factory;
+
+  std::unique_ptr<TextStyleShareCache> m_textStyleShares;
 
   /// The helper used to load assets when they're not provided in-band
   /// with the file.

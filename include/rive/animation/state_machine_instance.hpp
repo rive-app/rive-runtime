@@ -38,6 +38,8 @@ class SMITrigger;
 class Shape;
 class StateMachineLayerInstance;
 class HitComponent;
+class Text;
+class TextStyleReference;
 class HitShape;
 class ListenerGroup;
 class NestedArtboard;
@@ -235,6 +237,12 @@ public:
   bool listensToButtonAt(Vec2D position, PointerButton button);
 
   bool tryChangeState();
+  /// Makes this (a text style's state machine, instanced for one Text)
+  /// serve the runs of [text] drawn with [style]: its pointer listeners
+  /// with no target listen to all of them as one target, and pointers
+  /// arrive in the Text's artboard space, unmapped (the style artboard's
+  /// own origin and transform mean nothing for a run).
+  void serveTextStyle(Text* text, const TextStyleReference* style);
   bool hitTest(Vec2D position) const;
   /// hitTest, except that a scripted layout counts only inside its own
   /// box. Scripts are handed every pointer event and bounds-check
@@ -524,6 +532,9 @@ private:
   // Set as the destructor starts. The artboard may already be gone (a host
   // can destroy it first), so nothing may wake its row from then on.
   bool m_destroying : 1;
+  // Pointer positions arrive in the space of the Text this state machine
+  // serves (see serveTextStyle), not mapped into the artboard's content.
+  bool m_hostSpacePointers : 1;
   // The artboard's changeSerial() when the last advance started. A layer
   // resting on a pose re-applies it only if the serial moved since then
   // (see StateMachineLayerInstance::isFrozen).

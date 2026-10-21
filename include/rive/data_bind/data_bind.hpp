@@ -58,7 +58,7 @@ public:
   bool toSource();
   bool toTarget();
   bool targetSupportsPush() const;
-  bool isNameBased();
+  bool isNameBased() const;
   bool canSkip();
   bool isMainToSource();
   bool sourceToTargetRunsFirst();

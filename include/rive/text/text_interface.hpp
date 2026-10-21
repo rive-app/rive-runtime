@@ -16,6 +16,12 @@ public:
   virtual void markPaintDirty() = 0;
   virtual void markShapeDirty() = 0;
   virtual AABB localBounds() const = 0;
+  // Called by a TextStyleGlobal before it destroys the style instance its
+  // runs paint with, while the outgoing paint is still alive: drop every
+  // cached pointer into it and re-shape against the incoming style.
+  virtual void styleReferenceWillChange() {}
+  // Called by a TextStyleGlobal once it shows a different style.
+  virtual void styleReferenceDidChange() { markShapeDirty(); }
 };
 
 } // namespace rive

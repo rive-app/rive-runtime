@@ -1,0 +1,197 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/text_style_global_list_item.riv. Unlike most
+      fixtures here this one is not an editor export: rebuild the .riv from
+      this file with the CLI, from a directory holding this scene.rml, a
+      rive.yaml naming it (main: "Main") and Inter.ttf (a copy of
+      assets/fonts/Inter_18pt-Regular.ttf), then copy
+      build/text_style_global_list_item.riv into assets/.
+
+          rive . --once
+    -->
+    <Artboard defaultStateMachineId="1:7" viewModelId="1:14" viewModelInstanceId="1:15" width="500" height="500" styleId="1:5" name="Main" id="1:2">
+        <Text sizingValue="2" width="400" height="117" x="20" y="44" name="List" exportName="true" id="1:17">
+            <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="1:18">
+                <Fill fillRule="2" id="1:19">
+                    <SolidColor colorValue="FFFFFFFF" id="1:20"/>
+                </Fill>
+            </TextStylePaint>
+            <TextStyleGlobal artboardId="2:4" name="Text Style1" id="2:20">
+                <ViewModelInstance viewModelId="2:2" exports="true" name="Text Style1 Instance" id="2:21">
+                    <ViewModelInstanceBoolean viewModelPropertyId="2:90" id="2:93"/>
+                </ViewModelInstance>
+            </TextStyleGlobal>
+            <DataBindContext sourcePathIds="1:14-1:24" propertyKey="932" id="1:33"/>
+        </Text>
+        <Fill fillRule="2" id="1:3">
+            <SolidColor colorValue="FF282828" id="1:4"/>
+        </Fill>
+        <LayoutComponentStyle id="1:5"/>
+        <StateMachine name="State Machine 1" id="1:7">
+            <StateMachineLayer name="Layer 1" id="1:8">
+                <AnyState x="400" id="1:9"/>
+                <ExitState x="480" id="1:10"/>
+                <EntryState id="1:11">
+                    <StateTransition stateToId="1:12" id="1:13"/>
+                </EntryState>
+                <AnimationState animationId="1:6" x="160" id="1:12"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation name="Timeline 1" id="1:6"/>
+    </Artboard>
+    <Artboard defaultStateMachineId="2:23" viewModelId="2:2" viewModelInstanceId="2:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="2:5" x="600" name="Text Style1" id="2:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="2:6">
+            <Fill fillRule="2" id="2:7">
+                <SolidColor id="2:8"/>
+            </Fill>
+        </TextStylePaint>
+        <LayoutComponentStyle id="2:5"/>
+        <LinearAnimation name="nonVisited" id="2:33">
+            <KeyedObject objectId="2:8" id="2:64">
+                <KeyedProperty propertyKey="37" id="2:65">
+                    <KeyFrameColor value="FF009EB9" interpolationType="1" id="2:66"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="State Machine 1" id="2:23">
+            <StateMachineLayer name="Layer 1" id="2:24">
+                <AnyState x="358" y="29" id="2:25">
+                    <StateTransition stateToId="2:34" id="2:35">
+                        <TransitionViewModelCondition id="2:56">
+                            <TransitionPropertyViewModelComparator id="2:57">
+                                <BindablePropertyEnum id="2:58">
+                                    <DataBindContext sourcePathIds="2:11-2:49" propertyKey="637" id="2:59"/>
+                                </BindablePropertyEnum>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueEnumComparator value="2:31" id="2:60"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="2:28" id="2:36">
+                        <TransitionViewModelCondition id="2:51">
+                            <TransitionPropertyViewModelComparator id="2:52">
+                                <BindablePropertyEnum id="2:53">
+                                    <DataBindContext sourcePathIds="2:11-2:49" propertyKey="637" id="2:54"/>
+                                </BindablePropertyEnum>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueEnumComparator value="2:32" id="2:55"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnyState>
+                <ExitState x="480" id="2:26"/>
+                <EntryState id="2:27">
+                    <StateTransition stateToId="2:28" id="2:29"/>
+                </EntryState>
+                <AnimationState animationId="2:22" x="160" id="2:28"/>
+                <AnimationState animationId="2:33" x="282" y="-91" id="2:34"/>
+            </StateMachineLayer>
+            <!-- No target: listens to the runs the style is drawn for. -->
+            <StateMachineListener name="Press" id="2:91">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="2:2-2:90" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+        <LinearAnimation name="visited" id="2:22">
+            <KeyedObject objectId="2:8" id="2:61">
+                <KeyedProperty propertyKey="37" id="2:62">
+                    <KeyFrameColor value="FFB40000" interpolationType="1" id="2:63"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <Artboard defaultStateMachineId="3:23" viewModelId="3:2" viewModelInstanceId="3:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="3:5" x="900" name="Text Style2" id="3:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="3:6">
+            <Fill fillRule="2" id="3:7">
+                <SolidColor id="3:8"/>
+            </Fill>
+        </TextStylePaint>
+        <LayoutComponentStyle id="3:5"/>
+        <LinearAnimation name="nonVisited" id="3:33">
+            <KeyedObject objectId="3:8" id="3:64">
+                <KeyedProperty propertyKey="37" id="3:65">
+                    <KeyFrameColor value="FF009EB9" interpolationType="1" id="3:66"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="State Machine 1" id="3:23">
+            <StateMachineLayer name="Layer 1" id="3:24">
+                <AnyState x="358" y="29" id="3:25">
+                    <StateTransition stateToId="3:34" id="3:35">
+                        <TransitionViewModelCondition id="3:56">
+                            <TransitionPropertyViewModelComparator id="3:57">
+                                <BindablePropertyEnum id="3:58">
+                                    <DataBindContext sourcePathIds="2:11-2:49" propertyKey="637" id="3:59"/>
+                                </BindablePropertyEnum>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueEnumComparator value="2:31" id="3:60"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="3:28" id="3:36">
+                        <TransitionViewModelCondition id="3:51">
+                            <TransitionPropertyViewModelComparator id="3:52">
+                                <BindablePropertyEnum id="3:53">
+                                    <DataBindContext sourcePathIds="2:11-2:49" propertyKey="637" id="3:54"/>
+                                </BindablePropertyEnum>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueEnumComparator value="2:32" id="3:55"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnyState>
+                <ExitState x="480" id="3:26"/>
+                <EntryState id="3:27">
+                    <StateTransition stateToId="3:28" id="3:29"/>
+                </EntryState>
+                <AnimationState animationId="3:22" x="160" id="3:28"/>
+                <AnimationState animationId="3:33" x="282" y="-91" id="3:34"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation name="visited" id="3:22">
+            <KeyedObject objectId="3:8" id="3:61">
+                <KeyedProperty propertyKey="37" id="3:62">
+                    <KeyFrameColor value="FFB40000" interpolationType="1" id="3:63"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <DataEnumCustom name="URLState" id="2:30">
+        <DataEnumValue key="visited" id="2:32"/>
+        <DataEnumValue key="non-visited" id="2:31"/>
+    </DataEnumCustom>
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="1:16"/>
+    <ViewModel defaultInstanceId="1:15" name="ViewModel1" id="1:14">
+        <ViewModelPropertyList name="listProperty1" id="1:24"/>
+        <ViewModelInstance exports="true" id="1:15">
+            <ViewModelInstanceList viewModelPropertyId="1:24" id="1:25">
+                <ViewModelInstanceListItem name="List Item 1" viewModelId="2:11" viewModelInstanceId="2:12" id="2:19"/>
+                <ViewModelInstanceListItem name="List Item 2" viewModelId="2:11" viewModelInstanceId="2:67" id="2:72"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="2:3" viewModelType="3" name="Text Style1" id="2:2">
+        <ViewModelPropertyBoolean name="pressed" id="2:90"/>
+        <ViewModelInstance exports="true" id="2:3">
+            <ViewModelInstanceBoolean viewModelPropertyId="2:90" id="2:92"/>
+        </ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="3:3" viewModelType="3" name="Text Style2" id="3:2">
+        <ViewModelInstance exports="true" id="3:3"/>
+    </ViewModel>
+    <ViewModel defaultInstanceId="2:12" name="TextRunViewModel1" id="2:11">
+        <ViewModelPropertyEnumCustom enumId="2:30" name="urlState" id="2:49"/>
+        <ViewModelPropertyTextStyle symbolTypeValue="17" name="globalTextStyle" id="2:17"/>
+        <ViewModelPropertyString symbolTypeValue="14" name="textContent" id="2:13"/>
+        <ViewModelInstance exports="true" name="non-visited" id="2:67">
+            <ViewModelInstanceString propertyValue="non visited " viewModelPropertyId="2:13" id="2:68"/>
+            <ViewModelInstanceTextStyle propertyValue="3:4" viewModelPropertyId="2:17" id="2:70"/>
+            <ViewModelInstanceEnum propertyValue="2:31" viewModelPropertyId="2:49" id="2:71"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="visited" id="2:12">
+            <ViewModelInstanceString propertyValue="visited " viewModelPropertyId="2:13" id="2:14"/>
+            <ViewModelInstanceTextStyle propertyValue="2:4" viewModelPropertyId="2:17" id="2:18"/>
+            <ViewModelInstanceEnum propertyValue="2:32" viewModelPropertyId="2:49" id="2:50"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

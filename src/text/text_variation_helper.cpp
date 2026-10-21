@@ -6,9 +6,17 @@ using namespace rive;
 
 void TextVariationHelper::buildDependencies()
 {
-  auto text = m_textStyle->parent();
-  text->artboard()->addDependent(this);
-  addDependent(text);
+  auto parent = m_textStyle->parent();
+  // A global text style's paint lives under its style Artboard, with no Text
+  // to re-shape here (its owner re-shapes the Texts drawing it). Wiring the
+  // artboard on both sides would be a cycle.
+  if (parent->is<Artboard>())
+  {
+    parent->addDependent(this);
+    return;
+  }
+  parent->artboard()->addDependent(this);
+  addDependent(parent);
 }
 
 void TextVariationHelper::update(ComponentDirt value)

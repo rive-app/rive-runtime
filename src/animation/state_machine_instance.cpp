@@ -2284,6 +2284,199 @@ public:
   {}
 };
 
+#ifdef WITH_RIVE_TEXT
+/// Forwards pointer events to the state machines of a Text's styles that
+/// listen to the runs drawn with them (see
+/// StateMachineInstance::serveTextStyle). Styles and their instances come and
+/// go (list updates, style swaps), so they are looked up on every event,
+/// never kept.
+class HitTextStyleRuns : public HitComponent
+{
+public:
+  HitTextStyleRuns(Text* text, StateMachineInstance* stateMachineInstance)
+      : HitComponent(text, stateMachineInstance)
+  {}
+
+  Text* text() const { return m_component->as<Text>(); }
+
+  bool hidden() const
+  {
+    auto text = this->text();
+    return text->isCollapsed() || text->isHidden();
+  }
+
+  bool hitTest(Vec2D position) const override
+  {
+    if (hidden())
+    {
+      return false;
+    }
+    std::vector<StateMachineInstance*> stateMachines;
+    text()->runStateMachines(stateMachines);
+    for (auto stateMachine : stateMachines)
+    {
+      if (stateMachine->hitTest(position))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool listensToButtonAt(Vec2D position, PointerButton button) override
+  {
+    if (hidden())
+    {
+      return false;
+    }
+    m_stateMachines.clear();
+    text()->runStateMachines(m_stateMachines);
+    for (auto stateMachine : m_stateMachines)
+    {
+      if (stateMachine->listensToButtonAt(position, button))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  HitResult processEvent(
+      Vec2D position,
+      ListenerType hitType,
+      bool canHit,
+      float timeStamp,
+      int pointerId,
+      PointerButton button) override
+  {
+    HitResult hitResult = HitResult::none;
+    bool runningCanHit = canHit && !hidden();
+    // Collected first: a listener may change the styles while this walks
+    // them.
+    m_stateMachines.clear();
+    text()->runStateMachines(m_stateMachines);
+    for (auto stateMachine : m_stateMachines)
+    {
+      HitResult styleHitResult = HitResult::none;
+      if (runningCanHit)
+      {
+        switch (hitType)
+        {
+          case ListenerType::down:
+            styleHitResult = stateMachine->pointerDown(
+                position,
+                pointerId,
+                button);
+            break;
+          case ListenerType::up:
+            styleHitResult = stateMachine->pointerUp(
+                position,
+                pointerId,
+                button);
+            break;
+          case ListenerType::move:
+            styleHitResult = stateMachine->pointerMove(
+                position,
+                timeStamp,
+                pointerId);
+            break;
+          case ListenerType::exit:
+            styleHitResult = stateMachine->pointerExit(position, pointerId);
+            break;
+          case ListenerType::dragStart:
+            stateMachine->dragStart(position, 0, true, pointerId, button);
+            break;
+          case ListenerType::dragEnd:
+            stateMachine->dragEnd(position, 0, pointerId, button);
+            break;
+          default:
+            break;
+        }
+      }
+      else
+      {
+        switch (hitType)
+        {
+          case ListenerType::down:
+          case ListenerType::up:
+          case ListenerType::move:
+          case ListenerType::exit:
+            stateMachine->pointerExit(position, pointerId);
+            break;
+          default:
+            break;
+        }
+      }
+      if (stateMachine->needsAdvance())
+      {
+        m_stateMachineInstance->markNeedsAdvance();
+      }
+      if ((hitResult == HitResult::none &&
+           (styleHitResult == HitResult::hit ||
+            styleHitResult == HitResult::hitOpaque)) ||
+          (hitResult == HitResult::hit &&
+           styleHitResult == HitResult::hitOpaque))
+      {
+        hitResult = styleHitResult;
+      }
+      if (hitResult == HitResult::hitOpaque)
+      {
+        runningCanHit = false;
+      }
+    }
+    return hitResult;
+  }
+
+  HitResult processGamepadInvocation(
+      const ListenerInvocation& invocation,
+      ScriptedDrawable* alreadyDispatched) override
+  {
+    return HitResult::none;
+  }
+
+  void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
+      override
+  {}
+
+private:
+  // Reused across events.
+  std::vector<StateMachineInstance*> m_stateMachines;
+};
+
+/// The runs of a Text drawn with one style, which the pointer listeners with
+/// no target in that style's state machine listen to as one target (see
+/// StateMachineInstance::serveTextStyle). Runs come and go and change styles
+/// (list updates, swaps), so they're found on every hit test, never kept; the
+/// Text makes them hit targets.
+class HitTextStyleTarget : public HitDrawable
+{
+public:
+  HitTextStyleTarget(
+      Text* text,
+      const TextStyleReference* style,
+      StateMachineInstance* stateMachineInstance)
+      : HitDrawable(text, text, stateMachineInstance, false)
+      , m_style(style)
+  {}
+
+  bool hitTest(Vec2D position) const override
+  {
+    for (auto run : m_drawable->as<Text>()->runs())
+    {
+      if (run->styleReference() == m_style &&
+          run->hitTestPoint(position, true, true))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+private:
+  const TextStyleReference* m_style;
+};
+#endif
+
 class ListenerViewModel;
 
 // Helper that holds one view model property reference, listens to its dirt,
@@ -2646,7 +2839,7 @@ bool StateMachineInstance::hitTestBounded(Vec2D position) const
 
 bool StateMachineInstance::hitTestInternal(Vec2D position, bool bounded) const
 {
-  if (m_artboardInstance->frameOrigin())
+  if (m_artboardInstance->frameOrigin() && !m_hostSpacePointers)
   {
     position -= Vec2D(
         m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
@@ -2655,7 +2848,7 @@ bool StateMachineInstance::hitTestInternal(Vec2D position, bool bounded) const
   // Invert the artboard's own rotation/scale (applied in drawInternal after
   // the frame-origin translation) so the pointer maps into content space.
   // Covers nested state machines too, which funnel through here.
-  if (m_artboardInstance->hasSelfTransform())
+  if (m_artboardInstance->hasSelfTransform() && !m_hostSpacePointers)
   {
     Mat2D inverse;
     if (!m_artboardInstance->selfTransform().invert(&inverse))
@@ -2678,6 +2871,41 @@ bool StateMachineInstance::hitTestInternal(Vec2D position, bool bounded) const
     }
   }
   return false;
+}
+
+void StateMachineInstance::serveTextStyle(
+    Text* text,
+    const TextStyleReference* style)
+{
+#ifdef WITH_RIVE_TEXT
+  if (text == nullptr || style == nullptr)
+  {
+    return;
+  }
+  // Pointer listeners with no target listen to the runs drawn with
+  // [style]. Their groups exist already, inert, so they just get a hit
+  // area now.
+  std::unique_ptr<HitTextStyleTarget> hitRuns;
+  for (const auto& listenerGroup : m_listenerGroups)
+  {
+    auto listener = listenerGroup->listener();
+    if (listener == nullptr || !listener->hasPointerListeners() ||
+        m_artboardInstance->resolve(listener->targetId()) != nullptr)
+    {
+      continue;
+    }
+    if (hitRuns == nullptr)
+    {
+      hitRuns = std::make_unique<HitTextStyleTarget>(text, style, this);
+    }
+    hitRuns->addListener(listenerGroup.get());
+  }
+  if (hitRuns != nullptr)
+  {
+    m_hitComponents.push_back(std::move(hitRuns));
+  }
+  m_hostSpacePointers = true;
+#endif
 }
 
 HitResult StateMachineInstance::pointerMove(
@@ -2743,6 +2971,10 @@ HitResult StateMachineInstance::dragEnd(
 bool StateMachineInstance::mapToContentSpace(Vec2D& position, Vec2D* delta)
     const
 {
+  if (m_hostSpacePointers)
+  {
+    return true;
+  }
   if (m_artboardInstance->frameOrigin())
   {
     position -= Vec2D(
@@ -3052,6 +3284,7 @@ StateMachineInstance::StateMachineInstance(
     , m_bindsPending(false)
     , m_anySettled(false)
     , m_destroying(false)
+    , m_hostSpacePointers(false)
 {
   const auto count = machine->inputCount();
   m_inputInstances.resize(count);
@@ -3446,6 +3679,15 @@ StateMachineInstance::StateMachineInstance(
   }
 
 #ifdef WITH_RIVE_TEXT
+  // Texts whose runs may use a style that listens to them forward pointers
+  // to those styles' state machines.
+  for (auto text : instance->objects<Text>())
+  {
+    if (text->mayHaveListeningRuns())
+    {
+      m_hitComponents.push_back(std::make_unique<HitTextStyleRuns>(text, this));
+    }
+  }
   // Register TextInputs as hit targets for drag-to-select functionality
   for (auto object : *listenerObjects)
   {
