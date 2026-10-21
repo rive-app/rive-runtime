@@ -326,6 +326,9 @@ class RenderContextGLImpl::PLSImplWebGL
           desc.renderTargetUpdateBounds,
           framebufferRenderTarget->height(),
           framebufferRenderTarget->bottomUp());
+      // Chrome appears to make this same call behind the scenes without
+      // updating its client-side binding cache, so make it explicitly.
+      framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
     }
   }
 
