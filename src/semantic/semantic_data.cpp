@@ -1,8 +1,6 @@
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/artboard.hpp"
-#include "rive/artboard_host.hpp"
 #include "rive/component_dirt.hpp"
-#include "rive/container_component.hpp"
 #include "rive/drawable.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
@@ -30,6 +28,15 @@ SemanticData::~SemanticData()
   }
 }
 
+// Read only when the node is created or its own visibility changes, never at
+// flatten: ScriptedTransition flags a page Hidden while it composites the page
+// itself, and that page is still on screen.
+static bool isDrawableHidden(const Component* owner)
+{
+  return owner != nullptr && owner->is<Drawable>() &&
+         owner->as<Drawable>()->isHidden();
+}
+
 // Lazily creates the SemanticNode with a globally unique ID, copies
 // authored properties, applies text inference, and computes initial bounds.
 rcp<SemanticNode> SemanticData::semanticNode()
@@ -42,6 +49,7 @@ rcp<SemanticNode> SemanticData::semanticNode()
     // is safe to carry around pre-registration.
     m_semanticNode = rcp<SemanticNode>(new SemanticNode());
     m_semanticNode->coreOwner(parent());
+    m_ownerHidden = isDrawableHidden(parent());
     m_semanticNode->semanticData(this);
     m_semanticNode->role(m_Role);
     m_semanticNode->label(m_Label);
@@ -76,21 +84,21 @@ rcp<SemanticNode> SemanticData::semanticNode()
   return m_semanticNode;
 }
 
-// Finds parent SemanticData by walking up the component hierarchy.
+// Finds parent SemanticData by walking up the component hierarchy. The walk
+// starts above the component this SemanticData is attached to: another
+// SemanticData on that same component is a sibling, and treating siblings as
+// parents links them into a cycle that detaches all of them from the tree.
 SemanticData* SemanticData::findParentSemanticData() const
 {
-  auto* current = parent();
+  auto* owner = parent();
+  auto* current = owner != nullptr ? owner->parent() : nullptr;
   while (current != nullptr)
   {
     if (current->is<Node>())
     {
-      auto* node = current->as<Node>();
-      for (auto* child : node->children())
+      if (auto* data = current->as<Node>()->firstChild<SemanticData>())
       {
-        if (child->is<SemanticData>() && child != this)
-        {
-          return child->as<SemanticData>();
-        }
+        return data;
       }
     }
     current = current->parent();
@@ -98,41 +106,21 @@ SemanticData* SemanticData::findParentSemanticData() const
   return nullptr;
 }
 
-// Finds the closest SemanticNode for a component, crossing artboard
-// boundaries via ArtboardHost. Walks up the component hierarchy; when
-// it hits an Artboard, jumps to the host component in the parent artboard.
-// Starts from the component itself so that SemanticData attached directly
-// to the component (e.g. a NestedArtboard with role=button) is found.
+// Finds the node a hosted artboard's boundary hangs under: the closest
+// SemanticData at or above the component in its own artboard, else that
+// artboard's boundary (null for a root). It never looks past the artboard,
+// so a host's subtree contains everything below it and hiding the host's
+// boundary hides all of it. SemanticData on the artboard itself is skipped,
+// as it always was, so where nested content reads is unchanged.
 rcp<SemanticNode> SemanticData::findClosestSemanticNode(Component* component)
 {
-  if (component == nullptr)
-  {
-    return nullptr;
-  }
-
-  auto* current = component;
-  while (current != nullptr)
+  for (auto* current = component; current != nullptr;
+       current = current->parent())
   {
     if (current->is<Artboard>())
     {
-      auto* artboard = current->as<Artboard>();
-      // Try to cross the artboard boundary via the host component
-      auto* host = artboard->host();
-      if (host != nullptr)
-      {
-        auto* hostComponent = host->hostComponent();
-        if (hostComponent != nullptr && hostComponent->is<ContainerComponent>())
-        {
-          // Continue searching from the host component (e.g.,
-          // NestedArtboard)
-          current = hostComponent->as<ContainerComponent>();
-          continue;
-        }
-      }
-      // No way to traverse up, stop searching
-      return nullptr;
+      return current->as<Artboard>()->semanticBoundaryNode();
     }
-
     if (current->is<Node>())
     {
       if (auto* data = current->as<Node>()->firstChild<SemanticData>())
@@ -140,8 +128,6 @@ rcp<SemanticNode> SemanticData::findClosestSemanticNode(Component* component)
         return data->semanticNode();
       }
     }
-
-    current = current->parent();
   }
   return nullptr;
 }
@@ -200,56 +186,15 @@ bool SemanticData::requestFocus()
   return true;
 }
 
-// Collapse/uncollapse: removes or re-adds SemanticNode to the tree.
-// Collapse caches the manager before removal. Uncollapse re-adds with
-// correct parent, recomputes bounds, and forces a WorldTransform dirt.
+// A collapsed SemanticData stays in the tree but is skipped when the tree is
+// flattened; see syncSemanticTreeVisibility.
 bool SemanticData::collapse(bool value)
 {
   if (!Super::collapse(value))
   {
     return false;
   }
-
-  if (m_semanticNode == nullptr)
-  {
-    return true;
-  }
-
-  if (value)
-  {
-    // Capture the manager before removeChild clears it.
-    auto* manager = m_semanticNode->manager();
-    if (manager != nullptr)
-    {
-      m_semanticManager = manager;
-      manager->removeChild(m_semanticNode);
-    }
-  }
-  else
-  {
-    // Re-add to semantic tree using the cached manager.
-    auto* manager = m_semanticManager;
-    if (manager == nullptr)
-    {
-      manager = m_semanticNode->manager();
-    }
-    if (manager != nullptr)
-    {
-      m_semanticManager = manager;
-      manager->addChild(resolveParentNode(), m_semanticNode);
-
-      // Re-apply current bounds and content so the node is up to date.
-      m_boundsRetryPending = true;
-      updateWorldBounds();
-
-      // Force a WorldTransform update so bounds are recomputed
-      // in the next update cycle after layout has been recalculated.
-      addDirt(ComponentDirt::WorldTransform, false);
-
-      applyInferredSemanticsIfNeeded();
-    }
-  }
-
+  syncSemanticTreeVisibility();
   return true;
 }
 
@@ -270,8 +215,9 @@ void SemanticData::buildDependencies()
 // inferred semantics and recomputes world-space bounds.
 void SemanticData::update(ComponentDirt value)
 {
-  // Paint dirt (opacity/color) does not affect tree membership — see
-  // shouldExcludeFromSemanticTree(). Only Collapsed + Hidden-state matter.
+  // Paint dirt (opacity/color) does not affect whether the node is shown
+  // (see isExcludedFromSemanticTree). Only Collapsed dirt is handled here;
+  // the Hidden state goes through stateFlagsChanged.
   if (hasDirt(value, ComponentDirt::Collapsed))
   {
     syncSemanticTreeVisibility();
@@ -359,10 +305,16 @@ void SemanticData::stateFlagsChanged()
   {
     return;
   }
+  const bool wasHidden = hasSemanticState(
+      m_semanticNode->stateFlags(),
+      SemanticState::Hidden);
   m_semanticNode->stateFlags(m_StateFlags);
   markContentDirty();
-  // Hidden bit changes affect tree membership, not just content.
-  syncSemanticTreeVisibility();
+  // The Hidden bit decides whether the node is shown, not just its content.
+  if (wasHidden != hasSemanticState(m_StateFlags, SemanticState::Hidden))
+  {
+    syncSemanticTreeVisibility();
+  }
 }
 
 void SemanticData::traitFlagsChanged()
@@ -406,40 +358,24 @@ void SemanticData::headingLevelChanged()
   markContentDirty();
 }
 
-rcp<SemanticNode> SemanticData::resolveParentNode() const
+bool SemanticData::isExcludedFromSemanticTree() const
 {
-  auto* localParent = findParentSemanticData();
-  rcp<SemanticNode> parentNode = localParent != nullptr
-                                     ? localParent->semanticNode()
-                                     : nullptr;
-  if (parentNode == nullptr)
-  {
-    auto* ab = artboard();
-    if (ab != nullptr)
-    {
-      parentNode = ab->semanticBoundaryNode();
-    }
-  }
-  return parentNode;
-}
-
-bool SemanticData::shouldExcludeFromSemanticTree() const
-{
-  if (hasSemanticState(m_StateFlags, SemanticState::Hidden))
+  if (isCollapsed() || hasSemanticState(m_StateFlags, SemanticState::Hidden))
   {
     return true;
   }
 
+  // A SemanticData with no owner has nothing hiding it.
   auto* current = parent();
   if (current == nullptr)
   {
-    return true;
+    return false;
   }
   if (current->isCollapsed())
   {
     return true;
   }
-  if (current->is<Drawable>() && current->as<Drawable>()->isHidden())
+  if (m_ownerHidden)
   {
     return true;
   }
@@ -450,48 +386,32 @@ bool SemanticData::shouldExcludeFromSemanticTree() const
   return false;
 }
 
+// Whether a node is shown is read when the tree is flattened (see
+// isExcludedFromSemanticTree), so a change here only needs a re-flatten.
+// Coming back, the node refreshes its bounds and content, which may have
+// gone stale while it was hidden.
 void SemanticData::syncSemanticTreeVisibility()
 {
+  // Read even while unregistered: a node is reused when a new state
+  // machine registers it, without another sync.
+  m_ownerHidden = isDrawableHidden(parent());
   if (m_semanticNode == nullptr)
   {
     return;
   }
-
-  const bool shouldExclude = shouldExcludeFromSemanticTree();
-  if (shouldExclude == m_excludedFromTree)
-  {
-    return;
-  }
-  m_excludedFromTree = shouldExclude;
-
   auto* manager = m_semanticNode->manager();
-  if (shouldExclude)
-  {
-    if (manager != nullptr)
-    {
-      m_semanticManager = manager;
-      manager->removeChild(m_semanticNode);
-    }
-    return;
-  }
-
-  // Already tracked in the semantic tree.
-  if (manager != nullptr)
-  {
-    return;
-  }
-
-  manager = m_semanticManager;
-
   if (manager == nullptr)
   {
     return;
   }
-
-  manager->addChild(resolveParentNode(), m_semanticNode);
-
+  manager->markDirty(SemanticDirt::Structure);
+  if (isExcludedFromSemanticTree())
+  {
+    return;
+  }
   m_boundsRetryPending = true;
   updateWorldBounds();
+  addDirt(ComponentDirt::WorldTransform, false);
   applyInferredSemanticsIfNeeded();
 }
 

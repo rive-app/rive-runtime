@@ -145,6 +145,27 @@ struct Setup
   }
 };
 
+// Registered nodes that belong to a SemanticData. Boundary nodes are left
+// out: hosted artboards' boundaries accumulate across the dropdown's cycles,
+// a separate leak.
+static size_t semanticDataNodeCount(const SemanticManager* mgr)
+{
+  size_t found = 0;
+  size_t count = 0;
+  for (uint32_t id = 0; found < mgr->nodeCount() && id < 65536; id++)
+  {
+    if (auto* node = mgr->nodeById(id))
+    {
+      found++;
+      if (node->semanticData() != nullptr)
+      {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
 // Loads the fixture via the shared helper, then seeds the diff-replay
 // aggregator from the initial settle diff so Setup::entries is ready.
 static Setup loadDataBindingLists()
@@ -236,8 +257,7 @@ TEST_CASE(
 
   CHECK(s.fandomLabelsPresent() == kFandomLabels);
 
-  // Record ids before collapse so we can verify the manager index
-  // drops them.
+  // Record ids before collapse so we can verify they leave the tree.
   std::vector<uint32_t> preCollapseIds;
   for (const auto& label : kFandomLabels)
   {
@@ -255,17 +275,19 @@ TEST_CASE(
   REQUIRE(button != nullptr);
   CHECK_FALSE(hasSemanticState(button->stateFlags, SemanticState::Expanded));
 
-  // The manager's authoritative index must agree: every pre-collapse id
-  // is gone.
+  // The manager must agree: no pre-collapse id is in the tree the platform
+  // sees, yet each stays registered. Hiding never removes a node, so the
+  // same node comes back on re-expand.
   auto* mgr = s.sm()->semanticManager();
   for (auto id : preCollapseIds)
   {
-    CHECK(mgr->nodeById(id) == nullptr);
+    CHECK(mgr->nodeById(id) != nullptr);
+    CHECK_FALSE(mgr->isInTree(mgr->nodeById(id)));
   }
 }
 
 TEST_CASE(
-    "Re-expanding the dropdown re-registers list-item SDs",
+    "Re-expanding the dropdown brings list-item SDs back",
     "[semantics][artboard]")
 {
   auto s = loadDataBindingLists();
@@ -283,7 +305,7 @@ TEST_CASE(
     const auto* entry = s.findByLabel(label);
     REQUIRE(entry != nullptr);
     CAPTURE(label);
-    CHECK(mgr->nodeById(entry->id) != nullptr);
+    CHECK(mgr->isInTree(mgr->nodeById(entry->id)));
   }
 }
 
@@ -295,6 +317,7 @@ TEST_CASE(
 
   // Initial.
   CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  const auto registered = semanticDataNodeCount(s.sm()->semanticManager());
 
   // Three full cycles — each cycle must clean up fully and rebuild
   // without duplicating entries or leaking state.
@@ -306,6 +329,8 @@ TEST_CASE(
 
     s.tapDropdown(); // re-expand
     CHECK(s.fandomLabelsPresent() == kFandomLabels);
+    // No SemanticData is registered twice or left behind.
+    CHECK(semanticDataNodeCount(s.sm()->semanticManager()) == registered);
 
     // There must be exactly four fandom-labelled text SDs — not eight
     // or twelve — across all cycles.

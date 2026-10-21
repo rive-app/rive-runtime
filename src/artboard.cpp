@@ -133,6 +133,13 @@ Artboard::Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
 
 Artboard::~Artboard()
 {
+  // The boundary node can outlive this artboard: a virtualized list row
+  // destroyed from the pool never leaves the semantic tree. Flattening reads
+  // this pointer to see whether the host is collapsed, so it must not dangle.
+  if (m_semanticBoundaryNode != nullptr)
+  {
+    m_semanticBoundaryNode->boundaryArtboard(nullptr);
+  }
 #ifdef WITH_RIVE_EDITOR
   // Borrowed editor instances must retire their arena-owned children before
   // this destructor starts walking the graph. Owned arena entries have
@@ -1580,7 +1587,7 @@ bool Artboard::usesScripts() const
       return true;
     }
   }
-  for (auto* machine : m_StateMachines)
+  for (auto* machine : animationSource()->m_StateMachines)
   {
     if (machine->hasScriptedObjects())
     {
@@ -4309,8 +4316,9 @@ void Artboard::collapseSingle(bool value) { Component::collapse(value); }
 
 // Builds the semantic tree for this artboard. Iterates all objects,
 // registers each SemanticData's SemanticNode with the manager, then
-// propagates to nested artboards using findClosestSemanticNode() for
-// parent resolution across artboard boundaries.
+// propagates to nested artboards. Each nested boundary hangs under the
+// closest SemanticData at or above its host in this artboard, or under this
+// artboard's own boundary, so a host's subtree contains everything below it.
 //
 // For nested artboards (those with a host), a boundary SemanticNode is
 // created and inserted as the parent of all semantic nodes within this
@@ -4363,7 +4371,6 @@ void Artboard::buildSemanticTree(
                                          : effectiveParent;
 
       semanticManager->addChild(parentNode, sd->semanticNode());
-      sd->syncSemanticTreeVisibility();
     }
   }
 
@@ -4378,7 +4385,6 @@ void Artboard::buildSemanticTree(
   // Handle NestedArtboard instances
   for (auto* nestedArtboardHost : m_NestedArtboards)
   {
-    // Find closest semantic node (handles artboard boundaries)
     auto hostParentNode = SemanticData::findClosestSemanticNode(
         nestedArtboardHost);
     if (hostParentNode == nullptr)
@@ -4400,7 +4406,6 @@ void Artboard::buildSemanticTree(
   // Handle ArtboardComponentList instances
   for (auto* componentList : m_ComponentLists)
   {
-    // Find closest semantic node (handles artboard boundaries)
     auto hostParentNode = SemanticData::findClosestSemanticNode(componentList);
     if (hostParentNode == nullptr)
     {
@@ -4488,57 +4493,32 @@ void Artboard::cleanupSemanticTree()
   m_activeSemanticManager = nullptr;
 }
 
-// Walk the semantic subtree under a boundary node and collapse each
-// SemanticData directly via the back-pointer. O(K) where K = semantic
-// nodes under this boundary.
-static void collapseBoundarySubtree(SemanticNode* node, bool value)
+bool Artboard::isHostCollapsed() const
 {
-  // Copy children before iterating — collapse(true) calls
-  // removeChild which mutates the original vector.
-  std::vector<rcp<SemanticNode>> children(node->children());
-  for (const auto& child : children)
-  {
-    auto* sd = child->semanticData();
-    if (sd != nullptr && sd->isCollapsed() != value)
-    {
-      sd->collapse(value);
-    }
-    collapseBoundarySubtree(child.get(), value);
-  }
+  auto* artboardHost = host();
+  auto* component = artboardHost != nullptr ? artboardHost->hostComponent()
+                                            : nullptr;
+  return component != nullptr && component->isCollapsed();
 }
 
-// Semantic-only collapse for this artboard's semantic nodes.
-// When collapsing, walks the boundary's semantic subtree (O(K) semantic
-// nodes). When uncollapsing, falls back to m_Objects because
-// SemanticData::collapse(false) re-parents nodes outside the boundary.
-void Artboard::collapseSemanticBoundary(bool value)
+// Called when the host collapses or uncollapses. Whether this artboard's
+// semantics are shown is read when the tree is flattened (a boundary whose
+// host is collapsed hides everything below it, including artboards nested
+// further down), so a change only needs a re-flatten. Coming back, bounds
+// are refreshed: a collapsed host does not advance this artboard.
+void Artboard::syncSemanticBoundary()
 {
-  if (m_activeSemanticManager == nullptr)
+  if (m_activeSemanticManager == nullptr || m_semanticBoundaryNode == nullptr)
   {
     return;
   }
-  if (value && m_semanticBoundaryNode != nullptr)
+  // An empty boundary shows nothing either way, so its host can toggle
+  // without a re-flatten.
+  if (!m_semanticBoundaryNode->children().empty())
   {
-    // Fast path: walk the boundary tree.
-    collapseBoundarySubtree(m_semanticBoundaryNode.get(), true);
+    m_activeSemanticManager->markDirty(SemanticDirt::Structure);
   }
-  else
-  {
-    // Uncollapse or no boundary: scan artboard objects.
-    for (auto* obj : m_Objects)
-    {
-      if (obj != nullptr && obj->is<SemanticData>())
-      {
-        auto* sd = obj->as<SemanticData>();
-        if (sd->isCollapsed() != value)
-        {
-          sd->collapse(value);
-        }
-      }
-    }
-  }
-
-  if (!value)
+  if (!isHostCollapsed())
   {
     markSemanticBoundaryTransformDirty();
   }
@@ -4564,7 +4544,7 @@ std::string Artboard::stateMachineNameAt(size_t index) const
 
 LinearAnimation* Artboard::animation(const std::string& name) const
 {
-  for (auto animation : m_Animations)
+  for (auto animation : animationSource()->m_Animations)
   {
     if (animation->name() == name)
     {
@@ -4576,16 +4556,17 @@ LinearAnimation* Artboard::animation(const std::string& name) const
 
 LinearAnimation* Artboard::animation(size_t index) const
 {
-  if (index >= m_Animations.size())
+  const Artboard* source = animationSource();
+  if (index >= source->m_Animations.size())
   {
     return nullptr;
   }
-  return m_Animations[index];
+  return source->m_Animations[index];
 }
 
 StateMachine* Artboard::stateMachine(const std::string& name) const
 {
-  for (auto machine : m_StateMachines)
+  for (auto machine : animationSource()->m_StateMachines)
   {
     if (machine->name() == name)
     {
@@ -4597,17 +4578,18 @@ StateMachine* Artboard::stateMachine(const std::string& name) const
 
 StateMachine* Artboard::stateMachine(size_t index) const
 {
-  if (index >= m_StateMachines.size())
+  const Artboard* source = animationSource();
+  if (index >= source->m_StateMachines.size())
   {
     return nullptr;
   }
-  return m_StateMachines[index];
+  return source->m_StateMachines[index];
 }
 
 int Artboard::defaultStateMachineIndex() const
 {
   int index = defaultStateMachineId();
-  if ((size_t)index >= m_StateMachines.size())
+  if ((size_t)index >= animationSource()->m_StateMachines.size())
   {
     index = -1;
   }

@@ -444,11 +444,13 @@ public:
   /// nodes from the SemanticManager.
   void cleanupSemanticTree();
 
-  // Semantic-only collapse for this artboard's semantic nodes.
-  // When collapsing, walks the boundary's semantic subtree (O(K) semantic
-  // nodes). When uncollapsing, falls back to m_Objects because
-  // SemanticData::collapse(false) re-parents nodes outside the boundary.
-  void collapseSemanticBoundary(bool value);
+  // Called when the host collapses or uncollapses. While the host is
+  // collapsed, every node of this artboard and the artboards nested below
+  // it is left out of the tree the platform sees.
+  void syncSemanticBoundary();
+
+  // True when the component hosting this artboard is collapsed.
+  bool isHostCollapsed() const;
 
   /// Mark bounds dirty for all semantic nodes under this artboard's
   /// boundary node. Called when the host transform changes.
@@ -599,6 +601,17 @@ public:
   const Artboard* artboardSource() const
   {
     return isInstance() ? m_artboardSource : this;
+  }
+  /// The artboard that owns the animation and state machine lists. Instances
+  /// share their source's instead of copying them (see instance()), so every
+  /// read of either list routes through here. `artboardSource()` is null on an
+  /// instance the editor flagged with setIsInstance without recording a
+  /// source; those keep their own (deliberately empty) lists, so fall back to
+  /// this rather than assuming a source exists.
+  const Artboard* animationSource() const
+  {
+    const Artboard* source = artboardSource();
+    return source != nullptr ? source : this;
   }
   bool isAncestor(const Artboard* artboard);
 
@@ -804,7 +817,7 @@ public:
     return TypedChildren<T>(Span<Core*>(m_Objects.data(), m_Objects.size()));
   }
 
-  const std::vector<NestedArtboard*> nestedArtboards() const
+  const std::vector<NestedArtboard*>& nestedArtboards() const
   {
     return m_NestedArtboards;
   }
@@ -819,7 +832,7 @@ public:
   {
     return m_ArtboardHosts;
   }
-  const std::vector<ArtboardComponentList*> artboardComponentLists() const
+  const std::vector<ArtboardComponentList*>& artboardComponentLists() const
   {
     return m_ComponentLists;
   }
@@ -959,7 +972,10 @@ public:
     return results;
   }
 
-  size_t animationCount() const { return m_Animations.size(); }
+  size_t animationCount() const
+  {
+    return animationSource()->m_Animations.size();
+  }
   std::string animationNameAt(size_t index) const;
 
   /// Returns the count of FocusData objects that don't have a parent
@@ -971,7 +987,10 @@ public:
   /// Returns nullptr if index is out of bounds.
   class FocusData* rootFocusDataAt(size_t index) const;
 
-  size_t stateMachineCount() const { return m_StateMachines.size(); }
+  size_t stateMachineCount() const
+  {
+    return animationSource()->m_StateMachines.size();
+  }
   std::string stateMachineNameAt(size_t index) const;
 
   LinearAnimation* firstAnimation() const { return animation(0); }
@@ -1011,6 +1030,10 @@ public:
     cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
+    // The clone ends up with exactly as many objects as the source, so size it
+    // once instead of letting push_back grow it geometrically — that left each
+    // instance holding up to its own object count again in unused capacity.
+    cloneObjects.reserve(m_Objects.size());
     cloneObjects.push_back(artboardClone.get());
 
     if (!m_Objects.empty())
@@ -1032,15 +1055,6 @@ public:
     // clone as it arrives, mid-construction. The clone still binds for
     // real later, through bind()/internalDataContext().
     artboardClone->dataBindContext(dataBindContext());
-
-    for (auto animation : m_Animations)
-    {
-      artboardClone->m_Animations.push_back(animation);
-    }
-    for (auto stateMachine : m_StateMachines)
-    {
-      artboardClone->m_StateMachines.push_back(stateMachine);
-    }
 
     if (factory != nullptr && factory != m_Factory)
     {

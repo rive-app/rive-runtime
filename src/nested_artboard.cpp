@@ -410,7 +410,8 @@ void NestedArtboard::updateArtboard(
     syncNestedFocusTree(FocusData::findClosestFocusNode(this));
 
     // Register the swapped-in instance with the host's semantic manager,
-    // reparented under the enclosing SemanticData the same way
+    // reparented under the closest SemanticData in this artboard, or its
+    // boundary, the same way
     // ArtboardComponentList wires its items
     auto* parentSemanticManager = parentAb != nullptr
                                       ? parentAb->semanticManager()
@@ -783,9 +784,9 @@ bool NestedArtboard::collapse(bool value)
   {
     return true;
   }
-  // Semantic-only collapse via the artboard boundary node. Only touches
-  // SemanticData nodes — non-semantic components stay untouched.
-  nestedInstance->collapseSemanticBoundary(value);
+  // The hosted artboard's semantics are hidden with its host; its own
+  // components are not collapsed.
+  nestedInstance->syncSemanticBoundary();
   return true;
 }
 

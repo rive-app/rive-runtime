@@ -11,7 +11,6 @@
 namespace rive
 {
 class SemanticListener;
-class SemanticManager;
 
 class SemanticData : public SemanticDataBase
 {
@@ -41,15 +40,23 @@ public:
   /// Find the parent SemanticData by walking up the component hierarchy.
   SemanticData* findParentSemanticData() const;
 
-  /// Find the closest SemanticNode for a component by walking up the
-  /// hierarchy. Crosses artboard boundaries via externalParentSemanticNode.
+  /// The node a hosted artboard's boundary hangs under: the closest
+  /// SemanticData at or above the component in its own artboard (not one on
+  /// the artboard itself), else that artboard's boundary node (null for a
+  /// root artboard). It stops at the artboard so that hiding a host hides
+  /// every artboard nested below it.
   static rcp<SemanticNode> findClosestSemanticNode(Component* component);
+
+  /// True when this node is left out of the tree the platform sees: its
+  /// component is collapsed, it has the Hidden state, or its owner was a
+  /// hidden drawable when last checked. Read on every flatten; the tree
+  /// never changes shape.
+  bool isExcludedFromSemanticTree() const;
 
   // Component overrides for update cycle
   bool collapse(bool value) override;
   void buildDependencies() override;
   void update(ComponentDirt value) override;
-  void syncSemanticTreeVisibility();
 
 protected:
   void roleChanged() override;
@@ -63,16 +70,16 @@ protected:
   uint32_t semanticId() const;
 
 private:
-  bool shouldExcludeFromSemanticTree() const;
-  rcp<SemanticNode> resolveParentNode() const;
+  void syncSemanticTreeVisibility();
   void updateWorldBounds();
   void markContentDirty();
   void applyInferredSemanticsIfNeeded();
   rcp<SemanticNode> m_semanticNode;
-  SemanticManager* m_semanticManager = nullptr;
   std::vector<SemanticListener*> m_semanticListeners;
   bool m_boundsRetryPending = false;
-  bool m_excludedFromTree = false;
+  // Whether the owning drawable was flagged Hidden when last read; see
+  // isDrawableHidden in semantic_data.cpp.
+  bool m_ownerHidden = false;
 };
 } // namespace rive
 

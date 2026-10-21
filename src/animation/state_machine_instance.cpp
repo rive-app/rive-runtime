@@ -4045,7 +4045,10 @@ void StateMachineInstance::fireSemanticAction(
     return;
   }
   auto* node = mgr->nodeById(semanticNodeId);
-  if (node == nullptr)
+  // A hidden node (collapsed, Hidden, or under a collapsed host) stays
+  // registered; an action the platform sent before it saw the node leave
+  // must not reach it.
+  if (node == nullptr || !mgr->isInTree(node))
   {
     return;
   }

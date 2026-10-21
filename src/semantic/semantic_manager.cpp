@@ -59,6 +59,22 @@ static std::string normalizeLabel(const std::string& input)
   return result;
 }
 
+// A node the flattened tree leaves out, together with everything under it:
+// a SemanticData that is excluded (collapsed, Hidden, or on a hidden
+// drawable), or the boundary of an artboard whose host is collapsed. The
+// tree itself never changes shape when something hides; every walk that
+// produces what the platform sees checks this instead.
+static bool isHiddenNode(const SemanticNode* node)
+{
+  if (node->isBoundaryNode())
+  {
+    auto* artboard = node->boundaryArtboard();
+    return artboard != nullptr && artboard->isHostCollapsed();
+  }
+  auto* data = node->semanticData();
+  return data != nullptr && data->isExcludedFromSemanticTree();
+}
+
 // Walks the subtree rooted at `node` in tree order, collecting text and
 // image labels. All visited (non-interactive) nodes are added to
 // `absorbedIds`. Nested interactive elements are left untouched — they
@@ -69,6 +85,10 @@ static void collectLabelsFromSubtree(
     std::string& imageTextOut,
     std::unordered_set<uint32_t>& absorbedIds)
 {
+  if (isHiddenNode(node.get()))
+  {
+    return;
+  }
   auto role = static_cast<SemanticRole>(node->role());
 
   // Nested interactive element: don't absorb, don't descend.
@@ -118,6 +138,10 @@ static void deriveLabelVisit(
     std::unordered_set<uint32_t>& excludedIds,
     LabelDerivationScratch& scratch)
 {
+  if (isHiddenNode(node.get()))
+  {
+    return;
+  }
   if (isInteractiveRole(node->role()) && node->label().empty())
   {
     scratch.textLabel.clear();
@@ -162,7 +186,7 @@ static void deriveLabelVisit(
 // Rules (from spec):
 //   1. Explicit label wins — skip derivation.
 //   2. Text children contribute in tree order; images only if no text.
-//   3. Hidden / non-semantic nodes were already pruned before this point.
+//   3. Hidden nodes and their subtrees are skipped (see isHiddenNode).
 //   4. textField never auto-derives (not in isInteractiveRole).
 //   5. Nested interactive children are not absorbed.
 static void deriveLabelForInteractiveNodes(
@@ -195,6 +219,10 @@ static void flattenSemanticNode(
     const std::unordered_set<uint32_t>& excludedIds,
     const std::unordered_map<uint32_t, std::string>& derivedLabels)
 {
+  if (isHiddenNode(node.get()))
+  {
+    return;
+  }
   if (excludedIds.count(node->id()) || node->isBoundaryNode())
   {
     // Node is absorbed or is a structural boundary node — skip it
@@ -614,7 +642,12 @@ void SemanticManager::sortChildrenByVisualPosition(
 
   for (auto& node : nodes)
   {
-    sortChildrenByVisualPosition(node->mutableChildren());
+    // A hidden subtree is not flattened; showing it marks Structure, which
+    // sorts it then.
+    if (!isHiddenNode(node.get()))
+    {
+      sortChildrenByVisualPosition(node->mutableChildren());
+    }
   }
 }
 
@@ -623,6 +656,27 @@ void SemanticManager::sortChildrenByVisualPosition(
 // uninitialized sentinel — we set global dirt but skip per-node.
 void SemanticManager::markNodeDirty(uint32_t id, SemanticDirt dirt)
 {
+  // A node the platform was not given (hidden, or not yet flattened) has
+  // nothing to patch: the next structural flatten reads it live. A node
+  // absorbed into a parent's derived label still counts, since a change to
+  // it re-derives that label. Boundary nodes are never in the snapshot, yet
+  // their bounds decide sibling order, so only a hidden one is skipped.
+  if (id != 0)
+  {
+    auto it = m_nodesById.find(id);
+    if (it != m_nodesById.end())
+    {
+      const SemanticNode* node = it->second.get();
+      const bool skip = node->isBoundaryNode()
+                            ? isHiddenNode(node)
+                            : m_snapshotIds.count(id) == 0 &&
+                                  m_excludedIds.count(id) == 0;
+      if (skip)
+      {
+        return;
+      }
+    }
+  }
   markDirty(dirt);
   if (id == 0)
   {
@@ -1036,7 +1090,7 @@ void SemanticManager::refresh()
 
     auto currentFlat = flattenFromSemanticNodes(
         m_roots,
-        m_nodesById.size(),
+        m_lastFlatSnapshot.size(),
         m_excludedIds,
         m_derivedLabels);
     auto nextDiff = buildDiffFromFlats(
@@ -1048,6 +1102,7 @@ void SemanticManager::refresh()
       m_version++;
       m_lastDiff = std::move(nextDiff);
       m_lastFlatSnapshot = std::move(currentFlat);
+      indexSnapshot();
     }
   }
   else
@@ -1092,11 +1147,9 @@ void SemanticManager::refresh()
       }
     }
 
-    // Single-root optimization for the incremental path.
-    if (m_roots.size() == 1)
-    {
-      nextDiff.rootId = m_roots[0]->id();
-    }
+    // Single-root optimization for the incremental path: the root of the
+    // snapshot this diff patches.
+    nextDiff.rootId = m_rootId;
 
     // Only bump version and store the diff if something actually changed.
     // The patchBounds/patchContent methods guard against no-op updates,
@@ -1121,9 +1174,34 @@ SemanticsDiff SemanticManager::drainDiff()
   return consumeDiff();
 }
 
-uint32_t SemanticManager::rootId() const
+uint32_t SemanticManager::rootId() const { return m_rootId; }
+
+// Records which nodes the snapshot holds and its single root, if it has one.
+// Called whenever m_lastFlatSnapshot is replaced.
+void SemanticManager::indexSnapshot()
 {
-  return m_roots.size() == 1 ? m_roots.front()->id() : 0;
+  m_snapshotIds.clear();
+  m_rootId = 0;
+  int roots = 0;
+  for (const auto& node : m_lastFlatSnapshot)
+  {
+    m_snapshotIds.insert(node.id);
+    if (node.parentId == -1)
+    {
+      m_rootId = node.id;
+      roots++;
+    }
+  }
+  if (roots != 1)
+  {
+    m_rootId = 0;
+  }
+}
+
+bool SemanticManager::isInTree(const SemanticNode* node) const
+{
+  return node != nullptr && node->manager() == this &&
+         m_snapshotIds.count(node->id()) != 0;
 }
 
 std::vector<SemanticsBoundsUpdate> SemanticManager::boundsSnapshot() const
@@ -1152,7 +1230,7 @@ SemanticsDiff SemanticManager::consumeDiff()
 bool SemanticManager::requestFocus(uint32_t semanticNodeId)
 {
   auto* semanticNode = nodeById(semanticNodeId);
-  if (semanticNode == nullptr)
+  if (semanticNode == nullptr || !isInTree(semanticNode))
   {
     return false;
   }

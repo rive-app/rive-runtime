@@ -9,7 +9,7 @@
 //     updatedSemantic entries on the next drainDiff().
 //   - Removing the SD from the manager cleans up the index.
 //
-// SD's visibility/collapse path (shouldExcludeFromSemanticTree) and the
+// SD's visibility/collapse path (isExcludedFromSemanticTree) and the
 // focus-trait auto-detection depend on a parent Node and sibling
 // FocusData; those are covered by fixture-driven tests elsewhere because
 // constructing that hierarchy in-process would require a full artboard.

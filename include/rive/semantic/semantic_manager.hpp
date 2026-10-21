@@ -46,6 +46,11 @@ public:
     return it != m_nodesById.end() ? it->second.get() : nullptr;
   }
 
+  /// True when the node is in the tree the platform was last given: the
+  /// snapshot of the most recent flatten. Hidden nodes stay registered, so
+  /// anything acting on a node id from the platform checks this first.
+  bool isInTree(const SemanticNode* node) const;
+
   // Request focus on the FocusData sibling of the SemanticData that owns
   // the given semantic node ID. Returns true if focus was set.
   bool requestFocus(uint32_t semanticNodeId);
@@ -59,7 +64,8 @@ public:
   size_t nodeCount() const { return m_nodesById.size(); }
 #endif
 
-  /// Returns the current semantic root when the tree has exactly one root.
+  /// Returns the current semantic root when the tree the platform sees has
+  /// exactly one root.
   ///
   /// @return The unique root node ID, or `0` when the tree has zero or
   /// multiple roots.
@@ -90,10 +96,15 @@ private:
   // or reconcile the watermark for an explicitly-provided id. Called from
   // addChild() before the node is inserted in m_nodesById.
   void ensureNodeId(SemanticNode& node);
+  void indexSnapshot();
 
   SemanticDirt m_dirt = SemanticDirt::All;
   SemanticsDiff m_lastDiff;
   std::vector<SemanticsDiffNode> m_lastFlatSnapshot;
+  // Ids in m_lastFlatSnapshot, and its single root (0 when it has none or
+  // several). Kept by indexSnapshot().
+  std::unordered_set<uint32_t> m_snapshotIds;
+  uint32_t m_rootId = 0;
   uint64_t m_version = 0;
   // Next id for auto-assignment; starts at 1 so 0 can remain an
   // "unassigned" sentinel. Scoped per-manager so two unrelated managers

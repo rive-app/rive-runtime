@@ -94,8 +94,8 @@ public:
   void boundaryArtboard(Artboard* value) { m_boundaryArtboard = value; }
 
   /// Back-pointer to the SemanticData that owns this node. Null for
-  /// boundary nodes. Used for direct collapse without walking the
-  /// component hierarchy.
+  /// boundary nodes. Used to route actions and focus to it, and when
+  /// flattening to read whether it is hidden.
   class SemanticData* semanticData() const { return m_semanticData; }
   void semanticData(class SemanticData* value) { m_semanticData = value; }
 

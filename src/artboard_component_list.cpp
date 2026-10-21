@@ -107,10 +107,10 @@ bool ArtboardComponentList::collapse(bool value)
     return false;
   }
 
-  // Semantic-only collapse via the artboard boundary node. Only touches
-  // SemanticData nodes — non-semantic components stay untouched.
+  // The hosted artboard's semantics are hidden with its host; its own
+  // components are not collapsed.
   forEachRealized([&](int, ArtboardInstance* nestedArtboard) {
-    nestedArtboard->collapseSemanticBoundary(value);
+    nestedArtboard->syncSemanticBoundary();
   });
   return true;
 }
@@ -876,7 +876,8 @@ void ArtboardComponentList::linkStateMachineToArtboard(
   }
 
   // Share parent artboard's semantic manager and build semantic tree
-  // reparented under the enclosing SemanticData.
+  // reparented under the closest SemanticData in the parent artboard, or
+  // its boundary.
   if (parentArtboard != nullptr && parentArtboard->semanticManager() != nullptr)
   {
     auto* parentSM = parentArtboard->semanticManager();
