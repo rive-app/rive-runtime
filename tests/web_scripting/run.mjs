@@ -2,11 +2,12 @@
 // script runner's prepare(), then start scripts and run frames.
 //   node run.mjs <harness.mjs> <file.riv> [--sync] [--early] [--settle]
 //                [--decoder-throws] [--fault <method>] [--deep] [--vms <count>]
-//                [--scroll] [--lacks simd|relaxed|bulk,...]
+//                [--scroll] [--lacks simd|relaxed|bulk,...] [--bounded]
 //                [--page-boundary] [--seam <address>] [--expect <log line>]...
 //                [--expect-line <log line>]...
 // --early starts scripts once before prepare() settles, as a host that does
 // not wait for it would. --deep runs the frames with little stack left.
+// --bounded starts only modules the page can bound, as an editor does.
 // --vms is how many script vms must run, else one. --scroll sends one scroll
 // over the artboard after the frames.
 // --settle stands in for the browser's image decoder and lets its results
@@ -39,6 +40,7 @@ const scroll = rest.includes('--scroll');
 const lacks = valueOf('--lacks')?.split(',');
 const pageBoundary = rest.includes('--page-boundary');
 const seam = valueOf('--seam');
+const bounded = rest.includes('--bounded');
 
 // The relaxed opcodes are 0xfd then 0x80 to 0x93 and 0x02, and memory.copy
 // and memory.fill 0xfc then 0x0a and 0x0b; a stray byte match only refuses
@@ -136,6 +138,19 @@ if (lacks !== undefined) {
         return compile(bytes);
     };
 }
+// Counts the script modules the runner tries to instantiate.
+let instantiations = 0;
+const { Instance, instantiate } = WebAssembly;
+WebAssembly.Instance = class extends Instance {
+    constructor(...args) {
+        instantiations++;
+        super(...args);
+    }
+};
+WebAssembly.instantiate = (...args) => {
+    instantiations++;
+    return instantiate(...args);
+};
 if (fault !== undefined) {
     const runner = Module.riveScripting;
     const original = runner[fault];
@@ -143,6 +158,10 @@ if (fault !== undefined) {
         runner[fault] = original;
         throw new Error('host fault injected');
     };
+}
+
+if (bounded) {
+    Module._harness_require_bounds();
 }
 
 const riv = readFileSync(rivPath);
@@ -196,6 +215,7 @@ if (settle) {
     }
 }
 Module._harness_release();
+lines.push(`script modules instantiated: ${instantiations}`);
 
 const missing = expected.filter((want) => !lines.some((line) => line.includes(want)));
 missing.push(...exactLines.filter((want) => !lines.includes(want)));

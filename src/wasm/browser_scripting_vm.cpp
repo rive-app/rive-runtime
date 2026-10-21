@@ -100,12 +100,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_module_export(
   ((BrowserScriptingVM*)(uintptr_t)vm)->noteModuleExport(name);
 }
 
-// Pages print what this returns as warnings, which the notice is not.
+// Pages print what this returns as warnings.
 extern "C" EMSCRIPTEN_KEEPALIVE const char* rive_web_vm_frame_boundary(
     uint32_t vm)
 {
-  const char* report = ((BrowserScriptingVM*)(uintptr_t)vm)->frameBoundary();
-  return report == WasmScriptingVM::kFrameGcNotice ? nullptr : report;
+  return ((BrowserScriptingVM*)(uintptr_t)vm)->frameBoundaryWarnings();
 }
 
 // The runner's outcome when JS unwound librive frames.

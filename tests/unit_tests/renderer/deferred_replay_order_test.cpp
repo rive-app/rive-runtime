@@ -10,6 +10,7 @@
 #include "rive/renderer/cmd/deferred_replayer.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
 #include "deferred_test_sink.hpp"
+#include "utils/no_op_renderer.hpp"
 
 #include <catch.hpp>
 
@@ -317,4 +318,70 @@ TEST_CASE(
   runFrame(0xFF00FF00);
   runFrame(0xFF0000FF);
   CHECK(sink.serializingFactory.paintCount == 1);
+}
+
+namespace
+{
+// Flags a restore past its saves, which pops a real renderer's base state.
+class DepthRenderer : public NoOpRenderer
+{
+public:
+  int depth = 0;
+  int restores = 0;
+  bool underflowed = false;
+  void save() override { depth++; }
+  void restore() override
+  {
+    restores++;
+    if (depth == 0)
+    {
+      underflowed = true;
+      return;
+    }
+    depth--;
+  }
+};
+
+class DepthSink : public TestSink
+{
+public:
+  DepthRenderer screen;
+  Renderer* beginScreenFrame(uint64_t) override { return &screen; }
+};
+} // namespace
+
+TEST_CASE(
+    "a replayed restore past its renderer's saves is dropped",
+    "[deferred][replay][segment]")
+{
+  cmd::DeferredFactory factory;
+  auto& buffer = factory.commandBuffer();
+  auto append = [&](cmd::RenderCmd type) {
+    buffer.appendType(static_cast<uint8_t>(type));
+  };
+  // Raw bytes, as any producer could write them.
+  append(cmd::RenderCmd::restore);
+  append(cmd::RenderCmd::save);
+  uint32_t split = static_cast<uint32_t>(buffer.commandBytes().size());
+  // A later segment closes the earlier one's save, then pops once more.
+  append(cmd::RenderCmd::restore);
+  append(cmd::RenderCmd::restore);
+
+  auto copy = [](Span<const uint8_t> s) {
+    return std::vector<uint8_t>(s.data(), s.data() + s.size());
+  };
+  cmd::DeferredFrame frame;
+  frame.commands = copy(buffer.commandBytes());
+  frame.blobs = copy(buffer.blobBytes());
+  frame.segments = {
+      {Target::screen, 0, 0, split},
+      {Target::screen, 0, split, static_cast<uint32_t>(frame.commands.size())},
+  };
+
+  DepthSink sink;
+  cmd::DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
+  CHECK_FALSE(sink.screen.underflowed);
+  CHECK(sink.screen.restores == 1);
+  CHECK(sink.screen.depth == 0);
 }

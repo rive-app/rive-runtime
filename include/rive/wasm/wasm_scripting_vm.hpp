@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -441,6 +442,11 @@ public:
   /// notice rather than a warning.
   static constexpr char
       kFrameGcNotice[] = "script frame gc: scavenging per frame";
+  /// frameBoundary without its notices, for hosts that print it as
+  /// warnings.
+  const char* frameBoundaryWarnings();
+  /// Adds a boundary report to joined, a line each.
+  static void joinFrameReport(std::string& joined, std::string_view report);
   const char* handleLeakWarning();
   const char* heapGrowthWarning();
 
@@ -568,6 +574,10 @@ public:
   using BootHook = std::function<
       void(WasmScriptingVM& vm, Span<const uint8_t> module)>;
   static void setBootHook(BootHook hook);
+
+  /// Modules started after the call must carry a bound this host can
+  /// enforce, their own fuel or natively the watchdog, as an editor needs.
+  static void requireBounds(bool on);
 
   /// The module can never run again.
   bool poisoned() const { return m_poisoned; }
@@ -736,6 +746,8 @@ private:
   /// this one's scripts decoded, which collect at its boundaries.
   WasmScriptingVM* m_decodedBy = nullptr;
   std::vector<WasmScriptingVM*> m_decodedVMs;
+  /// What frameBoundary returns once those VMs report too, one per line.
+  std::string m_frameReport;
   /// Module exports __riveUtf16HostStrings: strings the host hands it are
   /// written as UTF-16 too.
   bool m_utf16HostStrings = false;

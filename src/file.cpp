@@ -1175,16 +1175,16 @@ void File::displayScale([[maybe_unused]] float scale)
 #ifdef WITH_RIVE_SCRIPTING_WASM
 const char* File::frameBoundary()
 {
-  const char* warning = nullptr;
+  m_frameBoundaryReport.clear();
   for (auto& vm : m_wasmVMs)
   {
-    const char* notice = vm->frameBoundary();
-    if (warning == nullptr)
+    if (const char* notice = vm->frameBoundary())
     {
-      warning = notice;
+      WasmScriptingVM::joinFrameReport(m_frameBoundaryReport, notice);
     }
   }
-  return warning;
+  return m_frameBoundaryReport.empty() ? nullptr
+                                       : m_frameBoundaryReport.c_str();
 }
 #endif
 

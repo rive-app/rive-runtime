@@ -176,6 +176,7 @@ thread_local const std::function<void(const char*, size_t)>*
     s_bootPrint = nullptr;
 // The VM whose module is starting, for the natives its top level reaches.
 thread_local WasmScriptingVM* s_booting = nullptr;
+std::atomic<bool> s_requireBounds{false};
 thread_local WasmScriptingVM::BootHook s_bootHook;
 // The VMs holding outcomes, so a poll reaches them without walking every
 // artboard that might own one.
@@ -187,6 +188,7 @@ struct rive::WasmScriptingVMNatives
 {
   static void print(WasmScriptingVM* vm, const char* data, size_t size);
   static int startFuelMs(const WasmScriptingVM* vm);
+  static const char* startRefusal(const WasmScriptingVM* vm);
 #ifndef __EMSCRIPTEN__
   static WasmScriptingVM* adoptBooting(wasm_exec_env_t env);
 #else
@@ -1044,6 +1046,25 @@ int WasmScriptingVMNatives::startFuelMs(const WasmScriptingVM* vm)
   return vm->m_fuelBudget && vm->m_debugHooks == nullptr && vm->m_timeoutMs > 0
              ? vm->m_timeoutMs
              : 0;
+}
+
+// Why a host that requires bounds will not start this module, or null.
+const char* WasmScriptingVMNatives::startRefusal(const WasmScriptingVM* vm)
+{
+  if (!s_requireBounds.load() || vm->m_fuelBudget)
+  {
+    return nullptr;
+  }
+#ifdef __EMSCRIPTEN__
+  return "this host runs only scripts it can bound, and a browser bounds "
+         "only a module with fuel; bake it with wasmFuel";
+#else
+  return vm->m_hostBudget
+             ? nullptr
+             : "this host runs only scripts it can bound, AnimaScript with "
+               "fuel or the watchdog, and dangerouslyFast bakes and Luau "
+               "wasm modules have neither";
+#endif
 }
 
 void WasmScriptingVMNatives::print(
@@ -3782,6 +3803,13 @@ uint32_t gpuTextureNewImpl(
       !guardPassed(
           vm,
           ore::validateSampleCount(oreContext, podDesc->sampleCount, &error),
+          error) ||
+      !guardPassed(
+          vm,
+          ore::validateTextureFormat(
+              oreContext,
+              (ore::TextureFormat)podDesc->format,
+              &error),
           error))
   {
     return 0;
@@ -5903,8 +5931,8 @@ struct HostValueDelegate final : public ViewModelInstanceValueDelegate
 
 struct HostInstanceValue
 {
-  // The value and its list's items point back at their instance raw, so it
-  // lives as long as the handle, as the Luau lane's m_owningInstance does.
+  // Values and list items point back at their instance raw, so the handle
+  // keeps it alive.
   rcp<ViewModelInstance> owner;
   rcp<ViewModelInstanceValue> value;
   HostValueDelegate* delegate = nullptr;
@@ -10254,6 +10282,8 @@ void WasmScriptingVM::setBootHook(BootHook hook)
   s_bootHook = std::move(hook);
 }
 
+void WasmScriptingVM::requireBounds(bool on) { s_requireBounds.store(on); }
+
 void WasmScriptingVM::setTimeoutMs(int ms)
 {
   m_timeoutMs = ms;
@@ -10678,6 +10708,11 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     wasm_runtime_get_export_type(m_state->module, i, &moduleExport);
     noteModuleExport(moduleExport.name);
   }
+  if (const char* refusal = WasmScriptingVMNatives::startRefusal(this))
+  {
+    m_lastError = std::string("module instantiate failed: ") + refusal;
+    return false;
+  }
   // A top level that decodes a file starts another module inside this one.
   const std::function<void(const char*, size_t)>* outerPrint = s_bootPrint;
   WasmScriptingVM* outerBooting = s_booting;
@@ -10847,6 +10882,11 @@ bool WasmScriptingVM::bootModule()
 const char* WasmScriptingVM::frameBoundary()
 {
   const char* warning = collectFrame();
+  if (m_decodedVMs.empty())
+  {
+    return warning;
+  }
+  m_frameReport = warning != nullptr ? warning : "";
   // A file a script decoded has no host to give it boundaries.
   for (WasmScriptingVM* decoded : std::vector<WasmScriptingVM*>(m_decodedVMs))
   {
@@ -10856,13 +10896,40 @@ const char* WasmScriptingVM::frameBoundary()
     {
       continue;
     }
-    const char* notice = decoded->frameBoundary();
-    if (warning == nullptr)
+    if (const char* notice = decoded->frameBoundary())
     {
-      warning = notice;
+      joinFrameReport(m_frameReport, notice);
     }
   }
-  return warning;
+  return m_frameReport.empty() ? nullptr : m_frameReport.c_str();
+}
+
+const char* WasmScriptingVM::frameBoundaryWarnings()
+{
+  const char* report = frameBoundary();
+  std::string warnings;
+  for (std::string_view rest = report != nullptr ? report : ""; !rest.empty();)
+  {
+    std::string_view line = rest.substr(0, rest.find('\n'));
+    rest.remove_prefix(std::min(rest.size(), line.size() + 1));
+    if (line != kFrameGcNotice)
+    {
+      joinFrameReport(warnings, line);
+    }
+  }
+  m_frameReport = std::move(warnings);
+  return m_frameReport.empty() ? nullptr : m_frameReport.c_str();
+}
+
+void WasmScriptingVM::joinFrameReport(
+    std::string& joined,
+    std::string_view report)
+{
+  if (!joined.empty())
+  {
+    joined += '\n';
+  }
+  joined += report;
 }
 
 const char* WasmScriptingVM::collectFrame()
@@ -12334,6 +12401,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_booting(uint32_t handle)
 extern "C" EMSCRIPTEN_KEEPALIVE int rive_web_vm_start_fuel(uint32_t handle)
 {
   return WasmScriptingVMNatives::startFuelMs(
+      (WasmScriptingVM*)(uintptr_t)handle);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE const char* rive_web_vm_start_refusal(
+    uint32_t handle)
+{
+  return WasmScriptingVMNatives::startRefusal(
       (WasmScriptingVM*)(uintptr_t)handle);
 }
 

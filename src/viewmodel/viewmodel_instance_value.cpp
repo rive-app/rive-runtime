@@ -145,6 +145,9 @@ void ViewModelInstanceValue::removeDelegate(
   if (m_delegates.size() != sizeBefore)
   {
     m_changeFlags |= ValueFlags::delegatesChanged;
+    // A change in flight must skip it, even once a new delegate takes its
+    // freed address.
+    m_delegatesCopy.replaceAll(delegate, nullptr);
   }
 }
 
@@ -201,14 +204,11 @@ void ViewModelInstanceValue::onValueChanged()
   // valueChanged callbacks.
   for (auto* delegate : m_delegatesCopy)
   {
-    // A callback can remove, and free, a delegate still in the copy.
-    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegatesChanged) &&
-        std::find(m_delegates.begin(), m_delegates.end(), delegate) ==
-            m_delegates.end())
+    // Null once a callback removed it, which can also free it.
+    if (delegate != nullptr)
     {
-      continue;
+      delegate->valueChanged();
     }
-    delegate->valueChanged();
   }
 
   // Clear guard flag.

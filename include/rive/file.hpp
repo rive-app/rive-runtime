@@ -513,9 +513,8 @@ public:
     return m_wasmVMs;
   }
 
-  /// Per-frame service for every wasm VM: arena rewind, handle reap, and
-  /// leak warnings. Call once per frame, between frames; returns the
-  /// first warning to surface, if any.
+  /// Per-frame arena rewind, handle reap and leak check for every wasm VM.
+  /// Returns their warnings a line each, or null, valid until the next call.
   const char* frameBoundary();
 
 #ifdef __EMSCRIPTEN__
@@ -537,6 +536,7 @@ private:
 #endif
 #ifdef WITH_RIVE_SCRIPTING
   WasmVMsSlot m_wasmVMs;
+  std::string m_frameBoundaryReport;
 #endif
 
   rcp<ViewModelInstance> copyViewModelInstance(

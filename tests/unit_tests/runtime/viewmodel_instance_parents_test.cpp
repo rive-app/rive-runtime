@@ -1,6 +1,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include <catch.hpp>
 #include <algorithm>
 
@@ -52,4 +53,51 @@ TEST_CASE(
   CHECK(child->parents() == std::vector<ViewModelInstance*>{owner.get()});
   CHECK(list->pop() == item);
   CHECK_FALSE(child->hasParents());
+}
+
+TEST_CASE("A list kept past its view model stops pointing at it", "[viewmodel]")
+{
+  auto owner = make_rcp<ViewModelInstance>();
+  auto* adopted = new ViewModelInstanceList();
+  owner->addValue(adopted);
+  adopted->parentViewModelInstance(owner.get());
+  // A holder such as ViewModelInstanceListRuntime.
+  auto list = ref_rcp(adopted);
+  auto child = make_rcp<ViewModelInstance>();
+  auto item = make_rcp<ViewModelInstanceListItem>();
+  item->viewModelInstance(child);
+  list->addItem(item);
+  REQUIRE(child->parents() == std::vector<ViewModelInstance*>{owner.get()});
+  owner = nullptr;
+  CHECK(list->parentViewModelInstance() == nullptr);
+  CHECK(list->viewModelInstance() == nullptr);
+  CHECK_FALSE(child->hasParents());
+  auto later = make_rcp<ViewModelInstance>();
+  auto laterItem = make_rcp<ViewModelInstanceListItem>();
+  laterItem->viewModelInstance(later);
+  list->addItem(laterItem);
+  CHECK_FALSE(later->hasParents());
+}
+
+TEST_CASE(
+    "A view model property kept past its view model stops pointing at "
+    "it",
+    "[viewmodel]")
+{
+  auto owner = make_rcp<ViewModelInstance>();
+  auto* adopted = new ViewModelInstanceViewModel();
+  owner->addValue(adopted);
+  adopted->parentViewModelInstance(owner.get());
+  auto property = ref_rcp(adopted);
+  property->referenceViewModelInstance(make_rcp<ViewModelInstance>());
+  owner = nullptr;
+  CHECK(property->parentViewModelInstance() == nullptr);
+  CHECK(property->viewModelInstance() == nullptr);
+  auto later = make_rcp<ViewModelInstance>();
+  property->referenceViewModelInstance(later);
+  CHECK_FALSE(later->hasParents());
+  // A bind applying a view model has no owner left to swap it in through.
+  auto applied = make_rcp<ViewModelInstance>();
+  property->updateViewModel(applied.get());
+  CHECK(property->referenceViewModelInstance() == later);
 }

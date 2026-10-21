@@ -4519,8 +4519,8 @@ function installRiveScripting(Module) {
         return imports;
     }
 
-    // Read off the module before it starts: the start function runs every
-    // script's top level, which already passes strings.
+    // Before instantiating, which may run a start liftStart left in place, as
+    // top levels already pass strings and a refused module must not run.
     function announceExports(entry, module) {
         const mark = host.stackSave();
         for (const { name } of WebAssembly.Module.exports(module)) {
@@ -4533,6 +4533,11 @@ function installRiveScripting(Module) {
             host.exports['_rive_web_vm_module_export'](entry.ctx.vm, ptr);
         }
         host.stackRestore(mark);
+        const refusal =
+            host.exports['_rive_web_vm_start_refusal'](entry.ctx.vm);
+        if (refusal !== 0) {
+            throw new Error(host.utf8(refusal));
+        }
     }
 
     function adopt(entry, instance) {

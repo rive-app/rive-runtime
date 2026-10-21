@@ -44,6 +44,8 @@ public:
   {
     return m_parentViewModelInstance;
   }
+  // Drops the parent, which the items' instances stop naming too.
+  void detachParent();
 #ifdef WITH_RIVE_TOOLS
   void onChanged(ViewModelListChanged callback)
   {

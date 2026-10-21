@@ -98,6 +98,16 @@ public:
     m_v->erase(std::remove(m_v->begin(), m_v->end(), value), m_v->end());
   }
 
+  // Replace every element equal to `value` in place, so iterators held
+  // across the call stay valid.
+  void replaceAll(const T& value, const T& with)
+  {
+    if (m_v != nullptr)
+    {
+      std::replace(m_v->begin(), m_v->end(), value, with);
+    }
+  }
+
   void clear()
   {
     if (m_v != nullptr)

@@ -48,8 +48,10 @@ node run.mjs $HARNESS fixture/high_memory.riv --seam 2147484416 \
     --expect "high mat4 inverse 1 0.5" \
     --expect "high gradient minted" \
     --expect "seam seam"
-# A full 4 GiB memory still counts all of its pages.
-node run.mjs $HARNESS fixture/top_memory.riv --expect "top gradient minted"
+# A full 4 GiB memory still counts all of its pages, and the collector still
+# carves chunks below its top.
+node run.mjs $HARNESS fixture/top_memory.riv --expect "top gradient minted" \
+    --expect "top carve 300000"
 # A trap leaves the spill zone to later calls: the runner puts the module's
 # call state back after every call.
 node run.mjs $HARNESS fixture/spill_trap.riv --expect "spill ok on frame 2"
@@ -82,6 +84,22 @@ RUNAWAY=(--vms 0
     --expect "wasm script module failed to start: module instantiate failed: execution exceeded timeout")
 node run.mjs $HARNESS fixture/runaway_top.riv "${RUNAWAY[@]}"
 node run.mjs $HARNESS fixture/runaway_top.riv --sync "${RUNAWAY[@]}"
+# A default release bake runs unbounded unless the page runs only what it can
+# bound, as an editor does. Debug bakes run either way.
+node run.mjs $HARNESS fixture/release.riv --expect "release init ran" \
+    --expect "a runaway script will hang the page"
+UNBOUNDED=(--bounded --vms 0
+    --expect "wasm script module failed to start: module instantiate failed: this host runs only scripts it can bound"
+    --expect-line "script modules instantiated: 0")
+node run.mjs $HARNESS fixture/release.riv "${UNBOUNDED[@]}"
+node run.mjs $HARNESS fixture/release.riv --sync "${UNBOUNDED[@]}"
+node run.mjs $HARNESS fixture/basic.riv --bounded "${BASIC[@]}"
+# A release bake with wasmFuel stops its own runaway loop.
+METERED=(--expect "metered release init"
+    --expect "wasm call trapped in host_obj_user_init: execution exceeded timeout")
+node run.mjs $HARNESS fixture/release_fuel.riv "${METERED[@]}"
+node run.mjs $HARNESS fixture/release_fuel.riv --sync "${METERED[@]}"
+node run.mjs $HARNESS fixture/release_fuel.riv --bounded "${METERED[@]}"
 # Scripts started before the page prepared their module wait for it.
 node run.mjs $HARNESS fixture/basic.riv --early "${BASIC[@]}" \
     --expect "wasm script module is still being prepared"

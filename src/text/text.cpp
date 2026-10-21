@@ -1269,11 +1269,12 @@ void StyledText::append(
     const std::string& text,
     uint16_t styleId)
 {
-  const uint8_t* ptr = (const uint8_t*)text.c_str();
+  const uint8_t* ptr = (const uint8_t*)text.data();
+  const uint8_t* end = ptr + text.size();
   uint32_t n = 0;
-  while (*ptr)
+  while (ptr < end && *ptr)
   {
-    m_value.push_back(UTF::NextUTF8(&ptr));
+    m_value.push_back(UTF::NextUTF8(&ptr, end));
     n += 1;
   }
   // Shaping takes no empty runs.

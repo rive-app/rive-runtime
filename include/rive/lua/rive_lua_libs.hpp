@@ -1498,6 +1498,8 @@ private:
 
 protected:
   lua_State* m_state;
+  // Calls that change the value copy it first, since a listener can dispose
+  // this property and drop the last ref on a value still changing.
   rcp<ViewModelInstanceValue> m_instanceValue;
   // The instance that owns m_instanceValue. The instance owns its values but
   // they only point back raw, so without this a script holding a property

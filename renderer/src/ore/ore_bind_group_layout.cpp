@@ -1545,6 +1545,23 @@ bool validateSampleCount(
   return true;
 }
 
+bool validateTextureFormat(
+    const Context* context,
+    TextureFormat format,
+    std::string* outError)
+{
+  if (textureFormatIsBC(format) && context != nullptr &&
+      context->featuresKnown() && !context->features().bc)
+  {
+    return scriptGuardFailed(
+        "GPUTexture.new: BC formats require the bc "
+        "feature, which the active backend does not "
+        "support",
+        outError);
+  }
+  return true;
+}
+
 bool validateSamplerDesc(
     const Context* context,
     const SamplerDesc& desc,

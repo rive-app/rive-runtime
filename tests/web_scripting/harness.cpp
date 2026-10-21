@@ -110,6 +110,12 @@ extern "C"
   // Sends one scroll over the artboard after the frames.
   EMSCRIPTEN_KEEPALIVE void harness_scroll() { s_scroll = true; }
 
+  // Starts only modules the page can bound, as an editor does.
+  EMSCRIPTEN_KEEPALIVE void harness_require_bounds()
+  {
+    WasmScriptingVM::requireBounds(true);
+  }
+
   EMSCRIPTEN_KEEPALIVE uintptr_t harness_stack()
   {
     return emscripten_stack_get_current();

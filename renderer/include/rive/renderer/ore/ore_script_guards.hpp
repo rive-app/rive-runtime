@@ -10,6 +10,7 @@ namespace rive::ore
 class Context;
 struct PipelineDesc;
 struct SamplerDesc;
+enum class TextureFormat : uint8_t;
 
 constexpr char
     kGuardSetPipelineBeforeDraw[] = "setPipeline must be called before draw";
@@ -35,6 +36,12 @@ constexpr char kGuardFirstInstanceFormat[] =
 bool validateSampleCount(
     const Context* context,
     uint32_t sampleCount,
+    std::string* outError);
+
+// BC formats need the bc feature once the device's features are known.
+bool validateTextureFormat(
+    const Context* context,
+    TextureFormat format,
     std::string* outError);
 
 // An ordered LOD range and a power of two anisotropy up to 16, which needs

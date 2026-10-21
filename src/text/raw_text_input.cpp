@@ -124,10 +124,11 @@ bool RawTextInput::insert(Unichar codePoint)
 bool RawTextInput::insert(const std::string& text)
 {
   std::vector<Unichar> codePoints;
-  const uint8_t* ptr = (const uint8_t*)text.c_str();
-  while (*ptr)
+  const uint8_t* ptr = (const uint8_t*)text.data();
+  const uint8_t* end = ptr + text.size();
+  while (ptr < end && *ptr)
   {
-    codePoints.push_back(UTF::NextUTF8(&ptr));
+    codePoints.push_back(UTF::NextUTF8(&ptr, end));
   }
   return insertCodePoints(codePoints);
 }
@@ -1106,11 +1107,12 @@ std::string RawTextInput::selectedText() const
 
 void RawTextInput::setTextPrivate(std::string value)
 {
-  const uint8_t* ptr = (const uint8_t*)value.c_str();
+  const uint8_t* ptr = (const uint8_t*)value.data();
+  const uint8_t* end = ptr + value.size();
   m_text.clear();
-  while (*ptr)
+  while (ptr < end && *ptr)
   {
-    Unichar codePoint = UTF::NextUTF8(&ptr);
+    Unichar codePoint = UTF::NextUTF8(&ptr, end);
     m_text.push_back(codePoint);
   }
   m_text.push_back(zeroWidthSpace);

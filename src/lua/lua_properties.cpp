@@ -288,7 +288,9 @@ void ScriptedProperty::valueChanged()
   {
     return;
   }
-  if (!lua_checkstack(m_state, (int)(m_listeners.size() * 2 + LUA_MINSTACK)))
+  // A listener can dispose this property, and a later one collect it.
+  lua_State* L = m_state;
+  if (!lua_checkstack(L, (int)(m_listeners.size() * 2 + LUA_MINSTACK)))
   {
     return;
   }
@@ -299,21 +301,21 @@ void ScriptedProperty::valueChanged()
   for (auto itr = m_listeners.rbegin(); itr != m_listeners.rend(); itr++)
   {
     const ScriptedListener& listener = *itr;
-    lua_rawgeti(m_state, LUA_REGISTRYINDEX, listener.function);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, listener.function);
     if (listener.userdata)
     {
-      lua_rawgeti(m_state, LUA_REGISTRYINDEX, listener.userdata);
+      lua_rawgeti(L, LUA_REGISTRYINDEX, listener.userdata);
     }
     else
     {
       // push nil so we have a constant number of args per call
-      lua_pushnil(m_state);
+      lua_pushnil(L);
     }
   }
   size_t calls = m_listeners.size();
   for (size_t i = 0; i < calls; i++)
   {
-    lua_pcall(m_state, 1, 0, 0);
+    lua_pcall(L, 1, 0, 0);
   }
 }
 
@@ -392,19 +394,23 @@ ScriptedPropertyViewModel::ScriptedPropertyViewModel(
 
 void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
 {
-  if (m_instanceValue != nullptr &&
-      m_instanceValue->is<ViewModelInstanceViewModel>())
+  auto held = m_instanceValue;
+  if (held == nullptr || !held->is<ViewModelInstanceViewModel>())
   {
-    auto vmValue = m_instanceValue->as<ViewModelInstanceViewModel>();
-    auto parentViewModelInstance = vmValue->parentViewModelInstance();
-    auto viewModelInstance = scriptedViewModel->mutableViewModelInstance();
-    // replaceViewModelByProperty notifies this property's value-dependents
-    // (including this wrapper and any siblings sharing the property) so
-    // cached Lua-side wrappers are moved onto the new instance.
-    parentViewModelInstance->replaceViewModelByProperty(
-        vmValue,
-        rcp<ViewModelInstance>(viewModelInstance));
+    return;
   }
+  auto vmValue = held->as<ViewModelInstanceViewModel>();
+  // The swap notifies, and a listener can release the parent's last ref.
+  auto parentViewModelInstance = ref_rcp(vmValue->parentViewModelInstance());
+  if (parentViewModelInstance == nullptr)
+  {
+    return;
+  }
+  // Notifies this property's dependents, this wrapper and siblings sharing
+  // the property included, so cached Lua wrappers move to the new instance.
+  parentViewModelInstance->replaceViewModelByProperty(
+      vmValue,
+      scriptedViewModel->mutableViewModelInstance());
 }
 
 void ScriptedPropertyViewModel::dispose()
@@ -737,6 +743,15 @@ static int vm_index(lua_State* L)
   return vm->pushValue(L, name);
 }
 
+// Null once the property is disposed, and for a property of another type.
+static ViewModelInstanceList* listValue(ScriptedProperty* property)
+{
+  auto value = property->instanceValue();
+  return value != nullptr && value->is<ViewModelInstanceList>()
+             ? value->as<ViewModelInstanceList>()
+             : nullptr;
+}
+
 static int property_namecall_atom(
     lua_State* L,
     ScriptedProperty* property,
@@ -744,6 +759,8 @@ static int property_namecall_atom(
     bool& error)
 {
   RIVE_WRITE_SOURCE(luau, L);
+  // A change holds its value only after the checks that can raise, since a
+  // Luau error skips destructors.
   switch (atom)
   {
     case (int)LuaAtoms::addListener:
@@ -758,7 +775,7 @@ static int property_namecall_atom(
     }
     case (int)LuaAtoms::fire:
     {
-      auto value = property->instanceValue();
+      auto value = ref_rcp(property->instanceValue());
       if (value != nullptr && value->is<ViewModelInstanceTrigger>())
       {
         value->as<ViewModelInstanceTrigger>()->trigger();
@@ -770,7 +787,11 @@ static int property_namecall_atom(
       auto scriptedViewModel = lua_torive<ScriptedViewModel>(L, 2);
       auto vmi = scriptedViewModel->viewModelInstance();
       auto copy = ref_rcp(vmi.get());
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto listItem = make_rcp<ViewModelInstanceListItem>();
 
       listItem->viewModelInstance(copy);
@@ -779,7 +800,11 @@ static int property_namecall_atom(
     }
     case (int)LuaAtoms::pop:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto listItem = list->pop();
       if (listItem)
       {
@@ -794,7 +819,11 @@ static int property_namecall_atom(
     }
     case (int)LuaAtoms::swap:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto index1 = lua_tounsigned(L, 2);
       auto index2 = lua_tounsigned(L, 3);
       list->swap(index1 - 1, index2 - 1);
@@ -802,7 +831,11 @@ static int property_namecall_atom(
     }
     case (int)LuaAtoms::shift:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto listItem = list->shift();
       if (listItem)
       {
@@ -817,7 +850,11 @@ static int property_namecall_atom(
     }
     case (int)LuaAtoms::clear:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       list->removeAllItems();
       return 0;
     }
@@ -828,7 +865,11 @@ static int property_namecall_atom(
       auto index = lua_tounsigned(L, 3);
       auto vmi = scriptedViewModel->viewModelInstance();
       auto copy = ref_rcp(vmi.get());
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto listItem = make_rcp<ViewModelInstanceListItem>();
 
       listItem->viewModelInstance(copy);
@@ -838,7 +879,11 @@ static int property_namecall_atom(
 
     case (int)LuaAtoms::remove:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto* vmUser = static_cast<ScriptedViewModel*>(
           lua_touserdatatagged(L, 2, ScriptedViewModel::luaTag));
       if (vmUser != nullptr)
@@ -861,21 +906,26 @@ static int property_namecall_atom(
 
     case (int)LuaAtoms::removeAt:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
       const lua_Integer luaIndex = luaL_checkinteger(L, 2);
-      const size_t count = list->listItems().size();
+      auto* value = listValue(property);
+      const size_t count = value != nullptr ? value->listItems().size() : 0;
       if (luaIndex < 1 ||
           static_cast<uint64_t>(luaIndex) > static_cast<uint64_t>(count))
       {
         luaL_error(L, "removeAt index out of range");
       }
+      auto list = ref_rcp(value);
       list->removeItem(static_cast<int>(luaIndex - 1));
       return 0;
     }
 
     case (int)LuaAtoms::removeAllOf:
     {
-      auto list = property->instanceValue()->as<ViewModelInstanceList>();
+      auto list = ref_rcp(listValue(property));
+      if (list == nullptr)
+      {
+        return 0;
+      }
       auto* vmUser = static_cast<ScriptedViewModel*>(
           lua_touserdatatagged(L, 2, ScriptedViewModel::luaTag));
       if (vmUser != nullptr)
@@ -891,14 +941,14 @@ static int property_namecall_atom(
 
     case (int)LuaAtoms::values:
     {
-      auto viewModelInstanceEnum = property->instanceValue()
-                                       ->as<ViewModelInstanceValue>();
+      auto value = property->instanceValue();
+      auto viewModelProperty = value != nullptr ? value->viewModelProperty()
+                                                : nullptr;
       DataEnum* dataEnum = nullptr;
-      auto viewModelPropertyEnum = viewModelInstanceEnum->viewModelProperty()
-                                       ->as<ViewModelPropertyEnum>();
-      if (viewModelPropertyEnum)
+      if (viewModelProperty != nullptr &&
+          viewModelProperty->is<ViewModelPropertyEnum>())
       {
-        dataEnum = viewModelPropertyEnum->dataEnum();
+        dataEnum = viewModelProperty->as<ViewModelPropertyEnum>()->dataEnum();
       }
       lua_newrive<ScriptedEnumValues>(L, L, dataEnum);
 
@@ -1127,9 +1177,9 @@ ScriptedPropertyTrigger::ScriptedPropertyTrigger(
 
 void ScriptedPropertyNumber::setValue(float value)
 {
-  if (m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    m_instanceValue->as<ViewModelInstanceNumber>()->propertyValue(value);
+    held->as<ViewModelInstanceNumber>()->propertyValue(value);
   }
 }
 
@@ -1156,9 +1206,9 @@ ScriptedPropertyColor::ScriptedPropertyColor(
 
 void ScriptedPropertyColor::setValue(unsigned value)
 {
-  if (m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    m_instanceValue->as<ViewModelInstanceColor>()->propertyValue((int)value);
+    held->as<ViewModelInstanceColor>()->propertyValue((int)value);
   }
 }
 
@@ -1186,9 +1236,9 @@ ScriptedPropertyString::ScriptedPropertyString(
 
 void ScriptedPropertyString::setValue(const std::string& value)
 {
-  if (m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    m_instanceValue->as<ViewModelInstanceString>()->propertyValue(value);
+    held->as<ViewModelInstanceString>()->propertyValue(value);
   }
 }
 
@@ -1217,9 +1267,9 @@ ScriptedPropertyBoolean::ScriptedPropertyBoolean(
 
 void ScriptedPropertyBoolean::setValue(bool value)
 {
-  if (m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    m_instanceValue->as<ViewModelInstanceBoolean>()->propertyValue(value);
+    held->as<ViewModelInstanceBoolean>()->propertyValue(value);
   }
 }
 
@@ -1246,9 +1296,9 @@ ScriptedPropertyEnum::ScriptedPropertyEnum(
 
 void ScriptedPropertyEnum::setValue(const std::string& value)
 {
-  if (m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    m_instanceValue->as<ViewModelInstanceEnum>()->value(value);
+    held->as<ViewModelInstanceEnum>()->value(value);
   }
 }
 
@@ -1375,12 +1425,11 @@ ScriptedPropertyImage::ScriptedPropertyImage(
 
 void ScriptedPropertyImage::setValue(ScriptedImage* scriptedImage)
 {
-  if (!m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    return;
+    held->as<ViewModelInstanceAssetImage>()->value(
+        scriptedImage != nullptr ? scriptedImage->image.get() : nullptr);
   }
-  m_instanceValue->as<ViewModelInstanceAssetImage>()->value(
-      scriptedImage != nullptr ? scriptedImage->image.get() : nullptr);
 }
 
 int ScriptedPropertyImage::pushValue(lua_State* L)
@@ -1463,12 +1512,11 @@ ScriptedPropertyFont::ScriptedPropertyFont(
 
 void ScriptedPropertyFont::setValue(ScriptedFont* scriptedFont)
 {
-  if (!m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    return;
+    held->as<ViewModelInstanceAssetFont>()->value(
+        scriptedFont != nullptr ? scriptedFont->font.get() : nullptr);
   }
-  m_instanceValue->as<ViewModelInstanceAssetFont>()->value(
-      scriptedFont != nullptr ? scriptedFont->font.get() : nullptr);
 }
 
 int ScriptedPropertyFont::pushValue(lua_State* L)
@@ -1543,11 +1591,10 @@ ScriptedPropertyBlob::ScriptedPropertyBlob(
 
 void ScriptedPropertyBlob::setValue(BlobAsset* blob)
 {
-  if (!m_instanceValue)
+  if (auto held = m_instanceValue)
   {
-    return;
+    held->as<ViewModelInstanceAssetBlob>()->value(blob);
   }
-  m_instanceValue->as<ViewModelInstanceAssetBlob>()->value(blob);
 }
 
 int ScriptedPropertyBlob::pushValue(lua_State* L)
@@ -1628,11 +1675,12 @@ void ScriptedPropertyArtboard::setValue(lua_State* L, int valueIdx)
   auto* bindable = lua_isnoneornil(L, valueIdx)
                        ? nullptr
                        : lua_torive<ScriptedBindableArtboard>(L, valueIdx);
-  if (!m_instanceValue)
+  auto held = m_instanceValue;
+  if (!held)
   {
     return;
   }
-  auto property = m_instanceValue->as<ViewModelInstanceArtboard>();
+  auto property = held->as<ViewModelInstanceArtboard>();
   // The artboard's own view model goes in first: asset() notifies, and
   // whatever mounts the artboard binds it to that instance. Binding the
   // host's data instead would resolve another file's paths.

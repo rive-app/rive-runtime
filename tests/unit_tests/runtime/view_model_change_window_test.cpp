@@ -545,6 +545,71 @@ static void fire(CustomPropertyTrigger* trigger)
 }
 
 TEST_CASE(
+    "a component trigger fired in its bind's first frame reaches the view "
+    "model trigger",
+    "[data binding]")
+{
+  // custom_property_trigger.riv binds Main's custom property trigger Trig
+  // both ways to its view model item's ItemTrigger, and Main's Timeline 1
+  // keys a fire of Trig at 0. A host settles the machine on play, then binds
+  // the view model, and the first frame plays that key before the bind first
+  // syncs. The bind used to take that count as where Trig started, so
+  // ItemTrigger never fired.
+  auto file = ReadRiveFile("assets/custom_property_trigger.riv");
+  auto artboard = file->artboard("Main")->instance();
+  auto viewModel = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModel != nullptr);
+  auto trig = artboard->find<CustomPropertyTrigger>("Trig");
+  REQUIRE(trig != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->advanceAndApply(0.0f);
+  REQUIRE(trig->propertyValue() == 0);
+  machine->bindViewModelInstance(viewModel);
+  auto item = viewModel->propertyValue("property of ItemVM")
+                  ->as<ViewModelInstanceViewModel>()
+                  ->referenceViewModelInstance();
+  auto itemTrigger = trigger(item, "ItemTrigger");
+
+  machine->advanceAndApply(0.016f);
+  REQUIRE(trig->propertyValue() == 1);
+  CHECK(itemTrigger->propertyValue() == 1);
+  machine->advanceAndApply(0.016f);
+  CHECK(itemTrigger->propertyValue() == 1);
+}
+
+TEST_CASE(
+    "a component trigger fired before its bind is made doesn't reach the view "
+    "model trigger",
+    "[data binding]")
+{
+  // The other end of the window above: Timeline 1's key fires Trig before
+  // the view model is bound, so that count is where Trig starts and making
+  // the bind doesn't relay it. The next fire does.
+  auto file = ReadRiveFile("assets/custom_property_trigger.riv");
+  auto artboard = file->artboard("Main")->instance();
+  auto viewModel = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModel != nullptr);
+  auto trig = artboard->find<CustomPropertyTrigger>("Trig");
+  REQUIRE(trig != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->advanceAndApply(0.0f);
+  machine->advanceAndApply(0.016f);
+  REQUIRE(trig->propertyValue() == 1);
+  machine->bindViewModelInstance(viewModel);
+  auto item = viewModel->propertyValue("property of ItemVM")
+                  ->as<ViewModelInstanceViewModel>()
+                  ->referenceViewModelInstance();
+  auto itemTrigger = trigger(item, "ItemTrigger");
+
+  machine->advanceAndApply(0.016f);
+  CHECK(itemTrigger->propertyValue() == 0);
+
+  fire(trig);
+  machine->advanceAndApply(0.016f);
+  CHECK(itemTrigger->propertyValue() == 1);
+}
+
+TEST_CASE(
     "a component trigger condition holds only in its fire's frame",
     "[data binding]")
 {

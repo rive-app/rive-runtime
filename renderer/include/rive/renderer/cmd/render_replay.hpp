@@ -88,6 +88,9 @@ struct ReplayHooks
   std::function<RenderImage*(RenderImage*)> prepImage = nullptr;
   // Nonzero dropped draws mean mixed factory recording or a replay bug.
   ReplayStats* stats = nullptr;
+  // Saves each real renderer has open, shared by a frame replayed in several
+  // calls. A restore past them is dropped, and null counts per call.
+  std::unordered_map<const Renderer*, uint32_t>* openSaves = nullptr;
 };
 
 // One resident resource type: a dense vector indexed by id, each slot carrying

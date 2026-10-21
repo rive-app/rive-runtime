@@ -235,6 +235,9 @@ private:
     hooks.prepImage = [&](RenderImage* image) {
       return sink.prepForeignImage(image);
     };
+    // A target's segments replay in separate calls into one renderer.
+    std::unordered_map<const Renderer*, uint32_t> openSaves;
+    hooks.openSaves = &openSaves;
     // Recording allocates no canvas backing, so every path that resolves
     // one here allocates it on this device first. A sink with no render
     // context leaves it unbacked and drops the content rather than
@@ -438,6 +441,8 @@ private:
       if (openContentRenderer != nullptr)
       {
         sink.endCanvasContent(); // flush once per canvas
+        // The next canvas's renderer can take its address.
+        openSaves.erase(openContentRenderer);
       }
       openContentRenderer = nullptr;
       openContentId = kInvalidRenderHandle;

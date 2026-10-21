@@ -9,7 +9,15 @@ using namespace rive;
 
 DataBindContextValueTrigger::DataBindContextValueTrigger(DataBind* dataBind)
     : DataBindContextValue(dataBind)
-{}
+{
+  // Note where the target's count stands as the bind is made, so a fire
+  // between now and the first applyToSource still crosses to the source.
+  if (dataBind->toSource() && dataBind->target() != nullptr)
+  {
+    m_targetValue.syncTargetValue(dataBind);
+    m_targetCountKnown = true;
+  }
+}
 
 static bool isTrigger(Core* object)
 {

@@ -74,19 +74,19 @@ static MTLPixelFormat oreFormatToMTL(TextureFormat format)
       if (@available(iOS 16.4, tvOS 16.4, *))
         return MTLPixelFormatBC1_RGBA;
 #endif
-      RIVE_UNREACHABLE();
+      return MTLPixelFormatInvalid;
     case TextureFormat::bc3unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
       if (@available(iOS 16.4, tvOS 16.4, *))
         return MTLPixelFormatBC3_RGBA;
 #endif
-      RIVE_UNREACHABLE();
+      return MTLPixelFormatInvalid;
     case TextureFormat::bc7unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
       if (@available(iOS 16.4, tvOS 16.4, *))
         return MTLPixelFormatBC7_RGBAUnorm;
 #endif
-      RIVE_UNREACHABLE();
+      return MTLPixelFormatInvalid;
     case TextureFormat::etc2rgb8:
       return MTLPixelFormatETC2_RGB8;
     case TextureFormat::etc2rgba8:
@@ -386,6 +386,12 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
   f.bc = false;
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 160400
+  if (@available(iOS 16.4, tvOS 16.4, *))
+  {
+    f.bc = device.supportsBCTextureCompression;
+  }
+#endif
   f.etc2 = true;
   f.astc = true;
 #else
@@ -443,6 +449,13 @@ inline rcp<Buffer> ContextMetal::mtlMakeBuffer(const BufferDesc& desc)
 
 inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
 {
+  // Metal has no BC formats before iOS 16.4, and some devices lack them
+  // after it.
+  if (!m_features.bc && textureFormatIsBC(desc.format))
+  {
+    setLastError("makeTexture: BC formats need the bc feature");
+    return nullptr;
+  }
   MTLTextureDescriptor* td = [[MTLTextureDescriptor alloc] init];
 
   bool isMSAA = desc.sampleCount > 1 && desc.type == TextureType::texture2D;

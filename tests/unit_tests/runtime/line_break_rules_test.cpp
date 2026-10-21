@@ -39,9 +39,10 @@ static std::vector<Words> shapeWords(const char* utf8)
   REQUIRE(font != nullptr);
   std::vector<Unichar> unichars;
   const uint8_t* ptr = (const uint8_t*)utf8;
-  while (*ptr)
+  const uint8_t* end = ptr + strlen(utf8);
+  while (ptr < end)
   {
-    unichars.push_back(UTF::NextUTF8(&ptr));
+    unichars.push_back(UTF::NextUTF8(&ptr, end));
   }
   TextRun run = {font, 32.0f, -1.0f, 0.0f, (uint32_t)unichars.size(), 0};
   auto paragraphs = font->shapeText(unichars, Span<const TextRun>(&run, 1));

@@ -22,6 +22,7 @@ else
     DEST="$HERE"
 fi
 
+FAILED=()
 NAMES=("$@")
 if [[ ${#NAMES[@]} -eq 0 ]]; then
     for SOURCE in "$HERE"/*/main.as; do
@@ -31,6 +32,8 @@ fi
 for NAME in "${NAMES[@]}"; do
     rm -rf "$WORK/$NAME"
     cp -R "$HERE/$NAME" "$WORK/$NAME"
+    # A flags file adds rive-cli flags instead of joining the project.
+    rm -f "$WORK/$NAME/flags"
     # The std path resolves against the working directory, so make it
     # absolute.
     {
@@ -38,7 +41,14 @@ for NAME in "${NAMES[@]}"; do
             "$PACKAGES/rasc/animascript/std"
         cat "$HERE/$NAME/rive.yaml" 2>/dev/null || true
     } > "$WORK/$NAME/rive.yaml"
-    RIVE_DEV_SKIP_AUTH=1 "$CLI" "$WORK/$NAME" \
-        --once $RIVE_BAKE_FLAGS
-    cp "$WORK/$NAME/build/app.riv" "$DEST/$NAME.riv"
+    if RIVE_DEV_SKIP_AUTH=1 "$CLI" "$WORK/$NAME" \
+        --once $RIVE_BAKE_FLAGS $(cat "$HERE/$NAME/flags" 2>/dev/null); then
+        cp "$WORK/$NAME/build/app.riv" "$DEST/$NAME.riv"
+    else
+        FAILED+=("$NAME")
+    fi
 done
+if [[ ${#FAILED[@]} -gt 0 ]]; then
+    echo "failed to bake: ${FAILED[*]}" >&2
+    exit 1
+fi

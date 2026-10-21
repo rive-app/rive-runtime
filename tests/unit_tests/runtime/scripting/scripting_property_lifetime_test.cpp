@@ -1,11 +1,17 @@
 #include <catch.hpp>
 #include "scripting_test_utilities.hpp"
+#include "rive/viewmodel/data_enum.hpp"
+#include "rive/viewmodel/data_enum_value.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
+#include "rive/viewmodel/viewmodel_property_enum.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/data_bind/data_context.hpp"
@@ -62,6 +68,37 @@ Screen makeScreen(
   screen.instance->addValue(screen.enabled);
 
   return screen;
+}
+
+// Freed mid change when its destructor cannot suppress delegation.
+template <typename T> struct Watched : public T
+{
+  bool* freedMidChange;
+  explicit Watched(bool* flag) : freedMidChange(flag) {}
+  ~Watched() override { *freedMidChange = !this->suppressDelegation(); }
+};
+
+// What a host does to a script's properties when it tears the script down.
+int disposeProperty(lua_State* L)
+{
+  static_cast<ScriptedProperty*>(lua_touserdata(L, 1))->dispose();
+  return 0;
+}
+
+int collectGarbage(lua_State* L)
+{
+  lua_gc(L, LUA_GCCOLLECT, 0);
+  return 0;
+}
+
+// The sandbox leaves globals read only.
+void setGlobalFunction(lua_State* L, const char* name, lua_CFunction fn)
+{
+  int readonly = lua_getreadonly(L, LUA_GLOBALSINDEX);
+  lua_setreadonly(L, LUA_GLOBALSINDEX, false);
+  lua_pushcfunction(L, fn, name);
+  lua_setglobal(L, name);
+  lua_setreadonly(L, LUA_GLOBALSINDEX, readonly);
 }
 
 // Calls bump() and returns the (counter, enabled) pair the script reads back
@@ -459,5 +496,229 @@ end
   lua_pop(L, 1);
 
   lua_unref(L, ownerRef);
+  CHECK(top == lua_gettop(L));
+}
+
+TEST_CASE(
+    "a property its own listener disposes keeps its value through the "
+    "set",
+    "[scripting_property_lifetime]")
+{
+  ScriptingTest test(R"(
+function listen(prop)
+  prop:addListener(function()
+    disposeProperty(prop)
+  end)
+  prop.value = 5
+  return prop.value
+end
+)");
+  lua_State* L = test.state();
+  setGlobalFunction(L, "disposeProperty", disposeProperty);
+
+  auto viewModel = rcp<ViewModel>(new ViewModel());
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("counter");
+  viewModel->addProperty(counterProperty);
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->viewModel(viewModel.get());
+  bool freedMidChange = false;
+  auto* counter = new Watched<ViewModelInstanceNumber>(&freedMidChange);
+  counter->viewModelProperty(counterProperty);
+  instance->addValue(counter);
+
+  auto top = lua_gettop(L);
+  lua_getglobal(L, "listen");
+  lua_newrive<ScriptedPropertyNumber>(
+      L,
+      L,
+      ref_rcp(static_cast<ViewModelInstanceNumber*>(counter)));
+  // The wrapper's own refs are now all that keep the value alive.
+  instance = nullptr;
+  REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  CHECK_FALSE(freedMidChange);
+  CHECK(lua_tonumber(L, -1) == 0.0);
+  lua_pop(L, 1);
+  CHECK(top == lua_gettop(L));
+}
+
+TEST_CASE(
+    "a property method that raises keeps no ref on its value",
+    "[scripting_property_lifetime]")
+{
+  ScriptingTest test(R"(
+function misuse(prop)
+  local raised = 0
+  local function try(call)
+    if not pcall(call) then
+      raised += 1
+    end
+  end
+  try(function() prop:removeAt(5) end)
+  try(function() prop:addListener(5) end)
+  try(function() prop:push(5) end)
+  try(function() prop:insert(5, 1) end)
+  return raised
+end
+)");
+  lua_State* L = test.state();
+  auto instance = make_rcp<ViewModelInstance>();
+  auto* list = new ViewModelInstanceList();
+  instance->addValue(list);
+
+  auto top = lua_gettop(L);
+  lua_newrive<ScriptedPropertyList>(L, L, ref_rcp(list));
+  int32_t refs = list->debugging_refcnt();
+  lua_getglobal(L, "misuse");
+  lua_pushvalue(L, -2);
+  REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  CHECK(lua_tonumber(L, -1) == 4);
+  CHECK(list->debugging_refcnt() == refs);
+  lua_pop(L, 2);
+  CHECK(top == lua_gettop(L));
+}
+
+TEST_CASE(
+    "a list property its own listener disposes ignores later calls",
+    "[scripting_property_lifetime]")
+{
+  ScriptingTest test(R"(
+function run(prop, vm)
+  prop:addListener(function()
+    disposeProperty(prop)
+  end)
+  prop:clear()
+  prop:push(vm)
+  prop:insert(vm, 1)
+  prop:swap(1, 2)
+  prop:remove(vm)
+  prop:removeAllOf(vm)
+  prop:clear()
+  local taken = prop:pop() ~= nil or prop:shift() ~= nil
+  local removedAt = pcall(function() prop:removeAt(1) end)
+  return prop.length, taken, removedAt
+end
+)");
+  lua_State* L = test.state();
+  setGlobalFunction(L, "disposeProperty", disposeProperty);
+  bool freedMidChange = false;
+  auto* list = new Watched<ViewModelInstanceList>(&freedMidChange);
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->addValue(list);
+  auto item = make_rcp<ViewModelInstanceListItem>();
+  item->viewModelInstance(make_rcp<ViewModelInstance>());
+  list->addItem(item);
+
+  auto top = lua_gettop(L);
+  lua_getglobal(L, "run");
+  lua_newrive<ScriptedPropertyList>(
+      L,
+      L,
+      ref_rcp(static_cast<ViewModelInstanceList*>(list)));
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      rcp<ViewModel>(new ViewModel()),
+      make_rcp<ViewModelInstance>());
+  // The wrapper's own refs are now all that keep the list alive.
+  instance = nullptr;
+  REQUIRE(lua_pcall(L, 2, 3, 0) == LUA_OK);
+  CHECK_FALSE(freedMidChange);
+  CHECK(lua_tonumber(L, -3) == 0);
+  CHECK_FALSE(lua_toboolean(L, -2));
+  CHECK_FALSE(lua_toboolean(L, -1));
+  lua_pop(L, 3);
+  CHECK(top == lua_gettop(L));
+}
+
+TEST_CASE(
+    "an enum property its own listener disposes has no values",
+    "[scripting_property_lifetime]")
+{
+  ScriptingTest test(R"(
+function run(prop)
+  local before = #prop:values()
+  prop:addListener(function()
+    disposeProperty(prop)
+  end)
+  prop.value = 'b'
+  return before, #prop:values()
+end
+)");
+  lua_State* L = test.state();
+  setGlobalFunction(L, "disposeProperty", disposeProperty);
+  auto dataEnum = make_rcp<DataEnum>();
+  for (const char* key : {"a", "b"})
+  {
+    auto* enumValue = new DataEnumValue();
+    enumValue->key(key);
+    dataEnum->addValue(enumValue);
+  }
+  auto viewModel = rcp<ViewModel>(new ViewModel());
+  auto* modeProperty = new ViewModelPropertyEnum();
+  modeProperty->dataEnum(dataEnum.get());
+  viewModel->addProperty(modeProperty);
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->viewModel(viewModel.get());
+  auto* mode = new ViewModelInstanceEnum();
+  mode->viewModelProperty(modeProperty);
+  instance->addValue(mode);
+
+  auto top = lua_gettop(L);
+  lua_getglobal(L, "run");
+  lua_newrive<ScriptedPropertyEnum>(L, L, ref_rcp(mode));
+  REQUIRE(lua_pcall(L, 1, 2, 0) == LUA_OK);
+  CHECK(lua_tonumber(L, -2) == 2);
+  CHECK(lua_tonumber(L, -1) == 0);
+  lua_pop(L, 2);
+  CHECK(top == lua_gettop(L));
+}
+
+// Catches its read of the freed property under a sanitizer.
+TEST_CASE(
+    "a host change finishes after its listeners dispose and collect "
+    "the property",
+    "[scripting_property_lifetime]")
+{
+  ScriptingTest test(R"(
+local heard = 0
+function listen(prop)
+  prop:addListener(function()
+    disposeProperty(prop)
+  end)
+  prop:addListener(function()
+    collectGarbage()
+  end)
+  prop:addListener(function()
+    heard += 1
+  end)
+end
+function heardCount()
+  return heard
+end
+)");
+  lua_State* L = test.state();
+  setGlobalFunction(L, "disposeProperty", disposeProperty);
+  setGlobalFunction(L, "collectGarbage", collectGarbage);
+  auto viewModel = rcp<ViewModel>(new ViewModel());
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("counter");
+  viewModel->addProperty(counterProperty);
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->viewModel(viewModel.get());
+  auto* counter = new ViewModelInstanceNumber();
+  counter->viewModelProperty(counterProperty);
+  instance->addValue(counter);
+
+  auto top = lua_gettop(L);
+  lua_getglobal(L, "listen");
+  lua_newrive<ScriptedPropertyNumber>(L, L, ref_rcp(counter));
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  // No script frame holds the property through this change.
+  counter->propertyValue(5.0f);
+  lua_getglobal(L, "heardCount");
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_tonumber(L, -1) == 1);
+  lua_pop(L, 1);
   CHECK(top == lua_gettop(L));
 }

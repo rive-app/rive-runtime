@@ -17,10 +17,11 @@ static rive::TextRun append(
     const char text[])
 {
   const uint8_t* ptr = (const uint8_t*)text;
+  const uint8_t* end = ptr + strlen(text);
   uint32_t n = 0;
-  while (*ptr)
+  while (ptr < end)
   {
-    unichars->push_back(rive::UTF::NextUTF8(&ptr));
+    unichars->push_back(rive::UTF::NextUTF8(&ptr, end));
     n += 1;
   }
   return {std::move(font), size, -1.0f, 0.0f, n, 0};

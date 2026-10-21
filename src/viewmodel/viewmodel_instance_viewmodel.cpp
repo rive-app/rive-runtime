@@ -106,7 +106,10 @@ StatusCode ViewModelInstanceViewModel::import(ImportStack& importStack)
 void ViewModelInstanceViewModel::updateViewModel(ViewModelInstance* value)
 {
   // replaceViewModelByProperty notifies this property's value-dependents.
-  m_viewModelInstance->replaceViewModelByProperty(this, ref_rcp(value));
+  if (m_viewModelInstance != nullptr)
+  {
+    m_viewModelInstance->replaceViewModelByProperty(this, ref_rcp(value));
+  }
 }
 
 void ViewModelInstanceViewModel::applyValue(DataValueViewModel* dataValue)

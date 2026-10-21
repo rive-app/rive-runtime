@@ -141,6 +141,14 @@ void replayRenderCommands(
   // Draws route into cur: the screen by default, or the active canvas
   // between content brackets. Null drops the draw.
   Renderer* cur = renderer;
+  // A restore past these would pop the renderer's base state, whoever
+  // recorded it.
+  std::unordered_map<const Renderer*, uint32_t> callSaves;
+  auto& openSaves = hooks.openSaves != nullptr ? *hooks.openSaves : callSaves;
+  auto savesOf = [&](const Renderer* r) {
+    return r != nullptr ? &openSaves[r] : nullptr;
+  };
+  uint32_t* curSaves = savesOf(cur);
 
   uint8_t type;
   uint8_t prevType = 255;
@@ -703,11 +711,13 @@ void replayRenderCommands(
         if (cur)
         {
           cur->save();
+          ++*curSaves;
         }
         break;
       case RenderCmd::restore:
-        if (cur)
+        if (cur && *curSaves > 0)
         {
+          --*curSaves;
           cur->restore();
         }
         break;
@@ -908,12 +918,14 @@ void replayRenderCommands(
                                              c.canvasId & kCanvasHandleMask,
                                              c.clearColor)
                                        : nullptr;
+        curSaves = savesOf(cur);
         break;
       }
       case RenderCmd::canvasContentEnd:
       {
         reader.read<ResIdPOD>(); // advance past the canvas id
         cur = renderer;          // back to the screen; null drops draws
+        curSaves = savesOf(cur);
         break;
       }
       case RenderCmd::canvasSample:

@@ -3,6 +3,8 @@
 
 using namespace rive;
 
+static constexpr Unichar kReplacementCharacter = 0xFFFD;
+
 int UTF::CountUTF8Length(const uint8_t utf8[])
 {
   unsigned lead = *utf8;
@@ -23,31 +25,32 @@ int UTF::CountUTF8Length(const uint8_t utf8[])
   return n;
 }
 
-// Return the unichar pointed to by the utf8 pointer, and then
-// update the pointer to point to the next sequence.
-Unichar UTF::NextUTF8(const uint8_t** utf8Ptr)
+Unichar UTF::NextUTF8(const uint8_t** utf8Ptr, const uint8_t* end)
 {
   const uint8_t* text = *utf8Ptr;
-
-  uint32_t c = 0;
-  int n = CountUTF8Length(text);
-  assert(n >= 1 && n <= 4);
-
-  unsigned first = *text++;
-  if (n == 1)
+  uint32_t c = *text++;
+  if (c >= 0x80)
   {
-    c = first;
-  }
-  else
-  {
-    c = first & ((unsigned)0xFF >> n);
-    --n;
-    do
+    // A stray continuation byte or a lead past 0xF7 starts no sequence.
+    int more = c >= 0xF8   ? -1
+               : c >= 0xF0 ? 3
+               : c >= 0xE0 ? 2
+               : c >= 0xC0 ? 1
+                           : -1;
+    c = more < 0 ? kReplacementCharacter : c & (0x3F >> more);
+    for (; more > 0; more--)
     {
+      // Guest text can end mid sequence, and the byte after it starts
+      // the next one.
+      if (text == end || (*text & 0xC0) != 0x80)
+      {
+        c = kReplacementCharacter;
+        break;
+      }
       c = (c << 6) | (*text++ & 0x3F);
-    } while (--n);
+    }
   }
-  *utf8Ptr = text; // update the pointer
+  *utf8Ptr = text;
   return c;
 }
 

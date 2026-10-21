@@ -21,6 +21,25 @@ TierSpecies bootTierSpecies()
   return TierSpecies::o3;
 #endif
 }
+
+int x86_64Level(
+    uint32_t leaf1Ecx,
+    uint32_t leaf7Ebx,
+    uint32_t extEcx,
+    uint64_t xcr0)
+{
+  // FMA, MOVBE, XSAVE, OSXSAVE, AVX and F16C, then BMI1, AVX2 and BMI2, then
+  // LZCNT, then the XMM and YMM state.
+  constexpr uint32_t kLeaf1 = (1u << 12) | (1u << 22) | (1u << 26) |
+                              (1u << 27) | (1u << 28) | (1u << 29);
+  constexpr uint32_t kLeaf7 = (1u << 3) | (1u << 5) | (1u << 8);
+  constexpr uint32_t kExt = 1u << 5;
+  constexpr uint64_t kXcr0 = 0x6;
+  return (leaf1Ecx & kLeaf1) == kLeaf1 && (leaf7Ebx & kLeaf7) == kLeaf7 &&
+                 (extEcx & kExt) == kExt && (xcr0 & kXcr0) == kXcr0
+             ? 3
+             : 2;
+}
 } // namespace rive
 
 #ifdef RIVE_WASM_TIER_LADDER
@@ -45,8 +64,21 @@ TierSpecies bootTierSpecies()
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if !defined(RIVE_ANDROID) && !defined(RIVE_NX)
+#include <dlfcn.h>
+#endif
+#if defined(__linux__) && !defined(__ANDROID__)
+#include <link.h>
+#endif
 
 extern char** environ;
+#endif
+#if defined(__x86_64__) || defined(_M_X64)
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
 #endif
 
 namespace rive
@@ -134,6 +166,145 @@ static bool publishFile(const std::string& tmpPath, const std::string& path)
   }
   std::remove(tmpPath.c_str());
   return fileExists(path);
+}
+
+// The x86-64 level this machine's host artifacts compile for, 0 off x86.
+static int hostX86_64Level()
+{
+#if defined(__x86_64__) || defined(_M_X64)
+  static const int level = [] {
+    // CI holds a v3 host at the baseline, where relaxed madd calls fmaf.
+    const char* cap = getenv("RIVE_AOT_X86_LEVEL");
+    if (cap != nullptr && strcmp(cap, "2") == 0)
+    {
+      return 2;
+    }
+    uint32_t leaf1Ecx = 0;
+    uint32_t leaf7Ebx = 0;
+    uint32_t extEcx = 0;
+    uint64_t xcr0 = 0;
+#if defined(_MSC_VER) && !defined(__clang__)
+    int regs[4];
+    __cpuid(regs, 0);
+    int maxLeaf = regs[0];
+    __cpuid(regs, 1);
+    leaf1Ecx = (uint32_t)regs[2];
+    if (maxLeaf >= 7)
+    {
+      __cpuidex(regs, 7, 0);
+      leaf7Ebx = (uint32_t)regs[1];
+    }
+    __cpuid(regs, 0x80000000);
+    if ((uint32_t)regs[0] >= 0x80000001)
+    {
+      __cpuid(regs, 0x80000001);
+      extEcx = (uint32_t)regs[2];
+    }
+    if ((leaf1Ecx & (1u << 27)) != 0)
+    {
+      xcr0 = _xgetbv(0);
+    }
+#else
+    unsigned a, b, c, d;
+    if (__get_cpuid(1, &a, &b, &c, &d))
+    {
+      leaf1Ecx = c;
+    }
+    if (__get_cpuid_count(7, 0, &a, &b, &c, &d))
+    {
+      leaf7Ebx = b;
+    }
+    if (__get_cpuid(0x80000001, &a, &b, &c, &d))
+    {
+      extEcx = c;
+    }
+    // xgetbv faults unless the OS turned on xsave.
+    if ((leaf1Ecx & (1u << 27)) != 0)
+    {
+      uint32_t lo;
+      uint32_t hi;
+      __asm__ volatile("xgetbv" : "=a"(lo), "=d"(hi) : "c"(0));
+      xcr0 = ((uint64_t)hi << 32) | lo;
+    }
+#endif
+    return x86_64Level(leaf1Ecx, leaf7Ebx, extEcx, xcr0);
+  }();
+  return level;
+#else
+  return 0;
+#endif
+}
+
+std::string loaderBinaryPath()
+{
+  std::string path;
+#if defined(_WIN32)
+  HMODULE module = nullptr;
+  char name[MAX_PATH];
+  if (GetModuleHandleExA(
+          GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+              GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          (LPCSTR)&loaderBinaryPath,
+          &module))
+  {
+    DWORD length = GetModuleFileNameA(module, name, MAX_PATH);
+    if (length > 0 && length < MAX_PATH)
+    {
+      path.assign(name, length);
+    }
+  }
+#elif defined(__linux__) && !defined(__ANDROID__)
+  Dl_info info;
+  link_map* map = nullptr;
+  if (dladdr1(
+          (const void*)&loaderBinaryPath,
+          &info,
+          (void**)&map,
+          RTLD_DL_LINKMAP) != 0 &&
+      map != nullptr)
+  {
+    // glibc names the main program by argv[0], bare on a PATH launch.
+    path = map->l_name[0] == '\0' ? "/proc/self/exe" : map->l_name;
+  }
+#elif !defined(RIVE_ANDROID) && !defined(RIVE_NX)
+  Dl_info info;
+  if (dladdr((const void*)&loaderBinaryPath, &info) != 0 &&
+      info.dli_fname != nullptr)
+  {
+    path = info.dli_fname;
+  }
+#endif
+  return path;
+}
+
+// Every relink rewrites the binary holding the loader, so its stat tells
+// builds apart without reading it.
+static const std::string& loaderBuild()
+{
+  static const std::string build = [] {
+    std::string path = loaderBinaryPath();
+    struct stat st;
+    uint64_t key = 0;
+    if (!path.empty() && stat(path.c_str(), &st) == 0)
+    {
+      const uint64_t fields[] = {
+          (uint64_t)st.st_ino,
+          (uint64_t)st.st_size,
+          (uint64_t)st.st_mtime};
+      key = wasmModuleKey(
+          Span<const uint8_t>((const uint8_t*)fields, sizeof(fields)));
+    }
+    char text[17];
+    snprintf(text, sizeof(text), "%016llx", (unsigned long long)key);
+    return std::string(text);
+  }();
+  return build;
+}
+
+// A loader fix changes no compiler key, so each build keeps its own marker.
+static std::string rejectedMarker(const std::string& artifactPath)
+{
+  return artifactPath + "." + loaderBuild() + ".rejected";
 }
 
 #ifdef _WIN32
@@ -443,6 +614,8 @@ void ModuleTierLadder::configure(
     const std::string& cacheDir,
     bool compileOnBoot)
 {
+  // Before a rebuild can replace the loader's binary on disk.
+  loaderBuild();
   std::unique_lock<std::mutex> lock(m_mutex);
   m_wamrcPath = wamrcPath;
   m_compileOnBoot = compileOnBoot;
@@ -639,17 +812,19 @@ std::string ModuleTierLadder::keyedCacheDir()
 std::string ModuleTierLadder::artifactDir(const std::string& target)
 {
   std::string dir = keyedCacheDir();
-  return target.empty() ? dir : dir + "/" + target;
+  if (!target.empty())
+  {
+    return dir + "/" + target;
+  }
+  // A host sharing the cache finds only code its cpu runs.
+  return hostX86_64Level() >= 3 ? dir + "/x86-64-v3" : dir;
 }
 
 void ModuleTierLadder::createArtifactDir(const std::string& target)
 {
   makeDir(m_cacheDir);
   makeDir(keyedCacheDir());
-  if (!target.empty())
-  {
-    makeDir(artifactDir(target));
-  }
+  makeDir(artifactDir(target));
 }
 
 std::string ModuleTierLadder::artifactName(
@@ -719,9 +894,9 @@ static void pruneCache(
 {
   namespace fs = std::filesystem;
   std::error_code ec;
+  auto staleBefore = fs::file_time_type::clock::now() - kStaleKeyDirAge;
   if (staleKeyDirs)
   {
-    auto staleBefore = fs::file_time_type::clock::now() - kStaleKeyDirAge;
     std::string current = fs::path(keyedDir).filename().string();
     std::vector<fs::path> stale;
     for (fs::directory_iterator it(cacheDir, ec), end; !ec && it != end;
@@ -748,6 +923,7 @@ static void pruneCache(
     fs::path path;
   };
   std::vector<Artifact> artifacts;
+  std::vector<fs::path> staleMarkers;
   uintmax_t total = 0;
   ec.clear();
   for (fs::recursive_directory_iterator it(keyedDir, ec), end; !ec && it != end;
@@ -755,7 +931,14 @@ static void pruneCache(
   {
     std::string extension = it->path().extension().string();
     std::error_code statError;
-    if ((extension == ".aot" || extension == ".wasm") &&
+    // Each build leaves its own markers, so old ones expire like key dirs.
+    if (extension == ".rejected" &&
+        it->last_write_time(statError) < staleBefore && !statError)
+    {
+      staleMarkers.push_back(it->path());
+    }
+    else if (
+        (extension == ".aot" || extension == ".wasm") &&
         it->is_regular_file(statError))
     {
       Artifact artifact{
@@ -768,6 +951,10 @@ static void pruneCache(
         artifacts.push_back(std::move(artifact));
       }
     }
+  }
+  for (const fs::path& marker : staleMarkers)
+  {
+    fs::remove(marker, ec);
   }
   if (total <= kKeyDirBytes)
   {
@@ -910,7 +1097,7 @@ bool ModuleTierLadder::lookupLocked(Job& job, TierCompile& result)
     result.path = job.finalPath;
     return true;
   }
-  std::ifstream rejected(job.finalPath + ".rejected");
+  std::ifstream rejected(rejectedMarker(job.finalPath));
   if (rejected && std::getline(rejected, result.reason))
   {
     m_failures[{job.moduleKey, job.species, job.target}] = result.reason;
@@ -968,7 +1155,7 @@ void ModuleTierLadder::rejectArtifact(
   if (m_compiled.count({moduleKey, species}) != 0)
   {
     writeFileAtomic(
-        path + ".rejected",
+        rejectedMarker(path),
         Span<const uint8_t>((const uint8_t*)reason.data(), reason.size()));
   }
 }
@@ -1065,10 +1252,11 @@ std::string ModuleTierLadder::runWamrc(Job& job)
 #elif defined(__x86_64__) || defined(_M_X64)
   else
   {
-    // Left alone wamrc targets this machine's cpu, which another host
-    // sharing the cache may lack. Without FMA, relaxed madd calls fmaf.
+    // Left alone wamrc targets this machine's exact cpu, which the cache
+    // does not key. Without FMA, relaxed madd calls fmaf.
     args.push_back("--target=x86_64");
-    args.push_back("--cpu=x86-64-v2");
+    args.push_back(
+        hostX86_64Level() >= 3 ? "--cpu=x86-64-v3" : "--cpu=x86-64-v2");
 #if defined(__APPLE__)
     // Code maps above 4GB here, out of reach of 32 bit relocations.
     args.push_back("--size-level=0");

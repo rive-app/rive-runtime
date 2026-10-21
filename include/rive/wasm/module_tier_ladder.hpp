@@ -43,6 +43,14 @@ enum class TierSpecies : uint8_t
 // RIVE_WASM_AOT_SYNC=o0.
 TierSpecies bootTierSpecies();
 
+// 3 when cpuid leaf 1 ecx, leaf 7 ebx, leaf 0x80000001 ecx and xcr0 show
+// every x86-64-v3 feature with its AVX state saved, else 2.
+int x86_64Level(
+    uint32_t leaf1Ecx,
+    uint32_t leaf7Ebx,
+    uint32_t extEcx,
+    uint64_t xcr0);
+
 // What a compileSync call produced.
 struct TierCompile
 {
@@ -55,6 +63,10 @@ struct TierCompile
 };
 
 #ifdef RIVE_WASM_TIER_LADDER
+
+// The absolute path of the binary holding the ladder, whose stat keys
+// rejected markers, or empty where the platform cannot say.
+std::string loaderBinaryPath();
 
 // Drives wamrc subprocesses that turn wasm modules into AOT artifacts.
 // File-in/file-out, no IPC: compile crashes and LLVM's RSS stay in the

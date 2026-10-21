@@ -8,18 +8,22 @@
 
 using namespace rive;
 
-ViewModelInstanceList::~ViewModelInstanceList()
+ViewModelInstanceList::~ViewModelInstanceList() { detachParent(); }
+
+void ViewModelInstanceList::detachParent()
 {
-  if (parentViewModelInstance())
+  if (m_parentViewModelInstance == nullptr)
   {
-    for (auto& item : m_ListItems)
+    return;
+  }
+  for (auto& item : m_ListItems)
+  {
+    if (item->viewModelInstance() != nullptr)
     {
-      if (item->viewModelInstance() != nullptr)
-      {
-        item->viewModelInstance()->removeParent(parentViewModelInstance());
-      }
+      item->viewModelInstance()->removeParent(m_parentViewModelInstance);
     }
   }
+  m_parentViewModelInstance = nullptr;
 }
 
 void ViewModelInstanceList::propertyValueChanged()
@@ -235,11 +239,7 @@ Core* ViewModelInstanceList::clone() const
 #ifdef WITH_RIVE_EDITOR
 void ViewModelInstanceList::editorPrepareForDestruction()
 {
-  if (m_parentViewModelInstance != nullptr)
-    for (auto& item : m_ListItems)
-      if (item->viewModelInstance())
-        item->viewModelInstance()->removeParent(m_parentViewModelInstance);
-  m_parentViewModelInstance = nullptr;
+  detachParent();
   m_ListItems.clear();
   ViewModelInstanceValue::editorPrepareForDestruction();
 }

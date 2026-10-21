@@ -42,6 +42,22 @@ static rcp<Font> loadFont(const char* filename)
   return HBFont::Decode(bytes);
 }
 
+TEST_CASE(
+    "text input decodes a cut short sequence inside its text",
+    "[text_input]")
+{
+  RawTextInput textInput;
+  textInput.text("a\xE2"
+                 "b");
+  CHECK(textInput.length() == 3);
+  textInput.insert(std::string("\xF0", 1));
+  CHECK(textInput.length() == 4);
+  CHECK(
+      textInput.text() == "\xEF\xBF\xBD"
+                          "a\xEF\xBF\xBD"
+                          "b");
+}
+
 TEST_CASE("cursor's visual position computes correctly", "[text_input]")
 {
   auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");

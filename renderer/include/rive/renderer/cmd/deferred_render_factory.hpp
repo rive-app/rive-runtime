@@ -381,24 +381,45 @@ public:
 
   void save() override
   {
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_transformStack.push_back(m_transformStack.back());
     m_buffer->appendType(static_cast<uint8_t>(RenderCmd::save));
   }
   void restore() override
   {
-    route();
-    if (m_transformStack.size() > 1)
+    // A restore past this recorder's saves would pop the replaying
+    // renderer's base state.
+    if (m_transformStack.size() <= 1)
     {
-      // An unbalanced restore is the caller's bug, but leaving the
-      // bottom entry in place keeps the shadow usable either way.
-      m_transformStack.pop_back();
+      return;
     }
+    if (!route())
+    {
+      return;
+    }
+    m_transformStack.pop_back();
     m_buffer->appendType(static_cast<uint8_t>(RenderCmd::restore));
   }
+  // A canvas host brackets its recorder's content. Ending it closes the
+  // saves left open, and a holder drawing on past the end records nothing.
+  void endContent()
+  {
+    while (m_transformStack.size() > 1)
+    {
+      restore();
+    }
+    m_contentEnded = true;
+  }
+  void beginContent() { m_contentEnded = false; }
   void transform(const Mat2D& m) override
   {
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_transformStack.back() = m_transformStack.back() * m;
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::transform),
@@ -440,7 +461,10 @@ public:
     auto* dpt = lite_rtti_cast<DeferredRenderPaint*>(paint);
     dp->markDrawn();
     dpt->markDrawn();
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::drawPath),
         DrawPathPOD{pathId, paintId, dp->version(), dpt->version()});
@@ -465,7 +489,10 @@ public:
     {
       dp->markDrawn();
     }
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::clipPath),
         ClipPathPOD{
@@ -480,7 +507,10 @@ public:
     {
       dp->markDrawn();
     }
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::clipStroke),
         ClipStrokePOD{
@@ -493,14 +523,20 @@ public:
   }
   void modulateOpacity(float opacity) override
   {
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::modulateOpacity),
         OpacityPOD{opacity});
   }
   void modulateColor(ColorInt color, bool replace) override
   {
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::modulateColor),
         ModulateColorPOD{color, replace ? 1u : 0u});
@@ -533,7 +569,10 @@ public:
       warnForeign("drawImage");
       return;
     }
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::drawImage),
         DrawImagePOD{
@@ -563,7 +602,10 @@ public:
       warnForeign("applyLayerMask");
       return;
     }
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::applyLayerMask),
         ApplyLayerMaskPOD{
@@ -634,7 +676,10 @@ public:
     dv->markDrawn();
     duv->markDrawn();
     di->markDrawn();
-    route();
+    if (!route())
+    {
+      return;
+    }
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::drawImageMesh),
         DrawImageMeshPOD{
@@ -695,7 +740,10 @@ public:
       warnForeign("drawImageMeshInstanced");
       return;
     }
-    route();
+    if (!route())
+    {
+      return;
+    }
     dinst->markDrawn();
     m_buffer->append(
         static_cast<uint8_t>(RenderCmd::drawImageMeshInstanced),
@@ -751,18 +799,24 @@ private:
   }
   // Attribute the coming op to this recorder's target; standalone recorders
   // have no host and skip it.
-  void route()
+  bool route()
   {
+    if (m_contentEnded)
+    {
+      return false;
+    }
     if (m_routeHost != nullptr)
     {
       m_routeHost->routeTo(m_routeTarget);
     }
+    return true;
   }
 
   RenderCommandBuffer* m_buffer;
   ForeignImageRegistry* m_canvases;
   DeferredRouteHost* m_routeHost;
   uint64_t m_routeTarget;
+  bool m_contentEnded = false;
   // Shadow of the CTM the replaying renderer will build. Bottom entry is the
   // identity the replay starts from, so this is never empty.
   std::vector<Mat2D> m_transformStack{Mat2D()};

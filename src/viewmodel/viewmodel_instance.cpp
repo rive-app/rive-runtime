@@ -5,6 +5,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
@@ -27,14 +28,32 @@ ViewModelInstance::~ViewModelInstance()
   {
     delete dataBind;
   }
+  // Holders such as ViewModelInstanceValueRuntime can keep a value past this
+  // instance, so nothing they reach may still point at it.
   for (auto& value : m_PropertyValues)
   {
+    if (value->viewModelInstance() == this)
+    {
+      value->viewModelInstance(nullptr);
+    }
     if (value->is<ViewModelInstanceViewModel>())
     {
       auto vmInstanceViewModel = value->as<ViewModelInstanceViewModel>();
       if (vmInstanceViewModel->referenceViewModelInstance())
       {
         vmInstanceViewModel->referenceViewModelInstance()->removeParent(this);
+      }
+      if (vmInstanceViewModel->parentViewModelInstance() == this)
+      {
+        vmInstanceViewModel->parentViewModelInstance(nullptr);
+      }
+    }
+    else if (value->is<ViewModelInstanceList>())
+    {
+      auto list = value->as<ViewModelInstanceList>();
+      if (list->parentViewModelInstance() == this)
+      {
+        list->detachParent();
       }
     }
   }

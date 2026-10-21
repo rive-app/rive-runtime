@@ -89,6 +89,12 @@ enum class TextureFormat : uint8_t
   astc8x8,
 };
 
+inline bool textureFormatIsBC(TextureFormat fmt)
+{
+  return fmt == TextureFormat::bc1unorm || fmt == TextureFormat::bc3unorm ||
+         fmt == TextureFormat::bc7unorm;
+}
+
 // Returns bytes per texel for uncompressed formats, or 0 for block-compressed
 // formats (which require block-based stride calculation).
 inline uint32_t textureFormatBytesPerTexel(TextureFormat fmt)

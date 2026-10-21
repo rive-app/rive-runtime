@@ -115,6 +115,22 @@ TEST_CASE("simple text loads", "[text]")
   }
 }
 
+TEST_CASE("a text run cut short mid sequence decodes inside its text", "[text]")
+{
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  auto run = artboard->find<rive::TextValueRun>()[0];
+  run->text("Hello\xE2"
+            "!");
+  CHECK(run->length() == 7);
+  rive::NoOpRenderer renderer;
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  REQUIRE(text->shape().size() == 1);
+  CHECK(text->shape()[0].runs[0].glyphs.size() == 7);
+}
+
 TEST_CASE("vertical trim shrinks the box to the chosen band", "[text]")
 {
   auto file = ReadRiveFile("assets/hello_world.riv");
@@ -531,9 +547,10 @@ static std::vector<rive::Unichar> toUnicode(const char text[])
 {
   std::vector<rive::Unichar> codePoints;
   const uint8_t* ptr = (const uint8_t*)text;
-  while (*ptr)
+  const uint8_t* end = ptr + strlen(text);
+  while (ptr < end)
   {
-    codePoints.push_back(rive::UTF::NextUTF8(&ptr));
+    codePoints.push_back(rive::UTF::NextUTF8(&ptr, end));
   }
   return codePoints;
 }

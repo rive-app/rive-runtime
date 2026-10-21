@@ -99,3 +99,18 @@ TEST_CASE("RawText shapes around an empty append", "[rawtext]")
   });
   CHECK(glyphs == 6);
 }
+
+TEST_CASE("RawText decodes a cut short sequence inside its text", "[rawtext]")
+{
+  NoOpFactory factory;
+  RawText text(&factory);
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  text.append(
+      "a\xE2"
+      "b",
+      nullptr,
+      font);
+  text.append(std::string(40, 'c') + "\xF0", nullptr, font);
+  CHECK(text.length() == 3 + 41);
+  CHECK(text.lineCount() == 1);
+}

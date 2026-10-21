@@ -24,11 +24,12 @@ public:
     if (m_length == -1)
     {
 
-      const uint8_t* ptr = (const uint8_t*)text().c_str();
+      const uint8_t* ptr = (const uint8_t*)text().data();
+      const uint8_t* end = ptr + text().size();
       uint32_t n = 0;
-      while (*ptr)
+      while (ptr < end && *ptr)
       {
-        UTF::NextUTF8(&ptr);
+        UTF::NextUTF8(&ptr, end);
         n += 1;
       }
       m_length = n;

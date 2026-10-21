@@ -969,6 +969,9 @@ static int gputexture_construct(lua_State* L)
   const char* fmt = lua_getoptionalstringfield(L, descIdx, "format");
   if (fmt)
     desc.format = lua_totextureformat(L, fmt);
+  lua_checkguard(L, [&](std::string* err) {
+    return ore::validateTextureFormat(getOreContext(L), desc.format, err);
+  });
 
   const char* typ = lua_getoptionalstringfield(L, descIdx, "type");
   if (typ)

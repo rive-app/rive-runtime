@@ -4,6 +4,7 @@
 
 #include <catch.hpp>
 #include "rive/text/utf.hpp"
+#include <vector>
 
 using namespace rive;
 
@@ -64,4 +65,42 @@ TEST_CASE("every supplementary code point round trips through UTF-16", "[utf]")
     REQUIRE(utf16[1] <= 0xDFFF);
     REQUIRE(fromSurrogatePair(utf16[0], utf16[1]) == uni);
   }
+}
+
+// Decodes bytes the way a guest hands them over, with nothing past the end.
+static std::vector<Unichar> decodeUTF8(const std::vector<uint8_t>& bytes)
+{
+  std::vector<Unichar> unichars;
+  const uint8_t* ptr = bytes.data();
+  const uint8_t* end = ptr + bytes.size();
+  while (ptr < end)
+  {
+    unichars.push_back(UTF::NextUTF8(&ptr, end));
+  }
+  CHECK(ptr == end);
+  return unichars;
+}
+
+TEST_CASE("UTF-8 decodes every sequence length", "[utf]")
+{
+  CHECK(
+      decodeUTF8({'a', 0xC3, 0xA9, 0xE2, 0x82, 0xAC, 0xF0, 0x9F, 0x98, 0x80}) ==
+      std::vector<Unichar>{'a', 0xE9, 0x20AC, 0x1F600});
+}
+
+TEST_CASE("UTF-8 cut short decodes as replacements inside its buffer", "[utf]")
+{
+  CHECK(decodeUTF8({0xF0}) == std::vector<Unichar>{0xFFFD});
+  CHECK(
+      decodeUTF8({'a', 0xF0, 0x9F, 0x98}) == std::vector<Unichar>{'a', 0xFFFD});
+  // The byte that cuts a sequence short starts the next one.
+  CHECK(
+      decodeUTF8({0xE2, 'b', 0xC3, 0xE2, 0x82, 0xAC}) ==
+      std::vector<Unichar>{0xFFFD, 'b', 0xFFFD, 0x20AC});
+  CHECK(
+      decodeUTF8({0xC3, 0x00, 'c'}) == std::vector<Unichar>{0xFFFD, 0x00, 'c'});
+  // Stray continuations and leads past 0xF7 start no sequence.
+  CHECK(
+      decodeUTF8({0x80, 0xBF, 0xF8, 0xFF, 'z'}) ==
+      std::vector<Unichar>{0xFFFD, 0xFFFD, 0xFFFD, 0xFFFD, 'z'});
 }

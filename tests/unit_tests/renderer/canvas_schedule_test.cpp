@@ -371,6 +371,67 @@ TEST_CASE("a canvas only frame still opens a screen frame", "[cmd][canvas-dag]")
 }
 
 TEST_CASE(
+    "canvas content ended with saves open ends balanced and records "
+    "nothing after",
+    "[cmd][canvas-dag]")
+{
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvas = fakeCanvas();
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+
+  Renderer* c = session.beginCanvasContent(canvas.get(), 0);
+  c->save();
+  c->save();
+  session.endCanvasContent(canvas.get());
+  // A drawer still holding the renderer, as an artboard draw visit whose
+  // script ended the frame does.
+  c->restore();
+  c->drawPath(path.get(), paint.get());
+  c->restore();
+  // The canvas's next frame records again.
+  CHECK(session.beginCanvasContent(canvas.get(), 0) == c);
+  c->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvas.get());
+  session.closeOpenRange();
+
+  auto stream = session.commandBuffer().commandBytes();
+  CommandReader<RenderCmd> reader(stream, session.commandBuffer().blobBytes());
+  int ranges = 0;
+  int draws = 0;
+  int depth = 0;
+  RenderCmd type;
+  while (reader.next(type))
+  {
+    if (type == RenderCmd::canvasContentBegin)
+    {
+      ranges++;
+      depth = 0;
+    }
+    else if (type == RenderCmd::save)
+    {
+      depth++;
+    }
+    else if (type == RenderCmd::restore)
+    {
+      depth--;
+      CHECK(depth >= 0);
+    }
+    else if (type == RenderCmd::drawPath)
+    {
+      draws++;
+    }
+    else if (type == RenderCmd::canvasContentEnd)
+    {
+      CHECK(depth == 0);
+    }
+    reader.skip(payloadSizeOf(type));
+  }
+  CHECK(ranges == 2);
+  CHECK(draws == 1);
+}
+
+TEST_CASE(
     "a frame that only creates resources opens no screen frame",
     "[cmd][canvas-dag]")
 {

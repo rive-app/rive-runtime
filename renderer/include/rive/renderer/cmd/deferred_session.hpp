@@ -383,6 +383,7 @@ public:
       // Each frame starts at identity, as live.
       recorder->resetTransform();
     }
+    recorder->beginContent();
     // Stacked, not a single slot: a canvas bracket can open inside another
     // one -- a layer mask nested in a masked subtree, or any mask inside a
     // bitmap-cached artboard -- and the inner end has to resume the outer
@@ -399,8 +400,16 @@ public:
     m_activeStartsFrame = true;
     return recorder.get();
   }
-  void endCanvasContent(gpu::RenderCanvas*) override
+  void endCanvasContent(gpu::RenderCanvas* canvas) override
   {
+    // A script's draw visit can end its frame while an artboard still
+    // draws into it with saves open.
+    auto recorder = m_canvasRenderers.find(
+        m_canvases.imageDrawId(canvas->renderImage()) & kCanvasHandleMask);
+    if (recorder != m_canvasRenderers.end())
+    {
+      recorder->second->endContent();
+    }
     if (!m_canvasStack.empty())
     {
       m_canvasStack.pop_back();

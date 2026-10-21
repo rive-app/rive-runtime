@@ -204,6 +204,17 @@ TEST_CASE("cleared text reads as empty", "[scripting]")
     )");
 }
 
+TEST_CASE("text decodes a sequence cut short inside its string", "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        text:append('a\xE2b', { font = latin, size = 20 })
+        text:append(string.rep('c', 40) .. '\xF0', { font = latin, size = 20 })
+        assert(text.length == 44, 'length ' .. text.length)
+        assert(text.lineCount == 1)
+    )");
+}
+
 TEST_CASE("font exposes metrics, options and outlines", "[scripting]")
 {
   TextTest vm(R"(

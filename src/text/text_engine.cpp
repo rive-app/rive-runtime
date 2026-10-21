@@ -2,6 +2,7 @@
 #include "rive/text/utf.hpp"
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/line_break.hpp"
+#include <cstring>
 using namespace rive;
 
 bool rive::isWhiteSpace(Unichar c)
@@ -20,9 +21,10 @@ static void appendUnicode(
     const char text[])
 {
   const uint8_t* ptr = (const uint8_t*)text;
-  while (*ptr)
+  const uint8_t* end = ptr + strlen(text);
+  while (ptr < end)
   {
-    unichars.push_back(rive::UTF::NextUTF8(&ptr));
+    unichars.push_back(rive::UTF::NextUTF8(&ptr, end));
   }
 }
 
