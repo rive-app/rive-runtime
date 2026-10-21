@@ -67,6 +67,13 @@ newoption({
     description = 'compile for android (supersedes --os)',
 })
 
+-- Windows on the GNU ABI, for apps built with MinGW-w64 (MSYS2, llvm-mingw).
+-- No Visual Studio or Windows SDK, hence no D3D: its shaders need fxc.
+newoption({
+    trigger = 'for_mingw',
+    description = 'compile for windows with a MinGW-w64 clang (GNU ABI)',
+})
+
 newoption({
     trigger = 'android_api',
     description = 'Target Android API version number',
@@ -490,12 +497,42 @@ filter({})
 -- needed in the first place (otherwise the build script would just be passing it in)
 rive_target_os = os.target()
 
+if _OPTIONS['for_mingw'] then
+    if _OPTIONS['toolset'] ~= 'clang' then
+        error('Only clang is supported with --for_mingw')
+    end
+    -- The system:windows filter above pins architecture('x64').
+    if _OPTIONS['arch'] ~= 'host' and _OPTIONS['arch'] ~= 'x64' then
+        error('Only x64 is supported with --for_mingw')
+    end
+    system('windows')
+    rive_target_os = 'windows'
+
+    -- llvm-ar when present (llvm-mingw, CLANG64, cross-compiling hosts);
+    -- otherwise the toolchain's binutils ar (MSYS2's MINGW64, UCRT64).
+    local path = os.getenv('PATH') or ''
+    local has_llvm_ar = os.pathsearch('llvm-ar', path)
+        or os.pathsearch('llvm-ar.exe', path)
+    local mingw_clang_tools = { ar = has_llvm_ar and 'llvm-ar' or 'ar' }
+    local base_gettoolname = premake.tools.clang.gettoolname
+    function premake.tools.clang.gettoolname(cfg, tool)
+        return mingw_clang_tools[tool] or base_gettoolname(cfg, tool)
+    end
+
+    -- The linker and the C++ library stay the toolchain's own, so the
+    -- libraries match the app that links them.
+    local target = '--target=x86_64-w64-windows-gnu'
+    buildoptions({ target })
+    linkoptions({ target })
+end
+
 -- Native Windows targets only. Android and wasm happen to build through ninja
 -- on a Windows host too, but they retarget to the android_ndk/emsdk toolsets
 -- below and would choke on these flags.
 if os.host() == 'windows'
     and _ACTION == 'ninja'
     and not _OPTIONS['for_android']
+    and not _OPTIONS['for_mingw']
     and _OPTIONS['arch'] ~= 'wasm'
     and _OPTIONS['arch'] ~= 'js'
 then

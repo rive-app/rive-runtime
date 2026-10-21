@@ -38,7 +38,10 @@ if _OPTIONS['with_vulkan'] then
     end
 end
 
-if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
+if rive_target_os == 'windows'
+    and _OPTIONS['for_unreal'] == nil
+    and _OPTIONS['for_mingw'] == nil
+then
     dx12_headers = dependency.github('microsoft/DirectX-Headers', 'v1.615.0')
 end
 
@@ -77,7 +80,12 @@ do
     defines({ 'ORE_BACKEND_GL' })
 end
 
-filter({ 'system:windows', 'options:with_rive_canvas', 'options:not for_unreal' })
+filter({
+    'system:windows',
+    'options:with_rive_canvas',
+    'options:not for_unreal',
+    'options:not for_mingw',
+})
 do
     defines({ 'ORE_BACKEND_D3D11', 'ORE_BACKEND_D3D12', 'RIVE_ORE' })
 end
@@ -286,7 +294,7 @@ if os.host() == 'macosx' then
     end
 end
 
-if rive_target_os == 'windows' then
+if rive_target_os == 'windows' and _OPTIONS['for_mingw'] == nil then
     makecommand = makecommand .. ' d3d'
 end
 
@@ -371,7 +379,10 @@ do
         files({ 'src/vulkan/*.cpp' })
     end
 
-    if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
+    if rive_target_os == 'windows'
+        and _OPTIONS['for_unreal'] == nil
+        and _OPTIONS['for_mingw'] == nil
+    then
         externalincludedirs({
             dx12_headers .. '/include/directx',
         })
@@ -486,7 +497,12 @@ do
     end
 
 
-    filter({ 'system:windows', 'options:with_rive_canvas', 'options:not for_unreal' })
+    filter({
+        'system:windows',
+        'options:with_rive_canvas',
+        'options:not for_unreal',
+        'options:not for_mingw',
+    })
     do
         files({ 'src/ore/d3d11/*.cpp' })
         files({ 'src/ore/d3d12/*.cpp' })
@@ -625,7 +641,11 @@ do
         architecture('x64')
     end
 
-    filter({'system:windows', 'options:not for_unreal'})
+    filter({
+        'system:windows',
+        'options:not for_unreal',
+        'options:not for_mingw',
+    })
     do
         files({ 'src/d3d/*.cpp' })
         files({ 'src/d3d11/*.cpp' })
