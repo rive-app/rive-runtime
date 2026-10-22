@@ -601,13 +601,14 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
               if (enums::is_flag_set(
                       props.renderPassOptions,
                       RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture) &&
-                  !enums::is_flag_set(
-                      props.renderPassOptions,
-                      RenderPassOptionsVulkan::msaa))
+                  (!enums::is_flag_set(
+                       props.renderPassOptions,
+                       RenderPassOptionsVulkan::msaa) ||
+                   colorLoadAction != LoadAction::preserveRenderTarget))
               {
-                // Single-sampled preserves via
-                // VK_ATTACHMENT_LOAD_OP_LOAD, so
-                // msaaSeedFromOffscreenTexture is invalid.
+                // Only multisampled preserves seed from an offscreen texture.
+                // Single-sampled preserves use VK_ATTACHMENT_LOAD_OP_LOAD,
+                // while clear/discard passes have no previous color to seed.
                 continue;
               }
             }
