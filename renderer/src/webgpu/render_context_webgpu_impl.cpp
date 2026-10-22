@@ -1329,6 +1329,7 @@ public:
           language = WGPUWagyuShaderLanguage_GLSL;
           versionString = "#version 460";
           addDefine(GLSL_TARGET_SPIRV);
+          addDefine(GLSL_USE_WEBGPU_SAMPLERS);
         }
         if (plsType == PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
         {
