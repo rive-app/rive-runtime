@@ -336,6 +336,53 @@ public:
     return m_parametricSegmentCountsAllocator;
   }
 
+  // Scratch space for processing a path's cubics in SIMD-width batches.
+  // Unlike the allocators above, which free every block past their first at
+  // the end of each frame, it keeps all its capacity from frame to frame.
+  // Note that it may be worth modifying the above allocators so that they
+  // only free allocated blocks that have gone unused for more than 1 frame.
+  struct CubicBatch
+  {
+    // Blocks of four cubics, 8 float4s each, arranged as the [p0 p1] of
+    // each cubic, then the [p2 p3] of each cubic.
+    std::vector<float4> points;
+    // Per-cubic chops, padded to a multiple of 4 cubics.
+    std::vector<uint8_t> chopKeys;
+    // Indices of the cubics the chop early-out can't clear, and where each
+    // one gets chopped, padded to a multiple of 4 candidates. (Only the
+    // first T is valid with one chop.)
+    std::vector<uint32_t> chopCandidates;
+    std::vector<float> chopT0;
+    std::vector<float> chopT1;
+    // Each stroked cubic's points in the RawPath.
+    std::vector<const Vec2D*> rawPathCubicPoints;
+    // Each stroked curve's slot in the path's rotation arrays.
+    std::vector<uint32_t> rotationSlots;
+    // The rotation slots of each cusp join across a cusp and of the pieces
+    // before and after it.
+    std::vector<std::array<uint32_t, 3>> cuspJoins;
+
+    // Reserves space for a path's cubics using worst-case chopping
+    // assumptions.
+    void resize(size_t cubicCount, size_t maxCurveCount, bool isStroke)
+    {
+      size_t blockFloat4Count = (maxCurveCount + 3) / 4 * 8;
+      if (points.size() < blockFloat4Count)
+      {
+        points.resize(blockFloat4Count);
+      }
+      if (isStroke && rotationSlots.size() < maxCurveCount)
+      {
+        rotationSlots.resize(maxCurveCount);
+      }
+      if (isStroke && rawPathCubicPoints.size() < cubicCount)
+      {
+        rawPathCubicPoints.resize(cubicCount);
+      }
+    }
+  };
+  CubicBatch& cubicBatch() { return m_cubicBatch; }
+
   // Allocates a trivially destructible object that will be automatically
   // dropped at the end of the current frame.
   template <typename T, typename... Args> T* make(Args&&... args)
@@ -557,6 +604,7 @@ private:
   TrivialArrayAllocator<uint32_t, alignof(float4)>
       m_parametricSegmentCountsAllocator{
           kIntermediateDataInitialFillCurves}; // 4 bytes per fill curve.
+  CubicBatch m_cubicBatch;
 
   class TessellationWriter;
 

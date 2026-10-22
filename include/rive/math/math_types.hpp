@@ -218,7 +218,14 @@ RIVE_ALWAYS_INLINE constexpr T round_up_to_multiple_of(T x)
 //
 RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
 {
+#if (defined(__arm__) && !defined(__ARM_FEATURE_NUMERIC_MAXMIN)) ||            \
+    defined(__wasm__)
+  // fminf() and fmaxf() are function calls here (see simd::min()).
+  x = (lo < x || std::isnan(lo)) ? x : lo;
+  return (x < hi || std::isnan(hi)) ? x : hi;
+#else
   return fminf(fmaxf(lo, x), hi);
+#endif
 }
 
 // Matches Dart modulus:

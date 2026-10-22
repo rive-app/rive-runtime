@@ -387,8 +387,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
       // standing in for a cap.
       contourIDWithFlags &= ~JOIN_TYPE_MASK;
     }
-    else if (
-        (contourIDWithFlags & JOIN_TYPE_MASK) != FULL_ROUND_JOIN_CONTOUR_FLAG)
+    else if ((contourIDWithFlags & JOIN_TYPE_MASK) != CUSP_JOIN_CONTOUR_FLAG)
     {
       contourIDWithFlags |= radsPerPolarSegment < .0 ? LEFT_JOIN_CONTOUR_FLAG
                                                      : RIGHT_JOIN_CONTOUR_FLAG;

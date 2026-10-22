@@ -81,6 +81,6 @@ void rive::cubic_extract(
     rive::Vec2D dst[4])
 {
   rive::Vec2D tmp[10];
-  rive::math::chop_cubic_at(src, tmp, startT, endT);
+  rive::math::chopCubicAt(src, tmp, startT, endT);
   std::copy(tmp + 3, tmp + 7, dst);
 }

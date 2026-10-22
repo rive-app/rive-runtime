@@ -135,7 +135,7 @@
 #define MITER_REVERT_JOIN_CONTOUR_FLAG (5u << 26u)
 #define BEVEL_JOIN_CONTOUR_FLAG (4u << 26u)
 #define ROUND_JOIN_CONTOUR_FLAG (3u << 26u)
-#define FULL_ROUND_JOIN_CONTOUR_FLAG (2u << 26u)
+#define CUSP_JOIN_CONTOUR_FLAG (2u << 26u)
 #define FEATHER_JOIN_CONTOUR_FLAG (1u << 26u)
 
 // When a join is being used to emulate a stroke cap, the shader emits

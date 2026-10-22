@@ -312,13 +312,13 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
       REQUIRE(std::ceil(std::log2(referenceValue)) == level);
       float c = wangs_formula::cubic(pts, kPrecision);
       REQUIRE(fuzzy_equal(c / referenceValue, 1, kTessellationTolerance));
-      REQUIRE(wangs_formula::cubic_log2(pts, kPrecision) == level);
+      REQUIRE(wangs_formula::cubicLog2(pts, kPrecision) == level);
       setupCubicLengthTerm(level << 1, pts, x + epsilon);
       referenceValue = wangs_formula_cubic_reference_impl(kPrecision, pts);
       REQUIRE(std::ceil(std::log2(referenceValue)) == level + 1);
       c = wangs_formula::cubic(pts, kPrecision);
       REQUIRE(fuzzy_equal(c / referenceValue, 1, kTessellationTolerance));
-      REQUIRE(wangs_formula::cubic_log2(pts, kPrecision) == level + 1);
+      REQUIRE(wangs_formula::cubicLog2(pts, kPrecision) == level + 1);
     }
 
     {
@@ -333,13 +333,13 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
       REQUIRE(std::ceil(std::log2(referenceValue)) == level);
       float q = wangs_formula::quadratic(pts, kPrecision);
       REQUIRE(fuzzy_equal(q / referenceValue, 1, kTessellationTolerance));
-      REQUIRE(wangs_formula::quadratic_log2(pts, kPrecision) == level);
+      REQUIRE(wangs_formula::quadraticLog2(pts, kPrecision) == level);
       setupQuadraticLengthTerm(level << 1, pts, x + epsilon);
       referenceValue = wangs_formula_quadratic_reference_impl(kPrecision, pts);
       REQUIRE(std::ceil(std::log2(referenceValue)) == level + 1);
       q = wangs_formula::quadratic(pts, kPrecision);
       REQUIRE(fuzzy_equal(q / referenceValue, 1, kTessellationTolerance));
-      REQUIRE(wangs_formula::quadratic_log2(pts, kPrecision) == level + 1);
+      REQUIRE(wangs_formula::quadraticLog2(pts, kPrecision) == level + 1);
     }
   }
 
@@ -347,7 +347,7 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
     float f = std::max(
         1.f,
         wangs_formula_cubic_reference_impl(kPrecision, pts));
-    int f_log2 = wangs_formula::cubic_log2(pts, kPrecision);
+    int f_log2 = wangs_formula::cubicLog2(pts, kPrecision);
     REQUIRE(ceilf(std::log2(f)) == f_log2);
     float c = std::max(1.f, wangs_formula::cubic(pts, kPrecision));
     REQUIRE(fuzzy_equal(c / f, 1, kTessellationTolerance));
@@ -357,7 +357,7 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
     float f = std::max(
         1.f,
         wangs_formula_quadratic_reference_impl(kPrecision, pts));
-    int f_log2 = wangs_formula::quadratic_log2(pts, kPrecision);
+    int f_log2 = wangs_formula::quadraticLog2(pts, kPrecision);
     REQUIRE(ceilf(std::log2(f)) == f_log2);
     float q = std::max(1.f, wangs_formula::quadratic(pts, kPrecision));
     REQUIRE(fuzzy_equal(q / f, 1, kTessellationTolerance));
@@ -384,8 +384,8 @@ static void check_cubic_log2_with_transform(const Vec2D* pts, const Mat2D& m)
 {
   Vec2D ptsXformed[4];
   map_pts(m, ptsXformed, pts, 4);
-  int expected = wangs_formula::cubic_log2(ptsXformed, kPrecision);
-  int actual = wangs_formula::cubic_log2(
+  int expected = wangs_formula::cubicLog2(ptsXformed, kPrecision);
+  int actual = wangs_formula::cubicLog2(
       pts,
       kPrecision,
       wangs_formula::VectorXform(m));
@@ -398,8 +398,8 @@ static void check_quadratic_log2_with_transform(
 {
   Vec2D ptsXformed[3];
   map_pts(m, ptsXformed, pts, 3);
-  int expected = wangs_formula::quadratic_log2(ptsXformed, kPrecision);
-  int actual = wangs_formula::quadratic_log2(
+  int expected = wangs_formula::quadraticLog2(ptsXformed, kPrecision);
+  int actual = wangs_formula::quadraticLog2(
       pts,
       kPrecision,
       wangs_formula::VectorXform(m));
@@ -430,20 +430,20 @@ TEST_CASE("wangs_formula_worst_case_cubic", "[wangs_formula]")
   {
     Vec2D worstP[] = {{0, 0}, {100, 100}, {0, 0}, {0, 0}};
     REQUIRE(
-        wangs_formula::worst_case_cubic(100, 100, kPrecision) ==
+        wangs_formula::worstCaseCubic(100, 100, kPrecision) ==
         wangs_formula_cubic_reference_impl(kPrecision, worstP));
     REQUIRE(
-        wangs_formula::worst_case_cubic_log2(100, 100, kPrecision) ==
-        wangs_formula::cubic_log2(worstP, kPrecision));
+        wangs_formula::worstCaseCubicLog2(100, 100, kPrecision) ==
+        wangs_formula::cubicLog2(worstP, kPrecision));
   }
   {
     Vec2D worstP[] = {{100, 100}, {100, 100}, {200, 200}, {100, 100}};
     REQUIRE(
-        wangs_formula::worst_case_cubic(100, 100, kPrecision) ==
+        wangs_formula::worstCaseCubic(100, 100, kPrecision) ==
         wangs_formula_cubic_reference_impl(kPrecision, worstP));
     REQUIRE(
-        wangs_formula::worst_case_cubic_log2(100, 100, kPrecision) ==
-        wangs_formula::cubic_log2(worstP, kPrecision));
+        wangs_formula::worstCaseCubicLog2(100, 100, kPrecision) ==
+        wangs_formula::cubicLog2(worstP, kPrecision));
   }
   auto check_worst_case_cubic = [&](const Vec2D* pts) {
     float2 min = simd::load2f(&pts[0].x), max = simd::load2f(&pts[0].x);
@@ -453,8 +453,8 @@ TEST_CASE("wangs_formula_worst_case_cubic", "[wangs_formula]")
       max = simd::max(max, simd::load2f(&pts[i].x));
     }
     float2 size = max - min;
-    float worst = wangs_formula::worst_case_cubic(size.x, size.y, kPrecision);
-    int worst_log2 = wangs_formula::worst_case_cubic_log2(
+    float worst = wangs_formula::worstCaseCubic(size.x, size.y, kPrecision);
+    int worst_log2 = wangs_formula::worstCaseCubicLog2(
         size.x,
         size.y,
         kPrecision);
@@ -470,8 +470,8 @@ TEST_CASE("wangs_formula_worst_case_cubic", "[wangs_formula]")
   }
   // Make sure overflow saturates at infinity (not NaN).
   constexpr static float inf = std::numeric_limits<float>::infinity();
-  REQUIRE(wangs_formula::worst_case_cubic_pow4(inf, inf, kPrecision) == inf);
-  REQUIRE(wangs_formula::worst_case_cubic(inf, inf, kPrecision) == inf);
+  REQUIRE(wangs_formula::worstCaseCubicPow4(inf, inf, kPrecision) == inf);
+  REQUIRE(wangs_formula::worstCaseCubic(inf, inf, kPrecision) == inf);
 }
 
 // Ensure Wang's formula for quads produces max error within tolerance.
@@ -691,6 +691,96 @@ TEST_CASE("wangs_formula_conic_vectorXforms", "[wangs_formula]")
       m[3] = frand_range(-10, 10);
       check_conic_with_transform(pts, w, m);
     });
+  }
+}
+
+// The 4-wide cubicPow4() has to match the single-cubic version bit for bit,
+// so batching cubics never changes tessellation.
+TEST_CASE("wangs_formula_cubic_pow4_4_wide", "[wangs_formula]")
+{
+  srand(0);
+  auto randf = [](float lo, float hi) {
+    return lo + (hi - lo) * (rand() / static_cast<float>(RAND_MAX));
+  };
+  const float inf = std::numeric_limits<float>::infinity();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  std::vector<std::array<Vec2D, 4>> cubics;
+  for (float scale : {1e-3f, 1.f, 100.f, 1e5f, 1e18f})
+  {
+    for (int i = 0; i < 64; ++i)
+    {
+      std::array<Vec2D, 4> c;
+      for (Vec2D& p : c)
+      {
+        p = {randf(-scale, scale), randf(-scale, scale)};
+      }
+      cubics.push_back(c);
+    }
+  }
+  cubics.push_back({Vec2D{5, 5}, Vec2D{5, 5}, Vec2D{5, 5}, Vec2D{5, 5}});
+  cubics.push_back({Vec2D{0, 0}, Vec2D{1, 0}, Vec2D{2, 0}, Vec2D{3, 0}});
+  cubics.push_back({Vec2D{0, 0}, Vec2D{inf, 0}, Vec2D{0, 1}, Vec2D{1, 1}});
+  cubics.push_back({Vec2D{0, 0}, Vec2D{1, nan}, Vec2D{0, 1}, Vec2D{1, 1}});
+  cubics.push_back({Vec2D{nan, nan}, Vec2D{1, 2}, Vec2D{3, 4}, Vec2D{5, 6}});
+  while (cubics.size() % 4 != 0)
+  {
+    cubics.push_back(cubics.back());
+  }
+
+  const Mat2D matrices[] = {
+      Mat2D(),
+      Mat2D::fromScale(3.5f, 0.25f),
+      Mat2D::fromScale(-2, -7),
+      Mat2D::fromRotation(0.7f),
+      Mat2D(1, 0.6f, -0.4f, 1, 10, 20), // Skew.
+      Mat2D(0, 1, 1, 0, 0, 0),          // Flip.
+  };
+  for (const Mat2D& m : matrices)
+  {
+    wangs_formula::VectorXform xform(m);
+    for (float precision : {kPrecision, 0.37f})
+    {
+      for (size_t i = 0; i < cubics.size(); i += 4)
+      {
+        float4 x[4], y[4];
+        for (int j = 0; j < 4; ++j)
+        {
+          for (int lane = 0; lane < 4; ++lane)
+          {
+            x[j][lane] = cubics[i + lane][j].x;
+            y[j][lane] = cubics[i + lane][j].y;
+          }
+        }
+        float4 n4 = wangs_formula::cubicPow4(
+            x[0],
+            y[0],
+            x[1],
+            y[1],
+            x[2],
+            y[2],
+            x[3],
+            y[3],
+            precision,
+            xform);
+        for (int lane = 0; lane < 4; ++lane)
+        {
+          float expected = wangs_formula::cubicPow4(
+              cubics[i + lane].data(),
+              precision,
+              xform);
+          if (std::isnan(expected))
+          {
+            CHECK(std::isnan(n4[lane]));
+          }
+          else
+          {
+            CHECK(
+                math::bit_cast<uint32_t>(n4[lane]) ==
+                math::bit_cast<uint32_t>(expected));
+          }
+        }
+      }
+    }
   }
 }
 } // namespace rive

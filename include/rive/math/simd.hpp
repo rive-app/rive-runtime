@@ -240,11 +240,12 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(
 template <typename T, int N>
 SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 {
-#if SIMD_NATIVE_GVEC && defined(__arm__)
+#if SIMD_NATIVE_GVEC && (defined(__arm__) || defined(__wasm__))
 #if __has_builtin(__builtin_elementwise_min)
 #if !defined(__ARM_FEATURE_NUMERIC_MAXMIN)
-  // 32-bit ARM before ARMv8 has no vector instruction with the builtin's NaN
-  // semantics, so for floats it becomes a call to fminf() per element.
+  // 32-bit ARM before ARMv8 and wasm have no vector instruction with the
+  // builtin's NaN semantics, so for floats it becomes a call to fminf() per
+  // element.
   if constexpr (std::is_floating_point_v<T>)
   {
     return if_then_else(b < a || isnan(a), b, a);
@@ -275,7 +276,7 @@ SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 template <typename T, int N>
 SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
-#if SIMD_NATIVE_GVEC && defined(__arm__)
+#if SIMD_NATIVE_GVEC && (defined(__arm__) || defined(__wasm__))
 #if __has_builtin(__builtin_elementwise_max)
 #if !defined(__ARM_FEATURE_NUMERIC_MAXMIN)
   // See min().

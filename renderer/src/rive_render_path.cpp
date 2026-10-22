@@ -306,7 +306,7 @@ static void chop_cubic_at_uniform_rotation(
       if (j + 1 < numT)
       {
         // Two chops.
-        math::chop_cubic_at(remainingCubic, chops, localT[0], localT[1]);
+        math::chopCubicAt(remainingCubic, chops, localT[0], localT[1]);
         path->cubic(chops[1], chops[2], chops[3]);
         path->cubic(chops[4], chops[5], chops[6]);
         remainingCubic = chops + 6;
@@ -315,7 +315,7 @@ static void chop_cubic_at_uniform_rotation(
       else
       {
         // Only one chop is left.
-        math::chop_cubic_at(remainingCubic, chops, localT[0]);
+        math::chopCubicAt(remainingCubic, chops, localT[0]);
         path->cubic(chops[1], chops[2], chops[3]);
         remainingCubic = chops + 3;
         remainingT = t[j];
@@ -337,7 +337,7 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
   constexpr static int POLAR_JOIN_PRECISION = 2;
   float r_ = feather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2) *
              matrixMaxScale * .25f;
-  float polarSegmentsPerRadian = math::calc_polar_segments_per_radian<
+  float polarSegmentsPerRadian = math::calcPolarSegmentsPerRadian<
       POLAR_JOIN_PRECISION>(r_);
   float rotationBetweenJoins = 1 / polarSegmentsPerRadian;
   if (rotationBetweenJoins < gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE)
@@ -385,7 +385,7 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
         Vec2D chops[(std::size(T) + 1) * 3 + 1]; // 4 chops will produce
                                                  // 16 cubic vertices.
         bool areCusps;
-        int n = math::find_cubic_convex_180_chops(pts, T, &areCusps);
+        int n = math::findCubicConvex180Chops(pts, T, &areCusps);
         assert(n <= 2);
         if (areCusps)
         {
@@ -403,7 +403,7 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
           }
           n *= 2;
         }
-        math::chop_cubic_at(pts, chops, T, n);
+        math::chopCubicAt(pts, chops, T, n);
         Vec2D* p = chops;
         for (int i = 0; i <= n; ++i, p += 3)
         {
@@ -415,8 +415,8 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
             continue;
           }
           Vec2D tangents[2];
-          math::find_cubic_tangents(p, tangents);
-          float rotation = math::measure_angle_between_vectors(
+          math::findCubicTangents(p, tangents);
+          float rotation = math::measureAngleBetweenVectors(
               tangents[0],
               tangents[1]);
           int numChops = static_cast<int>(rotation / rotationBetweenJoins);

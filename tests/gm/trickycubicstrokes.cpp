@@ -117,7 +117,7 @@ static const TrickyCubic kTrickyCubics[] = {
      CellFillMode::kStretch}, // Flat CONIC with a cusp
 };
 
-static AABB calc_tight_cubic_bounds(const Vec2D P[4], int depth = 5)
+static AABB calcTightCubicBounds(const Vec2D P[4], int depth = 5)
 {
   if (0 == depth)
   {
@@ -130,9 +130,9 @@ static AABB calc_tight_cubic_bounds(const Vec2D P[4], int depth = 5)
   }
 
   Vec2D chopped[7];
-  math::chop_cubic_at(P, chopped, .5f);
-  AABB bounds0 = calc_tight_cubic_bounds(chopped, depth - 1);
-  AABB bounds1 = calc_tight_cubic_bounds(chopped + 3, depth - 1);
+  math::chopCubicAt(P, chopped, .5f);
+  AABB bounds0 = calcTightCubicBounds(chopped, depth - 1);
+  AABB bounds1 = calcTightCubicBounds(chopped + 3, depth - 1);
   if (bounds1.isEmptyOrNaN())
   {
     return bounds0;
@@ -200,14 +200,14 @@ public:
       AABB strokeBounds;
       if (numPts == 4)
       {
-        strokeBounds = calc_tight_cubic_bounds(p);
+        strokeBounds = calcTightCubicBounds(p);
       }
       else
       {
         assert(numPts == 3);
         Vec2D asCubic[4] =
             {p[0], lerp(p[0], p[1], 2 / 3.f), lerp(p[1], p[2], 1 / 3.f), p[2]};
-        strokeBounds = calc_tight_cubic_bounds(asCubic);
+        strokeBounds = calcTightCubicBounds(asCubic);
       }
       strokeBounds = strokeBounds.inset(-kStrokeWidth, -kStrokeWidth);
 

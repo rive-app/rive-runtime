@@ -95,8 +95,16 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define RIVE_ALWAYS_INLINE inline __attribute__((always_inline))
+#define RIVE_NEVER_INLINE __attribute__((noinline))
+#define RIVE_INLINE_LAMBDA __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define RIVE_ALWAYS_INLINE inline
+#define RIVE_NEVER_INLINE __declspec(noinline)
+#define RIVE_INLINE_LAMBDA
 #else
 #define RIVE_ALWAYS_INLINE inline
+#define RIVE_NEVER_INLINE
+#define RIVE_INLINE_LAMBDA
 #endif
 
 // Exempts a function from Clang's -Wthread-safety analysis. Use only for

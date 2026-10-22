@@ -81,7 +81,7 @@ public:
          Vec2D::lerp(p2, p1, 2 / 3.f),
          p2},
           PP[7];
-    math::chop_cubic_at(P, PP, .5f);
+    math::chopCubicAt(P, PP, .5f);
 
     this->sliceCubic(PP[1], PP[2], PP[3]);
     this->sliceCubic(PP[4], PP[5], PP[6]);
@@ -99,7 +99,7 @@ public:
       return;
     }
     Vec2D P[4] = {fLastPt, p1, p2, p3}, PP[7];
-    math::chop_cubic_at(P, PP, .5f);
+    math::chopCubicAt(P, PP, .5f);
     this->sliceCubic(PP[1], PP[2], PP[3]);
     this->sliceCubic(PP[4], PP[5], PP[6]);
   }

@@ -138,21 +138,21 @@ RIVE_ALWAYS_INLINE constexpr StyledVerb styled_verb(
   return static_cast<StyledVerb>(styleFlags | static_cast<int>(verb));
 }
 
-// When chopping strokes, switching on a "chop_key" reduces "if (areChopsCusps)"
+// When chopping strokes, switching on a "chopKey" reduces "if (areChopsCusps)"
 // branching and makes the code cleaner.
-RIVE_ALWAYS_INLINE constexpr uint8_t chop_key(
+RIVE_ALWAYS_INLINE constexpr uint8_t chopKey(
     bool areChopsCusps,
     uint8_t numChops)
 {
   return (numChops << 1) | static_cast<uint8_t>(areChopsCusps);
 }
-RIVE_ALWAYS_INLINE constexpr uint8_t cusp_chop_key(uint8_t n)
+RIVE_ALWAYS_INLINE constexpr uint8_t cuspChopKey(uint8_t n)
 {
-  return chop_key(true, n);
+  return chopKey(true, n);
 }
-RIVE_ALWAYS_INLINE constexpr uint8_t simple_chop_key(uint8_t n)
+RIVE_ALWAYS_INLINE constexpr uint8_t simpleChopKey(uint8_t n)
 {
-  return chop_key(false, n);
+  return chopKey(false, n);
 }
 
 // Produces a cubic equivalent to the given line, for which Wang's formula also
@@ -176,24 +176,34 @@ RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(
   return convert_line_to_cubic(line);
 }
 
+// Room for the pieces of any chopped cubic. Two cusp chops require storage for
+// 16 points. This is because when chopping around a cusp, we temporarily
+// produce three cubics (one before the cusp, a tiny one at the cusp, and one
+// after the cusp), then remove the tiny middle one (it's replaced with a cusp
+// join). So performing two cusp chops temporarily produces: cubic A, cusp
+// cubic, cubic B, cusp cubic, cubic C. Each cubic requires three points plus
+// the last cubic's end control point, bringing us to 16 points. (After removing
+// the two cusp cubics, we're back down to 10 points.)
+using ChopBuffer = std::array<Vec2D, 16>;
+
 // Chops a cubic at each of its n cusps into n + 1 pieces that meet exactly on
-// the cusp points. Strokes draw a full round join across each cusp.
+// the cusp points. Strokes draw a cusp join across each cusp.
 //
 // To avoid zero tangents that occur at cusps, for a cusp at T, two chops are
 // performed at T - EPSILON and T + EPSILON and the middle cubic is collapsed by
 // snapping the surrounding two cubics' endpoints to the cusp's position.
 //
-// The size of dst[] must be 6 * n + 4 Vec2Ds. The result is the first
-// 3 * n + 4 values. (dst needs the larger size because it has to hold an
-// intermediate result.)
-static void chop_cubic_at_cusps(
+// dst needs room for 6 * n + 4 points because it has to hold an intermediate
+// result. The result is the first 3 * n + 4 points.
+RIVE_ALWAYS_INLINE static void chopCubicAtCusps(
     const Vec2D p[4],
-    Vec2D dst[/*6 * n + 4*/],
+    ChopBuffer* dst,
     const float cuspT[],
     int n)
 {
   float t[4];
   assert(n * 2 <= std::size(t));
+  assert(6 * n + 4 <= std::tuple_size<ChopBuffer>::value);
   // Generate chop points straddling each cusp with padding. This creates
   // buffer space around the cusp that protects against fp32 precision issues.
   for (int i = 0; i < n; ++i)
@@ -206,22 +216,48 @@ static void chop_cubic_at_cusps(
     t[i * 2 + 1] = fminf(cuspT[i] + math::EPSILON, maxT);
   }
 
-  // chop_cubic_at() will produce 2n + 1 pieces, with piece j at dst[3 * j].
+  // chopCubicAt() will produce 2n + 1 pieces, with piece j at dst[3 * j].
   // Each odd piece is a sliver around a cusp.
-  math::chop_cubic_at(p, dst, t, n * 2);
+  math::chopCubicAt(p, dst->data(), t, n * 2);
 
   // Collapse each sliver to the cusp by placing the previous piece's last
   // control point (which is shared with the next piece's first control
   // point) directly at the cusp's position and shifting the next piece down
   // in the list.
+  ChopBuffer& pts = *dst;
   for (int i = 0; i < n; ++i)
   {
-    dst[3 * i + 3] = math::eval_cubic_at(p, cuspT[i]);
-    dst[3 * i + 4] = dst[6 * i + 7];
-    dst[3 * i + 5] = dst[6 * i + 8];
+    pts[3 * i + 3] = math::evalCubicAt(p, cuspT[i]);
+    pts[3 * i + 4] = pts[6 * i + 7];
+    pts[3 * i + 5] = pts[6 * i + 8];
   }
   // Copy the cubic's original endpoint.
-  dst[3 * n + 3] = dst[6 * n + 3];
+  pts[3 * n + 3] = pts[6 * n + 3];
+}
+
+// Chops a stroked cubic at the T values its chop key calls for, writing the
+// pieces end to end into dst. The key must have at least one chop.
+RIVE_ALWAYS_INLINE static void chopCubic(
+    const Vec2D p[4],
+    uint8_t chopKey,
+    const float t[2],
+    ChopBuffer* dst)
+{
+  switch (chopKey)
+  {
+    case cuspChopKey(2): // 2 cusps
+    case cuspChopKey(1): // 1 cusp
+      chopCubicAtCusps(p, dst, t, chopKey >> 1);
+      break;
+    case simpleChopKey(2): // 2 non-cusp chops
+      math::chopCubicAt(p, dst->data(), t[0], t[1]);
+      break;
+    case simpleChopKey(1): // 1 non-cusp chop
+      math::chopCubicAt(p, dst->data(), t[0]);
+      break;
+    default:
+      RIVE_UNREACHABLE();
+  }
 }
 
 // Finds the starting tangent in a contour composed of the points [pts, end). If
@@ -384,6 +420,240 @@ static uint32_t feather_join_segment_count(float polarSegmentsPerRadian)
   // kMaxPolarSegments.
   assert(n < gpu::kMaxPolarSegments);
   return n;
+}
+
+// Finds where each of a stroke's batched cubics gets chopped, four at a time.
+// Returns the total number of chops.
+RIVE_NEVER_INLINE static size_t findCubicChops(
+    RenderContext::CubicBatch* batch,
+    size_t cubicCount)
+{
+  // Most cubics need no chops. The candidates' keys get filled in below.
+  batch->chopKeys.assign(
+      math::round_up_to_multiple_of<4>(cubicCount),
+      chopKey(false, 0));
+  batch->chopCandidates.clear();
+
+  const float4* blocks = batch->points.data();
+  for (size_t blockStart = 0; blockStart < cubicCount; blockStart += 4)
+  {
+    // Padding lanes hold copies of the last cubic, so whole blocks are safe
+    // to process.
+    const float4* block = blocks + blockStart * 2;
+    auto [p0x, p0y, p1x, p1y] = simd::load4x4f(
+        reinterpret_cast<const float*>(block));
+    auto [p2x, p2y, p3x, p3y] = simd::load4x4f(
+        reinterpret_cast<const float*>(block + 4));
+    // The early-out finds cubics that need no chops four at a time. The
+    // rest become candidates for the chop finder.
+    uint32_t candidateLanes = ~simd::bitmask(math::cubicsNeedNoChops(
+                                  p0x,
+                                  p0y,
+                                  p1x,
+                                  p1y,
+                                  p2x,
+                                  p2y,
+                                  p3x,
+                                  p3y)) &
+                              0xf;
+    if (candidateLanes == 0)
+    {
+      continue;
+    }
+    if (cubicCount - blockStart < 4)
+    {
+      // Padding lanes are never candidates.
+      candidateLanes &= (1u << (cubicCount - blockStart)) - 1;
+    }
+    for (uint32_t lane = 0; lane < 4; ++lane)
+    {
+      if (candidateLanes & (1u << lane))
+      {
+        batch->chopCandidates.push_back(
+            math::lossless_numeric_cast<uint32_t>(blockStart + lane));
+      }
+    }
+  }
+
+  // Find the candidates' chops four at a time.
+  size_t chopCount = 0;
+  const uint32_t* candidates = batch->chopCandidates.data();
+  size_t candidateCount = batch->chopCandidates.size();
+  // Room to store whole groups of 4.
+  size_t paddedCandidateCount = math::round_up_to_multiple_of<4>(
+      candidateCount);
+  if (batch->chopT0.size() < paddedCandidateCount)
+  {
+    batch->chopT0.resize(paddedCandidateCount);
+    batch->chopT1.resize(paddedCandidateCount);
+  }
+
+  for (size_t first = 0; first < candidateCount; first += 4)
+  {
+    // Gather up to four candidates' rows, repeating the last to fill a
+    // partial group.
+    float4 p01[4];
+    float4 p23[4];
+    for (size_t lane = 0; lane < 4; ++lane)
+    {
+      uint32_t i = candidates[std::min(first + lane, candidateCount - 1)];
+      const float4* block = blocks + (i / 4) * 8;
+      p01[lane] = block[i % 4];
+      p23[lane] = block[4 + i % 4];
+    }
+    auto [p0x, p0y, p1x, p1y] = simd::transpose4x4f(
+        p01[0],
+        p01[1],
+        p01[2],
+        p01[3]);
+    auto [p2x, p2y, p3x, p3y] = simd::transpose4x4f(
+        p23[0],
+        p23[1],
+        p23[2],
+        p23[3]);
+    math::Convex180Chops4 chops = math::findCubicConvex180Chops4(
+        p0x,
+        p0y,
+        p1x,
+        p1y,
+        p2x,
+        p2y,
+        p3x,
+        p3y);
+    // A group's candidates have consecutive slots, so store all 4 lanes at
+    // once. The scalar lanes below overwrite theirs.
+    simd::store(batch->chopT0.data() + first, chops.T0);
+    simd::store(batch->chopT1.data() + first, chops.T1);
+
+    for (size_t lane = 0; lane < 4 && first + lane < candidateCount; ++lane)
+    {
+      uint32_t i = candidates[first + lane];
+      uint8_t numChops;
+      if (chops.possibleCusps[lane])
+      {
+        // Cusps are rare enough to handle one at a time.
+        Vec2D p[4];
+        simd::store(&p[0].x, p01[lane]);
+        simd::store(&p[2].x, p23[lane]);
+        float t[2] = {0, 0};
+        bool areChopsCusps = false;
+        // Note: calling the full findCubicConvex180Chops() is doing a
+        // bit of redundant work (e.g. the early-out check, and tests
+        // for non-cusp cases). I haven't optimized for this case
+        // because the possibleCusps branch is fairly rare.
+        numChops = math::findCubicConvex180Chops(p, t, &areChopsCusps);
+        batch->chopKeys[i] = chopKey(areChopsCusps, numChops);
+        batch->chopT0[first + lane] = t[0];
+        batch->chopT1[first + lane] = t[1];
+      }
+      else
+      {
+        numChops = static_cast<uint8_t>(chops.numChops[lane]);
+        batch->chopKeys[i] = chopKey(false, numChops);
+      }
+      chopCount += numChops;
+    }
+  }
+  return chopCount;
+}
+
+// Finds the polar segment count of every rotation from its tangent pair, four
+// at a time.
+RIVE_NEVER_INLINE static void countPolarSegments(
+    std::array<Vec2D, 2>* tangentPairs,
+    size_t rotationCount,
+    float polarSegmentsPerRadian,
+    uint32_t* polarSegmentCounts)
+{
+  size_t paddedRotationCount = math::round_up_to_multiple_of<4>(rotationCount);
+  for (size_t j = rotationCount; j < paddedRotationCount; ++j)
+  {
+    tangentPairs[j] = {Vec2D{0, 1}, Vec2D{0, 1}};
+  }
+  for (size_t j = 0; j < paddedRotationCount; j += 4)
+  {
+    auto [tx0, ty0, tx1, ty1] = simd::load4x4f(&tangentPairs[j][0].x);
+    float4 numer = tx0 * tx1 + ty0 * ty1;
+    float4 denomPow2 = (tx0 * tx0 + ty0 * ty0) * (tx1 * tx1 + ty1 * ty1);
+#ifdef RIVE_HAS_FAST_INVERSE_SQRT
+    float4 cosTheta = numer * simd::inverseSqrtFast(denomPow2);
+#else
+    float4 cosTheta = numer / simd::sqrt(denomPow2);
+#endif
+    cosTheta = simd::clamp(cosTheta, float4(-1), float4(1));
+    float4 theta = simd::fast_acos(cosTheta);
+    float4 n = simd::ceil(theta * polarSegmentsPerRadian);
+    n = simd::clamp(n, float4(1), float4(kMaxPolarSegments));
+    simd::store(polarSegmentCounts + j, simd::cast<uint32_t>(n));
+  }
+}
+
+// Finds the parametric segment count of every piece, four at a time, and, when
+// given tangentPairs, the tangents at both ends of each piece, which go to the
+// piece's rotation slot. Returns the total parametric segment count.
+static uint32_t processPieces(
+    const float4* blocks,
+    size_t pieceCount,
+    float parametricPrecision,
+    const wangs_formula::VectorXform& vectorXform,
+    uint32_t* parametricSegmentCounts,
+    std::array<Vec2D, 2>* tangentPairs,
+    const uint32_t* rotationSlots)
+{
+  uint4 total = 0;
+  for (size_t first = 0; first < pieceCount; first += 4)
+  {
+    const float4* block = blocks + first * 2;
+    auto [p0x, p0y, p1x, p1y] = simd::load4x4f(
+        reinterpret_cast<const float*>(block));
+    auto [p2x, p2y, p3x, p3y] = simd::load4x4f(
+        reinterpret_cast<const float*>(block + 4));
+    uint4 counts = wangs_formula::cubicSegmentCounts<kMaxParametricSegments>(
+        p0x,
+        p0y,
+        p1x,
+        p1y,
+        p2x,
+        p2y,
+        p3x,
+        p3y,
+        parametricPrecision,
+        vectorXform);
+    // parametricSegmentCounts has room for whole blocks.
+    simd::store(parametricSegmentCounts + first, counts);
+    // Padding lanes don't count toward the total.
+    total += simd::if_then_else(
+        uint4{0, 1, 2, 3} + uint32_t(first) < uint32_t(pieceCount),
+        counts,
+        uint4(0));
+    if (tangentPairs == nullptr)
+    {
+      continue;
+    }
+    auto [tan0x, tan0y, tan1x, tan1y] = math::findCubicTangents4(
+        p0x,
+        p0y,
+        p1x,
+        p1y,
+        p2x,
+        p2y,
+        p3x,
+        p3y);
+    // Each column is one piece's tangent pair.
+    simd::gvec4x4<float> pairs = simd::transpose4x4f(
+        tan0x,
+        tan0y,
+        tan1x,
+        tan1y);
+    size_t laneCount = std::min<size_t>(pieceCount - first, 4);
+    for (size_t lane = 0; lane < laneCount; ++lane)
+    {
+      simd::store(
+          tangentPairs[rotationSlots[first + lane]].data(),
+          pairs.cols[lane]);
+    }
+  }
+  return simd::reduce_add(total);
 }
 } // namespace
 
@@ -666,7 +936,9 @@ PathDraw::PathDraw(
     m_strokeRadius = paint->getThickness() * .5f;
     // Ensure stroke radius is nonzero. (In PLS, zero radius means the path
     // is filled.)
-    m_strokeRadius = fmaxf(m_strokeRadius, std::numeric_limits<float>::min());
+    m_strokeRadius = std::max(
+        std::numeric_limits<float>::min(),
+        m_strokeRadius);
     assert(!std::isnan(m_strokeRadius)); // These should get culled in
                                          // RiveRenderer::drawPath().
     assert(m_strokeRadius > 0);
@@ -826,6 +1098,209 @@ void PathDraw::releaseRefs()
   safe_unref(m_gradientRef);
 }
 
+// The cubics start out as one list, with one curve slot and one rotation slot
+// each, as if none get chopped. For each cubic that does get chopped, its first
+// piece replaces the unchopped entry in-place and its other pieces are appended
+// to the end of the curve list. Their rotations, plus a cusp join before each
+// piece that follows a cusp, are appended to the end of the rotation list.
+// Returns the number of rotations added.
+size_t PathDraw::appendChoppedPieces(
+    RenderContext::CubicBatch* batch,
+    size_t cubicCount,
+    [[maybe_unused]] size_t contourCount,
+    size_t mainRotationCount)
+{
+  float4* blocks = batch->points.data();
+  uint32_t* rotationSlots = batch->rotationSlots.data();
+  batch->cuspJoins.clear();
+  auto writePiece = [blocks](size_t curveIdx, const Vec2D* p) {
+    float4* block = blocks + (curveIdx / 4) * 8;
+    block[curveIdx % 4] = simd::load4f(p);
+    block[4 + curveIdx % 4] = simd::load4f(p + 2);
+  };
+
+  // The extra chopped entries start after all of the unchopped entries in the
+  // curve and rotation lists
+  size_t extraCurveIdx = cubicCount;
+  size_t extraRotationIdx = mainRotationCount;
+  ContourInfo* contour = m_contours;
+
+  for (size_t candidateIdx = 0; candidateIdx < batch->chopCandidates.size();
+       ++candidateIdx)
+  {
+    uint32_t k = batch->chopCandidates[candidateIdx];
+    uint8_t chopKey = batch->chopKeys[k];
+    uint8_t numChops = chopKey >> 1;
+    if (numChops == 0)
+    {
+      continue;
+    }
+
+    bool areChopsCusps = (chopKey & 1) != 0;
+
+    // Advance to the contour that owns this cubic, skipping any with no
+    // cubics (e.g., only lines). A contour's curve slots are the indices
+    // of its cubics (extraCurveCount tracks the appended pieces).
+    while (k >= contour->endCurveIdx)
+    {
+      ++contour;
+      assert(contour < m_contours + contourCount);
+    }
+
+    // Chop from the RawPath (batch->rawPathCubicPoints rather than
+    // batch->points). The chop functions need the points in one contiguous
+    // array, which the batch's block layout doesn't keep, and copying them
+    // out of the block just to read them back would stall on store
+    // forwarding.
+    float t[2] = {batch->chopT0[candidateIdx], batch->chopT1[candidateIdx]};
+    ChopBuffer localChopBuffer;
+    chopCubic(batch->rawPathCubicPoints[k], chopKey, t, &localChopBuffer);
+
+    // pushMidpointFanTessellationData() only gets the T values and chops
+    // the cubic again, which measured cheaper than saving these pieces for
+    // it to read back. (The pieces here only feed processPieces().)
+    m_chopVertices.push_back() = {t[0], t[1]};
+
+    const Vec2D* p = localChopBuffer.data();
+
+    writePiece(k, p);
+    uint32_t lastPieceRotationIdx = rotationSlots[k];
+    for (int piece = 1; piece <= numChops; ++piece)
+    {
+      p += 3;
+      if (areChopsCusps)
+      {
+        // A cusp join across the cusp before this piece. Its tangents
+        // come from the pieces on either side.
+        uint32_t joinIdx = math::lossless_numeric_cast<uint32_t>(
+            extraRotationIdx++);
+        uint32_t nextPieceRotationIdx = math::lossless_numeric_cast<uint32_t>(
+            extraRotationIdx);
+        batch->cuspJoins.push_back(
+            {joinIdx, lastPieceRotationIdx, nextPieceRotationIdx});
+        ++contour->cuspJoinCount;
+        ++contour->extraRotationCount;
+      }
+
+      writePiece(extraCurveIdx, p);
+      lastPieceRotationIdx = math::lossless_numeric_cast<uint32_t>(
+          extraRotationIdx++);
+      rotationSlots[extraCurveIdx++] = lastPieceRotationIdx;
+      ++contour->extraCurveCount;
+      ++contour->extraRotationCount;
+    }
+  }
+  return extraRotationIdx - mainRotationCount;
+}
+
+RIVE_NEVER_INLINE uint32_t PathDraw::countStrokeContourVertices(
+    ContourInfo* contour,
+    bool empty,
+    size_t* extraRotationIdx,
+    size_t* emptyStrokeCountForCaps)
+{
+  uint32_t vertexCount = 0;
+  // Polar and parametric segments share the first and final vertices.
+  // Therefore:
+  //
+  //   parametricVertexCount = parametricSegmentCount + 1
+  //
+  //   polarVertexCount = polarVertexCount + 1
+  //
+  //   mergedVertexCount
+  //     = parametricVertexCount + polarVertexCount - 2
+  //     = parametricSegmentCount + 1 + polarSegmentCount + 1 - 2
+  //     = parametricSegmentCount + polarSegmentCount
+  //
+  for (size_t j = contour->firstRotationIdx; j < contour->endRotationIdx; ++j)
+  {
+    vertexCount += m_polarSegmentCounts[j];
+  }
+  size_t extraIdx = *extraRotationIdx;
+  for (size_t end = extraIdx + contour->extraRotationCount; extraIdx < end;
+       ++extraIdx)
+  {
+    vertexCount += m_polarSegmentCounts[extraIdx];
+  }
+  *extraRotationIdx = extraIdx;
+
+  // Count joins.
+  if (!isStroke())
+  {
+    assert(isFeatheredFill());
+    uint32_t numSegmentsInFeatherJoin = feather_join_segment_count(
+        m_polarSegmentsPerRadian);
+    vertexCount += contour->strokeJoinCount * (numSegmentsInFeatherJoin - 1);
+  }
+  else if (m_strokeJoin == StrokeJoin::round)
+  {
+    // Round joins share their beginning and ending spokes with the curve
+    // on either side. Therefore, the number of spokes we need to allocate
+    // for a round join is "joinSegmentCount - 1". Do all the -1's here.
+    vertexCount -= contour->strokeJoinCount;
+  }
+  else
+  {
+    vertexCount += contour->strokeJoinCount *
+                   numSpokesInFixedJoin(m_coverageType, m_strokeJoin);
+  }
+  // Cusp joins share both end vertices (like round joins). Their polar
+  // segments were summed above, with the other rotations.
+  vertexCount -= contour->cuspJoinCount;
+
+  // Count stroke caps, if any.
+  StrokeCap cap;
+  bool needsCaps = false;
+  if (!empty)
+  {
+    cap = m_strokeCap;
+    needsCaps = !contour->closed;
+  }
+  else if (isStroke())
+  {
+    cap = empty_stroke_cap(contour->closed, m_strokeJoin, m_strokeCap);
+    // Ignore butt caps when the contour is empty.
+    needsCaps = cap != StrokeCap::butt;
+  }
+  if (needsCaps)
+  {
+    // We emulate stroke caps as 180-degree joins.
+    if (cap == StrokeCap::round)
+    {
+      // Round caps rotate 180 degrees.
+      float strokeCapSegmentCount = ceilf(m_polarSegmentsPerRadian * math::PI);
+      // Make sure not to exceed kMaxPolarSegments.
+      strokeCapSegmentCount = std::min<float>(
+          kMaxPolarSegments,
+          strokeCapSegmentCount);
+      contour->strokeCapSegmentCount = static_cast<uint32_t>(
+          strokeCapSegmentCount);
+    }
+    else
+    {
+      // Butt caps are emulated as bevel joins, square caps as
+      // miterClip joins.
+      contour->strokeCapSegmentCount =
+          (cap == StrokeCap::square
+               ? numSegmentsInMiterClipJoin(m_coverageType)
+               : numSegmentsInFixedJoin(m_coverageType, StrokeJoin::bevel));
+    }
+    // +2 because caps emulated as joins need to emit spokes at T=0 and
+    // T=1, unlike normal joins, which always have a cubic neighbor to
+    // share with on both sides.
+    contour->strokeCapSegmentCount = std::min(
+        contour->strokeCapSegmentCount + 2,
+        kMaxPolarSegments);
+    // As long as a contour isn't empty, we can tack the end cap onto the
+    // join section of the final curve in the stroke. Otherwise, we need to
+    // introduce 0-tessellation-segment curves with non-empty joins to
+    // carry the caps.
+    *emptyStrokeCountForCaps += empty ? 2 : 1;
+    vertexCount += (contour->strokeCapSegmentCount - 1) * 2;
+  }
+  return vertexCount;
+}
+
 void PathDraw::initForMidpointFan(
     RenderContext* context,
     const RiveRenderPaint* paint)
@@ -845,10 +1320,10 @@ void PathDraw::initForMidpointFan(
     {
       r_ = m_featherRadius * m_strokeMatrixMaxScale;
 
-      // Inverse of 1/calc_polar_segments_per_radian at
+      // Inverse of 1/calcPolarSegmentsPerRadian at
       // FEATHER_MIN_POLAR_SEGMENT_ANGLE.
       //
-      // i.e., 1 / calc_polar_segments_per_radian<kPolarPrecision>(
+      // i.e., 1 / calcPolarSegmentsPerRadian<kPolarPrecision>(
       //           FEATHER_MIN_POLAR_SEGMENT_ANGLE) ==
       //       FEATHER_MAX_SCREEN_SPACE_RADIUS
       //
@@ -856,7 +1331,7 @@ void PathDraw::initForMidpointFan(
           1 /
           (kPolarPrecision * (1 - COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2));
       assert(math::nearly_equal(
-          1 / math::calc_polar_segments_per_radian<kPolarPrecision>(
+          1 / math::calcPolarSegmentsPerRadian<kPolarPrecision>(
                   FEATHER_MAX_SCREEN_SPACE_RADIUS),
           gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE));
 
@@ -868,7 +1343,7 @@ void PathDraw::initForMidpointFan(
     {
       r_ += m_strokeRadius * m_strokeMatrixMaxScale;
     }
-    m_polarSegmentsPerRadian = math::calc_polar_segments_per_radian<
+    m_polarSegmentsPerRadian = math::calcPolarSegmentsPerRadian<
         kPolarPrecision>(r_);
 
     m_strokeJoin = paint->getJoin();
@@ -893,8 +1368,8 @@ void PathDraw::initForMidpointFan(
   size_t maxRotations = 0;
   if (isStrokeOrFeather())
   {
-    // Each piece of a stroked cubic takes a rotation slot, as does the full
-    // round join across each cusp.
+    // Each piece of a stroked cubic takes a rotation slot, as does the cusp
+    // join across each cusp.
     maxRotations += cubicCount * 5;
     if (m_strokeJoin == StrokeJoin::round)
     {
@@ -912,14 +1387,15 @@ void PathDraw::initForMidpointFan(
   // Each stroked cubic will record the number of chops it requires (either
   // 0, 1, or 2).
   size_t maxChops = isStrokeOrFeather() ? cubicCount : 0;
-  // Each chopped cubic saves its T values for the push pass to re-chop.
+  // Each chopped cubic saves its T values for
+  // pushMidpointFanTessellationData() to chop it again.
   size_t maxChopVertices = maxChops;
-  // +3 for each contour because we align each contour's curves and rotations
-  // on multiples of 4.
+  // Curves and rotations are processed in whole blocks of 4.
   size_t maxPaddedRotations = isStrokeOrFeather()
-                                  ? maxRotations + contourCount * 3
+                                  ? math::round_up_to_multiple_of<4>(
+                                        maxRotations)
                                   : 0;
-  size_t maxPaddedCurves = maxCurves + contourCount * 3;
+  size_t maxPaddedCurves = math::round_up_to_multiple_of<4>(maxCurves);
 
   // Reserve intermediate space for the polar segment counts of each curve and
   // round join.
@@ -948,18 +1424,35 @@ void PathDraw::initForMidpointFan(
   }
 
   size_t lineCount = 0;
-  size_t unpaddedCurveCount = 0;
-  size_t unpaddedRotationCount = 0;
   size_t emptyStrokeCountForCaps = 0;
 
-  // Iteration pass 1: Collect information on contour and curves counts for
-  // every path in the batch, and begin counting tessellated vertices.
+  // Iteration pass 1: Collect contours, round joins and line counts, and copy
+  // the cubics into the batch buffer. Each cubic gets one curve and rotation
+  // slot. appendChoppedPieces() will later add any slots for the extra pieces
+  // that result from chopping.
   size_t contourIdx = 0;
   size_t curveIdx = 0;
   // We measure rotations on both curves and round joins.
   size_t rotationIdx = 0;
   bool roundJoinStroked = isStroke() && m_strokeJoin == StrokeJoin::round;
   wangs_formula::VectorXform vectorXform(m_paintMatrix);
+
+  RenderContext::CubicBatch& cubicBatch = context->cubicBatch();
+  cubicBatch.resize(cubicCount, maxCurves, isStroke());
+  float4* cubicBlocks = cubicBatch.points.data();
+  // Where the next cubic's [p0 p1] goes. Its [p2 p3] goes 4 lanes later.
+  float4* nextCubicLane = cubicBlocks;
+  // Copies a cubic into its block and gives it the next curve slot. In pass 1
+  // the curve slots are the cubics' indices.
+  auto gatherCubic = [&](const Vec2D* p) {
+    assert(curveIdx < cubicCount);
+    nextCubicLane[0] = simd::load4f(p);
+    nextCubicLane[4] = simd::load4f(p + 2);
+    ++curveIdx;
+    // Skip the [p2 p3] half after a block's last lane.
+    nextCubicLane += (curveIdx % 4 != 0) ? 1 : 5;
+  };
+
   RawPath::Iter startOfContour = rawPath.begin();
   RawPath::Iter end = rawPath.end();
   // Original number of lines and curves, before chopping.
@@ -969,12 +1462,10 @@ void PathDraw::initForMidpointFan(
   Vec2D lastTangent = {0, 1};
   Vec2D firstTangent = {0, 1};
   size_t roundJoinCount = 0;
-  size_t cuspJoinCount = 0;
   size_t contourFirstCurveIdx = curveIdx;
-  assert(contourFirstCurveIdx % 4 == 0);
   size_t contourFirstRotationIdx = rotationIdx;
-  assert(contourFirstRotationIdx % 4 == 0);
-  auto finishAndAppendContour = [&](RawPath::Iter iter) {
+  // Inlined so the counters it shares with the loop can stay in registers.
+  auto finishAndAppendContour = [&](RawPath::Iter iter) RIVE_INLINE_LAMBDA {
     if (closed)
     {
       Vec2D finalPtInContour = iter.rawPtsPtr()[-1];
@@ -1024,17 +1515,15 @@ void PathDraw::initForMidpointFan(
         isStroke() ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
         closed,
         strokeJoinCount,
-        cuspJoinCount,
+        0,                 // cuspJoinCount (see appendChoppedPieces())
+        0,                 // extraCurveCount
+        0,                 // extraRotationCount
         0,                 // strokeCapSegmentCount
         0,                 // paddingVertexCount
         RIVE_DEBUG_CODE(0) // tessVertexCount
     };
-    unpaddedCurveCount += curveIdx - contourFirstCurveIdx;
-    contourFirstCurveIdx = curveIdx = math::round_up_to_multiple_of<4>(
-        curveIdx);
-    unpaddedRotationCount += rotationIdx - contourFirstRotationIdx;
-    contourFirstRotationIdx = rotationIdx = math::round_up_to_multiple_of<4>(
-        rotationIdx);
+    contourFirstCurveIdx = curveIdx;
+    contourFirstRotationIdx = rotationIdx;
   };
   const int styleFlags = style_flags(isStrokeOrFeather(), roundJoinStroked);
   for (RawPath::Iter iter = startOfContour; iter != end; ++iter)
@@ -1055,7 +1544,6 @@ void PathDraw::initForMidpointFan(
         lastTangent = {0, 1};
         firstTangent = {0, 1};
         roundJoinCount = 0;
-        cuspJoinCount = 0;
         break;
       case StyledVerb::roundJoinStrokedClose:
       case StyledVerb::strokedClose:
@@ -1098,7 +1586,7 @@ void PathDraw::initForMidpointFan(
       {
         const Vec2D* p = iter.cubicPts();
         Vec2D unchoppedTangents[2];
-        math::find_cubic_tangents(p, unchoppedTangents);
+        math::findCubicTangents(p, unchoppedTangents);
         if (preChopVerbCount == 0)
         {
           firstTangent = unchoppedTangents[0];
@@ -1117,89 +1605,28 @@ void PathDraw::initForMidpointFan(
         const Vec2D* p = iter.cubicPts();
         ++preChopVerbCount;
         endpointsSum += p[3];
-        // Chop strokes into sections that do not inflect (i.e, are
-        // convex), and do not rotate more than 180 degrees. This is
-        // required by the GPU parametric/polar sorter.
-        float t[2];
-        bool areChopsCusps = false;
-        uint8_t numChops = isStroke() ? math::find_cubic_convex_180_chops(
-                                            p,
-                                            t,
-                                            &areChopsCusps)
-                                      : 0; // Feathers already got chopped.
-        uint8_t chopKey = chop_key(areChopsCusps, numChops);
-        m_numChops.push_back(chopKey);
-        Vec2D localChopBuffer[16];
-        switch (chopKey)
+        assert(curveIdx < maxPaddedCurves);
+        assert(rotationIdx < maxPaddedRotations);
+        if (isStroke())
         {
-          case cusp_chop_key(2): // 2 cusps
-          case cusp_chop_key(1): // 1 cusp
-            chop_cubic_at_cusps(p, localChopBuffer, t, numChops);
-            break;
-          case simple_chop_key(2): // 2 non-cusp chops
-            math::chop_cubic_at(p, localChopBuffer, t[0], t[1]);
-            break;
-          case simple_chop_key(1): // 1 non-cusp chop
-            math::chop_cubic_at(p, localChopBuffer, t[0]);
-            break;
+          // Where this cubic's tangents go. processPieces() fills
+          // them in after chopping, once the slot holds the cubic's
+          // first piece.
+          cubicBatch
+              .rotationSlots[curveIdx] = math::lossless_numeric_cast<uint32_t>(
+              rotationIdx);
+          cubicBatch.rawPathCubicPoints[curveIdx] = p;
         }
-        if (numChops != 0)
+        else
         {
-          // Re-chopping in the push pass is cheaper than saving the
-          // pieces and reading them back.
-          m_chopVertices.push_back() = {t[0], t[1]};
-          p = localChopBuffer;
+          // FIXME: Feathered fills don't have polar segments for now,
+          // but we're leaving space for them in m_tangentPairs
+          // because we will convert them to use a similar concept of
+          // "polar joins" once we move them onto the GPU.
+          m_tangentPairs[rotationIdx] = {Vec2D{0, 1}, Vec2D{0, 1}};
         }
-        // Calculate segment counts for each chopped section
-        // independently.
-        for (int piece = 0; piece <= numChops;
-             ++piece, p += 3, ++curveIdx, ++rotationIdx)
-        {
-          float n4 = wangs_formula::cubic_pow4(
-              p,
-              parametricPrecision,
-              vectorXform);
-          // Record n^4 for now. This will get resolved later.
-          assert(curveIdx < maxPaddedCurves);
-          RIVE_INLINE_MEMCPY(
-              m_parametricSegmentCounts + curveIdx,
-              &n4,
-              sizeof(uint32_t));
-          assert(rotationIdx < maxPaddedRotations);
-          if (isStroke())
-          {
-            math::find_cubic_tangents(p, m_tangentPairs[rotationIdx].data());
-            if (areChopsCusps)
-            {
-              if (piece > 0)
-              {
-                // This cubic is connected to the previous one
-                // with a full round join, so copy its tangents
-                // from the surrounding cubics.
-                m_tangentPairs[rotationIdx - 1] = {
-                    m_tangentPairs[rotationIdx - 2][1],
-                    m_tangentPairs[rotationIdx][0]};
-              }
-              if (piece < numChops)
-              {
-                // Leave a slot for the full round join across
-                // the cusp after this piece.
-                ++rotationIdx;
-                assert(rotationIdx < maxPaddedRotations);
-                ++cuspJoinCount;
-              }
-            }
-          }
-          else
-          {
-            // FIXME: Feathered fills don't have polar segments for
-            // now, but we're leaving space for them in
-            // m_tangentPairs because we will convert them to use a
-            // similar concept of "polar joins" once we move them
-            // onto the GPU.
-            m_tangentPairs[rotationIdx] = {Vec2D{0, 1}, Vec2D{0, 1}};
-          }
-        }
+        gatherCubic(p);
+        ++rotationIdx;
         break;
       }
       case StyledVerb::filledCubic:
@@ -1207,16 +1634,8 @@ void PathDraw::initForMidpointFan(
         const Vec2D* p = iter.cubicPts();
         ++preChopVerbCount;
         endpointsSum += p[3];
-        float n4 = wangs_formula::cubic_pow4(
-            p,
-            parametricPrecision,
-            vectorXform);
-        // Record n^4 for now. This will get resolved later.
         assert(curveIdx < maxPaddedCurves);
-        RIVE_INLINE_MEMCPY(
-            m_parametricSegmentCounts + curveIdx++,
-            &n4,
-            sizeof(uint32_t));
+        gatherCubic(p);
         break;
       }
     }
@@ -1225,18 +1644,82 @@ void PathDraw::initForMidpointFan(
   {
     finishAndAppendContour(end);
   }
+  assert(curveIdx == cubicCount);
   assert(contourIdx == contourCount);
   assert(contourCount > 0);
-  assert(curveIdx <= maxPaddedCurves);
   assert(rotationIdx <= maxPaddedRotations);
-  // Because we write parametric segment counts in batches of 4.
-  assert(curveIdx % 4 == 0);
-  // Because we write polar segment counts in batches of 4.
-  assert(rotationIdx % 4 == 0);
   assert(isStrokeOrFeather() || maxPaddedRotations == 0);
   assert(isStrokeOrFeather() || rotationIdx == 0);
 
+  // Fill the final block's unused lanes with copies of the last cubic, so
+  // SIMD code never sees uninitialized data.
+  if (size_t lastLane = cubicCount % 4; lastLane != 0)
+  {
+    float4* block = cubicBlocks + (cubicCount / 4) * 8;
+    for (size_t lane = lastLane; lane < 4; ++lane)
+    {
+      block[lane] = block[lastLane - 1];
+      block[4 + lane] = block[4 + lastLane - 1];
+    }
+  }
+
+  // Chop strokes into sections that do not inflect (i.e, are convex), and do
+  // not rotate more than 180 degrees. This is required by the GPU
+  // parametric/polar sorter. (Feathered fills come here already chopped.)
+  size_t chopCount = 0;
+  if (isStroke() && cubicCount != 0)
+  {
+    chopCount = findCubicChops(&cubicBatch, cubicCount);
+    // pushMidpointFanTessellationData() chops each cubic again from its
+    // key and T values.
+    memcpy(
+        m_numChops.push_back_n(cubicCount),
+        cubicBatch.chopKeys.data(),
+        cubicCount);
+  }
+  else if (isStrokeOrFeather())
+  {
+    memset(m_numChops.push_back_n(cubicCount), chopKey(false, 0), cubicCount);
+  }
+  m_firstExtraCurveIdx = curveIdx;
+  m_firstExtraRotationIdx = rotationIdx;
+  if (chopCount != 0)
+  {
+    rotationIdx += appendChoppedPieces(
+        &cubicBatch,
+        cubicCount,
+        contourCount,
+        rotationIdx);
+    curveIdx += chopCount;
+  }
+  assert(curveIdx <= maxPaddedCurves);
+  assert(rotationIdx <= maxPaddedRotations);
+
+  // Count every curve's parametric segments and, for strokes, find its
+  // tangents.
+  uint32_t parametricSegmentTotal = processPieces(
+      cubicBatch.points.data(),
+      curveIdx,
+      parametricPrecision,
+      vectorXform,
+      m_parametricSegmentCounts,
+      isStroke() ? m_tangentPairs : nullptr,
+      cubicBatch.rotationSlots.data());
+  if (chopCount != 0)
+  {
+    // Fill in the tangents for cusp joins that were added for cusp chops.
+    // These just bridge the surrounding cubics' tangents.
+    for (auto [joinIdx, beforeIdx, afterIdx] : cubicBatch.cuspJoins)
+    {
+      m_tangentPairs[joinIdx] = {
+          m_tangentPairs[beforeIdx][1],
+          m_tangentPairs[afterIdx][0]};
+    }
+  }
+
   // Return any data we conservatively allocated but did not use.
+  size_t paddedCurveCount = math::round_up_to_multiple_of<4>(curveIdx);
+  size_t paddedRotationCount = math::round_up_to_multiple_of<4>(rotationIdx);
   if (isStrokeOrFeather())
   {
     m_numChops.shrinkToFit(context->numChopsAllocator(), maxChops);
@@ -1244,172 +1727,62 @@ void PathDraw::initForMidpointFan(
         context->chopVerticesAllocator(),
         maxChopVertices);
     context->tangentPairsAllocator().rewindLastAllocation(
-        maxPaddedRotations - rotationIdx);
+        maxPaddedRotations - paddedRotationCount);
     context->polarSegmentCountsAllocator().rewindLastAllocation(
-        maxPaddedRotations - rotationIdx);
+        maxPaddedRotations - paddedRotationCount);
   }
   context->parametricSegmentCountsAllocator().rewindLastAllocation(
-      maxPaddedCurves - curveIdx);
+      maxPaddedCurves - paddedCurveCount);
 
-  // Iteration pass 2: Finish calculating the numbers of tessellation segments
-  // in each contour, using SIMD.
+  if (isStrokeOrFeather())
+  {
+    countPolarSegments(
+        m_tangentPairs,
+        rotationIdx,
+        m_polarSegmentsPerRadian,
+        m_polarSegmentCounts);
+  }
+
+  // Iteration pass 2: Count the tessellation vertices in each contour.
   size_t contourFirstLineIdx = 0;
   size_t tessVertexCount = 0;
+  size_t extraCurveIdx = m_firstExtraCurveIdx;
+  size_t extraRotationIdx = m_firstExtraRotationIdx;
   for (size_t i = 0; i < contourCount; ++i)
   {
     ContourInfo* contour = &m_contours[i];
     size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
     uint32_t contourVertexCount = math::lossless_numeric_cast<uint32_t>(
         contourLineCount * 2); // Each line tessellates to 2 vertices.
-    uint4 mergedTessVertexSums4 = 0;
 
-    // Finish calculating and counting parametric segments for each curve.
-    size_t j;
-    for (j = contour->firstCurveIdx; j < contour->endCurveIdx; j += 4)
+    if (contourCount == 1)
     {
-      // Curves recorded their segment counts raised to the 4th power. Now
-      // find their roots and convert to integers in batches of 4.
-      assert(j + 4 <= curveIdx);
-      float4 n = simd::load4f(m_parametricSegmentCounts + j);
-      n = simd::ceil(simd::sqrt(simd::sqrt(n)));
-      n = simd::clamp(n, float4(1), float4(kMaxParametricSegments));
-      uint4 n_ = simd::cast<uint32_t>(n);
-      assert(j + 4 <= curveIdx);
-      simd::store(m_parametricSegmentCounts + j, n_);
-      mergedTessVertexSums4 += n_;
+      // A single contour has every curve.
+      contourVertexCount += parametricSegmentTotal;
     }
-    // We counted in batches of 4. Undo the values we counted from beyond
-    // the end of the path.
-    while (j-- > contour->endCurveIdx)
+    else
     {
-      contourVertexCount -= m_parametricSegmentCounts[j];
+      for (size_t c = contour->firstCurveIdx; c < contour->endCurveIdx; ++c)
+      {
+        contourVertexCount += m_parametricSegmentCounts[c];
+      }
+      for (size_t end = extraCurveIdx + contour->extraCurveCount;
+           extraCurveIdx < end;
+           ++extraCurveIdx)
+      {
+        contourVertexCount += m_parametricSegmentCounts[extraCurveIdx];
+      }
     }
 
     if (isStrokeOrFeather())
     {
-      // Finish calculating and counting polar segments for each stroked
-      // curve and round join.
-      for (j = contour->firstRotationIdx; j < contour->endRotationIdx; j += 4)
-      {
-        // Measure the rotations of curves in batches of 4.
-        assert(j + 4 <= rotationIdx);
-
-        auto [tx0, ty0, tx1, ty1] = simd::load4x4f(&m_tangentPairs[j][0].x);
-
-        float4 numer = tx0 * tx1 + ty0 * ty1;
-        float4 denom_pow2 = (tx0 * tx0 + ty0 * ty0) * (tx1 * tx1 + ty1 * ty1);
-        float4 cosTheta = numer / simd::sqrt(denom_pow2);
-        cosTheta = simd::clamp(cosTheta, float4(-1), float4(1));
-        float4 theta = simd::fast_acos(cosTheta);
-        // Find polar segment counts from the rotation angles.
-        float4 n = simd::ceil(theta * m_polarSegmentsPerRadian);
-        n = simd::clamp(n, float4(1), float4(kMaxPolarSegments));
-        uint4 n_ = simd::cast<uint32_t>(n);
-        assert(j + 4 <= rotationIdx);
-        simd::store(m_polarSegmentCounts + j, n_);
-        // Polar and parametric segments share the first and final
-        // vertices. Therefore:
-        //
-        //   parametricVertexCount = parametricSegmentCount + 1
-        //
-        //   polarVertexCount = polarVertexCount + 1
-        //
-        //   mergedVertexCount
-        //     = parametricVertexCount + polarVertexCount - 2
-        //     = parametricSegmentCount + 1 + polarSegmentCount + 1 - 2
-        //     = parametricSegmentCount + polarSegmentCount
-        //
-        mergedTessVertexSums4 += n_;
-      }
-
-      // We counted in batches of 4. Undo the values we counted from
-      // beyond the end of the path.
-      while (j-- > contour->endRotationIdx)
-      {
-        contourVertexCount -= m_polarSegmentCounts[j];
-      }
-
-      // Count joins.
-      if (!isStroke())
-      {
-        assert(isFeatheredFill());
-        uint32_t numSegmentsInFeatherJoin = feather_join_segment_count(
-            m_polarSegmentsPerRadian);
-        contourVertexCount += contour->strokeJoinCount *
-                              (numSegmentsInFeatherJoin - 1);
-      }
-      else if (m_strokeJoin == StrokeJoin::round)
-      {
-        // Round joins share their beginning and ending spokes with the
-        // curve on either side. Therefore, the number of spokes we need
-        // to allocate for a round join is "joinSegmentCount - 1". Do
-        // all the -1's here.
-        contourVertexCount -= contour->strokeJoinCount;
-      }
-      else
-      {
-        contourVertexCount += contour->strokeJoinCount * numSpokesInFixedJoin(
-                                                             m_coverageType,
-                                                             m_strokeJoin);
-      }
-      // Cusp joins are full round joins, which share both end vertices
-      // (like round joins). Their polar segments were summed above, with
-      // the other rotations.
-      contourVertexCount -= contour->cuspJoinCount;
-
-      // Count stroke caps, if any.
       bool empty = contour->endLineIdx == contourFirstLineIdx &&
                    contour->endCurveIdx == contour->firstCurveIdx;
-      StrokeCap cap;
-      bool needsCaps = false;
-      if (!empty)
-      {
-        cap = m_strokeCap;
-        needsCaps = !contour->closed;
-      }
-      else if (isStroke())
-      {
-        cap = empty_stroke_cap(contour->closed, m_strokeJoin, m_strokeCap);
-        needsCaps = cap != StrokeCap::butt; // Ignore butt caps when the
-                                            // contour is empty.
-      }
-      if (needsCaps)
-      {
-        // We emulate stroke caps as 180-degree joins.
-        if (cap == StrokeCap::round)
-        {
-          // Round caps rotate 180 degrees.
-          float strokeCapSegmentCount = ceilf(
-              m_polarSegmentsPerRadian * math::PI);
-          // Make sure not to exceed kMaxPolarSegments.
-          strokeCapSegmentCount = fminf(
-              strokeCapSegmentCount,
-              kMaxPolarSegments);
-          contour->strokeCapSegmentCount = static_cast<uint32_t>(
-              strokeCapSegmentCount);
-        }
-        else
-        {
-          // Butt caps are emulated as bevel joins, square caps as
-          // miterClip joins.
-          contour->strokeCapSegmentCount =
-              (cap == StrokeCap::square
-                   ? numSegmentsInMiterClipJoin(m_coverageType)
-                   : numSegmentsInFixedJoin(m_coverageType, StrokeJoin::bevel));
-        }
-        // +2 because caps emulated as joins need to emit spokes at T=0
-        // and T=1, unlike normal joins, which always have a cubic
-        // neighbor to share with on both sides.
-        contour->strokeCapSegmentCount = std::min(
-            contour->strokeCapSegmentCount + 2,
-            kMaxPolarSegments);
-        // As long as a contour isn't empty, we can tack the end cap
-        // onto the join section of the final curve in the stroke.
-        // Otherwise, we need to introduce 0-tessellation-segment curves
-        // with non-empty joins to carry the caps.
-        emptyStrokeCountForCaps += empty ? 2 : 1;
-        contourVertexCount += (contour->strokeCapSegmentCount - 1) * 2;
-      }
+      contourVertexCount += countStrokeContourVertices(
+          contour,
+          empty,
+          &extraRotationIdx,
+          &emptyStrokeCountForCaps);
     }
     else
     {
@@ -1422,7 +1795,6 @@ void PathDraw::initForMidpointFan(
       size_t contourCurveCount = contour->endCurveIdx - contour->firstCurveIdx;
       contourVertexCount += contourCurveCount;
     }
-    contourVertexCount += simd::reduce_add(mergedTessVertexSums4);
 
     // Add padding vertices until the number of tessellation vertices in the
     // contour is an exact multiple of kMidpointFanPatchSegmentSpan. This
@@ -1439,8 +1811,8 @@ void PathDraw::initForMidpointFan(
 
   assert(contourFirstLineIdx == lineCount);
   RIVE_DEBUG_CODE(m_pendingLineCount = lineCount);
-  RIVE_DEBUG_CODE(m_pendingCurveCount = unpaddedCurveCount);
-  RIVE_DEBUG_CODE(m_pendingRotationCount = unpaddedRotationCount);
+  RIVE_DEBUG_CODE(m_pendingCurveCount = curveIdx);
+  RIVE_DEBUG_CODE(m_pendingRotationCount = rotationIdx);
   RIVE_DEBUG_CODE(m_pendingEmptyStrokeCountForCaps = emptyStrokeCountForCaps);
 
   if (tessVertexCount > 0)
@@ -1450,8 +1822,7 @@ void PathDraw::initForMidpointFan(
     // maxTessellatedSegmentCount does not get doubled when we emit both
     // forward and mirrored contours because the forward and mirrored pair
     // both get packed into a single gpu::TessVertexSpan.
-    m_resourceCounts.maxTessellatedSegmentCount = lineCount +
-                                                  unpaddedCurveCount +
+    m_resourceCounts.maxTessellatedSegmentCount = lineCount + curveIdx +
                                                   emptyStrokeCountForCaps;
     m_resourceCounts
         .midpointFanTessVertexCount = gpu::ContourDirectionsAreDoubleSided(
@@ -2117,6 +2488,10 @@ void PathDraw::pushMidpointFanTessellationData(
   RIVE_PROF_SCOPE_L(3)
   const RawPath& rawPath = m_pathRef->getRawPath();
   RawPath::Iter startOfContour = rawPath.begin();
+  // The second and later pieces of chopped cubics, and their cusp joins, come
+  // after all the path's other curves and rotations, in order.
+  size_t extraCurveIdx = m_firstExtraCurveIdx;
+  size_t extraRotationIdx = m_firstExtraRotationIdx;
   for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
   {
     // Push a contour and curve records.
@@ -2132,6 +2507,8 @@ void PathDraw::pushMidpointFanTessellationData(
     const Vec2D* pts = startOfContour.rawPtsPtr();
     size_t curveIdx = contour.firstCurveIdx;
     size_t rotationIdx = contour.firstRotationIdx;
+    RIVE_DEBUG_CODE(size_t contourFirstExtraCurveIdx = extraCurveIdx;)
+    RIVE_DEBUG_CODE(size_t contourFirstExtraRotationIdx = extraRotationIdx;)
     const RawPath::Iter end = contour.endOfContour;
     uint32_t joinTypeFlags = 0;
     bool roundJoinStroked = false;
@@ -2289,27 +2666,13 @@ void PathDraw::pushMidpointFanTessellationData(
           const Vec2D* p = iter.cubicPts();
           uint8_t chopKey = m_numChops.pop_front();
           uint8_t numChops = chopKey >> 1;
-          Vec2D localChopBuffer[16];
+          ChopBuffer localChopBuffer;
           if (numChops != 0)
           {
             auto [t0, t1] = m_chopVertices.pop_front();
-            switch (chopKey)
-            {
-              case cusp_chop_key(2): // 2 cusps
-              case cusp_chop_key(1): // 1 cusp
-              {
-                const float t[2] = {t0, t1};
-                chop_cubic_at_cusps(p, localChopBuffer, t, numChops);
-                break;
-              }
-              case simple_chop_key(2): // 2 non-cusp chops
-                math::chop_cubic_at(p, localChopBuffer, t0, t1);
-                break;
-              case simple_chop_key(1): // 1 non-cusp chop
-                math::chop_cubic_at(p, localChopBuffer, t0);
-                break;
-            }
-            p = localChopBuffer;
+            const float t[2] = {t0, t1};
+            chopCubic(p, chopKey, t, &localChopBuffer);
+            p = localChopBuffer.data();
           }
           if (needsFirstEmulatedCapAsJoin)
           {
@@ -2322,14 +2685,16 @@ void PathDraw::pushMidpointFanTessellationData(
                 contourIDWithFlags | emulatedCapAsJoinFlags);
             needsFirstEmulatedCapAsJoin = false;
           }
-          // Push chops before the final one.
+          // Push chops before the final one. The first piece is in
+          // the cubic's own slots.
           const bool areChopsCusps = (chopKey & 1) != 0;
-          for (size_t end = curveIdx + numChops; curveIdx != end;
-               ++curveIdx, ++rotationIdx, p += 3)
+          size_t pieceCurveIdx = curveIdx++;
+          size_t pieceRotationIdx = rotationIdx++;
+          for (uint8_t piece = 0; piece < numChops; ++piece, p += 3)
           {
-            uint32_t
-                parametricSegmentCount = m_parametricSegmentCounts[curveIdx];
-            uint32_t polarSegmentCount = m_polarSegmentCounts[rotationIdx];
+            uint32_t parametricSegmentCount = m_parametricSegmentCounts
+                [pieceCurveIdx];
+            uint32_t polarSegmentCount = m_polarSegmentCounts[pieceRotationIdx];
             RIVE_DEBUG_CODE(--m_pendingRotationCount;)
 
             Vec2D chopJoinTangent;
@@ -2338,11 +2703,11 @@ void PathDraw::pushMidpointFanTessellationData(
             if (areChopsCusps)
             {
               // A cusp turns 180 degrees which gets drawn with a
-              // full round join.
-              ++rotationIdx;
-              chopJoinTangent = m_tangentPairs[rotationIdx][1];
-              chopJoinSegmentCount = m_polarSegmentCounts[rotationIdx];
-              chopJoinTypeFlags = FULL_ROUND_JOIN_CONTOUR_FLAG;
+              // cusp join.
+              size_t cuspJoinIdx = extraRotationIdx++;
+              chopJoinTangent = m_tangentPairs[cuspJoinIdx][1];
+              chopJoinSegmentCount = m_polarSegmentCounts[cuspJoinIdx];
+              chopJoinTypeFlags = CUSP_JOIN_CONTOUR_FLAG;
               RIVE_DEBUG_CODE(--m_pendingRotationCount;)
             }
             else
@@ -2363,11 +2728,13 @@ void PathDraw::pushMidpointFanTessellationData(
                 chopJoinSegmentCount,
                 contourIDWithFlags | chopJoinTypeFlags);
             RIVE_DEBUG_CODE(--m_pendingCurveCount;)
+            pieceCurveIdx = extraCurveIdx++;
+            pieceRotationIdx = extraRotationIdx++;
           }
           // Push the final chop, with a join.
           uint32_t
-              parametricSegmentCount = m_parametricSegmentCounts[curveIdx++];
-          uint32_t polarSegmentCount = m_polarSegmentCounts[rotationIdx++];
+              parametricSegmentCount = m_parametricSegmentCounts[pieceCurveIdx];
+          uint32_t polarSegmentCount = m_polarSegmentCounts[pieceRotationIdx];
           RIVE_DEBUG_CODE(--m_pendingRotationCount;)
           if (contour.closed || !is_final_verb_of_contour(iter, end))
           {
@@ -2482,6 +2849,11 @@ void PathDraw::pushMidpointFanTessellationData(
 
     assert(curveIdx == contour.endCurveIdx);
     assert(rotationIdx == contour.endRotationIdx);
+    assert(
+        extraCurveIdx - contourFirstExtraCurveIdx == contour.extraCurveCount);
+    assert(
+        extraRotationIdx - contourFirstExtraRotationIdx ==
+        contour.extraRotationCount);
 
     assert(m_pendingStrokeJoinCount == 0);
     assert(m_pendingStrokeCapCount == 0);
@@ -2510,7 +2882,7 @@ void PathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
   tessWriter->pushCubic(
       std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
       m_contourDirections,
-      math::find_cubic_tan0(cubic),
+      math::findCubicTan0(cubic),
       0,
       0,
       strokeCapSegmentCount,
@@ -2627,7 +2999,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
             RIVE_DEBUG_CODE(size_t pushedPatchCount = 0;)
             // Passing nullptr for the 'tValues' causes it to chop
             // the cubic uniformly in T.
-            math::chop_cubic_at(pts, chops, nullptr, numSubdivisions - 1);
+            math::chopCubicAt(pts, chops, nullptr, numSubdivisions - 1);
             const Vec2D* chop = chops;
             for (size_t i = 0; i < numSubdivisions; ++i)
             {

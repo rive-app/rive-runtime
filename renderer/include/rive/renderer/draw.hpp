@@ -413,6 +413,27 @@ public:
   void releaseRefs() override;
 
 protected:
+  struct ContourInfo
+  {
+    RawPath::Iter endOfContour;
+    size_t endLineIdx;
+    size_t firstCurveIdx;
+    size_t endCurveIdx;
+    size_t firstRotationIdx; // We measure rotations on both curves and
+                             // round joins.
+    size_t endRotationIdx;
+    Vec2D midpoint;
+    bool closed;
+    size_t strokeJoinCount;
+    size_t cuspJoinCount;   // Cusps create cusp joins (these don't contribute
+                            // to strokeJoinCount)
+    size_t extraCurveCount; // Curves from appendChoppedPieces()
+    size_t extraRotationCount; // Rotations from appendChoppedPieces()
+    uint32_t strokeCapSegmentCount;
+    uint32_t paddingVertexCount;
+    RIVE_DEBUG_CODE(uint32_t tessVertexCount;)
+  };
+
   static CoverageType SelectCoverageType(
       const RiveRenderPaint*,
       float matrixMaxScale,
@@ -421,6 +442,19 @@ protected:
 
   // Prepares to draw the path as a fan tessellated around the midpoint.
   void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
+  size_t appendChoppedPieces(
+      RenderContext::CubicBatch*,
+      size_t cubicCount,
+      size_t contourCount,
+      size_t mainRotationCount);
+
+  // Counts the vertices a stroked or feathered contour adds for its polar
+  // segments, joins and caps.
+  uint32_t countStrokeContourVertices(
+      ContourInfo*,
+      bool empty,
+      size_t* extraRotationIdx,
+      size_t* emptyStrokeCountForCaps);
 
   // Prepares to draw the path as a triangulated interior with tessellated
   // outer cubics. The (already-built) inner-fan triangulator is supplied by
@@ -503,29 +537,13 @@ protected:
   float m_strokeMatrixMaxScale;
   float m_polarSegmentsPerRadian;
 
-  struct ContourInfo
-  {
-    RawPath::Iter endOfContour;
-    size_t endLineIdx;
-    size_t firstCurveIdx;
-    size_t endCurveIdx;
-    size_t firstRotationIdx; // We measure rotations on both curves and
-                             // round joins.
-    size_t endRotationIdx;
-    Vec2D midpoint;
-    bool closed;
-    size_t strokeJoinCount;
-    size_t cuspJoinCount; // Cusps create full round joins (these don't
-                          // contribute to strokeJoinCount)
-    uint32_t strokeCapSegmentCount;
-    uint32_t paddingVertexCount;
-    RIVE_DEBUG_CODE(uint32_t tessVertexCount;)
-  };
-
   ContourInfo* m_contours;
   FixedQueue<uint8_t> m_numChops;
   FixedQueue<Vec2D> m_chopVertices;
   std::array<Vec2D, 2>* m_tangentPairs = nullptr;
+  // Where the curves and rotations from chopping begin.
+  size_t m_firstExtraCurveIdx = 0;
+  size_t m_firstExtraRotationIdx = 0;
   uint32_t* m_polarSegmentCounts = nullptr;
   uint32_t* m_parametricSegmentCounts = nullptr;
 

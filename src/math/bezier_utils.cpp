@@ -18,7 +18,7 @@ namespace rive
 {
 namespace math
 {
-Vec2D eval_cubic_at(const Vec2D p[4], float t)
+Vec2D evalCubicAt(const Vec2D p[4], float t)
 {
   float2 p0 = simd::load2f(p + 0);
   float2 p1 = simd::load2f(p + 1);
@@ -31,7 +31,7 @@ Vec2D eval_cubic_at(const Vec2D p[4], float t)
   return math::bit_cast<Vec2D>(((a * t + b) * t + c) * t + d);
 }
 
-void chop_cubic_at(const Vec2D src[4], Vec2D dst[7], float t)
+void chopCubicAt(const Vec2D src[4], Vec2D dst[7], float t)
 {
   assert(0 <= t && t <= 1);
 
@@ -61,13 +61,13 @@ void chop_cubic_at(const Vec2D src[4], Vec2D dst[7], float t)
   simd::store(dst + 6, p2p3.zw);
 }
 
-void chop_cubic_at(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
+void chopCubicAt(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
 {
   assert(0 <= t0 && t0 <= t1 && t1 <= 1);
 
   if (t1 == 1)
   {
-    chop_cubic_at(src, dst, t0);
+    chopCubicAt(src, dst, t0);
     dst[7] = dst[8] = dst[9] = src[3];
     return;
   }
@@ -101,63 +101,61 @@ void chop_cubic_at(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
   simd::store(dst + 9, p33.zw);
 }
 
-void chop_cubic_at(
+void chopCubicAt(
     const Vec2D src[4],
     Vec2D dst[],
     const float tValues[],
     int tCount)
 {
+  assert(dst);
   assert(
       tValues == nullptr || std::all_of(tValues, tValues + tCount, [](float t) {
         return t >= 0 && t <= 1;
       }));
   assert(tValues == nullptr || std::is_sorted(tValues, tValues + tCount));
 
-  if (dst)
+  if (tCount == 0)
   {
-    if (tCount == 0)
+    // nothing to chop
+    memcpy(dst, src, 4 * sizeof(Vec2D));
+  }
+  else
+  {
+    int i = 0;
+    float lastT = 0;
+    for (; i < tCount - 1; i += 2)
     {
-      // nothing to chop
-      memcpy(dst, src, 4 * sizeof(Vec2D));
+      // Do two chops at once.
+      float2 tt;
+      if (tValues != nullptr)
+      {
+        tt = simd::load2f(tValues + i);
+        tt = simd::clamp((tt - lastT) / (1 - lastT), float2(0), float2(1));
+        lastT = tValues[i + 1];
+      }
+      else
+      {
+        tt = float2{1, 2} / static_cast<float>(tCount + 1 - i);
+      }
+      chopCubicAt(src, dst, tt[0], tt[1]);
+      src = dst = dst + 6;
     }
-    else
+    if (i < tCount)
     {
-      int i = 0;
-      float lastT = 0;
-      for (; i < tCount - 1; i += 2)
-      {
-        // Do two chops at once.
-        float2 tt;
-        if (tValues != nullptr)
-        {
-          tt = simd::load2f(tValues + i);
-          tt = simd::clamp((tt - lastT) / (1 - lastT), float2(0), float2(1));
-          lastT = tValues[i + 1];
-        }
-        else
-        {
-          tt = float2{1, 2} / static_cast<float>(tCount + 1 - i);
-        }
-        chop_cubic_at(src, dst, tt[0], tt[1]);
-        src = dst = dst + 6;
-      }
-      if (i < tCount)
-      {
-        // Chop the final cubic if there was an odd number of chops.
-        assert(i + 1 == tCount);
-        float t = tValues != nullptr ? tValues[i] : .5f;
-        t = simd::clamp<float, 1>(
-                math::ieee_float_divide(t - lastT, 1 - lastT),
-                0,
-                1)
-                .x;
-        chop_cubic_at(src, dst, t);
-      }
+      // Chop the final cubic if there was an odd number of chops.
+      assert(i + 1 == tCount);
+      float t = tValues != nullptr ? tValues[i] : .5f;
+      t = simd::clamp<float, 1>(
+              math::ieee_float_divide(t - lastT, 1 - lastT),
+              0,
+              1)
+              .x;
+      chopCubicAt(src, dst, t);
     }
   }
 }
 
-float measure_angle_between_vectors(Vec2D a, Vec2D b)
+float measureAngleBetweenVectors(Vec2D a, Vec2D b)
 {
   float cosTheta = math::ieee_float_divide(
       Vec2D::dot(a, b),
@@ -176,19 +174,24 @@ float measure_angle_between_vectors(Vec2D a, Vec2D b)
 // of a tessellation segment, it just gets snapped.
 constexpr static float TESS_EPSILON = 1.f / (1 << 10);
 
-int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
+// Floating-point representation of "1 - 2*TESS_EPSILON".
+constexpr static uint32_t IEEEOneMinus2Epsilon = (127 << 23) -
+                                                 2 * (1 << (24 - 10));
+#ifdef RIVE_HAS_CONSTEXPR_BIT_CAST
+static_assert(
+    math::bit_cast<float>(IEEEOneMinus2Epsilon) == 1 - 2 * TESS_EPSILON);
+#endif
+
+int findCubicConvex180Chops(const Vec2D pts[4], float T[2], bool* areCusps)
 {
   assert(pts);
   assert(T);
   assert(areCusps);
 
-  // Floating-point representation of "1 - 2*TESS_EPSILON".
-  constexpr static uint32_t kIEEE_one_minus_2_epsilon = (127 << 23) -
-                                                        2 * (1 << (24 - 10));
-  // Unfortunately we don't have a way to static_assert this, but we can
-  // runtime assert that the kIEEE_one_minus_2_epsilon bits are correct.
-  assert(
-      math::bit_cast<float>(kIEEE_one_minus_2_epsilon) == 1 - 2 * TESS_EPSILON);
+#ifndef RIVE_HAS_CONSTEXPR_BIT_CAST
+  // Without a constexpr bit_cast, check the bits at runtime instead.
+  assert(math::bit_cast<float>(IEEEOneMinus2Epsilon) == 1 - 2 * TESS_EPSILON);
+#endif
 
   float2 p0 = simd::load2f(&pts[0].x);
   float2 p1 = simd::load2f(&pts[1].x);
@@ -294,8 +297,7 @@ int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
     *areCusps = false;
     float root = math::ieee_float_divide(c, b_over_minus_2);
     // Is "root" inside the range [TESS_EPSILON, 1 - TESS_EPSILON)?
-    if (math::bit_cast<uint32_t>(root - TESS_EPSILON) <
-        kIEEE_one_minus_2_epsilon)
+    if (math::bit_cast<uint32_t>(root - TESS_EPSILON) < IEEEOneMinus2Epsilon)
     {
       T[0] = root;
       return 1;
@@ -313,8 +315,7 @@ int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
       // Pick the average of both roots.
       float root = math::ieee_float_divide(b_over_minus_2, a);
       // Is "root" inside the range [TESS_EPSILON, 1 - TESS_EPSILON)?
-      if (math::bit_cast<uint32_t>(root - TESS_EPSILON) <
-          kIEEE_one_minus_2_epsilon)
+      if (math::bit_cast<uint32_t>(root - TESS_EPSILON) < IEEEOneMinus2Epsilon)
       {
         T[0] = root;
         return 1;
@@ -382,6 +383,186 @@ int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
     return 1;
   }
   return 0;
+}
+
+static float4 cross4(float4 ax, float4 ay, float4 bx, float4 by)
+{
+  float4 axby = ax * by;
+  float4 aybx = ay * bx;
+  return axby - aybx;
+}
+
+static float4 lengthSquared4(float4 x, float4 y)
+{
+  float4 xx = x * x;
+  float4 yy = y * y;
+  return xx + yy;
+}
+
+int4 cubicsNeedNoChops(
+    float4 p0x,
+    float4 p0y,
+    float4 p1x,
+    float4 p1y,
+    float4 p2x,
+    float4 p2y,
+    float4 p3x,
+    float4 p3y)
+{
+  float4 e01x = p1x - p0x;
+  float4 e01y = p1y - p0y;
+  float4 e12x = p2x - p1x;
+  float4 e12y = p2y - p1y;
+  float4 e23x = p3x - p2x;
+  float4 e23y = p3y - p2y;
+
+  float4 c01x12 = cross4(e01x, e01y, e12x, e12y);
+  float4 c12x23 = cross4(e12x, e12y, e23x, e23y);
+  float4 c01x23 = cross4(e01x, e01y, e23x, e23y);
+
+  int4 e01IsZero = (e01x == 0.f) & (e01y == 0.f);
+  int4 e23IsZero = (e23x == 0.f) & (e23y == 0.f);
+
+  // If the first edge is zero, we have a triangle, and there's only one
+  // relevant turn (p1-p2-p3). Duplicate it to simplify the convexity test
+  // below. Same logic for if the last edge is zero. If both are zero, all of
+  // the cAAxBB values become zero, causing isConvex to become false, and
+  // isLine detects an actual line versus the degenerate single point case.
+  c01x12 = simd::if_then_else(e01IsZero, c12x23, c01x12);
+  c01x23 = simd::if_then_else(e01IsZero, c12x23, c01x23);
+  c12x23 = simd::if_then_else(e23IsZero, c01x12, c12x23);
+  c01x23 = simd::if_then_else(e23IsZero, c01x12, c01x23);
+
+  float4 turnMin = simd::minFast(simd::minFast(c01x12, c12x23), c01x23);
+  float4 turnMax = simd::maxFast(simd::maxFast(c01x12, c12x23), c01x23);
+
+  // Cross products and their rounding error both scale with the squared edge
+  // lengths, so the threshold scales with them too.
+  float4 maxEdgeLengthSquared = simd::maxFast(
+      simd::maxFast(lengthSquared4(e01x, e01y), lengthSquared4(e12x, e12y)),
+      lengthSquared4(e23x, e23y));
+  float4 turnThreshold = EPSILON * maxEdgeLengthSquared;
+
+  int4 isConvex = (turnMin > turnThreshold) | (turnMax < -turnThreshold);
+  int4 isLine = e01IsZero & e23IsZero & ((e12x != 0.f) | (e12y != 0.f));
+  return isConvex | isLine;
+}
+
+Convex180Chops4 findCubicConvex180Chops4(
+    float4 p0x,
+    float4 p0y,
+    float4 p1x,
+    float4 p1y,
+    float4 p2x,
+    float4 p2y,
+    float4 p3x,
+    float4 p3y)
+{
+#ifndef RIVE_HAS_CONSTEXPR_BIT_CAST
+  // Without a constexpr bit_cast, check the bits at runtime instead.
+  assert(math::bit_cast<float>(IEEEOneMinus2Epsilon) == 1 - 2 * TESS_EPSILON);
+#endif
+
+  // Is each root inside [TESS_EPSILON, 1 - TESS_EPSILON)? Shifted down by
+  // TESS_EPSILON, the range starts at 0, and non-negative floats order the
+  // same as their bits. Negative roots and NaN have large bits, so one
+  // unsigned compare rejects them too.
+  const uint4 IEEEOneMinus2Epsilon4 = IEEEOneMinus2Epsilon;
+  auto inChopRange = [IEEEOneMinus2Epsilon4](float4 root) {
+    return math::bit_cast<uint4>(root - TESS_EPSILON) < IEEEOneMinus2Epsilon4;
+  };
+
+  // The power-basis coefficients, as in CubicCoeffs.
+  float4 cx = p1x - p0x;
+  float4 cy = p1y - p0y;
+  float4 dx = p2x - p1x;
+  float4 dy = p2y - p1y;
+  float4 ex = p3x - p0x;
+  float4 ey = p3y - p0y;
+  float4 bx = dx - cx;
+  float4 by = dy - cy;
+  float4 ax = -3.f * dx + ex;
+  float4 ay = -3.f * dy + ey;
+
+  // There are inflections where F' x F'' == 0. As a quadratic:
+  //
+  //     F' x F'' == aT^2 + bT + c == 0.
+  //
+  // See:
+  // https://www.microsoft.com/en-us/research/wp-content/uploads/2005/01/p1000-loop.pdf
+  // Only the roots matter, so a uniform scale factor doesn't affect them.
+  float4 a = cross4(ax, ay, bx, by);
+  float4 b = cross4(ax, ay, cx, cy);
+  float4 c = cross4(bx, by, cx, cy);
+  float4 bOverMinus2 = -.5f * b;
+  float4 discrOver4 = bOverMinus2 * bOverMinus2 - a * c;
+
+  // If -cuspThreshold <= discrOver4 <= cuspThreshold, the two roots are
+  // within TESS_EPSILON of each other in parametric space, close enough to
+  // treat them as a single cusp.
+  float4 cuspThreshold = a * (TESS_EPSILON / 2);
+  cuspThreshold *= cuspThreshold;
+
+  // Each lane takes one of three cases, but every lane computes them all.
+  //
+  // 1) No inflections or cusps. The curve might rotate more than 180 degrees
+  // instead, so chop where the rotation reaches 180. (This is the 2nd root
+  // where the tangent is parallel to tan0.)
+  //
+  //      Tangent_Direction(T) x tan0 == 0
+  //      (AT^2 x tan0) + (2BT x tan0) + (C x tan0) == 0
+  //      (A x C)T^2 + (2B x C)T + (C x C) == 0
+  //          [[because tan0 == P1 - P0 == C]]
+  //      bT^2 + 2cT + 0 == 0  [[because A x C == b, B x C == c]]
+  //      T = [0, -2c/b]
+  //
+  // If C == 0, then C != tan0, but a cubic with colocated points is
+  // convex-180 anyway, and the root is NaN, which doesn't chop.
+  int4 noInflections = discrOver4 < -cuspThreshold;
+  float4 root180 = c / bOverMinus2;
+  int4 chop180 = inChopRange(root180);
+
+  Convex180Chops4 result;
+  if (simd::all(noInflections))
+  {
+    // Skip the divides and square root the other cases need.
+    result.numChops = chop180 & 1;
+    result.T0 = root180;
+    result.T1 = float4(0);
+    result.possibleCusps = int4(0);
+    return result;
+  }
+
+  // 2) Two roots close enough to count as one cusp, or a, b and c all 0,
+  // which means the control points lie on one line and may double back.
+  // These are left to findCubicConvex180Chops().
+  result.possibleCusps = ~noInflections & (discrOver4 <= cuspThreshold);
+
+  // 3) Up to two inflections, as a serpentine curve has. Solve the quadratic
+  // with the formula from Numerical Recipes in C.
+  float4 q = simd::sqrt(discrOver4);
+  q = simd::copysign(q, bOverMinus2);
+  q = q + bOverMinus2;
+  float4 r0 = q / a;
+  float4 r1 = c / q;
+  int4 in0 = (r0 > TESS_EPSILON) & (r0 < 1 - TESS_EPSILON);
+  int4 in1 = (r1 > TESS_EPSILON) & (r1 < 1 - TESS_EPSILON);
+  int4 twoIn = in0 & in1 & (r0 != r1);
+  int4 swap = r0 > r1;
+  float4 generalT0 = simd::if_then_else(
+      twoIn,
+      simd::if_then_else(swap, r1, r0),
+      simd::if_then_else(in0, r0, r1));
+  float4 generalT1 = simd::if_then_else(swap, r0, r1);
+  int4 generalCount = simd::if_then_else(twoIn, int4(2), (in0 | in1) & 1);
+
+  result.numChops = simd::if_then_else(
+      noInflections,
+      chop180 & 1,
+      generalCount);
+  result.T0 = simd::if_then_else(noInflections, root180, generalT0);
+  result.T1 = generalT1;
+  return result;
 }
 } // namespace math
 } // namespace rive
