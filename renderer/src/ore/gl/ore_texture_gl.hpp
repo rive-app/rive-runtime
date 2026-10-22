@@ -18,7 +18,9 @@ private:
   unsigned int m_glTexture = 0;
   unsigned int m_glRenderbuffer = 0;
   unsigned int m_glTarget = 0; // GLenum
-  bool m_glOwnsTexture = false;
+  // False only for textures wrapped from outside, which aren't ours to
+  // delete.
+  bool m_glOwnsTexture = true;
 };
 
 class TextureViewGL : public LITE_RTTI_OVERRIDE(TextureView, TextureViewGL)
