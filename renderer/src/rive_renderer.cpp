@@ -1254,9 +1254,11 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         pixelBounds);
 
     // We have already validated that the clip path is within the screen
-    //  bounds, so this should never return null (which is the "this is
-    //  offscreen" result).
-    assert(clipDraw != nullptr);
+    // bounds, so null means the clip path is empty and clips out everything.
+    if (clipDraw == nullptr)
+    {
+      return ApplyClipResult::fullyClipped;
+    }
 
     clipDrawBounds = clipDraw->pixelBounds();
 

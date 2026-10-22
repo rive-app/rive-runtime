@@ -846,7 +846,7 @@ DrawUniquePtr PathDraw::Make(
     }
   }
 
-  auto draw = context->make<PathDraw>(
+  auto draw = PathDrawUniquePtr(context->make<PathDraw>(
       pixelBounds,
       paintMatrix,
       imageMatrix,
@@ -856,7 +856,7 @@ DrawUniquePtr PathDraw::Make(
       modulatedOpacity,
       modulatedColor,
       coverageType,
-      context->frameDescriptor());
+      context->frameDescriptor()));
   if (triangulator != nullptr)
   {
     draw->initForInteriorTriangulation(context, triangulator);
@@ -866,7 +866,13 @@ DrawUniquePtr PathDraw::Make(
     draw->initForMidpointFan(context, paint);
   }
 
-  return DrawUniquePtr(draw);
+  // Drop empty draws before they get sorted into batches.
+  if (draw->isEmpty())
+  {
+    return nullptr;
+  }
+
+  return draw;
 }
 
 PathDraw::PathDraw(
@@ -2067,6 +2073,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
   // holding!
   assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
   assert(!m_pathRef->getRawPath().empty());
+  assert(!isEmpty());
 
   assert(
       m_resourceCounts.outerCubicTessVertexCount == 0 ||
@@ -2074,10 +2081,6 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
   uint32_t tessVertexCount = math::lossless_numeric_cast<uint32_t>(
       m_resourceCounts.outerCubicTessVertexCount |
       m_resourceCounts.midpointFanTessVertexCount);
-  if (tessVertexCount == 0)
-  {
-    return nullptr;
-  }
 
   const gpu::DrawContents subpassDrawContents = this->subpassDrawContents(
       signedSubpassIdx);
@@ -2373,6 +2376,7 @@ void PathDraw::pushFeatherAtlasTessellation(
 {
   RIVE_PROF_SCOPE_L(2)
   assert(m_coverageType == CoverageType::featherAtlas);
+  assert(!isEmpty());
   assert(
       m_resourceCounts.outerCubicTessVertexCount == 0 ||
       m_resourceCounts.midpointFanTessVertexCount == 0);
@@ -2380,12 +2384,6 @@ void PathDraw::pushFeatherAtlasTessellation(
   *tessVertexCount = math::lossless_numeric_cast<uint32_t>(
       m_resourceCounts.outerCubicTessVertexCount |
       m_resourceCounts.midpointFanTessVertexCount);
-
-  if (*tessVertexCount == 0)
-  {
-    assert(m_pathID == 0);
-    return;
-  }
 
   *tessBaseVertex = allocateTessellationVertices(flush, *tessVertexCount);
   pushTessellationData(flush, *tessVertexCount, *tessBaseVertex);

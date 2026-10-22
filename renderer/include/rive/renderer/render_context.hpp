@@ -82,6 +82,7 @@ struct DrawReleaseRefs
   void operator()(Draw* draw);
 };
 using DrawUniquePtr = std::unique_ptr<Draw, DrawReleaseRefs>;
+using PathDrawUniquePtr = std::unique_ptr<PathDraw, DrawReleaseRefs>;
 
 // Top-level, API agnostic rendering context for RiveRenderer. This class
 // manages all the GPU buffers, context state, and other resources required for
@@ -566,6 +567,7 @@ private:
   // Used by LogicalFlushes for re-ordering high level draws.
   std::vector<DrawSortEntry> m_indirectDrawList;
   std::unique_ptr<IntersectionBoard> m_intersectionBoard;
+  std::vector<DrawContents> m_baseDrawGroupContents;
   std::unordered_map<AABBu16, int16_t, ScissorAABBHasher> m_scissorIDLookup;
   int16_t m_prevScissorID = 0;
 

@@ -381,6 +381,16 @@ public:
   }
 
   GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
+
+  // True if the path has 0 triangles (regardless of triangulation mode).
+  // NOTE: "outerCubicTessVertexCount != 0" is a valid proxy for interior
+  // triangles as well: In non-MSAA, flat edges always get an outerCubic patch
+  // for AA, and in MSAA, interior triangles go through outerCubic patches.
+  bool isEmpty() const
+  {
+    return (m_resourceCounts.midpointFanTessVertexCount |
+            m_resourceCounts.outerCubicTessVertexCount) == 0;
+  }
   // True if we should output the triangulator's triangles in the opposite
   // winding direction because the view matrix is left-handed.
   bool triangulatorReverseTriangles() const

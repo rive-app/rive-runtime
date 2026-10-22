@@ -303,6 +303,9 @@ void RenderContext::resetContainers()
   m_indirectDrawList.shrink_to_fit();
 
   m_intersectionBoard = nullptr;
+
+  m_baseDrawGroupContents.clear();
+  m_baseDrawGroupContents.shrink_to_fit();
 }
 
 RenderContext::LogicalFlush::LogicalFlush(RenderContext* parent) : m_ctx(parent)
@@ -1863,24 +1866,40 @@ void RenderContext::LogicalFlush::writeResources()
         {.entry = SortEntry::subpassIndex, .bitCount = 3},
     };
 
+    auto& baseDrawGroupContents = m_ctx->m_baseDrawGroupContents;
+    baseDrawGroupContents.assign(
+        m_draws.size() * Draw::MaxSubpassCount + 1,
+        gpu::DrawContents::none);
+
     m_ctx->m_scissorIDLookup.clear();
 
     // Set this to 0, any actual scissor IDs used will then start at 1.
     m_ctx->m_prevScissorID = 0;
+
+    const bool hasDstBlendBarriers = enums::is_flag_set(
+                                         m_combinedDrawContents,
+                                         gpu::DrawContents::advancedBlend) &&
+                                     (m_ctx->frameInterlockMode() ==
+                                          gpu::InterlockMode::clockwiseAtomic ||
+                                      (m_ctx->frameInterlockMode() ==
+                                           gpu::InterlockMode::depthStencil &&
+                                       !platformFeatures
+                                            .supportsBlendAdvancedCoherentKHR));
 
     // When the dstBlend barrier has no other option than to copy out a
     // texture, this copy destroys MSAA information and we can no longer
     // put subpasses in different drawGroups.
     // Otherwise, we put subpasses into different draw groups because it
     // yields better reordering.
+    // TODO: This also gets set when using input attachments. Investigate
+    // whether this is necessary in that case, and whether it even helps to
+    // split subpasses in the first place.
     const bool
-        allSubpassesInSameDrawGroup = m_ctx->frameInterlockMode() ==
+        allSubpassesInSameDrawGroup = hasDstBlendBarriers &&
+                                      m_ctx->frameInterlockMode() ==
                                           gpu::InterlockMode::depthStencil &&
                                       !platformFeatures
-                                           .supportsBlendAdvancedKHR &&
-                                      enums::is_flag_set(
-                                          m_combinedDrawContents,
-                                          gpu::DrawContents::advancedBlend);
+                                           .supportsBlendAdvancedKHR;
 
     int16_t maxZIndex = 0;
 
@@ -1975,13 +1994,15 @@ void RenderContext::LogicalFlush::writeResources()
       // correctness.
       const int8_t maxSubpasses = math::lossless_numeric_cast<int8_t>(
           std::max(draw->prepassCount(), draw->subpassCount()));
-      int16_t drawGroupIdx = intersectionBoard->addRectangle(
+      int16_t baseDrawGroupIdx = intersectionBoard->addRectangle(
           drawBounds,
           kOverlapBits,
           kDisallowOverlapMask,
           allSubpassesInSameDrawGroup ? 1 : maxSubpasses);
-      assert(drawGroupIdx > 0);
-      maxZIndex = std::max(maxZIndex, drawGroupIdx);
+      assert(baseDrawGroupIdx > 0);
+      assert(size_t(baseDrawGroupIdx) < baseDrawGroupContents.size());
+      baseDrawGroupContents[baseDrawGroupIdx] |= draw->combinedDrawContents();
+      maxZIndex = std::max(maxZIndex, baseDrawGroupIdx);
       const auto textureHash = (draw->imageTexture() != nullptr)
                                    ? draw->imageTexture()->textureResourceHash()
                                    : 0;
@@ -2003,8 +2024,8 @@ void RenderContext::LogicalFlush::writeResources()
         // to the same drawGroup, so only the subpassIndex and
         // drawContents can differ.
         const int16_t subpassDrawGroup = allSubpassesInSameDrawGroup
-                                             ? drawGroupIdx
-                                             : drawGroupIdx + i;
+                                             ? baseDrawGroupIdx
+                                             : baseDrawGroupIdx + i;
         auto subpassKey = [&](int signedSubpassIdx) {
           // drawContents are higher order in the key than
           // subpassIndex. So when subpasses share a drawGroup,
@@ -2015,7 +2036,7 @@ void RenderContext::LogicalFlush::writeResources()
                                         ? draw->combinedDrawContents()
                                         : draw->subpassDrawContents(
                                               signedSubpassIdx);
-          return drawKeyCommon + int64_t(keyBuilder.buildPartialKey({
+          return drawKeyCommon | int64_t(keyBuilder.buildPartialKey({
                                      {SortEntry::drawGroup, subpassDrawGroup},
                                      {SortEntry::subpassIndex, i},
                                      {SortEntry::drawContents, drawContents},
@@ -2182,23 +2203,21 @@ void RenderContext::LogicalFlush::writeResources()
 
       case gpu::InterlockMode::depthStencil:
       {
-        // depthStencil mode can't batch draws that overlap because they
-        // both rely on the stencil buffer across subpasses. Stop
-        // batching every time the drawGroupIdx changes.
+        // depthStencil mode can't batch draws that overlap because they both
+        // rely on the stencil buffer across subpasses. Stop batching every time
+        // the drawGroupIdx changes.
         int64_t needsBreakMask = keyBuilder.mask(SortEntry::drawGroup);
-        // depthStencil mode draws clips, strokes, fills, and even/odd
-        // with different stencil settings, so these can't be batched.
+        // depthStencil mode draws clips, strokes, fills, and even/odd with
+        // different stencil settings, so these can't be batched.
         needsBreakMask |= keyBuilder.mask(SortEntry::drawContents);
         if (platformFeatures.supportsBlendAdvancedKHR)
         {
-          // If using KHR_blend_equation_advanced, we also need to
-          // stop batching between blend modes in order to change the
-          // blend equation.
+          // If using KHR_blend_equation_advanced, we also need to stop batching
+          // between blend modes in order to change the blend equation.
           needsBreakMask |= keyBuilder.mask(SortEntry::blendMode);
         }
-        // depthStencil barriers only need to prevent batching of draws
-        // for now. If we also need a dstBlend barrier, that will be
-        // decided later.
+        // depthStencil barriers only need to prevent batching of draws for now.
+        // If we also need a dstBlend barrier, that will be decided later.
         barriersForKeyDiffs.push_back(
             {needsBreakMask, BarrierFlags::drawBatchBreak});
         break;
@@ -2235,8 +2254,13 @@ void RenderContext::LogicalFlush::writeResources()
     // condensed/batched list of low-level draws.
     constexpr int64_t BEGIN_KEY = std::numeric_limits<int64_t>::min();
     int64_t priorSignedKey = BEGIN_KEY;
-    int16_t currentDrawGroup = -1;
-    DrawBatch* firstBatchInCurrentDrawGroup = nullptr;
+
+    int16_t lastDrawGroupWithDstBlendBarrier = 0;
+    DrawBatch* firstBatchInCurrentDstBlend = nullptr;
+    bool needsFirstBatchInCurrentDstBlend = false;
+
+    int16_t cwaClipDrawGroup = -1;
+    DrawBatch* firstBatchInCWAClipDrawGroup = nullptr;
 
     // clockwiseAtomic (CWA) needs more sophisticated barrier logic for
     // clips.
@@ -2247,20 +2271,6 @@ void RenderContext::LogicalFlush::writeResources()
     {
       auto signedKey = sortEntry.sortKey;
       assert(signedKey >= priorSignedKey);
-      // The first draw never gets simple barriers. If barriers are
-      // required before the first draw, those get scheduled outside this
-      // loop.
-      if (priorSignedKey != BEGIN_KEY)
-      {
-        for (auto [mask, barriers] : barriersForKeyDiffs)
-        {
-          if ((priorSignedKey & mask) != (signedKey & mask))
-          {
-            pushBarriers(barriers);
-          }
-        }
-      }
-
       auto key = abs(signedKey);
       auto drawIndex = abs(sortEntry.signedDrawIndex);
       const int8_t keySubpassIdx = keyBuilder.extract<int8_t>(
@@ -2294,49 +2304,128 @@ void RenderContext::LogicalFlush::writeResources()
           keyBuilder.extract<gpu::DrawContents>(SortEntry::drawContents, key));
       assert(
           draw->blendMode() != BlendMode::srcOver == draw->hasAdvancedBlend());
+      assert(enums::all_flags_set(
+          baseDrawGroupContents[baseDrawGroup],
+          draw->combinedDrawContents()));
+
+      // The first draw never gets simple barriers. If barriers are required
+      // before the first draw, those get scheduled outside this loop.
+      if (priorSignedKey != BEGIN_KEY)
+      {
+        for (auto [mask, barriers] : barriersForKeyDiffs)
+        {
+          if ((priorSignedKey & mask) != (signedKey & mask))
+          {
+            pushBarriers(barriers);
+          }
+        }
+      }
+      priorSignedKey = signedKey;
+
+      // dstBlend barriers have to go on the first batch in the drawGroup.
+      // Otherwise we might see something get reordered like this:
+      //
+      //   - drawA, subpass0
+      //   - dstBlendBarrier (because drawB has a dstBlend)
+      //   - drawB, subpass0
+      //   - drawA, subpass1
+      //   - drawB, subpass1
+      //
+      // In this scenario, drawA gets a dstBlend barrier between subpasses. When
+      // dstBlend is implemented as a texture copy, it interrupts the render
+      // pass and resolves MSAA, causing the MSAA data to be lost between
+      // supbasses of drawA.
+      //
+      // Since drawA and drawB don't overlap, the correct solution is to only
+      // apply barriers on the first batch of a drawGroup:
+      //
+      //   - dstBlendBarrier (because drawB has a dstBlend)
+      //   - drawA, subpass0
+      //   - drawB, subpass0
+      //   - drawA, subpass1
+      //   - drawB, subpass1
+      //
+      // (This also leads to fewer barriers overall.)
+      if (hasDstBlendBarriers && signedSubpassIdx == 0 &&
+          baseDrawGroup != lastDrawGroupWithDstBlendBarrier &&
+          enums::is_flag_set(
+              baseDrawGroupContents[baseDrawGroup],
+              gpu::DrawContents::advancedBlend))
+      {
+        assert(baseDrawGroup > lastDrawGroupWithDstBlendBarrier);
+        pushBarriers(
+            gpu::BarrierFlags::dstBlend | gpu::BarrierFlags::drawBatchBreak);
+        lastDrawGroupWithDstBlendBarrier = baseDrawGroup;
+        firstBatchInCurrentDstBlend = nullptr;
+        needsFirstBatchInCurrentDstBlend = true;
+      }
 
       DrawBatch* batch = draw->pushToRenderContext(
           this,
           signedSubpassIdx,
           zIndex);
+      if (batch == nullptr)
+      {
+        continue;
+      }
 
-      if (batch != nullptr && platformFeatures.supportsClipScissor)
+      if (platformFeatures.supportsClipScissor)
       {
         batch->scissorRect = draw->scissorRect();
       }
 
-      // Some barriers need more sophisticated logic than "do my keys
-      // differ".
-      if ((m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic ||
-           m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil) &&
-          signedSubpassIdx == 0 && batch != nullptr)
+      if (signedSubpassIdx != 0)
       {
-        // Barriers at this level have to go on the first batch in the
-        // current drawGroup. Otherwise we might see something get
-        // reordered like this:
-        //
-        //   - drawA, subpass0
-        //   - dstBlendBarrier (because drawB has a dstBlend)
-        //   - drawB, subpass0
-        //   - drawA, subpass1
-        //   - drawB, subpass1
-        //
-        // In this scenario, drawA gets a dstBlend barrier between
-        // subpasses. When dstBlend is implemented as a texture copy, it
-        // interrupts the render pass and resolves MSAA, causing the
-        // MSAA data to be lost between supbasses of drawA.
-        //
-        // Since drawA and drawB don't overlap, the correct solution is
-        // to only apply barriers on the first batch of a drawGroup:
-        //
-        //   - dstBlendBarrier (because drawB has a dstBlend)
-        //   - drawA, subpass0
-        //   - drawB, subpass0
-        //   - drawA, subpass1
-        //   - drawB, subpass1
-        //
-        // (This also leads to fewer barriers overall.)
-        if (currentDrawGroup != drawGroup)
+        // Advanced blend and clip barriers never occur in a prepass, and always
+        // before the first subpass.
+        continue;
+      }
+
+      if (needsFirstBatchInCurrentDstBlend)
+      {
+        firstBatchInCurrentDstBlend = batch;
+        addBatchToDstBarrierList(firstBatchInCurrentDstBlend);
+        needsFirstBatchInCurrentDstBlend = false;
+      }
+
+      if (hasDstBlendBarriers && draw->hasAdvancedBlend())
+      {
+        assert(firstBatchInCurrentDstBlend != nullptr);
+        assert(enums::is_flag_set(
+            firstBatchInCurrentDstBlend->barriers,
+            BarrierFlags::dstBlend));
+        assert(draw->nextDstRead() == nullptr);
+
+        firstBatchInCurrentDstBlend->dstReadList = draw->addToDstReadList(
+            firstBatchInCurrentDstBlend->dstReadList);
+
+        // We either added ourselves to the dstBlendBarrier list or merged into
+        // a batch that was already part of it.
+        assert(
+            m_dstBlendBarrierListTail ==
+            &firstBatchInCurrentDstBlend->nextDstBlendBarrier);
+      }
+
+      if (m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil)
+      {
+        // depthStencil doesn't mix srcOver draws with advanced blend draws.
+        assert(
+            enums::is_flag_set(
+                batch->shaderFeatures,
+                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
+            (draw->blendMode() != BlendMode::srcOver));
+
+        // If using KHR_blend_equation_advanced, we can't mix blend modes in a
+        // depthStencil batch.
+        assert(
+            !m_ctx->platformFeatures().supportsBlendAdvancedKHR ||
+            batch->firstBlendMode == draw->blendMode());
+      }
+
+      // clockwiseAtomic (CWA) needs more sophisticated barrier logic for clips.
+      if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
+      {
+        if (cwaClipDrawGroup != drawGroup)
         {
           if (currentDrawGroupHasCWAClipUpdate)
           {
@@ -2346,92 +2435,36 @@ void RenderContext::LogicalFlush::writeResources()
             hasCWAClipReadBarrier = false;
             currentDrawGroupHasCWAClipUpdate = false;
           }
-          firstBatchInCurrentDrawGroup = batch;
-          currentDrawGroup = drawGroup;
+          firstBatchInCWAClipDrawGroup = batch;
+          cwaClipDrawGroup = drawGroup;
         }
-        assert(firstBatchInCurrentDrawGroup != nullptr);
+        assert(firstBatchInCWAClipDrawGroup != nullptr);
 
-        if (draw->hasAdvancedBlend() &&
-            (m_ctx->frameInterlockMode() != gpu::InterlockMode::depthStencil ||
-             !m_ctx->platformFeatures().supportsBlendAdvancedCoherentKHR))
+        if (draw->isClipUpdate())
         {
-          // An implementation-dependent barrier is required between
-          // overlapping draws. Add a "dstBlend" barrier and build up
-          // a list of "dstReads" for the batch. The dstRead list will
-          // be required in the event that the implementation has to
-          // handle dstReads by copying out a texture.
-          assert(draw->nextDstRead() == nullptr);
-          firstBatchInCurrentDrawGroup->dstReadList = draw->addToDstReadList(
-              firstBatchInCurrentDrawGroup->dstReadList);
-          if (!enums::is_flag_set(
-                  firstBatchInCurrentDrawGroup->barriers,
-                  BarrierFlags::dstBlend))
-          {
-            firstBatchInCurrentDrawGroup->barriers |= BarrierFlags::dstBlend;
-            addBatchToDstBarrierList(firstBatchInCurrentDrawGroup);
-          }
-          // We either added ourselves to the dstBlendBarrier
-          // list or merged into a batch that was already part
-          // of it.
-          assert(
-              m_dstBlendBarrierListTail ==
-              &firstBatchInCurrentDrawGroup->nextDstBlendBarrier);
+          // Once the clip gets written, it needs a barrier before it can be
+          // read again from fragment shaders.
+          //
+          // NOTE: This won't immediately reset "hasCWAClipReadBarrier" because
+          // clip reads and writes in the same drawGroup don't overlap. Instead,
+          // we defer resetting hasCWAClipReadBarrier until we begin the next
+          // drawGroup.
+          //
+          // NOTE2: It's ok of activeClip is also set here (i.e., nested clip
+          // updates, or "clipUpdate | activeClip"). Those don't need a barrier.
+          // Nested clips use hardware blend to apply the existing clip, rather
+          // than reading it in the fragment shader.
+          currentDrawGroupHasCWAClipUpdate = true;
         }
-
-        // clockwiseAtomic (CWA) needs more sophisticated barrier logic
-        // for clips.
-        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
+        else if (draw->hasActiveClip() && !hasCWAClipReadBarrier)
         {
-          if (draw->isClipUpdate())
-          {
-            // Once the clip gets written, it needs a barrier before
-            // it can be read again from fragment shaders.
-            //
-            // NOTE: This won't immediately reset
-            // "hasCWAClipReadBarrier" because clip reads and writes
-            // in the same drawGroup don't overlap. Instead, we
-            // defer resetting hasCWAClipReadBarrier until we begin
-            // the next drawGroup.
-            //
-            // NOTE2: It's ok of activeClip is also set here
-            // (i.e., nested clip updates, or "clipUpdate |
-            // activeClip"). Those don't need a barrier. Nested
-            // clips use hardware blend to apply the existing clip,
-            // rather than reading it in the fragment shader.
-            currentDrawGroupHasCWAClipUpdate = true;
-          }
-          else if (draw->hasActiveClip() && !hasCWAClipReadBarrier)
-          {
-            // Clipped path draws need a barrier because they access
-            // the clip buffer via input attachment in the fragment
-            // shader.
-            firstBatchInCurrentDrawGroup
-                ->barriers |= gpu::BarrierFlags::plsAtomic;
-            hasCWAClipReadBarrier = true;
-          }
-        }
-        else
-        {
-          assert(
-              m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil);
-
-          // depthStencil doesn't mix srcOver draws with advanced
-          // blend draws.
-          assert(
-              enums::is_flag_set(
-                  batch->shaderFeatures,
-                  gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
-              (draw->blendMode() != BlendMode::srcOver));
-
-          // If using KHR_blend_equation_advanced, we can't mix blend
-          // modes in a batch.
-          assert(
-              !m_ctx->platformFeatures().supportsBlendAdvancedKHR ||
-              batch->firstBlendMode == draw->blendMode());
+          // Clipped path draws need a barrier because they access the clip
+          // buffer via input attachment in the fragment shader.
+          firstBatchInCWAClipDrawGroup
+              ->barriers |= gpu::BarrierFlags::plsAtomic;
+          hasCWAClipReadBarrier = true;
         }
       }
-
-      priorSignedKey = signedKey;
     }
   }
 
@@ -2496,14 +2529,11 @@ void RenderContext::LogicalFlush::writeResources()
               this,
               &tessVertexCount,
               &tessBaseVertex);
-          if (tessVertexCount == 0)
-          {
-            continue;
-          }
           uint32_t patchCount = tessVertexCount /
                                 gpu::kMidpointFanPatchSegmentSpan;
           uint32_t basePatch = tessBaseVertex /
                                gpu::kMidpointFanPatchSegmentSpan;
+          assert(patchCount > 0);
           assert(
               patchCount * gpu::kMidpointFanPatchSegmentSpan ==
               tessVertexCount);
