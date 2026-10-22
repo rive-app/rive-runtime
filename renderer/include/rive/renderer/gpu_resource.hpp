@@ -6,6 +6,7 @@
 
 #include "rive/refcnt.hpp"
 
+#include <algorithm>
 #include <deque>
 
 namespace rive::gpu
@@ -71,6 +72,17 @@ public:
   // safeFrameNumber, and updates the monotonically increasing
   // m_currentFrameNumber.
   void advanceFrameNumber(uint64_t nextFrameNumber, uint64_t safeFrameNumber);
+
+  // For a manager core and Ore share, where the other may already be on a
+  // later frame.
+  void advanceFrameNumberAtLeast(
+      uint64_t nextFrameNumber,
+      uint64_t safeFrameNumber)
+  {
+    advanceFrameNumber(
+        std::max(nextFrameNumber, m_currentFrameNumber),
+        std::max(safeFrameNumber, m_safeFrameNumber));
+  }
 
   // Called when a GPUResource has been fully released (refcount reaches 0).
   // The underlying native resource won't actually be deleted until the

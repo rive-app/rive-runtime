@@ -1097,7 +1097,9 @@ void RenderContextD3D12Impl::prepareToFlush(
   // and doesn't participate in frame lifetime tracking.
   if (nextFrameNumber != 0)
   {
-    m_resourceManager->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
+    m_resourceManager->advanceFrameNumberAtLeast(
+        nextFrameNumber,
+        safeFrameNumber);
   }
 
   // Acquire buffers for the flush.

@@ -40,6 +40,21 @@ public:
 private:
   friend class ContextD3D12;
   friend class RenderPassD3D12;
+
+  // Groups with a descriptor table in this pipeline's root sig.
+  uint8_t d3d12GroupMask() const
+  {
+    uint8_t mask = 0;
+    for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+    {
+      if (m_d3dGroupParams[g].cbvSrvUavRootParamIdx >= 0 ||
+          m_d3dGroupParams[g].samplerRootParamIdx >= 0)
+      {
+        mask |= static_cast<uint8_t>(1u << g);
+      }
+    }
+    return mask;
+  }
   Microsoft::WRL::ComPtr<ID3D12PipelineState> m_d3dPSO;
   Microsoft::WRL::ComPtr<ID3D12RootSignature> m_d3dRootSigOwned;
   D3D12_PRIMITIVE_TOPOLOGY m_d3dTopology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;

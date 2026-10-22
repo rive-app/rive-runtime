@@ -452,11 +452,10 @@ ContextD3D12::~ContextD3D12() {}
 // ============================================================================
 
 std::unique_ptr<ContextD3D12> ContextD3D12::Make(
-    rcp<rive::gpu::GPUResourceManager> manager,
+    rcp<rive::gpu::D3D12ResourceManager> manager,
     ID3D12Device* device)
 {
-  auto ctx = std::unique_ptr<ContextD3D12>(
-      new ContextD3D12(std::move(manager)));
+  auto ctx = std::unique_ptr<ContextD3D12>(new ContextD3D12(manager));
   ctx->m_d3dDevice = device;
   [[maybe_unused]] HRESULT hr;
 
@@ -466,81 +465,56 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   // sig at `setPipeline` when it differs from the currently-bound
   // one. No context-wide root signature is needed.
 
-  // --- Descriptor heap sizes ---
-  ctx->m_d3dSrvDescSize = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-  ctx->m_d3dRtvDescSize = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-  ctx->m_d3dDsvDescSize = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-  ctx->m_d3dSamplerDescSize = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-
   // --- CPU-visible heaps ---
-  auto makeCpuHeap = [&](D3D12_DESCRIPTOR_HEAP_TYPE type,
-                         UINT count,
-                         ComPtr<ID3D12DescriptorHeap>& out) {
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.Type = type;
-    desc.NumDescriptors = count;
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    [[maybe_unused]] HRESULT r = device->CreateDescriptorHeap(
-        &desc,
-        IID_PPV_ARGS(out.GetAddressOf()));
-    assert(SUCCEEDED(r));
-  };
-  makeCpuHeap(
+  // CPU-only heaps start at these sizes and grow by the same again when
+  // full.
+  ctx->m_d3dCpuSrvSlots = make_rcp<D3D12DescriptorSlots>(
+      device,
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-      1024,
-      ctx->m_d3dCpuSrvHeap);
-  makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256, ctx->m_d3dCpuRtvHeap);
-  makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64, ctx->m_d3dCpuDsvHeap);
-  makeCpuHeap(
+      1024);
+  ctx->m_d3dCpuRtvSlots = make_rcp<D3D12DescriptorSlots>(
+      device,
+      D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+      256);
+  ctx->m_d3dCpuDsvSlots = make_rcp<D3D12DescriptorSlots>(
+      device,
+      D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+      64);
+  ctx->m_d3dCpuSamplerSlots = make_rcp<D3D12DescriptorSlots>(
+      device,
       D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-      256,
-      ctx->m_d3dCpuSamplerHeap);
+      256);
 
-  // --- GPU-visible heaps ---
-  auto makeGpuHeap = [&](D3D12_DESCRIPTOR_HEAP_TYPE type,
-                         UINT count,
-                         ComPtr<ID3D12DescriptorHeap>& out) {
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.Type = type;
-    desc.NumDescriptors = count;
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    [[maybe_unused]] HRESULT r = device->CreateDescriptorHeap(
-        &desc,
-        IID_PPV_ARGS(out.GetAddressOf()));
-    assert(SUCCEEDED(r));
-  };
-  makeGpuHeap(
+  // --- GPU-visible heaps, taken at the first beginFrame ---
+  ctx->m_d3dGpuSrvHeap.pool = make_rcp<gpu::D3D12DescriptorHeapPool>(
+      manager,
+      kGpuSrvHeapSize,
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-      4096,
-      ctx->m_d3dGpuSrvHeap);
-  makeGpuHeap(
+      D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+  ctx->m_d3dGpuSrvHeap.size = kGpuSrvHeapSize;
+  ctx->m_d3dGpuSamplerHeap.pool = make_rcp<gpu::D3D12DescriptorHeapPool>(
+      manager,
+      kGpuSamplerHeapSize,
       D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-      512,
-      ctx->m_d3dGpuSamplerHeap);
+      D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+  ctx->m_d3dGpuSamplerHeap.size = kGpuSamplerHeapSize;
 
   // --- Null SRV (2D texture, for unused descriptor-table slots) ---
   {
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    handle = ctx->m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
-    handle.ptr += ctx->m_d3dCpuSrvAllocated++ * ctx->m_d3dSrvDescSize;
+    ctx->m_d3dNullSrvSlot = ctx->m_d3dCpuSrvSlots->take();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = ctx->m_d3dNullSrvSlot.handle();
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Texture2D.MipLevels = 1;
     device->CreateShaderResourceView(nullptr, &srvDesc, handle);
-    ctx->m_d3dNullSrv = handle;
   }
 
   // --- Null Sampler ---
   {
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    handle = ctx->m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
-    handle.ptr += ctx->m_d3dCpuSamplerAllocated++ * ctx->m_d3dSamplerDescSize;
+    ctx->m_d3dNullSamplerSlot = ctx->m_d3dCpuSamplerSlots->take();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = ctx->m_d3dNullSamplerSlot.handle();
     D3D12_SAMPLER_DESC sampDesc = {};
     sampDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
     sampDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -549,7 +523,6 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
     sampDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
     sampDesc.MaxLOD = D3D12_FLOAT32_MAX;
     device->CreateSampler(&sampDesc, handle);
-    ctx->m_d3dNullSampler = handle;
   }
 
   // --- Features ---
@@ -587,8 +560,6 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
 void ContextD3D12::beginFrame(const FrameDescriptor& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-  m_currentFrameNumber = desc.currentFrameNumber;
-  m_safeFrameNumber = desc.safeFrameNumber;
   m_d3dCmdList = static_cast<ID3D12GraphicsCommandList*>(
       desc.externalCommandBuffer);
   if (m_d3dCmdList == nullptr)
@@ -599,17 +570,56 @@ void ContextD3D12::beginFrame(const FrameDescriptor& desc)
     return;
   }
 
-  // Reset frame-scoped GPU heap allocation offsets.
-  m_d3dGpuSrvAllocated = 0;
-  m_d3dGpuSamplerAllocated = 0;
+  // Heaps and released resources are reused once the GPU is past the frame
+  // that used them, so the frame being recorded has to be past the safe
+  // one. Without that nothing can tell when they're free, and two frames in
+  // one list could share a heap, so the frame is refused and its passes
+  // fail through lastError.
+  if (desc.currentFrameNumber <= desc.safeFrameNumber)
+  {
+    setLastError(
+        "Ore D3D12: beginFrame needs currentFrameNumber (%llu) "
+        "past safeFrameNumber (%llu)",
+        static_cast<unsigned long long>(desc.currentFrameNumber),
+        static_cast<unsigned long long>(desc.safeFrameNumber));
+    m_d3dCmdList = nullptr;
+    return;
+  }
 
-  // Bind GPU-visible heaps once (both SRV/CBV and Sampler). Root sig
-  // is bound by `RenderPass::setPipeline` at the first pipeline use —
-  // every pipeline ships with its own (RFC v5 §3.2.2).
-  ID3D12DescriptorHeap* heaps[] = {
-      m_d3dGpuSrvHeap.Get(),
-      m_d3dGpuSamplerHeap.Get()};
-  m_d3dCmdList->SetDescriptorHeaps(2, heaps);
+  // Move the shared manager to this frame before recording, like the Vulkan
+  // backend, so anything released while recording waits for this frame to
+  // be safe. Otherwise it's stamped with core's last flush, or deleted
+  // straight away when the GPU was idle, while this list still uses it.
+  // Each number only moves forward, since core's flush may already know a
+  // later one, and a frame the manager already counts as finished can't be
+  // recorded.
+  if (desc.currentFrameNumber <= m_manager->safeFrameNumber())
+  {
+    setLastError(
+        "Ore D3D12: beginFrame currentFrameNumber (%llu) is "
+        "already safe (%llu)",
+        static_cast<unsigned long long>(desc.currentFrameNumber),
+        static_cast<unsigned long long>(m_manager->safeFrameNumber()));
+    m_d3dCmdList = nullptr;
+    return;
+  }
+  m_manager->advanceFrameNumberAtLeast(
+      desc.currentFrameNumber,
+      desc.safeFrameNumber);
+  // Set only once accepted, since buffers recycle backings by these.
+  m_currentFrameNumber = desc.currentFrameNumber;
+  m_safeFrameNumber = desc.safeFrameNumber;
+
+  // Frames keep appending to these, and a heap is swapped only where it
+  // fills, so a replay never gets less room than it needs.
+  if (m_d3dGpuSrvHeap.heap == nullptr)
+  {
+    m_d3dGpuSrvHeap.heap = m_d3dGpuSrvHeap.pool->acquire();
+    m_d3dGpuSamplerHeap.heap = m_d3dGpuSamplerHeap.pool->acquire();
+  }
+  // Root sig is bound by `RenderPass::setPipeline` at the first pipeline
+  // use — every pipeline ships with its own (RFC v5 §3.2.2).
+  d3d12SetGpuHeaps();
 
   // Record uploads staged while no frame was open onto this frame's list.
   d3d12FlushPendingTextureUploads();
@@ -699,77 +709,62 @@ void ContextD3D12::d3d12FlushPendingTextureUploads()
 // RenderPass and d3d12* helpers)
 // ============================================================================
 
+size_t ContextD3D12::d3d12CpuHeapCount() const
+{
+  return m_d3dCpuSrvSlots->heapCount() + m_d3dCpuRtvSlots->heapCount() +
+         m_d3dCpuDsvSlots->heapCount() + m_d3dCpuSamplerSlots->heapCount();
+}
+
+bool ContextD3D12::d3d12TakeSlot(
+    D3D12DescriptorSlots& slots,
+    D3D12DescriptorSlot& out,
+    const char* caller,
+    const char* kind)
+{
+  out = slots.take();
+  if (!out)
+  {
+    setLastError(
+        "%s: couldn't make a D3D12 descriptor heap for another %s",
+        caller,
+        kind);
+    return false;
+  }
+  return true;
+}
+
 #if defined(ORE_BACKEND_D3D12)
 
-UINT ContextD3D12::d3d12AllocGpuSrvSlots(UINT count)
+UINT ContextD3D12::d3d12AllocGpuSlots(D3D12GpuHeap& gpuHeap, UINT count)
 {
-  // Heap exhaustion is reachable from a Lua script that creates more
-  // bind groups than the GPU heap can hold (4096 SRV/CBV/UAV slots).
-  // Pre-fix this asserted and crashed in debug, GPU-hung in release.
-  // Per `feedback_lua_gpu_misuse_validation`, surface as setLastError
-  // and return a sentinel so the apply path can no-op the bind.
-  if (m_d3dGpuSrvAllocated + count > 4096)
+  if (count > gpuHeap.size)
   {
     setLastError(
-        "d3d12AllocGpuSrvSlots: GPU SRV heap exhausted (need %u, "
-        "%u/4096 used)",
+        "Ore D3D12: a bind group needs %u descriptors, more than a heap "
+        "holds (%u)",
         count,
-        m_d3dGpuSrvAllocated);
+        gpuHeap.size);
     return UINT_MAX;
   }
-  UINT start = m_d3dGpuSrvAllocated;
-  m_d3dGpuSrvAllocated += count;
+  if (gpuHeap.allocated + count > gpuHeap.size)
+  {
+    gpuHeap.pool->recycle(std::move(gpuHeap.heap));
+    gpuHeap.heap = gpuHeap.pool->acquire();
+    gpuHeap.allocated = 0;
+    d3d12SetGpuHeaps();
+  }
+  UINT start = gpuHeap.allocated;
+  gpuHeap.allocated += count;
   return start;
 }
 
-UINT ContextD3D12::d3d12AllocGpuSamplerSlots(UINT count)
+void ContextD3D12::d3d12SetGpuHeaps()
 {
-  if (m_d3dGpuSamplerAllocated + count > 512)
-  {
-    setLastError(
-        "d3d12AllocGpuSamplerSlots: GPU sampler heap exhausted "
-        "(need %u, %u/512 used)",
-        count,
-        m_d3dGpuSamplerAllocated);
-    return UINT_MAX;
-  }
-  UINT start = m_d3dGpuSamplerAllocated;
-  m_d3dGpuSamplerAllocated += count;
-  return start;
-}
-
-D3D12_CPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSrvCpuHandle(UINT index) const
-{
-  D3D12_CPU_DESCRIPTOR_HANDLE h = m_d3dGpuSrvHeap
-                                      ->GetCPUDescriptorHandleForHeapStart();
-  h.ptr += (SIZE_T)index * m_d3dSrvDescSize;
-  return h;
-}
-
-D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSrvGpuHandle(UINT index) const
-{
-  D3D12_GPU_DESCRIPTOR_HANDLE h = m_d3dGpuSrvHeap
-                                      ->GetGPUDescriptorHandleForHeapStart();
-  h.ptr += (UINT64)index * m_d3dSrvDescSize;
-  return h;
-}
-
-D3D12_CPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerCpuHandle(
-    UINT index) const
-{
-  D3D12_CPU_DESCRIPTOR_HANDLE h = m_d3dGpuSamplerHeap
-                                      ->GetCPUDescriptorHandleForHeapStart();
-  h.ptr += (SIZE_T)index * m_d3dSamplerDescSize;
-  return h;
-}
-
-D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerGpuHandle(
-    UINT index) const
-{
-  D3D12_GPU_DESCRIPTOR_HANDLE h = m_d3dGpuSamplerHeap
-                                      ->GetGPUDescriptorHandleForHeapStart();
-  h.ptr += (UINT64)index * m_d3dSamplerDescSize;
-  return h;
+  ID3D12DescriptorHeap* heaps[] = {
+      m_d3dGpuSrvHeap.heap->heap(),
+      m_d3dGpuSamplerHeap.heap->heap()};
+  m_d3dCmdList->SetDescriptorHeaps(2, heaps);
+  ++m_d3dGpuHeapGeneration;
 }
 
 #endif // ORE_BACKEND_D3D12
@@ -960,11 +955,15 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
   // --- SRV ---
   if (fmtInfo.srv != DXGI_FORMAT_UNKNOWN)
   {
-    if (m_d3dCpuSrvAllocated >= 1024)
-      return nullptr; // CPU SRV descriptor heap exhausted.
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    handle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
-    handle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
+    if (!d3d12TakeSlot(
+            *m_d3dCpuSrvSlots,
+            view->m_d3dSrvSlot,
+            "makeTextureView",
+            "shader view"))
+    {
+      return nullptr;
+    }
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = view->m_d3dSrvSlot.handle();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = fmtInfo.srv;
@@ -1043,9 +1042,15 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
   if (!fmtInfo.isDepth && tex->isRenderTarget() &&
       fmtInfo.rtv != DXGI_FORMAT_UNKNOWN)
   {
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
-    handle.ptr += (SIZE_T)m_d3dCpuRtvAllocated++ * m_d3dRtvDescSize;
+    if (!d3d12TakeSlot(
+            *m_d3dCpuRtvSlots,
+            view->m_d3dRtvSlot,
+            "makeTextureView",
+            "render target view"))
+    {
+      return nullptr;
+    }
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = view->m_d3dRtvSlot.handle();
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
     rtvDesc.Format = fmtInfo.rtv;
@@ -1106,9 +1111,15 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
   // --- DSV (depth only) ---
   if (fmtInfo.isDepth && fmtInfo.dsv != DXGI_FORMAT_UNKNOWN)
   {
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    handle = m_d3dCpuDsvHeap->GetCPUDescriptorHandleForHeapStart();
-    handle.ptr += (SIZE_T)m_d3dCpuDsvAllocated++ * m_d3dDsvDescSize;
+    if (!d3d12TakeSlot(
+            *m_d3dCpuDsvSlots,
+            view->m_d3dDsvSlot,
+            "makeTextureView",
+            "depth view"))
+    {
+      return nullptr;
+    }
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = view->m_d3dDsvSlot.handle();
 
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
     dsvDesc.Format = fmtInfo.dsv;
@@ -1167,9 +1178,15 @@ rcp<Sampler> ContextD3D12::d3d12MakeSampler(const SamplerDesc& desc)
 #if defined(ORE_BACKEND_D3D12)
   auto sampler = rcp<SamplerD3D12>(new SamplerD3D12(m_manager));
 
-  D3D12_CPU_DESCRIPTOR_HANDLE
-  handle = m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
-  handle.ptr += (SIZE_T)m_d3dCpuSamplerAllocated++ * m_d3dSamplerDescSize;
+  if (!d3d12TakeSlot(
+          *m_d3dCpuSamplerSlots,
+          sampler->m_d3dSamplerSlot,
+          "makeSampler",
+          "sampler"))
+  {
+    return nullptr;
+  }
+  D3D12_CPU_DESCRIPTOR_HANDLE handle = sampler->m_d3dSamplerSlot.handle();
 
   D3D12_SAMPLER_DESC sd = {};
   sd.Filter = oreFilterToD3D12(
@@ -1943,11 +1960,13 @@ rcp<TextureView> ContextD3D12::d3d12WrapTarget(
   // SRV so a later pass can sample the canvas after rendering into it;
   // without it a bind group copies a null descriptor and the debug layer
   // faults.
-  if (canvas && m_d3dCpuSrvAllocated < 1024)
+  if (canvas)
   {
-    D3D12_CPU_DESCRIPTOR_HANDLE
-    srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
-    srvHandle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
+    view->m_d3dSrvSlot = m_d3dCpuSrvSlots->take();
+  }
+  if (view->m_d3dSrvSlot)
+  {
+    D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = view->m_d3dSrvSlot.handle();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Format = dxgiFmt;
@@ -1964,22 +1983,31 @@ rcp<TextureView> ContextD3D12::d3d12WrapTarget(
 
   // Create the RTV in our CPU RTV heap. Passes copy RTVs as they record,
   // so last frame's target slot is free to rewrite.
-  UINT rtvIndex;
+  D3D12_CPU_DESCRIPTOR_HANDLE handle;
   if (canvas)
   {
-    rtvIndex = m_d3dCpuRtvAllocated++;
+    if (!d3d12TakeSlot(
+            *m_d3dCpuRtvSlots,
+            view->m_d3dRtvSlot,
+            "wrapCanvasTexture",
+            "render target view"))
+    {
+      return nullptr;
+    }
+    handle = view->m_d3dRtvSlot.handle();
   }
   else
   {
-    if (m_d3dTargetRtvIndex == UINT_MAX)
+    if (!m_d3dTargetRtvSlot && !d3d12TakeSlot(
+                                   *m_d3dCpuRtvSlots,
+                                   m_d3dTargetRtvSlot,
+                                   "wrapRenderTarget",
+                                   "render target view"))
     {
-      m_d3dTargetRtvIndex = m_d3dCpuRtvAllocated++;
+      return nullptr;
     }
-    rtvIndex = m_d3dTargetRtvIndex;
+    handle = m_d3dTargetRtvSlot.handle();
   }
-  D3D12_CPU_DESCRIPTOR_HANDLE
-  handle = m_d3dCpuRtvHeap->GetCPUDescriptorHandleForHeapStart();
-  handle.ptr += (SIZE_T)rtvIndex * m_d3dRtvDescSize;
 
   D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
   rtvDesc.Format = dxgiFmt;
@@ -2083,11 +2111,15 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(
   auto view = rcp<TextureViewD3D12>(
       new TextureViewD3D12(m_manager, std::move(texture), viewDesc));
   // Create SRV for sampling (images are read-only, no RTV needed).
-  if (m_d3dCpuSrvAllocated >= 1024)
-    return nullptr; // CPU SRV descriptor heap exhausted.
-  D3D12_CPU_DESCRIPTOR_HANDLE
-  srvHandle = m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
-  srvHandle.ptr += (SIZE_T)m_d3dCpuSrvAllocated++ * m_d3dSrvDescSize;
+  if (!d3d12TakeSlot(
+          *m_d3dCpuSrvSlots,
+          view->m_d3dSrvSlot,
+          "wrapRiveTexture",
+          "shader view"))
+  {
+    return nullptr;
+  }
+  D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = view->m_d3dSrvSlot.handle();
 
   D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
   srvDesc.Format = dxgiFmt;

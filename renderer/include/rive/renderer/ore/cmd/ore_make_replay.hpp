@@ -453,8 +453,10 @@ inline bool replayOreLifecycle(
       d.bindGroupLayouts = bgls.empty() ? nullptr : bgls.data();
       d.bindGroupLayoutCount = pod.bindGroupLayoutCount;
       d.label = cstr(pod.label);
+      // Unlabeled pipelines go by their vertex entry point in failures.
+      const char* name = d.label != nullptr ? d.label : d.vertexEntryPoint;
       if (unresolvedDep)
-        return skipUnresolvedMake(m.id, m.generation, "pipeline", d.label);
+        return skipUnresolvedMake(m.id, m.generation, "pipeline", name);
       std::string pipelineError;
       auto pipeline = ctx.makePipeline(d, &pipelineError);
       setMade(
@@ -463,7 +465,7 @@ inline bool replayOreLifecycle(
           OreKind::pipeline,
           std::move(pipeline),
           "pipeline",
-          d.label,
+          name,
           pipelineError);
       return true;
     }

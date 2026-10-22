@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_texture.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include <d3d12.h>
 #include <wrl/client.h>
 
@@ -51,5 +52,10 @@ private:
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dSrvHandle = {};
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dRtvHandle = {};
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dDsvHandle = {};
+  // The slots behind the handles, given back when the view goes. Empty
+  // for the shared host target RTV.
+  D3D12DescriptorSlot m_d3dSrvSlot;
+  D3D12DescriptorSlot m_d3dRtvSlot;
+  D3D12DescriptorSlot m_d3dDsvSlot;
 };
 } // namespace rive::ore

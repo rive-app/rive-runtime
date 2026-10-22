@@ -1,6 +1,7 @@
 #pragma once
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 
 #include <d3d12.h>
 #include <wrl/client.h>
@@ -68,15 +69,17 @@ public:
 private:
   void applyVertexBuffer(uint32_t slot);
 
-  // D3D12 setBindGroup body — shared between the D3D12-only translation
-  // unit (ore_render_pass_d3d12.cpp) and the combined D3D11+D3D12 one
-  // (ore_render_pass_d3d11_d3d12.cpp). Defined inline in
-  // ore_d3d12_bind_group_apply.hpp, which both .cpp files include.
-  inline void d3d12ApplyBindGroup(
-      uint32_t groupIndex,
-      BindGroupD3D12* bg,
-      const uint32_t* dynamicOffsets,
-      uint32_t dynamicOffsetCount);
+  // Writes a bound group's tables under the current pipeline's root sig.
+  // Defined inline in ore_d3d12_bind_group_apply.hpp.
+  inline void d3d12ApplyBindGroup(uint32_t groupIndex);
+  // Applies what's pending for the pipeline's groups. False when a draw
+  // can't run.
+  bool d3d12FlushBindGroups();
+  void d3d12MarkBoundGroupsUnapplied();
+  static uint8_t groupBit(uint32_t groupIndex)
+  {
+    return static_cast<uint8_t>(1u << groupIndex);
+  }
 
   ID3D12GraphicsCommandList*
       m_d3dCmdList = nullptr;           // Weak ref (owned by Context).
@@ -93,6 +96,17 @@ private:
   // Ore D3D12 pipeline owns its own per-pipeline root sig — RFC v5
   // §3.2.2). Weak ref; freed by the owning Pipeline.
   ID3D12RootSignature* m_d3dCurrentRootSig = nullptr;
+  // Bound groups whose tables aren't set: bound before a pipeline, dropped
+  // by a root sig change or heap swap, or too big for a heap.
+  uint8_t m_d3dUnappliedGroups = 0;
+  // The context's heap generation when this pass last set a table.
+  uint32_t m_d3dHeapGeneration = 0;
+  struct D3D12BoundOffsets
+  {
+    uint32_t values[kMaxDynamicOffsets] = {};
+    uint32_t count = 0;
+  };
+  D3D12BoundOffsets m_d3dBoundOffsets[kMaxBindGroups];
   // Pending descriptor state (accumulated per setPipeline/setBindGroup).
   D3D12_GPU_VIRTUAL_ADDRESS m_d3dPendingUBOs[8] = {};
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dPendingSrvHandles[8] = {};

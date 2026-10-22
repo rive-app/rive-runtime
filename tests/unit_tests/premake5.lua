@@ -106,6 +106,11 @@ do
         '../../../texture_compressor/src/write_ktx2.cpp',
     })
 
+    -- The entry split is plain C++; test it where the renderer leaves it out.
+    if not (_OPTIONS['with_vulkan'] and _OPTIONS['with_rive_canvas']) then
+        files({ '../../renderer/src/ore/vulkan/ore_spirv_entry_split.cpp' })
+    end
+
     -- These exercise the Luau backend directly; the wasm backend's coverage
     -- is the two-runner differential in rive-cli until wasm twins land.
     if _OPTIONS['scripting_vm'] == 'wasm' then

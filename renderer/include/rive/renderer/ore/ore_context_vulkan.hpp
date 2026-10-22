@@ -99,6 +99,8 @@ struct VKRenderPassKey
   }
 };
 
+struct SpirvEntryScratch;
+
 class ContextVulkan : public Context
 {
 public:
@@ -152,8 +154,7 @@ private:
   friend class BindGroupVulkan;
   friend class TextureVulkan;
 
-  ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) : Context(vk), m_vk(vk)
-  {}
+  ContextVulkan(const rcp<rive::gpu::VulkanContext> vk);
 
   rcp<TextureView> wrapTargetImage(
       gpu::RenderTarget*,
@@ -162,6 +163,8 @@ private:
       VkImageLayout layout);
 
   const rcp<rive::gpu::VulkanContext> m_vk;
+  // Reused across pipelines, which one context creates on one thread.
+  std::unique_ptr<SpirvEntryScratch> m_spirvScratch;
 
   VkQueue m_vkQueue = VK_NULL_HANDLE;
   uint32_t m_vkQueueFamily = 0;

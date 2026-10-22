@@ -7,6 +7,7 @@
 #include "ore_texture_vulkan.hpp"
 #include "ore_sampler_vulkan.hpp"
 #include "ore_shader_module_vulkan.hpp"
+#include "ore_spirv_entry_split.hpp"
 #include "ore_pipeline_vulkan.hpp"
 #include "ore_render_pass_vulkan.hpp"
 #include "ore_bind_group_vulkan.hpp"
@@ -220,6 +221,12 @@ static VkAttachmentStoreOp oreStoreOpToVk(StoreOp op)
 // ============================================================================
 // Context lifecycle
 // ============================================================================
+
+ContextVulkan::ContextVulkan(const rcp<rive::gpu::VulkanContext> vk)
+    : Context(vk)
+    , m_vk(vk)
+    , m_spirvScratch(std::make_unique<SpirvEntryScratch>())
+{}
 
 ContextVulkan::~ContextVulkan()
 {
@@ -1355,15 +1362,30 @@ rcp<ShaderModule> ContextVulkan::makeShaderModule(const ShaderModuleDesc& desc)
   auto module = rcp<ShaderModuleVulkan>(new ShaderModuleVulkan(m_manager));
   module->m_vkDevice = m_vk->device;
 
-  VkShaderModuleCreateInfo smCI{};
-  smCI.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  smCI.codeSize = desc.codeSize;
-  smCI.pCode = static_cast<const uint32_t*>(desc.code);
+  const size_t wordCount = desc.codeSize / sizeof(uint32_t);
+  if (desc.code == nullptr || wordCount == 0)
+  {
+    setLastError("Ore Vulkan: shader module has no code");
+    return nullptr;
+  }
+  const bool multiEntry = spirvEntryPointCount(desc.code, wordCount) > 1;
+  // The blob sits at any alignment inside its shader asset.
+  const bool aligned = reinterpret_cast<uintptr_t>(desc.code) %
+                           alignof(uint32_t) ==
+                       0;
+  std::vector<uint32_t> copy;
+  if (multiEntry || !aligned)
+  {
+    copy.resize(wordCount);
+    memcpy(copy.data(), desc.code, wordCount * sizeof(uint32_t));
+  }
+  const uint32_t* code = copy.empty() ? static_cast<const uint32_t*>(desc.code)
+                                      : copy.data();
 
-  VkResult result = m_vk->CreateShaderModule(
-      m_vk->device,
-      &smCI,
-      nullptr,
+  VkResult result = createVkShaderModule(
+      *m_vk,
+      code,
+      wordCount,
       &module->m_vkShaderModule);
   if (result != VK_SUCCESS || module->m_vkShaderModule == VK_NULL_HANDLE)
   {
@@ -1373,6 +1395,10 @@ rcp<ShaderModule> ContextVulkan::makeShaderModule(const ShaderModuleDesc& desc)
     return nullptr;
   }
   module->m_vkDestroyShaderModule = m_vk->DestroyShaderModule;
+  if (multiEntry)
+  {
+    module->m_multiEntryCode = std::move(copy);
+  }
 
   module->applyBindingMapFromDesc(desc);
   return module;

@@ -13,6 +13,7 @@
 #include "ore_d3d12_bind_group_apply.hpp"
 
 #include <d3d12.h>
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include "ore_buffer_d3d12.hpp"
@@ -36,6 +37,8 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
     , m_d3dDevice(other.m_d3dDevice)
     , m_d3dContext(other.m_d3dContext)
     , m_d3dCurrentPipeline(std::move(other.m_d3dCurrentPipeline))
+    , m_d3dUnappliedGroups(other.m_d3dUnappliedGroups)
+    , m_d3dHeapGeneration(other.m_d3dHeapGeneration)
     , m_d3dIndexFormat(other.m_d3dIndexFormat)
     , m_d3dIndexOffset(other.m_d3dIndexOffset)
     , m_d3dStencilRef(other.m_d3dStencilRef)
@@ -53,6 +56,7 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
   }
   for (int i = 0; i < 4; ++i)
   {
+    m_d3dBoundOffsets[i] = other.m_d3dBoundOffsets[i];
     m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
     m_d3dColorResources[i] = other.m_d3dColorResources[i];
     m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
@@ -82,6 +86,8 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     m_d3dDevice = other.m_d3dDevice;
     m_d3dContext = other.m_d3dContext;
     m_d3dCurrentPipeline = std::move(other.m_d3dCurrentPipeline);
+    m_d3dUnappliedGroups = other.m_d3dUnappliedGroups;
+    m_d3dHeapGeneration = other.m_d3dHeapGeneration;
     m_d3dIndexFormat = other.m_d3dIndexFormat;
     m_d3dIndexOffset = other.m_d3dIndexOffset;
     m_d3dStencilRef = other.m_d3dStencilRef;
@@ -96,6 +102,7 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     }
     for (int i = 0; i < 4; ++i)
     {
+      m_d3dBoundOffsets[i] = other.m_d3dBoundOffsets[i];
       m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
       m_d3dColorResources[i] = other.m_d3dColorResources[i];
       m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
@@ -133,8 +140,13 @@ void RenderPassD3D12::setPipeline(Pipeline* inPipeline)
 #if defined(ORE_BACKEND_D3D12)
   validate();
   auto pipeline = lite_rtti_cast<PipelineD3D12*>(inPipeline);
-  if (!checkPipelineCompat(pipeline))
+  if (pipeline == nullptr || !checkPipelineCompat(pipeline))
+  {
+    // lastError says why. Binds and draws are skipped until a pipeline
+    // fits, rather than running against the previous one or none.
+    m_d3dCurrentPipeline = nullptr;
     return;
+  }
   m_d3dCurrentPipeline = ref_rcp(pipeline);
 
   m_d3dCmdList->SetPipelineState(pipeline->m_d3dPSO.Get());
@@ -143,13 +155,15 @@ void RenderPassD3D12::setPipeline(Pipeline* inPipeline)
   m_dirtyVertexSlots = kAllVertexSlotsDirty;
   // Each pipeline owns its own root sig (RFC v5 §3.2.2). Rebind on
   // change; D3D12 resets all root-parameter state when the sig
-  // changes, so callers must rebind bind groups after any pipeline
-  // switch that flips sig.
+  // changes.
   ID3D12RootSignature* rootSig = pipeline->m_d3dRootSigOwned.Get();
   if (rootSig != m_d3dCurrentRootSig)
   {
     m_d3dCmdList->SetGraphicsRootSignature(rootSig);
     m_d3dCurrentRootSig = rootSig;
+    // Bound groups outlive the pipeline as in WebGPU, so the next draw
+    // applies the ones the caller didn't bind again.
+    d3d12MarkBoundGroupsUnapplied();
   }
   // Stencil / blend colour — re-apply with new pipeline state.
   m_d3dCmdList->OMSetStencilRef(m_d3dStencilRef);
@@ -242,7 +256,15 @@ void RenderPassD3D12::setBindGroup(
   assert(bg != nullptr);
   // Hold a strong reference so the BindGroup stays alive until finish().
   m_boundGroups[groupIndex] = ref_rcp(bg);
-  d3d12ApplyBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+  D3D12BoundOffsets& offsets = m_d3dBoundOffsets[groupIndex];
+  offsets.count = std::min(dynamicOffsetCount, kMaxDynamicOffsets);
+  std::copy_n(dynamicOffsets, offsets.count, offsets.values);
+  m_d3dUnappliedGroups |= groupBit(groupIndex);
+  // Applying needs a root sig, so without a pipeline the next draw does.
+  if (m_d3dCurrentPipeline != nullptr)
+  {
+    d3d12ApplyBindGroup(groupIndex);
+  }
 #else
   (void)groupIndex;
   (void)bg;
@@ -336,6 +358,47 @@ void RenderPassD3D12::setBlendColor(float r, float g, float b, float a)
 // draw / drawIndexed
 // ============================================================================
 
+bool RenderPassD3D12::d3d12FlushBindGroups()
+{
+#if defined(ORE_BACKEND_D3D12)
+  if (m_d3dCurrentPipeline == nullptr)
+  {
+    return false;
+  }
+  const uint8_t groups = m_d3dCurrentPipeline->d3d12GroupMask();
+  // Again if a heap filled meanwhile, since that dropped the tables set
+  // before it.
+  uint32_t generation;
+  do
+  {
+    generation = m_d3dContext->m_d3dGpuHeapGeneration;
+    for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+    {
+      if (m_d3dUnappliedGroups & groups & groupBit(g))
+      {
+        d3d12ApplyBindGroup(g);
+      }
+    }
+  } while (generation != m_d3dContext->m_d3dGpuHeapGeneration);
+  // Groups never bound don't hold a draw back, since older bakes' layouts
+  // name groups their entry points never read.
+  return (m_d3dUnappliedGroups & groups) == 0;
+#else
+  return false;
+#endif
+}
+
+void RenderPassD3D12::d3d12MarkBoundGroupsUnapplied()
+{
+  for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+  {
+    if (m_boundGroups[g] != nullptr)
+    {
+      m_d3dUnappliedGroups |= groupBit(g);
+    }
+  }
+}
+
 void RenderPassD3D12::draw(
     uint32_t vertexCount,
     uint32_t instanceCount,
@@ -344,6 +407,10 @@ void RenderPassD3D12::draw(
 {
 #if defined(ORE_BACKEND_D3D12)
   validate();
+  if (!d3d12FlushBindGroups())
+  {
+    return;
+  }
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   m_d3dCmdList
       ->DrawInstanced(vertexCount, instanceCount, firstVertex, firstInstance);
@@ -364,6 +431,10 @@ void RenderPassD3D12::drawIndexed(
 {
 #if defined(ORE_BACKEND_D3D12)
   validate();
+  if (!d3d12FlushBindGroups())
+  {
+    return;
+  }
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   m_d3dCmdList->DrawIndexedInstanced(
       indexCount,

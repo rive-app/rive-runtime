@@ -7,6 +7,7 @@
 #include "ore_bind_group_vulkan.hpp"
 #include "ore_bind_group_layout_vulkan.hpp"
 #include "ore_shader_module_vulkan.hpp"
+#include "ore_spirv_entry_split.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_vulkan_dsl.hpp"
 
@@ -327,12 +328,18 @@ rcp<Pipeline> ContextVulkan::makePipeline(
   pipeline->m_vkDestroyPipelineLayout = m_vk->DestroyPipelineLayout;
 
   // --- Shader stages --- (depth-only pipelines omit the fragment stage)
+  VkShaderModule entryModules[2]{};
   VkPipelineShaderStageCreateInfo stages[2]{};
   stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
   auto vertexModule = lite_rtti_cast<ShaderModuleVulkan*>(desc.vertexModule);
   assert(vertexModule);
-  stages[0].module = vertexModule->m_vkShaderModule;
+  stages[0].module = vertexModule->stageModule(
+      *m_vk,
+      kSpirvVertexModel,
+      desc.vertexEntryPoint,
+      *m_spirvScratch,
+      &entryModules[0]);
   stages[0].pName = desc.vertexEntryPoint;
 
   uint32_t stageCount = 1;
@@ -343,7 +350,12 @@ rcp<Pipeline> ContextVulkan::makePipeline(
     auto fragmentModule = lite_rtti_cast<ShaderModuleVulkan*>(
         desc.fragmentModule);
     assert(fragmentModule);
-    stages[1].module = fragmentModule->m_vkShaderModule;
+    stages[1].module = fragmentModule->stageModule(
+        *m_vk,
+        kSpirvFragmentModel,
+        desc.fragmentEntryPoint,
+        *m_spirvScratch,
+        &entryModules[1]);
     stages[1].pName = desc.fragmentEntryPoint;
     stageCount = 2;
   }
@@ -543,6 +555,13 @@ rcp<Pipeline> ContextVulkan::makePipeline(
       &pipelineCI,
       nullptr,
       &pipeline->m_vkPipeline);
+  for (VkShaderModule entryModule : entryModules)
+  {
+    if (entryModule != VK_NULL_HANDLE)
+    {
+      m_vk->DestroyShaderModule(m_vk->device, entryModule, nullptr);
+    }
+  }
   if (vkr != VK_SUCCESS)
   {
     setLastError("Ore Vulkan: vkCreateGraphicsPipelines failed (%d)", vkr);

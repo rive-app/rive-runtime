@@ -31,14 +31,13 @@
 namespace rive::ore
 {
 
-inline void RenderPassD3D12::d3d12ApplyBindGroup(
-    uint32_t groupIndex,
-    BindGroupD3D12* bg,
-    const uint32_t* dynamicOffsets,
-    uint32_t dynamicOffsetCount)
+inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
 {
   assert(groupIndex < 4); // RFC v4 §9.1 / §14.2.
 
+  auto bg = lite_rtti_cast<BindGroupD3D12*>(m_boundGroups[groupIndex].get());
+  const uint32_t* dynamicOffsets = m_d3dBoundOffsets[groupIndex].values;
+  const uint32_t dynamicOffsetCount = m_d3dBoundOffsets[groupIndex].count;
   PipelineD3D12* pipe = m_d3dCurrentPipeline.get();
   assert(
       pipe != nullptr && pipe->m_d3dRootSigOwned &&
@@ -48,20 +47,41 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
   const auto& gp = pipe->m_d3dGroupParams[groupIndex];
   uint32_t dynIdx = 0;
 
+  // Both ranges before any table, since taking either can swap a full heap,
+  // which drops the tables already set.
+  UINT srvStart = 0;
+  UINT samplerStart = 0;
+  if (gp.cbvSrvUavRootParamIdx >= 0)
+  {
+    srvStart = m_d3dContext->d3d12AllocGpuSlots(
+        m_d3dContext->m_d3dGpuSrvHeap,
+        uint32_t(gp.cbvCount) + uint32_t(gp.srvCount) + uint32_t(gp.uavCount));
+  }
+  if (gp.samplerRootParamIdx >= 0)
+  {
+    samplerStart = m_d3dContext->d3d12AllocGpuSlots(
+        m_d3dContext->m_d3dGpuSamplerHeap,
+        gp.samplerCount);
+  }
+  if (m_d3dHeapGeneration != m_d3dContext->m_d3dGpuHeapGeneration)
+  {
+    m_d3dHeapGeneration = m_d3dContext->m_d3dGpuHeapGeneration;
+    d3d12MarkBoundGroupsUnapplied();
+  }
+  if (srvStart == UINT_MAX || samplerStart == UINT_MAX)
+  {
+    // The allocator set lastError. Draws skip while this group stays
+    // unapplied.
+    m_d3dUnappliedGroups |= groupBit(groupIndex);
+    return;
+  }
+  m_d3dUnappliedGroups &= static_cast<uint8_t>(~groupBit(groupIndex));
+
   // Merged CBV/SRV/UAV table.
   if (gp.cbvSrvUavRootParamIdx >= 0)
   {
-    uint32_t total = uint32_t(gp.cbvCount) + uint32_t(gp.srvCount) +
-                     uint32_t(gp.uavCount);
-    UINT heapStart = m_d3dContext->d3d12AllocGpuSrvSlots(total);
-    if (heapStart == UINT_MAX)
-    {
-      // Heap exhausted — `setLastError` was already populated by
-      // the allocator. Skip this table; subsequent draw will read
-      // whatever (stale) descriptors are still bound from the
-      // last successful call. Better than the prior assert/hang.
-      return;
-    }
+    gpu::D3D12DescriptorHeap* srvHeap = m_d3dContext->m_d3dGpuSrvHeap.heap
+                                            .get();
     uint32_t offset = 0;
 
     // CBVs: create D3D12_CONSTANT_BUFFER_VIEW_DESC descriptors in
@@ -72,8 +92,8 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
     for (uint8_t i = 0; i < gp.cbvCount; ++i)
     {
       uint8_t globalSlot = gp.cbvBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = m_d3dContext->d3d12GpuSrvCpuHandle(
-          heapStart + offset++);
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
+          srvStart + offset++);
       if (bg->m_d3dUBOSlotMask & (1u << globalSlot))
       {
         // Resolve the live backing now and mark it bound so a later
@@ -160,12 +180,12 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
     for (uint8_t i = 0; i < gp.srvCount; ++i)
     {
       uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = m_d3dContext->d3d12GpuSrvCpuHandle(
-          heapStart + offset++);
-      D3D12_CPU_DESCRIPTOR_HANDLE src = (bg->m_d3dSrvSlotMask &
-                                         (1u << globalSlot))
-                                            ? bg->m_d3dSrvHandles[globalSlot]
-                                            : m_d3dContext->m_d3dNullSrv;
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
+          srvStart + offset++);
+      D3D12_CPU_DESCRIPTOR_HANDLE
+      src = (bg->m_d3dSrvSlotMask & (1u << globalSlot))
+                ? bg->m_d3dSrvHandles[globalSlot]
+                : m_d3dContext->m_d3dNullSrvSlot.handle();
       m_d3dDevice->CopyDescriptorsSimple(
           1,
           dst,
@@ -178,17 +198,17 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
     // for now; the loop no-ops at gp.uavCount == 0.
     for (uint8_t i = 0; i < gp.uavCount; ++i)
     {
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = m_d3dContext->d3d12GpuSrvCpuHandle(
-          heapStart + offset++);
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
+          srvStart + offset++);
       m_d3dDevice->CopyDescriptorsSimple(
           1,
           dst,
-          m_d3dContext->m_d3dNullSrv,
+          m_d3dContext->m_d3dNullSrvSlot.handle(),
           D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_d3dContext->d3d12GpuSrvGpuHandle(
-        heapStart);
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = srvHeap->gpuHandleForIndex(
+        srvStart);
     m_d3dCmdList->SetGraphicsRootDescriptorTable(
         static_cast<UINT>(gp.cbvSrvUavRootParamIdx),
         gpuHandle);
@@ -197,18 +217,17 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
   // Sampler table (separate heap type).
   if (gp.samplerRootParamIdx >= 0)
   {
-    UINT heapStart = m_d3dContext->d3d12AllocGpuSamplerSlots(gp.samplerCount);
-    if (heapStart == UINT_MAX)
-      return;
+    gpu::D3D12DescriptorHeap* samplerHeap = m_d3dContext->m_d3dGpuSamplerHeap
+                                                .heap.get();
     for (uint8_t i = 0; i < gp.samplerCount; ++i)
     {
       uint8_t globalSlot = gp.samplerBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = m_d3dContext->d3d12GpuSamplerCpuHandle(
-          heapStart + i);
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = samplerHeap->cpuHandleForUpload(
+          samplerStart + i);
       D3D12_CPU_DESCRIPTOR_HANDLE
       src = (bg->m_d3dSamplerSlotMask & (1u << globalSlot))
                 ? bg->m_d3dSamplerHandles[globalSlot]
-                : m_d3dContext->m_d3dNullSampler;
+                : m_d3dContext->m_d3dNullSamplerSlot.handle();
       m_d3dDevice->CopyDescriptorsSimple(
           1,
           dst,
@@ -216,7 +235,7 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(
           D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
     D3D12_GPU_DESCRIPTOR_HANDLE
-    gpuHandle = m_d3dContext->d3d12GpuSamplerGpuHandle(heapStart);
+    gpuHandle = samplerHeap->gpuHandleForIndex(samplerStart);
     m_d3dCmdList->SetGraphicsRootDescriptorTable(
         static_cast<UINT>(gp.samplerRootParamIdx),
         gpuHandle);
