@@ -415,6 +415,23 @@ public:
   {
     setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
   }
+#ifdef WITH_RIVE_EDITOR
+  // Editor documents default clip to true (the dev/defs initialValue), the
+  // runtime to false, and coop and REV leave clip out when it is true.
+  // EditorFile::createObject seeds the editor value on every native
+  // creation, and the journal records false explicitly so an undone delete
+  // restores it, locally and on peers.
+  void applyEditorInitialValues() { m_Clip = true; }
+  // Whether setting clip to `value` adds or drops this layout's proxy, so
+  // the editor rebuilds its draw order. A layout that paints, or whose clip
+  // is animated or bound, keeps its proxy either way.
+  bool clipChangesDrawableProxy(bool value) const
+  {
+    return clip() != value && shapePaints().empty() &&
+           !hasLayoutFlag(LayoutComponentFlags::ForceDrawableProxy);
+  }
+  void captureStateForJournal() override;
+#endif
   virtual void updateRenderPath();
   void update(ComponentDirt value) override;
   void updateTransform() override;

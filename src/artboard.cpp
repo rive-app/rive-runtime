@@ -637,63 +637,7 @@ StatusCode Artboard::initialize()
       m_layerMasks.push_back(object->as<LayerMask>());
     }
   }
-  // A layout only needs a DrawableProxy if it paints, clips, can gain a clip
-  // at runtime, or is an interaction/listener hit target. Those deferred
-  // reasons are stamped as ForceDrawableProxy when their references resolve
-  // (KeyedObject::onAddedDirty, DataBind::target, ScrollConstraint, and
-  // StateMachineListener::onAddedClean; source-only ones are carried to
-  // instances by LayoutComponent::clone) -- guaranteeing the proxy exists
-  // before this first, one-time injection. See needsDrawableProxy.
-
-  // Iterate over the drawables in order to inject proxies for layouts
-  std::vector<LayoutComponent*> layouts;
-  for (int i = 0; i < m_Drawables.size(); i++)
-  {
-    auto drawable = m_Drawables[i];
-    LayoutComponent* currentLayout = nullptr;
-    bool isInCurrentLayout = true;
-    if (!layouts.empty())
-    {
-      currentLayout = layouts.back();
-      isInCurrentLayout = drawable->isChildOfLayout(currentLayout);
-    }
-    // We inject a DrawableProxy after all of the children of a
-    // LayoutComponent so that we can draw a stroke above and background
-    // below the children This also allows us to clip the children. Layouts
-    // that will never paint or clip skip the proxy entirely (it would draw
-    // nothing) -- pure containers are the common case.
-    if (currentLayout != nullptr && !isInCurrentLayout)
-    {
-      // This is the first item in the list of drawables that isn't a
-      // child of the layout, so we insert a proxy before it
-      do
-      {
-        if (currentLayout->needsDrawableProxy())
-        {
-          m_Drawables.insert(m_Drawables.begin() + i, currentLayout->proxy());
-          i += 1;
-        }
-        layouts.pop_back();
-        if (!layouts.empty())
-        {
-          currentLayout = layouts.back();
-        }
-      } while (!layouts.empty() && !drawable->isChildOfLayout(currentLayout));
-    }
-    if (drawable->is<LayoutComponent>())
-    {
-      layouts.push_back(drawable->as<LayoutComponent>());
-    }
-  }
-  while (!layouts.empty())
-  {
-    auto layout = layouts.back();
-    if (layout->needsDrawableProxy())
-    {
-      m_Drawables.push_back(layout->proxy());
-    }
-    layouts.pop_back();
-  }
+  insertLayoutProxies();
 
   sortDependencies();
 
@@ -757,6 +701,67 @@ StatusCode Artboard::initialize()
 
   initScriptedObjects();
   return StatusCode::Ok;
+}
+
+void Artboard::insertLayoutProxies()
+{
+  // A layout only needs a DrawableProxy if it paints, clips, can gain a clip
+  // at runtime, or is an interaction/listener hit target. Those deferred
+  // reasons are stamped as ForceDrawableProxy when their references resolve
+  // (KeyedObject::onAddedDirty, DataBind::target, ScrollConstraint, and
+  // StateMachineListener::onAddedClean; source-only ones are carried to
+  // instances by LayoutComponent::clone) -- guaranteeing the proxy exists
+  // before this first, one-time injection. See needsDrawableProxy.
+
+  // Iterate over the drawables in order to inject proxies for layouts
+  std::vector<LayoutComponent*> layouts;
+  for (int i = 0; i < m_Drawables.size(); i++)
+  {
+    auto drawable = m_Drawables[i];
+    LayoutComponent* currentLayout = nullptr;
+    bool isInCurrentLayout = true;
+    if (!layouts.empty())
+    {
+      currentLayout = layouts.back();
+      isInCurrentLayout = drawable->isChildOfLayout(currentLayout);
+    }
+    // We inject a DrawableProxy after all of the children of a
+    // LayoutComponent so that we can draw a stroke above and background
+    // below the children This also allows us to clip the children. Layouts
+    // that will never paint or clip skip the proxy entirely (it would draw
+    // nothing) -- pure containers are the common case.
+    if (currentLayout != nullptr && !isInCurrentLayout)
+    {
+      // This is the first item in the list of drawables that isn't a
+      // child of the layout, so we insert a proxy before it
+      do
+      {
+        if (currentLayout->needsDrawableProxy())
+        {
+          m_Drawables.insert(m_Drawables.begin() + i, currentLayout->proxy());
+          i += 1;
+        }
+        layouts.pop_back();
+        if (!layouts.empty())
+        {
+          currentLayout = layouts.back();
+        }
+      } while (!layouts.empty() && !drawable->isChildOfLayout(currentLayout));
+    }
+    if (drawable->is<LayoutComponent>())
+    {
+      layouts.push_back(drawable->as<LayoutComponent>());
+    }
+  }
+  while (!layouts.empty())
+  {
+    auto layout = layouts.back();
+    if (layout->needsDrawableProxy())
+    {
+      m_Drawables.push_back(layout->proxy());
+    }
+    layouts.pop_back();
+  }
 }
 
 void Artboard::sortDrawOrder()

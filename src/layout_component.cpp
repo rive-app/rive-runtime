@@ -1521,6 +1521,19 @@ void LayoutComponent::calculateLayoutInternal(
       YGDirection::YGDirectionInherit);
 }
 
+#ifdef WITH_RIVE_EDITOR
+void LayoutComponent::captureStateForJournal()
+{
+  LayoutComponentBase::captureStateForJournal();
+  // The generated capture skips clip at its runtime default (false), which
+  // is not the editor default a recreated layout starts from.
+  if (!clip())
+  {
+    onPropertyChanging(clipPropertyKey, &m_Clip, &m_Clip);
+  }
+}
+#endif
+
 bool LayoutComponent::styleDisplayHidden() const
 {
 #ifdef WITH_RIVE_EDITOR

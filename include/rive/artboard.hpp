@@ -319,6 +319,10 @@ private:
   mutable Sidecar<std::vector<DependencyOrderEntry>> m_DependencyOrderRecipe;
   mutable RecipeState m_RecipeState = RecipeState::unbuilt;
   void sortDrawOrder();
+  // Injects each LayoutComponent's DrawableProxy into m_Drawables after its
+  // last child, for layouts that paint, clip or are hit targets. Expects
+  // m_Drawables in hierarchy order (parents before children).
+  void insertLayoutProxies();
   void clearRedundantOperations();
   // Splices layer-mask brackets into the flat draw list. Runs after the
   // clipping interleave so a mask bracket nests inside a clip bracket: an
@@ -600,6 +604,9 @@ public:
   // (driven by `initialize()`); editor_native's `finalizeBatch` needs
   // to invoke it after per-component `buildDependencies` calls.
   void sortDependenciesEditor() { sortDependencies(); }
+  // Editor drawables are rebuilt from the arena rather than m_Objects, so
+  // finalizeBatch injects layout proxies itself, after addDrawable.
+  void insertLayoutProxiesForEditor() { insertLayoutProxies(); }
   // Initialize `m_layout` from the artboard's width/height so
   // `layoutWidth()` / `layoutHeight()` / `bounds()` report non-zero.
   // Mirrors the first lines of `Artboard::initialize()` at
