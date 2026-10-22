@@ -46,6 +46,11 @@ protected:
   void startYChanged() override;
   void endXChanged() override;
   void endYChanged() override;
+  void transformXChanged() override;
+  void transformYChanged() override;
+  void transformRotationChanged() override;
+  void transformScaleXChanged() override;
+  void transformScaleYChanged() override;
   void opacityChanged() override;
   void renderOpacityChanged() override;
 

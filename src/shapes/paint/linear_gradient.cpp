@@ -246,4 +246,20 @@ void LinearGradient::startXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::startYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
+// The gradient's own transform reaches the shader, which is only rebuilt in
+// `update`, so a change has to ask for that rebuild like the points do.
+void LinearGradient::transformXChanged() { addDirt(ComponentDirt::Transform); }
+void LinearGradient::transformYChanged() { addDirt(ComponentDirt::Transform); }
+void LinearGradient::transformRotationChanged()
+{
+  addDirt(ComponentDirt::Transform);
+}
+void LinearGradient::transformScaleXChanged()
+{
+  addDirt(ComponentDirt::Transform);
+}
+void LinearGradient::transformScaleYChanged()
+{
+  addDirt(ComponentDirt::Transform);
+}
 void LinearGradient::opacityChanged() { markGradientDirty(); }

@@ -112,6 +112,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(transformXPropertyKey, &m_TransformX, &value);
     m_TransformX = value;
+    RIVE_EDITOR_CHANGED(transformXChanged());
     notifyPropertyChanged(transformXPropertyKey);
   }
 
@@ -124,6 +125,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(transformYPropertyKey, &m_TransformY, &value);
     m_TransformY = value;
+    RIVE_EDITOR_CHANGED(transformYChanged());
     notifyPropertyChanged(transformYPropertyKey);
   }
 
@@ -139,6 +141,7 @@ public:
         &m_TransformRotation,
         &value);
     m_TransformRotation = value;
+    RIVE_EDITOR_CHANGED(transformRotationChanged());
     notifyPropertyChanged(transformRotationPropertyKey);
   }
 
@@ -154,6 +157,7 @@ public:
         &m_TransformScaleX,
         &value);
     m_TransformScaleX = value;
+    RIVE_EDITOR_CHANGED(transformScaleXChanged());
     notifyPropertyChanged(transformScaleXPropertyKey);
   }
 
@@ -169,6 +173,7 @@ public:
         &m_TransformScaleY,
         &value);
     m_TransformScaleY = value;
+    RIVE_EDITOR_CHANGED(transformScaleYChanged());
     notifyPropertyChanged(transformScaleYPropertyKey);
   }
 
@@ -232,6 +237,11 @@ protected:
   virtual void endXChanged() {}
   virtual void endYChanged() {}
   virtual void opacityChanged() {}
+  virtual void transformXChanged() {}
+  virtual void transformYChanged() {}
+  virtual void transformRotationChanged() {}
+  virtual void transformScaleXChanged() {}
+  virtual void transformScaleYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/linear_gradient_ext.inl"
 #endif
