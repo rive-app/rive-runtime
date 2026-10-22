@@ -37,6 +37,13 @@ if _OPTIONS['toolset'] == 'msc' then
         'MA_NO_MP3', -- miniaudio's mp3 decoder + fp:strict causes C2099
     })
 end
+-- Every line break dictionary, so their tests run, compressed so they cover
+-- rebuilding the tries too. Set here rather than on the command line so
+-- existing out directories keep their premake arguments.
+for _, language in ipairs({ 'thai', 'lao', 'khmer', 'burmese', 'compressed' }) do
+    -- Empty, like a bare command line flag, so 'options:' filters match.
+    _OPTIONS['with_rive_text_dict_' .. language] = ''
+end
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
 

@@ -117,6 +117,36 @@ TEST_CASE("line breaker breaks CJK per character with kinsoku", "[line break]")
   REQUIRE(words[0] == expected);
 }
 
+TEST_CASE("line breaker wraps Korean at spaces", "[line break]")
+{
+  // Glyphs are .notdef in this font, the break structure only needs text.
+  // 한국어 텍스트
+  auto words = shapeWords(U8("\uD55C\uAD6D\uC5B4 \uD14D\uC2A4\uD2B8"));
+  REQUIRE(words.size() == 1);
+  REQUIRE(words[0] == Words{{0, 3}, {4, 7}});
+
+  // 2026년 10월, numbers stay glued to their counters.
+  words = shapeWords(U8("2026\uB144 10\uC6D4"));
+  REQUIRE(words.size() == 1);
+  REQUIRE(words[0] == Words{{0, 5}, {6, 9}});
+
+  // 안녕하세요. 반가워요
+  words = shapeWords(
+      U8("\uC548\uB155\uD558\uC138\uC694. \uBC18\uAC00\uC6CC\uC694"));
+  REQUIRE(words.size() == 1);
+  REQUIRE(words[0] == Words{{0, 6}, {7, 11}});
+
+  // 한국語, ideographs still break on either side.
+  words = shapeWords(U8("\uD55C\uAD6D\u8A9E"));
+  REQUIRE(words.size() == 1);
+  REQUIRE(words[0] == Words{{0, 2}, {2, 3}});
+
+  // Conjoining jamo for 각 then the precomposed syllable.
+  words = shapeWords(U8("\u1100\u1161\u11A8 \uAC01"));
+  REQUIRE(words.size() == 1);
+  REQUIRE(words[0] == Words{{0, 3}, {4, 5}});
+}
+
 TEST_CASE(
     "line breaker treats every hard break as a forced break",
     "[line break]")

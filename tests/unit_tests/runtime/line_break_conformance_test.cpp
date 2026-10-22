@@ -12,13 +12,16 @@
 using namespace rive;
 
 // Runs Unicode's LineBreakTest.txt (comments stripped by
-// dev/unicode/generate_line_break.py) through computeLineBreaks.
+// dev/unicode/generate_line_break.py) through computeLineBreaks. Cases with
+// Hangul are skipped: computeLineBreaks tailors Hangul to AL so Korean wraps
+// at spaces, while the conformance data breaks between syllables.
 TEST_CASE("line break classes match UAX #14 conformance data", "[line break]")
 {
   FILE* fp = fopen("assets/unicode/LineBreakTest.txt", "r");
   REQUIRE(fp != nullptr);
   char line[2048];
   int cases = 0;
+  int tailored = 0;
   int failures = 0;
   std::string firstFailure;
   while (fgets(line, sizeof(line), fp))
@@ -52,9 +55,26 @@ TEST_CASE("line break classes match UAX #14 conformance data", "[line break]")
       }
     }
     REQUIRE(expected.size() == text.size() + 1);
+    cases++;
+    bool isTailored = false;
+    for (uint32_t cp : text)
+    {
+      LineBreakClass cls = lineBreakProps(cp).cls;
+      if (cls == LineBreakClass::JL || cls == LineBreakClass::JV ||
+          cls == LineBreakClass::JT || cls == LineBreakClass::H2 ||
+          cls == LineBreakClass::H3)
+      {
+        isTailored = true;
+        break;
+      }
+    }
+    if (isTailored)
+    {
+      tailored++;
+      continue;
+    }
     std::vector<LineBreak> out(text.size() + 1);
     computeLineBreaks(text, out);
-    cases++;
     bool ok = true;
     for (size_t i = 1; i < expected.size(); i++)
     {
@@ -76,5 +96,6 @@ TEST_CASE("line break classes match UAX #14 conformance data", "[line break]")
   fclose(fp);
   INFO("first failing case: " << firstFailure);
   REQUIRE(cases > 19000);
+  REQUIRE(cases - tailored > 16000);
   REQUIRE(failures == 0);
 }

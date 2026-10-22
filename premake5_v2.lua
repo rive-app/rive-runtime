@@ -12,6 +12,18 @@ filter({ 'options:with_rive_canvas' })
 do
     defines({ 'RIVE_CANVAS' })
 end
+-- One word list per language for scripts written without spaces, see
+-- dev/unicode/generate_line_break_dictionaries.py.
+for _, language in ipairs({ 'thai', 'lao', 'khmer', 'burmese' }) do
+    filter({ 'options:with_rive_text_dict_' .. language })
+    do
+        defines({ 'WITH_RIVE_TEXT_DICT_' .. language:upper() })
+    end
+end
+filter({ 'options:with_rive_text_dict_compressed' })
+do
+    defines({ 'WITH_RIVE_TEXT_DICT_COMPRESSED' })
+end
 filter({ 'options:with_rive_scripting' })
 do
     defines({ 'WITH_RIVE_SCRIPTING' })
@@ -398,6 +410,32 @@ newoption({
 newoption({
     trigger = 'with_rive_text',
     description = 'Compiles in text features.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_thai',
+    description = 'Compiles in the Thai word list (~150 KB) so Thai wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_lao',
+    description = 'Compiles in the Lao word list (~190 KB) so Lao wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_khmer',
+    description = 'Compiles in the Khmer word list (~510 KB) so Khmer wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_burmese',
+    description = 'Compiles in the Burmese word list (~300 KB) so Burmese wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_compressed',
+    description = 'Stores the line break dictionaries as deflated word lists (about 40% '
+        .. 'of their size) and builds each one in memory the first time its script is laid out.',
 })
 
 newoption({

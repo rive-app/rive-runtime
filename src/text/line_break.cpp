@@ -3,6 +3,7 @@
  */
 
 #include "rive/text/line_break.hpp"
+#include "rive/text/line_break_dictionary.hpp"
 #include <cassert>
 #include <vector>
 
@@ -343,24 +344,7 @@ LineBreak breakBefore(
   {
     return LineBreak::none;
   }
-  // LB26
-  if (p == C::JL && (n == C::JL || n == C::JV || n == C::H2 || n == C::H3))
-  {
-    return LineBreak::none;
-  }
-  if ((p == C::JV || p == C::H2) && (n == C::JV || n == C::JT))
-  {
-    return LineBreak::none;
-  }
-  if ((p == C::JT || p == C::H3) && n == C::JT)
-  {
-    return LineBreak::none;
-  }
-  // LB27
-  if ((isKorean(p) && n == C::PO) || (p == C::PR && isKorean(n)))
-  {
-    return LineBreak::none;
-  }
+  // LB26 and LB27 never match: Hangul resolves to AL before the rules run.
   // LB28
   if (isAlphabetic(p) && isAlphabetic(n))
   {
@@ -428,9 +412,11 @@ void rive::computeLineBreaks(Span<const uint32_t> text, Span<LineBreak> out)
   }
   out[n] = LineBreak::allowed;
 
-  // LB1 is baked into the table; CJ resolves to NS (strict) here. LB9 and
-  // LB10: combining marks and ZWJ attach to any base except hard breaks,
-  // spaces and ZW, otherwise they act as AL.
+  // LB1 is baked into the table; CJ resolves to NS (strict) here. Hangul
+  // resolves to AL so space delimited Korean wraps at spaces, as it did
+  // before UAX #14, instead of between syllables. LB9 and LB10: combining
+  // marks and ZWJ attach to any base except hard breaks, spaces and ZW,
+  // otherwise they act as AL.
   Item inlineItems[kInlineItems];
   std::vector<Item> heapItems;
   Item* items = inlineItems;
@@ -449,6 +435,10 @@ void rive::computeLineBreaks(Span<const uint32_t> text, Span<LineBreak> out)
     if (cls == C::CJ)
     {
       cls = C::NS;
+    }
+    else if (isKorean(cls))
+    {
+      cls = C::AL;
     }
     if (cls == C::CM || cls == C::ZWJ)
     {
@@ -485,6 +475,9 @@ void rive::computeLineBreaks(Span<const uint32_t> text, Span<LineBreak> out)
         beforeSpaces,
         regionalIndicators);
   }
+#ifdef RIVE_LINE_BREAK_DICTIONARIES
+  applyLineBreakDictionaries(text, out);
+#endif
   if (isHardBreak(items[count - 1].cls))
   {
     out[n] = LineBreak::mandatory;
