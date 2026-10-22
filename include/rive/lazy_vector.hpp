@@ -108,6 +108,18 @@ public:
     }
   }
 
+  // Erase every element matching `predicate`. No-op when the wrapper is
+  // empty. The erase-remove counterpart to eraseAll for callers that select
+  // by a property of the element rather than by equality.
+  template <typename Predicate> void eraseIf(Predicate predicate)
+  {
+    if (m_v == nullptr)
+    {
+      return;
+    }
+    m_v->erase(std::remove_if(m_v->begin(), m_v->end(), predicate), m_v->end());
+  }
+
   void clear()
   {
     if (m_v != nullptr)

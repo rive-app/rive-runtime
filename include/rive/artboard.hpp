@@ -12,6 +12,8 @@
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/generated/artboard_base.hpp"
 #include "rive/hit_info.hpp"
+#include "rive/lazy_vector.hpp"
+#include "rive/sidecar.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/renderer.hpp"
 #include "rive/text/text_value_run.hpp"
@@ -28,7 +30,6 @@
 
 #include <memory>
 #include <queue>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -83,6 +84,7 @@ struct ArtboardScriptedInterpolators;
 class FocusManager;
 class SemanticManager;
 class SemanticNode;
+struct ArtboardSourceState;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
@@ -122,22 +124,33 @@ private:
   // runtime-only resolution.
   CoreContext* m_editorResolver = nullptr;
 #endif
-  std::vector<Core*> m_invalidObjects;
-  std::vector<LinearAnimation*> m_Animations;
-  std::vector<StateMachine*> m_StateMachines;
+  // Lists that are empty on the large majority of artboards hold a LazyVector
+  // (8 B, heap-allocated on first push) rather than an inline vector header
+  // (24 B). Measured over the 945 artboards in tests/unit_tests/assets:
+  // layerMasks 100% empty, Joysticks 98.6%, DrawTargets 97.4%,
+  // ScriptedObjects 93.7%, ComponentLists 92.7%, clippingShapes 90.6%,
+  // NestedArtboards 76.2%.
+  //
+  // The rest stay inline because they are populated on essentially every
+  // artboard, where LazyVector's extra allocation makes it strictly worse
+  // (see lazy_vector.hpp): m_Objects, m_DependencyOrder, m_Drawables,
+  // m_advancingComponents (0% empty, up to 142 entries) and m_ArtboardHosts
+  // (only 69.7% empty). The animation, state machine and rejected-object
+  // lists aren't here at all -- they are source-only, so they live in
+  // m_sourceState.
   std::vector<Component*> m_DependencyOrder;
   std::vector<Drawable*> m_Drawables;
-  std::vector<ClippingShape*> m_clippingShapes;
-  std::vector<LayerMask*> m_layerMasks;
-  std::vector<DrawTarget*> m_DrawTargets;
-  std::vector<NestedArtboard*> m_NestedArtboards;
-  std::vector<ArtboardComponentList*> m_ComponentLists;
+  LazyVector<ClippingShape*> m_clippingShapes;
+  LazyVector<LayerMask*> m_layerMasks;
+  LazyVector<DrawTarget*> m_DrawTargets;
+  LazyVector<NestedArtboard*> m_NestedArtboards;
+  LazyVector<ArtboardComponentList*> m_ComponentLists;
   std::vector<ArtboardHost*> m_ArtboardHosts;
   // Components instancing things bound under this artboard's data context
   // (Texts' global text styles).
   std::vector<HostDataContextConsumer*> m_hostDataContextConsumers;
-  std::vector<Joystick*> m_Joysticks;
-  std::vector<ScriptedObject*> m_ScriptedObjects;
+  LazyVector<Joystick*> m_Joysticks;
+  LazyVector<ScriptedObject*> m_ScriptedObjects;
   std::vector<AdvancingComponent*> m_advancingComponents;
   // Whose value binds are currently cloned into this container.
   rcp<ViewModelInstance> m_instanceValueBindsSource = nullptr;
@@ -233,8 +246,16 @@ private:
   // resolves them via keyFrameValueHolder. Built once from dataBinds(); the
   // source artboard's binds don't change at runtime. `mutable` so the const
   // accessors below can populate it on first use.
-  mutable std::unordered_map<const KeyFrame*, DataBind*> m_keyFrameSourceBinds;
-  mutable bool m_keyFrameSourceBindsBuilt = false;
+  // Source-only state: animations, state machines, rejected objects and the
+  // keyframe-bind index. Null on every instance. See ArtboardSourceState.
+  mutable Sidecar<ArtboardSourceState> m_sourceState;
+  // Views onto this artboard's own source state, each falling back to a
+  // shared empty when none was allocated -- every instance, and any artboard
+  // that imported no animation. To read the lists an instance plays, go
+  // through animationSource() first.
+  const std::vector<LinearAnimation*>& ownAnimations() const;
+  const std::vector<StateMachine*>& ownStateMachines() const;
+  const std::vector<Core*>& ownInvalidObjects() const;
   void buildKeyFrameSourceBindsIndex() const;
   void initScriptedObjects();
 
@@ -292,7 +313,10 @@ private:
   /// caller must fall back to sorting.
   bool replaySourceDependencyOrder(const Artboard* source);
 
-  mutable std::vector<DependencyOrderEntry> m_DependencyOrderRecipe;
+  // Only a source artboard ever builds this; an instance reads its
+  // source's through replaySourceDependencyOrder. Sidecar'd so the
+  // instances that never build one carry 8 B rather than a vector header.
+  mutable Sidecar<std::vector<DependencyOrderEntry>> m_DependencyOrderRecipe;
   mutable RecipeState m_RecipeState = RecipeState::unbuilt;
   void sortDrawOrder();
   void clearRedundantOperations();
@@ -518,7 +542,10 @@ public:
   // that, and landed in the editor-only block below besides, where the
   // runtime could not see it at all and the call silently resolved to the
   // base's version.)
-  const std::vector<LayerMask*>& allLayerMasks() const { return m_layerMasks; }
+  const std::vector<LayerMask*>& allLayerMasks() const
+  {
+    return m_layerMasks.view();
+  }
   // Every Drawable in the artboard (plus layout proxies). Much smaller than
   // objects(), so prefer it when looking for a Drawable type. The editor's
   // CommandDispatcher::handleHitTest walks it back-to-front for
@@ -556,8 +583,8 @@ public:
   // Rebuild the runtime playback lists from an editor arena, whose objects
   // do not live in the importer's m_Objects array.
   void rebuildAdvancingForEditor(Span<Core*> objects);
-  void clearAnimations() { m_Animations.clear(); }
-  void clearStateMachines() { m_StateMachines.clear(); }
+  void clearAnimations();
+  void clearStateMachines();
   // Editor-only: public wrappers around the otherwise-private
   // `addAnimation` / `addStateMachine` so `finalizeBatch` can
   // register coop-hydrated entries without friending EditorFile on
@@ -823,7 +850,7 @@ public:
 
   const std::vector<NestedArtboard*>& nestedArtboards() const
   {
-    return m_NestedArtboards;
+    return m_NestedArtboards.view();
   }
   /// Whether this artboard holds nested artboards or artboard lists, which
   /// make state machines of their own as they advance.
@@ -838,7 +865,7 @@ public:
   }
   const std::vector<ArtboardComponentList*>& artboardComponentLists() const
   {
-    return m_ComponentLists;
+    return m_ComponentLists.view();
   }
   rcp<DataContext> dataContext() { return dataBindContext(); }
 #ifdef WITH_RIVE_SCRIPTING_LUAU
@@ -978,7 +1005,7 @@ public:
 
   size_t animationCount() const
   {
-    return animationSource()->m_Animations.size();
+    return animationSource()->ownAnimations().size();
   }
   std::string animationNameAt(size_t index) const;
 
@@ -993,7 +1020,7 @@ public:
 
   size_t stateMachineCount() const
   {
-    return animationSource()->m_StateMachines.size();
+    return animationSource()->ownStateMachines().size();
   }
   std::string stateMachineNameAt(size_t index) const;
 

@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/artboard_clusters.hpp"
 #include "rive/data_bind/host_data_context_consumer.hpp"
 #include "rive/file.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
@@ -241,7 +242,7 @@ Artboard::~Artboard()
   {
     preDeletePass(object);
   }
-  for (auto object : m_invalidObjects)
+  for (auto object : ownInvalidObjects())
   {
     preDeletePass(object);
   }
@@ -263,7 +264,7 @@ Artboard::~Artboard()
     }
     delete object;
   }
-  for (auto object : m_invalidObjects)
+  for (auto object : ownInvalidObjects())
   {
     if (object == nullptr)
     {
@@ -292,11 +293,11 @@ Artboard::~Artboard()
   // TODO: move this logic into ArtboardInstance destructor???
   if (!m_IsInstance)
   {
-    for (auto object : m_Animations)
+    for (auto object : ownAnimations())
     {
       delete object;
     }
-    for (auto object : m_StateMachines)
+    for (auto object : ownStateMachines())
     {
       delete object;
     }
@@ -354,7 +355,7 @@ bool Artboard::validateObjects()
         // m_FileAssetReferencers. So the invalid objects are taken out
         // of the objects list but only deleted when the artboard is
         // destroyed.
-        m_invalidObjects.push_back(m_Objects[i]);
+        m_sourceState.ensureAllocated()->invalidObjects.push_back(m_Objects[i]);
         m_Objects[i] = nullptr;
       }
     }
@@ -425,7 +426,7 @@ StatusCode Artboard::initialize()
   // to lists twice.
   if (!isInstance())
   {
-    for (auto object : m_Animations)
+    for (auto object : ownAnimations())
     {
       if (!canContinue(code = object->onAddedDirty(this)))
       {
@@ -433,18 +434,18 @@ StatusCode Artboard::initialize()
       }
     }
 
-    for (auto object : m_StateMachines)
+    for (auto object : ownStateMachines())
     {
       if (!canContinue(code = object->onAddedDirty(this)))
       {
         return code;
       }
     }
-    if (m_Animations.size() == 0 && m_StateMachines.size() == 0)
+    if (ownAnimations().empty() && ownStateMachines().empty())
     {
       auto sm = new StateMachine();
       sm->name("Auto Generated State Machine");
-      m_StateMachines.push_back(sm);
+      m_sourceState.ensureAllocated()->stateMachines.push_back(sm);
     }
   }
 
@@ -564,7 +565,7 @@ StatusCode Artboard::initialize()
 
   if (!isInstance())
   {
-    for (auto object : m_Animations)
+    for (auto object : ownAnimations())
     {
       if (!canContinue(code = object->onAddedClean(this)))
       {
@@ -572,7 +573,7 @@ StatusCode Artboard::initialize()
       }
     }
 
-    for (auto object : m_StateMachines)
+    for (auto object : ownStateMachines())
     {
       if (!canContinue(code = object->onAddedClean(this)))
       {
@@ -1370,7 +1371,7 @@ const std::vector<Artboard::DependencyOrderEntry>* Artboard::
   switch (m_RecipeState)
   {
     case RecipeState::valid:
-      return &m_DependencyOrderRecipe;
+      return m_DependencyOrderRecipe.get();
     case RecipeState::unusable:
       return nullptr;
     case RecipeState::unbuilt:
@@ -1385,7 +1386,8 @@ const std::vector<Artboard::DependencyOrderEntry>* Artboard::
   // re-decoded (and so re-builds this) on every editor regeneration.
   const size_t count = m_DependencyOrder.size();
   constexpr uint32_t unset = ~(uint32_t)0;
-  m_DependencyOrderRecipe.assign(count, {unset, 0});
+  auto& recipe = *m_DependencyOrderRecipe.ensureAllocated();
+  recipe.assign(count, {unset, 0});
   size_t filled = 0;
 
   auto stamp = [&](const Component* component, uint32_t index, uint8_t slot) {
@@ -1404,7 +1406,7 @@ const std::vector<Artboard::DependencyOrderEntry>* Artboard::
     {
       return;
     }
-    DependencyOrderEntry& entry = m_DependencyOrderRecipe[position];
+    DependencyOrderEntry& entry = recipe[position];
     if (entry.objectIndex != unset)
     {
       // One component reachable through two slots. Leave the first.
@@ -1437,12 +1439,12 @@ const std::vector<Artboard::DependencyOrderEntry>* Artboard::
   {
     // Something in the order isn't addressable as index/slot (or the
     // graph-order stamps disagree). Don't emit a partial order.
-    m_DependencyOrderRecipe.clear();
+    m_DependencyOrderRecipe.reset();
     m_RecipeState = RecipeState::unusable;
     return nullptr;
   }
   m_RecipeState = RecipeState::valid;
-  return &m_DependencyOrderRecipe;
+  return m_DependencyOrderRecipe.get();
 }
 
 bool Artboard::replaySourceDependencyOrder(const Artboard* source)
@@ -1492,7 +1494,7 @@ void Artboard::sortDependencies()
   {
     component->m_GraphOrder = graphOrder++;
   }
-  m_DependencyOrderRecipe.clear();
+  m_DependencyOrderRecipe.reset();
   m_RecipeState = RecipeState::unbuilt;
   m_collapsedRunsDirty = true;
   m_Dirt |= ComponentDirt::Components;
@@ -1502,12 +1504,12 @@ void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
 void Artboard::addAnimation(LinearAnimation* object)
 {
-  m_Animations.push_back(object);
+  m_sourceState.ensureAllocated()->animations.push_back(object);
 }
 
 void Artboard::addStateMachine(StateMachine* object)
 {
-  m_StateMachines.push_back(object);
+  m_sourceState.ensureAllocated()->stateMachines.push_back(object);
 }
 
 void Artboard::addScriptedObject(ScriptedObject* object)
@@ -1593,7 +1595,7 @@ bool Artboard::usesScripts() const
       return true;
     }
   }
-  for (auto* machine : animationSource()->m_StateMachines)
+  for (auto* machine : animationSource()->ownStateMachines())
   {
     if (machine->hasScriptedObjects())
     {
@@ -1925,9 +1927,59 @@ void Artboard::dataBindsProcessed()
   }
 }
 
+namespace
+{
+// One shared empty per element type, handed out whenever an artboard has no
+// source state. Keeps every read branch-free at the call site.
+template <typename T> const std::vector<T>& emptySourceList()
+{
+  static const std::vector<T> EMPTY;
+  return EMPTY;
+}
+} // namespace
+
+const std::vector<LinearAnimation*>& Artboard::ownAnimations() const
+{
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr ? state->animations
+                          : emptySourceList<LinearAnimation*>();
+}
+
+const std::vector<StateMachine*>& Artboard::ownStateMachines() const
+{
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr ? state->stateMachines
+                          : emptySourceList<StateMachine*>();
+}
+
+const std::vector<Core*>& Artboard::ownInvalidObjects() const
+{
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr ? state->invalidObjects : emptySourceList<Core*>();
+}
+
+#ifdef WITH_RIVE_EDITOR
+void Artboard::clearAnimations()
+{
+  if (ArtboardSourceState* state = m_sourceState.get())
+  {
+    state->animations.clear();
+  }
+}
+
+void Artboard::clearStateMachines()
+{
+  if (ArtboardSourceState* state = m_sourceState.get())
+  {
+    state->stateMachines.clear();
+  }
+}
+#endif
+
 void Artboard::buildKeyFrameSourceBindsIndex() const
 {
-  m_keyFrameSourceBindsBuilt = true;
+  ArtboardSourceState* state = m_sourceState.ensureAllocated();
+  state->keyFrameBindsBuilt = true;
   for (auto dataBind : dataBinds())
   {
     auto target = dataBind->target();
@@ -1937,27 +1989,31 @@ void Artboard::buildKeyFrameSourceBindsIndex() const
     }
     // A keyframe holds a single value, so keep the first bind per target
     // (emplace does not overwrite an existing key).
-    m_keyFrameSourceBinds.emplace(target->as<KeyFrame>(), dataBind);
+    state->keyFrameBinds.emplace(target->as<KeyFrame>(), dataBind);
   }
 }
 
 bool Artboard::hasKeyFrameSourceBinds() const
 {
-  if (!m_keyFrameSourceBindsBuilt)
+  const ArtboardSourceState* state = m_sourceState.get();
+  if (state == nullptr || !state->keyFrameBindsBuilt)
   {
     buildKeyFrameSourceBindsIndex();
+    state = m_sourceState.get();
   }
-  return !m_keyFrameSourceBinds.empty();
+  return !state->keyFrameBinds.empty();
 }
 
 DataBind* Artboard::keyFrameSourceBind(const KeyFrame* keyframe) const
 {
-  if (!m_keyFrameSourceBindsBuilt)
+  const ArtboardSourceState* state = m_sourceState.get();
+  if (state == nullptr || !state->keyFrameBindsBuilt)
   {
     buildKeyFrameSourceBindsIndex();
+    state = m_sourceState.get();
   }
-  auto it = m_keyFrameSourceBinds.find(keyframe);
-  return it != m_keyFrameSourceBinds.end() ? it->second : nullptr;
+  auto it = state->keyFrameBinds.find(keyframe);
+  return it != state->keyFrameBinds.end() ? it->second : nullptr;
 }
 
 void Artboard::host(ArtboardHost* artboardHost)
@@ -4556,7 +4612,7 @@ std::string Artboard::stateMachineNameAt(size_t index) const
 
 LinearAnimation* Artboard::animation(const std::string& name) const
 {
-  for (auto animation : animationSource()->m_Animations)
+  for (auto animation : animationSource()->ownAnimations())
   {
     if (animation->name() == name)
     {
@@ -4569,16 +4625,17 @@ LinearAnimation* Artboard::animation(const std::string& name) const
 LinearAnimation* Artboard::animation(size_t index) const
 {
   const Artboard* source = animationSource();
-  if (index >= source->m_Animations.size())
+  const std::vector<LinearAnimation*>& animations = source->ownAnimations();
+  if (index >= animations.size())
   {
     return nullptr;
   }
-  return source->m_Animations[index];
+  return animations[index];
 }
 
 StateMachine* Artboard::stateMachine(const std::string& name) const
 {
-  for (auto machine : animationSource()->m_StateMachines)
+  for (auto machine : animationSource()->ownStateMachines())
   {
     if (machine->name() == name)
     {
@@ -4591,17 +4648,18 @@ StateMachine* Artboard::stateMachine(const std::string& name) const
 StateMachine* Artboard::stateMachine(size_t index) const
 {
   const Artboard* source = animationSource();
-  if (index >= source->m_StateMachines.size())
+  const std::vector<StateMachine*>& stateMachines = source->ownStateMachines();
+  if (index >= stateMachines.size())
   {
     return nullptr;
   }
-  return source->m_StateMachines[index];
+  return stateMachines[index];
 }
 
 int Artboard::defaultStateMachineIndex() const
 {
   int index = defaultStateMachineId();
-  if ((size_t)index >= animationSource()->m_StateMachines.size())
+  if ((size_t)index >= animationSource()->ownStateMachines().size())
   {
     index = -1;
   }
@@ -5253,10 +5311,13 @@ void Artboard::editorPrepareForDestruction()
             }),
         entries.end());
   };
-  discardArenaEntries(m_Animations);
-  discardArenaEntries(m_StateMachines);
   discardArenaEntries(m_Objects);
-  discardArenaEntries(m_invalidObjects);
+  if (ArtboardSourceState* state = m_sourceState.get())
+  {
+    discardArenaEntries(state->animations);
+    discardArenaEntries(state->stateMachines);
+    discardArenaEntries(state->invalidObjects);
+  }
   clearDrawables();
   m_FirstDrawable = nullptr;
   m_clippingShapes.clear();
