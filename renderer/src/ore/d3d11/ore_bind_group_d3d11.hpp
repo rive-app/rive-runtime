@@ -17,8 +17,6 @@ public:
     ID3D11Buffer*
         buffer = nullptr; // raw ptr; ComPtr in ShaderModule keeps it alive
     uint32_t binding = 0; // WGSL @binding, for sort
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t psSlot = BindingMap::kAbsent;
     uint32_t offset = 0;
     uint32_t size = 0;
     bool hasDynamicOffset = false;
@@ -26,14 +24,12 @@ public:
   struct D3D11TexBinding
   {
     ID3D11ShaderResourceView* srv = nullptr;
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t psSlot = BindingMap::kAbsent;
+    uint32_t binding = 0;
   };
   struct D3D11SamplerBinding
   {
     ID3D11SamplerState* sampler = nullptr;
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t psSlot = BindingMap::kAbsent;
+    uint32_t binding = 0;
   };
 
   BindGroupD3D11() = default;

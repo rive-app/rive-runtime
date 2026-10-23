@@ -137,6 +137,7 @@ void RenderPassD3D11::setPipeline(Pipeline* inPipeline)
   }
   if (!checkPipelineCompat(pipeline))
     return;
+  m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
   m_currentPipeline = ref_rcp(pipeline);
 
   const auto& desc = pipeline->desc();
@@ -208,12 +209,17 @@ void RenderPassD3D11::setBindGroup(
     uint32_t dynamicOffsetCount)
 {
   validate();
-  auto bg = static_cast<BindGroupD3D11*>(inBg);
-  if (bg == nullptr) // destroyed under a straddling deferred frame
+  if (inBg == nullptr) // destroyed under a straddling deferred frame
     return;
+  storeBindGroup(groupIndex, inBg, dynamicOffsets, dynamicOffsetCount);
+}
 
-  // Hold a strong reference so the BindGroup stays alive until finish().
-  m_boundGroups[groupIndex] = ref_rcp(bg);
+void RenderPassD3D11::applyBindGroup(uint32_t groupIndex)
+{
+  auto* bg = static_cast<BindGroupD3D11*>(m_boundGroups[groupIndex].get());
+  const Pipeline* pipeline = m_currentPipeline.get();
+  const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
+  const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
 
   // m_d3d11UBOs is sorted by WGSL `@binding` ascending at makeBindGroup
   // time, so `dynamicOffsets[i]` here pairs with the i-th dynamic UBO
@@ -244,6 +250,12 @@ void RenderPassD3D11::setBindGroup(
       offsetBytes += dynamicOffsets[dynIdx];
       ++dynIdx;
     }
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex,
+        ubo.binding,
+        SlotSpace::buffer);
+    if (slots.vs == BindingMap::kAbsent && slots.fs == BindingMap::kAbsent)
+      continue;
     // ubo.size was resolved to a concrete byte count at
     // makeBindGroup time (see d3d11MakeBindGroup). `0` can only
     // occur for an impossibly 0-sized buffer — fall back to
@@ -279,29 +291,29 @@ void RenderPassD3D11::setBindGroup(
                                          ? 16u
                                          : ((numConstantsRaw + 15u) & ~15u))
                                   : 0;
-    if (ubo.vsSlot != BindingMap::kAbsent)
+    if (slots.vs != BindingMap::kAbsent)
     {
       if (useOffsetPath)
         ctx1->VSSetConstantBuffers1(
-            ubo.vsSlot,
+            slots.vs,
             1,
             &buf,
             &firstConstant,
             &numConstants);
       else
-        m_d3d11Context->VSSetConstantBuffers(ubo.vsSlot, 1, &buf);
+        m_d3d11Context->VSSetConstantBuffers(slots.vs, 1, &buf);
     }
-    if (ubo.psSlot != BindingMap::kAbsent)
+    if (slots.fs != BindingMap::kAbsent)
     {
       if (useOffsetPath)
         ctx1->PSSetConstantBuffers1(
-            ubo.psSlot,
+            slots.fs,
             1,
             &buf,
             &firstConstant,
             &numConstants);
       else
-        m_d3d11Context->PSSetConstantBuffers(ubo.psSlot, 1, &buf);
+        m_d3d11Context->PSSetConstantBuffers(slots.fs, 1, &buf);
     }
   }
 
@@ -311,18 +323,26 @@ void RenderPassD3D11::setBindGroup(
   // the other stage, matching D3D11's per-stage register file.
   for (const auto& tex : bg->m_d3d11Textures)
   {
-    if (tex.vsSlot != BindingMap::kAbsent)
-      m_d3d11Context->VSSetShaderResources(tex.vsSlot, 1, &tex.srv);
-    if (tex.psSlot != BindingMap::kAbsent)
-      m_d3d11Context->PSSetShaderResources(tex.psSlot, 1, &tex.srv);
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex,
+        tex.binding,
+        SlotSpace::texture);
+    if (slots.vs != BindingMap::kAbsent)
+      m_d3d11Context->VSSetShaderResources(slots.vs, 1, &tex.srv);
+    if (slots.fs != BindingMap::kAbsent)
+      m_d3d11Context->PSSetShaderResources(slots.fs, 1, &tex.srv);
   }
 
   for (const auto& samp : bg->m_d3d11Samplers)
   {
-    if (samp.vsSlot != BindingMap::kAbsent)
-      m_d3d11Context->VSSetSamplers(samp.vsSlot, 1, &samp.sampler);
-    if (samp.psSlot != BindingMap::kAbsent)
-      m_d3d11Context->PSSetSamplers(samp.psSlot, 1, &samp.sampler);
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex,
+        samp.binding,
+        SlotSpace::sampler);
+    if (slots.vs != BindingMap::kAbsent)
+      m_d3d11Context->VSSetSamplers(slots.vs, 1, &samp.sampler);
+    if (slots.fs != BindingMap::kAbsent)
+      m_d3d11Context->PSSetSamplers(slots.fs, 1, &samp.sampler);
   }
 }
 
@@ -407,6 +427,7 @@ void RenderPassD3D11::draw(
   validate();
   if (m_currentPipeline == nullptr) // dropped under a straddling frame
     return;
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   if (instanceCount > 1 || firstInstance != 0)
   {
@@ -429,6 +450,7 @@ void RenderPassD3D11::drawIndexed(
   validate();
   if (m_currentPipeline == nullptr) // dropped under a straddling frame
     return;
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   if (instanceCount > 1 || firstInstance != 0 || baseVertex != 0)
   {

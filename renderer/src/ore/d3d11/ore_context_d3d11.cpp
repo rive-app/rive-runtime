@@ -858,7 +858,7 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perStage,
-            LayoutSlots::bound,
+            LayoutSlots::ignored,
             &err))
     {
       if (outError)
@@ -1108,58 +1108,6 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
   bg->m_layoutRef = ref_rcp(layout);
   bg->recordDynamicRanges(desc);
 
-  // D3D11 has separate VS / PS register namespaces (b0 in VS vs b0 in PS
-  // are independent). HLSL SM5.0 has no register spaces, so all groups
-  // flatten into a single register namespace per kind. The allocator's
-  // per-stage native slots are populated on the layout entries by
-  // `makeLayoutFromShader`.
-  auto lookupStages = [&](uint32_t binding,
-                          BindingKind expected,
-                          uint16_t* outVS,
-                          uint16_t* outPS) -> bool {
-    const BindGroupLayoutEntry* le = layout->findEntry(binding);
-    if (le == nullptr)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) not declared "
-          "in BindGroupLayout",
-          groupIndex,
-          binding);
-      return false;
-    }
-    const bool kindOK = le->kind == expected ||
-                        ((le->kind == BindingKind::sampler ||
-                          le->kind == BindingKind::comparisonSampler) &&
-                         (expected == BindingKind::sampler ||
-                          expected == BindingKind::comparisonSampler));
-    if (!kindOK)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout kind "
-          "mismatch",
-          groupIndex,
-          binding);
-      return false;
-    }
-    *outVS = (le->nativeSlotVS == BindGroupLayoutEntry::kNativeSlotAbsent)
-                 ? BindingMap::kAbsent
-                 : static_cast<uint16_t>(le->nativeSlotVS);
-    *outPS = (le->nativeSlotFS == BindGroupLayoutEntry::kNativeSlotAbsent)
-                 ? BindingMap::kAbsent
-                 : static_cast<uint16_t>(le->nativeSlotFS);
-    if (*outVS == BindingMap::kAbsent && *outPS == BindingMap::kAbsent)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout has "
-          "no resolved native slot — call "
-          "makeLayoutFromShader",
-          groupIndex,
-          binding);
-      return false;
-    }
-    return true;
-  };
-
   // UBO bindings.
   uint32_t nBufs = std::min(desc.uboCount, 8u);
   bg->m_d3d11UBOs.reserve(nBufs);
@@ -1171,12 +1119,6 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     assert(buffer);
     binding.buffer = buffer->m_d3d11Buffer.Get();
     binding.binding = entry.slot;
-    if (!lookupStages(
-            entry.slot,
-            BindingKind::uniformBuffer,
-            &binding.vsSlot,
-            &binding.psSlot))
-      continue;
     binding.offset = entry.offset;
     binding.size = (entry.size != 0) ? entry.size
                                      : (entry.buffer->size() - entry.offset);
@@ -1207,12 +1149,7 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     auto view = lite_rtti_cast<TextureViewD3D11*>(entry.view);
     assert(view);
     binding.srv = view->m_d3dSRV.Get();
-    if (!lookupStages(
-            entry.slot,
-            BindingKind::sampledTexture,
-            &binding.vsSlot,
-            &binding.psSlot))
-      continue;
+    binding.binding = entry.slot;
     bg->m_d3d11Textures.push_back(binding);
     bg->m_retainedViews.push_back(ref_rcp(entry.view));
   }
@@ -1227,12 +1164,7 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     auto sampler = lite_rtti_cast<SamplerD3D11*>(entry.sampler);
     assert(sampler);
     binding.sampler = sampler->m_d3dSampler.Get();
-    if (!lookupStages(
-            entry.slot,
-            BindingKind::sampler,
-            &binding.vsSlot,
-            &binding.psSlot))
-      continue;
+    binding.binding = entry.slot;
     bg->m_d3d11Samplers.push_back(binding);
     bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
   }

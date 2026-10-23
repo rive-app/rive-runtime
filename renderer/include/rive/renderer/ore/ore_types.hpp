@@ -604,13 +604,13 @@ struct BindGroupLayoutEntry
   // Pre-resolved native slots, per-stage. Populated by the caller from
   // the shader's binding map (typically via
   // `makeBindGroupLayoutFromShader(ctx, shader, group)`). Backends that
-  // bind at the layout's slots (D3D11, D3D12, Vulkan) reject a pipeline
-  // whose shader numbers them differently; Metal and GL resolve them
+  // bind at the layout's slots (D3D12, Vulkan) reject a pipeline whose
+  // shader numbers them differently; Metal, GL and D3D11 resolve them
   // through the bound pipeline, and WebGPU uses `binding` directly.
   //
   // 0xFFFFFFFF = `kAbsent` (binding not visible to that stage). Default
   // is "absent in all stages" so a layout-without-shader-resolution
-  // works on Metal/GL/Vulkan/WebGPU but fails loudly on D3D11/D3D12.
+  // works on Metal/GL/D3D11/Vulkan/WebGPU but fails loudly on D3D12.
   static constexpr uint32_t kNativeSlotAbsent = 0xFFFFFFFFu;
   uint32_t nativeSlotVS = kNativeSlotAbsent;
   uint32_t nativeSlotFS = kNativeSlotAbsent;

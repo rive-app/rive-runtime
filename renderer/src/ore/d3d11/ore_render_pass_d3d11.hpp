@@ -67,6 +67,9 @@ private:
   friend class ContextD3D11;
 
   void applyVertexBuffer(uint32_t slot);
+  // At the pipeline's registers, which differ from the layout's when the
+  // layout came from another shader.
+  void applyBindGroup(uint32_t groupIndex);
 
   ID3D11DeviceContext* m_d3d11Context = nullptr; // weak ref
   rcp<PipelineD3D11> m_currentPipeline;

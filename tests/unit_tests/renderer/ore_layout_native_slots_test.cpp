@@ -187,9 +187,8 @@ void runScenario(TestingWindow* window, TestingWindow::Backend backend)
 
   std::string pipelineError;
   auto pipeline = ctx.makePipeline(desc, &pipelineError);
-  // D3D binds at the layout's slots, so it refuses this pipeline instead.
-  if (backend == TestingWindow::Backend::d3d ||
-      backend == TestingWindow::Backend::d3d12)
+  // D3D12 binds at the layout's registers, so it refuses this pipeline.
+  if (backend == TestingWindow::Backend::d3d12)
   {
     INFO("makePipeline: " << pipelineError);
     REQUIRE(pipeline == nullptr);
