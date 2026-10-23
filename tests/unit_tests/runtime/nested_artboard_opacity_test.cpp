@@ -58,6 +58,44 @@ TEST_CASE("Paused nested artboard still propagates host opacity", "[file]")
   REQUIRE(paint->renderOpacity() == Approx(baseline * 0.5f));
 }
 
+// A playing nested artboard used to see a host opacity change only on the next
+// advance: the update wrote hostOpacity() and left the dirt for
+// advanceComponent to lift. A host advanced once per frame (a script's
+// Artboard:advance with no state machine) then drew a swap with a blank frame,
+// since 0 hides at once but the way back lagged.
+TEST_CASE("Playing nested artboard gets host opacity in one advance", "[file]")
+{
+  auto file = ReadRiveFile("assets/nested_artboard_opacity.riv");
+
+  auto mainArtboard = file->artboard()->instance();
+  auto artboard = mainArtboard->find<rive::Artboard>("Parent Artboard");
+  REQUIRE(artboard != nullptr);
+  auto container = artboard->find<rive::NestedArtboard>(
+      "Nested artboard container");
+  REQUIRE(container != nullptr);
+  REQUIRE(container->artboardInstance() != nullptr);
+
+  artboard->advance(0.0f);
+  auto paints = container->artboardInstance()->shapePaints();
+  REQUIRE(paints.size() == 1);
+  auto paint = paints[0];
+  float baseline = paint->renderOpacity();
+  REQUIRE(baseline > 0.0f);
+
+  float opacity = container->opacity();
+  container->opacity(opacity * 0.5f);
+  artboard->advance(0.0f);
+  REQUIRE(paint->renderOpacity() == Approx(baseline * 0.5f));
+
+  // Hide, then show again: each takes effect on its own advance.
+  container->opacity(0.0f);
+  artboard->advance(0.0f);
+  REQUIRE(paint->renderOpacity() == 0.0f);
+  container->opacity(opacity);
+  artboard->advance(0.0f);
+  REQUIRE(paint->renderOpacity() == Approx(baseline));
+}
+
 // The host (NestedArtboard) imposes its opacity through hostOpacity() rather
 // than overwriting the instance's own `opacity` property, so an artboard's own
 // (authored / animated / data-bound) opacity is honored and multiplied with the

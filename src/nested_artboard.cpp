@@ -757,13 +757,15 @@ void NestedArtboard::update(ComponentDirt value)
   }
   // Also flush when the referenced artboard itself is dirty (not just the
   // host). The RenderOpacity branch above writes the host opacity onto the
-  // referenced artboard, which marks its own Components dirt. When the nested
-  // artboard is paused, advanceComponent short-circuits and never lifts that
-  // dirt onto the host, so without this the opacity change would never reach
-  // the child's paints. updatePass recomputes render state from the current
-  // (frozen) values without advancing animations, preserving pause.
+  // referenced artboard, which marks its own Components dirt after
+  // advanceComponent has already run. Left for the next advance to lift, the
+  // children would draw the old opacity for a frame (forever when paused,
+  // since advanceComponent short-circuits). A host that settles in a loop
+  // hides that; one advanced once per frame, as a script's Artboard:advance
+  // is, does not. updatePass recomputes render state from the current values
+  // without advancing animations, preserving pause.
   if (hasDirt(value, ComponentDirt::Components) ||
-      (isPaused() && m_referencedArtboard->hasDirt(ComponentDirt::Components)))
+      m_referencedArtboard->hasDirt(ComponentDirt::Components))
   {
     // We intentionally discard whether or not this updated because by the
     // end of the pass all the dirt is removed and only another advance of
