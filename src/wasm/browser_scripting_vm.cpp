@@ -16,14 +16,19 @@ EM_JS_DEPS(riveWebScripting,
            "$UTF8ToString,$stringToUTF8,$stringToNewUTF8,"
            "$stackSave,$stackAlloc,$stackRestore,$wasmTable,malloc,free");
 
-// The runner is web/rive_script_runner.mjs, installed by the host. Only code
-// inside librive can see its heap and exports, so they are handed over here.
-EM_JS(int, riveWebRegister, (uint32_t vm, const uint8_t* bytes, uint32_t size), {
+// The runner is web/rive_script_runner.mjs, installed on each thread; only
+// librive sees its heap and exports, so they are handed over here.
+EM_JS(int, riveWebAttach, (), {
     const runner = Module['riveScripting'];
     if (!runner)
     {
         return 0;
     }
+    const withUtf8 = (text, fn) => {
+        const ptr = stringToNewUTF8(text);
+        fn(ptr);
+        _free(ptr);
+    };
     runner.attach({
         exports: Module,
         hostCall: (index) => {
@@ -39,9 +44,30 @@ EM_JS(int, riveWebRegister, (uint32_t vm, const uint8_t* bytes, uint32_t size), 
         free: _free,
         utf8: (ptr) => UTF8ToString(ptr),
         writeUtf8: (text, ptr, capacity) => stringToUTF8(text, ptr, capacity),
+        memory: () => wasmMemory,
+        // Builds that cannot play processors leave this export out.
+        processorEvent: (processor, kind, text) =>
+            withUtf8(text, (ptr) => Module['_rive_web_processor_event'](processor, kind, ptr)),
+        laneLog: (lane, text) => withUtf8(text, (ptr) => _rive_web_lane_log(lane, ptr)),
+        laneFail: (lane, text) => withUtf8(text, (ptr) => _rive_web_lane_fail(lane, ptr)),
+        laneStop: (lane) => {
+            const text = _rive_web_lane_fuel(lane);
+            return text === 0 ? null : UTF8ToString(text);
+        },
     });
-    runner.register(vm, HEAPU8.subarray(bytes, bytes + size));
     return 1;
+});
+
+#ifdef __EMSCRIPTEN_PTHREADS__
+// The page hands the lane modules it compiles to its idle threads, as a
+// running one never takes a message and would only pin them.
+EM_JS(void, riveWebAttachThreads, (), {
+    Module['riveScripting'].attachThreads(() => PThread.unusedWorkers);
+});
+#endif
+
+EM_JS(void, riveWebRegister, (uint32_t vm, const uint8_t* bytes, uint32_t size), {
+    Module['riveScripting'].register(vm, HEAPU8.subarray(bytes, bytes + size));
 });
 
 EM_JS(void, riveWebRelease, (uint32_t vm), {
@@ -128,10 +154,7 @@ std::unique_ptr<BrowserScriptingVM> BrowserScriptingVM::make(
 #ifdef __EMSCRIPTEN_PTHREADS__
   vm->m_owner = pthread_self();
 #endif
-  if (!riveWebRegister(
-          handleOf(vm.get()),
-          module.data(),
-          (uint32_t)module.size()))
+  if (!riveWebAttach())
   {
     fprintf(
         stderr,
@@ -139,6 +162,11 @@ std::unique_ptr<BrowserScriptingVM> BrowserScriptingVM::make(
         "rive script runner\n");
     return nullptr;
   }
+#ifdef __EMSCRIPTEN_PTHREADS__
+  riveWebAttachThreads();
+#endif
+  riveWebRegister(handleOf(vm.get()), module.data(), (uint32_t)module.size());
+  vm->attachLanes(module);
   return vm;
 }
 
@@ -295,6 +323,7 @@ WasmScriptingVM::CallOutcome BrowserScriptingVM::callF64(
   if (outcome == kHostFault)
   {
     m_hostFault = true;
+    poison();
     m_lastError = std::string("librive faulted in a host call, so its "
                               "script module stops: ") +
                   trap;

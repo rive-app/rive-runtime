@@ -39,7 +39,7 @@ bool BufferWGPU::acquireFreshBacking()
   if (fresh == m_pool.size())
   {
     wgpu::BufferDescriptor wDesc{};
-    wDesc.size = m_size;
+    wDesc.size = backingSize();
     wDesc.usage = m_wgpuUsage;
     wDesc.mappedAtCreation = false;
     wgpu::Buffer buffer = m_wgpuDevice.CreateBuffer(&wDesc);
@@ -74,12 +74,13 @@ void BufferWGPU::update(const void* data, uint32_t size, uint32_t offset)
   // nothing. It tracks writes from here so an orphan can rewrite the whole
   // backing.
   if (m_shadow.empty())
-    m_shadow.resize(m_size, 0);
+    m_shadow.resize(backingSize(), 0);
   memcpy(m_shadow.data() + offset, data, size);
-  if (orphaned)
-    m_wgpuQueue.WriteBuffer(current(), 0, m_shadow.data(), m_size);
-  else
-    m_wgpuQueue.WriteBuffer(current(), offset, data, size);
+  uint32_t begin = orphaned ? 0 : offset & ~3u;
+  uint32_t end = orphaned ? backingSize()
+                          : math::round_up_to_multiple_of<4>(offset + size);
+  m_wgpuQueue
+      .WriteBuffer(current(), begin, m_shadow.data() + begin, end - begin);
 }
 
 } // namespace rive::ore

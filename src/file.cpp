@@ -126,7 +126,7 @@ static constexpr size_t kMaxViewModelNesting = 256;
 static constexpr size_t kMaxViewModelInstances = 100000;
 
 #if defined(DEBUG)
-size_t File::debugTotalFileCount = 0;
+std::atomic<size_t> File::debugTotalFileCount{0};
 #endif
 
 #if !defined(RIVE_FMT_U64)
@@ -1224,10 +1224,8 @@ void File::startScripts()
         break;
       case BrowserScriptingVM::Start::failed:
         // Natively a module that fails to start never joins the file.
-        fprintf(
-            stderr,
-            "wasm script module failed to start: %s\n",
-            browserVM->lastError().c_str());
+        browserVM->reportError(
+            WasmScriptingVM::kModuleStartFailed + browserVM->lastError());
         m_deferredScripts.erase(
             std::remove_if(
                 m_deferredScripts.begin(),
@@ -1332,10 +1330,14 @@ void File::registerScripts()
       auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
       if (vm == nullptr)
       {
-        fprintf(
-            stderr,
-            "wasm script module failed to start: %s\n",
-            error.c_str());
+        if (!error.empty())
+        {
+          fprintf(
+              stderr,
+              "%s%s\n",
+              WasmScriptingVM::kModuleStartFailed,
+              error.c_str());
+        }
         continue;
       }
 #endif

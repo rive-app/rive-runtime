@@ -3,21 +3,33 @@
 
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
+#include "rive/async/threading.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/scripted/script_backend.hpp"
 #include "rive/span.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
+#include "rive/wasm/wasm_lane_layout_gen.hpp"
+#include "rive/wasm/wasm_lane_policy.hpp"
+#include "rive/wasm/wasm_signal_wait.hpp"
 
+#include <chrono>
 #include <deque>
 #include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
 namespace rive
 {
+class WasmJobs;
+class WasmWorkers;
+class WasmProcessors;
+class WasmLane;
+struct VMPollList;
+class SharedRegion;
 
 /// Executes a .riv's self contained wasm script module (VM + bindings +
 /// compiled scripts) under WAMR. One instance per file instance. The module
@@ -68,7 +80,9 @@ public:
   /// factory makes the real render objects the module's handles resolve to;
   /// it must outlive the VM. print is installed before instantiation, the
   /// only way to see output from module start: rasc runs every script's top
-  /// level there, riveRegister included.
+  /// level there, riveRegister included. A module that fails to start sets
+  /// outError, unless the boot hook gave it an error sink, which hears the
+  /// start failure line instead.
 #ifndef __EMSCRIPTEN__
   static std::unique_ptr<WasmScriptingVM> make(
       Span<const uint8_t> module,
@@ -78,7 +92,7 @@ public:
 #endif
   ~WasmScriptingVM();
 
-  /// One live host object per module handle: 24-bit slot, 8-bit generation,
+  /// One live host object per module handle: 24-bit slot, 7-bit generation,
   /// type tag checked on resolve. Stale or foreign handles resolve null.
   struct HandleTable
   {
@@ -120,6 +134,8 @@ public:
       // context:decodeFile's files and their bindable artboards.
       riveFile,
       bindableArtboard,
+      // rive_lanes_v1's jobs, workers and audio processors.
+      lane,
       count,
     };
     struct Slot
@@ -169,11 +185,33 @@ public:
     uint64_t m_passToken = 0;
     uint64_t m_frameToken = 0;
     bool m_budgeted = false;
+    bool m_deadlineArmed = false;
+    uint32_t m_outerRegionId = 0;
+    SharedRegion* m_outerRegion = nullptr;
   };
 
   /// The deadline of this VM's current budgeted call, polled by the
   /// watchdog thread; 0 when disarmed.
   struct BudgetSlot;
+
+  /// Brackets a wait the host makes for a main lane call. The watchdog
+  /// holds off meanwhile, and time past usable() moves the call's
+  /// deadlines on, unless the wait began with none usable.
+  class WaitScope
+  {
+  public:
+    explicit WaitScope(WasmScriptingVM* vm);
+    ~WaitScope();
+    /// The seconds of the call's budget the wait may spend, infinity
+    /// when the call has none.
+    double usable() const { return m_usable; }
+
+  private:
+    WasmScriptingVM* m_vm;
+    double m_usable;
+    std::chrono::steady_clock::time_point m_start;
+    int64_t m_paused = 0;
+  };
 
   /// Tokens start at 1, so 0 takes every open frame.
   uint64_t nextCanvasFrameToken() const { return m_nextCanvasFrameToken; }
@@ -254,11 +292,54 @@ public:
   static void deliverAllHeldOutcomes();
   /// True while a decode or fetch this VM started has yet to reach the
   /// module, held outcomes included.
-  bool hasPendingAsyncWork() const
+  bool hasPendingAsyncWork() const;
+
+  /// The module's jobs section, null when it carries none.
+  WasmJobs* jobs() const { return m_jobs.get(); }
+  /// The module's workers section, null when it carries none.
+  WasmWorkers* workers() const { return m_workers.get(); }
+  /// The module's audio section, null when it carries none.
+  WasmProcessors* processors() const { return m_processors.get(); }
+  /// The module carries a section of any kind of lane.
+  bool hasLanes() const
   {
-    return !m_pendingDecodes.empty() || !m_pendingFetches.empty() ||
-           !m_heldOutcomes.empty();
+    return m_jobs != nullptr || m_workers != nullptr || m_processors != nullptr;
   }
+  /// Hands each lane's console lines, and a worker's or processor's
+  /// failure, to its VM, on the thread those VMs run on.
+  static void deliverAllLaneOutput();
+  /// A module call is live on this thread, where a lane run inline could
+  /// share its held region.
+  static bool inModuleCallOnThread();
+  /// Every lane's, once per poll, and settles the main lane's waits.
+  void deliverLaneOutput();
+  /// One lane's, where its output must land ahead of what the caller
+  /// prints next.
+  void deliverLaneOutput(WasmLane* lane);
+  /// Why a kind's lane module failed to load, empty when it loaded or the
+  /// module carries none.
+  const std::string& laneLoadError(LaneKind kind) const
+  {
+    return m_laneLoadErrors[(int)kind];
+  }
+  /// Registers the VM for lane output on this thread, the only one its
+  /// lanes may be started from.
+  void watchLanes();
+  /// The kind lanes_start last refused with kStartFailed for its load
+  /// error, which lanes_failed answers for that code.
+  LaneKind refusedStart = LaneKind::job;
+  /// The main lane's awaits, settled at a poll through host_lane_wake with
+  /// the token they answer.
+  uint32_t watchLane(uint32_t lane);
+  uint32_t waitOnMain(uint32_t signal, double after, double timeoutSeconds);
+  /// Drops the await token answers, whose promise was cancelled.
+  void cancelMainWait(uint32_t token);
+  /// Owns the shared objects this VM creates, released with it.
+  uint64_t sharedOwner();
+  /// The holds a ring or snapshot read carried, kept until the std has
+  /// decoded the value or, when decoding threw, until the frame ends.
+  void keepReadHolds(Span<const uint32_t> ids);
+  void releaseReadHolds();
 
   // ScriptBackend.
   bool valid() const override;
@@ -423,6 +504,24 @@ public:
     aotO3 = 2,
   };
   ExecutionTier executionTier() const { return m_tier; }
+  /// How a host's log names a tier, with why it is the interpreter.
+  static std::string tierName(
+      ExecutionTier tier,
+      const std::string& interpReason);
+  /// Adds a line per lane module it loaded, as "jobs module tier: aot -O3".
+  void laneTierLines(std::vector<std::string>& lines) const;
+#ifndef __EMSCRIPTEN__
+  /// Loads bytes once for their holders, from compiled code where an artifact
+  /// exists. The lease keeps the WAMR module loaded, null with the error.
+  static std::shared_ptr<void> loadSharedModule(
+      Span<const uint8_t> bytes,
+      ExecutionTier& tier,
+      std::string& interpReason,
+      std::string& error);
+  /// How many modules nothing leases stay loaded for a later load of the
+  /// same bytes; a load past it unloads the least recently leased.
+  static constexpr size_t kIdleModules = 8;
+#endif
   /// Why the module runs on the interpreter, for a host's log; empty when
   /// it runs compiled code.
   const std::string& interpReason() const { return m_interpReason; }
@@ -538,9 +637,15 @@ public:
 
   /// Script execution budget, matching the Luau backend: 0 disables the
   /// metering, which is the host's trust decision for validated content
-  /// (armed metering costs about 5 percent on loop heavy scripts).
+  /// (armed metering costs about 5 percent on loop heavy scripts). Starts
+  /// at the limits' main call budget.
   void setTimeoutMs(int ms);
   int timeoutMs() const { return m_timeoutMs; }
+  /// What a lane's run may take while it holds the page's thread, as a call
+  /// may: the call budget where it bounds calls, else 0.
+  uint32_t pageThreadBudgetMs() const;
+  /// The host's limits when the VM was made.
+  const ScriptingLimits& limits() const { return m_limits; }
 
   /// Backs a Tests suite's blob(name); empty when the blob is missing,
   /// which every blob is outside test runs.
@@ -551,16 +656,22 @@ public:
     return m_testBlobs ? m_testBlobs(name) : Span<const uint8_t>();
   }
 
-  /// Budget for VMs created after the call; the host's trust decision for
-  /// files whose modules it baked itself (e.g. dangerouslyFast content).
-  static void defaultTimeoutMs(int ms) { sm_defaultTimeoutMs = ms; }
-  static int defaultTimeoutMs() { return sm_defaultTimeoutMs; }
-
   /// Receives script print output; defaults to stdout.
   void onPrint(std::function<void(const char*, size_t)> handler)
   {
     m_print = std::move(handler);
   }
+
+  /// Receives each script error line, such as a trapped call, a failed
+  /// lane or a module that failed to start. Without it they go to stderr,
+  /// and a lane's failure to the print sink.
+  void onError(std::function<void(const std::string&)> handler)
+  {
+    m_error = std::move(handler);
+  }
+  void reportError(const std::string& line);
+  static constexpr char
+      kModuleStartFailed[] = "wasm script module failed to start: ";
 
   /// A debugger over this module's line probes, or null. The hooks must
   /// outlive the VM or clear themselves first.
@@ -583,6 +694,11 @@ public:
   bool poisoned() const { return m_poisoned; }
 
 protected:
+  /// Loads the lane modules the main module carries, and their policy.
+  void attachLanes(Span<const uint8_t> module);
+  /// Never runs the module again, nor any lane it started.
+  void poison();
+
   // The browser backend subclasses over the seams and boots without the
   // WAMR init, so it shares construction, error, factory, and lua state.
   // Out of line so subclass TUs need no complete member types.
@@ -610,6 +726,7 @@ protected:
   bool m_layoutResizeV2 = false;
   bool m_transitionManagesToExport = false;
   std::function<void(const char*, size_t)> m_print;
+  std::function<void(const std::string&)> m_error;
 
   /// Reads a flag export. Backends call it off the module before start,
   /// which runs every script's top level and already passes strings.
@@ -666,14 +783,12 @@ private:
   struct WamrState;
   std::unique_ptr<WamrState> m_state;
 #endif
-  std::vector<uint8_t> m_moduleBytes;
-  uint64_t m_moduleKey = 0;
   ExecutionTier m_tier = ExecutionTier::interp;
   std::string m_interpReason;
   WasmDebugHooks* m_debugHooks = nullptr;
   std::vector<std::string> m_unresolvedImports;
-  static int sm_defaultTimeoutMs;
-  int m_timeoutMs = sm_defaultTimeoutMs;
+  ScriptingLimits m_limits = ScriptingLimits::get();
+  int m_timeoutMs = (int)m_limits.mainCallBudgetMs;
   TestBlobLookup m_testBlobs;
   HandleTable m_handles;
   std::vector<uint32_t> m_scopedNodes;
@@ -732,14 +847,58 @@ private:
   bool inModuleCall() const;
   void holdOutcome(std::function<void()> deliver);
   std::vector<std::function<void()>> m_heldOutcomes;
+  struct MainWait
+  {
+    SignalWait wait;
+    // The watched lane's handle, 0 for a signal wait.
+    uint32_t lane;
+  };
+  std::vector<MainWait> m_mainWaits;
+  uint32_t m_nextMainWait = 1;
+  void settleMainWaits();
   std::unique_ptr<BudgetSlot> m_budgetSlot;
+  std::unique_ptr<WasmJobs> m_jobs;
+  std::unique_ptr<WasmWorkers> m_workers;
+  std::unique_ptr<WasmProcessors> m_processors;
+  std::string m_laneLoadErrors[3];
+  // The polls that reach its lanes and its held outcomes, null until it
+  // has some.
+#if RIVE_ONE_THREAD()
+  VMPollList* m_laneList = nullptr;
+  VMPollList* m_holdingList = nullptr;
+#else
+  std::shared_ptr<VMPollList> m_laneList;
+  std::shared_ptr<VMPollList> m_holdingList;
+#endif
+  uint64_t m_sharedOwner = 0;
+  std::vector<uint32_t> m_readHolds;
   /// Set while a budgeted call holds the slot's deadline, which calls
   /// nested in it share.
   bool m_budgetArmed = false;
   /// Gives the call running on env (a wasm_exec_env_t) one timeout, and
   /// takes it back, poisoning the module when the watchdog fired.
+  // Fuel stops metered code first with a trap the module survives; the
+  // watchdog, which poisons it, only catches code fuel cannot see.
+  int watchdogBudgetMs() const { return m_timeoutMs * (m_fuelBudget ? 2 : 1); }
   void armWatchdog(void* env);
   void disarmWatchdog();
+  /// The budget bounds the module's calls and its top level.
+  bool boundsCalls() const;
+  /// Set while a bounded call holds the deadline this VM's waits read,
+  /// which calls nested in it share.
+  bool m_deadlineArmed = false;
+  std::chrono::steady_clock::time_point m_outerDeadline;
+  /// Gives a bounded call's waits their deadline; false when a call it
+  /// nests in already did, or the module has no budget or no lanes.
+  bool armDeadline();
+  void disarmDeadline();
+#ifdef __EMSCRIPTEN__
+  /// What a web start set aside until it ends, as a call's scope does: the
+  /// VM booting when it began and the region the thread held.
+  WasmScriptingVM* m_outerBooting = nullptr;
+  uint32_t m_outerRegionId = 0;
+  SharedRegion* m_outerRegion = nullptr;
+#endif
   /// This VM's own boundary work, without the files it decoded.
   const char* collectFrame();
   /// The VM whose script decoded this VM's file, and the VMs of files
@@ -756,6 +915,9 @@ private:
   bool m_hostBudget = false;
   /// Module exports __riveFuelCheck: it traps itself once a call overruns.
   bool m_fuelBudget = false;
+  bool m_fuelShift = false;
+  /// Module exports __riveFetchBlobBody: a fetched body crosses as a blob.
+  bool m_fetchBlobBody = false;
   /// Set once the watchdog interrupts a call or the collector traps; the
   /// module never runs again.
   bool m_poisoned = false;
@@ -786,7 +948,7 @@ private:
   uint32_t m_handleBaselineLive = 0;
   uint32_t m_handleFrames = 0;
   uint32_t frameMajors();
-  bool m_handleCollectPending = false;
+  uint8_t m_handleCollects = 0;
   uint32_t m_handleCollectMajors = 0;
   bool m_frameMajorsProbe = false;
   RawPath* m_pathEffectOut = nullptr;

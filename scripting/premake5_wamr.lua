@@ -263,6 +263,8 @@ do
         wamr .. '/core/shared/mem-alloc/ems/*.c',
         wamr .. '/core/shared/utils/*.c',
         wamr .. '/core/shared/utils/uncommon/*.c',
+        -- Built with WAMR's own flags, so it checks the atomics its sources get.
+        'wamr_atomics_guard.c',
     })
     if os.target() == 'windows' and not isNx then
         -- Linux perf-map support; leans on pid_t/getpid.

@@ -17,11 +17,20 @@ namespace rive
 /// (host to module). Each is one byte stream of little-endian u32 counts and
 /// lengths, every string or byte run after its length:
 ///   request:  timeoutMs, method, url, header count, (name, value)*, body
-///   response: status, statusText, url, header count, (name, value)*, body
-/// The module side is script controlled, so decode checks every length
-/// against what is left.
+///   response: status, statusText, url, header count, (name, value)*,
+///             body blob id, or the body for modules from before blobs
+/// The response body stays in the host as a shared blob. The module side is
+/// script controlled, so decode checks every length against what is left.
 struct NetWire
 {
+  /// A response as the module receives it.
+  struct Response
+  {
+    const scriptnet::HttpResponse& head;
+    /// 0 sends the body itself.
+    uint32_t bodyBlob;
+  };
+
   /// The stream's length, to size the buffer encode writes.
   template <typename Message> static size_t encodedSize(const Message& value)
   {
@@ -94,13 +103,20 @@ private:
       headers(request.headers);
       run(request.body);
     }
-    void message(const scriptnet::HttpResponse& response)
+    void message(const Response& response)
     {
-      u32(response.status);
-      run(response.statusText);
-      run(response.url);
-      headers(response.headers);
-      run(response.body);
+      u32(response.head.status);
+      run(response.head.statusText);
+      run(response.head.url);
+      headers(response.head.headers);
+      if (response.bodyBlob != 0)
+      {
+        u32(response.bodyBlob);
+      }
+      else
+      {
+        run(response.head.body);
+      }
     }
   };
 

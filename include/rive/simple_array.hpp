@@ -8,6 +8,7 @@
 #include "rive/rive_types.hpp"
 #include "rive/core/type_conversions.hpp"
 
+#include <atomic>
 #include <initializer_list>
 #include <type_traits>
 #include <cstring>
@@ -21,9 +22,9 @@ template <typename T> class SimpleArrayBuilder;
 #ifdef TESTING
 namespace SimpleArrayTesting
 {
-extern int mallocCount;
-extern int reallocCount;
-extern int freeCount;
+extern std::atomic<int> mallocCount;
+extern std::atomic<int> reallocCount;
+extern std::atomic<int> freeCount;
 void resetCounters();
 } // namespace SimpleArrayTesting
 #endif

@@ -1059,6 +1059,16 @@ void rive_web_gpu_buffer_update(uint32_t vmHandle, uint32_t buffer, uint32_t dst
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     gpuBufferUpdateImpl(vm, buffer, dstOffset, data, dataCount);
 }
+void rive_web_gpu_buffer_update_blob(uint32_t vmHandle, uint32_t buffer, uint32_t dstOffset, uint32_t blob, uint32_t srcOffset, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    gpuBufferUpdateBlobImpl(vm, buffer, dstOffset, blob, srcOffset, byteCount);
+}
+uint32_t rive_web_gpu_buffer_new_blob(uint32_t vmHandle, uint32_t usage, uint32_t immutable, uint32_t blob, uint32_t srcOffset, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return gpuBufferNewBlobImpl(vm, usage, immutable, blob, srcOffset, byteCount);
+}
 void rive_web_gpu_buffer_release(uint32_t vmHandle, uint32_t buffer)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1581,6 +1591,221 @@ uint32_t rive_web_file_bindable_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return fileBindableEqualImpl(vm, a, b);
 }
+uint32_t rive_web_lanes_start(uint32_t vmHandle, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesStartImpl(vm, kind, entry, input, inputByteCount, holds, holdCount);
+}
+uint32_t rive_web_lanes_state(uint32_t vmHandle, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesStateImpl(vm, lane);
+}
+uint32_t rive_web_lanes_failed(uint32_t vmHandle, uint32_t lane, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesFailedImpl(vm, lane, buffer, capacity);
+}
+void rive_web_lanes_stop(uint32_t vmHandle, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    lanesStopImpl(vm, lane);
+}
+void rive_web_lanes_release(uint32_t vmHandle, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    lanesReleaseImpl(vm, lane);
+}
+uint32_t rive_web_lanes_result(uint32_t vmHandle, uint32_t lane, uint32_t out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesResultImpl(vm, lane, out, outCount);
+}
+uint32_t rive_web_lanes_watch(uint32_t vmHandle, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesWatchImpl(vm, lane);
+}
+uint32_t rive_web_lanes_wait(uint32_t vmHandle, uint32_t signal, double after, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesWaitImpl(vm, signal, after, timeoutSeconds);
+}
+void rive_web_lanes_cancel_wait(uint32_t vmHandle, uint32_t token)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    lanesCancelWaitImpl(vm, token);
+}
+double rive_web_lanes_wait_within(uint32_t vmHandle, uint32_t signal, double after, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return lanesWaitWithinImpl(vm, signal, after, timeoutSeconds);
+}
+uint32_t rive_web_jobs_threads(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return jobsThreadsImpl(vm);
+}
+uint32_t rive_web_jobs_join(uint32_t vmHandle, uint32_t job, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return jobsJoinImpl(vm, job, timeoutSeconds);
+}
+uint32_t rive_web_jobs_join_any(uint32_t vmHandle, const uint32_t* jobs, uint32_t count, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return jobsJoinAnyImpl(vm, jobs, count, timeoutSeconds);
+}
+uint32_t rive_web_shared_region_create(uint32_t vmHandle, uint32_t size)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionCreateImpl(vm, size);
+}
+uint32_t rive_web_shared_region_size(uint32_t vmHandle, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionSizeImpl(vm, region);
+}
+uint32_t rive_web_shared_region_lock(uint32_t vmHandle, uint32_t region, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionLockImpl(vm, region, timeoutSeconds);
+}
+void rive_web_shared_region_unlock(uint32_t vmHandle, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    sharedRegionUnlockImpl(vm, region);
+}
+uint32_t rive_web_shared_region_read(uint32_t vmHandle, uint32_t region, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionReadImpl(vm, region, offset, out, outByteCount);
+}
+uint32_t rive_web_shared_region_write(uint32_t vmHandle, uint32_t region, uint32_t offset, const uint8_t* data, uint32_t dataByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionWriteImpl(vm, region, offset, data, dataByteCount);
+}
+uint32_t rive_web_shared_region_poisoned(uint32_t vmHandle, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRegionPoisonedImpl(vm, region);
+}
+double rive_web_shared_atomic_load(uint32_t vmHandle, uint32_t region, uint32_t offset)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedAtomicLoadImpl(vm, region, offset);
+}
+double rive_web_shared_atomic_store(uint32_t vmHandle, uint32_t region, uint32_t offset, uint32_t value)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedAtomicStoreImpl(vm, region, offset, value);
+}
+double rive_web_shared_atomic_add(uint32_t vmHandle, uint32_t region, uint32_t offset, uint32_t value)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedAtomicAddImpl(vm, region, offset, value);
+}
+double rive_web_shared_atomic_cas(uint32_t vmHandle, uint32_t region, uint32_t offset, uint32_t expected, uint32_t desired)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedAtomicCasImpl(vm, region, offset, expected, desired);
+}
+uint32_t rive_web_shared_ring_create(uint32_t vmHandle, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingCreateImpl(vm, capacity);
+}
+uint32_t rive_web_shared_ring_write(uint32_t vmHandle, uint32_t ring, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingWriteImpl(vm, ring, data, dataByteCount, holds, holdCount);
+}
+uint32_t rive_web_shared_ring_read(uint32_t vmHandle, uint32_t ring, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingReadImpl(vm, ring, out, outByteCount);
+}
+uint32_t rive_web_shared_ring_drop(uint32_t vmHandle, uint32_t ring, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingDropImpl(vm, ring, capacity);
+}
+uint32_t rive_web_shared_ring_used(uint32_t vmHandle, uint32_t ring)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingUsedImpl(vm, ring);
+}
+uint32_t rive_web_shared_ring_signal(uint32_t vmHandle, uint32_t ring, uint32_t space)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRingSignalImpl(vm, ring, space);
+}
+uint32_t rive_web_shared_snapshot_create(uint32_t vmHandle, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSnapshotCreateImpl(vm, capacity);
+}
+uint32_t rive_web_shared_snapshot_publish(uint32_t vmHandle, uint32_t snapshot, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSnapshotPublishImpl(vm, snapshot, data, dataByteCount, holds, holdCount);
+}
+uint32_t rive_web_shared_snapshot_read(uint32_t vmHandle, uint32_t snapshot, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSnapshotReadImpl(vm, snapshot, out, outByteCount);
+}
+double rive_web_shared_snapshot_seq(uint32_t vmHandle, uint32_t snapshot)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSnapshotSeqImpl(vm, snapshot);
+}
+void rive_web_shared_read_done(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    sharedReadDoneImpl(vm);
+}
+uint32_t rive_web_shared_signal_create(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSignalCreateImpl(vm);
+}
+void rive_web_shared_signal_notify(uint32_t vmHandle, uint32_t signal)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    sharedSignalNotifyImpl(vm, signal);
+}
+double rive_web_shared_signal_seq(uint32_t vmHandle, uint32_t signal)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedSignalSeqImpl(vm, signal);
+}
+uint32_t rive_web_shared_blob_create(uint32_t vmHandle, const uint8_t* data, uint32_t dataByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedBlobCreateImpl(vm, data, dataByteCount);
+}
+uint32_t rive_web_shared_blob_size(uint32_t vmHandle, uint32_t blob)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedBlobSizeImpl(vm, blob);
+}
+uint32_t rive_web_shared_blob_read(uint32_t vmHandle, uint32_t blob, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedBlobReadImpl(vm, blob, offset, out, outByteCount);
+}
+uint32_t rive_web_shared_retain(uint32_t vmHandle, uint32_t object)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return sharedRetainImpl(vm, object);
+}
+void rive_web_shared_release(uint32_t vmHandle, uint32_t object)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    sharedReleaseImpl(vm, object);
+}
 
 static void* const kRiveWebCalls[] = {
     (void*)rive_web_rt_log,
@@ -1790,6 +2015,8 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_gpu_image_view,
     (void*)rive_web_gpu_buffer_new,
     (void*)rive_web_gpu_buffer_update,
+    (void*)rive_web_gpu_buffer_update_blob,
+    (void*)rive_web_gpu_buffer_new_blob,
     (void*)rive_web_gpu_buffer_release,
     (void*)rive_web_gpu_texture_new,
     (void*)rive_web_gpu_texture_upload,
@@ -1957,6 +2184,49 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_file_bindable_name,
     (void*)rive_web_file_bindable_data,
     (void*)rive_web_file_bindable_equal,
+    (void*)rive_web_lanes_start,
+    (void*)rive_web_lanes_state,
+    (void*)rive_web_lanes_failed,
+    (void*)rive_web_lanes_stop,
+    (void*)rive_web_lanes_release,
+    (void*)rive_web_lanes_result,
+    (void*)rive_web_lanes_watch,
+    (void*)rive_web_lanes_wait,
+    (void*)rive_web_lanes_cancel_wait,
+    (void*)rive_web_lanes_wait_within,
+    (void*)rive_web_jobs_threads,
+    (void*)rive_web_jobs_join,
+    (void*)rive_web_jobs_join_any,
+    (void*)rive_web_shared_region_create,
+    (void*)rive_web_shared_region_size,
+    (void*)rive_web_shared_region_lock,
+    (void*)rive_web_shared_region_unlock,
+    (void*)rive_web_shared_region_read,
+    (void*)rive_web_shared_region_write,
+    (void*)rive_web_shared_region_poisoned,
+    (void*)rive_web_shared_atomic_load,
+    (void*)rive_web_shared_atomic_store,
+    (void*)rive_web_shared_atomic_add,
+    (void*)rive_web_shared_atomic_cas,
+    (void*)rive_web_shared_ring_create,
+    (void*)rive_web_shared_ring_write,
+    (void*)rive_web_shared_ring_read,
+    (void*)rive_web_shared_ring_drop,
+    (void*)rive_web_shared_ring_used,
+    (void*)rive_web_shared_ring_signal,
+    (void*)rive_web_shared_snapshot_create,
+    (void*)rive_web_shared_snapshot_publish,
+    (void*)rive_web_shared_snapshot_read,
+    (void*)rive_web_shared_snapshot_seq,
+    (void*)rive_web_shared_read_done,
+    (void*)rive_web_shared_signal_create,
+    (void*)rive_web_shared_signal_notify,
+    (void*)rive_web_shared_signal_seq,
+    (void*)rive_web_shared_blob_create,
+    (void*)rive_web_shared_blob_size,
+    (void*)rive_web_shared_blob_read,
+    (void*)rive_web_shared_retain,
+    (void*)rive_web_shared_release,
     (void*)rive_web_console,
     (void*)rive_web_trace,
 };

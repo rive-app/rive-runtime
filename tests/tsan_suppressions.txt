@@ -1,0 +1,15 @@
+# ThreadSanitizer suppressions for the threading test runs, each a race we intend or one inside a library we vendor.
+
+# A snapshot read copies while a publisher may overwrite that copy, and the version check after it discards the torn bytes.
+# TSan files a use after free as a race too, so one in that copy is left to the unit tests' ASan jobs.
+race:copyTorn
+
+# Every WAMR module load stores the same interpreter handle tables, so loads on several threads race harmlessly.
+race:handle_table
+
+# Our vendored Luau numbers new types from unlocked global counters, which the workspace's parallel type checks share.
+# Error's line matches only its constructor, as frames templated on Luau's type variant contain its name too.
+race:Luau::Unifiable::freshIndex
+race:^Luau::Unifiable::Error<*>::Error(
+race:Luau::BlockedTypePack::BlockedTypePack
+race:Luau::PendingExpansionType::PendingExpansionType

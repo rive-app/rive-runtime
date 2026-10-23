@@ -1,0 +1,28 @@
+From: rive
+Subject: [PATCH 0035] take the atomic builtins under clang wherever libc defines __GNUC_PREREQ
+
+clang reports itself as GCC 4.2, so on glibc every BH_ATOMIC operation, the
+suspend flags a host interrupt sets from another thread included, fell back
+to plain loads and stores. Upstream main still does.
+
+--- a/core/shared/utils/bh_atomic.h
++++ b/core/shared/utils/bh_atomic.h
+@@ -66,12 +66,14 @@
+ #define BH_ATOMIC_16_IS_ATOMIC WASM_UINT16_IS_ATOMIC
+ #endif /* WASM_UINT16_IS_ATOMIC */
+ 
+-#if defined(__GNUC_PREREQ)
+-#if __GNUC_PREREQ(4, 7)
++/* glibc defines __GNUC_PREREQ for clang too, which reports itself as GCC 4.2,
++   so clang is tested first */
++#if defined(__clang__)
++#if __clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 0)
+ #define CLANG_GCC_HAS_ATOMIC_BUILTIN
+ #endif
+-#elif defined(__clang__)
+-#if __clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 0)
++#elif defined(__GNUC_PREREQ)
++#if __GNUC_PREREQ(4, 7)
+ #define CLANG_GCC_HAS_ATOMIC_BUILTIN
+ #endif
+ #endif

@@ -454,6 +454,12 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
   ctx->m_wgpuBackend = (backendType == wgpu::BackendType::OpenGLES)
                            ? WGPUBackend::OpenGLES
                            : WGPUBackend::Vulkan;
+  wgpu::Limits limits = {};
+  if (ctx->m_wgpuDevice.GetLimits(&limits) &&
+      limits.maxBufferSize != wgpu::kLimitU64Undefined)
+  {
+    ctx->m_maxBufferSize = limits.maxBufferSize;
+  }
 
   // Populate features with WebGPU-level capabilities.
   Features& f = ctx->m_features;
@@ -531,9 +537,18 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
   }
   buffer->m_wgpuUsage = usage;
 
+  // Past the device's limit WebGPU hands back an invalid buffer, and a size
+  // within 3 bytes of 4 GB has no whole word backing.
+  if (buffer->backingSize() > m_maxBufferSize ||
+      buffer->backingSize() < desc.size)
+  {
+    setLastError("makeBuffer: size %u is too large", desc.size);
+    return nullptr;
+  }
+
   wgpu::BufferDescriptor wDesc{};
   wDesc.label = desc.label;
-  wDesc.size = desc.size;
+  wDesc.size = buffer->backingSize();
   wDesc.usage = usage;
   wDesc.mappedAtCreation = false;
 
@@ -542,16 +557,27 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
     return nullptr; // Allocation failed.
   buffer->m_pool.push_back({std::move(wbuf), 0});
 
-  // A buffer created with initial data seeds its CPU shadow now so a later
-  // partial update that orphans rewrites the fresh backing with real
-  // contents, not zeros. A buffer with no initial data allocates the shadow
-  // lazily on first update, so a never-updated buffer carries no extra host
-  // memory.
+  // A mutable buffer keeps its initial data in the shadow, since updates
+  // write whole words from it and an orphan rewrites the entire backing.
   if (desc.data != nullptr)
   {
-    m_wgpuQueue.WriteBuffer(buffer->current(), 0, desc.data, desc.size);
     const auto* bytes = static_cast<const uint8_t*>(desc.data);
-    buffer->m_shadow.assign(bytes, bytes + desc.size);
+    uint32_t whole = desc.size & ~3u;
+    if (whole != 0)
+    {
+      m_wgpuQueue.WriteBuffer(buffer->current(), 0, bytes, whole);
+    }
+    if (whole != desc.size)
+    {
+      uint8_t tail[4] = {};
+      memcpy(tail, bytes + whole, desc.size - whole);
+      m_wgpuQueue.WriteBuffer(buffer->current(), whole, tail, 4);
+    }
+    if (!desc.immutable)
+    {
+      buffer->m_shadow.assign(bytes, bytes + desc.size);
+      buffer->m_shadow.resize(buffer->backingSize(), 0);
+    }
   }
 
   return buffer;

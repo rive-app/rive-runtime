@@ -90,13 +90,11 @@ rcp<WorkPool>& getGlobalWorkPool();
 /// Returns the global WorkPool if it has been created, or an empty rcp if not.
 rcp<WorkPool>& getGlobalWorkPoolIfExists();
 
-/// Deliver up to maxCallbacks finished async results (image decodes, script
-/// fetches). Called from Artboard::advance() so promises resolve before script
-/// callbacks. Safe to call even if no WorkPool exists. Returns how many were
-/// delivered.
+/// Delivers up to maxCallbacks async results, which it counts, then lane work.
+/// Hosts that run scripts without advancing an artboard call it each frame.
 uint32_t rive_pollAsyncWork(uint32_t maxCallbacks = 32);
 
-/// True while any async work rive_pollAsyncWork() would deliver is pending.
+/// True while any async result rive_pollAsyncWork() would deliver is pending.
 bool rive_hasPendingAsyncWork();
 
 } // namespace rive

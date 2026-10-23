@@ -35,6 +35,12 @@ void registerPrelinkedAotModule(const PrelinkedAotModule& module);
 const PrelinkedAotModule* findPrelinkedAotModule(
     uint64_t moduleKey,
     size_t wasmSize);
+/// Loads a registered module into WAMR as its wasm_module_t; null with error
+/// written when the container does not fit this runtime.
+void* loadPrelinkedAotModule(
+    const PrelinkedAotModule& module,
+    char* error,
+    uint32_t errorSize);
 
 } // namespace rive
 

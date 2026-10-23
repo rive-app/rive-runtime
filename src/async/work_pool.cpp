@@ -6,6 +6,10 @@
 #ifdef WITH_RIVE_SCRIPTNET
 #include "rive/scriptnet/net.hpp"
 #endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#include "rive/wasm/wasm_jobs.hpp"
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#endif
 #include <algorithm>
 #include <mutex>
 
@@ -391,6 +395,15 @@ uint32_t rive_pollAsyncWork(uint32_t maxCallbacks)
   {
     processed += pool->pollCompletedWork(maxCallbacks - processed);
   }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  // A script advancing an artboard is mid call, so lanes wait for the frame.
+  if (!WasmScriptingVM::inModuleCallOnThread())
+  {
+    WasmJobs::runQueuedInline();
+    WasmScriptingVM::deliverAllLaneOutput();
+  }
+  WasmScriptingVM::deliverAllHeldOutcomes();
+#endif
   return processed;
 }
 

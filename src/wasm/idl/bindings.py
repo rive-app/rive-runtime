@@ -7,6 +7,8 @@ the node test stubs (luau_wasm/tests/vm_host_stubs.mjs). luau_wasm/test.sh
 fails when the generated files drift from this source.
 """
 
+from lane_layout import LANE_KINDS
+
 
 def u32(name):
     return {'kind': 'u32', 'name': name}
@@ -34,15 +36,20 @@ def buf(elem, name, count):
     return {'kind': 'buf', 'elem': elem, 'name': name, 'count': count}
 
 
-# Same validation but the host writes into it.
-def mutbuf(elem, name, count):
-    return {'kind': 'mutbuf', 'elem': elem, 'name': name, 'count': count}
+# Same validation but the host writes into it. written names what the return
+# says the host wrote, so the web stages nothing in and copies back only that:
+# 'whole' all of it when nonzero, 'size' that many elements and 'size_plus_one'
+# one less, each only when it fits. Without it the whole buffer crosses both
+# ways.
+def mutbuf(elem, name, count, written=None):
+    return {'kind': 'mutbuf', 'elem': elem, 'name': name, 'count': count,
+            'written': written}
 
 
 # Raw guest address the host validates and translates itself, for pointer
-# pairs sharing one count.
-def addr(elem, name):
-    return {'kind': 'addr', 'elem': elem, 'name': name}
+# pairs sharing one count, or for output the host writes straight in.
+def addr(elem, name, writes=False):
+    return {'kind': 'addr', 'elem': elem, 'name': name, 'writes': writes}
 
 
 def string(name, count):
@@ -228,8 +235,11 @@ PODS = [
 ]
 
 
+LANES = tuple(kind for kind, _, _ in LANE_KINDS)
+
+
 def op(name, params=(), ret=None, stub=None, guard=None, boot=None,
-       web_js=None):
+       web_js=None, lanes=None, lane_refusal=None):
     # guard: the host only carries the op when this macro is defined. Modules
     # import what they call, so one that never calls it links anywhere.
     # boot: the op traps and module start can reach it, before the exec env
@@ -237,12 +247,21 @@ def op(name, params=(), ret=None, stub=None, guard=None, boot=None,
     # vm at all it traps with this text.
     # web_js: the page answers the op itself; the expression goes straight
     # into the web import object, so the call never enters librive.
+    # lanes: the lane kinds that may import it, in place of its namespace's;
+    # lane_refusal finishes "<kind> code ..." for the rest.
     return {'name': name, 'params': list(params), 'ret': ret, 'stub': stub,
-            'guard': guard, 'boot': boot, 'web_js': web_js}
+            'guard': guard, 'boot': boot, 'web_js': web_js, 'lanes': lanes,
+            'lane_refusal': lane_refusal}
 
 
-def ns(module, short, ops):
-    return {'module': module, 'short': short, 'ops': ops}
+def ns(module, short, ops, lanes=(), boots=False):
+    # lanes: the lane kinds whose modules may import its ops. A lane module
+    # runs without a VM, so most namespaces allow none.
+    # boots: a module's top level may call its ops, which resolve the booting
+    # vm as boot does, without trapping when there is none.
+    for each in ops if boots else ():
+        each['boot'] = each['boot'] or True
+    return {'module': module, 'short': short, 'ops': ops, 'lanes': lanes}
 
 
 NAMESPACES = [
@@ -795,6 +814,23 @@ NAMESPACES = [
             u32('dstOffset'),
             buf('uint8_t', 'data', 'dataCount'),
         ]),
+        # Copies from a shared blob of the caller's file, so the bytes
+        # never pass through the module's memory.
+        op('buffer_update_blob', [
+            handle('buffer'),
+            u32('dstOffset'),
+            u32('blob'),
+            u32('srcOffset'),
+            u32('byteCount'),
+        ]),
+        # A buffer made of a range of a shared blob of the caller's file.
+        op('buffer_new_blob', [
+            u32('usage'),
+            u32('immutable'),
+            u32('blob'),
+            u32('srcOffset'),
+            u32('byteCount'),
+        ], ret='u32'),
         op('buffer_release', [handle('buffer')]),
         op('texture_new', [podref('gpu_texture_desc', 'desc')], ret='u32'),
         op('texture_upload', [
@@ -1142,7 +1178,152 @@ NAMESPACES = [
         # Both handles carry the same bindable artboard.
         op('bindable_equal', [handle('a'), handle('b')], ret='u32'),
     ]),
+    # Jobs, workers and audio processors, each an instance of its lane module;
+    # kinds and states are lane_layout.py's.
+    ns('rive_lanes_v1', 'lanes', [
+        # 0 when there is no such section or entry, lane_layout.py's Start
+        # when the section failed to load. The lane keeps what holds names
+        # alive until it is gone.
+        op('start', [u32('kind'), u32('entry'),
+                     buf('uint8_t', 'input', 'inputByteCount'),
+                     buf('uint32_t', 'holds', 'holdCount')], ret='u32'),
+        op('state', [handle('lane')], ret='u32'),
+        # The failure's UTF-8 on the retrying length contract, its full size
+        # every time; 0 unless the lane failed.
+        op('failed', [handle('lane'),
+                      mutbuf('char', 'buffer', 'capacity', written='size')],
+           ret='u32'),
+        # A job not yet started is dropped; anything else is asked to end.
+        op('stop', [handle('lane')]),
+        op('release', [handle('lane')]),
+        # A done job's or worker's result, written straight into module memory
+        # so it crosses once; always its full size.
+        op('result', [handle('lane'), addr('uint8_t', 'out', writes=True),
+                      u32('outCount')],
+           ret='u32'),
+        # Main lane awaits, tokens a poll settles through host_lane_wake: a
+        # watch with the final state, a wait with the sequence or -1.
+        op('watch', [handle('lane')], ret='u32'),
+        # Signal 0 waits only for the timeout.
+        op('wait', [u32('signal'), f64('after'), f64('timeoutSeconds')],
+           ret='u32'),
+        # Drops a wait whose promise was cancelled.
+        op('cancel_wait', [u32('token')]),
+        # Blocks the main lane until the signal's sequence passes after: the
+        # sequence, or a wait code of lane_layout.py. The wait never outlasts
+        # the caller's call budget, nor the wait limit when it has none.
+        op('wait_within', [u32('signal'), f64('after'),
+                           f64('timeoutSeconds')], ret='f64', lanes=(),
+           lane_refusal='blocks on a signal, which only the main lane may; a '
+           'worker awaits Signal.next or Port.receive instead'),
+    ], boots=True),
+    # Jobs: pure functions run on a pool thread or on the joiner.
+    ns('rive_jobs_v1', 'jobs', [
+        op('threads', ret='u32'),
+        # Runs an unstarted job here when the caller has no budget, else
+        # waits within it; the state it ended in, or lane_layout.py's Join.
+        op('join', [handle('job'), f64('timeoutSeconds')], ret='u32'),
+        # Index plus one of a finished job, 0 when the timeout expired first,
+        # or the JoinAny code of lane_layout.py as join refuses.
+        op('join_any', [buf('uint32_t', 'jobs', 'count'),
+                        f64('timeoutSeconds')], ret='u32'),
+    ], boots=True),
+    # Memory every lane shares, by process wide id. Creates answer an id or a
+    # shared_layout.py Create code; reads answer size plus one, 0 when empty.
+    ns('rive_shared_v1', 'shared', [
+        op('region_create', [u32('size')], ret='u32'),
+        op('region_size', [u32('region')], ret='u32'),
+        # A RegionLock code of shared_layout.py. The wait never outlasts the
+        # caller's call budget, nor the wait limit when it has none.
+        op('region_lock', [u32('region'), f64('timeoutSeconds')], ret='u32',
+           lanes=('job', 'worker'),
+           lane_refusal='locks a shared region, which the audio thread may '
+           'not wait on; share through atomics, rings and snapshots instead'),
+        op('region_unlock', [u32('region')]),
+        # Only the lane holding the region reaches its bytes.
+        op('region_read', [u32('region'), u32('offset'),
+                           mutbuf('uint8_t', 'out', 'outByteCount',
+                                  written='whole')],
+           ret='u32'),
+        op('region_write', [u32('region'), u32('offset'),
+                            buf('uint8_t', 'data', 'dataByteCount')],
+           ret='u32'),
+        op('region_poisoned', [u32('region')], ret='u32'),
+        # Each answers -1 for a word outside the region or a region gone, so
+        # the std throws without asking the size first. Add and compare
+        # exchange answer the value before the operation.
+        op('atomic_load', [u32('region'), u32('offset')], ret='f64'),
+        op('atomic_store', [u32('region'), u32('offset'), u32('value')],
+           ret='f64'),
+        op('atomic_add', [u32('region'), u32('offset'), u32('value')],
+           ret='f64'),
+        op('atomic_cas', [u32('region'), u32('offset'), u32('expected'),
+                          u32('desired')], ret='f64'),
+        op('ring_create', [u32('capacity')], ret='u32'),
+        # A RingWrite code of shared_layout.py. The record holds what holds
+        # names until read, then its reader does.
+        op('ring_write', [u32('ring'), buf('uint8_t', 'data',
+                                           'dataByteCount'),
+                          buf('uint32_t', 'holds', 'holdCount')], ret='u32'),
+        op('ring_read', [u32('ring'),
+                         mutbuf('uint8_t', 'out', 'outByteCount',
+                                written='size_plus_one')], ret='u32'),
+        # Pops the head record when it is larger than capacity, as a reader
+        # drops one too large for its buffer: its size plus one, 0 when there
+        # was none to drop.
+        op('ring_drop', [u32('ring'), u32('capacity')], ret='u32'),
+        op('ring_used', [u32('ring')], ret='u32'),
+        # The signal notified on each write (space 0) or read (space 1).
+        op('ring_signal', [u32('ring'), u32('space')], ret='u32'),
+        # Values up to capacity bytes; a publish never allocates.
+        op('snapshot_create', [u32('capacity')], ret='u32'),
+        # 1 when the value fit, 0 past the capacity. The snapshot holds what
+        # its latest value names, and each read hands its reader its own holds.
+        op('snapshot_publish', [u32('snapshot'),
+                                buf('uint8_t', 'data', 'dataByteCount'),
+                                buf('uint32_t', 'holds', 'holdCount')],
+           ret='u32'),
+        op('snapshot_read', [u32('snapshot'),
+                             mutbuf('uint8_t', 'out', 'outByteCount',
+                                    written='size_plus_one')],
+           ret='u32'),
+        op('snapshot_seq', [u32('snapshot')], ret='f64'),
+        # The main lane has decoded what it read, each handle taking a hold
+        # of its own, so the read's holds go.
+        op('read_done', lanes=()),
+        op('signal_create', ret='u32'),
+        op('signal_notify', [u32('signal')]),
+        op('signal_seq', [u32('signal')], ret='f64'),
+        # Bytes fixed from creation on, so reads take no lock.
+        op('blob_create', [buf('uint8_t', 'data', 'dataByteCount')],
+           ret='u32'),
+        op('blob_size', [u32('blob')], ret='u32'),
+        # The bytes copied from offset, as many as out holds.
+        op('blob_read', [u32('blob'), u32('offset'),
+                         mutbuf('uint8_t', 'out', 'outByteCount',
+                                written='size')], ret='u32'),
+        # Another hold on an object the caller's VM made; 0 once it is gone.
+        op('retain', [u32('object')], ret='u32'),
+        op('release', [u32('object')]),
+    ], lanes=LANES, boots=True),
 ]
+
+
+def lane_import(module, lanes, name=None):
+    return {'module': module, 'name': name, 'lanes': lanes}
+
+
+# What lane modules may import besides the namespaces above: the natives the
+# host registers by hand for lanes, and the console. Starting a timer
+# allocates, so the audio thread keeps none.
+LANE_IMPORTS = [
+    lane_import('rive_lane_v1', LANES),
+    lane_import('rive_job_v1', ('job',)),
+    lane_import('rive_worker_v1', ('worker',)),
+] + [lane_import('env', LANES, 'console.' + level)
+     for level in ('log', 'debug', 'info', 'warn', 'error')] + [
+    lane_import('env', ('job', 'worker'), 'console.' + timer)
+    for timer in ('time', 'timeLog', 'timeEnd')]
 
 # Leaf ops never call back into a module (no listeners, no nested scripts),
 # so the interpreter runs them without a frame of its own. Setters, triggers
@@ -1163,7 +1344,7 @@ LEAF_OPS = {
         'pass_set_pipeline', 'pass_set_vertex_buffer', 'pass_set_index_buffer',
         'pass_set_bind_group', 'pass_set_viewport', 'pass_set_scissor',
         'pass_set_stencil_reference', 'pass_set_blend_color', 'pass_draw',
-        'pass_draw_indexed', 'buffer_update',
+        'pass_draw_indexed', 'buffer_update', 'buffer_update_blob',
     },
     'rive_mat4_v1': ALL_OPS,
     'rive_path_v1': ALL_OPS,

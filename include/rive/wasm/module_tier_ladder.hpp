@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #ifdef RIVE_WASM_TIER_LADDER
 #include <map>
@@ -21,7 +22,6 @@
 #include <set>
 #include <tuple>
 #include <utility>
-#include <vector>
 #endif
 
 namespace rive
@@ -111,8 +111,20 @@ public:
       TierSpecies species,
       const std::string& target = std::string(),
       const std::atomic<bool>* cancel = nullptr);
-  // What a VM boot loads: compileSync with compileOnBoot, else only the
-  // cached artifact, since a host's frame thread may be the one booting.
+  // compileSync for each module keyed by its bytes, side by side, the first
+  // on the calling thread, with results in module order.
+  std::vector<TierCompile> compileAll(
+      const std::vector<Span<const uint8_t>>& modules,
+      TierSpecies species,
+      const std::atomic<bool>* cancel = nullptr);
+  // compileAll of a script module and the lane modules it carries, the
+  // script module's result first.
+  std::vector<TierCompile> compileWithLanes(
+      Span<const uint8_t> moduleBytes,
+      TierSpecies species,
+      const std::atomic<bool>* cancel = nullptr);
+  // What a VM boot loads: compileWithLanes with compileOnBoot, else only
+  // moduleKey's cached artifact, since a host's frame thread may boot it.
   TierCompile bootCompile(
       uint64_t moduleKey,
       Span<const uint8_t> moduleBytes,
@@ -219,6 +231,22 @@ public:
     TierCompile result;
     result.reason = disabledReason();
     return result;
+  }
+  std::vector<TierCompile> compileAll(
+      const std::vector<Span<const uint8_t>>& modules,
+      TierSpecies species,
+      const std::atomic<bool>* = nullptr)
+  {
+    return std::vector<TierCompile>(
+        modules.size(),
+        compileSync(0, Span<const uint8_t>(), species));
+  }
+  std::vector<TierCompile> compileWithLanes(
+      Span<const uint8_t>,
+      TierSpecies species,
+      const std::atomic<bool>* = nullptr)
+  {
+    return {compileSync(0, Span<const uint8_t>(), species)};
   }
   TierCompile bootCompile(
       uint64_t key,

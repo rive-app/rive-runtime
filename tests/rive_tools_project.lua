@@ -1,5 +1,16 @@
 dofile('rive_build_config.lua')
 
+newoption({
+    trigger = 'web_threads',
+    description = 'build the web tools with pthreads, the lane a cross '
+        .. 'origin isolated page runs',
+})
+if _OPTIONS['web_threads'] then
+    -- Workspace wide, so every library shares the pthread memory model.
+    buildoptions({ '-pthread' })
+    linkoptions({ '-pthread', '-sPTHREAD_POOL_SIZE=16' })
+end
+
 -- Including this file automatically enables Rive tools. The other way to
 -- enable them is to pass the --with_rive_tools option to premake.
 _OPTIONS['with_rive_tools'] = ''
@@ -416,7 +427,7 @@ function rive_tools_project(name, project_kind)
             '-fno-rtti',
             '-sEXPORTED_FUNCTIONS=_main,_rive_print_message_on_server,_malloc,_free',
             '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,HEAPU32',
-            '-sENVIRONMENT=web',
+            '-sENVIRONMENT=web' .. (_OPTIONS['web_threads'] and ',worker' or ''),
             '-sUSE_GLFW=3',
             '-sMIN_WEBGL_VERSION=2',
             '-sMAX_WEBGL_VERSION=2',
@@ -425,7 +436,9 @@ function rive_tools_project(name, project_kind)
             '-sASYNCIFY_STACK_SIZE=16384',
             '-sGL_TESTING',
             '-sALLOW_MEMORY_GROWTH',
-            '-sINITIAL_HEAP=134217728',
+            -- emscripten refuses INITIAL_HEAP with shared memory.
+            (_OPTIONS['web_threads'] and '-sINITIAL_MEMORY=' or '-sINITIAL_HEAP=')
+                .. '134217728',
             '-lwebsocket.js',
         })
     end

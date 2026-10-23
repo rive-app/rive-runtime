@@ -226,7 +226,7 @@ void LayoutParticipant::resync()
   if (m_layoutData == nullptr)
   {
     m_layoutData = new LayoutData();
-    m_layoutData->node.getConfig()->setPointScaleFactor(0);
+    LayoutData::useFractionalPixels();
     // Context is us, not the host: the measure func reads hugUnbounded.
     m_layoutData->node.setContext(this);
     m_layoutData->node.setMeasureFunc(participantMeasureFunc);

@@ -7,10 +7,15 @@
 #include "rive/audio/audio_source.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 
 using namespace rive;
+
+static std::atomic<uint32_t> s_bufferFrames{0};
+
+void AudioEngine::SetBufferFrames(uint32_t frames) { s_bufferFrames = frames; }
 
 void AudioEngine::SoundCompleted(void* pUserData, ma_sound* pSound)
 {
@@ -95,8 +100,8 @@ void AudioEngine::initLevelMonitor()
 {
   if (m_levelMonitor == nullptr)
   {
-    m_levelMonitor = new LevelsNode();
-    m_levelMonitor->engine = this;
+    auto* monitor = new LevelsNode();
+    monitor->engine = this;
 
     ma_node_config nodeConfig = ma_node_config_init();
     nodeConfig.vtable = &measure_levels_vtable;
@@ -106,24 +111,18 @@ void AudioEngine::initLevelMonitor()
     m_levels.resize(channelCount);
 
     auto graph = ma_engine_get_node_graph(m_engine);
-    if (ma_node_init(graph, &nodeConfig, nullptr, &m_levelMonitor->base) !=
-        MA_SUCCESS)
+    if (ma_node_init(graph, &nodeConfig, nullptr, &monitor->base) != MA_SUCCESS)
     {
-      delete m_levelMonitor;
-      m_levelMonitor = nullptr;
+      delete monitor;
       return;
     }
-    if (ma_node_attach_output_bus(
-            &m_levelMonitor->base,
-            0,
-            ma_node_graph_get_endpoint(graph),
-            0) != MA_SUCCESS)
+    if (!attachToMix(&monitor->base))
     {
-      ma_node_uninit(&m_levelMonitor->base, nullptr);
-      delete m_levelMonitor;
-      m_levelMonitor = nullptr;
+      ma_node_uninit(&monitor->base, nullptr);
+      delete monitor;
       return;
     }
+    m_levelMonitor = monitor;
   }
 }
 
@@ -151,6 +150,35 @@ float AudioEngine::level(uint32_t channel)
 
 void AudioEngine::start() { ma_engine_start(m_engine); }
 void AudioEngine::stop() { ma_engine_stop(m_engine); }
+
+#ifndef MA_NO_DEVICE_IO
+// A callback that outlasts a block mixes two in the time of one, so blocks are
+// fitted to the period the device chose.
+static bool fitBlocksToDevice(ma_engine_config& config, const ma_device& device)
+{
+  uint32_t period = device.playback.internalPeriodSizeInFrames;
+  uint32_t rate = device.playback.internalSampleRate;
+  if (rate == device.sampleRate)
+  {
+    if (period == config.periodSizeInFrames)
+    {
+      return false;
+    }
+    config.periodSizeInFrames = period;
+    return true;
+  }
+  // Only an engine given a rate gets here. Frames last different times at two
+  // rates, so both get a time: the one asked for, or the period if shorter.
+  auto milliseconds = [](uint64_t frames, uint64_t perSecond) {
+    return (frames * 1000 + perSecond - 1) / perSecond;
+  };
+  config.periodSizeInMilliseconds = (uint32_t)std::min(
+      milliseconds(config.periodSizeInFrames, device.sampleRate),
+      milliseconds(period, rate));
+  config.periodSizeInFrames = 0;
+  return true;
+}
+#endif
 
 rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 {
@@ -190,7 +218,6 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 
   ma_engine_config engineConfig = ma_engine_config_init();
   engineConfig.channels = numChannels;
-  engineConfig.sampleRate = sampleRate;
 
 #if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
@@ -209,10 +236,30 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     engineConfig.noDevice = MA_TRUE;
   }
 #endif
+  engineConfig.sampleRate = sampleRate == 0 && engineConfig.noDevice
+                                ? defaultSampleRate
+                                : sampleRate;
+  uint32_t buffer = s_bufferFrames;
+  // Without a fixed block miniaudio can start a scheduled sound a read late.
+  // A host reading partial blocks hears sounds played now up to a block late.
+  engineConfig.periodSizeInFrames = buffer == 0 && engineConfig.noDevice
+                                        ? 128
+                                        : buffer;
 
   ma_engine* engine = new ma_engine();
+  ma_result result = ma_engine_init(&engineConfig, engine);
+#ifndef MA_NO_DEVICE_IO
+  ma_device* device = result == MA_SUCCESS ? ma_engine_get_device(engine)
+                                           : nullptr;
+  if (device != nullptr && engineConfig.periodSizeInFrames != 0 &&
+      fitBlocksToDevice(engineConfig, *device))
+  {
+    ma_engine_uninit(engine);
+    result = ma_engine_init(&engineConfig, engine);
+  }
+#endif
 
-  if (ma_engine_init(&engineConfig, engine) != MA_SUCCESS)
+  if (result != MA_SUCCESS)
   {
 #if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
@@ -238,6 +285,10 @@ uint32_t AudioEngine::channels() const
 uint32_t AudioEngine::sampleRate() const
 {
   return ma_engine_get_sample_rate(m_engine);
+}
+uint32_t AudioEngine::bufferFrames() const
+{
+  return ma_engine_get_node_graph(m_engine)->processingSizeInFrames;
 }
 
 AudioEngine::AudioEngine(ma_engine* engine, ma_context* context)
@@ -405,7 +456,7 @@ rcp<AudioSound> AudioEngine::playSeconds(
   {
     ma_sound_set_start_time_in_milliseconds(
         audioSound->sound(),
-        startTime * 1000.0f);
+        (ma_uint64)std::round(startTime * 1000.0));
   }
   return initializeAudioSound(audioSound);
 }
@@ -554,16 +605,99 @@ rcp<AudioEngine> AudioEngine::RuntimeEngine(bool makeWhenNecessary)
   }
   else if (m_runtimeAudioEngine == nullptr)
   {
-    m_runtimeAudioEngine = AudioEngine::Make(
-        defaultNumChannels,
-        defaultSampleRate);
+    // A browser's audio context runs at the rate it is given, so blocks fit.
+#ifdef __EMSCRIPTEN__
+    uint32_t sampleRate = defaultSampleRate;
+#else
+    uint32_t sampleRate = 0;
+#endif
+    m_runtimeAudioEngine = AudioEngine::Make(defaultNumChannels, sampleRate);
   }
   return m_runtimeAudioEngine;
 }
 
 void AudioEngine::ReleaseRuntimeEngine() { m_runtimeAudioEngine = nullptr; }
 
-#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+namespace rive
+{
+class AudioRendererNode
+{
+public:
+  ma_node_base base;
+  AudioRenderer* renderer;
+  // The engine frame its next block starts at. A renderer attached during a
+  // mix first plays in the next one, so the clock is read at its first block.
+  bool started = false;
+  uint64_t nextFrame = 0;
+
+  static void process(
+      ma_node* node,
+      const float**,
+      ma_uint32*,
+      float** out,
+      ma_uint32* frames)
+  {
+    auto* self = static_cast<AudioRendererNode*>(node);
+    if (!self->started)
+    {
+      self->nextFrame = ma_node_graph_get_time(ma_node_get_node_graph(node));
+      self->started = true;
+    }
+    self->renderer->render(out[0], *frames, self->nextFrame);
+    self->nextFrame += *frames;
+  }
+};
+} // namespace rive
+
+bool AudioEngine::attachToMix(ma_node_base* node)
+{
+  ma_node* mix = ma_node_graph_get_endpoint(ma_engine_get_node_graph(m_engine));
+#ifdef WITH_RIVE_AUDIO_TOOLS
+  // Editor meters read what passes through the monitor.
+  if (m_levelMonitor != nullptr)
+  {
+    mix = &m_levelMonitor->base;
+  }
+#endif
+  return ma_node_attach_output_bus(node, 0, mix, 0) == MA_SUCCESS;
+}
+
+static ma_node_vtable renderer_vtable =
+    {AudioRendererNode::process, nullptr, 0, 1, 0};
+
+AudioRendererNode* AudioEngine::attachRenderer(AudioRenderer* renderer)
+{
+  auto graph = ma_engine_get_node_graph(m_engine);
+  auto* node = new AudioRendererNode();
+  node->renderer = renderer;
+  ma_node_config config = ma_node_config_init();
+  config.vtable = &renderer_vtable;
+  uint32_t channelCount = channels();
+  config.pOutputChannels = &channelCount;
+  if (ma_node_init(graph, &config, nullptr, &node->base) != MA_SUCCESS)
+  {
+    delete node;
+    return nullptr;
+  }
+  if (!attachToMix(&node->base))
+  {
+    ma_node_uninit(&node->base, nullptr);
+    delete node;
+    return nullptr;
+  }
+  return node;
+}
+
+void AudioEngine::detachRenderer(AudioRendererNode* node)
+{
+  if (node != nullptr)
+  {
+    ma_node_uninit(&node->base, nullptr);
+    delete node;
+  }
+}
+
+#if defined(EXTERNAL_RIVE_AUDIO_ENGINE) || defined(WITH_RIVE_TOOLS)
 bool AudioEngine::readAudioFrames(
     float* frames,
     uint64_t numFrames,
@@ -575,6 +709,9 @@ bool AudioEngine::readAudioFrames(
              (ma_uint64)numFrames,
              (ma_uint64*)framesRead) == MA_SUCCESS;
 }
+#endif
+
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
 bool AudioEngine::sumAudioFrames(float* frames, uint64_t numFrames)
 {
   size_t numChannels = (size_t)channels();

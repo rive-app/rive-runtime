@@ -98,6 +98,8 @@ private:
   wgpu::Queue m_wgpuQueue;
   wgpu::CommandEncoder m_wgpuCommandEncoder;
   uint64_t m_frameSerial = 0;
+  // WebGPU's default, for a device that does not report its limits.
+  uint64_t m_maxBufferSize = 256 * 1024 * 1024;
 };
 
 } // namespace rive::ore

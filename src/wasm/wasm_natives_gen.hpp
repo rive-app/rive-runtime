@@ -399,6 +399,8 @@ void gpuPassReleaseImpl(WasmScriptingVM* vm, uint32_t pass);
 uint32_t gpuImageViewImpl(WasmScriptingVM* vm, uint32_t image, uint32_t width, uint32_t height);
 uint32_t gpuBufferNewImpl(WasmScriptingVM* vm, uint32_t usage, uint32_t sizeInBytes, uint32_t immutable, const uint8_t* data, uint32_t dataCount);
 void gpuBufferUpdateImpl(WasmScriptingVM* vm, uint32_t buffer, uint32_t dstOffset, const uint8_t* data, uint32_t dataCount);
+void gpuBufferUpdateBlobImpl(WasmScriptingVM* vm, uint32_t buffer, uint32_t dstOffset, uint32_t blob, uint32_t srcOffset, uint32_t byteCount);
+uint32_t gpuBufferNewBlobImpl(WasmScriptingVM* vm, uint32_t usage, uint32_t immutable, uint32_t blob, uint32_t srcOffset, uint32_t byteCount);
 void gpuBufferReleaseImpl(WasmScriptingVM* vm, uint32_t buffer);
 uint32_t gpuTextureNewImpl(WasmScriptingVM* vm, const rive_gpu_texture_desc_v1* desc, uint32_t descByteCount);
 void gpuTextureUploadImpl(WasmScriptingVM* vm, uint32_t texture, const rive_gpu_texture_upload_v1* region, uint32_t regionByteCount, const uint8_t* data, uint32_t dataCount);
@@ -530,6 +532,49 @@ void fileBindableReleaseImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t fileBindableNameImpl(WasmScriptingVM* vm, uint32_t bindable, char* buffer, uint32_t capacity);
 uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
+uint32_t lanesStartImpl(WasmScriptingVM* vm, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount);
+uint32_t lanesStateImpl(WasmScriptingVM* vm, uint32_t lane);
+uint32_t lanesFailedImpl(WasmScriptingVM* vm, uint32_t lane, char* buffer, uint32_t capacity);
+void lanesStopImpl(WasmScriptingVM* vm, uint32_t lane);
+void lanesReleaseImpl(WasmScriptingVM* vm, uint32_t lane);
+uint32_t lanesResultImpl(WasmScriptingVM* vm, uint32_t lane, uint32_t out, uint32_t outCount);
+uint32_t lanesWatchImpl(WasmScriptingVM* vm, uint32_t lane);
+uint32_t lanesWaitImpl(WasmScriptingVM* vm, uint32_t signal, double after, double timeoutSeconds);
+void lanesCancelWaitImpl(WasmScriptingVM* vm, uint32_t token);
+double lanesWaitWithinImpl(WasmScriptingVM* vm, uint32_t signal, double after, double timeoutSeconds);
+uint32_t jobsThreadsImpl(WasmScriptingVM* vm);
+uint32_t jobsJoinImpl(WasmScriptingVM* vm, uint32_t job, double timeoutSeconds);
+uint32_t jobsJoinAnyImpl(WasmScriptingVM* vm, const uint32_t* jobs, uint32_t count, double timeoutSeconds);
+uint32_t sharedRegionCreateImpl(WasmScriptingVM* vm, uint32_t size);
+uint32_t sharedRegionSizeImpl(WasmScriptingVM* vm, uint32_t region);
+uint32_t sharedRegionLockImpl(WasmScriptingVM* vm, uint32_t region, double timeoutSeconds);
+void sharedRegionUnlockImpl(WasmScriptingVM* vm, uint32_t region);
+uint32_t sharedRegionReadImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset, uint8_t* out, uint32_t outByteCount);
+uint32_t sharedRegionWriteImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset, const uint8_t* data, uint32_t dataByteCount);
+uint32_t sharedRegionPoisonedImpl(WasmScriptingVM* vm, uint32_t region);
+double sharedAtomicLoadImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset);
+double sharedAtomicStoreImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset, uint32_t value);
+double sharedAtomicAddImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset, uint32_t value);
+double sharedAtomicCasImpl(WasmScriptingVM* vm, uint32_t region, uint32_t offset, uint32_t expected, uint32_t desired);
+uint32_t sharedRingCreateImpl(WasmScriptingVM* vm, uint32_t capacity);
+uint32_t sharedRingWriteImpl(WasmScriptingVM* vm, uint32_t ring, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount);
+uint32_t sharedRingReadImpl(WasmScriptingVM* vm, uint32_t ring, uint8_t* out, uint32_t outByteCount);
+uint32_t sharedRingDropImpl(WasmScriptingVM* vm, uint32_t ring, uint32_t capacity);
+uint32_t sharedRingUsedImpl(WasmScriptingVM* vm, uint32_t ring);
+uint32_t sharedRingSignalImpl(WasmScriptingVM* vm, uint32_t ring, uint32_t space);
+uint32_t sharedSnapshotCreateImpl(WasmScriptingVM* vm, uint32_t capacity);
+uint32_t sharedSnapshotPublishImpl(WasmScriptingVM* vm, uint32_t snapshot, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount);
+uint32_t sharedSnapshotReadImpl(WasmScriptingVM* vm, uint32_t snapshot, uint8_t* out, uint32_t outByteCount);
+double sharedSnapshotSeqImpl(WasmScriptingVM* vm, uint32_t snapshot);
+void sharedReadDoneImpl(WasmScriptingVM* vm);
+uint32_t sharedSignalCreateImpl(WasmScriptingVM* vm);
+void sharedSignalNotifyImpl(WasmScriptingVM* vm, uint32_t signal);
+double sharedSignalSeqImpl(WasmScriptingVM* vm, uint32_t signal);
+uint32_t sharedBlobCreateImpl(WasmScriptingVM* vm, const uint8_t* data, uint32_t dataByteCount);
+uint32_t sharedBlobSizeImpl(WasmScriptingVM* vm, uint32_t blob);
+uint32_t sharedBlobReadImpl(WasmScriptingVM* vm, uint32_t blob, uint32_t offset, uint8_t* out, uint32_t outByteCount);
+uint32_t sharedRetainImpl(WasmScriptingVM* vm, uint32_t object);
+void sharedReleaseImpl(WasmScriptingVM* vm, uint32_t object);
 
 #ifndef __EMSCRIPTEN__
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
@@ -1688,6 +1733,16 @@ void gpuBufferUpdate(wasm_exec_env_t env, uint32_t buffer, uint32_t dstOffset, c
     WasmScriptingVM* vm = vmFromEnv(env);
     gpuBufferUpdateImpl(vm, buffer, dstOffset, data, dataCount);
 }
+void gpuBufferUpdateBlob(wasm_exec_env_t env, uint32_t buffer, uint32_t dstOffset, uint32_t blob, uint32_t srcOffset, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuBufferUpdateBlobImpl(vm, buffer, dstOffset, blob, srcOffset, byteCount);
+}
+uint32_t gpuBufferNewBlob(wasm_exec_env_t env, uint32_t usage, uint32_t immutable, uint32_t blob, uint32_t srcOffset, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBufferNewBlobImpl(vm, usage, immutable, blob, srcOffset, byteCount);
+}
 void gpuBufferRelease(wasm_exec_env_t env, uint32_t buffer)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2270,6 +2325,237 @@ uint32_t fileBindableEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
     WasmScriptingVM* vm = vmFromEnv(env);
     return fileBindableEqualImpl(vm, a, b);
 }
+uint32_t lanesStart(wasm_exec_env_t env, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (holdCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)holds, (uint64_t)holdCount * 4))
+    {
+        return {};
+    }
+    return lanesStartImpl(vm, kind, entry, input, inputByteCount, holds, holdCount);
+}
+uint32_t lanesState(wasm_exec_env_t env, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesStateImpl(vm, lane);
+}
+uint32_t lanesFailed(wasm_exec_env_t env, uint32_t lane, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesFailedImpl(vm, lane, buffer, capacity);
+}
+void lanesStop(wasm_exec_env_t env, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    lanesStopImpl(vm, lane);
+}
+void lanesRelease(wasm_exec_env_t env, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    lanesReleaseImpl(vm, lane);
+}
+uint32_t lanesResult(wasm_exec_env_t env, uint32_t lane, uint32_t out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesResultImpl(vm, lane, out, outCount);
+}
+uint32_t lanesWatch(wasm_exec_env_t env, uint32_t lane)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesWatchImpl(vm, lane);
+}
+uint32_t lanesWait(wasm_exec_env_t env, uint32_t signal, double after, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesWaitImpl(vm, signal, after, timeoutSeconds);
+}
+void lanesCancelWait(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    lanesCancelWaitImpl(vm, token);
+}
+double lanesWaitWithin(wasm_exec_env_t env, uint32_t signal, double after, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return lanesWaitWithinImpl(vm, signal, after, timeoutSeconds);
+}
+uint32_t jobsThreads(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return jobsThreadsImpl(vm);
+}
+uint32_t jobsJoin(wasm_exec_env_t env, uint32_t job, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return jobsJoinImpl(vm, job, timeoutSeconds);
+}
+uint32_t jobsJoinAny(wasm_exec_env_t env, const uint32_t* jobs, uint32_t count, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (count != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)jobs, (uint64_t)count * 4))
+    {
+        return {};
+    }
+    return jobsJoinAnyImpl(vm, jobs, count, timeoutSeconds);
+}
+uint32_t sharedRegionCreate(wasm_exec_env_t env, uint32_t size)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionCreateImpl(vm, size);
+}
+uint32_t sharedRegionSize(wasm_exec_env_t env, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionSizeImpl(vm, region);
+}
+uint32_t sharedRegionLock(wasm_exec_env_t env, uint32_t region, double timeoutSeconds)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionLockImpl(vm, region, timeoutSeconds);
+}
+void sharedRegionUnlock(wasm_exec_env_t env, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    sharedRegionUnlockImpl(vm, region);
+}
+uint32_t sharedRegionRead(wasm_exec_env_t env, uint32_t region, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionReadImpl(vm, region, offset, out, outByteCount);
+}
+uint32_t sharedRegionWrite(wasm_exec_env_t env, uint32_t region, uint32_t offset, const uint8_t* data, uint32_t dataByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionWriteImpl(vm, region, offset, data, dataByteCount);
+}
+uint32_t sharedRegionPoisoned(wasm_exec_env_t env, uint32_t region)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRegionPoisonedImpl(vm, region);
+}
+double sharedAtomicLoad(wasm_exec_env_t env, uint32_t region, uint32_t offset)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedAtomicLoadImpl(vm, region, offset);
+}
+double sharedAtomicStore(wasm_exec_env_t env, uint32_t region, uint32_t offset, uint32_t value)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedAtomicStoreImpl(vm, region, offset, value);
+}
+double sharedAtomicAdd(wasm_exec_env_t env, uint32_t region, uint32_t offset, uint32_t value)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedAtomicAddImpl(vm, region, offset, value);
+}
+double sharedAtomicCas(wasm_exec_env_t env, uint32_t region, uint32_t offset, uint32_t expected, uint32_t desired)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedAtomicCasImpl(vm, region, offset, expected, desired);
+}
+uint32_t sharedRingCreate(wasm_exec_env_t env, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRingCreateImpl(vm, capacity);
+}
+uint32_t sharedRingWrite(wasm_exec_env_t env, uint32_t ring, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (holdCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)holds, (uint64_t)holdCount * 4))
+    {
+        return {};
+    }
+    return sharedRingWriteImpl(vm, ring, data, dataByteCount, holds, holdCount);
+}
+uint32_t sharedRingRead(wasm_exec_env_t env, uint32_t ring, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRingReadImpl(vm, ring, out, outByteCount);
+}
+uint32_t sharedRingDrop(wasm_exec_env_t env, uint32_t ring, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRingDropImpl(vm, ring, capacity);
+}
+uint32_t sharedRingUsed(wasm_exec_env_t env, uint32_t ring)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRingUsedImpl(vm, ring);
+}
+uint32_t sharedRingSignal(wasm_exec_env_t env, uint32_t ring, uint32_t space)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRingSignalImpl(vm, ring, space);
+}
+uint32_t sharedSnapshotCreate(wasm_exec_env_t env, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedSnapshotCreateImpl(vm, capacity);
+}
+uint32_t sharedSnapshotPublish(wasm_exec_env_t env, uint32_t snapshot, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (holdCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)holds, (uint64_t)holdCount * 4))
+    {
+        return {};
+    }
+    return sharedSnapshotPublishImpl(vm, snapshot, data, dataByteCount, holds, holdCount);
+}
+uint32_t sharedSnapshotRead(wasm_exec_env_t env, uint32_t snapshot, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedSnapshotReadImpl(vm, snapshot, out, outByteCount);
+}
+double sharedSnapshotSeq(wasm_exec_env_t env, uint32_t snapshot)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedSnapshotSeqImpl(vm, snapshot);
+}
+void sharedReadDone(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    sharedReadDoneImpl(vm);
+}
+uint32_t sharedSignalCreate(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedSignalCreateImpl(vm);
+}
+void sharedSignalNotify(wasm_exec_env_t env, uint32_t signal)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    sharedSignalNotifyImpl(vm, signal);
+}
+double sharedSignalSeq(wasm_exec_env_t env, uint32_t signal)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedSignalSeqImpl(vm, signal);
+}
+uint32_t sharedBlobCreate(wasm_exec_env_t env, const uint8_t* data, uint32_t dataByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedBlobCreateImpl(vm, data, dataByteCount);
+}
+uint32_t sharedBlobSize(wasm_exec_env_t env, uint32_t blob)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedBlobSizeImpl(vm, blob);
+}
+uint32_t sharedBlobRead(wasm_exec_env_t env, uint32_t blob, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedBlobReadImpl(vm, blob, offset, out, outByteCount);
+}
+uint32_t sharedRetain(wasm_exec_env_t env, uint32_t object)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return sharedRetainImpl(vm, object);
+}
+void sharedRelease(wasm_exec_env_t env, uint32_t object)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    sharedReleaseImpl(vm, object);
+}
 
 NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
@@ -2503,6 +2789,8 @@ NativeSymbol kGpuNatives[] = {
     {"image_view", (void*)gpuImageView, "(iii)i", nullptr},
     {"buffer_new", (void*)gpuBufferNew, "(iii*~)i", nullptr},
     {"buffer_update", (void*)gpuBufferUpdate, "(ii*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"buffer_update_blob", (void*)gpuBufferUpdateBlob, "(iiiii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"buffer_new_blob", (void*)gpuBufferNewBlob, "(iiiii)i", nullptr},
     {"buffer_release", (void*)gpuBufferRelease, "(i)", nullptr},
     {"texture_new", (void*)gpuTextureNew, "(*~)i", nullptr},
     {"texture_upload", (void*)gpuTextureUpload, "(i*~*~)", nullptr},
@@ -2675,6 +2963,58 @@ NativeSymbol kFileNatives[] = {
     {"bindable_equal", (void*)fileBindableEqual, "(ii)i", nullptr},
 };
 
+NativeSymbol kLanesNatives[] = {
+    {"start", (void*)lanesStart, "(ii*~*~)i", nullptr},
+    {"state", (void*)lanesState, "(i)i", nullptr},
+    {"failed", (void*)lanesFailed, "(i*~)i", nullptr},
+    {"stop", (void*)lanesStop, "(i)", nullptr},
+    {"release", (void*)lanesRelease, "(i)", nullptr},
+    {"result", (void*)lanesResult, "(iii)i", nullptr},
+    {"watch", (void*)lanesWatch, "(i)i", nullptr},
+    {"wait", (void*)lanesWait, "(iFF)i", nullptr},
+    {"cancel_wait", (void*)lanesCancelWait, "(i)", nullptr},
+    {"wait_within", (void*)lanesWaitWithin, "(iFF)F", nullptr},
+};
+
+NativeSymbol kJobsNatives[] = {
+    {"threads", (void*)jobsThreads, "()i", nullptr},
+    {"join", (void*)jobsJoin, "(iF)i", nullptr},
+    {"join_any", (void*)jobsJoinAny, "(*~F)i", nullptr},
+};
+
+NativeSymbol kSharedNatives[] = {
+    {"region_create", (void*)sharedRegionCreate, "(i)i", nullptr},
+    {"region_size", (void*)sharedRegionSize, "(i)i", nullptr},
+    {"region_lock", (void*)sharedRegionLock, "(iF)i", nullptr},
+    {"region_unlock", (void*)sharedRegionUnlock, "(i)", nullptr},
+    {"region_read", (void*)sharedRegionRead, "(ii*~)i", nullptr},
+    {"region_write", (void*)sharedRegionWrite, "(ii*~)i", nullptr},
+    {"region_poisoned", (void*)sharedRegionPoisoned, "(i)i", nullptr},
+    {"atomic_load", (void*)sharedAtomicLoad, "(ii)F", nullptr},
+    {"atomic_store", (void*)sharedAtomicStore, "(iii)F", nullptr},
+    {"atomic_add", (void*)sharedAtomicAdd, "(iii)F", nullptr},
+    {"atomic_cas", (void*)sharedAtomicCas, "(iiii)F", nullptr},
+    {"ring_create", (void*)sharedRingCreate, "(i)i", nullptr},
+    {"ring_write", (void*)sharedRingWrite, "(i*~*~)i", nullptr},
+    {"ring_read", (void*)sharedRingRead, "(i*~)i", nullptr},
+    {"ring_drop", (void*)sharedRingDrop, "(ii)i", nullptr},
+    {"ring_used", (void*)sharedRingUsed, "(i)i", nullptr},
+    {"ring_signal", (void*)sharedRingSignal, "(ii)i", nullptr},
+    {"snapshot_create", (void*)sharedSnapshotCreate, "(i)i", nullptr},
+    {"snapshot_publish", (void*)sharedSnapshotPublish, "(i*~*~)i", nullptr},
+    {"snapshot_read", (void*)sharedSnapshotRead, "(i*~)i", nullptr},
+    {"snapshot_seq", (void*)sharedSnapshotSeq, "(i)F", nullptr},
+    {"read_done", (void*)sharedReadDone, "()", nullptr},
+    {"signal_create", (void*)sharedSignalCreate, "()i", nullptr},
+    {"signal_notify", (void*)sharedSignalNotify, "(i)", nullptr},
+    {"signal_seq", (void*)sharedSignalSeq, "(i)F", nullptr},
+    {"blob_create", (void*)sharedBlobCreate, "(*~)i", nullptr},
+    {"blob_size", (void*)sharedBlobSize, "(i)i", nullptr},
+    {"blob_read", (void*)sharedBlobRead, "(ii*~)i", nullptr},
+    {"retain", (void*)sharedRetain, "(i)i", nullptr},
+    {"release", (void*)sharedRelease, "(i)", nullptr},
+};
+
 inline bool registerRiveBindingNatives()
 {
     return wasm_runtime_register_natives(
@@ -2764,6 +3104,18 @@ inline bool registerRiveBindingNatives()
            wasm_runtime_register_natives(
                "rive_file_v1",
                kFileNatives,
-               sizeof(kFileNatives) / sizeof(NativeSymbol));
+               sizeof(kFileNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_lanes_v1",
+               kLanesNatives,
+               sizeof(kLanesNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_jobs_v1",
+               kJobsNatives,
+               sizeof(kJobsNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_shared_v1",
+               kSharedNatives,
+               sizeof(kSharedNatives) / sizeof(NativeSymbol));
 }
 #endif

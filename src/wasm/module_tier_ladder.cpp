@@ -2,6 +2,7 @@
 
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/aot_artifact.hpp"
+#include "rive/wasm/wasm_lane.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -54,6 +55,7 @@ int x86_64Level(
 #include <iterator>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -83,6 +85,8 @@ extern char** environ;
 
 namespace rive
 {
+
+constexpr const char* kCancelledReason = "the compile was cancelled";
 
 static uint64_t processId()
 {
@@ -666,7 +670,8 @@ bool ModuleTierLadder::enabledLocked()
 {
   if (m_wamrcPath.empty())
   {
-    m_disabledReason = "no wamrc, pass --aot or set RIVE_WAMRC";
+    m_disabledReason =
+        "no wamrc, set RIVE_WAMRC or pass --aot with our wamrc on PATH";
     return false;
   }
   if (m_cacheDir.empty())
@@ -788,15 +793,13 @@ static const char* const* crossTargetArgs(const std::string& target)
   return nullptr;
 }
 
-// The module exports __riveHostBudget. A byte search suffices: a false
-// hit only adds interrupt checks.
 static bool asksHostBudget(const std::string& wasmPath)
 {
   std::ifstream in(wasmPath, std::ios::binary);
-  std::string bytes(
+  std::vector<uint8_t> bytes(
       (std::istreambuf_iterator<char>(in)),
       std::istreambuf_iterator<char>());
-  return bytes.find("__riveHostBudget") != std::string::npos;
+  return exportsFunction(bytes, "__riveHostBudget");
 }
 
 std::string ModuleTierLadder::keyedCacheDir()
@@ -1042,6 +1045,7 @@ TierCompile ModuleTierLadder::compileSync(
       m_cancelableJobs.push_back(&job);
     }
   }
+  auto compileStart = std::chrono::steady_clock::now();
   result.reason = runWamrc(job);
   {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -1065,11 +1069,88 @@ TierCompile ModuleTierLadder::compileSync(
   {
     result.path = job.finalPath;
     result.compiled = true;
+    if (target.empty())
+    {
+      auto compileMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now() - compileStart)
+                           .count();
+      fprintf(
+          stderr,
+          "wasm aot: compiled %s in %lld ms\n",
+          result.path.c_str(),
+          (long long)compileMs);
+    }
 #ifndef RIVE_NX
     pruneCache(cacheDir, keyedDir, staleKeyDirs);
 #endif
   }
   return result;
+}
+
+std::vector<TierCompile> ModuleTierLadder::compileAll(
+    const std::vector<Span<const uint8_t>>& modules,
+    TierSpecies species,
+    const std::atomic<bool>* cancel)
+{
+  std::vector<uint64_t> keys;
+  for (Span<const uint8_t> module : modules)
+  {
+    keys.push_back(wasmModuleKey(module));
+  }
+  std::vector<TierCompile> results(modules.size());
+  std::vector<size_t> misses;
+  {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    for (size_t i = 0; i < modules.size(); i++)
+    {
+      Job job{keys[i], species};
+      if (!lookupLocked(job, results[i]))
+      {
+        misses.push_back(i);
+      }
+    }
+  }
+  auto compile = [&](size_t i) {
+    if (cancel != nullptr && cancel->load())
+    {
+      results[i].reason = kCancelledReason;
+      return;
+    }
+    results[i] = compileSync(
+        keys[i],
+        modules[i],
+        species,
+        std::string(),
+        cancel);
+  };
+  std::vector<std::thread> threads;
+  for (size_t i = 1; i < misses.size(); i++)
+  {
+    threads.emplace_back(compile, misses[i]);
+  }
+  if (!misses.empty())
+  {
+    compile(misses.front());
+  }
+  for (std::thread& thread : threads)
+  {
+    thread.join();
+  }
+  return results;
+}
+
+std::vector<TierCompile> ModuleTierLadder::compileWithLanes(
+    Span<const uint8_t> moduleBytes,
+    TierSpecies species,
+    const std::atomic<bool>* cancel)
+{
+  std::vector<std::vector<uint8_t>> lanes = laneModules(moduleBytes);
+  std::vector<Span<const uint8_t>> modules = {moduleBytes};
+  for (const std::vector<uint8_t>& lane : lanes)
+  {
+    modules.emplace_back(lane.data(), lane.size());
+  }
+  return compileAll(modules, species, cancel);
 }
 
 bool ModuleTierLadder::lookupLocked(Job& job, TierCompile& result)
@@ -1124,7 +1205,9 @@ TierCompile ModuleTierLadder::bootCompile(
       return result;
     }
   }
-  return compileSync(moduleKey, moduleBytes, species);
+  // The boot loads its lanes next, and compiles of one module never merge,
+  // so they all finish before it returns.
+  return compileWithLanes(moduleBytes, species).front();
 }
 
 bool ModuleTierLadder::failed(
@@ -1306,7 +1389,7 @@ std::string ModuleTierLadder::runWamrc(Job& job)
     std::remove(tmpPath.c_str());
     if (job.cancelled)
     {
-      return "the compile was cancelled";
+      return kCancelledReason;
     }
     // wamrc prints usage errors to stdout, which is discarded; an
     // unlogged exit here is otherwise a silently dead lane.

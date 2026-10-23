@@ -1624,13 +1624,7 @@ bool Artboard::usesScripts() const
   return false;
 }
 
-void Artboard::pollAsyncWork()
-{
-  rive_pollAsyncWork();
-#ifdef WITH_RIVE_SCRIPTING_WASM
-  WasmScriptingVM::deliverAllHeldOutcomes();
-#endif
-}
+void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
 
 #if defined(WITH_RIVE_SCRIPTING_LUAU) || defined(WITH_RIVE_SCRIPTING_WASM)
 static bool fileHasPendingAsyncWork(const File* file)

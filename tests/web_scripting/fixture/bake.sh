@@ -1,17 +1,21 @@
 #!/bin/bash
 # Rebakes <name>.riv from each <name>/main.as, or only the names given. The
 # other files in a fixture's folder join its project, and a rive.yaml there
-# adds keys to the generated one. RIVE_BAKE_DIR bakes another folder's
+# adds keys to the generated one, so a main.as linking to another fixture's
+# bakes that script with other keys. RIVE_BAKE_DIR bakes another folder's
 # fixtures, RIVE_BAKE_FLAGS adds rive-cli flags. Needs rive-cli built with
 # packages/rive-cli/build.sh, release if there is one, else debug, or the one
-# RIVE_CLI names. RIVE_BAKE_OUT keeps each staged project there and writes the
-# .riv beside it, leaving the committed one alone.
+# RIVE_CLI names. It compiles against this checkout's std, or the one
+# RIVE_RASC_STD names, so a std change needs no rive-cli rebuild. RIVE_BAKE_OUT
+# keeps each staged project there and writes the .riv beside it, leaving the
+# committed one alone.
 set -e
 HERE="$(cd "${RIVE_BAKE_DIR:-$(dirname "$0")}" && pwd)"
 PACKAGES="$(cd "$(dirname "$0")/../../../.." && pwd)"
 CLI="$PACKAGES/rive-cli/out/release/rive"
 [[ -x "$CLI" ]] || CLI="$PACKAGES/rive-cli/out/debug/rive"
 CLI="${RIVE_CLI:-$CLI}"
+export RIVE_RASC_STD="${RIVE_RASC_STD:-$PACKAGES/rasc/animascript/std}"
 if [[ -n "$RIVE_BAKE_OUT" ]]; then
     mkdir -p "$RIVE_BAKE_OUT"
     WORK="$(cd "$RIVE_BAKE_OUT" && pwd)"
@@ -31,14 +35,11 @@ if [[ ${#NAMES[@]} -eq 0 ]]; then
 fi
 for NAME in "${NAMES[@]}"; do
     rm -rf "$WORK/$NAME"
-    cp -R "$HERE/$NAME" "$WORK/$NAME"
+    cp -RL "$HERE/$NAME" "$WORK/$NAME"
     # A flags file adds rive-cli flags instead of joining the project.
     rm -f "$WORK/$NAME/flags"
-    # The std path resolves against the working directory, so make it
-    # absolute.
     {
-        printf 'name: app\nscripting: wasm\nrascStd: %s\n' \
-            "$PACKAGES/rasc/animascript/std"
+        printf 'name: app\nscripting: wasm\n'
         cat "$HERE/$NAME/rive.yaml" 2>/dev/null || true
     } > "$WORK/$NAME/rive.yaml"
     if RIVE_DEV_SKIP_AUTH=1 "$CLI" "$WORK/$NAME" \

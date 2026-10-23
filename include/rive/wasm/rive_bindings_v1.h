@@ -631,6 +631,10 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "buffer_new")
 uint32_t rive_gpu_buffer_new(uint32_t usage, uint32_t sizeInBytes, uint32_t immutable, const uint8_t* data, uint32_t dataCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "buffer_update")
 void rive_gpu_buffer_update(uint32_t buffer, uint32_t dstOffset, const uint8_t* data, uint32_t dataCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "buffer_update_blob")
+void rive_gpu_buffer_update_blob(uint32_t buffer, uint32_t dstOffset, uint32_t blob, uint32_t srcOffset, uint32_t byteCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "buffer_new_blob")
+uint32_t rive_gpu_buffer_new_blob(uint32_t usage, uint32_t immutable, uint32_t blob, uint32_t srcOffset, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "buffer_release")
 void rive_gpu_buffer_release(uint32_t buffer);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "texture_new")
@@ -847,6 +851,98 @@ RIVE_BINDING_IMPORT("rive_file_v1", "bindable_data")
 uint32_t rive_file_bindable_data(uint32_t bindable);
 RIVE_BINDING_IMPORT("rive_file_v1", "bindable_equal")
 uint32_t rive_file_bindable_equal(uint32_t a, uint32_t b);
+
+// rive_lanes_v1
+RIVE_BINDING_IMPORT("rive_lanes_v1", "start")
+uint32_t rive_lanes_start(uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "state")
+uint32_t rive_lanes_state(uint32_t lane);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "failed")
+uint32_t rive_lanes_failed(uint32_t lane, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "stop")
+void rive_lanes_stop(uint32_t lane);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "release")
+void rive_lanes_release(uint32_t lane);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "result")
+uint32_t rive_lanes_result(uint32_t lane, uint8_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "watch")
+uint32_t rive_lanes_watch(uint32_t lane);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "wait")
+uint32_t rive_lanes_wait(uint32_t signal, double after, double timeoutSeconds);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "cancel_wait")
+void rive_lanes_cancel_wait(uint32_t token);
+RIVE_BINDING_IMPORT("rive_lanes_v1", "wait_within")
+double rive_lanes_wait_within(uint32_t signal, double after, double timeoutSeconds);
+
+// rive_jobs_v1
+RIVE_BINDING_IMPORT("rive_jobs_v1", "threads")
+uint32_t rive_jobs_threads(void);
+RIVE_BINDING_IMPORT("rive_jobs_v1", "join")
+uint32_t rive_jobs_join(uint32_t job, double timeoutSeconds);
+RIVE_BINDING_IMPORT("rive_jobs_v1", "join_any")
+uint32_t rive_jobs_join_any(const uint32_t* jobs, uint32_t count, double timeoutSeconds);
+
+// rive_shared_v1
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_create")
+uint32_t rive_shared_region_create(uint32_t size);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_size")
+uint32_t rive_shared_region_size(uint32_t region);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_lock")
+uint32_t rive_shared_region_lock(uint32_t region, double timeoutSeconds);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_unlock")
+void rive_shared_region_unlock(uint32_t region);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_read")
+uint32_t rive_shared_region_read(uint32_t region, uint32_t offset, uint8_t* out, uint32_t outByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_write")
+uint32_t rive_shared_region_write(uint32_t region, uint32_t offset, const uint8_t* data, uint32_t dataByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "region_poisoned")
+uint32_t rive_shared_region_poisoned(uint32_t region);
+RIVE_BINDING_IMPORT("rive_shared_v1", "atomic_load")
+double rive_shared_atomic_load(uint32_t region, uint32_t offset);
+RIVE_BINDING_IMPORT("rive_shared_v1", "atomic_store")
+double rive_shared_atomic_store(uint32_t region, uint32_t offset, uint32_t value);
+RIVE_BINDING_IMPORT("rive_shared_v1", "atomic_add")
+double rive_shared_atomic_add(uint32_t region, uint32_t offset, uint32_t value);
+RIVE_BINDING_IMPORT("rive_shared_v1", "atomic_cas")
+double rive_shared_atomic_cas(uint32_t region, uint32_t offset, uint32_t expected, uint32_t desired);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_create")
+uint32_t rive_shared_ring_create(uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_write")
+uint32_t rive_shared_ring_write(uint32_t ring, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_read")
+uint32_t rive_shared_ring_read(uint32_t ring, uint8_t* out, uint32_t outByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_drop")
+uint32_t rive_shared_ring_drop(uint32_t ring, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_used")
+uint32_t rive_shared_ring_used(uint32_t ring);
+RIVE_BINDING_IMPORT("rive_shared_v1", "ring_signal")
+uint32_t rive_shared_ring_signal(uint32_t ring, uint32_t space);
+RIVE_BINDING_IMPORT("rive_shared_v1", "snapshot_create")
+uint32_t rive_shared_snapshot_create(uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_shared_v1", "snapshot_publish")
+uint32_t rive_shared_snapshot_publish(uint32_t snapshot, const uint8_t* data, uint32_t dataByteCount, const uint32_t* holds, uint32_t holdCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "snapshot_read")
+uint32_t rive_shared_snapshot_read(uint32_t snapshot, uint8_t* out, uint32_t outByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "snapshot_seq")
+double rive_shared_snapshot_seq(uint32_t snapshot);
+RIVE_BINDING_IMPORT("rive_shared_v1", "read_done")
+void rive_shared_read_done(void);
+RIVE_BINDING_IMPORT("rive_shared_v1", "signal_create")
+uint32_t rive_shared_signal_create(void);
+RIVE_BINDING_IMPORT("rive_shared_v1", "signal_notify")
+void rive_shared_signal_notify(uint32_t signal);
+RIVE_BINDING_IMPORT("rive_shared_v1", "signal_seq")
+double rive_shared_signal_seq(uint32_t signal);
+RIVE_BINDING_IMPORT("rive_shared_v1", "blob_create")
+uint32_t rive_shared_blob_create(const uint8_t* data, uint32_t dataByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "blob_size")
+uint32_t rive_shared_blob_size(uint32_t blob);
+RIVE_BINDING_IMPORT("rive_shared_v1", "blob_read")
+uint32_t rive_shared_blob_read(uint32_t blob, uint32_t offset, uint8_t* out, uint32_t outByteCount);
+RIVE_BINDING_IMPORT("rive_shared_v1", "retain")
+uint32_t rive_shared_retain(uint32_t object);
+RIVE_BINDING_IMPORT("rive_shared_v1", "release")
+void rive_shared_release(uint32_t object);
 
 #ifdef __cplusplus
 }

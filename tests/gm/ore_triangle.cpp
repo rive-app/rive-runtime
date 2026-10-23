@@ -88,6 +88,8 @@ public:
     bufDesc.usage = BufferUsage::vertex;
     bufDesc.size = sizeof(kTriangleVertices);
     bufDesc.data = kTriangleVertices;
+    // Immutable, so the goldens check each backend still uploads its data.
+    bufDesc.immutable = true;
     bufDesc.label = "ore_triangle_vbo";
     auto vbo = ctx.makeBuffer(bufDesc);
 

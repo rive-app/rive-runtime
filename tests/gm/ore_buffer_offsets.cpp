@@ -37,8 +37,10 @@ const ore_gm::TriVertex kVertices[kJunkVertexCount + 3] = {
     {0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f},
 };
 
-// Trailing zero keeps the buffer four byte aligned.
-const uint16_t kIndices[kJunkIndexCount + 4] = {0, 0, 0, 0, 0, 1, 2, 0};
+// Seven u16s, so neither the buffer nor the two index updates are whole words.
+const uint16_t kIndices[kJunkIndexCount + 3] = {0, 0, 0, 0, 0, 0, 0};
+const uint16_t kSecondIndex = 1;
+const uint16_t kThirdIndex = 2;
 } // namespace
 #endif
 
@@ -57,6 +59,25 @@ public:
 
 #if ORE_GM_HAS_BACKEND
     auto& ctx = *renderContext->getOreContext();
+    auto backend = TestingWindow::backend();
+    // WebGPU must refuse both a size whose whole word padding wraps and a
+    // whole word size past the device's limit. Others would allocate them.
+    if (backend == TestingWindow::Backend::wgpu ||
+        backend == TestingWindow::Backend::dawn)
+    {
+      for (uint32_t size : {UINT32_MAX, UINT32_MAX & ~3u})
+      {
+        BufferDesc hugeDesc{};
+        hugeDesc.usage = BufferUsage::vertex;
+        hugeDesc.size = size;
+        if (ctx.makeBuffer(hugeDesc) != nullptr)
+        {
+          return;
+        }
+      }
+      ctx.clearLastError();
+    }
+
     auto canvas = renderContext->makeRenderCanvas(256, 256);
     if (!canvas)
       return;
@@ -88,6 +109,15 @@ public:
     auto pipeline = ctx.makePipeline(pipe.desc);
 
     m_ore.beginFrame(renderContext);
+
+    ibo->update(
+        &kSecondIndex,
+        sizeof(kSecondIndex),
+        (kJunkIndexCount + 1) * sizeof(uint16_t));
+    ibo->update(
+        &kThirdIndex,
+        sizeof(kThirdIndex),
+        (kJunkIndexCount + 2) * sizeof(uint16_t));
 
     ColorAttachment ca{};
     ca.view = colorTarget.get();

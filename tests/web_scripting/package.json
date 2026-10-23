@@ -1,0 +1,8 @@
+{
+  "name": "rive-web-scripting-tests",
+  "private": true,
+  "description": "Drives Firefox and WebKit for the browser lanes of test.sh.",
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  }
+}

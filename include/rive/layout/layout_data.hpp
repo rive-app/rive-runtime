@@ -10,6 +10,7 @@
 #endif
 #ifdef WITH_RIVE_TOOLS
 #include "rive/refcnt.hpp"
+#include <atomic>
 #include <unordered_set>
 #endif
 
@@ -44,11 +45,22 @@ public:
     children.clear();
   }
 #ifdef DEBUG
-  static uint32_t count;
+  static std::atomic<uint32_t> count;
 #endif
 #endif
 
   YGNode node;
+
+  /// Lays out in fractional pixels. Every node shares Yoga's default config,
+  /// and files load on any thread, so it is set once.
+  static void useFractionalPixels()
+  {
+    static const bool set = []() {
+      YGConfigGetDefault()->setPointScaleFactor(0);
+      return true;
+    }();
+    (void)set;
+  }
 
   /// The Yoga style lives inside the node itself; this is the single source
   /// of truth appliers write into. Go through here rather than reaching for

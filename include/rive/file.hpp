@@ -20,6 +20,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/data_resolver.hpp"
 #include "rive/text/text_style_share_cache.hpp"
+#include <atomic>
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -115,7 +116,7 @@ public:
 public:
   ~File();
 #if defined(DEBUG)
-  static size_t debugTotalFileCount;
+  static std::atomic<size_t> debugTotalFileCount;
 #endif
   ///
   /// Imports a Rive file from a binary buffer.

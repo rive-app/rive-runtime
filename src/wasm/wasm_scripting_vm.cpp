@@ -1,12 +1,20 @@
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
 #include "rive/wasm/wasm_scripting_vm.hpp"
+#include "rive/async/compare_exchange.hpp"
+#include "rive/async/timeouts.hpp"
+#include "rive/wasm/wasm_jobs.hpp"
+#include "rive/wasm/wasm_lane.hpp"
+#include "rive/wasm/wasm_shared.hpp"
+#include "rive/wasm/wasm_workers.hpp"
+#include "rive/wasm/wasm_processors.hpp"
 #ifndef __EMSCRIPTEN__
 #include "rive/wasm/aot_artifact.hpp"
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/prelinked_aot.hpp"
 #else
 #include <emscripten/emscripten.h>
+#include <emscripten/threading.h>
 #endif
 #include <mutex>
 #include <thread>
@@ -15,10 +23,6 @@
 #include "rive/text/raw_text.hpp"
 #include "rive/text/cursor.hpp"
 #include "rive/text/font_hb.hpp"
-#endif
-#if WASM_ENABLE_PRELINKED_AOT != 0
-// AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation.
-#include "aot_runtime.h"
 #endif
 
 #include "rive/animation/linear_animation.hpp"
@@ -148,8 +152,10 @@
 #ifndef __EMSCRIPTEN__
 #include "wasm_export.h"
 #endif
+#include "wasm_utf16.hpp"
 
 #include <chrono>
+#include <cstdarg>
 #include <cstddef>
 #include <string.h>
 #include <time.h>
@@ -166,7 +172,26 @@ WasmScriptingVM* vmFromEnv(wasm_exec_env_t env)
 {
   return static_cast<WasmScriptingVM*>(wasm_runtime_get_user_data(env));
 }
+
+// A lane has no VM, so its lines go to stderr.
+void reportScriptError(WasmScriptingVM* vm, const std::string& line)
+{
+  if (vm != nullptr)
+  {
+    vm->reportError(line);
+  }
+  else
+  {
+    fprintf(stderr, "%s\n", line.c_str());
+  }
+}
 #endif
+
+std::string budgetExceededLine(int ms)
+{
+  return "script error: execution exceeded " + std::to_string(ms) +
+         " millisecond timeout";
+}
 
 // Module start runs inside wasm_runtime_instantiate, before an exec env
 // exists to carry the vm, so natives called from there resolve none. rasc
@@ -178,10 +203,95 @@ thread_local const std::function<void(const char*, size_t)>*
 thread_local WasmScriptingVM* s_booting = nullptr;
 std::atomic<bool> s_requireBounds{false};
 thread_local WasmScriptingVM::BootHook s_bootHook;
+
+} // namespace
+
+// The VMs one thread's polls reach. A VM may be destroyed on another thread,
+// so it leaves its list under the lock a poll holds while it delivers.
+struct rive::VMPollList
+{
+#if RIVE_ONE_THREAD()
+  // One thread runs every poll and VM, and its lists outlive them all.
+  using Ref = VMPollList*;
+  struct Lock
+  {
+    explicit Lock(const VMPollList&) {}
+  };
+#else
+  using Ref = std::shared_ptr<VMPollList>;
+  struct Lock : std::lock_guard<std::recursive_mutex>
+  {
+    explicit Lock(const VMPollList& list) : lock_guard(*list.mutex) {}
+  };
+
+  // A thread's lists share it, as delivering either one can join the other.
+  std::shared_ptr<std::recursive_mutex> mutex;
+
+  explicit VMPollList(std::shared_ptr<std::recursive_mutex> threadMutex)
+      : mutex(std::move(threadMutex))
+  {}
+#endif
+  std::vector<WasmScriptingVM*> vms;
+
+  // Joins list, set to the thread's own the first time.
+  static void join(Ref& list, const Ref& thread, WasmScriptingVM* vm)
+  {
+    if (list == nullptr)
+    {
+      list = thread;
+    }
+    Lock lock(*list);
+    if (std::find(list->vms.begin(), list->vms.end(), vm) == list->vms.end())
+    {
+      list->vms.push_back(vm);
+    }
+  }
+
+  static void leave(const Ref& list, WasmScriptingVM* vm)
+  {
+    if (list != nullptr)
+    {
+      Lock lock(*list);
+      list->vms.erase(
+          std::remove(list->vms.begin(), list->vms.end(), vm),
+          list->vms.end());
+    }
+  }
+
+  // A delivery runs script, which can destroy another VM on the list.
+  template <typename Deliver> void deliver(Deliver&& each)
+  {
+    Lock lock(*this);
+    for (WasmScriptingVM* vm : std::vector<WasmScriptingVM*>(vms))
+    {
+      if (std::find(vms.begin(), vms.end(), vm) != vms.end())
+      {
+        each(vm);
+      }
+    }
+  }
+};
+
+namespace
+{
+#if RIVE_ONE_THREAD()
+// Never destroyed, so they need no static constructor or destructor.
+[[clang::no_destroy]] VMPollList s_holdingList;
+[[clang::no_destroy]] VMPollList s_laneList;
+VMPollList* const t_holdingVMs = &s_holdingList;
+VMPollList* const t_laneVMs = &s_laneList;
+#else
+thread_local std::shared_ptr<std::recursive_mutex>
+    t_pollMutex = std::make_shared<std::recursive_mutex>();
 // The VMs holding outcomes, so a poll reaches them without walking every
 // artboard that might own one.
-thread_local std::vector<WasmScriptingVM*> s_holdingVMs;
-
+thread_local std::shared_ptr<VMPollList>
+    t_holdingVMs = std::make_shared<VMPollList>(t_pollMutex);
+// The VMs with lanes started on this thread, so a poll reaches their output.
+thread_local std::shared_ptr<VMPollList>
+    t_laneVMs = std::make_shared<VMPollList>(t_pollMutex);
+#endif
+constexpr size_t kLaneResultBytesPerPoll = 8u << 20;
 } // namespace
 
 struct rive::WasmScriptingVMNatives
@@ -199,26 +309,38 @@ struct rive::WasmScriptingVMNatives
 };
 
 #ifndef __EMSCRIPTEN__
-// Loaded modules are immutable and shared: fast-interp translation costs
-// ~11ms per load while instantiation is microseconds, and every file
-// instance of the same content reloads identical bytes. Entries live for
-// the process; the byte buffer must outlive the module (wasm_runtime_load
-// keeps referencing it).
+// Loaded modules are immutable and shared: translating one costs about 11ms,
+// instantiating it microseconds, and files of one content load the same bytes.
 struct SharedWasmModule
 {
-  // The buffer WAMR loads from and references for the module's lifetime.
+  // The buffer WAMR loads from and references until the module unloads.
   std::vector<uint8_t> bytes;
   wasm_module_t module = nullptr;
   // Artifact-backed entries hand every later VM their real tier; without
   // this a cache hit reports interp while running compiled code.
   WasmScriptingVM::ExecutionTier tier = WasmScriptingVM::ExecutionTier::interp;
+  // No device run covers unloading prelinked code.
+  bool pinned = false;
+  // Orders the idle ones, so the least recently leased unloads first.
+  uint64_t lastLeased = 0;
+
+  ~SharedWasmModule()
+  {
+    if (module != nullptr)
+    {
+      wasm_runtime_unload(module);
+    }
+  }
 };
 
-static std::unordered_map<uint64_t, SharedWasmModule>& sharedModuleCache()
+using SharedModuleCache = std::
+    unordered_map<uint64_t, std::shared_ptr<SharedWasmModule>>;
+
+static SharedModuleCache& sharedModuleCache()
 {
-  // Never destroyed, so modules stay reachable until exit and threads still
-  // booting at exit never see it torn down.
-  static auto* cache = new std::unordered_map<uint64_t, SharedWasmModule>();
+  // Never destroyed, so nothing unloads at exit and threads still booting
+  // at exit never see it torn down.
+  static auto* cache = new SharedModuleCache();
   return *cache;
 }
 
@@ -230,10 +352,54 @@ static std::mutex& sharedModuleCacheMutex()
   return mutex;
 }
 
-static bool sharedModuleCached(uint64_t key)
+// Leases start only under the cache mutex, so under it an entry nothing else
+// holds is idle and stays idle.
+static std::shared_ptr<void> leaseLocked(
+    const std::shared_ptr<SharedWasmModule>& entry)
+{
+  static uint64_t leases = 0;
+  entry->lastLeased = ++leases;
+  return std::shared_ptr<void>(entry, entry->module);
+}
+
+static std::shared_ptr<void> leaseCachedModule(
+    uint64_t key,
+    WasmScriptingVM::ExecutionTier& tier)
 {
   std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
-  return sharedModuleCache().count(key) != 0;
+  auto cached = sharedModuleCache().find(key);
+  if (cached == sharedModuleCache().end())
+  {
+    return nullptr;
+  }
+  tier = cached->second->tier;
+  return leaseLocked(cached->second);
+}
+
+static void evictIdleModulesLocked(
+    std::vector<std::shared_ptr<SharedWasmModule>>& evicted)
+{
+  SharedModuleCache& cache = sharedModuleCache();
+  std::vector<std::pair<uint64_t, uint64_t>> idle;
+  for (const auto& [key, entry] : cache)
+  {
+    if (entry.use_count() == 1 && !entry->pinned)
+    {
+      idle.emplace_back(entry->lastLeased, key);
+    }
+  }
+  if (idle.size() <= WasmScriptingVM::kIdleModules)
+  {
+    return;
+  }
+  std::sort(idle.begin(), idle.end());
+  idle.resize(idle.size() - WasmScriptingVM::kIdleModules);
+  for (const auto& [lastLeased, key] : idle)
+  {
+    auto found = cache.find(key);
+    evicted.push_back(std::move(found->second));
+    cache.erase(found);
+  }
 }
 
 // Compiled modules cache apart from interpreted ones of the same bytes, and
@@ -255,8 +421,9 @@ static uint64_t compiledModuleKey(uint64_t key, TierSpecies species)
 
 struct WasmScriptingVM::WamrState
 {
+  // Keeps module loaded until the destructor has ended the instance.
+  std::shared_ptr<void> lease;
   wasm_module_t module = nullptr;
-  bool ownsModule = true;
   wasm_module_inst_t instance = nullptr;
   wasm_exec_env_t execEnv = nullptr;
 
@@ -358,10 +525,6 @@ struct WasmScriptingVM::WamrState
     {
       wasm_runtime_deinstantiate(instance);
     }
-    if (module != nullptr && ownsModule)
-    {
-      wasm_runtime_unload(module);
-    }
   }
 };
 #endif
@@ -431,8 +594,11 @@ public:
     return *watchdog;
   }
 
-  void add(WasmScriptingVM::BudgetSlot* slot)
+  // A polled slot is armed from any thread, the audio thread's included,
+  // so while one exists the watchdog ticks and arming makes no syscall.
+  void add(WasmScriptingVM::BudgetSlot* slot, bool polled = false)
   {
+    m_polled.fetch_add(polled ? 1 : 0);
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_started)
     {
@@ -440,84 +606,258 @@ public:
       std::thread([this] { run(); }).detach();
     }
     m_slots.push_back(slot);
+    // A watchdog waiting without a deadline starts ticking.
+    if (polled)
+    {
+      m_wake.wake();
+    }
   }
 
-  void remove(WasmScriptingVM::BudgetSlot* slot)
+  void remove(WasmScriptingVM::BudgetSlot* slot, bool polled = false)
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_slots.erase(
-        std::remove(m_slots.begin(), m_slots.end(), slot),
-        m_slots.end());
-  }
-
-  // Calls arm without the lock; only an arm that finds the thread idle,
-  // or asleep until a later deadline, takes it to end the wait.
-  void armed(int64_t deadline)
-  {
-    if (m_idle.load() || deadline < m_waitingUntil.load())
+    // An arm skipped its wake while slots were polled, so the last one
+    // going rescans before the watchdog may sleep without a deadline.
+    bool lastPolled = polled && m_polled.fetch_sub(1) == 1;
     {
       std::lock_guard<std::mutex> lock(m_mutex);
-      m_wake.notify_one();
+      m_slots.erase(
+          std::remove(m_slots.begin(), m_slots.end(), slot),
+          m_slots.end());
+    }
+    if (lastPolled)
+    {
+      m_wake.wake();
+    }
+  }
+
+  // Calls arm without any lock, so the audio thread may: only an arm that
+  // finds the thread idle, or asleep until a later deadline, wakes it.
+  void armed(int64_t deadline)
+  {
+    if (m_polled.load() != 0)
+    {
+      return;
+    }
+    if (m_idle.load() || deadline < m_waitingUntil.load())
+    {
+      m_wake.wake();
     }
   }
 
 private:
   void run()
   {
-    std::unique_lock<std::mutex> lock(m_mutex);
     while (true)
     {
-      // Idle is published before the scan, so an arm either shows up
-      // in it or sees idle and ends the wait.
+      // Read before the scan, so an arm racing it either shows up in
+      // the scan or moves the word and ends the wait.
+      uint32_t seen = m_wake.value();
       m_idle.store(true);
-      int64_t now = steadyNanos();
       int64_t earliest = 0;
-      for (WasmScriptingVM::BudgetSlot* slot : m_slots)
       {
-        int64_t deadline = slot->deadline.load();
-        if (deadline > 0 && now >= deadline &&
-            slot->deadline.compare_exchange_strong(deadline, kFiring))
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int64_t now = steadyNanos();
+        for (WasmScriptingVM::BudgetSlot* slot : m_slots)
         {
-          slot->fired.store(true);
-          wasm_runtime_rive_interrupt(slot->env);
-          slot->deadline.store(0);
+          int64_t deadline = slot->deadline.load();
+          if (deadline > 0 && now >= deadline &&
+              slot->deadline.compare_exchange_strong(deadline, kFiring))
+          {
+            slot->fired.store(true);
+            wasm_runtime_rive_interrupt(slot->env);
+            slot->deadline.store(0);
+          }
+          else if (deadline > 0 && (earliest == 0 || deadline < earliest))
+          {
+            earliest = deadline;
+          }
         }
-        else if (deadline > 0 && (earliest == 0 || deadline < earliest))
-        {
-          earliest = deadline;
-        }
+      }
+      if (m_polled.load() != 0)
+      {
+        int64_t tick = steadyNanos() + kPollNanos;
+        earliest = earliest == 0 ? tick : std::min(earliest, tick);
       }
       if (earliest == 0)
       {
-        m_wake.wait(lock);
+        m_waitingUntil.store(INT64_MAX);
+        m_wake.wait(seen, std::chrono::steady_clock::time_point::max());
         continue;
       }
-      // Published before idle clears, so an arm that misses idle sees it.
+      // Stays idle until the deadline is published, so an arm in
+      // between still wakes it.
       m_waitingUntil.store(earliest);
       m_idle.store(false);
-      m_wake.wait_until(
-          lock,
+      m_wake.wait(
+          seen,
           std::chrono::steady_clock::time_point(
               std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                   std::chrono::nanoseconds(earliest))));
     }
   }
 
+  // How often the watchdog checks while a polled slot exists.
+  static constexpr int64_t kPollNanos = 2000000;
+  std::atomic<int32_t> m_polled{0};
   std::mutex m_mutex;
-  std::condition_variable m_wake;
+  WakeWord m_wake;
   std::vector<WasmScriptingVM::BudgetSlot*> m_slots;
   std::atomic<bool> m_idle{false};
-  std::atomic<int64_t> m_waitingUntil{0};
+  std::atomic<int64_t> m_waitingUntil{INT64_MAX};
   bool m_started = false;
 };
+
+// Swaps the slot's deadline out for none, waiting out a firing so its
+// interrupt never lands on a later call; answers the deadline it took.
+int64_t takeDeadline(WasmScriptingVM::BudgetSlot& slot)
+{
+  int64_t deadline = slot.deadline.load();
+  while (deadline == kFiring ||
+         !slot.deadline.compare_exchange_weak(deadline, 0))
+  {
+    deadline = slot.deadline.load();
+  }
+  return deadline;
+}
 } // namespace
+
+struct WasmCallBudget::State
+{
+  WasmScriptingVM::BudgetSlot budget;
+};
+
+WasmCallBudget::WasmCallBudget(void* execEnv)
+    : m_state(std::make_unique<State>())
+{
+  m_state->budget.env = (wasm_exec_env_t)execEnv;
+  ScriptWatchdog::instance().add(&m_state->budget, true);
+}
+
+WasmCallBudget::~WasmCallBudget()
+{
+  disarm();
+  ScriptWatchdog::instance().remove(&m_state->budget, true);
+}
+
+#if defined(WITH_RIVE_TOOLS) || defined(TESTING)
+static std::atomic<uint32_t> s_interruptDelayMs{0};
+
+void WasmCallBudget::delayInterrupts(uint32_t ms) { s_interruptDelayMs = ms; }
+#else
+static constexpr uint32_t s_interruptDelayMs = 0;
 #endif
+
+void WasmCallBudget::arm(uint32_t timeoutMs)
+{
+  m_state->budget.fired.store(false);
+  int64_t deadline = steadyNanos() +
+                     ((int64_t)timeoutMs + s_interruptDelayMs) * 1000000;
+  m_state->budget.deadline.store(deadline);
+  ScriptWatchdog::instance().armed(deadline);
+}
+
+bool WasmCallBudget::disarm()
+{
+  WasmScriptingVM::BudgetSlot& slot = m_state->budget;
+  takeDeadline(slot);
+  bool fired = slot.fired.load();
+  wasm_runtime_rive_clear_interrupt(slot.env);
+  return fired;
+}
+
+#endif
+
+namespace
+{
+// Module calls live on this thread, any VM's.
+thread_local uint32_t t_moduleCalls = 0;
+using Clock = std::chrono::steady_clock;
+} // namespace
+
+// What the module call on this thread has left of its budget, infinity
+// when nothing bounds it.
+static double callSecondsLeft()
+{
+  Clock::time_point ends = callDeadline();
+  if (ends == Clock::time_point::max())
+  {
+    return INFINITY;
+  }
+  return std::max(
+      0.0,
+      std::chrono::duration<double>(ends - Clock::now()).count());
+}
+
+// What a wait may spend of its call's budget, keeping a little for the
+// script to act once the wait ends.
+static double joinableSeconds()
+{
+  constexpr double kJoinerReserveSeconds = 0.02;
+  return callSecondsLeft() - kJoinerReserveSeconds;
+}
+
+WasmScriptingVM::WaitScope::WaitScope(WasmScriptingVM* vm)
+    : m_vm(vm)
+    , m_usable(joinableSeconds())
+    , m_start(Clock::now())
+{
+#ifndef __EMSCRIPTEN__
+  // A deadline already fired stays fired.
+  if (vm != nullptr && vm->m_budgetSlot != nullptr)
+  {
+    m_paused = takeDeadline(*vm->m_budgetSlot);
+  }
+#endif
+}
+
+WasmScriptingVM::WaitScope::~WaitScope()
+{
+  // A wait begun with nothing usable gives no time back, so retries cannot
+  // move the call's end.
+  double over = std::isinf(m_usable) || m_usable <= 0
+                    ? 0
+                    : std::chrono::duration<double>(Clock::now() - m_start)
+                              .count() -
+                          m_usable;
+  auto shift = std::chrono::duration_cast<Clock::duration>(
+      std::chrono::duration<double>(std::max(0.0, over)));
+#ifndef __EMSCRIPTEN__
+  if (m_paused > 0)
+  {
+    int64_t deadline = m_paused +
+                       std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           shift)
+                           .count();
+    m_vm->m_budgetSlot->deadline.store(deadline);
+    ScriptWatchdog::instance().armed(deadline);
+  }
+#endif
+  if (over <= 0 || m_vm == nullptr)
+  {
+    return;
+  }
+  Clock::time_point deadline = callDeadline();
+  if (deadline != Clock::time_point::max())
+  {
+    restoreCallDeadline(deadline + shift);
+  }
+  // A metered module times its own budget, so it moves its deadline on,
+  // rounded up so it never falls behind the host's.
+  if (m_vm->m_fuelShift && m_vm->m_fuelBudget)
+  {
+    uint32_t args[1] = {(uint32_t)std::ceil(over * 1000)};
+    m_vm->callModule("__riveFuelShift", 1, args);
+  }
+}
+
+bool WasmScriptingVM::inModuleCallOnThread() { return t_moduleCalls != 0; }
 
 WasmScriptingVM::ScriptCallScope::ScriptCallScope(
     WasmScriptingVM* vm,
     bool budgeted)
     : m_vm(vm)
 {
+  t_moduleCalls++;
   if (vm->m_debugHooks != nullptr)
   {
     vm->m_debugHooks->onCallBegin(*vm);
@@ -526,21 +866,22 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(
   bool outermost = vm->m_callDepth++ == 0;
   if (outermost)
   {
+    // Another VM's call on this thread may hold a region of its own.
+    m_outerRegion = stashHeldRegion(&m_outerRegionId);
     // Paths that consume their own traps never reach reportTrap to clear
     // it.
     vm->m_budgetRaised = false;
     vm->m_thrownRaised = false;
   }
 #ifndef __EMSCRIPTEN__
-  // A debugger pauses mid call, so its sessions run unbudgeted. Script a
-  // runtime service calls back into arms its own.
-  if (budgeted && !vm->m_budgetArmed && vm->m_hostBudget &&
-      vm->m_timeoutMs > 0 && vm->m_debugHooks == nullptr)
+  // Script a runtime service calls back into arms its own.
+  if (budgeted && vm->m_hostBudget && !vm->m_budgetArmed && vm->boundsCalls())
   {
     vm->armWatchdog(vm->m_state->execEnv);
     m_budgeted = true;
   }
 #endif
+  m_deadlineArmed = budgeted && vm->armDeadline();
   if (!outermost)
   {
     return;
@@ -556,6 +897,11 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(
 
 WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 {
+  t_moduleCalls--;
+  if (m_deadlineArmed)
+  {
+    m_vm->disarmDeadline();
+  }
 #ifndef __EMSCRIPTEN__
   if (m_budgeted)
   {
@@ -564,6 +910,8 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 #endif
   if (--m_vm->m_callDepth == 0)
   {
+    // A trap can unwind out of an exclusive section with its lock held.
+    restoreHeldRegion(m_outerRegionId, m_outerRegion);
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(m_vm);
     if (oreContext != nullptr &&
@@ -604,42 +952,39 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
   }
 }
 
-#ifndef __EMSCRIPTEN__
-namespace
+// A debugger pauses mid call, so its sessions run unbudgeted. A metered
+// module ends its own overrun, but waits must still give up in time.
+bool WasmScriptingVM::boundsCalls() const
 {
-// The 32 bit cells an export's parameters take, or ~0u when its parameters
-// or results would not fit in limit cells.
-uint32_t exportCells(
-    wasm_module_inst_t inst,
-    wasm_function_inst_t f,
-    uint32_t limit)
-{
-  auto cells = [](wasm_valkind_t kind) -> uint32_t {
-    return kind == WASM_I64 || kind == WASM_F64 ? 2 : kind == WASM_V128 ? 4 : 1;
-  };
-  uint32_t params = wasm_func_get_param_count(f, inst);
-  uint32_t results = wasm_func_get_result_count(f, inst);
-  if (params > limit || results > limit)
-  {
-    return ~0u;
-  }
-  wasm_valkind_t kinds[8];
-  uint32_t paramCells = 0;
-  wasm_func_get_param_types(f, inst, kinds);
-  for (uint32_t i = 0; i < params; i++)
-  {
-    paramCells += cells(kinds[i]);
-  }
-  uint32_t resultCells = 0;
-  wasm_func_get_result_types(f, inst, kinds);
-  for (uint32_t i = 0; i < results; i++)
-  {
-    resultCells += cells(kinds[i]);
-  }
-  return resultCells > limit ? ~0u : paramCells;
+  return (m_hostBudget || m_fuelBudget) && m_timeoutMs > 0 &&
+         m_debugHooks == nullptr;
 }
-} // namespace
 
+uint32_t WasmScriptingVM::pageThreadBudgetMs() const
+{
+  return boundsCalls() ? (uint32_t)m_timeoutMs : 0;
+}
+
+// Only joins, region locks and signal waits read the call deadline.
+bool WasmScriptingVM::armDeadline()
+{
+  if (m_deadlineArmed || !hasLanes() || !boundsCalls())
+  {
+    return false;
+  }
+  m_outerDeadline = armCallDeadline(
+      Clock::now() + std::chrono::milliseconds(m_timeoutMs));
+  m_deadlineArmed = true;
+  return true;
+}
+
+void WasmScriptingVM::disarmDeadline()
+{
+  restoreCallDeadline(m_outerDeadline);
+  m_deadlineArmed = false;
+}
+
+#ifndef __EMSCRIPTEN__
 void WasmScriptingVM::armWatchdog(void* env)
 {
   if (m_budgetSlot == nullptr)
@@ -650,7 +995,7 @@ void WasmScriptingVM::armWatchdog(void* env)
   BudgetSlot* slot = m_budgetSlot.get();
   slot->env = (wasm_exec_env_t)env;
   slot->fired.store(false);
-  int64_t deadline = steadyNanos() + (int64_t)m_timeoutMs * 1000000;
+  int64_t deadline = steadyNanos() + (int64_t)watchdogBudgetMs() * 1000000;
   slot->deadline.store(deadline);
   ScriptWatchdog::instance().armed(deadline);
   m_budgetArmed = true;
@@ -658,28 +1003,16 @@ void WasmScriptingVM::armWatchdog(void* env)
 
 void WasmScriptingVM::disarmWatchdog()
 {
-  // Swapping out a zero means the watchdog claimed the deadline; wait
-  // out its firing so the interrupt never lands on a later call.
   BudgetSlot* slot = m_budgetSlot.get();
-  int64_t deadline = slot->deadline.load();
-  while (deadline == kFiring ||
-         !slot->deadline.compare_exchange_weak(deadline, 0))
-  {
-    deadline = slot->deadline.load();
-  }
+  takeDeadline(*slot);
   if (slot->fired.load())
   {
-    fprintf(
-        stderr,
-        "script error: execution exceeded %d millisecond timeout\n",
-        m_timeoutMs);
+    reportError(budgetExceededLine(watchdogBudgetMs()));
     // The interrupt can land inside the module's allocator or
     // collector, so its heap is no longer trusted.
-    m_poisoned = true;
-    fprintf(
-        stderr,
-        "script stopped: its module may have been interrupted "
-        "mid-update\n");
+    poison();
+    reportError(
+        "script stopped: its module may have been interrupted mid-update");
   }
   wasm_runtime_rive_clear_interrupt(slot->env);
   m_budgetArmed = false;
@@ -703,7 +1036,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     return CallOutcome::missing;
   }
   // WAMR writes results into the argument cells, so both must fit buf.
-  if (argc > 8 || exportCells(m_state->instance, f, 8) != argc)
+  if (argc > 8 || wasmCallCells(m_state->instance, f, 8) != argc)
   {
     recordTrap(name, "export signature mismatch");
     return CallOutcome::trapped;
@@ -860,17 +1193,28 @@ void WasmScriptingVM::recordTrap(const char* where, const char* exception)
   {
     return;
   }
-  fprintf(stderr, "wasm call trapped in %s: %s\n", where, exception);
+  reportError(std::string("wasm call trapped in ") + where + ": " + exception);
   if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted)
   {
     // A bare trap after leak warnings is almost always the memory
     // ceiling; say so once for hosts that dropped the warning strings.
     m_leakTrapContextPrinted = true;
-    fprintf(
-        stderr,
-        "wasm call trapped after %u script heap leak warnings; the "
-        "module likely hit its wasmMaxPages ceiling\n",
-        m_leakWarningCount);
+    reportError(
+        "wasm call trapped after " + std::to_string(m_leakWarningCount) +
+        " script heap leak warnings; the module likely hit its "
+        "wasmMaxPages ceiling");
+  }
+}
+
+void WasmScriptingVM::reportError(const std::string& line)
+{
+  if (m_error)
+  {
+    m_error(line);
+  }
+  else
+  {
+    fprintf(stderr, "%s\n", line.c_str());
   }
 }
 
@@ -908,12 +1252,7 @@ std::vector<uint32_t> WasmScriptingVM::takeOpenCanvasFramesFrom(uint64_t token)
 #ifndef __EMSCRIPTEN__
 void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 {
-  wasm_module_inst_t inst = m_state->instance;
-  if (!wasm_runtime_validate_app_addr(inst, appAddr, size))
-  {
-    return nullptr;
-  }
-  return wasm_runtime_addr_app_to_native(inst, appAddr);
+  return wasmAppBytes(m_state->instance, appAddr, size);
 }
 
 const char* WasmScriptingVM::resolveModuleString(uint32_t appAddr)
@@ -994,15 +1333,10 @@ void WasmScriptingVM::raiseThrown(const char* message)
 
 const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
 {
-  if (exception == nullptr)
+  const char* text = trapText(exception);
+  if (text == nullptr)
   {
     return nullptr;
-  }
-  const char* text = exception;
-  constexpr char kPrefix[] = "Exception: ";
-  if (strncmp(text, kPrefix, sizeof(kPrefix) - 1) == 0)
-  {
-    text += sizeof(kPrefix) - 1;
   }
   // Substitute only when the exception is a truncation of the detail, so
   // an unrelated later trap keeps its own message. An empty remainder
@@ -1028,8 +1362,25 @@ WasmScriptingVM* WasmScriptingVMNatives::adoptBooting(wasm_exec_env_t env)
 #else
 void WasmScriptingVMNatives::booting(WasmScriptingVM* vm)
 {
-  s_booting = vm;
-  s_bootPrint = vm != nullptr ? &vm->m_print : nullptr;
+  // A top level's waits give up in time, as a call's do, and it neither
+  // sees a region the call it nests in holds nor leaves one held.
+  if (vm != nullptr)
+  {
+    vm->armDeadline();
+    vm->m_outerBooting = s_booting;
+    vm->m_outerRegion = stashHeldRegion(&vm->m_outerRegionId);
+    s_booting = vm;
+  }
+  else if (WasmScriptingVM* ending = s_booting)
+  {
+    if (ending->m_deadlineArmed)
+    {
+      ending->disarmDeadline();
+    }
+    restoreHeldRegion(ending->m_outerRegionId, ending->m_outerRegion);
+    s_booting = ending->m_outerBooting;
+  }
+  s_bootPrint = s_booting != nullptr ? &s_booting->m_print : nullptr;
 }
 #endif
 
@@ -1105,54 +1456,18 @@ public:
       return;
     }
     auto in = reinterpret_cast<const uint8_t*>(bytes);
-    uint32_t units = byteCount / 2;
     // A unit is three bytes at most, a surrogate pair four for its two.
+    size_t most = (size_t)(byteCount / 2) * 3;
     char* out = m_inline;
-    if ((size_t)units * 3 > sizeof(m_inline))
+    if (most > sizeof(m_inline))
     {
-      m_heap.resize((size_t)units * 3);
+      m_heap.resize(most);
       out = &m_heap[0];
     }
     m_data = out;
-    auto unitAt = [in](uint32_t i) {
-      return (uint32_t)in[i * 2] | (uint32_t)in[i * 2 + 1] << 8;
-    };
-    for (uint32_t i = 0; i < units; i++)
+    for (uint32_t i = 0; i + 1 < byteCount;)
     {
-      uint32_t code = unitAt(i);
-      if (code >= 0xD800 && code < 0xDC00 && i + 1 < units)
-      {
-        uint32_t low = unitAt(i + 1);
-        if (low >= 0xDC00 && low < 0xE000)
-        {
-          code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
-          i++;
-        }
-      }
-      // A lone surrogate encodes as it stands, as the module's own
-      // encoder did.
-      if (code < 0x80)
-      {
-        *out++ = (char)code;
-      }
-      else if (code < 0x800)
-      {
-        *out++ = (char)(0xC0 | code >> 6);
-        *out++ = (char)(0x80 | (code & 0x3F));
-      }
-      else if (code < 0x10000)
-      {
-        *out++ = (char)(0xE0 | code >> 12);
-        *out++ = (char)(0x80 | (code >> 6 & 0x3F));
-        *out++ = (char)(0x80 | (code & 0x3F));
-      }
-      else
-      {
-        *out++ = (char)(0xF0 | code >> 18);
-        *out++ = (char)(0x80 | (code >> 12 & 0x3F));
-        *out++ = (char)(0x80 | (code >> 6 & 0x3F));
-        *out++ = (char)(0x80 | (code & 0x3F));
-      }
+      out += utf8Of(nextUtf16(in, byteCount, i), (uint8_t*)out);
     }
     m_size = (uint32_t)(out - m_data);
   }
@@ -1259,11 +1574,14 @@ uint32_t fillModuleString(
 
 #ifndef __EMSCRIPTEN__
 // Module start runs inside wasm_runtime_instantiate, before the exec env
-// carries the vm, so a native that traps there adopts the booting one.
+// carries the vm, so a native its top level reaches adopts the booting one;
+// a lane that top level joined runs on this thread without one.
 WasmScriptingVM* bootVmFromEnv(wasm_exec_env_t env)
 {
   WasmScriptingVM* vm = vmFromEnv(env);
-  return vm != nullptr ? vm : WasmScriptingVMNatives::adoptBooting(env);
+  return vm != nullptr || WasmLane::current() != nullptr
+             ? vm
+             : WasmScriptingVMNatives::adoptBooting(env);
 }
 #else
 // As on WAMR, module start resolves no vm for the ops that do not trap.
@@ -1273,9 +1591,10 @@ WasmScriptingVM* vmFromHandle(uint32_t handle)
   return vm == s_booting ? nullptr : vm;
 }
 
+// Lanes pass 1 and reach only the shared ops, which all boot.
 WasmScriptingVM* bootVmFromHandle(uint32_t handle)
 {
-  return (WasmScriptingVM*)(uintptr_t)handle;
+  return handle == 1 ? nullptr : (WasmScriptingVM*)(uintptr_t)handle;
 }
 #endif
 
@@ -1293,34 +1612,21 @@ void consoleTimeStart(WasmScriptingVM* vm, const std::string& label)
 {
   if (vm != nullptr)
   {
-    WasmScriptingVMNatives::consoleTimers(vm)[label] = steadyNanos();
+    startConsoleTimer(WasmScriptingVMNatives::consoleTimers(vm), label);
   }
 }
 
 void consoleTimeReport(WasmScriptingVM* vm, const std::string& name, bool end)
 {
-  if (vm == nullptr)
+  if (vm != nullptr)
   {
-    return;
+    consoleWrite(
+        vm,
+        reportConsoleTimer(
+            WasmScriptingVMNatives::consoleTimers(vm),
+            name,
+            end));
   }
-  auto& timers = WasmScriptingVMNatives::consoleTimers(vm);
-  auto itr = timers.find(name);
-  if (itr == timers.end())
-  {
-    consoleWrite(vm, "Timer '" + name + "' does not exist");
-    return;
-  }
-  char elapsed[32];
-  snprintf(
-      elapsed,
-      sizeof(elapsed),
-      ": %.3fms",
-      (double)(steadyNanos() - itr->second) / 1e6);
-  if (end)
-  {
-    timers.erase(itr);
-  }
-  consoleWrite(vm, name + elapsed);
 }
 
 std::string traceNumber(double value)
@@ -1735,13 +2041,11 @@ void assertFail(
                                                 : nullptr;
     return str != nullptr ? str : "?";
   };
-  fprintf(
-      stderr,
-      "module assertion failed: %s (%s:%u, %s)\n",
-      text(message),
-      text(file),
-      line,
-      text(function));
+  reportScriptError(
+      vm,
+      std::string("module assertion failed: ") + text(message) + " (" +
+          text(file) + ":" + std::to_string(line) + ", " + text(function) +
+          ")");
   wasm_runtime_set_exception(
       wasm_runtime_get_module_inst(env),
       "module assertion failed");
@@ -1839,7 +2143,9 @@ void cxaThrowNative(
       typeName = (const char*)wasm_runtime_addr_app_to_native(inst, nameApp);
     }
   }
-  fprintf(stderr, "[wasm] C++ exception thrown: %s\n", typeName);
+  reportScriptError(
+      bootVmFromEnv(env),
+      std::string("[wasm] C++ exception thrown: ") + typeName);
   wasm_runtime_set_exception(inst, "c++ exception");
 }
 
@@ -1863,41 +2169,54 @@ double envSeed(wasm_exec_env_t)
 // word ahead of it.
 std::string consoleString(wasm_exec_env_t env, uint32_t text)
 {
-  wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
-  if (text < 4 || !wasm_runtime_validate_app_addr(inst, text - 4, 4))
-  {
-    return std::string();
-  }
   uint32_t length = 0;
-  memcpy(&length, wasm_runtime_addr_app_to_native(inst, text - 4), 4);
-  if (!wasm_runtime_validate_app_addr(inst, text, length))
+  auto data = (const char*)
+      wasmConsoleText(wasm_runtime_get_module_inst(env), text, length);
+  if (data == nullptr)
   {
     return std::string();
   }
-  WasmStringArg utf8(
-      vmFromEnv(env),
-      (const char*)wasm_runtime_addr_app_to_native(inst, text),
-      length);
+  WasmStringArg utf8(vmFromEnv(env), data, length);
   return std::string(utf8.data(), utf8.size());
 }
 
 void consoleLog(wasm_exec_env_t env, uint32_t text)
 {
+  if (WasmLane* lane = WasmLane::current())
+  {
+    lane->logConsole(env, text);
+    return;
+  }
   consoleWrite(vmFromEnv(env), consoleString(env, text));
 }
 
 void consoleTime(wasm_exec_env_t env, uint32_t label)
 {
+  if (WasmLane* lane = WasmLane::current())
+  {
+    lane->consoleTimer(env, label, false, false);
+    return;
+  }
   consoleTimeStart(bootVmFromEnv(env), consoleString(env, label));
 }
 
 void consoleTimeLog(wasm_exec_env_t env, uint32_t label)
 {
+  if (WasmLane* lane = WasmLane::current())
+  {
+    lane->consoleTimer(env, label, true, false);
+    return;
+  }
   consoleTimeReport(bootVmFromEnv(env), consoleString(env, label), false);
 }
 
 void consoleTimeEnd(wasm_exec_env_t env, uint32_t label)
 {
+  if (WasmLane* lane = WasmLane::current())
+  {
+    lane->consoleTimer(env, label, true, true);
+    return;
+  }
   consoleTimeReport(bootVmFromEnv(env), consoleString(env, label), true);
 }
 
@@ -2900,6 +3219,8 @@ struct HostGpuPass
 struct HostGpuBuffer
 {
   rcp<ore::Buffer> buffer;
+  // Ore allows no update to an immutable buffer.
+  bool immutable;
 };
 
 struct HostGpuTexture
@@ -3735,7 +4056,7 @@ uint32_t gpuBufferNewImpl(
   ore::Context* oreContext = gpuOreContext(vm);
   if (oreContext == nullptr || sizeInBytes == 0 ||
       (dataCount != 0 && dataCount != sizeInBytes) ||
-      !validOre(vm, usage, ore::BufferUsage::upload, "BufferUsage"))
+      !validOre(vm, usage, ore::BufferUsage::uniform, "BufferUsage"))
   {
     return 0;
   }
@@ -3752,7 +4073,7 @@ uint32_t gpuBufferNewImpl(
   }
   return vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::gpuBuffer,
-      new HostGpuBuffer{std::move(buffer)});
+      new HostGpuBuffer{std::move(buffer), desc.immutable});
 }
 
 void gpuBufferUpdateImpl(
@@ -3769,12 +4090,66 @@ void gpuBufferUpdateImpl(
   auto host = static_cast<HostGpuBuffer*>(vm->handles().resolve(
       handle,
       WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-  if (host == nullptr || dataCount == 0 ||
+  if (host == nullptr || host->immutable || dataCount == 0 ||
       uint64_t(dstOffset) + dataCount > host->buffer->size())
   {
     return;
   }
   host->buffer->update(data, dataCount, dstOffset);
+}
+
+void gpuBufferUpdateBlobImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t dstOffset,
+    uint32_t blob,
+    uint32_t srcOffset,
+    uint32_t byteCount)
+{
+  if (vm == nullptr)
+  {
+    return;
+  }
+  // The lookup holds the blob through the update, which copies the bytes
+  // into the buffer or the recording before it returns.
+  auto found = SharedRegistry::find<SharedBlob>(blob, vm->sharedOwner());
+  if (found == nullptr || uint64_t(srcOffset) + byteCount > found->size())
+  {
+    return;
+  }
+  gpuBufferUpdateImpl(
+      vm,
+      handle,
+      dstOffset,
+      found->bytes() + srcOffset,
+      byteCount);
+}
+
+uint32_t gpuBufferNewBlobImpl(
+    WasmScriptingVM* vm,
+    uint32_t usage,
+    uint32_t immutable,
+    uint32_t blob,
+    uint32_t srcOffset,
+    uint32_t byteCount)
+{
+  if (vm == nullptr)
+  {
+    return 0;
+  }
+  // The lookup holds the blob while the create copies its bytes.
+  auto found = SharedRegistry::find<SharedBlob>(blob, vm->sharedOwner());
+  if (found == nullptr || uint64_t(srcOffset) + byteCount > found->size())
+  {
+    return 0;
+  }
+  return gpuBufferNewImpl(
+      vm,
+      usage,
+      byteCount,
+      immutable,
+      found->bytes() + srcOffset,
+      byteCount);
 }
 
 void gpuBufferReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -4911,6 +5286,24 @@ void gpuBufferUpdateImpl(
     const uint8_t*,
     uint32_t)
 {}
+void gpuBufferUpdateBlobImpl(
+    WasmScriptingVM*,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t)
+{}
+uint32_t gpuBufferNewBlobImpl(
+    WasmScriptingVM*,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t)
+{
+  return 0;
+}
 void gpuBufferReleaseImpl(WasmScriptingVM*, uint32_t) {}
 uint32_t gpuTextureNewImpl(
     WasmScriptingVM*,
@@ -5724,10 +6117,7 @@ void rtLogImpl(
 
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
 {
-  fprintf(
-      stderr,
-      "script error: execution exceeded %u millisecond timeout\n",
-      ms);
+  vm->reportError(budgetExceededLine((int)ms));
   // Terminates like a trap when the native returns, so the caller's
   // failed-op handling engages.
   vm->raiseBudgetExceeded();
@@ -9179,6 +9569,12 @@ uint32_t audioPlayInFrameImpl(
 
 float audioTimeImpl(WasmScriptingVM* vm)
 {
+  uint64_t frame;
+  uint32_t rate;
+  if (WasmProcessors::offlineClock(frame, rate))
+  {
+    return (float)((double)frame / rate);
+  }
 #ifdef WITH_RIVE_AUDIO
   auto engine = AudioEngine::RuntimeEngine(true);
   return engine != nullptr ? engine->timeInSeconds() : 0.0f;
@@ -9189,6 +9585,12 @@ float audioTimeImpl(WasmScriptingVM* vm)
 
 double audioTimeFrameImpl(WasmScriptingVM* vm)
 {
+  uint64_t frame;
+  uint32_t rate;
+  if (WasmProcessors::offlineClock(frame, rate))
+  {
+    return (double)frame;
+  }
 #ifdef WITH_RIVE_AUDIO
   auto engine = AudioEngine::RuntimeEngine(true);
   return engine != nullptr ? (double)engine->timeInFrames() : 0.0;
@@ -9199,6 +9601,12 @@ double audioTimeFrameImpl(WasmScriptingVM* vm)
 
 uint32_t audioSampleRateImpl(WasmScriptingVM* vm)
 {
+  uint64_t frame;
+  uint32_t rate;
+  if (WasmProcessors::offlineClock(frame, rate))
+  {
+    return rate;
+  }
 #ifdef WITH_RIVE_AUDIO
   auto engine = AudioEngine::RuntimeEngine(true);
   return engine != nullptr ? engine->sampleRate() : 0;
@@ -9440,16 +9848,8 @@ void dataUnwatchImpl(WasmScriptingVM* vm, uint32_t handle)
 }
 
 #ifndef __EMSCRIPTEN__
-bool ensureRuntime()
+bool initRuntime()
 {
-  static bool initialized = false;
-  static bool ok = false;
-  if (initialized)
-  {
-    return ok;
-  }
-  initialized = true;
-
   RuntimeInitArgs args;
   memset(&args, 0, sizeof(args));
   args.mem_alloc_type = Alloc_With_System_Allocator;
@@ -9465,16 +9865,15 @@ bool ensureRuntime()
          uint32_t,
          enlarge_memory_error_reason_t reason,
          wasm_module_inst_t,
-         wasm_exec_env_t,
+         wasm_exec_env_t env,
          void*) {
-        fprintf(
-            stderr,
-            "wasm memory: growing %llu MB by %u pages failed: %s\n",
-            (unsigned long long)(currentBytes >> 20),
-            incPages,
-            reason == MAX_SIZE_REACHED
-                ? "the module hit its wasmMaxPages ceiling"
-                : "the device could not provide the memory");
+        reportScriptError(
+            env != nullptr ? bootVmFromEnv(env) : nullptr,
+            "wasm memory: growing " + std::to_string(currentBytes >> 20) +
+                " MB by " + std::to_string(incPages) + " pages failed: " +
+                (reason == MAX_SIZE_REACHED
+                     ? "the module hit its wasmMaxPages ceiling"
+                     : "the device could not provide the memory"));
       },
       nullptr);
   wasm_runtime_register_natives(
@@ -9489,10 +9888,1054 @@ bool ensureRuntime()
   {
     return false;
   }
-  ok = true;
+  registerLaneNatives();
+  registerJobNatives();
+  registerWorkerNatives();
+  return true;
+}
+
+bool ensureRuntime()
+{
+  // Hosts boot on more than one thread, so a boot waits out another's init.
+  static bool ok = initRuntime();
   return ok;
 }
 #endif
+
+// --- rive_shared_v1: memory every lane shares -----------------------------
+
+using shared_layout::kSharedMaxBytes;
+
+// The lane a native runs on, null on the main lane.
+WasmLane* callingLane(WasmScriptingVM* vm)
+{
+  return vm == nullptr ? WasmLane::current() : nullptr;
+}
+
+WasmLane* callingProcessor(WasmScriptingVM* vm)
+{
+#if RIVE_PROCESSOR_AUDIO()
+  WasmLane* lane = callingLane(vm);
+  return lane != nullptr && lane->kind() == LaneKind::processor ? lane
+                                                                : nullptr;
+#else
+  return nullptr;
+#endif
+}
+
+// Whose holds a call takes and gives back: the VM's, or its lane's.
+uint64_t sharedHolder(WasmScriptingVM* vm)
+{
+  WasmLane* lane = callingLane(vm);
+  return vm != nullptr     ? vm->sharedOwner()
+         : lane != nullptr ? lane->sharedOwner()
+                           : 0;
+}
+
+template <typename T> rcp<T> sharedFind(WasmScriptingVM* vm, uint32_t id)
+{
+  return SharedRegistry::find<T>(id, sharedHolder(vm));
+}
+
+bool isSharedId(uint32_t id) { return (id & shared_layout::kIdBit) != 0; }
+
+// The creator, charged size; else 0 with the create's answer in refusal, as
+// a processor never may create and a job makes only blobs.
+uint64_t sharedCreator(
+    WasmScriptingVM* vm,
+    uint64_t size,
+    bool allowEmpty,
+    bool blob,
+    uint32_t& refusal)
+{
+  WasmLane* lane = callingLane(vm);
+  bool may = lane == nullptr || lane->kind() == LaneKind::worker ||
+             (blob && lane->kind() == LaneKind::job);
+  uint64_t owner = may ? sharedHolder(vm) : 0;
+  refusal = shared_layout::kCreateRefused;
+  if (owner != 0 && ((size == 0 && !allowEmpty) || size > kSharedMaxBytes))
+  {
+    refusal = shared_layout::kCreateBadSize;
+    owner = 0;
+  }
+  if (owner != 0 && !SharedRegistry::charge(owner, size))
+  {
+    refusal = shared_layout::kCreateNoMemory;
+    owner = 0;
+  }
+  return owner;
+}
+
+// What a create answers for object, made for owner with size charged: its
+// id once in the registry, else why not, its charge refunded.
+uint32_t sharedCreated(
+    WasmScriptingVM* vm,
+    uint64_t owner,
+    uint64_t size,
+    rcp<SharedObject> object)
+{
+  if (!object->made())
+  {
+    SharedRegistry::refund(owner, size);
+    return shared_layout::kCreateNoMemory;
+  }
+  object->charge = size;
+  uint32_t id = SharedRegistry::add(std::move(object), owner);
+  if (!isSharedId(id))
+  {
+    SharedRegistry::refund(owner, size);
+    return id;
+  }
+  if (vm == nullptr)
+  {
+    WasmLane::current()->addCreated(id);
+  }
+  return id;
+}
+
+// Whether a misuse warns: once per object, never on a processor, which may
+// be on the audio thread, so the text is built only for a warning.
+bool sharedWarns(WasmScriptingVM* vm, SharedObject& object)
+{
+  WasmLane* lane = callingLane(vm);
+  return (vm != nullptr ||
+          (lane != nullptr && lane->kind() != LaneKind::processor)) &&
+         object.firstWarning();
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((format(printf, 2, 3)))
+#endif
+void sharedWarn(WasmScriptingVM* vm, const char* format, ...)
+{
+  char text[256];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(text, sizeof(text), format, args);
+  va_end(args);
+  if (vm != nullptr)
+  {
+    rtLogImpl(vm, 0, text, (uint32_t)strlen(text));
+  }
+  else
+  {
+    callingLane(vm)->log(text);
+  }
+}
+
+// A processor may be on the audio thread, where taking or giving back a hold
+// could lock or free, so a value naming shared objects fails it instead.
+using lane_layout::kProcessorHolds;
+
+uint32_t processorRead(WasmLane* processor, uint32_t got)
+{
+  if (got != SharedObject::kCarriesHolds)
+  {
+    return got;
+  }
+  processor->fail(kProcessorHolds);
+  return 0;
+}
+
+uint32_t sharedRegionCreateImpl(WasmScriptingVM* vm, uint32_t size)
+{
+  uint32_t refusal;
+  uint64_t owner = sharedCreator(vm, size, false, false, refusal);
+  if (owner == 0)
+  {
+    return refusal;
+  }
+  return sharedCreated(vm, owner, size, make_rcp<SharedRegion>(size));
+}
+
+uint32_t sharedRegionSizeImpl(WasmScriptingVM* vm, uint32_t region)
+{
+  auto found = sharedFind<SharedRegion>(vm, region);
+  return found != nullptr ? found->size() : 0;
+}
+
+uint32_t sharedRegionLockImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    double timeoutSeconds)
+{
+  auto found = sharedFind<SharedRegion>(vm, region);
+  if (found == nullptr)
+  {
+    return shared_layout::kRegionLockGone;
+  }
+  // One region at a time keeps lock order acyclic.
+  if (sharedHeldRegion() != 0)
+  {
+    return shared_layout::kRegionLockNested;
+  }
+  bool locked = false;
+  {
+    WasmScriptingVM::WaitScope wait(vm);
+    // A lock begun in the time kept for the script gets nothing back, so
+    // it spins for half of what is left, as a timed wait may oversleep.
+    if (wait.usable() <= 0)
+    {
+      Clock::time_point until = deadlineAfter(
+          std::min(timeoutSeconds, callSecondsLeft() / 2));
+      spinUntil([&]() {
+        locked = found->lock(0);
+        return locked || Clock::now() >= until;
+      });
+    }
+    else
+    {
+      locked = found->lock(timeoutSeconds);
+    }
+  }
+  if (!locked)
+  {
+    return shared_layout::kRegionLockTimedOut;
+  }
+  setSharedHeldRegion(region, std::move(found));
+  return shared_layout::kRegionLockAcquired;
+}
+
+void sharedRegionUnlockImpl(WasmScriptingVM* vm, uint32_t region)
+{
+  if (SharedRegion* held = sharedHeld(region))
+  {
+    held->unlock();
+    setSharedHeldRegion(0, nullptr);
+  }
+}
+
+uint32_t sharedRegionReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  SharedRegion* found = sharedHeld(region);
+  if (found == nullptr || (uint64_t)offset + outByteCount > found->size())
+  {
+    return 0;
+  }
+  if (outByteCount != 0)
+  {
+    memcpy(out, found->bytes() + offset, outByteCount);
+  }
+  return 1;
+}
+
+uint32_t sharedRegionWriteImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    const uint8_t* data,
+    uint32_t dataByteCount)
+{
+  SharedRegion* found = sharedHeld(region);
+  if (found == nullptr || (uint64_t)offset + dataByteCount > found->size())
+  {
+    return 0;
+  }
+  if (dataByteCount != 0)
+  {
+    memcpy(found->bytes() + offset, data, dataByteCount);
+  }
+  return 1;
+}
+
+uint32_t sharedRegionPoisonedImpl(WasmScriptingVM* vm, uint32_t region)
+{
+  auto found = sharedFind<SharedRegion>(vm, region);
+  return found != nullptr && found->poisoned() ? 1 : 0;
+}
+
+// -1 for a word outside the region or a region gone, which the std throws
+// for.
+template <typename Use>
+double sharedAtomic(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    Use use)
+{
+  auto found = sharedFind<SharedRegion>(vm, region);
+  std::atomic<uint32_t>* word = found != nullptr ? found->word(offset)
+                                                 : nullptr;
+  return word != nullptr ? (double)use(*word) : -1.0;
+}
+
+double sharedAtomicLoadImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset)
+{
+  return sharedAtomic(vm, region, offset, [](std::atomic<uint32_t>& word) {
+    return word.load();
+  });
+}
+
+double sharedAtomicStoreImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    uint32_t value)
+{
+  return sharedAtomic(vm, region, offset, [value](std::atomic<uint32_t>& word) {
+    word.store(value);
+    return 0u;
+  });
+}
+
+double sharedAtomicAddImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    uint32_t value)
+{
+  return sharedAtomic(vm, region, offset, [value](std::atomic<uint32_t>& word) {
+    return word.fetch_add(value);
+  });
+}
+
+double sharedAtomicCasImpl(
+    WasmScriptingVM* vm,
+    uint32_t region,
+    uint32_t offset,
+    uint32_t expected,
+    uint32_t desired)
+{
+  return sharedAtomic(
+      vm,
+      region,
+      offset,
+      [expected, desired](std::atomic<uint32_t>& word) {
+        uint32_t held = expected;
+        compareExchangeStrong(word, held, desired);
+        return held;
+      });
+}
+
+// The holds a value in flight carries, retained here for it; an id already
+// gone is left out.
+#if RIVE_ONE_THREAD()
+[[clang::no_destroy]] std::vector<uint32_t> t_carried;
+#else
+thread_local std::vector<uint32_t> t_carried;
+#endif
+
+Span<const uint32_t> retainCarried(uint64_t owner, Span<const uint32_t> ids)
+{
+  t_carried.clear();
+  for (uint32_t id : ids)
+  {
+    if (SharedRegistry::retain(id, owner))
+    {
+      t_carried.push_back(id);
+    }
+  }
+  return t_carried;
+}
+
+void releaseAll(uint64_t owner, Span<const uint32_t> ids)
+{
+  for (uint32_t id : ids)
+  {
+    SharedRegistry::release(id, owner);
+  }
+}
+
+// The main lane keeps a read's holds while its std decodes; a lane keeps
+// each until it ends or releases it.
+void handHolds(WasmScriptingVM* vm, Span<const uint32_t> ids)
+{
+  if (ids.empty())
+  {
+    return;
+  }
+  if (vm != nullptr)
+  {
+    vm->keepReadHolds(ids);
+  }
+  else if (WasmLane* lane = callingLane(vm))
+  {
+    lane->adoptShared(ids);
+  }
+}
+
+// What a read takes holds into before handing them over.
+#if RIVE_ONE_THREAD()
+[[clang::no_destroy]] std::vector<uint32_t> t_taken;
+#else
+thread_local std::vector<uint32_t> t_taken;
+#endif
+
+uint32_t sharedRingCreateImpl(WasmScriptingVM* vm, uint32_t capacity)
+{
+  uint32_t refusal;
+  uint64_t owner = sharedCreator(vm, capacity, false, false, refusal);
+  if (owner == 0)
+  {
+    return refusal;
+  }
+  auto ring = make_rcp<SharedRing>(capacity);
+  if (!ring->made())
+  {
+    return sharedCreated(vm, owner, capacity, ring);
+  }
+  uint32_t data = SharedRegistry::add(ring->dataSignal(), owner);
+  uint32_t space = SharedRegistry::add(ring->spaceSignal(), owner);
+  ring->setSignalIds(data, space);
+  // A signal that failed answers why.
+  uint32_t id = isSharedId(data) ? space : data;
+  if (isSharedId(id))
+  {
+    id = sharedCreated(vm, owner, capacity, ring);
+  }
+  else
+  {
+    SharedRegistry::refund(owner, capacity);
+  }
+  if (!isSharedId(id))
+  {
+    SharedRegistry::release(data, owner);
+    SharedRegistry::release(space, owner);
+  }
+  return id;
+}
+
+uint32_t sharedRingWriteImpl(
+    WasmScriptingVM* vm,
+    uint32_t ring,
+    const uint8_t* data,
+    uint32_t dataByteCount,
+    const uint32_t* holds,
+    uint32_t holdCount)
+{
+  auto found = sharedFind<SharedRing>(vm, ring);
+  if (found == nullptr)
+  {
+    return shared_layout::kRingWriteFull;
+  }
+  if (WasmLane* processor = callingProcessor(vm);
+      processor != nullptr && holdCount != 0)
+  {
+    processor->fail(kProcessorHolds);
+    return shared_layout::kRingWriteFull;
+  }
+  uint64_t owner = sharedHolder(vm);
+  auto carried = retainCarried(owner, Span<const uint32_t>(holds, holdCount));
+  if (found->write(Span<const uint8_t>(data, dataByteCount), carried))
+  {
+    return shared_layout::kRingWriteWritten;
+  }
+  releaseAll(owner, carried);
+  uint64_t bytes = SharedRing::recordBytes(dataByteCount, holdCount);
+  uint32_t capacity = found->block()->capacity;
+  if (bytes > capacity)
+  {
+    if (sharedWarns(vm, *found))
+    {
+      sharedWarn(
+          vm,
+          "Ring.send, Ring.writeF32 or Port.post: a %u byte record and its "
+          "%llu %s never fit this %u byte ring; create it larger, or send "
+          "large data as a Blob, which crosses by id",
+          dataByteCount,
+          (unsigned long long)(bytes - dataByteCount),
+          holdCount == 0 ? "byte length" : "bytes of length and holds",
+          capacity);
+    }
+    return shared_layout::kRingWriteNeverFits;
+  }
+  return shared_layout::kRingWriteFull;
+}
+
+uint32_t sharedRingReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t ring,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  auto found = sharedFind<SharedRing>(vm, ring);
+  if (found == nullptr)
+  {
+    return 0;
+  }
+  if (WasmLane* processor = callingProcessor(vm))
+  {
+    return processorRead(processor, found->read(out, outByteCount, nullptr));
+  }
+  t_taken.clear();
+  uint32_t got = found->read(out, outByteCount, &t_taken);
+  handHolds(vm, t_taken);
+  return got;
+}
+
+uint32_t sharedRingDropImpl(
+    WasmScriptingVM* vm,
+    uint32_t ring,
+    uint32_t capacity)
+{
+  auto found = sharedFind<SharedRing>(vm, ring);
+  if (found == nullptr)
+  {
+    return 0;
+  }
+  if (WasmLane* processor = callingProcessor(vm))
+  {
+    return processorRead(processor, found->drop(capacity));
+  }
+  t_taken.clear();
+  uint32_t dropped = found->drop(capacity, &t_taken);
+  releaseAll(sharedHolder(vm), t_taken);
+  return dropped;
+}
+
+uint32_t sharedRingUsedImpl(WasmScriptingVM* vm, uint32_t ring)
+{
+  auto found = sharedFind<SharedRing>(vm, ring);
+  return found != nullptr ? found->used() : 0;
+}
+
+uint32_t sharedRingSignalImpl(
+    WasmScriptingVM* vm,
+    uint32_t ring,
+    uint32_t space)
+{
+  auto found = sharedFind<SharedRing>(vm, ring);
+  if (found == nullptr)
+  {
+    return 0;
+  }
+  return space != 0 ? found->spaceSignalId() : found->dataSignalId();
+}
+
+uint32_t sharedSnapshotCreateImpl(WasmScriptingVM* vm, uint32_t capacity)
+{
+  uint32_t refusal;
+  uint64_t owner = sharedCreator(
+      vm,
+      (uint64_t)capacity * SharedSnapshot::kCopies,
+      true,
+      false,
+      refusal);
+  if (owner == 0)
+  {
+    return refusal;
+  }
+  return sharedCreated(
+      vm,
+      owner,
+      (uint64_t)capacity * SharedSnapshot::kCopies,
+      make_rcp<SharedSnapshot>(capacity));
+}
+
+uint32_t sharedSnapshotPublishImpl(
+    WasmScriptingVM* vm,
+    uint32_t snapshot,
+    const uint8_t* data,
+    uint32_t dataByteCount,
+    const uint32_t* holds,
+    uint32_t holdCount)
+{
+  auto found = sharedFind<SharedSnapshot>(vm, snapshot);
+  if (found == nullptr)
+  {
+    return 0;
+  }
+  Span<const uint8_t> value(data, dataByteCount);
+  if (WasmLane* processor = callingProcessor(vm))
+  {
+    if (holdCount == 0 && found->publish(value))
+    {
+      return 1;
+    }
+    if (holdCount != 0 || dataByteCount <= found->block()->capacity)
+    {
+      processor->fail(kProcessorHolds);
+    }
+    return 0;
+  }
+  uint64_t owner = sharedHolder(vm);
+  auto carried = retainCarried(owner, Span<const uint32_t>(holds, holdCount));
+  t_taken.clear();
+  if (found->publish(value, carried, &t_taken))
+  {
+    releaseAll(owner, t_taken);
+    return 1;
+  }
+  releaseAll(owner, carried);
+  if (sharedWarns(vm, *found))
+  {
+    sharedWarn(
+        vm,
+        "Snapshot.publish: a %u byte value does not fit this %u byte "
+        "snapshot, so readers keep the last value that fit; create the "
+        "snapshot larger, or send large data as a Blob, which crosses by id",
+        dataByteCount,
+        found->block()->capacity);
+  }
+  return 0;
+}
+
+uint32_t sharedSnapshotReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t snapshot,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  auto found = sharedFind<SharedSnapshot>(vm, snapshot);
+  if (found == nullptr)
+  {
+    return 0;
+  }
+  if (WasmLane* processor = callingProcessor(vm))
+  {
+    return processorRead(processor, found->read(out, outByteCount, nullptr));
+  }
+  uint64_t owner = sharedHolder(vm);
+  // A publish gives back the holds of the value it replaced once seq moves,
+  // so holds taken before seq moved are on live objects.
+  for (;;)
+  {
+    uint64_t seq = found->seq();
+    t_taken.clear();
+    uint32_t got = found->read(out, outByteCount, &t_taken);
+    auto taken = retainCarried(owner, t_taken);
+    if (t_taken.empty() || found->seq() == seq)
+    {
+      handHolds(vm, taken);
+      return got;
+    }
+    releaseAll(owner, taken);
+  }
+}
+
+double sharedSnapshotSeqImpl(WasmScriptingVM* vm, uint32_t snapshot)
+{
+  auto found = sharedFind<SharedSnapshot>(vm, snapshot);
+  return found != nullptr ? (double)found->seq() : 0.0;
+}
+
+uint32_t sharedSignalCreateImpl(WasmScriptingVM* vm)
+{
+  uint32_t refusal;
+  uint64_t owner = sharedCreator(vm, 0, true, false, refusal);
+  if (owner == 0)
+  {
+    return refusal;
+  }
+  return sharedCreated(vm, owner, 0, make_rcp<SharedSignal>());
+}
+
+void sharedSignalNotifyImpl(WasmScriptingVM* vm, uint32_t signal)
+{
+  if (auto found = sharedFind<SharedSignal>(vm, signal))
+  {
+    found->notify();
+  }
+}
+
+double sharedSignalSeqImpl(WasmScriptingVM* vm, uint32_t signal)
+{
+  auto found = sharedFind<SharedSignal>(vm, signal);
+  return found != nullptr ? (double)found->seq() : 0.0;
+}
+
+uint32_t sharedBlobCreateImpl(
+    WasmScriptingVM* vm,
+    const uint8_t* data,
+    uint32_t dataByteCount)
+{
+  uint32_t refusal;
+  uint64_t owner = sharedCreator(vm, dataByteCount, true, true, refusal);
+  if (owner == 0)
+  {
+    return refusal;
+  }
+  return sharedCreated(
+      vm,
+      owner,
+      dataByteCount,
+      make_rcp<SharedBlob>(Span<const uint8_t>(data, dataByteCount)));
+}
+
+uint32_t sharedBlobSizeImpl(WasmScriptingVM* vm, uint32_t blob)
+{
+  auto found = sharedFind<SharedBlob>(vm, blob);
+  return found != nullptr ? found->size() : 0;
+}
+
+uint32_t sharedBlobReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t blob,
+    uint32_t offset,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  auto found = sharedFind<SharedBlob>(vm, blob);
+  return found != nullptr ? found->read(offset, out, outByteCount) : 0;
+}
+
+void sharedReadDoneImpl(WasmScriptingVM* vm)
+{
+  if (vm != nullptr)
+  {
+    vm->releaseReadHolds();
+  }
+}
+
+uint32_t sharedRetainImpl(WasmScriptingVM* vm, uint32_t object)
+{
+  return vm != nullptr && SharedRegistry::retain(object, vm->sharedOwner()) ? 1
+                                                                            : 0;
+}
+
+// The main lane gives back a handle's hold; a lane only what it created or
+// holds, and a processor nothing, as its holds go with it.
+void sharedReleaseImpl(WasmScriptingVM* vm, uint32_t object)
+{
+  if (vm != nullptr)
+  {
+    SharedRegistry::release(object, vm->sharedOwner());
+    return;
+  }
+  WasmLane* lane = WasmLane::current();
+  if (lane != nullptr && lane->kind() != LaneKind::processor &&
+      lane->dropShared(object))
+  {
+    SharedRegistry::release(object, lane->sharedOwner());
+  }
+}
+
+// --- rive_lanes_v1: jobs, workers and audio processors -----------------------
+
+struct HostLane
+{
+  virtual ~HostLane() = default;
+  WasmLane* lane = nullptr;
+};
+
+template <class T> struct HostLaneOf : HostLane
+{
+  explicit HostLaneOf(rcp<T> held) : owned(std::move(held))
+  {
+    lane = owned.get();
+  }
+  rcp<T> owned;
+};
+
+WasmLane* resolveLane(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto* host = vm != nullptr ? static_cast<HostLane*>(vm->handles().resolve(
+                                   handle,
+                                   WasmScriptingVM::HandleTable::Tag::lane))
+                             : nullptr;
+  return host != nullptr ? host->lane : nullptr;
+}
+
+WasmJob* resolveJob(WasmScriptingVM* vm, uint32_t handle)
+{
+  WasmLane* lane = resolveLane(vm, handle);
+  return lane != nullptr && lane->kind() == LaneKind::job
+             ? static_cast<WasmJob*>(lane)
+             : nullptr;
+}
+
+// The encoded value a done job or worker hands its main lane.
+const std::vector<uint8_t>& laneResult(WasmLane* lane)
+{
+  return lane->kind() == LaneKind::job
+             ? static_cast<WasmJob*>(lane)->output()
+             : static_cast<WasmWorker*>(lane)->result();
+}
+
+template <class T>
+uint32_t mintLane(WasmScriptingVM* vm, rcp<T> lane, Span<const uint32_t> holds)
+{
+  if (lane == nullptr)
+  {
+    return 0;
+  }
+  // The script's handles outlive this call, so a lane already running
+  // sees them alive until it holds them.
+  lane->holdShared(holds);
+  vm->watchLanes();
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::lane,
+      new HostLaneOf<T>(std::move(lane)));
+}
+
+uint32_t lanesStartImpl(
+    WasmScriptingVM* vm,
+    uint32_t kind,
+    uint32_t entry,
+    const uint8_t* input,
+    uint32_t inputByteCount,
+    const uint32_t* holds,
+    uint32_t holdCount)
+{
+  if (vm == nullptr)
+  {
+    return 0;
+  }
+  if (kind < 3 && !vm->laneLoadError((LaneKind)kind).empty())
+  {
+    vm->refusedStart = (LaneKind)kind;
+    return lane_layout::kStartFailed;
+  }
+  std::vector<uint8_t> bytes(input, input + inputByteCount);
+  Span<const uint32_t> held(holds, holdCount);
+  uint32_t pageBudgetMs = vm->pageThreadBudgetMs();
+  switch ((LaneKind)kind)
+  {
+    case LaneKind::job:
+      return vm->jobs() != nullptr
+                 ? mintLane(
+                       vm,
+                       vm->jobs()->run(entry, std::move(bytes), pageBudgetMs),
+                       held)
+                 : 0;
+    case LaneKind::worker:
+      return vm->workers() != nullptr
+                 ? mintLane(
+                       vm,
+                       vm->workers()
+                           ->spawn(entry, std::move(bytes), pageBudgetMs),
+                       held)
+                 : 0;
+    case LaneKind::processor:
+      return vm->processors() != nullptr
+                 ? mintLane(
+                       vm,
+                       vm->processors()->start(
+                           entry,
+                           std::move(bytes),
+                           vm->limits().audioHardBlocks),
+                       held)
+                 : 0;
+  }
+  return 0;
+}
+
+uint32_t lanesStateImpl(WasmScriptingVM* vm, uint32_t lane)
+{
+  WasmLane* found = resolveLane(vm, lane);
+  if (found == nullptr)
+  {
+    return (uint32_t)LaneState::stopped;
+  }
+  LaneState state = found->state();
+  // What it printed lands ahead of whatever its ending makes the caller
+  // print.
+  if (state >= LaneState::done)
+  {
+    vm->deliverLaneOutput(found);
+  }
+  return (uint32_t)state;
+}
+
+uint32_t lanesFailedImpl(
+    WasmScriptingVM* vm,
+    uint32_t lane,
+    char* buffer,
+    uint32_t capacity)
+{
+  WasmLane* found = resolveLane(vm, lane);
+  std::string failure;
+  if (vm != nullptr && lane == lane_layout::kStartFailed)
+  {
+    failure = vm->laneLoadError(vm->refusedStart);
+  }
+  else if (found == nullptr || found->state() != LaneState::failed)
+  {
+    return 0;
+  }
+  else
+  {
+    failure = found->failure();
+    if (failure.empty())
+    {
+      failure = found->name() + " failed";
+    }
+  }
+  if (buffer != nullptr && failure.size() <= capacity)
+  {
+    memcpy(buffer, failure.data(), failure.size());
+  }
+  return (uint32_t)failure.size();
+}
+
+void lanesStopImpl(WasmScriptingVM* vm, uint32_t lane)
+{
+  if (WasmLane* found = resolveLane(vm, lane))
+  {
+    found->stop();
+  }
+}
+
+void lanesReleaseImpl(WasmScriptingVM* vm, uint32_t lane)
+{
+  WasmLane* found = resolveLane(vm, lane);
+  if (found == nullptr)
+  {
+    return;
+  }
+  // Now rather than at the next poll, so a call releasing many lanes keeps
+  // none it is done with.
+  vm->deliverLaneOutput(found);
+  releaseHostHandle(vm, lane, WasmScriptingVM::HandleTable::Tag::lane);
+  switch (found->kind())
+  {
+    case LaneKind::job:
+      vm->jobs()->prune(found);
+      break;
+    case LaneKind::worker:
+      vm->workers()->prune(found);
+      break;
+    case LaneKind::processor:
+      vm->processors()->prune(found);
+      break;
+  }
+}
+
+uint32_t lanesResultImpl(
+    WasmScriptingVM* vm,
+    uint32_t lane,
+    uint32_t out,
+    uint32_t outCount)
+{
+  WasmLane* found = resolveLane(vm, lane);
+  if (found == nullptr || found->state() != LaneState::done)
+  {
+    return 0;
+  }
+  const std::vector<uint8_t>& result = laneResult(found);
+  if (result.size() <= outCount && !result.empty() &&
+      !vm->copyToModule(out, result.data(), (uint32_t)result.size()))
+  {
+    vm->raiseModuleError("lane result buffer is outside module memory");
+  }
+  return (uint32_t)result.size();
+}
+
+uint32_t lanesWatchImpl(WasmScriptingVM* vm, uint32_t lane)
+{
+  return resolveLane(vm, lane) != nullptr ? vm->watchLane(lane) : 0;
+}
+
+uint32_t lanesWaitImpl(
+    WasmScriptingVM* vm,
+    uint32_t signal,
+    double after,
+    double timeoutSeconds)
+{
+  return vm != nullptr ? vm->waitOnMain(signal, after, timeoutSeconds) : 0;
+}
+
+void lanesCancelWaitImpl(WasmScriptingVM* vm, uint32_t token)
+{
+  if (vm != nullptr)
+  {
+    vm->cancelMainWait(token);
+  }
+}
+
+double lanesWaitWithinImpl(
+    WasmScriptingVM* vm,
+    uint32_t signal,
+    double after,
+    double timeoutSeconds)
+{
+  if (vm == nullptr)
+  {
+    return lane_layout::kWaitGone;
+  }
+  // Waiting while holding a region could wait on a lane that waits for it.
+  if (sharedHeldRegion() != 0)
+  {
+    return lane_layout::kWaitRefused;
+  }
+  // Without lanes nothing else notifies, and no call deadline is armed.
+  double limit = vm->hasLanes()
+                     ? std::chrono::duration<double>(waitLimit()).count()
+                     : 0;
+  uint64_t owner = vm->sharedOwner();
+  WasmScriptingVM::WaitScope wait(vm);
+  return SignalWait(
+             0,
+             owner,
+             signal,
+             SignalWait::find(signal, owner).get(),
+             after,
+             std::min({timeoutSeconds, wait.usable(), limit}))
+      .block();
+}
+
+// --- rive_jobs_v1: script jobs ---------------------------------------------
+
+uint32_t jobsThreadsImpl(WasmScriptingVM* vm)
+{
+  return WasmJobs::pool().threadCount();
+}
+
+uint32_t jobsJoinImpl(WasmScriptingVM* vm, uint32_t job, double timeoutSeconds)
+{
+  WasmJob* found = resolveJob(vm, job);
+  if (found == nullptr)
+  {
+    return (uint32_t)LaneState::stopped;
+  }
+  // Waiting while holding a region could wait on a job that waits for it.
+  if (sharedHeldRegion() != 0)
+  {
+    return WasmJob::kJoinRefused;
+  }
+  {
+    WasmScriptingVM::WaitScope wait(vm);
+    vm->jobs()->join(found, timeoutSeconds, wait.usable());
+  }
+  // Its lines land ahead of whatever the joiner prints next.
+  vm->deliverLaneOutput(found);
+  return (uint32_t)found->state();
+}
+
+uint32_t jobsJoinAnyImpl(
+    WasmScriptingVM* vm,
+    const uint32_t* jobs,
+    uint32_t count,
+    double timeoutSeconds)
+{
+  if (sharedHeldRegion() != 0)
+  {
+    return lane_layout::kJoinAnyRefused;
+  }
+  std::vector<WasmJob*> live;
+  std::vector<uint32_t> indices;
+  for (uint32_t i = 0; i < count; i++)
+  {
+    if (WasmJob* found = resolveJob(vm, jobs[i]))
+    {
+      live.push_back(found);
+      indices.push_back(i);
+    }
+  }
+  if (live.empty())
+  {
+    return 0;
+  }
+  int found;
+  {
+    WasmScriptingVM::WaitScope wait(vm);
+    found = vm->jobs()->joinAny(live, timeoutSeconds, wait.usable());
+  }
+  if (found < 0)
+  {
+    return 0;
+  }
+  vm->deliverLaneOutput(live[found]);
+  return indices[found] + 1;
+}
 
 void deleteHostObject(
     WasmScriptingVM* vm,
@@ -9599,6 +11042,14 @@ void deleteHostObject(
       delete static_cast<HostGpuPipeline*>(object);
       break;
 #endif
+    case Tag::lane:
+    {
+      // A lane whose wrapper died is not waited for.
+      auto* host = static_cast<HostLane*>(object);
+      host->lane->stop();
+      delete host;
+      break;
+    }
     default:
       break;
   }
@@ -9667,7 +11118,8 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
   }
   entry.tag = Tag::empty;
   entry.object = nullptr;
-  entry.generation++;
+  // Seven bits, so no handle sets bit 31, which marks shared ids.
+  entry.generation = (entry.generation + 1) & 0x7f;
   uint32_t index = slot - 1;
   if (entry.generation == 0)
   {
@@ -9681,8 +11133,6 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
   }
   freeSlots.push_back(index);
 }
-
-int WasmScriptingVM::sm_defaultTimeoutMs = 200;
 
 WasmScriptingVM::WasmScriptingVM() : m_decodedBy(s_decodingParent)
 {
@@ -9708,7 +11158,14 @@ std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
   }
   if (!vm->init(module))
   {
-    outError = vm->m_lastError;
+    if (vm->m_error)
+    {
+      vm->m_error(kModuleStartFailed + vm->m_lastError);
+    }
+    else
+    {
+      outError = vm->m_lastError;
+    }
     return nullptr;
   }
   return vm;
@@ -9732,9 +11189,17 @@ void WasmScriptingVM::callDraw(
 
 WasmScriptingVM::~WasmScriptingVM()
 {
-  s_holdingVMs.erase(
-      std::remove(s_holdingVMs.begin(), s_holdingVMs.end(), this),
-      s_holdingVMs.end());
+  // First, so no poll reaches it while it goes.
+  VMPollList::leave(m_laneList, this);
+  VMPollList::leave(m_holdingList, this);
+  // Workers and jobs may hold this VM's shared memory; they stop first.
+  m_processors.reset();
+  m_workers.reset();
+  m_jobs.reset();
+  if (m_sharedOwner != 0)
+  {
+    SharedRegistry::releaseOwner(m_sharedOwner);
+  }
   if (m_decodedBy != nullptr)
   {
     auto& siblings = m_decodedBy->m_decodedVMs;
@@ -10177,25 +11642,53 @@ void WasmScriptingVM::resolveFetch(
   {
     return;
   }
-  size_t size = NetWire::encodedSize(response);
-  uint32_t byteCount = (uint32_t)size;
-  uint32_t sizeArgs[1] = {byteCount};
-  uint32_t responsePtr = size == byteCount ? callModule("malloc", 1, sizeArgs)
-                                           : 0;
-  if (responsePtr == 0)
-  {
+  auto tooLarge = [&](const char* message) {
 #ifdef WITH_RIVE_SCRIPTNET
     deliverFetchFailure(
         token,
         (uint32_t)scriptnet::NetErrorCode::TooLarge,
-        fetchRejection(
-            scriptnet::NetErrorCode::TooLarge,
-            "the response does not fit in script memory"));
+        fetchRejection(scriptnet::NetErrorCode::TooLarge, message));
+#else
+    (void)message;
 #endif
+  };
+  // The body stays in the host, so it reaches a lane without ever entering
+  // module memory.
+  uint32_t body = 0;
+  if (m_fetchBlobBody)
+  {
+    uint64_t size = response.body.size();
+    uint64_t owner = sharedCreator(this, size, true, true, body);
+    if (owner != 0)
+    {
+      body = sharedCreated(
+          this,
+          owner,
+          size,
+          make_rcp<SharedBlob>(
+              Span<const uint8_t>(response.body.data(), response.body.size())));
+    }
+    if (!isSharedId(body))
+    {
+      tooLarge("the response body does not fit in shared memory");
+      return;
+    }
+  }
+  NetWire::Response wire{response, body};
+  uint32_t byteCount = (uint32_t)NetWire::encodedSize(wire);
+  uint32_t sizeArgs[1] = {byteCount};
+  uint32_t responsePtr = callModule("malloc", 1, sizeArgs);
+  if (responsePtr == 0)
+  {
+    if (body != 0)
+    {
+      SharedRegistry::release(body, sharedOwner());
+    }
+    tooLarge("the response does not fit in script memory");
     return;
   }
   NetWire::encode(
-      response,
+      wire,
       (uint8_t*)resolveModuleWritePtr(responsePtr, byteCount));
   uint32_t args[4] = {m_L, token, responsePtr, byteCount};
   callModule("host_fetch_resolved", 4, args);
@@ -10240,9 +11733,255 @@ void WasmScriptingVM::holdOutcome(std::function<void()> deliver)
 {
   if (m_heldOutcomes.empty())
   {
-    s_holdingVMs.push_back(this);
+    VMPollList::join(m_holdingList, t_holdingVMs, this);
   }
   m_heldOutcomes.push_back(std::move(deliver));
+}
+
+void WasmScriptingVM::attachLanes(Span<const uint8_t> module)
+{
+  // Not generic, so the three kinds share one copy.
+  auto load = [&](LaneKind kind) {
+    std::string& error = m_laneLoadErrors[(int)kind];
+    rcp<WasmLaneModule> lanes = loadLaneModule(module, kind, error);
+    if (!error.empty())
+    {
+      consoleWrite(
+          this,
+          std::string("script ") + laneNoun(kind) + "s unavailable: " + error);
+    }
+    return lanes;
+  };
+  auto attach = [&](auto& set, LaneKind kind) {
+    rcp<WasmLaneModule> lanes = load(kind);
+    if (lanes != nullptr)
+    {
+      set.reset(new std::remove_reference_t<decltype(*set)>(std::move(lanes)));
+      set->setSharedOwner(sharedOwner());
+    }
+  };
+  attach(m_jobs, LaneKind::job);
+  attach(m_workers, LaneKind::worker);
+  attach(m_processors, LaneKind::processor);
+}
+
+void WasmScriptingVM::laneTierLines(std::vector<std::string>& lines) const
+{
+#ifndef __EMSCRIPTEN__
+  auto add = [&](const auto& lanes, LaneKind kind) {
+    if (lanes != nullptr)
+    {
+      lines.push_back(
+          std::string(laneSpec(kind).module) + " tier: " + lanes->tier());
+    }
+  };
+  add(m_jobs, LaneKind::job);
+  add(m_workers, LaneKind::worker);
+  add(m_processors, LaneKind::processor);
+#endif
+}
+
+void WasmScriptingVM::poison()
+{
+  m_poisoned = true;
+  auto stopAll = [](auto* set) {
+    if (set == nullptr)
+    {
+      return;
+    }
+    for (const auto& lane : set->lanes())
+    {
+      lane->stop();
+    }
+  };
+  stopAll(m_jobs.get());
+  stopAll(m_workers.get());
+  stopAll(m_processors.get());
+}
+
+void WasmScriptingVM::deliverAllLaneOutput()
+{
+  t_laneVMs->deliver([](WasmScriptingVM* vm) {
+    // At a poll no module call is live, so workers without threads may
+    // run here.
+    if (vm->m_workers != nullptr)
+    {
+      vm->m_workers->pump();
+    }
+    vm->deliverLaneOutput();
+  });
+}
+
+void WasmScriptingVM::watchLanes()
+{
+  // Its lanes start only from one thread, whose polls reach their output.
+  assert(m_laneList == nullptr || m_laneList == t_laneVMs);
+  VMPollList::join(m_laneList, t_laneVMs, this);
+}
+
+uint32_t WasmScriptingVM::watchLane(uint32_t lane)
+{
+  m_mainWaits.push_back({SignalWait(m_nextMainWait), lane});
+  return m_nextMainWait++;
+}
+
+uint32_t WasmScriptingVM::waitOnMain(
+    uint32_t signal,
+    double after,
+    double timeoutSeconds)
+{
+  watchLanes();
+  uint64_t owner = sharedOwner();
+  rcp<SharedSignal> found = SignalWait::find(signal, owner);
+  m_mainWaits.push_back(
+      {SignalWait(
+           m_nextMainWait,
+           owner,
+           signal,
+           found.get(),
+           after,
+           timeoutSeconds),
+       0});
+  return m_nextMainWait++;
+}
+
+void WasmScriptingVM::cancelMainWait(uint32_t token)
+{
+  m_mainWaits.erase(
+      std::remove_if(
+          m_mainWaits.begin(),
+          m_mainWaits.end(),
+          [token](const MainWait& wait) { return wait.wait.id == token; }),
+      m_mainWaits.end());
+}
+
+void WasmScriptingVM::settleMainWaits()
+{
+  auto now = std::chrono::steady_clock::now();
+  size_t resultBytes = 0;
+  for (auto it = m_mainWaits.begin(); it != m_mainWaits.end();)
+  {
+    double value = 0;
+    bool fire = false;
+    if (it->lane != 0)
+    {
+      WasmLane* lane = resolveLane(this, it->lane);
+      LaneState state = lane != nullptr ? lane->state() : LaneState::stopped;
+      fire = state >= LaneState::done;
+      value = (double)state;
+      // Each result is decoded into the main heap as it wakes, so a
+      // burst of large ones spreads over polls.
+      if (fire && state == LaneState::done)
+      {
+        size_t bytes = laneResult(lane).size();
+        if (resultBytes != 0 && resultBytes + bytes > kLaneResultBytesPerPoll)
+        {
+          ++it;
+          continue;
+        }
+        resultBytes += bytes;
+      }
+    }
+    else
+    {
+      fire = it->wait.fired(now, value);
+    }
+    if (!fire)
+    {
+      ++it;
+      continue;
+    }
+    uint32_t token = it->wait.id;
+    it = m_mainWaits.erase(it);
+    // Held even outside a call, so an await always resumes at a poll.
+    holdOutcome([this, token, value] {
+      double args[3] = {(double)m_L, (double)token, value};
+      double unused = 0;
+      callF64("host_lane_wake", args, 3, &unused);
+    });
+  }
+}
+
+void WasmScriptingVM::deliverLaneOutput(WasmLane* lane)
+{
+  lane->takeLogs(
+      [](void* vm, std::string_view line) {
+        rtLogImpl((WasmScriptingVM*)vm, 0, line.data(), (uint32_t)line.size());
+      },
+      this);
+  // A job's failure is its joiner's result, so only workers and processors
+  // announce theirs.
+  if (lane->kind() == LaneKind::job || lane->reportedFailure ||
+      lane->state() != LaneState::failed)
+  {
+    return;
+  }
+  lane->reportedFailure = true;
+  std::string line = lane->name() + " failed: " + lane->failure();
+  if (m_error)
+  {
+    m_error(line);
+  }
+  else
+  {
+    consoleWrite(this, line);
+  }
+  // A failed processor renders only silence, so it leaves the mix.
+  lane->stop();
+}
+
+void WasmScriptingVM::deliverLaneOutput()
+{
+  settleMainWaits();
+  auto deliver = [this](auto* set) {
+    if (set == nullptr)
+    {
+      return;
+    }
+    for (const auto& lane : set->lanes())
+    {
+      deliverLaneOutput(lane.get());
+    }
+    // Their output is out, and an idle slot keeps the watchdog polling.
+    set->prune();
+  };
+  deliver(m_jobs.get());
+  deliver(m_workers.get());
+  deliver(m_processors.get());
+}
+
+bool WasmScriptingVM::hasPendingAsyncWork() const
+{
+  // A started job keeps hosts ticking until the script can see it finish,
+  // and a worker only while it needs a step, never for being alive.
+  return !m_pendingDecodes.empty() || !m_pendingFetches.empty() ||
+         !m_heldOutcomes.empty() || !m_mainWaits.empty() ||
+         (m_jobs != nullptr && m_jobs->hasUnfinished()) ||
+         (m_workers != nullptr && m_workers->due()) ||
+         (m_processors != nullptr && m_processors->starting());
+}
+
+uint64_t WasmScriptingVM::sharedOwner()
+{
+  if (m_sharedOwner == 0)
+  {
+    m_sharedOwner = SharedRegistry::nextOwner(m_limits.sharedBytesPerFile);
+  }
+  return m_sharedOwner;
+}
+
+void WasmScriptingVM::keepReadHolds(Span<const uint32_t> ids)
+{
+  m_readHolds.insert(m_readHolds.end(), ids.begin(), ids.end());
+}
+
+void WasmScriptingVM::releaseReadHolds()
+{
+  for (uint32_t id : m_readHolds)
+  {
+    SharedRegistry::release(id, m_sharedOwner);
+  }
+  m_readHolds.clear();
 }
 
 void WasmScriptingVM::deliverHeldOutcomes()
@@ -10251,9 +11990,7 @@ void WasmScriptingVM::deliverHeldOutcomes()
   {
     return;
   }
-  s_holdingVMs.erase(
-      std::remove(s_holdingVMs.begin(), s_holdingVMs.end(), this),
-      s_holdingVMs.end());
+  VMPollList::leave(m_holdingList, this);
   // Deliveries can hold more, which wait for the next pass.
   std::vector<std::function<void()>> held;
   held.swap(m_heldOutcomes);
@@ -10265,16 +12002,7 @@ void WasmScriptingVM::deliverHeldOutcomes()
 
 void WasmScriptingVM::deliverAllHeldOutcomes()
 {
-  // A delivery runs script, which can destroy another holding VM.
-  auto holding = s_holdingVMs;
-  for (auto* vm : holding)
-  {
-    if (std::find(s_holdingVMs.begin(), s_holdingVMs.end(), vm) !=
-        s_holdingVMs.end())
-    {
-      vm->deliverHeldOutcomes();
-    }
-  }
+  t_holdingVMs->deliver([](WasmScriptingVM* vm) { vm->deliverHeldOutcomes(); });
 }
 
 void WasmScriptingVM::setBootHook(BootHook hook)
@@ -10294,128 +12022,43 @@ void WasmScriptingVM::setTimeoutMs(int ms)
   }
 }
 
-#if WASM_ENABLE_PRELINKED_AOT != 0
-// Builds the section list for a module whose AOT text is linked into this
-// binary and loads it. The relocation section is dropped: the native linker
-// already applied every fixup, which is what makes the text usable without
-// runtime executable memory.
-static wasm_module_t loadPrelinkedModule(
-    const PrelinkedAotModule& prelinked,
-    char* error,
-    uint32_t errorSize)
+std::string WasmScriptingVM::tierName(
+    ExecutionTier tier,
+    const std::string& interpReason)
 {
-  constexpr uint32_t kSectionText = 2;
-  constexpr uint32_t kSectionRelocation = 5;
-  // .aot container: 8 byte magic+version header, then type/size framed
-  // sections. The from-sections loader never sees the header, so an
-  // artifact from an incompatible wamrc must be rejected here.
-  if (prelinked.aotSize < 8)
+  switch (tier)
   {
-    snprintf(error, errorSize, "prelinked aot container too small");
-    return nullptr;
+    case ExecutionTier::interp:
+      return interpReason.empty() ? "interp" : "interp, " + interpReason;
+    case ExecutionTier::aotO0:
+      return "aot -O0";
+    case ExecutionTier::aotO3:
+      return "aot -O3";
   }
-  uint32_t magic;
-  uint32_t version;
-  memcpy(&magic, prelinked.aot, 4);
-  memcpy(&version, prelinked.aot + 4, 4);
-  if (magic != AOT_MAGIC_NUMBER || version != AOT_CURRENT_VERSION)
-  {
-    snprintf(
-        error,
-        errorSize,
-        "prelinked aot container magic/version mismatch "
-        "(%08x v%u, runtime expects v%u)",
-        magic,
-        version,
-        (uint32_t)AOT_CURRENT_VERSION);
-    return nullptr;
-  }
-  const uint8_t* p = prelinked.aot + 8;
-  const uint8_t* end = prelinked.aot + prelinked.aotSize;
-  std::vector<wasm_section_t> sections;
-  while (true)
-  {
-    // The container aligns every u32 read; section headers land on
-    // 4 byte boundaries relative to the (aligned) container base.
-    // Compare as integers first: the aligned address may lie past end,
-    // where pointer arithmetic is undefined.
-    uintptr_t aligned = ((uintptr_t)p + 3) & ~(uintptr_t)3;
-    if (aligned > (uintptr_t)end || (uintptr_t)end - aligned < 8)
-    {
-      break;
-    }
-    p = (const uint8_t*)aligned;
-    uint32_t type;
-    uint32_t size;
-    memcpy(&type, p, 4);
-    memcpy(&size, p + 4, 4);
-    p += 8;
-    if (size > (size_t)(end - p))
-    {
-      snprintf(error, errorSize, "prelinked aot container truncated");
-      return nullptr;
-    }
-    if (type != kSectionRelocation)
-    {
-      wasm_section_t section = {};
-      section.section_type = (int)type;
-      if (type == kSectionText)
-      {
-        section.section_body = const_cast<uint8_t*>(prelinked.text);
-        section.section_body_size = (uint32_t)prelinked.textSize;
-      }
-      else
-      {
-        section.section_body = const_cast<uint8_t*>(p);
-        section.section_body_size = size;
-      }
-      sections.push_back(section);
-    }
-    p += size;
-  }
-  if (sections.empty())
-  {
-    snprintf(error, errorSize, "prelinked aot container empty");
-    return nullptr;
-  }
-  for (size_t i = 0; i + 1 < sections.size(); i++)
-  {
-    sections[i].next = &sections[i + 1];
-  }
-  sections.back().next = nullptr;
-  return wasm_runtime_load_from_sections(
-      sections.data(),
-      true,
-      error,
-      errorSize);
+  return "unknown";
 }
-#endif
 
 #ifndef __EMSCRIPTEN__
-bool WasmScriptingVM::init(Span<const uint8_t> module)
+std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
+    Span<const uint8_t> bytes,
+    ExecutionTier& tier,
+    std::string& interpReason,
+    std::string& outError)
 {
-  // Unsigned modules are safe only as bytecode WAMR compiles itself; AOT
-  // comes solely from our own artifacts, found by this bytecode's hash.
-  if (module.size() < 4 || memcmp(module.data(), "\0asm", 4) != 0)
-  {
-    m_lastError = "script module is not wasm bytecode";
-    return false;
-  }
   if (!ensureRuntime())
   {
-    m_lastError = "wamr runtime init failed";
-    return false;
+    outError = "wamr runtime init failed";
+    return nullptr;
   }
-
-  // wasm_runtime_load keeps referencing the buffer, so hold a copy.
-  m_moduleBytes.assign(module.begin(), module.end());
-  // One content hash serves the dev AOT artifact lookup and the shared
-  // module cache key; the key folds in which artifact actually loads so
-  // interp and AOT lanes never share an entry.
-  uint64_t moduleKey = wasmModuleKey(
-      Span<const uint8_t>(m_moduleBytes.data(), m_moduleBytes.size()));
-  m_state = std::make_unique<WamrState>();
-  m_moduleKey = moduleKey;
+  // One content hash serves the AOT artifact lookups and the shared module
+  // cache key; the key folds in which artifact actually loads so interp
+  // and AOT modules never share an entry.
+  const uint64_t plainKey = wasmModuleKey(bytes);
+  uint64_t moduleKey = plainKey;
+  tier = ExecutionTier::interp;
+  // wasm_runtime_load keeps referencing the buffer, and may rewrite it.
+  std::vector<uint8_t> moduleBytes;
+  wasm_module_t loaded = nullptr;
   char error[256] = {0};
   // Dev AOT lane: with RIVE_WASM_AOT_CACHE set, swap in a wamrc-compiled
   // artifact when one exists for these bytes, else dump the wasm so it can
@@ -10440,7 +12083,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         sizeof(aotPath),
         "%s/%s",
         cacheDir,
-        aotArtifactName(moduleKey, ".hw").c_str());
+        aotArtifactName(plainKey, ".hw").c_str());
     struct stat hwAotStat;
     haveHwAot = stat(aotPath, &hwAotStat) == 0;
 #endif
@@ -10451,7 +12094,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
           sizeof(aotPath),
           "%s/%s",
           cacheDir,
-          aotArtifactName(moduleKey).c_str());
+          aotArtifactName(plainKey).c_str());
       struct stat aotStat;
       haveAot = stat(aotPath, &aotStat) == 0;
     }
@@ -10463,13 +12106,13 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
           sizeof(dumpPath),
           "%s/%s",
           cacheDir,
-          wasmModuleName(moduleKey).c_str());
+          wasmModuleName(plainKey).c_str());
       struct stat dumpStat;
       if (stat(dumpPath, &dumpStat) != 0)
       {
         if (FILE* dump = fopen(dumpPath, "wb"))
         {
-          fwrite(m_moduleBytes.data(), 1, m_moduleBytes.size(), dump);
+          fwrite(bytes.data(), 1, bytes.size(), dump);
           fclose(dump);
           fprintf(stderr, "wasm aot: dumped %s for wamrc\n", dumpPath);
         }
@@ -10488,41 +12131,31 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
   {
     if (wantInterp)
     {
-      m_interpReason = "RIVE_WASM_AOT_SYNC=interp";
+      interpReason = "RIVE_WASM_AOT_SYNC=interp";
     }
-    else if (sharedModuleCached(compiledModuleKey(moduleKey, species)))
+    else if (
+        auto cached = leaseCachedModule(
+            compiledModuleKey(plainKey, species),
+            tier))
     {
-      setCompiledSpecies(species);
+      interpReason.clear();
+      return cached;
     }
     else
     {
-      auto compileStart = std::chrono::steady_clock::now();
-      // The caller's bytes, since loading rewrites m_moduleBytes.
       TierCompile compile = ModuleTierLadder::instance().bootCompile(
-          moduleKey,
-          module,
+          plainKey,
+          bytes,
           species);
       if (!compile.path.empty() && compile.path.size() < sizeof(aotPath))
       {
         memcpy(aotPath, compile.path.c_str(), compile.path.size() + 1);
         setCompiledSpecies(species);
         ladderArtifact = true;
-        if (compile.compiled)
-        {
-          auto
-              compileMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                              std::chrono::steady_clock::now() - compileStart)
-                              .count();
-          fprintf(
-              stderr,
-              "wasm aot: compiled %s in %lld ms\n",
-              compile.path.c_str(),
-              (long long)compileMs);
-        }
       }
       else
       {
-        m_interpReason = compile.reason;
+        interpReason = compile.reason;
       }
     }
   }
@@ -10533,8 +12166,8 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
   const PrelinkedAotModule* prelinked = haveAot || haveHwAot || haveO0Aot
                                             ? nullptr
                                             : findPrelinkedAotModule(
-                                                  moduleKey,
-                                                  m_moduleBytes.size());
+                                                  plainKey,
+                                                  bytes.size());
   if (prelinked != nullptr)
   {
     moduleKey ^= 0x94d049bb133111ebull;
@@ -10548,25 +12181,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         : haveO0Aot ? TierSpecies::o0
                     : TierSpecies::o3);
   }
-  auto& cache = sharedModuleCache();
-  bool adoptedFromCache = false;
-  auto adoptCached = [&]() {
-    std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
-    auto cached = cache.find(moduleKey);
-    if (cached == cache.end())
-    {
-      return false;
-    }
-    SharedWasmModule& entry = cached->second;
-    m_state->module = entry.module;
-    m_state->ownsModule = false;
-    m_tier = entry.tier;
-    // Redundant against the cache entry, which lives for the process.
-    m_moduleBytes.clear();
-    adoptedFromCache = true;
-    return true;
-  };
-  if (!adoptCached())
+  bool pinned = false;
+  std::shared_ptr<void> lease = leaseCachedModule(moduleKey, tier);
+  if (lease == nullptr)
   {
     if (haveAot || haveHwAot || haveO0Aot)
     {
@@ -10575,24 +12192,30 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         fseek(aot, 0, SEEK_END);
         long size = ftell(aot);
         fseek(aot, 0, SEEK_SET);
-        m_moduleBytes.resize(size);
-        size_t read = fread(m_moduleBytes.data(), 1, size, aot);
+        moduleBytes.resize(size);
+        size_t read = fread(moduleBytes.data(), 1, size, aot);
         fclose(aot);
         fprintf(stderr, "wasm aot: loaded %s (%zu bytes)\n", aotPath, read);
-        m_tier = haveO0Aot ? ExecutionTier::aotO0 : ExecutionTier::aotO3;
+        tier = haveO0Aot ? ExecutionTier::aotO0 : ExecutionTier::aotO3;
       }
+    }
+    else
+    {
+      moduleBytes.assign(bytes.begin(), bytes.end());
     }
 #if WASM_ENABLE_PRELINKED_AOT != 0
     if (prelinked != nullptr)
     {
-      m_state->module = loadPrelinkedModule(*prelinked, error, sizeof(error));
-      if (m_state->module != nullptr)
+      loaded = (wasm_module_t)
+          loadPrelinkedAotModule(*prelinked, error, sizeof(error));
+      if (loaded != nullptr)
       {
-        m_tier = ExecutionTier::aotO3;
+        tier = ExecutionTier::aotO3;
+        pinned = true;
         fprintf(
             stderr,
             "wasm aot: prelinked module %016llx (%zu byte text)\n",
-            (unsigned long long)m_moduleKey,
+            (unsigned long long)plainKey,
             prelinked->textSize);
       }
       else
@@ -10604,23 +12227,22 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             "wasm aot: prelinked module rejected (%s); "
             "falling back\n",
             error);
-        prelinked = nullptr;
-        moduleKey ^= 0x94d049bb133111ebull;
-        adoptCached();
+        moduleKey = plainKey;
+        lease = leaseCachedModule(moduleKey, tier);
       }
     }
-    if (m_state->module == nullptr)
+    if (loaded == nullptr && lease == nullptr)
 #endif
     {
       auto loadBytes = [&]() {
-        m_state->module = wasm_runtime_load(
-            m_moduleBytes.data(),
-            (uint32_t)m_moduleBytes.size(),
+        loaded = wasm_runtime_load(
+            moduleBytes.data(),
+            (uint32_t)moduleBytes.size(),
             error,
             sizeof(error));
       };
       loadBytes();
-      if (m_state->module == nullptr && (haveAot || haveHwAot || haveO0Aot))
+      if (loaded == nullptr && (haveAot || haveHwAot || haveO0Aot))
       {
         // A stale artifact, say from another WAMR, must not fail the
         // file; drop to the wasm bytes under the plain key.
@@ -10630,63 +12252,90 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             aotPath,
             error);
         haveAot = haveHwAot = haveO0Aot = false;
-        m_tier = ExecutionTier::interp;
-        m_interpReason = std::string("aot artifact rejected, ") + error;
+        tier = ExecutionTier::interp;
+        interpReason = std::string("aot artifact rejected, ") + error;
         // Every later load would read and reject it again.
         if (ladderArtifact)
         {
           ModuleTierLadder::instance().rejectArtifact(
-              m_moduleKey,
+              plainKey,
               species,
-              m_interpReason);
+              interpReason);
         }
         else
         {
           remove(aotPath);
         }
-        moduleKey = m_moduleKey;
-        if (!adoptCached())
+        moduleKey = plainKey;
+        lease = leaseCachedModule(moduleKey, tier);
+        if (lease == nullptr)
         {
-          m_moduleBytes.assign(module.begin(), module.end());
+          moduleBytes.assign(bytes.begin(), bytes.end());
           loadBytes();
         }
       }
     }
-    if (m_state->module != nullptr && !adoptedFromCache)
+    if (loaded != nullptr)
     {
       if (haveHwAot)
       {
-        wasm_runtime_set_module_hw_bounds(m_state->module, true);
+        wasm_runtime_set_module_hw_bounds(loaded, true);
       }
+      auto entry = std::make_shared<SharedWasmModule>();
+      entry->bytes = std::move(moduleBytes);
+      entry->module = loaded;
+      entry->tier = tier;
+      entry->pinned = pinned;
+      // Like entry, declared before the lock so modules unload once it
+      // is released, where they stall no other boot.
+      std::vector<std::shared_ptr<SharedWasmModule>> evicted;
       std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
-      auto inserted = cache.try_emplace(moduleKey);
-      SharedWasmModule& entry = inserted.first->second;
+      auto inserted = sharedModuleCache().try_emplace(moduleKey, entry);
       if (inserted.second)
       {
-        entry.bytes = std::move(m_moduleBytes);
-        entry.module = m_state->module;
-        entry.tier = m_tier;
+        lease = leaseLocked(entry);
+        evictIdleModulesLocked(evicted);
       }
       else
       {
-        // Another thread loaded the same bytes first.
-        wasm_runtime_unload(m_state->module);
-        m_state->module = entry.module;
-        m_tier = entry.tier;
-        m_moduleBytes.clear();
+        // Another thread loaded the same bytes first, so entry
+        // unloads this copy.
+        tier = inserted.first->second->tier;
+        lease = leaseLocked(inserted.first->second);
       }
-      m_state->ownsModule = false;
     }
   }
-  if (m_state->module == nullptr)
+  if (lease == nullptr)
   {
-    m_lastError = std::string("module load failed: ") + error;
-    return false;
+    outError = error;
+    return nullptr;
   }
   // Prelinked code runs compiled whatever the ladder said.
-  if (m_tier != ExecutionTier::interp)
+  if (tier != ExecutionTier::interp)
   {
-    m_interpReason.clear();
+    interpReason.clear();
+  }
+  return lease;
+}
+
+bool WasmScriptingVM::init(Span<const uint8_t> module)
+{
+  // Unsigned modules are safe only as bytecode WAMR compiles itself; AOT
+  // comes solely from our own artifacts, found by this bytecode's hash.
+  if (module.size() < 4 || memcmp(module.data(), "\0asm", 4) != 0)
+  {
+    m_lastError = "script module is not wasm bytecode";
+    return false;
+  }
+
+  m_state = std::make_unique<WamrState>();
+  m_state
+      ->lease = loadSharedModule(module, m_tier, m_interpReason, m_lastError);
+  m_state->module = (wasm_module_t)m_state->lease.get();
+  if (m_state->module == nullptr)
+  {
+    m_lastError = "module load failed: " + m_lastError;
+    return false;
   }
   // Unresolved function imports link fine and trap only when first called,
   // with no diagnostic; report them here where the failure is actionable.
@@ -10713,11 +12362,14 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     m_lastError = std::string("module instantiate failed: ") + refusal;
     return false;
   }
+  // The top level may start lanes.
+  attachLanes(module);
   // A top level that decodes a file starts another module inside this one.
   const std::function<void(const char*, size_t)>* outerPrint = s_bootPrint;
   WasmScriptingVM* outerBooting = s_booting;
   s_bootPrint = &m_print;
   s_booting = this;
+  char error[256] = {0};
   // Module start is a call into the module like any other: the top
   // level's probes need the bracket, its budget bounds it, and its trap
   // is the instantiate error.
@@ -10732,7 +12384,8 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     wasm_runtime_rive_set_start_hook(
         [](wasm_exec_env_t env, bool begin, void*) {
           WasmScriptingVM* vm = s_booting;
-          if (vm == nullptr)
+          // A lane the top level joined starts on this thread too.
+          if (vm == nullptr || WasmLane::current() != nullptr)
           {
             return;
           }
@@ -10746,14 +12399,25 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             // Trusted modules run their top level unbounded, like their
             // calls.
             if (vm->m_hostBudget && !outerBounds && !vm->m_budgetArmed &&
-                vm->m_timeoutMs > 0 && vm->m_debugHooks == nullptr)
+                vm->boundsCalls())
             {
               vm->armWatchdog(env);
             }
+            vm->armDeadline();
+            // A wait moves a metered module's fuel on with a call.
+            vm->m_state->execEnv = env;
           }
-          else if (vm->m_budgetArmed && vm->m_budgetSlot->env == env)
+          else
           {
-            vm->disarmWatchdog();
+            vm->m_state->execEnv = nullptr;
+            if (vm->m_deadlineArmed)
+            {
+              vm->disarmDeadline();
+            }
+            if (vm->m_budgetArmed && vm->m_budgetSlot->env == env)
+            {
+              vm->disarmWatchdog();
+            }
           }
           uint32_t fuelMs = (uint32_t)WasmScriptingVMNatives::startFuelMs(vm);
           wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
@@ -10776,12 +12440,17 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         },
         nullptr);
   });
+  // A start nested in a call must not see the region it holds, and a top
+  // level that trapped inside exclusive must not leave its region held.
+  uint32_t outerRegionId;
+  SharedRegion* outerRegion = stashHeldRegion(&outerRegionId);
   m_state->instance = wasm_runtime_instantiate(
       m_state->module,
       512 * 1024,
       0,
       error,
       sizeof(error));
+  restoreHeldRegion(outerRegionId, outerRegion);
   if (m_debugHooks != nullptr)
   {
     m_debugHooks->onCallEnd(
@@ -10820,6 +12489,8 @@ void WasmScriptingVM::noteModuleExport(const char* name)
   m_utf16HostStrings |= strcmp(name, "__riveUtf16HostStrings") == 0;
   m_hostBudget |= strcmp(name, "__riveHostBudget") == 0;
   m_fuelBudget |= strcmp(name, "__riveFuelCheck") == 0;
+  m_fuelShift |= strcmp(name, "__riveFuelShift") == 0;
+  m_fetchBlobBody |= strcmp(name, "__riveFetchBlobBody") == 0;
 }
 
 bool WasmScriptingVM::bootModule()
@@ -10938,6 +12609,7 @@ const char* WasmScriptingVM::collectFrame()
   {
     return nullptr;
   }
+  releaseReadHolds();
   if (m_frameMinor)
   {
     uint32_t promoted = 0;
@@ -10945,7 +12617,7 @@ const char* WasmScriptingVM::collectFrame()
         CallOutcome::trapped)
     {
       // Objects may be half moved, so nothing may run on the heap.
-      m_poisoned = true;
+      poison();
       return "script stopped: its collector trapped mid collection";
     }
     if (getenv("RIVE_FRAME_GC_DEBUG") != nullptr)
@@ -11159,6 +12831,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
       return "riveFile";
     case Tag::bindableArtboard:
       return "bindableArtboard";
+    case Tag::lane:
+      return "lane";
     case Tag::empty:
     case Tag::count:
       break;
@@ -11217,7 +12891,7 @@ const char* WasmScriptingVM::handleLeakWarning()
   constexpr uint32_t kHandleWarnMinFrames = 120;
   if (live + 1 < m_handleBaselineLive + kHandleWarnCount)
   {
-    m_handleCollectPending = false;
+    m_handleCollects = 0;
     return nullptr;
   }
   if (m_handleFrames < kHandleWarnMinFrames)
@@ -11232,19 +12906,25 @@ const char* WasmScriptingVM::handleLeakWarning()
   {
     return nullptr;
   }
-  if (m_collectedRuntime && !m_handleCollectPending)
+  // A major already in flight keeps wrappers that died after it began,
+  // so growth is judged by one requested once the first finishes.
+  constexpr uint8_t kHandleJudgeCollects = 2;
+  if (m_collectedRuntime)
   {
-    m_handleCollectPending = true;
-    m_handleCollectMajors = frameMajors();
-    callModule("__riveCollect", 0, nullptr);
-    return nullptr;
+    uint32_t majors = frameMajors();
+    if (m_handleCollects != 0 && majors == m_handleCollectMajors)
+    {
+      return nullptr;
+    }
+    if (m_handleCollects < kHandleJudgeCollects)
+    {
+      m_handleCollects++;
+      m_handleCollectMajors = majors;
+      callModule("__riveCollect", 0, nullptr);
+      return nullptr;
+    }
   }
-  // A sliced major spans boundaries, so wait for the count to move.
-  if (m_handleCollectPending && frameMajors() == m_handleCollectMajors)
-  {
-    return nullptr;
-  }
-  m_handleCollectPending = false;
+  m_handleCollects = 0;
   // Re-arm so a leaking session keeps warning every 512 handles.
   uint32_t grown = live + 1 - m_handleBaselineLive;
   uint32_t frames = m_handleFrames;

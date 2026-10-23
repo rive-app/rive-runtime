@@ -162,7 +162,7 @@ LayoutComponent* rive::owningLayout(Component* component)
 }
 
 #if defined(WITH_RIVE_LAYOUT) && defined(WITH_RIVE_TOOLS) && defined(DEBUG)
-uint32_t LayoutData::count = 0;
+std::atomic<uint32_t> LayoutData::count{0};
 #endif
 
 float LayoutComponent::pivotOriginX() const
@@ -669,7 +669,7 @@ bool LayoutComponent::collapse(bool value)
 
 LayoutComponent::LayoutComponent() : m_layoutData(new LayoutData())
 {
-  m_layoutData->node.getConfig()->setPointScaleFactor(0);
+  LayoutData::useFractionalPixels();
 }
 
 float LayoutComponent::gapHorizontal()

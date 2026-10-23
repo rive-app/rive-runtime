@@ -1,4 +1,5 @@
 #pragma once
+#include "rive/math/math_types.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include <webgpu/webgpu_cpp.h>
 #include <vector>
@@ -26,6 +27,12 @@ public:
   // Tag the current backing with this frame's serial so a later update()
   // orphans instead of overwriting in-flight memory.
   void markBound();
+
+  // WebGPU sizes and writes buffers in whole words.
+  uint32_t backingSize() const
+  {
+    return math::round_up_to_multiple_of<4>(size());
+  }
 
 private:
   friend class ContextWGPU;

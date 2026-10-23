@@ -51,7 +51,12 @@ void AudioSound::stop(uint64_t fadeTimeInFrames)
   {
     return;
   }
-  if (fadeTimeInFrames == 0)
+  // A fade set before a sound starts runs late and is cut off at its stop.
+  // The clock trails the mix, so a sound already mixed still fades.
+  if (fadeTimeInFrames == 0 ||
+      (ma_node_get_time(&m_sound) == 0 &&
+       ma_node_get_state_time(&m_sound, ma_node_state_started) >
+           ma_engine_get_time_in_pcm_frames(ma_sound_get_engine(&m_sound))))
   {
     ma_sound_stop(&m_sound);
   }

@@ -29,6 +29,11 @@ compilation on the calling thread: step 3 instantiates inline. Every current
 browser allows that for modules of our size, see
 `browser_lane_instantiation_study.md`.
 
+On a build with threads, both paths compile each lane module the file carries
+once on the page and post it to the idle workers, so a pool thread does not
+compile it again for its first job. A thread that was already running when
+the file loaded gets no message, and compiles its own.
+
 The editor also boots a VM outside of a file load, to preview scripts it just
 compiled: `riveWasmVMBoot` in rive_native, which the editor then adopts into
 the open file. That call is synchronous, so on the web it registers the
@@ -91,7 +96,16 @@ in any build.
   prepared start, inline start, a gradient, a trap the page survives, a
   script whose top level logs, a module importing an op the host lacks,
   which starts and traps only when it calls it, and image decodes through a
-  stand in for the browser's decoder.
+  stand in for the browser's decoder. Then it runs files on browser pages
+  with `browser_audio.mjs`, in Chrome when it is installed and in Firefox
+  and WebKit when `RIVE_WEB_BROWSERS` names them, which takes `npm ci` there
+  and `npx playwright-core install firefox webkit`. Processors play on each
+  browser's audio worklet, which must render the samples the harness hashes
+  with SIMD or without, and jobs run on its workers. One page leaves the
+  runner to make its own context, which in Firefox and WebKit must start on
+  the page's first click. A page fails when librive's threads outgrow the
+  harness's pool. A page without cross origin isolation loads the build
+  without threads and runs its jobs on the page.
   `fixture/bake.sh` rebakes the files and needs rive-cli built.
 - `packages/runtime_wasm/js`: `npm run test:scripting`. Loads baked files
   through the JS runtime's public API under jest, from a canvas build with
@@ -137,6 +151,75 @@ in any build.
 - **Names shared with wasm are quoted** in the generated code, because the
   JS runtime's release build uses the closure compiler.
 
+## Limits
+
+The host sets the main call budget and the audio hard limit through
+`ScriptingLimits`, and each processor's start message carries its hard limit
+to the worklet, where 0 means none. Jobs and workers have no time limit,
+except where one with fuel holds the page's thread.
+
+Nothing can interrupt a call in a browser, so a lane ends early only at its
+own fuel checks. A bake gives a lane module fuel exactly when it gives the
+main module fuel, and each check calls `rive_lane_v1.fuel_check`. Natively
+that does nothing, since WAMR's interrupts already stop every lane there.
+
+- For a job or worker, the runner's `fuel_check` asks librive through
+  `rive_web_lane_fuel(lane)` why the lane must end, and throws the answer when
+  there is one. The web `WasmLane` keeps native's `interruptCall`,
+  `interruptAfter` and `dropInterrupt` over one deadline, so a stop ends a job
+  at its next check and a worker at its first check past its 50 ms grace, as
+  natively, a released file's lanes included.
+- A job run or worker step on the page's thread, which is every one in a build
+  without threads, runs under `PageThreadBudget`. It arms the thread's call
+  deadline with the call budget the VM had when the lane started, and the
+  check answers once that passes. A VM that bounds no calls, as under the
+  debugger or with a budget of 0, gives its lanes no budget either.
+- For a processor the worklet's mixer answers alone, without librive. Init,
+  with the lifted start and the free, gets `kProcessorInitMs` in all, and each
+  block gets its block budget from when it starts. The mixer still drops a
+  block that returns past its budget, which catches processors without fuel
+  and time spent outside script.
+- A check's throw unwinds only the lane module's frames, never librive's, and
+  the runner's catch turns it into the lane's failure, which settles stopped
+  when the lane was stopped.
+
+Without fuel, a stopped job ends only once it polls `Lanes.stopping()`, a
+stopped worker ends at its next await, and a job or worker step on the page's
+thread runs to its end.
+
+## Script audio in real time
+
+Audio processors run on an audio worklet, which reaches shared memory
+through Atomics on librive's heap while librive stays on the page. That
+needs librive built with threads and, in a browser, cross origin isolation.
+
+- The host names the worklet script in `riveScripting.audioWorkletUrl`:
+  `rive_audio_worklet.mjs` in a browser and `rive_audio_worklet_nrdp.js` on
+  NRDP. In a browser the worklet loads the modules it imports from beside it,
+  so the host serves these four next to it as well: `rive_lane.mjs`,
+  `rive_lane_imports.mjs`, `rive_shared_lane.mjs` and
+  `rive_shared_layout.mjs`. The NRDP script is one bundle and needs nothing
+  beside it.
+- The host may hand over its own `AudioContext` as
+  `riveScripting.audioContext`, and should resume it on the user's first
+  gesture. Without one, the runner makes a context as the first processor
+  starts, and resumes it on the page's first click, tap or key press, since
+  browsers start audio only after a gesture. If that context has not started
+  a second after it was made, the runner warns once on the console.
+- The worklet counts every block it renders. When that stops while
+  processors run, every processor fails. On NRDP that takes 100 ms, and the
+  runner ends the worklet thread. A browser cannot end it, and Chrome's
+  close waits on the stuck thread, so after a second the runner drops the
+  output, takes its node out of the mix and leaves its context open. Real
+  time audio then refuses a host's context that stalled or closed, so the
+  host hands over a new one. While a start is pending the watch waits longer
+  than `kProcessorInitMs`, so an init with fuel that runs past its own budget
+  fails alone first, and each queued start gets that whole allowance. A block
+  with fuel ends at its hard limit long before the watch, so the watch is left
+  for a processor without fuel or without a hard limit, a first block on
+  NRDP, which is allowed 100 ms, and a stall in code without checks, such as
+  the collector.
+
 ## The browser lane
 
 `packages/runtime_wasm/scripting_lane/lane.mjs` runs the stress fixtures in
@@ -176,8 +259,9 @@ measure the software rasterizer.
 ## Not done yet
 
 - **The debugger** sees no trap text on the web.
-- **No automated browser gate.** The gates run under node and jsdom. The
-  browser lane above and `tests/web_scripting/browser_probe.mjs` are manual.
+- **No automated gate for our hosts in a browser.** The browser pages of
+  `tests/web_scripting/test.sh` load its harness, not a host. The browser
+  lane above and `tests/web_scripting/browser_probe.mjs` are manual.
   The probe loads the real rive_native web build in Chrome, Firefox and
   WebKit. It passed in all three on 2026-09-19: file imported, module
   prepared in about 2 ms, `init`, `advance` and `draw` ran, a gradient

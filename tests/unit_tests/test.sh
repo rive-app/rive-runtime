@@ -51,6 +51,14 @@ while [[ $# -gt 0 ]]; do
     EXTRA_CONFIG+=(--with-asan)
     shift # past argument
     ;;
+  tsan)
+    echo Will perform thread sanitization...
+    EXTRA_CONFIG+=(--with-tsan)
+    # Mac needs Homebrew LLVM 22 first in PATH, as older TSan crashes at launch,
+    # and checks what libc calls touch only with ignore_interceptors_accesses=0.
+    export TSAN_OPTIONS="${TSAN_OPTIONS:+$TSAN_OPTIONS:}suppressions=$PWD/../tsan_suppressions.txt:second_deadlock_stack=1:ignore_interceptors_accesses=0"
+    shift # past argument
+    ;;
   release)
     CONFIG=release
     shift # past argument

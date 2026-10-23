@@ -134,6 +134,11 @@ newoption({
 })
 
 newoption({
+    trigger = 'with-tsan',
+    description = 'enable ThreadSanitizer',
+})
+
+newoption({
     trigger = 'with_ubsan',
     description = 'enable UndefinedBehaviorSanitizer',
 })
@@ -193,6 +198,13 @@ do
     -- Edit & continue and incremental link are not compatible with ASAN in MSVC.
     editandcontinue('Off')
     flags({ 'NoIncrementalLink' })
+end
+
+-- Premake beta2, which some workflows install, has no Thread value for sanitize.
+filter({ 'options:with-tsan', 'system:not windows' })
+do
+    buildoptions({ '-fsanitize=thread' })
+    linkoptions({ '-fsanitize=thread' })
 end
 
 filter({ 'options:with_ubsan', 'system:not windows' })
