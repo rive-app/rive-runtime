@@ -30,300 +30,297 @@
 
 using namespace rive;
 
-TEST_CASE("Test data binding artboards from same and different sources",
-          "[data binding]")
+TEST_CASE(
+    "Test data binding artboards from same and different sources",
+    "[data binding]")
 {
-    // Note: the data_binding_artboards_source_test has a view model created
-    // that matches the view model the original artboards have. This is a
-    // temporary "hack" to validate that the artboard gets correctly bound
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
-    auto sourceFile =
-        ReadRiveFile("assets/data_binding_artboards_source_test.riv", &silver);
+  // Note: the data_binding_artboards_source_test has a view model created
+  // that matches the view model the original artboards have. This is a
+  // temporary "hack" to validate that the artboard gets correctly bound
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
+  auto sourceFile = ReadRiveFile(
+      "assets/data_binding_artboards_source_test.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto vmiArtboard =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    auto vmiChild = vmi->propertyValue("ch")
-                        ->as<ViewModelInstanceViewModel>()
-                        ->referenceViewModelInstance()
-                        .get();
-    auto vmTrigger =
-        vmiChild->propertyValue("tr")->as<ViewModelInstanceTrigger>();
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto vmiArtboard = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  auto vmiChild = vmi->propertyValue("ch")
+                      ->as<ViewModelInstanceViewModel>()
+                      ->referenceViewModelInstance()
+                      .get();
+  auto vmTrigger = vmiChild->propertyValue("tr")
+                       ->as<ViewModelInstanceTrigger>();
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to local artboard at index 1
+  // Change source to local artboard at index 1
 
-    auto ch1Source = file->bindableArtboardNamed("ch1");
-    vmiArtboard->asset(ch1Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto ch1Source = file->bindableArtboardNamed("ch1");
+  vmiArtboard->asset(ch1Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to local artboard at index 2
+  // Change source to local artboard at index 2
 
-    auto ch2Source = file->bindableArtboardNamed("ch2");
-    vmiArtboard->asset(ch2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto ch2Source = file->bindableArtboardNamed("ch2");
+  vmiArtboard->asset(ch2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to external artboard "source_1"
-    auto source1 = sourceFile->bindableArtboardNamed("source_1");
-    vmiArtboard->asset(source1);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to external artboard "source_1"
+  auto source1 = sourceFile->bindableArtboardNamed("source_1");
+  vmiArtboard->asset(source1);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Fire trigger once to change text color
-    vmTrigger->trigger();
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Fire trigger once to change text color
+  vmTrigger->trigger();
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Fire trigger once to change text color again
-    vmTrigger->trigger();
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Fire trigger once to change text color again
+  vmTrigger->trigger();
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to external artboard "source_2"
-    auto source2 = sourceFile->bindableArtboardNamed("source_2");
-    vmiArtboard->asset(source2);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to external artboard "source_2"
+  auto source2 = sourceFile->bindableArtboardNamed("source_2");
+  vmiArtboard->asset(source2);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to external artboard "source_1"
-    vmiArtboard->asset(source1);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to external artboard "source_1"
+  vmiArtboard->asset(source1);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change back to local artboard at index 1
-    vmiArtboard->asset(ch2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change back to local artboard at index 1
+  vmiArtboard->asset(ch2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // reset the artboard to null
-    vmiArtboard->asset(nullptr);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // reset the artboard to null
+  vmiArtboard->asset(nullptr);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change back to local artboard at index 1
-    vmiArtboard->asset(ch2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change back to local artboard at index 1
+  vmiArtboard->asset(ch2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("data_binding_artboards_test"));
+  CHECK(silver.matches("data_binding_artboards_test"));
 }
 
 TEST_CASE("Test recursive data binding artboards is skipped", "[data binding]")
 {
-    // Note: the data_binding_artboards_source_test has a view model created
-    // that matches the view model the original artboards have. This is a
-    // temporary "hack" to validate that the artboard gets correctly bound
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
+  // Note: the data_binding_artboards_source_test has a view model created
+  // that matches the view model the original artboards have. This is a
+  // temporary "hack" to validate that the artboard gets correctly bound
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
 
-    auto artboard = file->artboardNamed("recursive-grand-parent");
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("recursive-grand-parent");
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto vmiArtboard =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto vmiArtboard = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to artboard "recursive-grand-child-1"
-    auto child1Source = file->bindableArtboardNamed("recursive-grand-child-1");
-    vmiArtboard->asset(child1Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to artboard "recursive-grand-child-1"
+  auto child1Source = file->bindableArtboardNamed("recursive-grand-child-1");
+  vmiArtboard->asset(child1Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Changing source to artboard "recursive-parent" does not change the
-    // content because it's an ancestor of itself
-    auto parentSource = file->bindableArtboardNamed("recursive-parent");
-    vmiArtboard->asset(parentSource);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Changing source to artboard "recursive-parent" does not change the
+  // content because it's an ancestor of itself
+  auto parentSource = file->bindableArtboardNamed("recursive-parent");
+  vmiArtboard->asset(parentSource);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Changing source to artboard "recursive-grand-parent" does not change the
-    // content because it's an ancestor of itself
-    auto grandParentSource =
-        file->bindableArtboardNamed("recursive-grand-parent");
-    vmiArtboard->asset(grandParentSource);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Changing source to artboard "recursive-grand-parent" does not change the
+  // content because it's an ancestor of itself
+  auto grandParentSource = file->bindableArtboardNamed(
+      "recursive-grand-parent");
+  vmiArtboard->asset(grandParentSource);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to artboard "recursive-grand-child-2"
-    auto child2Source = file->bindableArtboardNamed("recursive-grand-child-2");
-    vmiArtboard->asset(child2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to artboard "recursive-grand-child-2"
+  auto child2Source = file->bindableArtboardNamed("recursive-grand-child-2");
+  vmiArtboard->asset(child2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("data_binding_artboards_test_recursive"));
+  CHECK(silver.matches("data_binding_artboards_test_recursive"));
 }
 
-TEST_CASE("Setting a bindable artboard clears stale bound instance",
-          "[data binding]")
+TEST_CASE(
+    "Setting a bindable artboard clears stale bound instance",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    auto vmiArtboard =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    REQUIRE(vmiArtboard != nullptr);
-    auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
-    auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
-    REQUIRE(runtimeArtboard != nullptr);
+  auto vmiArtboard = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  REQUIRE(vmiArtboard != nullptr);
+  auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
+  REQUIRE(runtimeArtboard != nullptr);
 
-    auto sourceA = file->bindableArtboardNamed("ch1");
-    auto sourceB = file->bindableArtboardNamed("ch2");
-    REQUIRE(sourceA != nullptr);
-    REQUIRE(sourceB != nullptr);
+  auto sourceA = file->bindableArtboardNamed("ch1");
+  auto sourceB = file->bindableArtboardNamed("ch2");
+  REQUIRE(sourceA != nullptr);
+  REQUIRE(sourceB != nullptr);
 
-    runtimeArtboard->value(sourceA);
-    runtimeArtboard->viewModelInstance(vmi);
-    REQUIRE(vmiArtboard->boundViewModelInstance() != nullptr);
+  runtimeArtboard->value(sourceA);
+  runtimeArtboard->viewModelInstance(vmi);
+  REQUIRE(vmiArtboard->boundViewModelInstance() != nullptr);
 
-    // Runtime assignment should clear any previously bound VMI.
-    runtimeArtboard->value(sourceB);
-    CHECK(vmiArtboard->boundViewModelInstance() == nullptr);
+  // Runtime assignment should clear any previously bound VMI.
+  runtimeArtboard->value(sourceB);
+  CHECK(vmiArtboard->boundViewModelInstance() == nullptr);
 }
 
-TEST_CASE("Runtime artboard property exposes the bound artboard name",
-          "[data binding]")
+TEST_CASE(
+    "Runtime artboard property exposes the bound artboard name",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
-    auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
-    REQUIRE(runtimeArtboard != nullptr);
+  auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
+  REQUIRE(runtimeArtboard != nullptr);
 
-    auto sourceA = file->bindableArtboardNamed("ch1");
-    auto sourceB = file->bindableArtboardNamed("ch2");
-    REQUIRE(sourceA != nullptr);
-    REQUIRE(sourceB != nullptr);
+  auto sourceA = file->bindableArtboardNamed("ch1");
+  auto sourceB = file->bindableArtboardNamed("ch2");
+  REQUIRE(sourceA != nullptr);
+  REQUIRE(sourceB != nullptr);
 
-    // The name reflects the currently bound bindable artboard.
-    runtimeArtboard->value(sourceA);
-    CHECK(runtimeArtboard->artboardName() == "ch1");
+  // The name reflects the currently bound bindable artboard.
+  runtimeArtboard->value(sourceA);
+  CHECK(runtimeArtboard->artboardName() == "ch1");
 
-    // Rebinding updates the reported name.
-    runtimeArtboard->value(sourceB);
-    CHECK(runtimeArtboard->artboardName() == "ch2");
+  // Rebinding updates the reported name.
+  runtimeArtboard->value(sourceB);
+  CHECK(runtimeArtboard->artboardName() == "ch2");
 
-    // Clearing the source reports an empty name rather than dangling.
-    runtimeArtboard->value(nullptr);
-    CHECK(runtimeArtboard->artboardName().empty());
+  // Clearing the source reports an empty name rather than dangling.
+  runtimeArtboard->value(nullptr);
+  CHECK(runtimeArtboard->artboardName().empty());
 }
 
-TEST_CASE("Test default data binding artboard from different source",
-          "[data binding]")
+TEST_CASE(
+    "Test default data binding artboard from different source",
+    "[data binding]")
 {
-    // Note: the data_binding_artboards_source_test has a view model created
-    // that matches the view model the original artboards have. This is a
-    // temporary "hack" to validate that the artboard gets correctly bound
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
-    auto sourceFile =
-        ReadRiveFile("assets/data_binding_artboards_source_test.riv", &silver);
+  // Note: the data_binding_artboards_source_test has a view model created
+  // that matches the view model the original artboards have. This is a
+  // temporary "hack" to validate that the artboard gets correctly bound
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
+  auto sourceFile = ReadRiveFile(
+      "assets/data_binding_artboards_source_test.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto vmiArtboard =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to local artboard at index 1
+  auto vmiArtboard = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to local artboard at index 1
 
-    auto ch1Source = file->bindableArtboardNamed("ch1");
-    vmiArtboard->asset(ch1Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to local artboard at index 2
+  auto ch1Source = file->bindableArtboardNamed("ch1");
+  vmiArtboard->asset(ch1Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to local artboard at index 2
 
-    auto ch2Source = file->bindableArtboardNamed("ch2");
-    vmiArtboard->asset(ch2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to default bindable artboard
-    auto source1 = sourceFile->bindableArtboardDefault();
-    vmiArtboard->asset(source1);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    CHECK(silver.matches("data_binding_artboards_default_test"));
+  auto ch2Source = file->bindableArtboardNamed("ch2");
+  vmiArtboard->asset(ch2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to default bindable artboard
+  auto source1 = sourceFile->bindableArtboardDefault();
+  vmiArtboard->asset(source1);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  CHECK(silver.matches("data_binding_artboards_default_test"));
 }
 
 // The test asset carries Luau bytecode scripts, which only the Luau
@@ -333,252 +330,258 @@ TEST_CASE(
     "Test Scripted Artboard Input data bound to internal and external artboards",
     "[data binding]")
 {
-    // Note: the data_binding_artboards_source_test has a view model created
-    // that matches the view model the original artboards have. This is a
-    // temporary "hack" to validate that the artboard gets correctly bound
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_bind_artboard_input.riv", &silver);
-    auto sourceFile =
-        ReadRiveFile("assets/data_binding_artboards_source_test.riv", &silver);
+  // Note: the data_binding_artboards_source_test has a view model created
+  // that matches the view model the original artboards have. This is a
+  // temporary "hack" to validate that the artboard gets correctly bound
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_bind_artboard_input.riv", &silver);
+  auto sourceFile = ReadRiveFile(
+      "assets/data_binding_artboards_source_test.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
+  auto vmi = file->createViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto vmiArtboard =
-        vmi->propertyValue("artboardProperty")->as<ViewModelInstanceArtboard>();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to local artboard named "child2"
+  auto vmiArtboard = vmi->propertyValue("artboardProperty")
+                         ->as<ViewModelInstanceArtboard>();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to local artboard named "child2"
 
-    auto ch1Source = file->bindableArtboardNamed("child2");
-    vmiArtboard->asset(ch1Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to local artboard named "child1"
+  auto ch1Source = file->bindableArtboardNamed("child2");
+  vmiArtboard->asset(ch1Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to local artboard named "child1"
 
-    auto ch2Source = file->bindableArtboardNamed("child1");
-    vmiArtboard->asset(ch2Source);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Change source to default external bindable artboard
-    auto source1 = sourceFile->bindableArtboardDefault();
-    vmiArtboard->asset(source1);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto ch2Source = file->bindableArtboardNamed("child1");
+  vmiArtboard->asset(ch2Source);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Change source to default external bindable artboard
+  auto source1 = sourceFile->bindableArtboardDefault();
+  vmiArtboard->asset(source1);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to local artboard by index
-    vmiArtboard->propertyValue(1);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // Change source to local artboard by index
+  vmiArtboard->propertyValue(1);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Change source to invalid index
-    vmiArtboard->propertyValue(10);
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    CHECK(silver.matches("data_bind_artboard_input"));
+  // Change source to invalid index
+  vmiArtboard->propertyValue(10);
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  CHECK(silver.matches("data_bind_artboard_input"));
 }
 #endif
 
-TEST_CASE("Data bind external artboard with no initial source artboard",
-          "[silver]")
+TEST_CASE(
+    "Data bind external artboard with no initial source artboard",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/databind_external_artboard_main.riv", &silver);
-    auto file2 =
-        ReadRiveFile("assets/databind_external_artboard_child.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/databind_external_artboard_main.riv",
+      &silver);
+  auto file2 = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
 
-    auto vmi = file->createViewModelInstance(artboard.get());
-    stateMachine->bindViewModelInstance(vmi);
-    auto artboardProp =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    auto insertedArtboard = file2->bindableArtboardNamed("ExternalChild");
-    artboardProp->asset(insertedArtboard);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto artboardProp = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  auto insertedArtboard = file2->bindableArtboardNamed("ExternalChild");
+  artboardProp->asset(insertedArtboard);
 
-    auto mainVM = file2->viewModelByName("Child");
-    auto mainVMI = mainVM->createInstanceFromName("Instance");
-    auto newCircleProp = mainVMI->propertyString("label");
-    vmi->replaceViewModelByName("child", mainVMI->instance());
-    newCircleProp->value("updated label");
+  auto mainVM = file2->viewModelByName("Child");
+  auto mainVMI = mainVM->createInstanceFromName("Instance");
+  auto newCircleProp = mainVMI->propertyString("label");
+  vmi->replaceViewModelByName("child", mainVMI->instance());
+  newCircleProp->value("updated label");
 
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("databind_external_artboard_main"));
+  CHECK(silver.matches("databind_external_artboard_main"));
 }
 
-TEST_CASE("Data bound artboard with view model instance resets its properties",
-          "[silver]")
+TEST_CASE(
+    "Data bound artboard with view model instance resets its properties",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/bindable_artboard_nesty.riv", &silver);
-    auto file2 = ReadRiveFile("assets/bindable_artboard_child.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/bindable_artboard_nesty.riv", &silver);
+  auto file2 = ReadRiveFile("assets/bindable_artboard_child.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
-    auto renderer = silver.makeRenderer();
+  silver.frameSize(artboard->width(), artboard->height());
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
-    auto artboardProp =
-        vmi->propertyValue("someArtboard")->as<ViewModelInstanceArtboard>();
-    auto insertedArtboard = file2->bindableArtboardNamed("Artboard");
-    auto viewModelRenamed = file2->viewModel("ViewModelRenamed");
-    auto viewModelRenamedInstance = viewModelRenamed->createInstance();
-    artboardProp->asset(insertedArtboard);
-    artboardProp->boundViewModelInstance(viewModelRenamedInstance);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  auto artboardProp = vmi->propertyValue("someArtboard")
+                          ->as<ViewModelInstanceArtboard>();
+  auto insertedArtboard = file2->bindableArtboardNamed("Artboard");
+  auto viewModelRenamed = file2->viewModel("ViewModelRenamed");
+  auto viewModelRenamedInstance = viewModelRenamed->createInstance();
+  artboardProp->asset(insertedArtboard);
+  artboardProp->boundViewModelInstance(viewModelRenamedInstance);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(250, 250));
+  stateMachine->pointerUp(rive::Vec2D(250, 250));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  int frames = (int)(0.5f / 0.1f);
+  for (int i = 0; i < frames; i++)
+  {
     silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(250, 250));
-    stateMachine->pointerUp(rive::Vec2D(250, 250));
-    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
+  }
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(250, 250));
+  stateMachine->pointerUp(rive::Vec2D(250, 250));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    int frames = (int)(0.5f / 0.1f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(250, 250));
-    stateMachine->pointerUp(rive::Vec2D(250, 250));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    CHECK(silver.matches("bindable_artboard_nesty"));
+  CHECK(silver.matches("bindable_artboard_nesty"));
 }
 
 TEST_CASE(
     "Data bound artboards with multiple targets bound to same property bidirectionally",
     "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/bidirectional_binding_source.riv", &silver);
-    auto file2 =
-        ReadRiveFile("assets/bidirectional_binding_target_1.riv", &silver);
-    auto file3 =
-        ReadRiveFile("assets/bidirectional_binding_target_2.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/bidirectional_binding_source.riv", &silver);
+  auto file2 = ReadRiveFile(
+      "assets/bidirectional_binding_target_1.riv",
+      &silver);
+  auto file3 = ReadRiveFile(
+      "assets/bidirectional_binding_target_2.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    auto renderer = silver.makeRenderer();
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto renderer = silver.makeRenderer();
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    auto abProp = vmi->propertyValue("costume_db_artboard")
-                      ->as<ViewModelInstanceArtboard>();
+  auto abProp = vmi->propertyValue("costume_db_artboard")
+                    ->as<ViewModelInstanceArtboard>();
 
-    auto costume1 = file2->bindableArtboardNamed("costume_artboard");
-    auto costume2 = file3->bindableArtboardNamed("costume_artboard");
+  auto costume1 = file2->bindableArtboardNamed("costume_artboard");
+  auto costume2 = file3->bindableArtboardNamed("costume_artboard");
 
-    auto newProp =
-        vmi->propertyValue("costume_db_bool")->as<ViewModelInstanceBoolean>();
-    newProp->propertyValue(true);
-    artboard->draw(renderer.get());
-    silver.addFrame();
+  auto newProp = vmi->propertyValue("costume_db_bool")
+                     ->as<ViewModelInstanceBoolean>();
+  newProp->propertyValue(true);
+  artboard->draw(renderer.get());
+  silver.addFrame();
 
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    abProp->asset(costume1);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  abProp->asset(costume1);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    abProp->asset(costume2);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  abProp->asset(costume2);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    abProp->asset(costume1);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  abProp->asset(costume1);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    abProp->asset(costume2);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  abProp->asset(costume2);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("bidirectional_binding_source"));
+  CHECK(silver.matches("bidirectional_binding_source"));
 }
 
-TEST_CASE("Null-bound artboard swap survives pending layout sync",
-          "[data binding]")
+TEST_CASE(
+    "Null-bound artboard swap survives pending layout sync",
+    "[data binding]")
 {
-    // The swap host has a static artboard AND an artboardId bind whose
-    // view-model artboard property is never set. The first advance applies
-    // the bind as an explicit null, tearing down the statically nested
-    // instance while it is still registered in the hosting artboard's dirty
-    // layout set. Regression test for a use-after-free in syncStyleChanges
-    // (run under ASAN for the strongest signal).
-    auto file = ReadRiveFile("assets/databind_null_artboard_swap.riv");
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
-    auto vmi = file->createViewModelInstance(artboard.get());
-    REQUIRE(vmi != nullptr);
-    artboard->bindViewModelInstance(vmi);
+  // The swap host has a static artboard AND an artboardId bind whose
+  // view-model artboard property is never set. The first advance applies
+  // the bind as an explicit null, tearing down the statically nested
+  // instance while it is still registered in the hosting artboard's dirty
+  // layout set. Regression test for a use-after-free in syncStyleChanges
+  // (run under ASAN for the strongest signal).
+  auto file = ReadRiveFile("assets/databind_null_artboard_swap.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  artboard->bindViewModelInstance(vmi);
 
-    auto host = artboard->find<NestedArtboardLayout>("swap host");
-    REQUIRE(host != nullptr);
-    REQUIRE(host->artboardInstance() != nullptr);
+  auto host = artboard->find<NestedArtboardLayout>("swap host");
+  REQUIRE(host != nullptr);
+  REQUIRE(host->artboardInstance() != nullptr);
 
-    artboard->advance(0.0f);
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // The null bind cleared the nested instance without crashing.
-    REQUIRE(host->artboardInstance() == nullptr);
+  // The null bind cleared the nested instance without crashing.
+  REQUIRE(host->artboardInstance() == nullptr);
 }

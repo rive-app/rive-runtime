@@ -16,21 +16,22 @@ namespace
 class AutoLockAndNotify
 {
 public:
-    AutoLockAndNotify(std::mutex& mutex, std::condition_variable& cv) :
-        m_mutex(mutex), m_cv(cv)
-    {
-        m_mutex.lock();
-    }
+  AutoLockAndNotify(std::mutex& mutex, std::condition_variable& cv)
+      : m_mutex(mutex)
+      , m_cv(cv)
+  {
+    m_mutex.lock();
+  }
 
-    ~AutoLockAndNotify()
-    {
-        m_cv.notify_one();
-        m_mutex.unlock();
-    }
+  ~AutoLockAndNotify()
+  {
+    m_cv.notify_one();
+    m_mutex.unlock();
+  }
 
 private:
-    std::mutex& m_mutex;
-    std::condition_variable& m_cv;
+  std::mutex& m_mutex;
+  std::condition_variable& m_cv;
 };
 }; // namespace
 
@@ -48,91 +49,94 @@ FileHandle CommandQueue::loadFile(
 #endif
 )
 {
-    auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
+  auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::loadFile;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_byteVectors << std::move(rivBytes);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::loadFile;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_byteVectors << std::move(rivBytes);
 #ifdef WITH_RIVE_SCRIPTING
-    m_scriptingContextFactories << std::move(scriptingContextFactory);
+  m_scriptingContextFactories << std::move(scriptingContextFactory);
 #endif
 
-    return handle;
+  return handle;
 }
 
 void CommandQueue::deleteFile(FileHandle fileHandle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteFile;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteFile;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::addGlobalImageAsset(std::string name,
-                                       RenderImageHandle handle,
-                                       uint64_t requestId)
+void CommandQueue::addGlobalImageAsset(
+    std::string name,
+    RenderImageHandle handle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::addImageFileAsset;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::addImageFileAsset;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
-void CommandQueue::addGlobalFontAsset(std::string name,
-                                      FontHandle handle,
-                                      uint64_t requestId)
+void CommandQueue::addGlobalFontAsset(
+    std::string name,
+    FontHandle handle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::addFontFileAsset;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::addFontFileAsset;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
-void CommandQueue::addGlobalAudioAsset(std::string name,
-                                       AudioSourceHandle handle,
-                                       uint64_t requestId)
+void CommandQueue::addGlobalAudioAsset(
+    std::string name,
+    AudioSourceHandle handle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::addAudioFileAsset;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::addAudioFileAsset;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
 void CommandQueue::removeGlobalImageAsset(std::string name, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::removeImageFileAsset;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::removeImageFileAsset;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
 void CommandQueue::removeGlobalFontAsset(std::string name, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::removeFontFileAsset;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::removeFontFileAsset;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
 void CommandQueue::removeGlobalAudioAsset(std::string name, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::removeAudioFileAsset;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::removeAudioFileAsset;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
 ArtboardHandle CommandQueue::instantiateArtboardNamed(
@@ -141,77 +145,81 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
     ArtboardListener* listener,
     uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<ArtboardHandle>(++m_currentArtboardHandleIdx);
+  auto handle = reinterpret_cast<ArtboardHandle>(++m_currentArtboardHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateArtboard;
-    m_commandStream << handle;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
-    m_names << std::move(name);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateArtboard;
+  m_commandStream << handle;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
+  m_names << std::move(name);
 
-    return handle;
+  return handle;
 }
 
-void CommandQueue::setArtboardSize(ArtboardHandle artboardHandle,
-                                   float width,
-                                   float height,
-                                   float scale,
-                                   uint64_t requestId)
+void CommandQueue::setArtboardSize(
+    ArtboardHandle artboardHandle,
+    float width,
+    float height,
+    float scale,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setArtboardSize;
-    m_commandStream << artboardHandle;
-    m_commandStream << width / scale;
-    m_commandStream << height / scale;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setArtboardSize;
+  m_commandStream << artboardHandle;
+  m_commandStream << width / scale;
+  m_commandStream << height / scale;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::resetArtboardSize(ArtboardHandle artboardHandle,
-                                     uint64_t requestId)
+void CommandQueue::resetArtboardSize(
+    ArtboardHandle artboardHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::resetArtboardSize;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::resetArtboardSize;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::setArtboardVolume(ArtboardHandle artboardHandle,
-                                     float volume,
-                                     uint64_t requestId)
+void CommandQueue::setArtboardVolume(
+    ArtboardHandle artboardHandle,
+    float volume,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setArtboardVolume;
-    m_commandStream << artboardHandle;
-    m_commandStream << volume;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setArtboardVolume;
+  m_commandStream << artboardHandle;
+  m_commandStream << volume;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestArtboardVolume(ArtboardHandle artboardHandle,
-                                         uint64_t requestId)
+void CommandQueue::requestArtboardVolume(
+    ArtboardHandle artboardHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getArtboardVolume;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getArtboardVolume;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
-                                  uint64_t requestId)
+void CommandQueue::deleteArtboard(
+    ArtboardHandle artboardHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteArtboard;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteArtboard;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
 ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
@@ -220,23 +228,23 @@ ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateBlankViewModelForArtboard;
-    m_commandStream << fileHandle;
-    m_commandStream << artboardHandle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateBlankViewModelForArtboard;
+  m_commandStream << fileHandle;
+  m_commandStream << artboardHandle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
@@ -245,23 +253,23 @@ ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateBlankViewModel;
-    m_commandStream << fileHandle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << viewModelName;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateBlankViewModel;
+  m_commandStream << fileHandle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << viewModelName;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
@@ -271,24 +279,24 @@ ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateViewModelForArtboard;
-    m_commandStream << fileHandle;
-    m_commandStream << artboardHandle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << viewModelInstanceName;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateViewModelForArtboard;
+  m_commandStream << fileHandle;
+  m_commandStream << artboardHandle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << viewModelInstanceName;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
@@ -298,24 +306,24 @@ ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateViewModel;
-    m_commandStream << fileHandle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << viewModelName;
-    m_names << viewModelInstanceName;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateViewModel;
+  m_commandStream << fileHandle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << viewModelName;
+  m_names << viewModelInstanceName;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 ViewModelInstanceHandle CommandQueue::referenceNestedViewModelInstance(
@@ -324,23 +332,23 @@ ViewModelInstanceHandle CommandQueue::referenceNestedViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::refNestedViewModel;
-    m_commandStream << handle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << path;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::refNestedViewModel;
+  m_commandStream << handle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << path;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 ViewModelInstanceHandle CommandQueue::referenceListViewModelInstance(
@@ -350,162 +358,172 @@ ViewModelInstanceHandle CommandQueue::referenceListViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::refListViewModel;
-    m_commandStream << handle;
-    m_commandStream << index;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << path;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::refListViewModel;
+  m_commandStream << handle;
+  m_commandStream << index;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << path;
 
-    return viewHandle;
+  return viewHandle;
 }
 
-void CommandQueue::fireViewModelTrigger(ViewModelInstanceHandle handle,
-                                        std::string path,
-                                        uint64_t requestId)
+void CommandQueue::fireViewModelTrigger(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::trigger;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::trigger;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceBool(ViewModelInstanceHandle handle,
-                                            std::string path,
-                                            bool value,
-                                            uint64_t requestId)
+void CommandQueue::setViewModelInstanceBool(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    bool value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::boolean;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::boolean;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceNumber(ViewModelInstanceHandle handle,
-                                              std::string path,
-                                              float value,
-                                              uint64_t requestId)
+void CommandQueue::setViewModelInstanceNumber(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    float value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::number;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::number;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceColor(ViewModelInstanceHandle handle,
-                                             std::string path,
-                                             ColorInt value,
-                                             uint64_t requestId)
+void CommandQueue::setViewModelInstanceColor(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    ColorInt value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::color;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::color;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceEnum(ViewModelInstanceHandle handle,
-                                            std::string path,
-                                            std::string value,
-                                            uint64_t requestId)
+void CommandQueue::setViewModelInstanceEnum(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    std::string value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::enumType;
-    m_commandStream << requestId;
-    m_names << path;
-    m_names << value;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::enumType;
+  m_commandStream << requestId;
+  m_names << path;
+  m_names << value;
 }
 
-void CommandQueue::setViewModelInstanceString(ViewModelInstanceHandle handle,
-                                              std::string path,
-                                              std::string value,
-                                              uint64_t requestId)
+void CommandQueue::setViewModelInstanceString(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    std::string value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::string;
-    m_commandStream << requestId;
-    m_names << path;
-    m_names << value;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::string;
+  m_commandStream << requestId;
+  m_names << path;
+  m_names << value;
 }
 
-void CommandQueue::setViewModelInstanceImage(ViewModelInstanceHandle handle,
-                                             std::string path,
-                                             RenderImageHandle value,
-                                             uint64_t requestId)
+void CommandQueue::setViewModelInstanceImage(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    RenderImageHandle value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::assetImage;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::assetImage;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceFont(ViewModelInstanceHandle handle,
-                                            std::string path,
-                                            FontHandle value,
-                                            uint64_t requestId)
+void CommandQueue::setViewModelInstanceFont(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    FontHandle value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::assetFont;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::assetFont;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceBlob(ViewModelInstanceHandle handle,
-                                            std::string path,
-                                            BlobAssetHandle value,
-                                            uint64_t requestId)
+void CommandQueue::setViewModelInstanceBlob(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    BlobAssetHandle value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::assetBlob;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::assetBlob;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
-void CommandQueue::setViewModelInstanceArtboard(ViewModelInstanceHandle handle,
-                                                std::string path,
-                                                ArtboardHandle value,
-                                                uint64_t requestId)
+void CommandQueue::setViewModelInstanceArtboard(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    ArtboardHandle value,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::artboard;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::artboard;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
 void CommandQueue::setViewModelInstanceNestedViewModel(
@@ -514,13 +532,13 @@ void CommandQueue::setViewModelInstanceNestedViewModel(
     ViewModelInstanceHandle value,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstanceValue;
-    m_commandStream << handle;
-    m_commandStream << DataType::viewModel;
-    m_commandStream << requestId;
-    m_commandStream << value;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstanceValue;
+  m_commandStream << handle;
+  m_commandStream << DataType::viewModel;
+  m_commandStream << requestId;
+  m_commandStream << value;
+  m_names << path;
 }
 
 void CommandQueue::insertViewModelInstanceListViewModel(
@@ -530,13 +548,13 @@ void CommandQueue::insertViewModelInstanceListViewModel(
     int index,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::addViewModelListValue;
-    m_commandStream << handle;
-    m_commandStream << value;
-    m_commandStream << index;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::addViewModelListValue;
+  m_commandStream << handle;
+  m_commandStream << value;
+  m_commandStream << index;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::removeViewModelInstanceListViewModel(
@@ -546,13 +564,13 @@ void CommandQueue::removeViewModelInstanceListViewModel(
     ViewModelInstanceHandle value,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::removeViewModelListValue;
-    m_commandStream << handle;
-    m_commandStream << value;
-    m_commandStream << index;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::removeViewModelListValue;
+  m_commandStream << handle;
+  m_commandStream << value;
+  m_commandStream << index;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::swapViewModelInstanceListValues(
@@ -562,26 +580,27 @@ void CommandQueue::swapViewModelInstanceListValues(
     int indexb,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::swapViewModelListValue;
-    m_commandStream << handle;
-    m_commandStream << indexa;
-    m_commandStream << indexb;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::swapViewModelListValue;
+  m_commandStream << handle;
+  m_commandStream << indexa;
+  m_commandStream << indexb;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::subscribeToViewModelProperty(ViewModelInstanceHandle handle,
-                                                std::string path,
-                                                DataType type,
-                                                uint64_t requestId)
+void CommandQueue::subscribeToViewModelProperty(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    DataType type,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::subscribeViewModelProperty;
-    m_commandStream << handle;
-    m_commandStream << type;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::subscribeViewModelProperty;
+  m_commandStream << handle;
+  m_commandStream << type;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::unsubscribeToViewModelProperty(
@@ -590,21 +609,22 @@ void CommandQueue::unsubscribeToViewModelProperty(
     DataType type,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::unsubscribeViewModelProperty;
-    m_commandStream << handle;
-    m_commandStream << type;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::unsubscribeViewModelProperty;
+  m_commandStream << handle;
+  m_commandStream << type;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::deleteViewModelInstance(ViewModelInstanceHandle handle,
-                                           uint64_t requestId)
+void CommandQueue::deleteViewModelInstance(
+    ViewModelInstanceHandle handle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteViewModel;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteViewModel;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
 StateMachineHandle CommandQueue::instantiateStateMachineNamed(
@@ -613,119 +633,127 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     StateMachineListener* listener,
     uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<StateMachineHandle>(++m_currentStateMachineHandleIdx);
+  auto handle = reinterpret_cast<StateMachineHandle>(
+      ++m_currentStateMachineHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::instantiateStateMachine;
-    m_commandStream << handle;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
-    m_names << std::move(name);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::instantiateStateMachine;
+  m_commandStream << handle;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
+  m_names << std::move(name);
 
-    return handle;
+  return handle;
 }
 
-void CommandQueue::pointerMove(StateMachineHandle stateMachineHandle,
-                               PointerEvent pointerEvent,
-                               uint64_t requestId)
+void CommandQueue::pointerMove(
+    StateMachineHandle stateMachineHandle,
+    PointerEvent pointerEvent,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::pointerMove;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_pointerEvents << std::move(pointerEvent);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::pointerMove;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_pointerEvents << std::move(pointerEvent);
 }
 
-void CommandQueue::pointerDown(StateMachineHandle stateMachineHandle,
-                               PointerEvent pointerEvent,
-                               uint64_t requestId)
+void CommandQueue::pointerDown(
+    StateMachineHandle stateMachineHandle,
+    PointerEvent pointerEvent,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::pointerDown;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_pointerEvents << std::move(pointerEvent);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::pointerDown;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_pointerEvents << std::move(pointerEvent);
 }
 
-void CommandQueue::pointerUp(StateMachineHandle stateMachineHandle,
-                             PointerEvent pointerEvent,
-                             uint64_t requestId)
+void CommandQueue::pointerUp(
+    StateMachineHandle stateMachineHandle,
+    PointerEvent pointerEvent,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::pointerUp;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_pointerEvents << std::move(pointerEvent);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::pointerUp;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_pointerEvents << std::move(pointerEvent);
 }
 
-void CommandQueue::pointerExit(StateMachineHandle stateMachineHandle,
-                               PointerEvent pointerEvent,
-                               uint64_t requestId)
+void CommandQueue::pointerExit(
+    StateMachineHandle stateMachineHandle,
+    PointerEvent pointerEvent,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::pointerExit;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_pointerEvents << std::move(pointerEvent);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::pointerExit;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_pointerEvents << std::move(pointerEvent);
 }
 
-void CommandQueue::keyInput(StateMachineHandle stateMachineHandle,
-                            Key key,
-                            KeyModifiers modifiers,
-                            bool isPressed,
-                            bool isRepeat,
-                            uint64_t requestId)
+void CommandQueue::keyInput(
+    StateMachineHandle stateMachineHandle,
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::keyInput;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_commandStream << key;
-    m_commandStream << modifiers;
-    m_commandStream << isPressed;
-    m_commandStream << isRepeat;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::keyInput;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_commandStream << key;
+  m_commandStream << modifiers;
+  m_commandStream << isPressed;
+  m_commandStream << isRepeat;
 }
 
-void CommandQueue::textInput(StateMachineHandle stateMachineHandle,
-                             std::string text,
-                             uint64_t requestId)
+void CommandQueue::textInput(
+    StateMachineHandle stateMachineHandle,
+    std::string text,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::textInput;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_names << std::move(text);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::textInput;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_names << std::move(text);
 }
 
-void CommandQueue::bindViewModelInstance(StateMachineHandle handle,
-                                         ViewModelInstanceHandle viewModel,
-                                         uint64_t requestId)
+void CommandQueue::bindViewModelInstance(
+    StateMachineHandle handle,
+    ViewModelInstanceHandle viewModel,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::bindViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << viewModel;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::bindViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << viewModel;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::setViewModelInstance(StateMachineHandle handle,
-                                        ViewModelInstanceHandle viewModel,
-                                        uint64_t requestId)
+void CommandQueue::setViewModelInstance(
+    StateMachineHandle handle,
+    ViewModelInstanceHandle viewModel,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << viewModel;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << viewModel;
+  m_commandStream << requestId;
 }
 
 ViewModelInstanceHandle CommandQueue::mainViewModelInstance(
@@ -733,55 +761,58 @@ ViewModelInstanceHandle CommandQueue::mainViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getMainViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getMainViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
 
-    return viewHandle;
+  return viewHandle;
 }
 
-void CommandQueue::clearViewModelInstance(StateMachineHandle handle,
-                                          uint64_t requestId)
+void CommandQueue::clearViewModelInstance(
+    StateMachineHandle handle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::clearViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::clearViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::setGlobalViewModelInstance(StateMachineHandle handle,
-                                              std::string name,
-                                              ViewModelInstanceHandle viewModel,
-                                              uint64_t requestId)
+void CommandQueue::setGlobalViewModelInstance(
+    StateMachineHandle handle,
+    std::string name,
+    ViewModelInstanceHandle viewModel,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::setGlobalViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << viewModel;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::setGlobalViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << viewModel;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
-void CommandQueue::clearGlobalViewModelInstance(StateMachineHandle handle,
-                                                std::string name,
-                                                uint64_t requestId)
+void CommandQueue::clearGlobalViewModelInstance(
+    StateMachineHandle handle,
+    std::string name,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::clearGlobalViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << name;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::clearGlobalViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << name;
 }
 
 ViewModelInstanceHandle CommandQueue::globalViewModelInstance(
@@ -790,111 +821,118 @@ ViewModelInstanceHandle CommandQueue::globalViewModelInstance(
     ViewModelInstanceListener* listener,
     uint64_t requestId)
 {
-    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
-        ++m_currentViewModelHandleIdx);
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = viewHandle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(viewHandle, listener);
-    }
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getGlobalViewModelInstance;
-    m_commandStream << handle;
-    m_commandStream << viewHandle;
-    m_commandStream << requestId;
-    m_names << name;
+  auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+      ++m_currentViewModelHandleIdx);
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = viewHandle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(viewHandle, listener);
+  }
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getGlobalViewModelInstance;
+  m_commandStream << handle;
+  m_commandStream << viewHandle;
+  m_commandStream << requestId;
+  m_names << name;
 
-    return viewHandle;
+  return viewHandle;
 }
 
 void CommandQueue::bind(StateMachineHandle handle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::bind;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::bind;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::advanceStateMachine(StateMachineHandle stateMachineHandle,
-                                       float timeToAdvance,
-                                       uint64_t requestId)
+void CommandQueue::advanceStateMachine(
+    StateMachineHandle stateMachineHandle,
+    float timeToAdvance,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::advanceStateMachine;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_commandStream << timeToAdvance;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::advanceStateMachine;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_commandStream << timeToAdvance;
 }
 
-void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle,
-                                      uint64_t requestId)
+void CommandQueue::deleteStateMachine(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteStateMachine;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteStateMachine;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::enableSemantics(StateMachineHandle stateMachineHandle,
-                                   uint64_t requestId)
+void CommandQueue::enableSemantics(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::enableSemantics;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::enableSemantics;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::drainSemanticsDiff(StateMachineHandle stateMachineHandle,
-                                      Fit fit,
-                                      Alignment alignment,
-                                      float scaleFactor,
-                                      Vec2D viewBounds,
-                                      uint64_t requestId)
+void CommandQueue::drainSemanticsDiff(
+    StateMachineHandle stateMachineHandle,
+    Fit fit,
+    Alignment alignment,
+    float scaleFactor,
+    Vec2D viewBounds,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::drainSemanticsDiff;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_commandStream << fit;
-    m_commandStream << alignment.x();
-    m_commandStream << alignment.y();
-    m_commandStream << scaleFactor;
-    m_commandStream << viewBounds;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::drainSemanticsDiff;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_commandStream << fit;
+  m_commandStream << alignment.x();
+  m_commandStream << alignment.y();
+  m_commandStream << scaleFactor;
+  m_commandStream << viewBounds;
 }
 
-void CommandQueue::fireSemanticAction(StateMachineHandle stateMachineHandle,
-                                      uint32_t semanticNodeId,
-                                      SemanticActionType actionType,
-                                      uint64_t requestId)
+void CommandQueue::fireSemanticAction(
+    StateMachineHandle stateMachineHandle,
+    uint32_t semanticNodeId,
+    SemanticActionType actionType,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::fireSemanticAction;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_commandStream << semanticNodeId;
-    m_commandStream << actionType;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::fireSemanticAction;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_commandStream << semanticNodeId;
+  m_commandStream << actionType;
 }
 
-void CommandQueue::requestSemanticFocus(StateMachineHandle stateMachineHandle,
-                                        uint32_t semanticNodeId,
-                                        uint64_t requestId)
+void CommandQueue::requestSemanticFocus(
+    StateMachineHandle stateMachineHandle,
+    uint32_t semanticNodeId,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::requestSemanticFocus;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
-    m_commandStream << semanticNodeId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::requestSemanticFocus;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
+  m_commandStream << semanticNodeId;
 }
 
-void CommandQueue::clearSemanticFocus(StateMachineHandle stateMachineHandle,
-                                      uint64_t requestId)
+void CommandQueue::clearSemanticFocus(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::clearSemanticFocus;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::clearSemanticFocus;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
 RenderImageHandle CommandQueue::decodeImage(
@@ -902,54 +940,55 @@ RenderImageHandle CommandQueue::decodeImage(
     RenderImageListener* listener,
     uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<RenderImageHandle>(++m_currentRenderImageHandleIdx);
+  auto handle = reinterpret_cast<RenderImageHandle>(
+      ++m_currentRenderImageHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::decodeImage;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_byteVectors << std::move(imageEncodedBytes);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::decodeImage;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_byteVectors << std::move(imageEncodedBytes);
+  return handle;
 }
 
-RenderImageHandle CommandQueue::addExternalImage(rcp<RenderImage> externalImage,
-                                                 RenderImageListener* listener,
-                                                 uint64_t requestId)
+RenderImageHandle CommandQueue::addExternalImage(
+    rcp<RenderImage> externalImage,
+    RenderImageListener* listener,
+    uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<RenderImageHandle>(++m_currentRenderImageHandleIdx);
+  auto handle = reinterpret_cast<RenderImageHandle>(
+      ++m_currentRenderImageHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::externalImage;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_externalImages << std::move(externalImage);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::externalImage;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_externalImages << std::move(externalImage);
+  return handle;
 }
 
 void CommandQueue::deleteImage(RenderImageHandle handle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteImage;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteImage;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
 AudioSourceHandle CommandQueue::decodeAudio(
@@ -957,275 +996,284 @@ AudioSourceHandle CommandQueue::decodeAudio(
     AudioSourceListener* listener,
     uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<AudioSourceHandle>(++m_currentAudioSourceHandleIdx);
+  auto handle = reinterpret_cast<AudioSourceHandle>(
+      ++m_currentAudioSourceHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::decodeAudio;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_byteVectors << std::move(imageEncodedBytes);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::decodeAudio;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_byteVectors << std::move(imageEncodedBytes);
+  return handle;
 }
 
-AudioSourceHandle CommandQueue::addExternalAudio(rcp<AudioSource> externalAudio,
-                                                 AudioSourceListener* listener,
-                                                 uint64_t requestId)
+AudioSourceHandle CommandQueue::addExternalAudio(
+    rcp<AudioSource> externalAudio,
+    AudioSourceListener* listener,
+    uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<AudioSourceHandle>(++m_currentAudioSourceHandleIdx);
+  auto handle = reinterpret_cast<AudioSourceHandle>(
+      ++m_currentAudioSourceHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::externalAudio;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_externalAudioSources << std::move(externalAudio);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::externalAudio;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_externalAudioSources << std::move(externalAudio);
+  return handle;
 }
 
 void CommandQueue::deleteAudio(AudioSourceHandle handle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteAudio;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteAudio;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
-FontHandle CommandQueue::decodeFont(std::vector<uint8_t> imageEncodedBytes,
-                                    FontListener* listener,
-                                    uint64_t requestId)
+FontHandle CommandQueue::decodeFont(
+    std::vector<uint8_t> imageEncodedBytes,
+    FontListener* listener,
+    uint64_t requestId)
 {
-    auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
+  auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::decodeFont;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_byteVectors << std::move(imageEncodedBytes);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::decodeFont;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_byteVectors << std::move(imageEncodedBytes);
+  return handle;
 }
 
-FontHandle CommandQueue::addExternalFont(rcp<Font> externalFont,
-                                         FontListener* listener,
-                                         uint64_t requestId)
+FontHandle CommandQueue::addExternalFont(
+    rcp<Font> externalFont,
+    FontListener* listener,
+    uint64_t requestId)
 {
-    auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
+  auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::externalFont;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_externalFonts << std::move(externalFont);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::externalFont;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_externalFonts << std::move(externalFont);
+  return handle;
 }
 
 void CommandQueue::deleteFont(FontHandle handle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteFont;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteFont;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
-BlobAssetHandle CommandQueue::decodeBlob(std::vector<uint8_t> blobBytes,
-                                         BlobAssetListener* listener,
-                                         uint64_t requestId)
+BlobAssetHandle CommandQueue::decodeBlob(
+    std::vector<uint8_t> blobBytes,
+    BlobAssetListener* listener,
+    uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<BlobAssetHandle>(++m_currentBlobAssetHandleIdx);
+  auto handle = reinterpret_cast<BlobAssetHandle>(
+      ++m_currentBlobAssetHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::decodeBlob;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_byteVectors << std::move(blobBytes);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::decodeBlob;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_byteVectors << std::move(blobBytes);
+  return handle;
 }
 
-BlobAssetHandle CommandQueue::addExternalBlob(rcp<BlobAsset> externalBlob,
-                                              BlobAssetListener* listener,
-                                              uint64_t requestId)
+BlobAssetHandle CommandQueue::addExternalBlob(
+    rcp<BlobAsset> externalBlob,
+    BlobAssetListener* listener,
+    uint64_t requestId)
 {
-    auto handle =
-        reinterpret_cast<BlobAssetHandle>(++m_currentBlobAssetHandleIdx);
+  auto handle = reinterpret_cast<BlobAssetHandle>(
+      ++m_currentBlobAssetHandleIdx);
 
-    if (listener)
-    {
-        assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
-        listener->m_owningQueue = ref_rcp(this);
-        registerListener(handle, listener);
-    }
+  if (listener)
+  {
+    assert(listener->m_handle == RIVE_NULL_HANDLE);
+    listener->m_handle = handle;
+    listener->m_owningQueue = ref_rcp(this);
+    registerListener(handle, listener);
+  }
 
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::externalBlob;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_externalBlobs << std::move(externalBlob);
-    return handle;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::externalBlob;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_externalBlobs << std::move(externalBlob);
+  return handle;
 }
 
 void CommandQueue::deleteBlob(BlobAssetHandle handle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::deleteBlob;
-    m_commandStream << handle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::deleteBlob;
+  m_commandStream << handle;
+  m_commandStream << requestId;
 }
 
 DrawKey CommandQueue::createDrawKey()
 {
-    // lock here so we can do this from several threads safely
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    auto key = reinterpret_cast<DrawKey>(++m_currentDrawKeyIdx);
-    return key;
+  // lock here so we can do this from several threads safely
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  auto key = reinterpret_cast<DrawKey>(++m_currentDrawKeyIdx);
+  return key;
 }
 
 void CommandQueue::draw(DrawKey drawKey, CommandServerDrawCallback callback)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::draw;
-    m_commandStream << drawKey;
-    m_drawCallbacks << std::move(callback);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::draw;
+  m_commandStream << drawKey;
+  m_drawCallbacks << std::move(callback);
 }
 
 void CommandQueue::cancelDraw(DrawKey drawKey)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::cancelDraw;
-    m_commandStream << drawKey;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::cancelDraw;
+  m_commandStream << drawKey;
 }
 
 #ifdef TESTING
 void CommandQueue::testing_commandLoopBreak()
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::commandLoopBreak;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::commandLoopBreak;
 }
 
 CommandQueue::FileListener* CommandQueue::testing_getFileListener(
     FileHandle handle)
 {
-    auto iter = m_fileListeners.find(handle);
-    if (iter != m_fileListeners.end())
-        return iter->second;
-    return nullptr;
+  auto iter = m_fileListeners.find(handle);
+  if (iter != m_fileListeners.end())
+    return iter->second;
+  return nullptr;
 }
 
 CommandQueue::ArtboardListener* CommandQueue::testing_getArtboardListener(
     ArtboardHandle handle)
 {
-    auto iter = m_artboardListeners.find(handle);
-    if (iter != m_artboardListeners.end())
-        return iter->second;
-    return nullptr;
+  auto iter = m_artboardListeners.find(handle);
+  if (iter != m_artboardListeners.end())
+    return iter->second;
+  return nullptr;
 }
 
 CommandQueue::StateMachineListener* CommandQueue::
     testing_getStateMachineListener(StateMachineHandle handle)
 {
-    auto iter = m_stateMachineListeners.find(handle);
-    if (iter != m_stateMachineListeners.end())
-        return iter->second;
-    return nullptr;
+  auto iter = m_stateMachineListeners.find(handle);
+  if (iter != m_stateMachineListeners.end())
+    return iter->second;
+  return nullptr;
 }
 
 #endif
 void CommandQueue::runOnce(CommandServerCallback callback)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::runOnce;
-    m_callbacks << std::move(callback);
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::runOnce;
+  m_callbacks << std::move(callback);
 }
 
 void CommandQueue::disconnect()
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::disconnect;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::disconnect;
 }
 
-void CommandQueue::requestViewModelNames(FileHandle fileHandle,
-                                         uint64_t requestId)
+void CommandQueue::requestViewModelNames(
+    FileHandle fileHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModels;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModels;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestGlobalViewModelNames(FileHandle fileHandle,
-                                               uint64_t requestId)
+void CommandQueue::requestGlobalViewModelNames(
+    FileHandle fileHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listGlobalViewModelNames;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listGlobalViewModelNames;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestArtboardNames(FileHandle fileHandle,
-                                        uint64_t requestId)
+void CommandQueue::requestArtboardNames(
+    FileHandle fileHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listArtboards;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listArtboards;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
 void CommandQueue::requestFileAssets(FileHandle fileHandle, uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listFileAssets;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listFileAssets;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestViewModelEnums(FileHandle fileHandle,
-                                         uint64_t requestId)
+void CommandQueue::requestViewModelEnums(
+    FileHandle fileHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelEnums;
-    m_commandStream << fileHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelEnums;
+  m_commandStream << fileHandle;
+  m_commandStream << requestId;
 }
 
 void CommandQueue::requestViewModelPropertyDefinitions(
@@ -1233,54 +1281,56 @@ void CommandQueue::requestViewModelPropertyDefinitions(
     std::string viewModelName,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelProperties;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << viewModelName;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelProperties;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << viewModelName;
 }
 
-void CommandQueue::requestViewModelInstanceNames(FileHandle handle,
-                                                 std::string viewModelName,
-                                                 uint64_t requestId)
+void CommandQueue::requestViewModelInstanceNames(
+    FileHandle handle,
+    std::string viewModelName,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelInstanceNames;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << viewModelName;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelInstanceNames;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << viewModelName;
 }
 
 void CommandQueue::requestViewModelInstanceViewModelName(
     ViewModelInstanceHandle viewModelInstanceHandle,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getViewModelInstanceViewModelName;
-    m_commandStream << viewModelInstanceHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getViewModelInstanceViewModelName;
+  m_commandStream << viewModelInstanceHandle;
+  m_commandStream << requestId;
 }
 
 void CommandQueue::requestViewModelInstanceName(
     ViewModelInstanceHandle viewModelInstanceHandle,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getViewModelInstanceName;
-    m_commandStream << viewModelInstanceHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getViewModelInstanceName;
+  m_commandStream << viewModelInstanceHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestViewModelInstanceBool(ViewModelInstanceHandle handle,
-                                                std::string path,
-                                                uint64_t requestId)
+void CommandQueue::requestViewModelInstanceBool(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertyValue;
-    m_commandStream << DataType::boolean;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelPropertyValue;
+  m_commandStream << DataType::boolean;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::requestViewModelInstanceNumber(
@@ -1288,36 +1338,38 @@ void CommandQueue::requestViewModelInstanceNumber(
     std::string path,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertyValue;
-    m_commandStream << DataType::number;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelPropertyValue;
+  m_commandStream << DataType::number;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::requestViewModelInstanceColor(ViewModelInstanceHandle handle,
-                                                 std::string path,
-                                                 uint64_t requestId)
+void CommandQueue::requestViewModelInstanceColor(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertyValue;
-    m_commandStream << DataType::color;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelPropertyValue;
+  m_commandStream << DataType::color;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::requestViewModelInstanceEnum(ViewModelInstanceHandle handle,
-                                                std::string path,
-                                                uint64_t requestId)
+void CommandQueue::requestViewModelInstanceEnum(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertyValue;
-    m_commandStream << DataType::enumType;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelPropertyValue;
+  m_commandStream << DataType::enumType;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::requestViewModelInstanceString(
@@ -1325,12 +1377,12 @@ void CommandQueue::requestViewModelInstanceString(
     std::string path,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertyValue;
-    m_commandStream << DataType::string;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listViewModelPropertyValue;
+  m_commandStream << DataType::string;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::requestViewModelInstanceListSize(
@@ -1338,11 +1390,11 @@ void CommandQueue::requestViewModelInstanceListSize(
     std::string path,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getViewModelListSize;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getViewModelListSize;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
 void CommandQueue::requestViewModelInstanceListClear(
@@ -1350,1444 +1402,1424 @@ void CommandQueue::requestViewModelInstanceListClear(
     std::string path,
     uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::clearViewModelList;
-    m_commandStream << handle;
-    m_commandStream << requestId;
-    m_names << path;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::clearViewModelList;
+  m_commandStream << handle;
+  m_commandStream << requestId;
+  m_names << path;
 }
 
-void CommandQueue::requestArtboardSize(ArtboardHandle artboardHandle,
-                                       uint64_t requestId)
+void CommandQueue::requestArtboardSize(
+    ArtboardHandle artboardHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getArtboardSize;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getArtboardSize;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
-                                            uint64_t requestId)
+void CommandQueue::requestStateMachineNames(
+    ArtboardHandle artboardHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listStateMachines;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::listStateMachines;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestDefaultViewModelInfo(ArtboardHandle artboardHandle,
-                                               FileHandle fileHandle,
-                                               uint64_t requestId)
+void CommandQueue::requestDefaultViewModelInfo(
+    ArtboardHandle artboardHandle,
+    FileHandle fileHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getDefaultViewModel;
-    m_commandStream << fileHandle;
-    m_commandStream << artboardHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::getDefaultViewModel;
+  m_commandStream << fileHandle;
+  m_commandStream << artboardHandle;
+  m_commandStream << requestId;
 }
 
 void CommandQueue::processMessages()
 {
-    std::unique_lock<std::mutex> lock(m_messageMutex);
+  std::unique_lock<std::mutex> lock(m_messageMutex);
 
-    if (m_messageStream.empty())
-        return;
+  if (m_messageStream.empty())
+    return;
 
-    // Mark where we will end processing messages. This way if new messages come
-    // in while we're processing the existing ones, we won't loop forever.
-    m_messageStream << Message::messageLoopBreak;
+  // Mark where we will end processing messages. This way if new messages come
+  // in while we're processing the existing ones, we won't loop forever.
+  m_messageStream << Message::messageLoopBreak;
 
-    do
+  do
+  {
+    Message message;
+    m_messageStream >> message;
+
+    switch (message)
     {
-        Message message;
-        m_messageStream >> message;
-
-        switch (message)
+      case Message::messageLoopBreak:
+        lock.unlock();
+        return;
+      case Message::runtimeMessage:
+      {
+        uint32_t tag;
+        std::vector<uint8_t> payload;
+        m_messageStream >> tag;
+        m_messageByteVectors >> payload;
+        lock.unlock();
+        if (m_globalRuntimeMessageListener)
         {
-            case Message::messageLoopBreak:
-                lock.unlock();
-                return;
-            case Message::runtimeMessage:
-            {
-                uint32_t tag;
-                std::vector<uint8_t> payload;
-                m_messageStream >> tag;
-                m_messageByteVectors >> payload;
-                lock.unlock();
-                if (m_globalRuntimeMessageListener)
-                {
-                    m_globalRuntimeMessageListener->onRuntimeMessage(
-                        tag,
-                        std::move(payload));
-                }
-                break;
-            }
-            case Message::viewModelEnumsListed:
-            {
-                size_t numEnums;
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numEnums;
-                std::vector<ViewModelEnum> enums(numEnums);
-                for (auto& enumData : enums)
-                {
-                    size_t numEnumDataValue;
-                    m_messageStream >> numEnumDataValue;
-                    m_messageNames >> enumData.name;
-                    enumData.enumerants.resize(numEnumDataValue);
-                    for (auto& enumDataValue : enumData.enumerants)
-                    {
-                        m_messageNames >> enumDataValue;
-                    }
-                }
-                lock.unlock();
+          m_globalRuntimeMessageListener->onRuntimeMessage(
+              tag,
+              std::move(payload));
+        }
+        break;
+      }
+      case Message::viewModelEnumsListed:
+      {
+        size_t numEnums;
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numEnums;
+        std::vector<ViewModelEnum> enums(numEnums);
+        for (auto& enumData : enums)
+        {
+          size_t numEnumDataValue;
+          m_messageStream >> numEnumDataValue;
+          m_messageNames >> enumData.name;
+          enumData.enumerants.resize(numEnumDataValue);
+          for (auto& enumDataValue : enumData.enumerants)
+          {
+            m_messageNames >> enumDataValue;
+          }
+        }
+        lock.unlock();
 
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onViewModelEnumsListed(
-                        handle,
-                        requestId,
-                        std::move(enums));
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onViewModelEnumsListed(itr->first,
-                                                        requestId,
-                                                        std::move(enums));
-                }
-                break;
-            }
-            case Message::artboardsListed:
-            {
-                size_t numArtboards;
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numArtboards;
-                std::vector<std::string> artboardNames(numArtboards);
-                for (auto& name : artboardNames)
-                {
-                    m_messageNames >> name;
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onArtboardsListed(handle,
-                                                            requestId,
-                                                            artboardNames);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onArtboardsListed(itr->first,
-                                                   requestId,
-                                                   std::move(artboardNames));
-                }
-                break;
-            }
-            case Message::fileAssetsListed:
-            {
-                size_t numAssets;
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numAssets;
-                std::vector<FileListener::FileAssetData> assets(numAssets);
-                for (auto& asset : assets)
-                {
-                    m_messageStream >> asset.assetID;
-                    m_messageStream >> asset.type;
-                    m_messageNames >> asset.name;
-                    m_messageNames >> asset.uniqueName;
-                    m_messageNames >> asset.cdnUUID;
-                    m_messageNames >> asset.cdnBaseURL;
-                    m_messageNames >> asset.fileExtension;
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onFileAssetsListed(handle,
-                                                             requestId,
-                                                             assets);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onFileAssetsListed(itr->first,
-                                                    requestId,
-                                                    std::move(assets));
-                }
-                break;
-            }
-            case Message::stateMachinesListed:
-            {
-                size_t numStateMachines;
-                ArtboardHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numStateMachines;
-                std::vector<std::string> stateMachineNames(numStateMachines);
-                for (auto& name : stateMachineNames)
-                {
-                    m_messageNames >> name;
-                }
-                lock.unlock();
-
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onStateMachinesListed(
-                        handle,
-                        requestId,
-                        stateMachineNames);
-                }
-
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onStateMachinesListed(
-                        itr->first,
-                        requestId,
-                        std::move(stateMachineNames));
-                }
-
-                break;
-            }
-            case Message::defaultViewModelReceived:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                std::string defaultViewModel;
-                std::string defaultViewModelInstance;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> defaultViewModel;
-                m_messageNames >> defaultViewModelInstance;
-                lock.unlock();
-
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onDefaultViewModelInfoReceived(
-                        handle,
-                        requestId,
-                        defaultViewModel,
-                        defaultViewModelInstance);
-                }
-
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onDefaultViewModelInfoReceived(
-                        itr->first,
-                        requestId,
-                        std::move(defaultViewModel),
-                        std::move(defaultViewModelInstance));
-                }
-
-                break;
-            }
-            case Message::artboardVolumeReceived:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                float volume;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> volume;
-                lock.unlock();
-
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onArtboardVolumeReceived(
-                        handle,
-                        requestId,
-                        volume);
-                }
-
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onArtboardVolumeReceived(itr->first,
-                                                          requestId,
-                                                          volume);
-                }
-
-                break;
-            }
-            case Message::viewModelInstanceViewModelNameReceived:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                std::string viewModelName;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> viewModelName;
-
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener
-                        ->onViewModelInstanceViewModelNameReceived(
-                            handle,
-                            requestId,
-                            viewModelName);
-                }
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelInstanceViewModelNameReceived(
-                        handle,
-                        requestId,
-                        viewModelName);
-                }
-                break;
-            }
-            case Message::viewModelInstanceNameReceived:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                std::string instanceName;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> instanceName;
-
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelInstanceNameReceived(
-                        handle,
-                        requestId,
-                        instanceName);
-                }
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelInstanceNameReceived(
-                        handle,
-                        requestId,
-                        std::move(instanceName));
-                }
-                break;
-            }
-            case Message::viewModelsListend:
-            {
-                size_t numViewModels;
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numViewModels;
-                std::vector<std::string> viewModelNames(numViewModels);
-                for (auto& name : viewModelNames)
-                {
-                    m_messageNames >> name;
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onViewModelsListed(handle,
-                                                             requestId,
-                                                             viewModelNames);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onViewModelsListed(itr->first,
-                                                    requestId,
-                                                    std::move(viewModelNames));
-                }
-
-                break;
-            }
-            case Message::globalViewModelNamesListed:
-            {
-                size_t numViewModels;
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numViewModels;
-                std::vector<std::string> globalViewModelNames(numViewModels);
-                for (auto& name : globalViewModelNames)
-                {
-                    m_messageNames >> name;
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onGlobalViewModelNamesListed(
-                        handle,
-                        requestId,
-                        globalViewModelNames);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onGlobalViewModelNamesListed(
-                        itr->first,
-                        requestId,
-                        std::move(globalViewModelNames));
-                }
-
-                break;
-            }
-
-            case Message::viewModelInstanceNamesListed:
-            {
-                size_t numViewModels;
-                FileHandle handle;
-                uint64_t requestId;
-                std::string viewModelName;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numViewModels;
-                m_messageNames >> viewModelName;
-                std::vector<std::string> viewModelInstanceNames(numViewModels);
-                for (auto& name : viewModelInstanceNames)
-                {
-                    m_messageNames >> name;
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onViewModelInstanceNamesListed(
-                        handle,
-                        requestId,
-                        viewModelName,
-                        viewModelInstanceNames);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onViewModelInstanceNamesListed(
-                        itr->first,
-                        requestId,
-                        std::move(viewModelName),
-                        std::move(viewModelInstanceNames));
-                }
-                break;
-            }
-
-            case Message::viewModelPropertiesListed:
-            {
-                size_t numViewProperties;
-                FileHandle handle;
-                uint64_t requestId;
-                std::string viewModelName;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> numViewProperties;
-                m_messageNames >> viewModelName;
-                std::vector<CommandQueue::FileListener::ViewModelPropertyData>
-                    viewModelProperties(numViewProperties);
-
-                for (auto& property : viewModelProperties)
-                {
-                    m_messageStream >> property.type;
-                    m_messageNames >> property.name;
-                    if (property.type == DataType::enumType ||
-                        property.type == DataType::viewModel)
-                    {
-                        m_messageNames >> property.metaData;
-                    }
-                }
-                lock.unlock();
-
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onViewModelPropertiesListed(
-                        handle,
-                        requestId,
-                        viewModelName,
-                        viewModelProperties);
-                }
-
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onViewModelPropertiesListed(
-                        itr->first,
-                        requestId,
-                        std::move(viewModelName),
-                        std::move(viewModelProperties));
-                }
-
-                break;
-            }
-
-            case Message::viewModelPropertyValueReceived:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                ViewModelInstanceData value;
-
-                m_messageStream >> handle;
-                m_messageStream >> value.metaData.type;
-                m_messageStream >> requestId;
-                m_messageNames >> value.metaData.name;
-
-                switch (value.metaData.type)
-                {
-                    case DataType::assetImage:
-                    case DataType::assetFont:
-                    case DataType::assetBlob:
-                    case DataType::list:
-                    case DataType::trigger:
-                        break;
-                    case DataType::boolean:
-                        m_messageStream >> value.boolValue;
-                        break;
-                    case DataType::number:
-                        m_messageStream >> value.numberValue;
-                        break;
-                    case DataType::color:
-                        m_messageStream >> value.colorValue;
-                        break;
-                    case DataType::enumType:
-                    case DataType::string:
-                        m_messageNames >> value.stringValue;
-                        break;
-                    default:
-                        RIVE_UNREACHABLE();
-                }
-
-                lock.unlock();
-
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelDataReceived(
-                        handle,
-                        requestId,
-                        value);
-                }
-
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelDataReceived(handle,
-                                                         requestId,
-                                                         value);
-                }
-
-                break;
-            }
-
-            case Message::viewModelListSizeReceived:
-            {
-                ViewModelInstanceHandle handle;
-                std::string path;
-                size_t size;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> size;
-                m_messageStream >> requestId;
-                m_messageNames >> path;
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelListSizeReceived(
-                        handle,
-                        requestId,
-                        path,
-                        size);
-                }
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelListSizeReceived(handle,
-                                                             requestId,
-                                                             std::move(path),
-                                                             size);
-                }
-                break;
-            }
-
-            case Message::viewModelListCleared:
-            {
-                ViewModelInstanceHandle handle;
-                std::string path;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> path;
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelListCleared(handle,
-                                                                      requestId,
-                                                                      path);
-                }
-
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelListCleared(handle,
-                                                        requestId,
-                                                        std::move(path));
-                }
-            }
-            break;
-
-            case Message::fileLoaded:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onFileLoaded(handle, requestId);
-                }
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onFileLoaded(handle, requestId);
-                }
-                break;
-            }
-
-            case Message::artboardInstantiated:
-            {
-                FileHandle fileHandle;
-                ArtboardHandle handle;
-                uint64_t requestId;
-                m_messageStream >> fileHandle;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onArtboardInstantiated(fileHandle,
-                                                                 requestId,
-                                                                 handle);
-                }
-                auto itr = m_fileListeners.find(fileHandle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onArtboardInstantiated(fileHandle,
-                                                        requestId,
-                                                        handle);
-                }
-                break;
-            }
-
-            case Message::stateMachineInstantiated:
-            {
-                ArtboardHandle artboardHandle;
-                StateMachineHandle handle;
-                uint64_t requestId;
-                m_messageStream >> artboardHandle;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onStateMachineInstantiated(
-                        artboardHandle,
-                        requestId,
-                        handle);
-                }
-                auto itr = m_artboardListeners.find(artboardHandle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onStateMachineInstantiated(artboardHandle,
-                                                            requestId,
-                                                            handle);
-                }
-                break;
-            }
-
-            case Message::viewModelInstanceInstantiated:
-            {
-                FileHandle fileHandle;
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                m_messageStream >> fileHandle;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onViewModelInstanceInstantiated(
-                        fileHandle,
-                        requestId,
-                        handle);
-                }
-                auto itr = m_fileListeners.find(fileHandle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onViewModelInstanceInstantiated(fileHandle,
-                                                                 requestId,
-                                                                 handle);
-                }
-                break;
-            }
-
-            case Message::fileDeleted:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onFileDeleted(handle, requestId);
-                }
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onFileDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::imageDecoded:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalImageListener)
-                {
-                    m_globalImageListener->onRenderImageDecoded(handle,
-                                                                requestId);
-                }
-                auto itr = m_imageListeners.find(handle);
-                if (itr != m_imageListeners.end())
-                {
-                    itr->second->onRenderImageDecoded(handle, requestId);
-                }
-                break;
-            }
-            case Message::imageDeleted:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalImageListener)
-                {
-                    m_globalImageListener->onRenderImageDeleted(handle,
-                                                                requestId);
-                }
-                auto itr = m_imageListeners.find(handle);
-                if (itr != m_imageListeners.end())
-                {
-                    itr->second->onRenderImageDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::audioDecoded:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalAudioListener)
-                {
-                    m_globalAudioListener->onAudioSourceDecoded(handle,
-                                                                requestId);
-                }
-                auto itr = m_audioListeners.find(handle);
-                if (itr != m_audioListeners.end())
-                {
-                    itr->second->onAudioSourceDecoded(handle, requestId);
-                }
-                break;
-            }
-            case Message::audioDeleted:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalAudioListener)
-                {
-                    m_globalAudioListener->onAudioSourceDeleted(handle,
-                                                                requestId);
-                }
-                auto itr = m_audioListeners.find(handle);
-                if (itr != m_audioListeners.end())
-                {
-                    itr->second->onAudioSourceDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::fontDecoded:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFontListener)
-                {
-                    m_globalFontListener->onFontDecoded(handle, requestId);
-                }
-                auto itr = m_fontListeners.find(handle);
-                if (itr != m_fontListeners.end())
-                {
-                    itr->second->onFontDecoded(handle, requestId);
-                }
-                break;
-            }
-            case Message::fontDeleted:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalFontListener)
-                {
-                    m_globalFontListener->onFontDeleted(handle, requestId);
-                }
-                auto itr = m_fontListeners.find(handle);
-                if (itr != m_fontListeners.end())
-                {
-                    itr->second->onFontDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::blobDecoded:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalBlobListener)
-                {
-                    m_globalBlobListener->onBlobAssetDecoded(handle, requestId);
-                }
-                auto itr = m_blobListeners.find(handle);
-                if (itr != m_blobListeners.end())
-                {
-                    itr->second->onBlobAssetDecoded(handle, requestId);
-                }
-                break;
-            }
-            case Message::blobDeleted:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalBlobListener)
-                {
-                    m_globalBlobListener->onBlobAssetDeleted(handle, requestId);
-                }
-                auto itr = m_blobListeners.find(handle);
-                if (itr != m_blobListeners.end())
-                {
-                    itr->second->onBlobAssetDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::artboardDeleted:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onArtboardDeleted(handle,
-                                                                requestId);
-                }
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onArtboardDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::viewModelDeleted:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelDeleted(handle,
-                                                                  requestId);
-                }
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::stateMachineViewModelInstanceReceived:
-            {
-                StateMachineHandle stateMachineHandle;
-                ViewModelInstanceHandle viewModelInstanceHandle;
-                uint64_t requestId;
-                m_messageStream >> stateMachineHandle;
-                m_messageStream >> viewModelInstanceHandle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onViewModelInstanceReceived(
-                        stateMachineHandle,
-                        requestId,
-                        viewModelInstanceHandle);
-                }
-                auto itr = m_stateMachineListeners.find(stateMachineHandle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onViewModelInstanceReceived(
-                        stateMachineHandle,
-                        requestId,
-                        viewModelInstanceHandle);
-                }
-                break;
-            }
-            case Message::stateMachineSettled:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onStateMachineSettled(
-                        handle,
-                        requestId);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onStateMachineSettled(handle, requestId);
-                }
-                break;
-            }
-            case Message::stateMachineDeleted:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onStateMachineDeleted(
-                        handle,
-                        requestId);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onStateMachineDeleted(handle, requestId);
-                }
-                break;
-            }
-            case Message::keyInputHandled:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                bool handled;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> handled;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onKeyInputHandled(handle,
-                                                                    requestId,
-                                                                    handled);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onKeyInputHandled(handle, requestId, handled);
-                }
-                break;
-            }
-            case Message::textInputHandled:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                bool handled;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> handled;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onTextInputHandled(handle,
-                                                                     requestId,
-                                                                     handled);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onTextInputHandled(handle, requestId, handled);
-                }
-                break;
-            }
-            case Message::semanticsDiffReceived:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                SemanticsDiff diff;
-                m_messageSemanticsDiffs >> diff;
-                lock.unlock();
-                auto itr = m_stateMachineListeners.find(handle);
-                const bool hasPerHandleListener =
-                    itr != m_stateMachineListeners.end();
-                if (m_globalStateMachineListener)
-                {
-                    // Copy to the global listener only when a per-handle
-                    // listener also needs the diff; otherwise move.
-                    if (hasPerHandleListener)
-                    {
-                        m_globalStateMachineListener->onSemanticsDiffReceived(
-                            handle,
-                            requestId,
-                            diff);
-                    }
-                    else
-                    {
-                        m_globalStateMachineListener->onSemanticsDiffReceived(
-                            handle,
-                            requestId,
-                            std::move(diff));
-                    }
-                }
-                if (hasPerHandleListener)
-                {
-                    itr->second->onSemanticsDiffReceived(handle,
-                                                         requestId,
-                                                         std::move(diff));
-                }
-                break;
-            }
-            case Message::artboardSizeReceived:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                float width, height;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> width;
-                m_messageStream >> height;
-                lock.unlock();
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onArtboardSizeReceived(handle,
-                                                                     requestId,
-                                                                     width,
-                                                                     height);
-                }
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onArtboardSizeReceived(handle,
-                                                        requestId,
-                                                        width,
-                                                        height);
-                }
-                break;
-            }
-
-            case Message::fileError:
-            {
-                FileHandle handle;
-                std::string error;
-                uint64_t requestId;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalFileListener)
-                {
-                    m_globalFileListener->onFileError(handle, requestId, error);
-                }
-                auto itr = m_fileListeners.find(handle);
-                if (itr != m_fileListeners.end())
-                {
-                    itr->second->onFileError(handle,
-                                             requestId,
-                                             std::move(error));
-                }
-
-                break;
-            }
-            case Message::viewModelError:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalViewModelListener)
-                {
-                    m_globalViewModelListener->onViewModelInstanceError(
-                        handle,
-                        requestId,
-                        error);
-                }
-                auto itr = m_viewModelListeners.find(handle);
-                if (itr != m_viewModelListeners.end())
-                {
-                    itr->second->onViewModelInstanceError(handle,
-                                                          requestId,
-                                                          std::move(error));
-                }
-                break;
-            }
-            case Message::imageError:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalImageListener)
-                {
-                    m_globalImageListener->onRenderImageError(handle,
-                                                              requestId,
-                                                              error);
-                }
-                auto itr = m_imageListeners.find(handle);
-                if (itr != m_imageListeners.end())
-                {
-                    itr->second->onRenderImageError(handle,
-                                                    requestId,
-                                                    std::move(error));
-                }
-                break;
-            }
-
-            case Message::audioError:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalAudioListener)
-                {
-                    m_globalAudioListener->onAudioSourceError(handle,
-                                                              requestId,
-                                                              error);
-                }
-                auto itr = m_audioListeners.find(handle);
-                if (itr != m_audioListeners.end())
-                {
-                    itr->second->onAudioSourceError(handle,
-                                                    requestId,
-                                                    std::move(error));
-                }
-                break;
-            }
-            case Message::fontError:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalFontListener)
-                {
-                    m_globalFontListener->onFontError(handle, requestId, error);
-                }
-                auto itr = m_fontListeners.find(handle);
-                if (itr != m_fontListeners.end())
-                {
-                    itr->second->onFontError(handle,
-                                             requestId,
-                                             std::move(error));
-                }
-                break;
-            }
-
-            case Message::blobError:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalBlobListener)
-                {
-                    m_globalBlobListener->onBlobAssetError(handle,
-                                                           requestId,
-                                                           error);
-                }
-                auto itr = m_blobListeners.find(handle);
-                if (itr != m_blobListeners.end())
-                {
-                    itr->second->onBlobAssetError(handle,
-                                                  requestId,
-                                                  std::move(error));
-                }
-                break;
-            }
-
-            case Message::stateMachineError:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onStateMachineError(handle,
-                                                                      requestId,
-                                                                      error);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onStateMachineError(handle,
-                                                     requestId,
-                                                     std::move(error));
-                }
-                break;
-            }
-            case Message::artboardError:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                std::string error;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageNames >> error;
-                lock.unlock();
-                if (m_globalArtboardListener)
-                {
-                    m_globalArtboardListener->onArtboardError(handle,
-                                                              requestId,
-                                                              error);
-                }
-                auto itr = m_artboardListeners.find(handle);
-                if (itr != m_artboardListeners.end())
-                {
-                    itr->second->onArtboardError(handle,
-                                                 requestId,
-                                                 std::move(error));
-                }
-                break;
-            }
-            case Message::hasFocusNodesReceived:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                bool hasFocusNodes;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> hasFocusNodes;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onHasFocusNodesReceived(
-                        handle,
-                        requestId,
-                        hasFocusNodes);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onHasFocusNodesReceived(handle,
-                                                         requestId,
-                                                         hasFocusNodes);
-                }
-                break;
-            }
-            case Message::focusStateReceived:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                FocusState focusState;
-                m_messageStream >> handle;
-                m_messageStream >> requestId;
-                m_messageStream >> focusState.hasFocus;
-                m_messageStream >> focusState.expectsKeyboardInput;
-                lock.unlock();
-                if (m_globalStateMachineListener)
-                {
-                    m_globalStateMachineListener->onFocusStateReceived(
-                        handle,
-                        requestId,
-                        focusState);
-                }
-                auto itr = m_stateMachineListeners.find(handle);
-                if (itr != m_stateMachineListeners.end())
-                {
-                    itr->second->onFocusStateReceived(handle,
-                                                      requestId,
-                                                      focusState);
-                }
-                break;
-            }
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onViewModelEnumsListed(
+              handle,
+              requestId,
+              std::move(enums));
         }
 
-        assert(!lock.owns_lock());
-        lock.lock();
-    } while (!m_messageStream.empty());
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onViewModelEnumsListed(
+              itr->first,
+              requestId,
+              std::move(enums));
+        }
+        break;
+      }
+      case Message::artboardsListed:
+      {
+        size_t numArtboards;
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numArtboards;
+        std::vector<std::string> artboardNames(numArtboards);
+        for (auto& name : artboardNames)
+        {
+          m_messageNames >> name;
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onArtboardsListed(
+              handle,
+              requestId,
+              artboardNames);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onArtboardsListed(
+              itr->first,
+              requestId,
+              std::move(artboardNames));
+        }
+        break;
+      }
+      case Message::fileAssetsListed:
+      {
+        size_t numAssets;
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numAssets;
+        std::vector<FileListener::FileAssetData> assets(numAssets);
+        for (auto& asset : assets)
+        {
+          m_messageStream >> asset.assetID;
+          m_messageStream >> asset.type;
+          m_messageNames >> asset.name;
+          m_messageNames >> asset.uniqueName;
+          m_messageNames >> asset.cdnUUID;
+          m_messageNames >> asset.cdnBaseURL;
+          m_messageNames >> asset.fileExtension;
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onFileAssetsListed(handle, requestId, assets);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onFileAssetsListed(
+              itr->first,
+              requestId,
+              std::move(assets));
+        }
+        break;
+      }
+      case Message::stateMachinesListed:
+      {
+        size_t numStateMachines;
+        ArtboardHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numStateMachines;
+        std::vector<std::string> stateMachineNames(numStateMachines);
+        for (auto& name : stateMachineNames)
+        {
+          m_messageNames >> name;
+        }
+        lock.unlock();
+
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onStateMachinesListed(
+              handle,
+              requestId,
+              stateMachineNames);
+        }
+
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onStateMachinesListed(
+              itr->first,
+              requestId,
+              std::move(stateMachineNames));
+        }
+
+        break;
+      }
+      case Message::defaultViewModelReceived:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        std::string defaultViewModel;
+        std::string defaultViewModelInstance;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> defaultViewModel;
+        m_messageNames >> defaultViewModelInstance;
+        lock.unlock();
+
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onDefaultViewModelInfoReceived(
+              handle,
+              requestId,
+              defaultViewModel,
+              defaultViewModelInstance);
+        }
+
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onDefaultViewModelInfoReceived(
+              itr->first,
+              requestId,
+              std::move(defaultViewModel),
+              std::move(defaultViewModelInstance));
+        }
+
+        break;
+      }
+      case Message::artboardVolumeReceived:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        float volume;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> volume;
+        lock.unlock();
+
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onArtboardVolumeReceived(
+              handle,
+              requestId,
+              volume);
+        }
+
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onArtboardVolumeReceived(itr->first, requestId, volume);
+        }
+
+        break;
+      }
+      case Message::viewModelInstanceViewModelNameReceived:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        std::string viewModelName;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> viewModelName;
+
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelInstanceViewModelNameReceived(
+              handle,
+              requestId,
+              viewModelName);
+        }
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelInstanceViewModelNameReceived(
+              handle,
+              requestId,
+              viewModelName);
+        }
+        break;
+      }
+      case Message::viewModelInstanceNameReceived:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        std::string instanceName;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> instanceName;
+
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelInstanceNameReceived(
+              handle,
+              requestId,
+              instanceName);
+        }
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelInstanceNameReceived(
+              handle,
+              requestId,
+              std::move(instanceName));
+        }
+        break;
+      }
+      case Message::viewModelsListend:
+      {
+        size_t numViewModels;
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numViewModels;
+        std::vector<std::string> viewModelNames(numViewModels);
+        for (auto& name : viewModelNames)
+        {
+          m_messageNames >> name;
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onViewModelsListed(
+              handle,
+              requestId,
+              viewModelNames);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onViewModelsListed(
+              itr->first,
+              requestId,
+              std::move(viewModelNames));
+        }
+
+        break;
+      }
+      case Message::globalViewModelNamesListed:
+      {
+        size_t numViewModels;
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numViewModels;
+        std::vector<std::string> globalViewModelNames(numViewModels);
+        for (auto& name : globalViewModelNames)
+        {
+          m_messageNames >> name;
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onGlobalViewModelNamesListed(
+              handle,
+              requestId,
+              globalViewModelNames);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onGlobalViewModelNamesListed(
+              itr->first,
+              requestId,
+              std::move(globalViewModelNames));
+        }
+
+        break;
+      }
+
+      case Message::viewModelInstanceNamesListed:
+      {
+        size_t numViewModels;
+        FileHandle handle;
+        uint64_t requestId;
+        std::string viewModelName;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numViewModels;
+        m_messageNames >> viewModelName;
+        std::vector<std::string> viewModelInstanceNames(numViewModels);
+        for (auto& name : viewModelInstanceNames)
+        {
+          m_messageNames >> name;
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onViewModelInstanceNamesListed(
+              handle,
+              requestId,
+              viewModelName,
+              viewModelInstanceNames);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onViewModelInstanceNamesListed(
+              itr->first,
+              requestId,
+              std::move(viewModelName),
+              std::move(viewModelInstanceNames));
+        }
+        break;
+      }
+
+      case Message::viewModelPropertiesListed:
+      {
+        size_t numViewProperties;
+        FileHandle handle;
+        uint64_t requestId;
+        std::string viewModelName;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> numViewProperties;
+        m_messageNames >> viewModelName;
+        std::vector<CommandQueue::FileListener::ViewModelPropertyData>
+            viewModelProperties(numViewProperties);
+
+        for (auto& property : viewModelProperties)
+        {
+          m_messageStream >> property.type;
+          m_messageNames >> property.name;
+          if (property.type == DataType::enumType ||
+              property.type == DataType::viewModel)
+          {
+            m_messageNames >> property.metaData;
+          }
+        }
+        lock.unlock();
+
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onViewModelPropertiesListed(
+              handle,
+              requestId,
+              viewModelName,
+              viewModelProperties);
+        }
+
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onViewModelPropertiesListed(
+              itr->first,
+              requestId,
+              std::move(viewModelName),
+              std::move(viewModelProperties));
+        }
+
+        break;
+      }
+
+      case Message::viewModelPropertyValueReceived:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        ViewModelInstanceData value;
+
+        m_messageStream >> handle;
+        m_messageStream >> value.metaData.type;
+        m_messageStream >> requestId;
+        m_messageNames >> value.metaData.name;
+
+        switch (value.metaData.type)
+        {
+          case DataType::assetImage:
+          case DataType::assetFont:
+          case DataType::assetBlob:
+          case DataType::list:
+          case DataType::trigger:
+            break;
+          case DataType::boolean:
+            m_messageStream >> value.boolValue;
+            break;
+          case DataType::number:
+            m_messageStream >> value.numberValue;
+            break;
+          case DataType::color:
+            m_messageStream >> value.colorValue;
+            break;
+          case DataType::enumType:
+          case DataType::string:
+            m_messageNames >> value.stringValue;
+            break;
+          default:
+            RIVE_UNREACHABLE();
+        }
+
+        lock.unlock();
+
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelDataReceived(
+              handle,
+              requestId,
+              value);
+        }
+
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelDataReceived(handle, requestId, value);
+        }
+
+        break;
+      }
+
+      case Message::viewModelListSizeReceived:
+      {
+        ViewModelInstanceHandle handle;
+        std::string path;
+        size_t size;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> size;
+        m_messageStream >> requestId;
+        m_messageNames >> path;
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener
+              ->onViewModelListSizeReceived(handle, requestId, path, size);
+        }
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelListSizeReceived(
+              handle,
+              requestId,
+              std::move(path),
+              size);
+        }
+        break;
+      }
+
+      case Message::viewModelListCleared:
+      {
+        ViewModelInstanceHandle handle;
+        std::string path;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> path;
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelListCleared(
+              handle,
+              requestId,
+              path);
+        }
+
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelListCleared(
+              handle,
+              requestId,
+              std::move(path));
+        }
+      }
+      break;
+
+      case Message::fileLoaded:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onFileLoaded(handle, requestId);
+        }
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onFileLoaded(handle, requestId);
+        }
+        break;
+      }
+
+      case Message::artboardInstantiated:
+      {
+        FileHandle fileHandle;
+        ArtboardHandle handle;
+        uint64_t requestId;
+        m_messageStream >> fileHandle;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onArtboardInstantiated(
+              fileHandle,
+              requestId,
+              handle);
+        }
+        auto itr = m_fileListeners.find(fileHandle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onArtboardInstantiated(fileHandle, requestId, handle);
+        }
+        break;
+      }
+
+      case Message::stateMachineInstantiated:
+      {
+        ArtboardHandle artboardHandle;
+        StateMachineHandle handle;
+        uint64_t requestId;
+        m_messageStream >> artboardHandle;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onStateMachineInstantiated(
+              artboardHandle,
+              requestId,
+              handle);
+        }
+        auto itr = m_artboardListeners.find(artboardHandle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onStateMachineInstantiated(
+              artboardHandle,
+              requestId,
+              handle);
+        }
+        break;
+      }
+
+      case Message::viewModelInstanceInstantiated:
+      {
+        FileHandle fileHandle;
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        m_messageStream >> fileHandle;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onViewModelInstanceInstantiated(
+              fileHandle,
+              requestId,
+              handle);
+        }
+        auto itr = m_fileListeners.find(fileHandle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onViewModelInstanceInstantiated(
+              fileHandle,
+              requestId,
+              handle);
+        }
+        break;
+      }
+
+      case Message::fileDeleted:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onFileDeleted(handle, requestId);
+        }
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onFileDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::imageDecoded:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalImageListener)
+        {
+          m_globalImageListener->onRenderImageDecoded(handle, requestId);
+        }
+        auto itr = m_imageListeners.find(handle);
+        if (itr != m_imageListeners.end())
+        {
+          itr->second->onRenderImageDecoded(handle, requestId);
+        }
+        break;
+      }
+      case Message::imageDeleted:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalImageListener)
+        {
+          m_globalImageListener->onRenderImageDeleted(handle, requestId);
+        }
+        auto itr = m_imageListeners.find(handle);
+        if (itr != m_imageListeners.end())
+        {
+          itr->second->onRenderImageDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::audioDecoded:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalAudioListener)
+        {
+          m_globalAudioListener->onAudioSourceDecoded(handle, requestId);
+        }
+        auto itr = m_audioListeners.find(handle);
+        if (itr != m_audioListeners.end())
+        {
+          itr->second->onAudioSourceDecoded(handle, requestId);
+        }
+        break;
+      }
+      case Message::audioDeleted:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalAudioListener)
+        {
+          m_globalAudioListener->onAudioSourceDeleted(handle, requestId);
+        }
+        auto itr = m_audioListeners.find(handle);
+        if (itr != m_audioListeners.end())
+        {
+          itr->second->onAudioSourceDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::fontDecoded:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFontListener)
+        {
+          m_globalFontListener->onFontDecoded(handle, requestId);
+        }
+        auto itr = m_fontListeners.find(handle);
+        if (itr != m_fontListeners.end())
+        {
+          itr->second->onFontDecoded(handle, requestId);
+        }
+        break;
+      }
+      case Message::fontDeleted:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalFontListener)
+        {
+          m_globalFontListener->onFontDeleted(handle, requestId);
+        }
+        auto itr = m_fontListeners.find(handle);
+        if (itr != m_fontListeners.end())
+        {
+          itr->second->onFontDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::blobDecoded:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalBlobListener)
+        {
+          m_globalBlobListener->onBlobAssetDecoded(handle, requestId);
+        }
+        auto itr = m_blobListeners.find(handle);
+        if (itr != m_blobListeners.end())
+        {
+          itr->second->onBlobAssetDecoded(handle, requestId);
+        }
+        break;
+      }
+      case Message::blobDeleted:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalBlobListener)
+        {
+          m_globalBlobListener->onBlobAssetDeleted(handle, requestId);
+        }
+        auto itr = m_blobListeners.find(handle);
+        if (itr != m_blobListeners.end())
+        {
+          itr->second->onBlobAssetDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::artboardDeleted:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onArtboardDeleted(handle, requestId);
+        }
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onArtboardDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::viewModelDeleted:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelDeleted(handle, requestId);
+        }
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::stateMachineViewModelInstanceReceived:
+      {
+        StateMachineHandle stateMachineHandle;
+        ViewModelInstanceHandle viewModelInstanceHandle;
+        uint64_t requestId;
+        m_messageStream >> stateMachineHandle;
+        m_messageStream >> viewModelInstanceHandle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onViewModelInstanceReceived(
+              stateMachineHandle,
+              requestId,
+              viewModelInstanceHandle);
+        }
+        auto itr = m_stateMachineListeners.find(stateMachineHandle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onViewModelInstanceReceived(
+              stateMachineHandle,
+              requestId,
+              viewModelInstanceHandle);
+        }
+        break;
+      }
+      case Message::stateMachineSettled:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onStateMachineSettled(
+              handle,
+              requestId);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onStateMachineSettled(handle, requestId);
+        }
+        break;
+      }
+      case Message::stateMachineDeleted:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onStateMachineDeleted(
+              handle,
+              requestId);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onStateMachineDeleted(handle, requestId);
+        }
+        break;
+      }
+      case Message::keyInputHandled:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        bool handled;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> handled;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onKeyInputHandled(
+              handle,
+              requestId,
+              handled);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onKeyInputHandled(handle, requestId, handled);
+        }
+        break;
+      }
+      case Message::textInputHandled:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        bool handled;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> handled;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onTextInputHandled(
+              handle,
+              requestId,
+              handled);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onTextInputHandled(handle, requestId, handled);
+        }
+        break;
+      }
+      case Message::semanticsDiffReceived:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        SemanticsDiff diff;
+        m_messageSemanticsDiffs >> diff;
+        lock.unlock();
+        auto itr = m_stateMachineListeners.find(handle);
+        const bool hasPerHandleListener = itr != m_stateMachineListeners.end();
+        if (m_globalStateMachineListener)
+        {
+          // Copy to the global listener only when a per-handle
+          // listener also needs the diff; otherwise move.
+          if (hasPerHandleListener)
+          {
+            m_globalStateMachineListener->onSemanticsDiffReceived(
+                handle,
+                requestId,
+                diff);
+          }
+          else
+          {
+            m_globalStateMachineListener->onSemanticsDiffReceived(
+                handle,
+                requestId,
+                std::move(diff));
+          }
+        }
+        if (hasPerHandleListener)
+        {
+          itr->second->onSemanticsDiffReceived(
+              handle,
+              requestId,
+              std::move(diff));
+        }
+        break;
+      }
+      case Message::artboardSizeReceived:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        float width, height;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> width;
+        m_messageStream >> height;
+        lock.unlock();
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener
+              ->onArtboardSizeReceived(handle, requestId, width, height);
+        }
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onArtboardSizeReceived(handle, requestId, width, height);
+        }
+        break;
+      }
+
+      case Message::fileError:
+      {
+        FileHandle handle;
+        std::string error;
+        uint64_t requestId;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalFileListener)
+        {
+          m_globalFileListener->onFileError(handle, requestId, error);
+        }
+        auto itr = m_fileListeners.find(handle);
+        if (itr != m_fileListeners.end())
+        {
+          itr->second->onFileError(handle, requestId, std::move(error));
+        }
+
+        break;
+      }
+      case Message::viewModelError:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalViewModelListener)
+        {
+          m_globalViewModelListener->onViewModelInstanceError(
+              handle,
+              requestId,
+              error);
+        }
+        auto itr = m_viewModelListeners.find(handle);
+        if (itr != m_viewModelListeners.end())
+        {
+          itr->second->onViewModelInstanceError(
+              handle,
+              requestId,
+              std::move(error));
+        }
+        break;
+      }
+      case Message::imageError:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalImageListener)
+        {
+          m_globalImageListener->onRenderImageError(handle, requestId, error);
+        }
+        auto itr = m_imageListeners.find(handle);
+        if (itr != m_imageListeners.end())
+        {
+          itr->second->onRenderImageError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+
+      case Message::audioError:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalAudioListener)
+        {
+          m_globalAudioListener->onAudioSourceError(handle, requestId, error);
+        }
+        auto itr = m_audioListeners.find(handle);
+        if (itr != m_audioListeners.end())
+        {
+          itr->second->onAudioSourceError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+      case Message::fontError:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalFontListener)
+        {
+          m_globalFontListener->onFontError(handle, requestId, error);
+        }
+        auto itr = m_fontListeners.find(handle);
+        if (itr != m_fontListeners.end())
+        {
+          itr->second->onFontError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+
+      case Message::blobError:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalBlobListener)
+        {
+          m_globalBlobListener->onBlobAssetError(handle, requestId, error);
+        }
+        auto itr = m_blobListeners.find(handle);
+        if (itr != m_blobListeners.end())
+        {
+          itr->second->onBlobAssetError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+
+      case Message::stateMachineError:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onStateMachineError(
+              handle,
+              requestId,
+              error);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onStateMachineError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+      case Message::artboardError:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        std::string error;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageNames >> error;
+        lock.unlock();
+        if (m_globalArtboardListener)
+        {
+          m_globalArtboardListener->onArtboardError(handle, requestId, error);
+        }
+        auto itr = m_artboardListeners.find(handle);
+        if (itr != m_artboardListeners.end())
+        {
+          itr->second->onArtboardError(handle, requestId, std::move(error));
+        }
+        break;
+      }
+      case Message::hasFocusNodesReceived:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        bool hasFocusNodes;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> hasFocusNodes;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onHasFocusNodesReceived(
+              handle,
+              requestId,
+              hasFocusNodes);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onHasFocusNodesReceived(
+              handle,
+              requestId,
+              hasFocusNodes);
+        }
+        break;
+      }
+      case Message::focusStateReceived:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        FocusState focusState;
+        m_messageStream >> handle;
+        m_messageStream >> requestId;
+        m_messageStream >> focusState.hasFocus;
+        m_messageStream >> focusState.expectsKeyboardInput;
+        lock.unlock();
+        if (m_globalStateMachineListener)
+        {
+          m_globalStateMachineListener->onFocusStateReceived(
+              handle,
+              requestId,
+              focusState);
+        }
+        auto itr = m_stateMachineListeners.find(handle);
+        if (itr != m_stateMachineListeners.end())
+        {
+          itr->second->onFocusStateReceived(handle, requestId, focusState);
+        }
+        break;
+      }
+    }
+
+    assert(!lock.owns_lock());
+    lock.lock();
+  } while (!m_messageStream.empty());
 }
 
 bool CommandQueue::focusNextSynchronized(StateMachineHandle handle)
 {
-    auto result = std::make_shared<std::promise<bool>>();
-    auto future = result->get_future();
-    runOnce([handle, result](CommandServer* server) {
-        result->set_value(server->focusNextSynchronized(handle));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<bool>>();
+  auto future = result->get_future();
+  runOnce([handle, result](CommandServer* server) {
+    result->set_value(server->focusNextSynchronized(handle));
+  });
+  return future.get();
 }
 
 bool CommandQueue::focusPreviousSynchronized(StateMachineHandle handle)
 {
-    auto result = std::make_shared<std::promise<bool>>();
-    auto future = result->get_future();
-    runOnce([handle, result](CommandServer* server) {
-        result->set_value(server->focusPreviousSynchronized(handle));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<bool>>();
+  auto future = result->get_future();
+  runOnce([handle, result](CommandServer* server) {
+    result->set_value(server->focusPreviousSynchronized(handle));
+  });
+  return future.get();
 }
 
-void CommandQueue::focusNext(StateMachineHandle stateMachineHandle,
-                             uint64_t requestId)
+void CommandQueue::focusNext(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::focusNext;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::focusNext;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::focusPrevious(StateMachineHandle stateMachineHandle,
-                                 uint64_t requestId)
+void CommandQueue::focusPrevious(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::focusPrevious;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::focusPrevious;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestHasFocusNodes(StateMachineHandle stateMachineHandle,
-                                        uint64_t requestId)
+void CommandQueue::requestHasFocusNodes(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::requestHasFocusNodes;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::requestHasFocusNodes;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::clearFocus(StateMachineHandle stateMachineHandle,
-                              uint64_t requestId)
+void CommandQueue::clearFocus(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::clearFocus;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::clearFocus;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
-void CommandQueue::requestFocusState(StateMachineHandle stateMachineHandle,
-                                     uint64_t requestId)
+void CommandQueue::requestFocusState(
+    StateMachineHandle stateMachineHandle,
+    uint64_t requestId)
 {
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::requestFocusState;
-    m_commandStream << stateMachineHandle;
-    m_commandStream << requestId;
+  AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+  m_commandStream << Command::requestFocusState;
+  m_commandStream << stateMachineHandle;
+  m_commandStream << requestId;
 }
 
 CommandQueue::FocusTraversalResult CommandQueue::
     focusNextWithResultSynchronized(StateMachineHandle handle)
 {
-    auto result = std::make_shared<std::promise<FocusTraversalResult>>();
-    auto future = result->get_future();
-    runOnce([handle, result](CommandServer* server) {
-        result->set_value(server->focusNextWithResultSynchronized(handle));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<FocusTraversalResult>>();
+  auto future = result->get_future();
+  runOnce([handle, result](CommandServer* server) {
+    result->set_value(server->focusNextWithResultSynchronized(handle));
+  });
+  return future.get();
 }
 
 CommandQueue::FocusTraversalResult CommandQueue::
     focusPreviousWithResultSynchronized(StateMachineHandle handle)
 {
-    auto result = std::make_shared<std::promise<FocusTraversalResult>>();
-    auto future = result->get_future();
-    runOnce([handle, result](CommandServer* server) {
-        result->set_value(server->focusPreviousWithResultSynchronized(handle));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<FocusTraversalResult>>();
+  auto future = result->get_future();
+  runOnce([handle, result](CommandServer* server) {
+    result->set_value(server->focusPreviousWithResultSynchronized(handle));
+  });
+  return future.get();
 }
 
-bool CommandQueue::keyInputSynchronized(StateMachineHandle handle,
-                                        Key key,
-                                        KeyModifiers modifiers,
-                                        bool isPressed,
-                                        bool isRepeat)
+bool CommandQueue::keyInputSynchronized(
+    StateMachineHandle handle,
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
 {
-    auto result = std::make_shared<std::promise<bool>>();
-    auto future = result->get_future();
-    runOnce([handle, key, modifiers, isPressed, isRepeat, result](
-                CommandServer* server) {
-        result->set_value(server->keyInputSynchronized(handle,
-                                                       key,
-                                                       modifiers,
-                                                       isPressed,
-                                                       isRepeat));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<bool>>();
+  auto future = result->get_future();
+  runOnce([handle, key, modifiers, isPressed, isRepeat, result](
+              CommandServer* server) {
+    result->set_value(server->keyInputSynchronized(
+        handle,
+        key,
+        modifiers,
+        isPressed,
+        isRepeat));
+  });
+  return future.get();
 }
 
-bool CommandQueue::focusInDirectionSynchronized(StateMachineHandle handle,
-                                                Direction direction)
+bool CommandQueue::focusInDirectionSynchronized(
+    StateMachineHandle handle,
+    Direction direction)
 {
-    auto result = std::make_shared<std::promise<bool>>();
-    auto future = result->get_future();
-    runOnce([handle, direction, result](CommandServer* server) {
-        result->set_value(
-            server->focusInDirectionSynchronized(handle, direction));
-    });
-    return future.get();
+  auto result = std::make_shared<std::promise<bool>>();
+  auto future = result->get_future();
+  runOnce([handle, direction, result](CommandServer* server) {
+    result->set_value(server->focusInDirectionSynchronized(handle, direction));
+  });
+  return future.get();
 }
 }; // namespace rive

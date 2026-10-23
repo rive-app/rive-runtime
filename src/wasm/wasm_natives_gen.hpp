@@ -71,18 +71,6 @@ typedef struct rive_gpu_texture_view_desc_v1
     uint32_t layerCount;
 } rive_gpu_texture_view_desc_v1;
 
-typedef struct rive_gpu_shader_module_desc_v1
-{
-    uint32_t language;
-    uint32_t stage;
-    uint32_t codeSize;
-    uint32_t hlslSourceSize;
-    uint32_t hlslEntryPointSize;
-    uint32_t bindingMapSize;
-    uint32_t glFixupSize;
-    uint32_t shaderAssetId;
-} rive_gpu_shader_module_desc_v1;
-
 typedef struct rive_gpu_bind_group_layout_entry_v1
 {
     uint32_t binding;
@@ -168,6 +156,7 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t stencilLoadOp;
     uint32_t stencilStoreOp;
     uint32_t stencilClearValue;
+    uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
 
 typedef struct rive_gpu_pipeline_desc_v1
@@ -206,6 +195,9 @@ typedef struct rive_gpu_pipeline_desc_v1
 void rtLogImpl(WasmScriptingVM* vm, int32_t level, const char* message, uint32_t length);
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t object);
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
+void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length);
+double rtNowImpl(WasmScriptingVM* vm);
+double rtDateNowImpl(WasmScriptingVM* vm);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
@@ -239,6 +231,7 @@ uint32_t dataVmiEnumImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, ui
 uint32_t dataVmiImageImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataVmiFontImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataVmiBlobImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
+uint32_t dataVmiArtboardImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataImageGetImpl(WasmScriptingVM* vm, uint32_t property);
 void dataImageSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t image);
 uint32_t dataFontGetImpl(WasmScriptingVM* vm, uint32_t property);
@@ -249,6 +242,8 @@ uint32_t dataBlobGetImpl(WasmScriptingVM* vm, uint32_t property, uint8_t* buffer
 uint32_t dataBlobNameImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataBlobSetImpl(WasmScriptingVM* vm, uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 void dataBlobClearImpl(WasmScriptingVM* vm, uint32_t property);
+uint32_t dataArtboardGetImpl(WasmScriptingVM* vm, uint32_t property);
+void dataArtboardSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t bindable);
 uint32_t dataEnumGetImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataEnumSetImpl(WasmScriptingVM* vm, uint32_t property, const char* value, uint32_t length);
 uint32_t dataEnumValuesImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
@@ -291,11 +286,14 @@ uint32_t artboardFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard);
 void artboardSetFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t value);
 void artboardBoundsImpl(WasmScriptingVM* vm, uint32_t artboard, float* out, uint32_t outCount);
 uint32_t artboardPointerEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+uint32_t artboardScrollEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
+uint32_t artboardGamepadEventImpl(WasmScriptingVM* vm, uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 uint32_t artboardAnimationImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardAnimationReleaseImpl(WasmScriptingVM* vm, uint32_t animation);
 float artboardAnimationDurationImpl(WasmScriptingVM* vm, uint32_t animation);
 uint32_t artboardAnimationAdvanceImpl(WasmScriptingVM* vm, uint32_t animation, float seconds);
 void artboardAnimationSetTimeImpl(WasmScriptingVM* vm, uint32_t animation, float value, uint32_t mode);
+void artboardAddToPathImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty);
 uint32_t artboardNodeImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t node);
 void artboardNodeTransformImpl(WasmScriptingVM* vm, uint32_t node, float* out, uint32_t outCount);
@@ -369,6 +367,7 @@ void paintCapImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintBlendModeImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintFeatherImpl(WasmScriptingVM* vm, uint32_t paint, float value);
 void paintShaderImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t shader);
+void paintShaderTransformImpl(WasmScriptingVM* vm, uint32_t paint, const float* values, uint32_t floatCount);
 uint32_t canvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height);
 void canvasReleaseImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t canvasWidthImpl(WasmScriptingVM* vm, uint32_t canvas);
@@ -384,7 +383,7 @@ uint32_t gpuCanvasColorViewImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t* 
 uint32_t gpuCanvasImageImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount);
 uint32_t gpuTargetViewImpl(WasmScriptingVM* vm, uint32_t current, uint32_t* props, uint32_t propCount);
-uint32_t gpuPassBeginImpl(WasmScriptingVM* vm, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
+uint32_t gpuPassBeginImpl(WasmScriptingVM* vm, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 void gpuPassSetPipelineImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t pipeline);
 void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t slot, uint32_t buffer, uint32_t offset);
 void gpuPassSetIndexBufferImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t buffer, uint32_t indexFormat, uint32_t offset);
@@ -411,11 +410,16 @@ void gpuTextureViewReleaseImpl(WasmScriptingVM* vm, uint32_t view);
 uint32_t gpuShaderTargetImpl(WasmScriptingVM* vm);
 uint32_t gpuShaderAssetBytesImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
 uint32_t gpuShaderAssetIdImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
-uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+uint32_t gpuShaderModuleFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint32_t entry);
+#ifdef WITH_RIVE_TOOLS
+uint32_t gpuShaderModuleFromRstbImpl(WasmScriptingVM* vm, const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry);
+#endif
 void gpuShaderModuleReleaseImpl(WasmScriptingVM* vm, uint32_t shaderModule);
 uint32_t gpuBindGroupLayoutNewImpl(WasmScriptingVM* vm, uint32_t groupIndex, const rive_gpu_bind_group_layout_entry_v1* entries, uint32_t entryByteCount);
 void gpuBindGroupLayoutReleaseImpl(WasmScriptingVM* vm, uint32_t layout);
 uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM* vm, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM* vm, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+uint32_t gpuBindGroupLayoutFromEntriesImpl(WasmScriptingVM* vm, uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex);
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t bindGroup);
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
@@ -501,6 +505,10 @@ uint32_t textSelectionRectsImpl(WasmScriptingVM* vm, uint32_t text, uint32_t fro
 uint32_t shaderLinearImpl(WasmScriptingVM* vm, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count);
 uint32_t shaderRadialImpl(WasmScriptingVM* vm, float cx, float cy, float radius, uint32_t colors, uint32_t stops, uint32_t count);
 void shaderReleaseImpl(WasmScriptingVM* vm, uint32_t shader);
+uint32_t testBlobImpl(WasmScriptingVM* vm, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+void transitionChildDrawImpl(WasmScriptingVM* vm, uint32_t child, uint32_t renderer);
+float transitionChildWidthImpl(WasmScriptingVM* vm, uint32_t child);
+float transitionChildHeightImpl(WasmScriptingVM* vm, uint32_t child);
 void rendererSaveImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererTransformImpl(WasmScriptingVM* vm, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty);
@@ -511,7 +519,19 @@ void rendererModulateColorImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t 
 void rendererDrawImageImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
 void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
+uint32_t netFetchImpl(WasmScriptingVM* vm, const uint8_t* request, uint32_t requestCount, uint32_t token);
+void netFetchCancelImpl(WasmScriptingVM* vm, uint32_t token);
+uint32_t fileDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+void fileReleaseImpl(WasmScriptingVM* vm, uint32_t file);
+uint32_t fileArtboardCountImpl(WasmScriptingVM* vm, uint32_t file);
+uint32_t fileArtboardNameImpl(WasmScriptingVM* vm, uint32_t file, uint32_t index, char* buffer, uint32_t capacity);
+uint32_t fileBindableImpl(WasmScriptingVM* vm, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
+void fileBindableReleaseImpl(WasmScriptingVM* vm, uint32_t bindable);
+uint32_t fileBindableNameImpl(WasmScriptingVM* vm, uint32_t bindable, char* buffer, uint32_t capacity);
+uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
+uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
 
+#ifndef __EMSCRIPTEN__
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -525,8 +545,34 @@ void rtMarkNeedsUpdate(wasm_exec_env_t env, uint32_t object)
 }
 void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "execution exceeded timeout");
+        return;
+    }
     rtBudgetExceededImpl(vm, ms);
+}
+void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "script threw");
+        return;
+    }
+    WasmStringArg messageUtf8(vm, message, length);
+    rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
+}
+double rtNow(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtNowImpl(vm);
+}
+double rtDateNow(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtDateNowImpl(vm);
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
@@ -714,6 +760,12 @@ uint32_t dataVmiBlob(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32
     WasmStringArg nameUtf8(vm, name, length);
     return dataVmiBlobImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
+uint32_t dataVmiArtboard(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiArtboardImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
+}
 uint32_t dataImageGet(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -763,6 +815,16 @@ void dataBlobClear(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     dataBlobClearImpl(vm, property);
+}
+uint32_t dataArtboardGet(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataArtboardGetImpl(vm, property);
+}
+void dataArtboardSet(wasm_exec_env_t env, uint32_t property, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataArtboardSetImpl(vm, property, bindable);
 }
 uint32_t dataEnumGet(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
@@ -981,6 +1043,16 @@ uint32_t artboardPointerEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t k
     WasmScriptingVM* vm = vmFromEnv(env);
     return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
+uint32_t artboardScrollEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardScrollEventImpl(vm, artboard, pointerId, x, y, dx, dy, phase, precise, timeStamp);
+}
+uint32_t artboardGamepadEvent(wasm_exec_env_t env, uint32_t artboard, const uint8_t* payload, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardGamepadEventImpl(vm, artboard, payload, byteCount);
+}
 uint32_t artboardAnimation(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1006,6 +1078,11 @@ void artboardAnimationSetTime(wasm_exec_env_t env, uint32_t animation, float val
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     artboardAnimationSetTimeImpl(vm, animation, value, mode);
+}
+void artboardAddToPath(wasm_exec_env_t env, uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardAddToPathImpl(vm, artboard, path, xx, xy, yx, yy, tx, ty);
 }
 uint32_t artboardNode(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
@@ -1431,6 +1508,15 @@ void paintShader(wasm_exec_env_t env, uint32_t paint, uint32_t shader)
     WasmScriptingVM* vm = vmFromEnv(env);
     paintShaderImpl(vm, paint, shader);
 }
+void paintShaderTransform(wasm_exec_env_t env, uint32_t paint, const float* values, uint32_t floatCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)values, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
+    paintShaderTransformImpl(vm, paint, values, floatCount);
+}
 uint32_t canvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1522,10 +1608,10 @@ uint32_t gpuTargetView(wasm_exec_env_t env, uint32_t current, uint32_t* props, u
     }
     return gpuTargetViewImpl(vm, current, props, propCount);
 }
-uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
+uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
-    return gpuPassBeginImpl(vm, desc, descByteCount, colors, colorByteCount);
+    return gpuPassBeginImpl(vm, desc, descByteCount, blob, blobCount);
 }
 void gpuPassSetPipeline(wasm_exec_env_t env, uint32_t pass, uint32_t pipeline)
 {
@@ -1659,11 +1745,19 @@ uint32_t gpuShaderAssetId(wasm_exec_env_t env, uint32_t object, const char* name
     WasmStringArg nameUtf8(vm, name, nameLength);
     return gpuShaderAssetIdImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
-uint32_t gpuShaderModuleNew(wasm_exec_env_t env, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
+uint32_t gpuShaderModuleFromAsset(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength, uint32_t entry)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
-    return gpuShaderModuleNewImpl(vm, desc, descByteCount, blob, blobCount);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return gpuShaderModuleFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size(), entry);
 }
+#ifdef WITH_RIVE_TOOLS
+uint32_t gpuShaderModuleFromRstb(wasm_exec_env_t env, const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuShaderModuleFromRstbImpl(vm, rstb, rstbCount, assetId, entry);
+}
+#endif
 void gpuShaderModuleRelease(wasm_exec_env_t env, uint32_t shaderModule)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1687,6 +1781,22 @@ uint32_t gpuBindGroupLayoutFromShader(wasm_exec_env_t env, uint32_t shaderModule
         return {};
     }
     return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
+}
+uint32_t gpuBindGroupLayoutFromShaders(wasm_exec_env_t env, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (dynamicUBOCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)dynamicUBOs, (uint64_t)dynamicUBOCount * 4))
+    {
+        return {};
+    }
+    return gpuBindGroupLayoutFromShadersImpl(vm, vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount);
+}
+uint32_t gpuBindGroupLayoutFromEntries(wasm_exec_env_t env, uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg vertexEntryUtf8(vm, vertexEntry, vertexEntryLength);
+    WasmStringArg fragmentEntryUtf8(vm, fragmentEntry, fragmentEntryLength);
+    return gpuBindGroupLayoutFromEntriesImpl(vm, vertexModule, vertexEntryUtf8.data(), vertexEntryUtf8.size(), fragmentModule, fragmentEntryUtf8.data(), fragmentEntryUtf8.size(), groupIndex);
 }
 uint32_t gpuBindGroupNew(wasm_exec_env_t env, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
@@ -2029,6 +2139,27 @@ void shaderRelease(wasm_exec_env_t env, uint32_t shader)
     WasmScriptingVM* vm = vmFromEnv(env);
     shaderReleaseImpl(vm, shader);
 }
+uint32_t testBlob(wasm_exec_env_t env, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return testBlobImpl(vm, nameUtf8.data(), nameUtf8.size(), out, outCount);
+}
+void transitionChildDraw(wasm_exec_env_t env, uint32_t child, uint32_t renderer)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    transitionChildDrawImpl(vm, child, renderer);
+}
+float transitionChildWidth(wasm_exec_env_t env, uint32_t child)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return transitionChildWidthImpl(vm, child);
+}
+float transitionChildHeight(wasm_exec_env_t env, uint32_t child)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return transitionChildHeightImpl(vm, child);
+}
 void rendererSave(wasm_exec_env_t env, uint32_t renderer)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2079,11 +2210,74 @@ void rendererDrawImageMeshInstanced(wasm_exec_env_t env, uint32_t renderer, uint
     WasmScriptingVM* vm = vmFromEnv(env);
     rendererDrawImageMeshInstancedImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, instances);
 }
+uint32_t netFetch(wasm_exec_env_t env, const uint8_t* request, uint32_t requestCount, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return netFetchImpl(vm, request, requestCount, token);
+}
+void netFetchCancel(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    netFetchCancelImpl(vm, token);
+}
+uint32_t fileDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (statusCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)statusOut, (uint64_t)statusCount * 4))
+    {
+        return {};
+    }
+    return fileDecodeImpl(vm, bytes, byteCount, statusOut, statusCount);
+}
+void fileRelease(wasm_exec_env_t env, uint32_t file)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    fileReleaseImpl(vm, file);
+}
+uint32_t fileArtboardCount(wasm_exec_env_t env, uint32_t file)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileArtboardCountImpl(vm, file);
+}
+uint32_t fileArtboardName(wasm_exec_env_t env, uint32_t file, uint32_t index, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileArtboardNameImpl(vm, file, index, buffer, capacity);
+}
+uint32_t fileBindable(wasm_exec_env_t env, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileBindableImpl(vm, file, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
+void fileBindableRelease(wasm_exec_env_t env, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    fileBindableReleaseImpl(vm, bindable);
+}
+uint32_t fileBindableName(wasm_exec_env_t env, uint32_t bindable, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableNameImpl(vm, bindable, buffer, capacity);
+}
+uint32_t fileBindableData(wasm_exec_env_t env, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableDataImpl(vm, bindable);
+}
+uint32_t fileBindableEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableEqualImpl(vm, a, b);
+}
 
 NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
     {"mark_needs_update", (void*)rtMarkNeedsUpdate, "(i)", nullptr},
     {"budget_exceeded", (void*)rtBudgetExceeded, "(i)", nullptr},
+    {"error", (void*)rtError, "(*~)", nullptr},
+    {"now", (void*)rtNow, "()F", nullptr},
+    {"date_now", (void*)rtDateNow, "()F", nullptr},
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},
@@ -2120,6 +2314,7 @@ NativeSymbol kDataNatives[] = {
     {"vmi_image", (void*)dataVmiImage, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_font", (void*)dataVmiFont, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_blob", (void*)dataVmiBlob, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_artboard", (void*)dataVmiArtboard, "(i*~)i", nullptr},
     {"image_get", (void*)dataImageGet, "(i)i", nullptr},
     {"image_set", (void*)dataImageSet, "(ii)", nullptr},
     {"font_get", (void*)dataFontGet, "(i)i", nullptr},
@@ -2130,6 +2325,8 @@ NativeSymbol kDataNatives[] = {
     {"blob_name", (void*)dataBlobName, "(i*~)i", nullptr},
     {"blob_set", (void*)dataBlobSet, "(i*~)", nullptr},
     {"blob_clear", (void*)dataBlobClear, "(i)", nullptr},
+    {"artboard_get", (void*)dataArtboardGet, "(i)i", nullptr},
+    {"artboard_set", (void*)dataArtboardSet, "(ii)", nullptr},
     {"enum_get", (void*)dataEnumGet, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"enum_set", (void*)dataEnumSet, "(i*~)", nullptr},
     {"enum_values", (void*)dataEnumValues, "(i*~)i", nullptr},
@@ -2175,11 +2372,14 @@ NativeSymbol kArtboardNatives[] = {
     {"set_frame_origin", (void*)artboardSetFrameOrigin, "(ii)", nullptr},
     {"bounds", (void*)artboardBounds, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"pointer_event", (void*)artboardPointerEvent, "(iiiff)i", nullptr},
+    {"scroll_event", (void*)artboardScrollEvent, "(iiffffiif)i", nullptr},
+    {"gamepad_event", (void*)artboardGamepadEvent, "(i*~)i", nullptr},
     {"animation", (void*)artboardAnimation, "(i*~)i", nullptr},
     {"animation_release", (void*)artboardAnimationRelease, "(i)", nullptr},
     {"animation_duration", (void*)artboardAnimationDuration, "(i)f", nullptr},
     {"animation_advance", (void*)artboardAnimationAdvance, "(if)i", nullptr},
     {"animation_set_time", (void*)artboardAnimationSetTime, "(ifi)", nullptr},
+    {"add_to_path", (void*)artboardAddToPath, "(iiffffff)", nullptr},
     {"node", (void*)artboardNode, "(i*~)i", nullptr},
     {"node_release", (void*)artboardNodeRelease, "(i)", nullptr},
     {"node_transform", (void*)artboardNodeTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
@@ -2265,6 +2465,7 @@ NativeSymbol kPaintNatives[] = {
     {"blend_mode", (void*)paintBlendMode, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
     {"feather", (void*)paintFeather, "(if)", (void*)&wasm_runtime_rive_leaf_native},
     {"shader", (void*)paintShader, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"shader_transform", (void*)paintShaderTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kCanvasNatives[] = {
@@ -2313,11 +2514,16 @@ NativeSymbol kGpuNatives[] = {
     {"shader_target", (void*)gpuShaderTarget, "()i", nullptr},
     {"shader_asset_bytes", (void*)gpuShaderAssetBytes, "(i*~*~)i", nullptr},
     {"shader_asset_id", (void*)gpuShaderAssetId, "(i*~)i", nullptr},
-    {"shader_module_new", (void*)gpuShaderModuleNew, "(*~*~)i", nullptr},
+    {"shader_module_from_asset", (void*)gpuShaderModuleFromAsset, "(i*~i)i", nullptr},
+#ifdef WITH_RIVE_TOOLS
+    {"shader_module_from_rstb", (void*)gpuShaderModuleFromRstb, "(*~ii)i", nullptr},
+#endif
     {"shader_module_release", (void*)gpuShaderModuleRelease, "(i)", nullptr},
     {"bind_group_layout_new", (void*)gpuBindGroupLayoutNew, "(i*~)i", nullptr},
     {"bind_group_layout_release", (void*)gpuBindGroupLayoutRelease, "(i)", nullptr},
     {"bind_group_layout_from_shader", (void*)gpuBindGroupLayoutFromShader, "(ii*~)i", nullptr},
+    {"bind_group_layout_from_shaders", (void*)gpuBindGroupLayoutFromShaders, "(iii*~)i", nullptr},
+    {"bind_group_layout_from_entries", (void*)gpuBindGroupLayoutFromEntries, "(i*~i*~i)i", nullptr},
     {"bind_group_new", (void*)gpuBindGroupNew, "(i*~*~*~)i", nullptr},
     {"bind_group_release", (void*)gpuBindGroupRelease, "(i)", nullptr},
     {"pipeline_new", (void*)gpuPipelineNew, "(*~*~)i", nullptr},
@@ -2429,6 +2635,16 @@ NativeSymbol kShaderNatives[] = {
     {"release", (void*)shaderRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
+NativeSymbol kTestNatives[] = {
+    {"blob", (void*)testBlob, "(*~*~)i", nullptr},
+};
+
+NativeSymbol kTransitionNatives[] = {
+    {"child_draw", (void*)transitionChildDraw, "(ii)", nullptr},
+    {"child_width", (void*)transitionChildWidth, "(i)f", nullptr},
+    {"child_height", (void*)transitionChildHeight, "(i)f", nullptr},
+};
+
 NativeSymbol kRendererNatives[] = {
     {"save", (void*)rendererSave, "(i)", (void*)&wasm_runtime_rive_leaf_native},
     {"restore", (void*)rendererRestore, "(i)", (void*)&wasm_runtime_rive_leaf_native},
@@ -2440,6 +2656,23 @@ NativeSymbol kRendererNatives[] = {
     {"draw_image", (void*)rendererDrawImage, "(iiiif)", (void*)&wasm_runtime_rive_leaf_native},
     {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", (void*)&wasm_runtime_rive_leaf_native},
     {"draw_image_mesh_instanced", (void*)rendererDrawImageMeshInstanced, "(iiiiiii)", (void*)&wasm_runtime_rive_leaf_native},
+};
+
+NativeSymbol kNetNatives[] = {
+    {"fetch", (void*)netFetch, "(*~i)i", nullptr},
+    {"fetch_cancel", (void*)netFetchCancel, "(i)", nullptr},
+};
+
+NativeSymbol kFileNatives[] = {
+    {"decode", (void*)fileDecode, "(*~*~)i", nullptr},
+    {"release", (void*)fileRelease, "(i)", nullptr},
+    {"artboard_count", (void*)fileArtboardCount, "(i)i", nullptr},
+    {"artboard_name", (void*)fileArtboardName, "(ii*~)i", nullptr},
+    {"bindable", (void*)fileBindable, "(i*~i)i", nullptr},
+    {"bindable_release", (void*)fileBindableRelease, "(i)", nullptr},
+    {"bindable_name", (void*)fileBindableName, "(i*~)i", nullptr},
+    {"bindable_data", (void*)fileBindableData, "(i)i", nullptr},
+    {"bindable_equal", (void*)fileBindableEqual, "(ii)i", nullptr},
 };
 
 inline bool registerRiveBindingNatives()
@@ -2513,7 +2746,24 @@ inline bool registerRiveBindingNatives()
                kShaderNatives,
                sizeof(kShaderNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
+               "rive_test_v1",
+               kTestNatives,
+               sizeof(kTestNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_transition_v1",
+               kTransitionNatives,
+               sizeof(kTransitionNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
                "rive_renderer_v1",
                kRendererNatives,
-               sizeof(kRendererNatives) / sizeof(NativeSymbol));
+               sizeof(kRendererNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_net_v1",
+               kNetNatives,
+               sizeof(kNetNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_file_v1",
+               kFileNatives,
+               sizeof(kFileNatives) / sizeof(NativeSymbol));
 }
+#endif

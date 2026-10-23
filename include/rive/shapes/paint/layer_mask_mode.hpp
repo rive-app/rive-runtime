@@ -15,10 +15,10 @@ namespace rive
 // works.
 enum class LayerMaskMode : uint8_t
 {
-    alpha = 0,             // f = mask.a
-    invertedAlpha = 1,     // f = 1 - mask.a
-    luminance = 2,         // f = luma(mask.rgb)
-    invertedLuminance = 3, // f = 1 - luma(mask.rgb)
+  alpha = 0,             // f = mask.a
+  invertedAlpha = 1,     // f = 1 - mask.a
+  luminance = 2,         // f = luma(mask.rgb)
+  invertedLuminance = 3, // f = 1 - luma(mask.rgb)
 };
 } // namespace rive
 #endif

@@ -9,41 +9,26 @@ namespace rive
 class BlobAssetBase : public FileAsset
 {
 protected:
-    typedef FileAsset Super;
+  typedef FileAsset Super;
 
 public:
-    static const uint16_t typeKey = 649;
+  static const uint16_t typeKey = 649;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case BlobAssetBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const BlobAssetBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        FileAsset::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const BlobAssetBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    FileAsset::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return FileAsset::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return FileAsset::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/blob_asset_ext.inl"
 #endif

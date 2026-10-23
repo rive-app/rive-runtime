@@ -1,0 +1,38 @@
+--- a/core/shared/platform/windows/win_memmap.c
++++ b/core/shared/platform/windows/win_memmap.c
+@@ -60,6 +60,35 @@
+         alloc_type |= MEM_COMMIT;
+     }
+ 
++#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64)
++    /* Windows has no MAP_32BIT, and AOT code relocates against its own
++       sections with 32 bit absolute addresses, so take the first free
++       region below 2GB. */
++    if (!hint && (flags & MMAP_MAP_32BIT)) {
++        SYSTEM_INFO info;
++        MEMORY_BASIC_INFORMATION region;
++        uintptr_t granularity, at, base, end;
++
++        GetSystemInfo(&info);
++        granularity = info.dwAllocationGranularity;
++        at = granularity;
++        while (at < 2ULL * BH_GB
++               && VirtualQuery((LPCVOID)at, &region, sizeof(region))) {
++            base = ((uintptr_t)region.BaseAddress + granularity - 1)
++                   & ~(granularity - 1);
++            end = (uintptr_t)region.BaseAddress + region.RegionSize;
++            if (region.State == MEM_FREE && base + request_size <= end
++                && base + request_size <= 2ULL * BH_GB) {
++                addr = VirtualAlloc((LPVOID)base, request_size, alloc_type,
++                                    protect);
++                if (addr)
++                    return addr;
++            }
++            at = end;
++        }
++    }
++#endif
++
+     addr = VirtualAlloc((LPVOID)hint, request_size, alloc_type, protect);
+ 
+ #if TRACE_MEMMAP != 0

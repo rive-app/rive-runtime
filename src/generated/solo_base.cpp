@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* SoloBase::clone() const
 {
-    auto cloned = new Solo();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Solo();
+  cloned->copy(*this);
+  return cloned;
 }

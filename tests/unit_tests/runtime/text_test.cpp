@@ -9,1012 +9,1044 @@
 #include "utils/no_op_renderer.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_variation_modifier.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/layout_component.hpp"
+#include <functional>
 #include <iostream>
 #include <string>
 
 TEST_CASE("file with text loads correctly", "[text]")
 {
-    auto file = ReadRiveFile("assets/new_text.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/new_text.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 5);
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 5);
 
-    auto styleObjects = artboard->find<rive::TextStyle>();
-    REQUIRE(styleObjects.size() == 13);
+  auto styleObjects = artboard->find<rive::TextStyle>();
+  REQUIRE(styleObjects.size() == 13);
 
-    auto runObjects = artboard->find<rive::TextValueRun>();
-    REQUIRE(runObjects.size() == 22);
+  auto runObjects = artboard->find<rive::TextValueRun>();
+  REQUIRE(runObjects.size() == 22);
 
-    artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 }
 
 TEST_CASE("can query for all text runs", "[text]")
 {
-    auto file = ReadRiveFile("assets/new_text.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/new_text.riv");
+  auto artboard = file->artboard();
 
-    auto textRunCount = artboard->count<rive::TextValueRun>();
-    REQUIRE(textRunCount == 22);
+  auto textRunCount = artboard->count<rive::TextValueRun>();
+  REQUIRE(textRunCount == 22);
 }
 
 TEST_CASE("can query for a text run at a given index", "[text]")
 {
-    auto file = ReadRiveFile("assets/hello_world.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
 
-    auto textRun = artboard->objectAt<rive::TextValueRun>(0);
-    REQUIRE(textRun->text() == "Hello World!");
+  auto textRun = artboard->objectAt<rive::TextValueRun>(0);
+  REQUIRE(textRun->text() == "Hello World!");
 }
 
 TEST_CASE("simple text loads", "[text]")
 {
-    auto file = ReadRiveFile("assets/hello_world.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
 
-    auto styleObjects = artboard->find<rive::TextStyle>();
-    REQUIRE(styleObjects.size() == 1);
+  auto styleObjects = artboard->find<rive::TextStyle>();
+  REQUIRE(styleObjects.size() == 1);
 
-    auto runObjects = artboard->find<rive::TextValueRun>();
-    REQUIRE(runObjects.size() == 1);
-    REQUIRE(runObjects[0]->text() == "Hello World!");
+  auto runObjects = artboard->find<rive::TextValueRun>();
+  REQUIRE(runObjects.size() == 1);
+  REQUIRE(runObjects[0]->text() == "Hello World!");
 
-    rive::NoOpRenderer renderer;
+  rive::NoOpRenderer renderer;
 
-    artboard->advance(0.0f);
-    artboard->draw(&renderer);
-    {
-        REQUIRE(textObjects[0]->shape().size() == 1);
-        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
-        REQUIRE(paragraph.runs.size() == 1);
-        REQUIRE(paragraph.runs[0].glyphs.size() == 12);
-    }
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  {
+    REQUIRE(textObjects[0]->shape().size() == 1);
+    const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+    REQUIRE(paragraph.runs.size() == 1);
+    REQUIRE(paragraph.runs[0].glyphs.size() == 12);
+  }
 
-    // Changing to "Just Hello" works.
-    runObjects[0]->text("Just Hello");
-    artboard->advance(0.0f);
-    artboard->draw(&renderer);
-    {
-        REQUIRE(textObjects[0]->shape().size() == 1);
-        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
-        REQUIRE(paragraph.runs.size() == 1);
-        REQUIRE(paragraph.runs[0].glyphs.size() == 10);
-    }
+  // Changing to "Just Hello" works.
+  runObjects[0]->text("Just Hello");
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  {
+    REQUIRE(textObjects[0]->shape().size() == 1);
+    const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+    REQUIRE(paragraph.runs.size() == 1);
+    REQUIRE(paragraph.runs[0].glyphs.size() == 10);
+  }
 
-    // Changing to an empty space " " works.
-    runObjects[0]->text(" ");
-    artboard->advance(0.0f);
-    artboard->draw(&renderer);
-    {
-        REQUIRE(textObjects[0]->shape().size() == 1);
-        const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
-        REQUIRE(paragraph.runs.size() == 1);
-        REQUIRE(paragraph.runs[0].glyphs.size() == 1);
-    }
+  // Changing to an empty space " " works.
+  runObjects[0]->text(" ");
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  {
+    REQUIRE(textObjects[0]->shape().size() == 1);
+    const rive::Paragraph& paragraph = textObjects[0]->shape()[0];
+    REQUIRE(paragraph.runs.size() == 1);
+    REQUIRE(paragraph.runs[0].glyphs.size() == 1);
+  }
 
-    // Changing to completely empty works.
-    runObjects[0]->text("");
-    artboard->advance(0.0f);
-    artboard->draw(&renderer);
-    {
-        REQUIRE(textObjects[0]->shape().size() == 0);
-        REQUIRE(textObjects[0]->localBounds().width() == 0.0f);
-        REQUIRE(textObjects[0]->localBounds().height() == 0.0f);
-    }
+  // Changing to completely empty works.
+  runObjects[0]->text("");
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  {
+    REQUIRE(textObjects[0]->shape().size() == 0);
+    REQUIRE(textObjects[0]->localBounds().width() == 0.0f);
+    REQUIRE(textObjects[0]->localBounds().height() == 0.0f);
+  }
+}
+
+TEST_CASE("a text run cut short mid sequence decodes inside its text", "[text]")
+{
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  auto run = artboard->find<rive::TextValueRun>()[0];
+  run->text("Hello\xE2"
+            "!");
+  CHECK(run->length() == 7);
+  rive::NoOpRenderer renderer;
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+  REQUIRE(text->shape().size() == 1);
+  CHECK(text->shape()[0].runs[0].glyphs.size() == 7);
 }
 
 TEST_CASE("vertical trim shrinks the box to the chosen band", "[text]")
 {
-    auto file = ReadRiveFile("assets/hello_world.riv");
-    auto artboard = file->artboard();
-    auto text = artboard->find<rive::Text>()[0];
-    rive::NoOpRenderer renderer;
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  rive::NoOpRenderer renderer;
 
-    auto measureHeight = [&](rive::TextTrimTop top,
-                             rive::TextTrimBottom bottom) {
-        text->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
-        artboard->advance(0.0f);
-        artboard->draw(&renderer);
-        return text->localBounds().height();
-    };
+  auto measureHeight = [&](rive::TextTrimTop top, rive::TextTrimBottom bottom) {
+    text->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+    return text->localBounds().height();
+  };
 
-    // Auto-width so the height is driven entirely by the line metrics.
-    text->sizingValue((uint32_t)rive::TextSizing::autoWidth);
-    float normalHeight =
-        measureHeight(rive::TextTrimTop::none, rive::TextTrimBottom::none);
-    float normalWidth = text->localBounds().width();
-    REQUIRE(normalHeight > 0.0f);
+  // Auto-width so the height is driven entirely by the line metrics.
+  text->sizingValue((uint32_t)rive::TextSizing::autoWidth);
+  float normalHeight = measureHeight(
+      rive::TextTrimTop::none,
+      rive::TextTrimBottom::none);
+  float normalWidth = text->localBounds().width();
+  REQUIRE(normalHeight > 0.0f);
 
-    // Cap + baseline removes the ascent above the caps and the whole descent.
-    float capHeight =
-        measureHeight(rive::TextTrimTop::cap, rive::TextTrimBottom::alphabetic);
-    REQUIRE(capHeight > 0.0f);
-    REQUIRE(capHeight < normalHeight);
-    REQUIRE(text->localBounds().width() == Approx(normalWidth));
+  // Cap + baseline removes the ascent above the caps and the whole descent.
+  float capHeight = measureHeight(
+      rive::TextTrimTop::cap,
+      rive::TextTrimBottom::alphabetic);
+  REQUIRE(capHeight > 0.0f);
+  REQUIRE(capHeight < normalHeight);
+  REQUIRE(text->localBounds().width() == Approx(normalWidth));
 
-    // x-height sits below the cap line, so trimming to it removes even more.
-    float exHeight =
-        measureHeight(rive::TextTrimTop::ex, rive::TextTrimBottom::alphabetic);
-    REQUIRE(exHeight > 0.0f);
-    REQUIRE(exHeight < capHeight);
+  // x-height sits below the cap line, so trimming to it removes even more.
+  float exHeight = measureHeight(
+      rive::TextTrimTop::ex,
+      rive::TextTrimBottom::alphabetic);
+  REQUIRE(exHeight > 0.0f);
+  REQUIRE(exHeight < capHeight);
 
-    // Trimming only the top leaves a taller box than also trimming the bottom.
-    float topOnlyHeight =
-        measureHeight(rive::TextTrimTop::cap, rive::TextTrimBottom::none);
-    REQUIRE(topOnlyHeight > capHeight);
-    REQUIRE(topOnlyHeight < normalHeight);
+  // Trimming only the top leaves a taller box than also trimming the bottom.
+  float topOnlyHeight = measureHeight(
+      rive::TextTrimTop::cap,
+      rive::TextTrimBottom::none);
+  REQUIRE(topOnlyHeight > capHeight);
+  REQUIRE(topOnlyHeight < normalHeight);
 }
 
-TEST_CASE("vertical trim top/bottom uint passthroughs pack into the mask",
-          "[text]")
+TEST_CASE(
+    "vertical trim top/bottom uint passthroughs pack into the mask",
+    "[text]")
 {
-    rive::Text text;
+  rive::Text text;
 
-    // The two uint bitmask passthroughs write disjoint byte-wide fields of the
-    // single packed verticalTrimValue, matching packTextVerticalTrim().
-    rive::CoreRegistry::setUint(&text,
-                                rive::TextBase::verticalTrimTopValuePropertyKey,
-                                (uint32_t)rive::TextTrimTop::ex);
-    rive::CoreRegistry::setUint(
-        &text,
-        rive::TextBase::verticalTrimBottomValuePropertyKey,
-        (uint32_t)rive::TextTrimBottom::text);
+  // The two uint bitmask passthroughs write disjoint byte-wide fields of the
+  // single packed verticalTrimValue, matching packTextVerticalTrim().
+  rive::CoreRegistry::setUint(
+      &text,
+      rive::TextBase::verticalTrimTopValuePropertyKey,
+      (uint32_t)rive::TextTrimTop::ex);
+  rive::CoreRegistry::setUint(
+      &text,
+      rive::TextBase::verticalTrimBottomValuePropertyKey,
+      (uint32_t)rive::TextTrimBottom::text);
 
-    REQUIRE(text.verticalTrimValue() ==
-            rive::packTextVerticalTrim(rive::TextTrimTop::ex,
-                                       rive::TextTrimBottom::text));
-    REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::ex);
-    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+  REQUIRE(
+      text.verticalTrimValue() == rive::packTextVerticalTrim(
+                                      rive::TextTrimTop::ex,
+                                      rive::TextTrimBottom::text));
+  REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::ex);
+  REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
 
-    // Read-back through the registry returns the per-field values.
-    REQUIRE(rive::CoreRegistry::getUint(
-                &text,
-                rive::TextBase::verticalTrimTopValuePropertyKey) ==
-            (uint32_t)rive::TextTrimTop::ex);
-    REQUIRE(rive::CoreRegistry::getUint(
-                &text,
-                rive::TextBase::verticalTrimBottomValuePropertyKey) ==
-            (uint32_t)rive::TextTrimBottom::text);
+  // Read-back through the registry returns the per-field values.
+  REQUIRE(
+      rive::CoreRegistry::getUint(
+          &text,
+          rive::TextBase::verticalTrimTopValuePropertyKey) ==
+      (uint32_t)rive::TextTrimTop::ex);
+  REQUIRE(
+      rive::CoreRegistry::getUint(
+          &text,
+          rive::TextBase::verticalTrimBottomValuePropertyKey) ==
+      (uint32_t)rive::TextTrimBottom::text);
 
-    // Rewriting one field leaves the other untouched.
-    rive::CoreRegistry::setUint(&text,
-                                rive::TextBase::verticalTrimTopValuePropertyKey,
-                                (uint32_t)rive::TextTrimTop::cap);
-    REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::cap);
-    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+  // Rewriting one field leaves the other untouched.
+  rive::CoreRegistry::setUint(
+      &text,
+      rive::TextBase::verticalTrimTopValuePropertyKey,
+      (uint32_t)rive::TextTrimTop::cap);
+  REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::cap);
+  REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
 
-    // Overflow beyond the 8-bit field is masked off, never bleeding into the
-    // neighbouring field.
-    rive::CoreRegistry::setUint(&text,
-                                rive::TextBase::verticalTrimTopValuePropertyKey,
-                                0x1FF);
-    REQUIRE(rive::CoreRegistry::getUint(
-                &text,
-                rive::TextBase::verticalTrimTopValuePropertyKey) == 0xFF);
-    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+  // Overflow beyond the 8-bit field is masked off, never bleeding into the
+  // neighbouring field.
+  rive::CoreRegistry::setUint(
+      &text,
+      rive::TextBase::verticalTrimTopValuePropertyKey,
+      0x1FF);
+  REQUIRE(
+      rive::CoreRegistry::getUint(
+          &text,
+          rive::TextBase::verticalTrimTopValuePropertyKey) == 0xFF);
+  REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
 }
 
 TEST_CASE("ellipsis is shown", "[text]")
 {
-    auto file = ReadRiveFile("assets/ellipsis.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
 
-    auto styleObjects = artboard->find<rive::TextStyle>();
-    REQUIRE(styleObjects.size() == 1);
+  auto styleObjects = artboard->find<rive::TextStyle>();
+  REQUIRE(styleObjects.size() == 1);
 
-    auto runObjects = artboard->find<rive::TextValueRun>();
-    REQUIRE(runObjects.size() == 1);
+  auto runObjects = artboard->find<rive::TextValueRun>();
+  REQUIRE(runObjects.size() == 1);
 
-    artboard->advance(0.0f);
-    auto text = textObjects[0];
-    auto lines = text->orderedLines();
-    REQUIRE(lines.size() == 1);
+  artboard->advance(0.0f);
+  auto text = textObjects[0];
+  auto lines = text->orderedLines();
+  REQUIRE(lines.size() == 1);
 
-    auto orderedLine = lines[0];
-    int glyphCount = 0;
-    std::vector<rive::GlyphID> glyphIds;
-    // for (auto itr = orderedLine.begin(); itr != orderedLine.end(); ++itr)
-    for (auto glyphItr : orderedLine)
-    {
-        auto run = std::get<0>(glyphItr);
-        size_t glyphIndex = std::get<1>(glyphItr);
-        glyphIds.push_back(run->glyphs[glyphIndex]);
-        glyphCount++;
-    }
-    // Expect 10 glyphs 'one two...'
-    REQUIRE(glyphCount == 10);
-    // Third to last glyph should be the "." for Inter.
-    REQUIRE(glyphIds[7] == 1405);
-    // Last three glyphs should be the same '.'
-    REQUIRE(glyphIds[7] == glyphIds[8]);
-    REQUIRE(glyphIds[8] == glyphIds[9]);
+  auto orderedLine = lines[0];
+  int glyphCount = 0;
+  std::vector<rive::GlyphID> glyphIds;
+  // for (auto itr = orderedLine.begin(); itr != orderedLine.end(); ++itr)
+  for (auto glyphItr : orderedLine)
+  {
+    auto run = std::get<0>(glyphItr);
+    size_t glyphIndex = std::get<1>(glyphItr);
+    glyphIds.push_back(run->glyphs[glyphIndex]);
+    glyphCount++;
+  }
+  // Expect 10 glyphs 'one two...'
+  REQUIRE(glyphCount == 10);
+  // Third to last glyph should be the "." for Inter.
+  REQUIRE(glyphIds[7] == 1405);
+  // Last three glyphs should be the same '.'
+  REQUIRE(glyphIds[7] == glyphIds[8]);
+  REQUIRE(glyphIds[8] == glyphIds[9]);
 
-    // now set overflow to visible.
-    text->overflow(rive::TextOverflow::visible);
-    artboard->advance(0.0f);
-    lines = text->orderedLines();
+  // now set overflow to visible.
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
+  lines = text->orderedLines();
 
-    // 2 lines after we set overflow to visible and advance which updates the
-    // ordered lines.
-    REQUIRE(lines.size() == 2);
+  // 2 lines after we set overflow to visible and advance which updates the
+  // ordered lines.
+  REQUIRE(lines.size() == 2);
 
-    orderedLine = lines[0];
-    glyphCount = 0;
-    for (auto itr = orderedLine.begin(); itr != orderedLine.end(); ++itr)
-    {
-        glyphCount++;
-    }
-    // Expect 7 glyphs 'one two' as now 'three' is on line 2.
-    REQUIRE(glyphCount == 7);
+  orderedLine = lines[0];
+  glyphCount = 0;
+  for (auto itr = orderedLine.begin(); itr != orderedLine.end(); ++itr)
+  {
+    glyphCount++;
+  }
+  // Expect 7 glyphs 'one two' as now 'three' is on line 2.
+  REQUIRE(glyphCount == 7);
 
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 
-    rive::GlyphLookup lookup;
-    lookup.compute(text->unichars(), text->shape());
-    REQUIRE(lookup.count(0) == 1);
+  rive::GlyphLookup lookup;
+  lookup.compute(text->unichars(), text->shape());
+  REQUIRE(lookup.count(0) == 1);
 
-    runObjects[0]->text("a -> b");
-    artboard->advance(0.0f);
-    lookup.compute(text->unichars(), text->shape());
-    REQUIRE(lookup.count(0) == 1); // a
-    REQUIRE(lookup.count(1) == 1); // space
-    REQUIRE(lookup.count(2) == 2); // - ligates > to ->
-    REQUIRE(lookup.count(4) == 1); // space
-    REQUIRE(lookup.count(5) == 1); // b
+  runObjects[0]->text("a -> b");
+  artboard->advance(0.0f);
+  lookup.compute(text->unichars(), text->shape());
+  REQUIRE(lookup.count(0) == 1); // a
+  REQUIRE(lookup.count(1) == 1); // space
+  REQUIRE(lookup.count(2) == 2); // - ligates > to ->
+  REQUIRE(lookup.count(4) == 1); // space
+  REQUIRE(lookup.count(5) == 1); // b
 }
 
 TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
 {
-    // ellipsis.riv is a fixed-size text box whose content overflows (that's why
-    // it ellipsizes), making it a good fixture for the fit-by-font-size mode.
-    auto file = ReadRiveFile("assets/ellipsis.riv");
-    auto artboard = file->artboard();
+  // ellipsis.riv is a fixed-size text box whose content overflows (that's why
+  // it ellipsizes), making it a good fixture for the fit-by-font-size mode.
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
-    auto text = textObjects[0];
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
+  auto text = textObjects[0];
 
-    // Authored size: shape the text as-is (no fitting) and read the run size.
-    text->overflow(rive::TextOverflow::visible);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float authoredSize = text->shape()[0].runs[0].size;
-    REQUIRE(authoredSize > 1.0f);
+  // Authored size: shape the text as-is (no fitting) and read the run size.
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float authoredSize = text->shape()[0].runs[0].size;
+  REQUIRE(authoredSize > 1.0f);
 
-    // With fitFontSize the text is re-shaped at a smaller integer size so that
-    // it fits, and -- unlike fit -- it is NOT scaled via the transform.
-    text->overflow(rive::TextOverflow::fitFontSize);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float fittedSize = text->shape()[0].runs[0].size;
+  // With fitFontSize the text is re-shaped at a smaller integer size so that
+  // it fits, and -- unlike fit -- it is NOT scaled via the transform.
+  text->overflow(rive::TextOverflow::fitFontSize);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float fittedSize = text->shape()[0].runs[0].size;
 
-    // Shrunk to fit, never below the minimum of 1.
-    REQUIRE(fittedSize < authoredSize);
-    REQUIRE(fittedSize >= 1.0f);
-    // Single run => fontScale = bestInt / authoredSize, so the shaped size is
-    // exactly an integer.
-    REQUIRE(fittedSize == std::floor(fittedSize));
-    // No post-scaling of the laid-out glyphs.
-    REQUIRE(text->m_transform.xx() == Approx(1.0f));
+  // Shrunk to fit, never below the minimum of 1.
+  REQUIRE(fittedSize < authoredSize);
+  REQUIRE(fittedSize >= 1.0f);
+  // Single run => fontScale = bestInt / authoredSize, so the shaped size is
+  // exactly an integer.
+  REQUIRE(fittedSize == std::floor(fittedSize));
+  // No post-scaling of the laid-out glyphs.
+  REQUIRE(text->m_transform.xx() == Approx(1.0f));
 }
 
 // Shapes ellipsis.riv at fontSize in a width x height fitFontSize box and
 // returns the shaped run size.
 static float fitRunSize(float fontSize, float width, float height)
 {
-    auto file = ReadRiveFile("assets/ellipsis.riv");
-    auto artboard = file->artboard();
-    auto text = artboard->find<rive::Text>()[0];
-    for (auto style : artboard->find<rive::TextStyle>())
-    {
-        style->fontSize(fontSize);
-    }
-    text->sizingValue((uint32_t)rive::TextSizing::fixed);
-    text->width(width);
-    text->height(height);
-    text->overflow(rive::TextOverflow::fitFontSize);
-    artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    return text->shape()[0].runs[0].size;
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  for (auto style : artboard->find<rive::TextStyle>())
+  {
+    style->fontSize(fontSize);
+  }
+  text->sizingValue((uint32_t)rive::TextSizing::fixed);
+  text->width(width);
+  text->height(height);
+  text->overflow(rive::TextOverflow::fitFontSize);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  return text->shape()[0].runs[0].size;
 }
 
 TEST_CASE("fitFontSize keeps a non-finite font size", "[text]")
 {
-    // inf used to overflow the int search and never return.
-    CHECK(std::isinf(fitRunSize(INFINITY, 300.0f, 60.0f)));
-    CHECK(std::isnan(fitRunSize(NAN, 300.0f, 60.0f)));
+  // inf used to overflow the int search and never return.
+  CHECK(std::isinf(fitRunSize(INFINITY, 300.0f, 60.0f)));
+  CHECK(std::isnan(fitRunSize(NAN, 300.0f, 60.0f)));
 }
 
 TEST_CASE("fitFontSize caps the search at 2^24", "[text]")
 {
-    // Every size fits, so the search tops out at the cap.
-    CHECK(fitRunSize(3e9f, 1e38f, 1e38f) == Approx((float)(1 << 24)));
-    // Too big for a normal box: shrinks to the size a normal font fits at.
-    float fitted = fitRunSize(3e9f, 300.0f, 60.0f);
-    CHECK(fitted < 60.0f);
-    CHECK(fitted == Approx(fitRunSize(100.0f, 300.0f, 60.0f)));
+  // Every size fits, so the search tops out at the cap.
+  CHECK(fitRunSize(3e9f, 1e38f, 1e38f) == Approx((float)(1 << 24)));
+  // Too big for a normal box: shrinks to the size a normal font fits at.
+  float fitted = fitRunSize(3e9f, 300.0f, 60.0f);
+  CHECK(fitted < 60.0f);
+  CHECK(fitted == Approx(fitRunSize(100.0f, 300.0f, 60.0f)));
 }
 
-TEST_CASE("fitFontSize scales custom line height and letter spacing "
-          "proportionally",
-          "[text]")
+TEST_CASE(
+    "fitFontSize scales custom line height and letter spacing "
+    "proportionally",
+    "[text]")
 {
-    auto file = ReadRiveFile("assets/ellipsis.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
-    auto text = textObjects[0];
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
+  auto text = textObjects[0];
 
-    // Author absolute custom line height and letter spacing on every style so
-    // we can verify they track the fitted font size.
-    const float authoredLineHeight = 40.0f;
-    const float authoredLetterSpacing = 3.0f;
-    auto styles = artboard->find<rive::TextStyle>();
-    REQUIRE(!styles.empty());
-    for (auto style : styles)
-    {
-        style->lineHeight(authoredLineHeight);
-        style->letterSpacing(authoredLetterSpacing);
-    }
+  // Author absolute custom line height and letter spacing on every style so
+  // we can verify they track the fitted font size.
+  const float authoredLineHeight = 40.0f;
+  const float authoredLetterSpacing = 3.0f;
+  auto styles = artboard->find<rive::TextStyle>();
+  REQUIRE(!styles.empty());
+  for (auto style : styles)
+  {
+    style->lineHeight(authoredLineHeight);
+    style->letterSpacing(authoredLetterSpacing);
+  }
 
-    // Authored (unscaled) size: the custom values pass through as-is.
-    text->overflow(rive::TextOverflow::visible);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float authoredSize = text->shape()[0].runs[0].size;
-    REQUIRE(authoredSize > 1.0f);
-    REQUIRE(text->shape()[0].runs[0].lineHeight == Approx(authoredLineHeight));
-    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
-            Approx(authoredLetterSpacing));
+  // Authored (unscaled) size: the custom values pass through as-is.
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float authoredSize = text->shape()[0].runs[0].size;
+  REQUIRE(authoredSize > 1.0f);
+  REQUIRE(text->shape()[0].runs[0].lineHeight == Approx(authoredLineHeight));
+  REQUIRE(
+      text->shape()[0].runs[0].letterSpacing == Approx(authoredLetterSpacing));
 
-    // With fitFontSize the font shrinks; the custom line height and letter
-    // spacing must shrink by the same multiplier so the layout stays a uniform
-    // scale of the authored one.
-    text->overflow(rive::TextOverflow::fitFontSize);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float fittedSize = text->shape()[0].runs[0].size;
-    REQUIRE(fittedSize < authoredSize);
+  // With fitFontSize the font shrinks; the custom line height and letter
+  // spacing must shrink by the same multiplier so the layout stays a uniform
+  // scale of the authored one.
+  text->overflow(rive::TextOverflow::fitFontSize);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float fittedSize = text->shape()[0].runs[0].size;
+  REQUIRE(fittedSize < authoredSize);
 
-    float expectedScale = fittedSize / authoredSize;
-    REQUIRE(text->shape()[0].runs[0].lineHeight ==
-            Approx(authoredLineHeight * expectedScale));
-    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
-            Approx(authoredLetterSpacing * expectedScale));
+  float expectedScale = fittedSize / authoredSize;
+  REQUIRE(
+      text->shape()[0].runs[0].lineHeight ==
+      Approx(authoredLineHeight * expectedScale));
+  REQUIRE(
+      text->shape()[0].runs[0].letterSpacing ==
+      Approx(authoredLetterSpacing * expectedScale));
 }
 
 TEST_CASE("fitFontSize scales paragraph spacing proportionally", "[text]")
 {
-    // double_line.riv has multiple paragraphs (explicit new lines), so the
-    // paragraph gap actually contributes to the vertical layout.
-    auto file = ReadRiveFile("assets/double_line.riv");
-    auto artboard = file->artboard();
+  // double_line.riv has multiple paragraphs (explicit new lines), so the
+  // paragraph gap actually contributes to the vertical layout.
+  auto file = ReadRiveFile("assets/double_line.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
-    auto text = textObjects[0];
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
+  auto text = textObjects[0];
 
-    // A large absolute paragraph gap so any (mis)scaling of it is obvious.
-    text->paragraphSpacing(30.0f);
+  // A large absolute paragraph gap so any (mis)scaling of it is obvious.
+  text->paragraphSpacing(30.0f);
 
-    // A wide fixed box keeps line breaking identical between the two passes
-    // (only the width affects breaking), so the ordered lines line up 1:1.
-    text->sizingValue((uint32_t)rive::TextSizing::fixed);
-    text->width(2000.0f);
-    text->height(2000.0f);
+  // A wide fixed box keeps line breaking identical between the two passes
+  // (only the width affects breaking), so the ordered lines line up 1:1.
+  text->sizingValue((uint32_t)rive::TextSizing::fixed);
+  text->width(2000.0f);
+  text->height(2000.0f);
 
-    // Authored pass: visible never shrinks, so this is the natural layout.
-    text->overflow(rive::TextOverflow::visible);
-    artboard->advance(0.0f);
+  // Authored pass: visible never shrinks, so this is the natural layout.
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
 
-    // The fixture must actually have multiple paragraphs or the gap is never
-    // exercised.
-    REQUIRE(text->shape().size() >= 2);
-    REQUIRE(!text->shape()[0].runs.empty());
-    float authoredSize = text->shape()[0].runs[0].size;
-    REQUIRE(authoredSize > 1.0f);
+  // The fixture must actually have multiple paragraphs or the gap is never
+  // exercised.
+  REQUIRE(text->shape().size() >= 2);
+  REQUIRE(!text->shape()[0].runs.empty());
+  float authoredSize = text->shape()[0].runs[0].size;
+  REQUIRE(authoredSize > 1.0f);
 
-    std::vector<float> authoredY;
-    for (const rive::OrderedLine& line : text->orderedLines())
-    {
-        authoredY.push_back(line.y());
-    }
-    REQUIRE(authoredY.size() >= 2);
+  std::vector<float> authoredY;
+  for (const rive::OrderedLine& line : text->orderedLines())
+  {
+    authoredY.push_back(line.y());
+  }
+  REQUIRE(authoredY.size() >= 2);
 
-    // Fitted pass: same width (same breaking) but a short box forces the font
-    // to shrink. Everything absolute -- including the paragraph gap -- must
-    // shrink with it.
-    text->height(40.0f);
-    text->overflow(rive::TextOverflow::fitFontSize);
-    artboard->advance(0.0f);
+  // Fitted pass: same width (same breaking) but a short box forces the font
+  // to shrink. Everything absolute -- including the paragraph gap -- must
+  // shrink with it.
+  text->height(40.0f);
+  text->overflow(rive::TextOverflow::fitFontSize);
+  artboard->advance(0.0f);
 
-    REQUIRE(!text->shape()[0].runs.empty());
-    float fittedSize = text->shape()[0].runs[0].size;
-    REQUIRE(fittedSize < authoredSize);
+  REQUIRE(!text->shape()[0].runs.empty());
+  float fittedSize = text->shape()[0].runs[0].size;
+  REQUIRE(fittedSize < authoredSize);
 
-    const auto& fittedLines = text->orderedLines();
-    REQUIRE(fittedLines.size() == authoredY.size());
+  const auto& fittedLines = text->orderedLines();
+  REQUIRE(fittedLines.size() == authoredY.size());
 
-    const float scale = fittedSize / authoredSize;
+  const float scale = fittedSize / authoredSize;
 
-    // A true uniform scale: every line's y (which accumulates line heights AND
-    // the paragraph gap) tracks the font size. Without scaling the paragraph
-    // gap, lines past the first paragraph would sit too low.
-    for (size_t i = 0; i < authoredY.size(); i++)
-    {
-        REQUIRE(fittedLines[i].y() == Approx(authoredY[i] * scale));
-    }
+  // A true uniform scale: every line's y (which accumulates line heights AND
+  // the paragraph gap) tracks the font size. Without scaling the paragraph
+  // gap, lines past the first paragraph would sit too low.
+  for (size_t i = 0; i < authoredY.size(); i++)
+  {
+    REQUIRE(fittedLines[i].y() == Approx(authoredY[i] * scale));
+  }
 
-    // The vertical span across paragraphs (which is dominated by the gap) must
-    // itself have shrunk by the same ratio -- guards against a trivial pass at
-    // y == 0.
-    float authoredSpan = authoredY.back() - authoredY.front();
-    float fittedSpan = fittedLines.back().y() - fittedLines.front().y();
-    REQUIRE(authoredSpan > 0.0f);
-    REQUIRE(fittedSpan < authoredSpan);
-    REQUIRE(fittedSpan == Approx(authoredSpan * scale));
+  // The vertical span across paragraphs (which is dominated by the gap) must
+  // itself have shrunk by the same ratio -- guards against a trivial pass at
+  // y == 0.
+  float authoredSpan = authoredY.back() - authoredY.front();
+  float fittedSpan = fittedLines.back().y() - fittedLines.front().y();
+  REQUIRE(authoredSpan > 0.0f);
+  REQUIRE(fittedSpan < authoredSpan);
+  REQUIRE(fittedSpan == Approx(authoredSpan * scale));
 }
 
 TEST_CASE("changing paragraph spacing reshapes fitFontSize text", "[text]")
 {
-    auto file = ReadRiveFile("assets/double_line.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/double_line.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
-    auto text = textObjects[0];
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
+  auto text = textObjects[0];
 
-    // A fixed box that forces the multi-paragraph text to shrink to fit.
-    text->sizingValue((uint32_t)rive::TextSizing::fixed);
-    text->width(2000.0f);
-    text->height(150.0f);
-    text->overflow(rive::TextOverflow::fitFontSize);
+  // A fixed box that forces the multi-paragraph text to shrink to fit.
+  text->sizingValue((uint32_t)rive::TextSizing::fixed);
+  text->width(2000.0f);
+  text->height(150.0f);
+  text->overflow(rive::TextOverflow::fitFontSize);
 
-    text->paragraphSpacing(0.0f);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float sizeWithoutGap = text->shape()[0].runs[0].size;
-    REQUIRE(sizeWithoutGap > 1.0f);
+  text->paragraphSpacing(0.0f);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float sizeWithoutGap = text->shape()[0].runs[0].size;
+  REQUIRE(sizeWithoutGap > 1.0f);
 
-    // Growing the paragraph gap eats vertical space, so the fitted font must
-    // shrink. This only happens if the change re-runs the fit search (a
-    // reshape); a plain paint rebuild would leave the size untouched.
-    text->paragraphSpacing(60.0f);
-    artboard->advance(0.0f);
-    REQUIRE(!text->shape().empty());
-    REQUIRE(!text->shape()[0].runs.empty());
-    float sizeWithGap = text->shape()[0].runs[0].size;
+  // Growing the paragraph gap eats vertical space, so the fitted font must
+  // shrink. This only happens if the change re-runs the fit search (a
+  // reshape); a plain paint rebuild would leave the size untouched.
+  text->paragraphSpacing(60.0f);
+  artboard->advance(0.0f);
+  REQUIRE(!text->shape().empty());
+  REQUIRE(!text->shape()[0].runs.empty());
+  float sizeWithGap = text->shape()[0].runs[0].size;
 
-    REQUIRE(sizeWithGap < sizeWithoutGap);
+  REQUIRE(sizeWithGap < sizeWithoutGap);
 }
 
 static std::vector<rive::Unichar> toUnicode(const char text[])
 {
-    std::vector<rive::Unichar> codePoints;
-    const uint8_t* ptr = (const uint8_t*)text;
-    while (*ptr)
-    {
-        codePoints.push_back(rive::UTF::NextUTF8(&ptr));
-    }
-    return codePoints;
+  std::vector<rive::Unichar> codePoints;
+  const uint8_t* ptr = (const uint8_t*)text;
+  const uint8_t* end = ptr + strlen(text);
+  while (ptr < end)
+  {
+    codePoints.push_back(rive::UTF::NextUTF8(&ptr, end));
+  }
+  return codePoints;
 }
 
 TEST_CASE("range mapper maps words", "[text]")
 {
-    auto codePoints = toUnicode("one two three four");
-    rive::RangeMapper rangeMapper;
-    rangeMapper.fromWords(codePoints, 0, (uint32_t)codePoints.size());
-    REQUIRE(rangeMapper.unitCount() == 4);
+  auto codePoints = toUnicode("one two three four");
+  rive::RangeMapper rangeMapper;
+  rangeMapper.fromWords(codePoints, 0, (uint32_t)codePoints.size());
+  REQUIRE(rangeMapper.unitCount() == 4);
 }
 
 TEST_CASE("run modifier ranges select runs", "[text]")
 {
-    auto file = ReadRiveFile("assets/modifier_to_run.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/modifier_to_run.riv");
+  auto artboard = file->artboard();
 
-    artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 
+  {
+    auto characterSelectedText = artboard->find<rive::Text>("Characters");
+    REQUIRE(characterSelectedText != nullptr);
+    REQUIRE(characterSelectedText->haveModifiers());
+    REQUIRE(characterSelectedText->modifierGroups().size() == 2);
+    auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
+    REQUIRE(firstModifierGroup->ranges().size() == 1);
+    auto firstRange = firstModifierGroup->ranges()[0];
+    REQUIRE(firstRange->run() != nullptr);
+    for (int i = 0; i < 4; i++)
     {
-        auto characterSelectedText = artboard->find<rive::Text>("Characters");
-        REQUIRE(characterSelectedText != nullptr);
-        REQUIRE(characterSelectedText->haveModifiers());
-        REQUIRE(characterSelectedText->modifierGroups().size() == 2);
-        auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
-        REQUIRE(firstModifierGroup->ranges().size() == 1);
-        auto firstRange = firstModifierGroup->ranges()[0];
-        REQUIRE(firstRange->run() != nullptr);
-        for (int i = 0; i < 4; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
-        // Run from 4-9 got selected.
-        REQUIRE(firstRange->run()->offset() == 4);
-        REQUIRE(firstRange->run()->length() == 5);
-        for (int i = 4; i < 9; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
-        }
-        for (int i = 9; i < 26; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
     }
+    // Run from 4-9 got selected.
+    REQUIRE(firstRange->run()->offset() == 4);
+    REQUIRE(firstRange->run()->length() == 5);
+    for (int i = 4; i < 9; i++)
     {
-        auto wordSelectedText = artboard->find<rive::Text>("Words");
-        REQUIRE(wordSelectedText != nullptr);
-        REQUIRE(wordSelectedText->haveModifiers());
-        REQUIRE(wordSelectedText->modifierGroups().size() == 1);
-        auto firstModifierGroup = wordSelectedText->modifierGroups()[0];
-        REQUIRE(firstModifierGroup->ranges().size() == 1);
-        auto firstRange = firstModifierGroup->ranges()[0];
-        REQUIRE(firstRange->run() != nullptr);
-        for (int i = 0; i < 4; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
-        // Run from 4-34 got selected.
-        REQUIRE(firstRange->run()->offset() == 4);
-        auto text = firstRange->run()->text();
-        REQUIRE(text.size() == 34);
-        for (int i = 4; i < 39; i++)
-        {
-            if (rive::isWhiteSpace(text[i - 4]))
-            {
-                REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-            }
-            else
-            {
-                REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
-            }
-        }
-        for (int i = 39; i < 50; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
+      REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
     }
+    for (int i = 9; i < 26; i++)
+    {
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+    }
+  }
+  {
+    auto wordSelectedText = artboard->find<rive::Text>("Words");
+    REQUIRE(wordSelectedText != nullptr);
+    REQUIRE(wordSelectedText->haveModifiers());
+    REQUIRE(wordSelectedText->modifierGroups().size() == 1);
+    auto firstModifierGroup = wordSelectedText->modifierGroups()[0];
+    REQUIRE(firstModifierGroup->ranges().size() == 1);
+    auto firstRange = firstModifierGroup->ranges()[0];
+    REQUIRE(firstRange->run() != nullptr);
+    for (int i = 0; i < 4; i++)
+    {
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+    }
+    // Run from 4-34 got selected.
+    REQUIRE(firstRange->run()->offset() == 4);
+    auto text = firstRange->run()->text();
+    REQUIRE(text.size() == 34);
+    for (int i = 4; i < 39; i++)
+    {
+      if (rive::isWhiteSpace(text[i - 4]))
+      {
+        REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+      }
+      else
+      {
+        REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
+      }
+    }
+    for (int i = 39; i < 50; i++)
+    {
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+    }
+  }
 }
 
 TEST_CASE("run modifier ranges select runs with varying text size", "[text]")
 {
-    auto file = ReadRiveFile("assets/test_modifier_run.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/test_modifier_run.riv");
+  auto artboard = file->artboard();
 
-    artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 
+  {
+    /*
+    Full text is:
+    text for first run[UN]line separator[UN]text for second run
+    [UN] is the united nations flag
+    the first run is 18 characters long
+    the second run is 16 characters long
+    the second run is 20 characters long
+    */
+    auto characterSelectedText = artboard->find<rive::Text>("MultiRunText");
+    REQUIRE(characterSelectedText != nullptr);
+    REQUIRE(characterSelectedText->haveModifiers());
+    REQUIRE(characterSelectedText->modifierGroups().size() == 1);
+    auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
+    REQUIRE(firstModifierGroup->ranges().size() == 1);
+    auto firstRange = firstModifierGroup->ranges()[0];
+    REQUIRE(firstRange->run() != nullptr);
+    for (int i = 0; i < 18; i++)
     {
-        /*
-        Full text is:
-        text for first run[UN]line separator[UN]text for second run
-        [UN] is the united nations flag
-        the first run is 18 characters long
-        the second run is 16 characters long
-        the second run is 20 characters long
-        */
-        auto characterSelectedText = artboard->find<rive::Text>("MultiRunText");
-        REQUIRE(characterSelectedText != nullptr);
-        REQUIRE(characterSelectedText->haveModifiers());
-        REQUIRE(characterSelectedText->modifierGroups().size() == 1);
-        auto firstModifierGroup = characterSelectedText->modifierGroups()[0];
-        REQUIRE(firstModifierGroup->ranges().size() == 1);
-        auto firstRange = firstModifierGroup->ranges()[0];
-        REQUIRE(firstRange->run() != nullptr);
-        for (int i = 0; i < 18; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
-        // // Run from 18-33 got selected.
-        REQUIRE(firstRange->run()->offset() == 18);
-        REQUIRE(firstRange->run()->length() == 16);
-        // We confirm that the size and the length of the text are different and
-        // they're both correct
-        REQUIRE(firstRange->run()->text().size() == 22);
-        for (int i = 18; i < 34; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
-        }
-        for (int i = 34; i < 54; i++)
-        {
-            REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
-        }
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
     }
+    // // Run from 18-33 got selected.
+    REQUIRE(firstRange->run()->offset() == 18);
+    REQUIRE(firstRange->run()->length() == 16);
+    // We confirm that the size and the length of the text are different and
+    // they're both correct
+    REQUIRE(firstRange->run()->text().size() == 22);
+    for (int i = 18; i < 34; i++)
+    {
+      REQUIRE(firstModifierGroup->coverage(i) != 0.0f);
+    }
+    for (int i = 34; i < 54; i++)
+    {
+      REQUIRE(firstModifierGroup->coverage(i) == 0.0f);
+    }
+  }
 }
 
 TEST_CASE("double new line type works", "[text]")
 {
-    auto file = ReadRiveFile("assets/double_line.riv");
-    auto artboard = file->artboard();
+  auto file = ReadRiveFile("assets/double_line.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
 
-    auto styleObjects = artboard->find<rive::TextStyle>();
-    REQUIRE(styleObjects.size() == 1);
+  auto styleObjects = artboard->find<rive::TextStyle>();
+  REQUIRE(styleObjects.size() == 1);
 
-    auto runObjects = artboard->find<rive::TextValueRun>();
-    REQUIRE(runObjects.size() == 9);
+  auto runObjects = artboard->find<rive::TextValueRun>();
+  REQUIRE(runObjects.size() == 9);
 
-    artboard->advance(0.0f);
-    auto text = textObjects[0];
-    auto lines = text->orderedLines();
-    REQUIRE(lines.size() == 3);
+  artboard->advance(0.0f);
+  auto text = textObjects[0];
+  auto lines = text->orderedLines();
+  REQUIRE(lines.size() == 3);
 }
 
 TEST_CASE("can load and run opacity modifiers", "[text]")
 {
-    auto file = ReadRiveFile("assets/text_opacity_modifier.riv");
-    auto artboard = file->artboardDefault();
+  auto file = ReadRiveFile("assets/text_opacity_modifier.riv");
+  auto artboard = file->artboardDefault();
 
-    artboard->advance(0.0f);
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 }
 
 TEST_CASE("Zero width spaces are used to break words", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/zero_width_space_line_break.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/zero_width_space_line_break.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
-    auto textProp =
-        vmi->propertyValue("txt")->as<rive::ViewModelInstanceString>();
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto textProp = vmi->propertyValue("txt")
+                      ->as<rive::ViewModelInstanceString>();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // set a long text that will cause an arbitrary text break looking like this
-    // 12345678901234567
-    // 890
-    silver.addFrame();
-    std::string text = "12345678901234567890";
-    textProp->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // set a long text that will cause an arbitrary text break looking like this
+  // 12345678901234567
+  // 890
+  silver.addFrame();
+  std::string text = "12345678901234567890";
+  textProp->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    auto zeroWidthSpace = 8203;
-    char c = static_cast<char>(zeroWidthSpace);
-    silver.addFrame();
-    // Insert a zero width space between the two number sequences
-    // Now text should look like this
-    // 1234567890
-    // 1234567890
-    text.insert(10, 1, c);
-    textProp->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto zeroWidthSpace = 8203;
+  char c = static_cast<char>(zeroWidthSpace);
+  silver.addFrame();
+  // Insert a zero width space between the two number sequences
+  // Now text should look like this
+  // 1234567890
+  // 1234567890
+  text.insert(10, 1, c);
+  textProp->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("zero_width_space_line_break"));
+  CHECK(silver.matches("zero_width_space_line_break"));
 }
 
 TEST_CASE("Word joiners are not used to break words", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/word_joiner_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/word_joiner_test.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
-    auto textProp1 =
-        vmi->propertyValue("txt1")->as<rive::ViewModelInstanceString>();
-    auto textProp2 =
-        vmi->propertyValue("txt2")->as<rive::ViewModelInstanceString>();
-    auto textProp3 =
-        vmi->propertyValue("txt3")->as<rive::ViewModelInstanceString>();
-    auto textProp4 =
-        vmi->propertyValue("txt4")->as<rive::ViewModelInstanceString>();
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto textProp1 = vmi->propertyValue("txt1")
+                       ->as<rive::ViewModelInstanceString>();
+  auto textProp2 = vmi->propertyValue("txt2")
+                       ->as<rive::ViewModelInstanceString>();
+  auto textProp3 = vmi->propertyValue("txt3")
+                       ->as<rive::ViewModelInstanceString>();
+  auto textProp4 = vmi->propertyValue("txt4")
+                       ->as<rive::ViewModelInstanceString>();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // set a long text that will cause an arbitrary text break looking like this
-    // 12345678901234567
-    // 890
-    silver.addFrame();
-    std::string text = "123456789012345678901234567890";
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // set a long text that will cause an arbitrary text break looking like this
+  // 12345678901234567
+  // 890
+  silver.addFrame();
+  std::string text = "123456789012345678901234567890";
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Word joiner character (U+2060) - insert as Unicode code point, not UTF-8
-    // bytes
-    auto wordJoiner = 0x2060; // Unicode code point for word joiner
-    silver.addFrame();
+  // Word joiner character (U+2060) - insert as Unicode code point, not UTF-8
+  // bytes
+  auto wordJoiner = 0x2060; // Unicode code point for word joiner
+  silver.addFrame();
 
-    // Convert to UTF-8 using the existing UTF::Encode function
-    uint8_t utf8Buffer[4];
-    uint32_t utf8Length = rive::UTF::Encode(utf8Buffer, wordJoiner);
-    std::string wordJoinerUtf8(reinterpret_cast<char*>(utf8Buffer), utf8Length);
+  // Convert to UTF-8 using the existing UTF::Encode function
+  uint8_t utf8Buffer[4];
+  uint32_t utf8Length = rive::UTF::Encode(utf8Buffer, wordJoiner);
+  std::string wordJoinerUtf8(reinterpret_cast<char*>(utf8Buffer), utf8Length);
 
-    // The last 10 numbers will be joined and the word breaker won't apply
-    // between them
-    int ind = 30;
-    while (ind-- > 21)
-    {
-        text.insert(ind, wordJoinerUtf8);
-    }
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  // The last 10 numbers will be joined and the word breaker won't apply
+  // between them
+  int ind = 30;
+  while (ind-- > 21)
+  {
+    text.insert(ind, wordJoinerUtf8);
+  }
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    ind++;
-    // The middle 10 numbers are now also joined
-    while (ind-- > 11)
-    {
-        text.insert(ind, wordJoinerUtf8);
-    }
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  ind++;
+  // The middle 10 numbers are now also joined
+  while (ind-- > 11)
+  {
+    text.insert(ind, wordJoinerUtf8);
+  }
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Two sequences of 60 numbers separated by a new line
-    text =
-        "123456789012345678901234567890123456789012345678901234567890|\n12345"
-        "6789012345678901234567890123456789012345678901234567890\n";
+  // Two sequences of 60 numbers separated by a new line
+  text = "123456789012345678901234567890123456789012345678901234567890|\n12345"
+         "6789012345678901234567890123456789012345678901234567890\n";
 
-    silver.addFrame();
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Adding word joiners that spans both lines. New lines are still respected.
-    ind = 51;
-    while (ind-- > 21)
-    {
-        text.insert(ind, wordJoinerUtf8);
-    }
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Adding word joiners that spans both lines. New lines are still respected.
+  ind = 51;
+  while (ind-- > 21)
+  {
+    text.insert(ind, wordJoinerUtf8);
+  }
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // Two sequences of 60 numbers separated by a new line
-    text =
-        "123456789012345678901234567890123456789012345678901234567890|\n12345"
-        "6789012345678901234567890123456789012345678901234567890\n";
+  // Two sequences of 60 numbers separated by a new line
+  text = "123456789012345678901234567890123456789012345678901234567890|\n12345"
+         "6789012345678901234567890123456789012345678901234567890\n";
 
-    silver.addFrame();
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Adding multiple word joiners that spans both lines. New lines are still
-    // respected. Extra joiners are skipped correctly
-    ind = 51;
-    while (ind-- > 21)
-    {
-        text.insert(ind, wordJoinerUtf8);
-        text.insert(ind, wordJoinerUtf8);
-        text.insert(ind, wordJoinerUtf8);
-    }
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Adding multiple word joiners that spans both lines. New lines are still
+  // respected. Extra joiners are skipped correctly
+  ind = 51;
+  while (ind-- > 21)
+  {
+    text.insert(ind, wordJoinerUtf8);
+    text.insert(ind, wordJoinerUtf8);
+    text.insert(ind, wordJoinerUtf8);
+  }
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    // six sequences of 10 numbers separated with spaces and a new line
-    text = "1234567890 1234567890 1234567890 1234567890 1234567890 "
-           "1234567890|\n12345"
-           "67890 1234567890 1234567890 1234567890 1234567890 1234567890\n";
+  // six sequences of 10 numbers separated with spaces and a new line
+  text = "1234567890 1234567890 1234567890 1234567890 1234567890 "
+         "1234567890|\n12345"
+         "67890 1234567890 1234567890 1234567890 1234567890 1234567890\n";
 
-    silver.addFrame();
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Spaces and new lines take precedence over word joins
-    ind = 51;
-    while (ind-- > 21)
-    {
-        text.insert(ind, wordJoinerUtf8);
-        text.insert(ind, wordJoinerUtf8);
-        text.insert(ind, wordJoinerUtf8);
-    }
-    textProp1->propertyValue(text);
-    textProp2->propertyValue(text);
-    textProp3->propertyValue(text);
-    textProp4->propertyValue(text);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Spaces and new lines take precedence over word joins
+  ind = 51;
+  while (ind-- > 21)
+  {
+    text.insert(ind, wordJoinerUtf8);
+    text.insert(ind, wordJoinerUtf8);
+    text.insert(ind, wordJoinerUtf8);
+  }
+  textProp1->propertyValue(text);
+  textProp2->propertyValue(text);
+  textProp3->propertyValue(text);
+  textProp4->propertyValue(text);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("word_joiner_test"));
+  CHECK(silver.matches("word_joiner_test"));
 }
 
 TEST_CASE("Fit font size", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/fit_font_size_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/fit_font_size_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
-    auto triggerProp =
-        vmi->propertyValue("trigger")->as<rive::ViewModelInstanceTrigger>();
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto triggerProp = vmi->propertyValue("trigger")
+                         ->as<rive::ViewModelInstanceTrigger>();
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("fit_font_size_test"));
+  CHECK(silver.matches("fit_font_size_test"));
 }
 
 TEST_CASE("Vertical Trim", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/text_vertical_trim_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/text_vertical_trim_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.16f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.16f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("text_vertical_trim_test"));
+  CHECK(silver.matches("text_vertical_trim_test"));
 }
 
 // Renders a text/layout matrix for five frames against the named silver.
 static void checkTextLayoutSilver(const char* asset, const char* silverName)
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile(asset, &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(asset, &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->defaultStateMachine();
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    if (vmi != nullptr)
+  auto stateMachine = artboard->defaultStateMachine();
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  if (vmi != nullptr)
+  {
+    if (stateMachine != nullptr)
     {
-        if (stateMachine != nullptr)
-        {
-            stateMachine->bindViewModelInstance(vmi);
-        }
-        else
-        {
-            artboard->bindViewModelInstance(vmi);
-        }
+      stateMachine->bindViewModelInstance(vmi);
     }
+    else
+    {
+      artboard->bindViewModelInstance(vmi);
+    }
+  }
 
-    auto advance = [&](float dt) {
-        if (stateMachine != nullptr)
-        {
-            stateMachine->advanceAndApply(dt);
-        }
-        else
-        {
-            artboard->advance(dt);
-        }
-    };
+  auto advance = [&](float dt) {
+    if (stateMachine != nullptr)
+    {
+      stateMachine->advanceAndApply(dt);
+    }
+    else
+    {
+      artboard->advance(dt);
+    }
+  };
 
-    advance(0.0f);
+  advance(0.0f);
+  artboard->draw(renderer.get());
+  for (int i = 0; i < 4; i++)
+  {
+    silver.addFrame();
+    advance(0.016f);
     artboard->draw(renderer.get());
-    for (int i = 0; i < 4; i++)
-    {
-        silver.addFrame();
-        advance(0.016f);
-        artboard->draw(renderer.get());
-    }
+  }
 
-    CHECK(silver.matches(silverName));
+  CHECK(silver.matches(silverName));
 }
 
 // These two assets are the same scene and differ only in their header's minor
@@ -1026,7 +1058,7 @@ static void checkTextLayoutSilver(const char* asset, const char* silverName)
 // overflow modes in each half of the matrix all render identically.
 TEST_CASE("Text box keeps its content size before 7.3", "[silver]")
 {
-    checkTextLayoutSilver("assets/layout_text_match.riv", "layout_text_match");
+  checkTextLayoutSilver("assets/layout_text_match.riv", "layout_text_match");
 }
 
 // At 7.3 the box takes the layout's size and the overflow modes engage, so the
@@ -1035,8 +1067,9 @@ TEST_CASE("Text box keeps its content size before 7.3", "[silver]")
 // culling interact).
 TEST_CASE("Text box matches layout-controlled size", "[silver]")
 {
-    checkTextLayoutSilver("assets/layout_text_match_7_3.riv",
-                          "layout_text_match_7_3");
+  checkTextLayoutSilver(
+      "assets/layout_text_match_7_3.riv",
+      "layout_text_match_7_3");
 }
 
 // The two assets are the same scene apart from the version stamp and two
@@ -1045,67 +1078,66 @@ TEST_CASE("Text box matches layout-controlled size", "[silver]")
 // than a generated pair.
 TEST_CASE("Middle-aligned hug-layout text before 7.3", "[silver]")
 {
-    checkTextLayoutSilver("assets/layout/text_layout_pre_7_3.riv",
-                          "text_layout_pre_7_3");
+  checkTextLayoutSilver(
+      "assets/layout/text_layout_pre_7_3.riv",
+      "text_layout_pre_7_3");
 }
 
 TEST_CASE("Middle-aligned hug-layout text at 7.3", "[silver]")
 {
-    checkTextLayoutSilver("assets/layout/text_layout_7_3.riv",
-                          "text_layout_7_3");
+  checkTextLayoutSilver("assets/layout/text_layout_7_3.riv", "text_layout_7_3");
 }
 
 TEST_CASE("Fit font size with varying sizes", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/text_fit_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/text_fit_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
 
-    stateMachine->bindViewModelInstance(vmi);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.032f);
+  artboard->draw(renderer.get());
+
+  int frames = (int)(3.0f / 0.032f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.032f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(3.0f / 0.032f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.032f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("text_fit_test"));
+  CHECK(silver.matches("text_fit_test"));
 }
 
 TEST_CASE("Text with background color with active feather", "[text]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/text_background_feather_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/text_background_feather_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+  auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.032f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.032f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("text_background_feather_test"));
+  CHECK(silver.matches("text_background_feather_test"));
 }
 // A fitFontSize text used to leave dead space under itself: measure() sized
 // the box from the *authored* font, so a hug slot reserved room the shrunk
@@ -1119,96 +1151,96 @@ TEST_CASE("Text with background color with active feather", "[text]")
 // stamped up.
 static rive::rcp<rive::File> importTextWithMinorVersion(uint8_t minor)
 {
-    auto bytes = ReadFile("assets/fit_font_size_hug_test.riv");
-    // "RIVE", then varuint major, varuint minor. Both versions in play here
-    // are single-byte varuints, so the minor is just byte 5.
-    REQUIRE(bytes.size() > 5);
-    REQUIRE(bytes[4] == 7);
-    bytes[5] = minor;
+  auto bytes = ReadFile("assets/fit_font_size_hug_test.riv");
+  // "RIVE", then varuint major, varuint minor. Both versions in play here
+  // are single-byte varuints, so the minor is just byte 5.
+  REQUIRE(bytes.size() > 5);
+  REQUIRE(bytes[4] == 7);
+  bytes[5] = minor;
 
-    rive::ImportResult result;
-    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    return file;
+  rive::ImportResult result;
+  auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
+  return file;
 }
 
 // Advances the artboard and reports (hug slot height, y of the bar below it).
-static std::pair<float, float> solveTitleLayout(rive::File* file,
-                                                bool resizesBox)
+static std::pair<float, float> solveTitleLayout(
+    rive::File* file,
+    bool resizesBox)
 {
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    auto texts = artboard->find<rive::Text>();
-    rive::Text* title = nullptr;
-    for (auto text : texts)
+  auto texts = artboard->find<rive::Text>();
+  rive::Text* title = nullptr;
+  for (auto text : texts)
+  {
+    if (!text->runs().empty() && !text->runs()[0]->text().empty())
     {
-        if (!text->runs().empty() && !text->runs()[0]->text().empty())
-        {
-            title = text;
-            break;
-        }
+      title = text;
+      break;
     }
-    REQUIRE(title != nullptr);
-    REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
-    title->fitFontSizeResizesBox(resizesBox);
+  }
+  REQUIRE(title != nullptr);
+  REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
+  title->fitFontSizeResizesBox(resizesBox);
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    int viewModelId = artboard->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  int viewModelId = artboard->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    REQUIRE(title->parent()->is<rive::LayoutComponent>());
-    auto hug = title->parent()->as<rive::LayoutComponent>();
-    REQUIRE(hug->parent()->is<rive::LayoutComponent>());
-    auto container = hug->parent()->as<rive::LayoutComponent>();
+  REQUIRE(title->parent()->is<rive::LayoutComponent>());
+  auto hug = title->parent()->as<rive::LayoutComponent>();
+  REQUIRE(hug->parent()->is<rive::LayoutComponent>());
+  auto container = hug->parent()->as<rive::LayoutComponent>();
 
-    rive::LayoutComponent* bar = nullptr;
-    for (auto child : container->children())
+  rive::LayoutComponent* bar = nullptr;
+  for (auto child : container->children())
+  {
+    if (child != hug && child->is<rive::LayoutComponent>())
     {
-        if (child != hug && child->is<rive::LayoutComponent>())
-        {
-            bar = child->as<rive::LayoutComponent>();
-            break;
-        }
+      bar = child->as<rive::LayoutComponent>();
+      break;
     }
-    REQUIRE(bar != nullptr);
-    return {hug->layoutHeight(), bar->layoutY()};
+  }
+  REQUIRE(bar != nullptr);
+  return {hug->layoutHeight(), bar->layoutY()};
 }
 
 TEST_CASE("fitFontSize hug slot keeps the authored size before 7.4", "[text]")
 {
-    auto file = importTextWithMinorVersion(3);
-    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
-    // Measured at 175pt even though the text draws at 121pt, so the bar sits
-    // ~131px lower than the text it follows. The flag is on here; the version
-    // gate is what holds the old behavior in place.
-    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
-    CHECK(barY == Approx(439.49f).margin(0.5f));
+  auto file = importTextWithMinorVersion(3);
+  auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+  // Measured at 175pt even though the text draws at 121pt, so the bar sits
+  // ~131px lower than the text it follows. The flag is on here; the version
+  // gate is what holds the old behavior in place.
+  CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+  CHECK(barY == Approx(439.49f).margin(0.5f));
 }
 
 TEST_CASE("fitFontSize hug slot tracks the fitted text at 7.4", "[text]")
 {
-    auto file = importTextWithMinorVersion(4);
-    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
-    // 423.49 * (121/175) -- the slot now matches the text actually drawn, and
-    // the bar closes up against it (8px padding either side).
-    CHECK(hugHeight == Approx(292.81f).margin(0.5f));
-    CHECK(barY == Approx(308.81f).margin(0.5f));
+  auto file = importTextWithMinorVersion(4);
+  auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+  // 423.49 * (121/175) -- the slot now matches the text actually drawn, and
+  // the bar closes up against it (8px padding either side).
+  CHECK(hugHeight == Approx(292.81f).margin(0.5f));
+  CHECK(barY == Approx(308.81f).margin(0.5f));
 }
 
 TEST_CASE("fitFontSize hug slot honors fitFontSizeResizesBox at 7.4", "[text]")
 {
-    auto file = importTextWithMinorVersion(4);
-    auto [hugHeight, barY] = solveTitleLayout(file.get(), false);
-    // Version is new enough, but the author turned the behavior off.
-    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
-    CHECK(barY == Approx(439.49f).margin(0.5f));
+  auto file = importTextWithMinorVersion(4);
+  auto [hugHeight, barY] = solveTitleLayout(file.get(), false);
+  // Version is new enough, but the author turned the behavior off.
+  CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+  CHECK(barY == Approx(439.49f).margin(0.5f));
 }
 
 // A fitFontSize text in a hug slot must not shrink just because it is
@@ -1221,169 +1253,406 @@ TEST_CASE("fitFontSize hug slot honors fitFontSizeResizesBox at 7.4", "[text]")
 //
 // Same asset as the tests above, with a short run so the fit is height-bound
 // rather than width-bound -- that is the axis the trim moves.
-static void checkTrimmedHugFit(rive::TextTrimTop top,
-                               rive::TextTrimBottom bottom,
-                               float* outHugHeight,
-                               float* outFittedSize)
+static void checkTrimmedHugFit(
+    rive::TextTrimTop top,
+    rive::TextTrimBottom bottom,
+    float* outHugHeight,
+    float* outFittedSize)
 {
-    auto file = importTextWithMinorVersion(4);
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto file = importTextWithMinorVersion(4);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    rive::Text* title = nullptr;
-    for (auto text : artboard->find<rive::Text>())
+  rive::Text* title = nullptr;
+  for (auto text : artboard->find<rive::Text>())
+  {
+    if (!text->runs().empty() && !text->runs()[0]->text().empty())
     {
-        if (!text->runs().empty() && !text->runs()[0]->text().empty())
-        {
-            title = text;
-            break;
-        }
+      title = text;
+      break;
     }
-    REQUIRE(title != nullptr);
-    REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
-    title->fitFontSizeResizesBox(true);
-    title->runs()[0]->text("Ag");
-    title->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+  }
+  REQUIRE(title != nullptr);
+  REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
+  title->fitFontSizeResizesBox(true);
+  title->runs()[0]->text("Ag");
+  title->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    int viewModelId = artboard->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  int viewModelId = artboard->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    REQUIRE(title->parent()->is<rive::LayoutComponent>());
-    *outHugHeight =
-        title->parent()->as<rive::LayoutComponent>()->layoutHeight();
+  REQUIRE(title->parent()->is<rive::LayoutComponent>());
+  *outHugHeight = title->parent()->as<rive::LayoutComponent>()->layoutHeight();
 
-    // The shaped runs carry the size the fit actually chose.
-    REQUIRE(title->shape().size() == 1);
-    REQUIRE(!title->shape()[0].runs.empty());
-    *outFittedSize = title->shape()[0].runs[0].size;
+  // The shaped runs carry the size the fit actually chose.
+  REQUIRE(title->shape().size() == 1);
+  REQUIRE(!title->shape()[0].runs.empty());
+  *outFittedSize = title->shape()[0].runs[0].size;
 }
 
 TEST_CASE("vertical trim does not shrink a fitFontSize hug text", "[text]")
 {
-    float untrimmedHeight = 0.0f;
-    float untrimmedSize = 0.0f;
-    checkTrimmedHugFit(rive::TextTrimTop::none,
-                       rive::TextTrimBottom::none,
-                       &untrimmedHeight,
-                       &untrimmedSize);
+  float untrimmedHeight = 0.0f;
+  float untrimmedSize = 0.0f;
+  checkTrimmedHugFit(
+      rive::TextTrimTop::none,
+      rive::TextTrimBottom::none,
+      &untrimmedHeight,
+      &untrimmedSize);
 
-    float trimmedHeight = 0.0f;
-    float trimmedSize = 0.0f;
-    checkTrimmedHugFit(rive::TextTrimTop::cap,
-                       rive::TextTrimBottom::alphabetic,
-                       &trimmedHeight,
-                       &trimmedSize);
+  float trimmedHeight = 0.0f;
+  float trimmedSize = 0.0f;
+  checkTrimmedHugFit(
+      rive::TextTrimTop::cap,
+      rive::TextTrimBottom::alphabetic,
+      &trimmedHeight,
+      &trimmedSize);
 
-    // Nothing constrains this text -- the hug slot comes from the text itself
-    // -- so the fit is a no-op on both. The authored size is 175pt.
-    CHECK(untrimmedSize == Approx(175.0f).margin(0.01f));
-    // Used to fit to 105pt (0.6x): the 84.4px trim band charged twice.
-    CHECK(trimmedSize == Approx(untrimmedSize).margin(0.01f));
+  // Nothing constrains this text -- the hug slot comes from the text itself
+  // -- so the fit is a no-op on both. The authored size is 175pt.
+  CHECK(untrimmedSize == Approx(175.0f).margin(0.01f));
+  // Used to fit to 105pt (0.6x): the 84.4px trim band charged twice.
+  CHECK(trimmedSize == Approx(untrimmedSize).margin(0.01f));
 
-    // The trim still does its job on the box: the slot loses the band.
-    CHECK(trimmedHeight < untrimmedHeight);
-    CHECK(untrimmedHeight == Approx(211.74f).margin(0.5f));
-    CHECK(trimmedHeight == Approx(127.32f).margin(0.5f));
+  // The trim still does its job on the box: the slot loses the band.
+  CHECK(trimmedHeight < untrimmedHeight);
+  CHECK(untrimmedHeight == Approx(211.74f).margin(0.5f));
+  CHECK(trimmedHeight == Approx(127.32f).margin(0.5f));
 }
 
 TEST_CASE("fitFontSize measure returns for a huge font size", "[text]")
 {
-    auto file = importTextWithMinorVersion(4);
-    auto artboard = file->artboardDefault();
-    rive::Text* title = nullptr;
-    for (auto text : artboard->find<rive::Text>())
+  auto file = importTextWithMinorVersion(4);
+  auto artboard = file->artboardDefault();
+  rive::Text* title = nullptr;
+  for (auto text : artboard->find<rive::Text>())
+  {
+    if (!text->runs().empty() && !text->runs()[0]->text().empty())
     {
-        if (!text->runs().empty() && !text->runs()[0]->text().empty())
-        {
-            title = text;
-            break;
-        }
+      title = text;
+      break;
     }
-    REQUIRE(title != nullptr);
-    title->fitFontSizeResizesBox(true);
-    for (float size : {INFINITY, NAN, 3e9f})
+  }
+  REQUIRE(title != nullptr);
+  title->fitFontSizeResizesBox(true);
+  for (float size : {INFINITY, NAN, 3e9f})
+  {
+    for (auto style : artboard->find<rive::TextStyle>())
     {
-        for (auto style : artboard->find<rive::TextStyle>())
-        {
-            style->fontSize(size);
-        }
-        title->measureLayout(1e38f,
-                             rive::LayoutMeasureMode::atMost,
-                             1e38f,
-                             rive::LayoutMeasureMode::atMost);
-        artboard->advance(0.0f);
+      style->fontSize(size);
     }
+    title->measureLayout(
+        1e38f,
+        rive::LayoutMeasureMode::atMost,
+        1e38f,
+        rive::LayoutMeasureMode::atMost);
+    artboard->advance(0.0f);
+  }
 }
 
 TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/fit_font_size_hug_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/fit_font_size_hug_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
+  auto vmi = file->createViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("fit_font_size_hug_test"));
+  CHECK(silver.matches("fit_font_size_hug_test"));
 }
 TEST_CASE("wordBreak reaches the line breaker from the Text object", "[text]")
 {
-    // Squeeze ellipsis.riv's copy into a box narrow enough that a word has to
-    // overflow it, which is the only situation the three modes disagree in.
-    // Overflow has to be visible or the extra lines get clipped away before
-    // orderedLines sees them.
-    auto file = ReadRiveFile("assets/ellipsis.riv");
-    auto artboard = file->artboard();
+  // Squeeze ellipsis.riv's copy into a box narrow enough that a word has to
+  // overflow it, which is the only situation the three modes disagree in.
+  // Overflow has to be visible or the extra lines get clipped away before
+  // orderedLines sees them.
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
 
-    auto textObjects = artboard->find<rive::Text>();
-    REQUIRE(textObjects.size() == 1);
-    auto text = textObjects[0];
-    text->overflow(rive::TextOverflow::visible);
-    text->sizingValue((uint8_t)rive::TextSizing::fixed);
-    text->width(30.0f);
+  auto textObjects = artboard->find<rive::Text>();
+  REQUIRE(textObjects.size() == 1);
+  auto text = textObjects[0];
+  text->overflow(rive::TextOverflow::visible);
+  text->sizingValue((uint8_t)rive::TextSizing::fixed);
+  text->width(30.0f);
 
-    // Nothing in the file sets the property, so it lands on the historical
-    // behavior.
-    REQUIRE(text->wordBreak() == rive::TextWordBreak::breakWord);
+  // Nothing in the file sets the property, so it lands on the historical
+  // behavior.
+  REQUIRE(text->wordBreak() == rive::TextWordBreak::breakWord);
+  artboard->advance(0.0f);
+  size_t breakWordLines = text->orderedLines().size();
+
+  text->wordBreakValue((uint8_t)rive::TextWordBreak::normal);
+  artboard->advance(0.0f);
+  size_t normalLines = text->orderedLines().size();
+
+  text->wordBreakValue((uint8_t)rive::TextWordBreak::breakAll);
+  artboard->advance(0.0f);
+  size_t breakAllLines = text->orderedLines().size();
+
+  // normal never cuts a word, so it needs the fewest lines. breakAll packs
+  // each line to the edge, so it needs fewer than breakWord, which starts a
+  // fresh line for a word before it starts cutting it.
+  REQUIRE(normalLines < breakAllLines);
+  REQUIRE(breakAllLines < breakWordLines);
+
+  // Setting it back restores the original layout.
+  text->wordBreakValue((uint8_t)rive::TextWordBreak::breakWord);
+  artboard->advance(0.0f);
+  REQUIRE(text->orderedLines().size() == breakWordLines);
+}
+
+#ifdef WITH_RIVE_TOOLS
+// The layout measures a text through measure(), and changing the text marks
+// the layout dirty before the solve, so that one solve already sizes it.
+// Rebuilding the render styles afterwards used to mark it dirty again, a
+// second full solve after every text change -- a HUD updating a lap timer
+// paid for two layouts of the whole tree each frame. Driven through the
+// artboard alone: the asset's state machine animates a Solo, which re-dirties
+// the layout every frame on its own.
+TEST_CASE("A text change re-solves its hug layout once", "[text]")
+{
+  auto file = ReadRiveFile("assets/layout/text_layout_7_3.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  artboard->advance(0.0f);
+
+  rive::TextValueRun* run = nullptr;
+  rive::LayoutComponent* layout = nullptr;
+  for (auto candidate : artboard->find<rive::TextValueRun>())
+  {
+    auto parent = candidate->textComponent()->parent();
+    if (parent != nullptr && parent->is<rive::LayoutComponent>() &&
+        !parent->is<rive::Artboard>())
+    {
+      run = candidate;
+      layout = parent->as<rive::LayoutComponent>();
+      break;
+    }
+  }
+  REQUIRE(run != nullptr);
+  const float widthBefore = layout->layoutWidth();
+
+  int dirtied = 0;
+  artboard->callbackUserData = &dirtied;
+  artboard->onLayoutDirty([](void* data) { (*(int*)data)++; });
+  artboard->advance(0.0f);
+  REQUIRE(dirtied == 0);
+
+  run->text(run->text() + " and then some more words");
+  artboard->advance(0.016f);
+  CHECK(dirtied == 1);
+  // One solve is enough: the hug layout already wraps the longer text.
+  CHECK(layout->layoutWidth() > widthBefore);
+
+  // Nothing was left owed.
+  dirtied = 0;
+  artboard->advance(0.016f);
+  CHECK(dirtied == 0);
+}
+#endif
+
+// The size of the hug layout around [asset]'s first text in a layout, after
+// [setup] runs before the first layout and [change] runs after it.
+static rive::Vec2D hugTextLayoutSize(
+    const char* asset,
+    const std::function<void(rive::TextValueRun*)>& setup,
+    const std::function<void(rive::Text*)>& change)
+{
+  auto file = ReadRiveFile(asset);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  rive::TextValueRun* run = nullptr;
+  rive::LayoutComponent* layout = nullptr;
+  for (auto candidate : artboard->find<rive::TextValueRun>())
+  {
+    auto parent = candidate->textComponent()->parent();
+    if (parent != nullptr && parent->is<rive::LayoutComponent>() &&
+        !parent->is<rive::Artboard>())
+    {
+      run = candidate;
+      layout = parent->as<rive::LayoutComponent>();
+      break;
+    }
+  }
+  REQUIRE(run != nullptr);
+  setup(run);
+  artboard->advance(0.0f);
+  if (change)
+  {
+    change(run->textComponent()->as<rive::Text>());
+    artboard->advance(0.016f);
+  }
+  return rive::Vec2D(layout->layoutWidth(), layout->layoutHeight());
+}
+
+// Paragraph spacing changes only the paint, but measure() adds it, so the
+// layout has to measure the text again: changing it after the first layout
+// has to land where setting it before would have. This asset's layout hugs
+// its text's height.
+TEST_CASE("Paragraph spacing re-measures a hug layout's text", "[text]")
+{
+  const char* asset = "assets/layout_text_match_7_3.riv";
+  auto twoParagraphs = [](rive::TextValueRun* run) {
+    run->text("first paragraph\nsecond paragraph");
+  };
+  auto spaced = [](rive::Text* text) {
+    text->paragraphSpacing(text->paragraphSpacing() + 40.0f);
+  };
+  auto unspaced = hugTextLayoutSize(asset, twoParagraphs, nullptr);
+  auto fresh = hugTextLayoutSize(
+      asset,
+      [&](rive::TextValueRun* run) {
+        twoParagraphs(run);
+        spaced(run->textComponent()->as<rive::Text>());
+      },
+      nullptr);
+  auto changed = hugTextLayoutSize(asset, twoParagraphs, spaced);
+  REQUIRE(fresh.y > unspaced.y);
+  CHECK(changed.x == fresh.x);
+  CHECK(changed.y == fresh.y);
+}
+
+// Same for the origin: a baseline origin is paint and transform only, but
+// measure() reports the first line moved up.
+TEST_CASE("Text origin re-measures a hug layout's text", "[text]")
+{
+  const char* asset = "assets/layout/text_layout_7_3.riv";
+  auto nothing = [](rive::TextValueRun*) {};
+  auto baseline = [](rive::Text* text) {
+    text->originValue((uint8_t)rive::TextOrigin::baseline);
+  };
+  auto top = hugTextLayoutSize(asset, nothing, nullptr);
+  auto fresh = hugTextLayoutSize(
+      asset,
+      [&](rive::TextValueRun* run) {
+        baseline(run->textComponent()->as<rive::Text>());
+      },
+      nullptr);
+  auto changed = hugTextLayoutSize(asset, nothing, baseline);
+  REQUIRE(fresh.y != top.y);
+  CHECK(changed.x == fresh.x);
+  CHECK(changed.y == fresh.y);
+}
+
+// text_variation_modifier_hug.riv: a hug layout around a text in a variable
+// font, with a modifier group setting the whole text's width axis (wdth 100).
+static rive::LayoutComponent* variationModifiedHug(
+    rive::Artboard* artboard,
+    rive::TextValueRun** run)
+{
+  *run = artboard->find<rive::TextValueRun>("Run");
+  REQUIRE(*run != nullptr);
+  return (*run)->textComponent()->parent()->as<rive::LayoutComponent>();
+}
+
+#ifdef WITH_RIVE_TOOLS
+// The modifier made a new font on every styling pass, so the shape never
+// matched what the layout measured and every change solved twice.
+TEST_CASE("A variation-modified text re-solves its hug layout once", "[text]")
+{
+  // Where the layout settles with the longer text from the start.
+  float settled = 0.0f;
+  {
+    auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    rive::TextValueRun* run = nullptr;
+    auto layout = variationModifiedHug(artboard.get(), &run);
+    run->text(run->text() + " text");
+    for (int i = 0; i < 10; i++)
+    {
+      artboard->advance(0.016f);
+    }
+    settled = layout->layoutWidth();
+  }
+
+  auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  rive::TextValueRun* run = nullptr;
+  auto layout = variationModifiedHug(artboard.get(), &run);
+  for (int i = 0; i < 10; i++)
+  {
+    artboard->advance(0.016f);
+  }
+
+  int dirtied = 0;
+  artboard->callbackUserData = &dirtied;
+  artboard->onLayoutDirty([](void* data) { (*(int*)data)++; });
+  artboard->advance(0.0f);
+  REQUIRE(dirtied == 0);
+
+  run->text(run->text() + " text");
+  artboard->advance(0.016f);
+  CHECK(dirtied == 1);
+  // The one solve already lands where the layout settles.
+  CHECK(layout->layoutWidth() == settled);
+
+  dirtied = 0;
+  artboard->advance(0.016f);
+  CHECK(dirtied == 0);
+}
+#endif
+
+// Keeping the modifier's font must not keep it past a change: a new axis
+// value after the first layout has to shape where setting it before would.
+// Read off the shaped glyphs, not the layout: a hug layout sizes to the text
+// without its modifiers, here and on master alike.
+TEST_CASE("A variation modifier change reshapes its text", "[text]")
+{
+  auto shapedWidthAfter = [](bool before, bool after) {
+    auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto modifier = artboard->find<rive::TextVariationModifier>("Width");
+    REQUIRE(modifier != nullptr);
+    rive::TextValueRun* run = nullptr;
+    variationModifiedHug(artboard.get(), &run);
+    if (before)
+    {
+      modifier->axisValue(200.0f);
+    }
     artboard->advance(0.0f);
-    size_t breakWordLines = text->orderedLines().size();
-
-    text->wordBreakValue((uint8_t)rive::TextWordBreak::normal);
-    artboard->advance(0.0f);
-    size_t normalLines = text->orderedLines().size();
-
-    text->wordBreakValue((uint8_t)rive::TextWordBreak::breakAll);
-    artboard->advance(0.0f);
-    size_t breakAllLines = text->orderedLines().size();
-
-    // normal never cuts a word, so it needs the fewest lines. breakAll packs
-    // each line to the edge, so it needs fewer than breakWord, which starts a
-    // fresh line for a word before it starts cutting it.
-    REQUIRE(normalLines < breakAllLines);
-    REQUIRE(breakAllLines < breakWordLines);
-
-    // Setting it back restores the original layout.
-    text->wordBreakValue((uint8_t)rive::TextWordBreak::breakWord);
-    artboard->advance(0.0f);
-    REQUIRE(text->orderedLines().size() == breakWordLines);
+    if (after)
+    {
+      modifier->axisValue(200.0f);
+      artboard->advance(0.016f);
+    }
+    float width = 0.0f;
+    auto text = run->textComponent()->as<rive::Text>();
+    for (const auto& line : text->orderedLines())
+    {
+      for (auto [glyphRun, glyphIndex] : line)
+      {
+        width += glyphRun->advances[glyphIndex];
+      }
+    }
+    return width;
+  };
+  float narrow = shapedWidthAfter(false, false);
+  float fresh = shapedWidthAfter(true, false);
+  float changed = shapedWidthAfter(false, true);
+  REQUIRE(fresh > narrow);
+  CHECK(changed == fresh);
 }

@@ -10,28 +10,29 @@
 
 using namespace rive;
 
-TEST_CASE("file with only solid color animating triggers change on artboard",
-          "[silver]")
+TEST_CASE(
+    "file with only solid color animating triggers change on artboard",
+    "[silver]")
 {
-    auto file = ReadRiveFile("assets/solid_affects_has_changed.riv");
+  auto file = ReadRiveFile("assets/solid_affects_has_changed.riv");
 
-    auto artboard = file->artboardDefault();
-    NoOpRenderer renderer;
+  auto artboard = file->artboardDefault();
+  NoOpRenderer renderer;
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
+  auto vmi = file->createViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(&renderer);
+
+  int frames = 10;
+  for (int i = 0; i < frames; i++)
+  {
     stateMachine->advanceAndApply(0.1f);
+    REQUIRE(artboard->didChange() == true);
     artboard->draw(&renderer);
-
-    int frames = 10;
-    for (int i = 0; i < frames; i++)
-    {
-        stateMachine->advanceAndApply(0.1f);
-        REQUIRE(artboard->didChange() == true);
-        artboard->draw(&renderer);
-    }
+  }
 }

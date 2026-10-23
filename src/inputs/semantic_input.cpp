@@ -9,20 +9,21 @@ using namespace rive;
 
 StatusCode SemanticInput::import(ImportStack& importStack)
 {
-    auto* litImporter = importStack.latest<ListenerInputTypeSemanticImporter>(
-        ListenerInputTypeSemanticBase::typeKey);
-    if (litImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    litImporter->listenerInputTypeSemantic()->addSemanticInput(this);
+  auto* litImporter = importStack.latest<ListenerInputTypeSemanticImporter>(
+      ListenerInputTypeSemanticBase::typeKey);
+  if (litImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  litImporter->listenerInputTypeSemantic()->addSemanticInput(this);
 
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    artboardImporter->addComponent(this);
-    return Super::import(importStack);
+  // File::readObjects already put this in the artboard's object list (see
+  // UserInput::claimsArtboardSlot), which owns it.
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  return Super::import(importStack);
 }

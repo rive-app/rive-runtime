@@ -15,36 +15,40 @@ class DataConverterFormula : public DataConverterFormulaBase,
                              public ViewModelValueDependent
 {
 public:
-    ~DataConverterFormula();
-    DataType outputType() override { return DataType::number; };
-    void addToken(FormulaToken*);
-    void addOutputToken(FormulaToken*, int);
-    void calculateFormula();
-    void isInstance(bool value) { m_isInstance = value; }
-    void addDirt(ComponentDirt value, bool recurse) override;
-    void relinkDataBind() override {}
+#ifdef WITH_RIVE_EDITOR
+  void editorPrepareForDestruction() override;
+#endif
+  ~DataConverterFormula();
+  DataType outputType() override { return DataType::number; };
+  void addToken(FormulaToken*);
+  void addOutputToken(FormulaToken*, int);
+  void calculateFormula();
+  void isInstance(bool value) { m_isInstance = value; }
+  void addDirt(ComponentDirt value, bool recurse) override;
+  void relinkDataBind() override {}
 
 protected:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
-    DataValueNumber m_output;
-    Core* clone() const override;
-    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
-    void unbind() override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+  DataValueNumber m_output;
+  Core* clone() const override;
+  void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+  void unbind() override;
 
 private:
-    int getPrecedence(FormulaToken*);
-    float getRandom(int);
-    float applyOperation(float left, float right, int operationType);
-    float applyFunction(std::vector<float>& stack,
-                        int functionTypeIndex,
-                        int totalArguments);
-    std::vector<FormulaToken*> m_tokens;
-    std::vector<FormulaToken*> m_outputQueue;
-    std::vector<float> m_randoms;
-    std::unordered_map<FormulaToken*, int> m_argumentsCount;
-    bool m_isInstance = false;
-    rcp<ViewModelInstanceValue> m_source = nullptr;
+  int getPrecedence(FormulaToken*);
+  float getRandom(int);
+  float applyOperation(float left, float right, int operationType);
+  float applyFunction(
+      std::vector<float>& stack,
+      int functionTypeIndex,
+      int totalArguments);
+  std::vector<FormulaToken*> m_tokens;
+  std::vector<FormulaToken*> m_outputQueue;
+  std::vector<float> m_randoms;
+  std::unordered_map<FormulaToken*, int> m_argumentsCount;
+  bool m_isInstance = false;
+  rcp<ViewModelInstanceValue> m_source = nullptr;
 };
 } // namespace rive
 

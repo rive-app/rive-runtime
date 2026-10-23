@@ -7,40 +7,40 @@ using namespace rive;
 
 StatusCode FileAssetContents::import(ImportStack& importStack)
 {
-    auto fileAssetImporter =
-        importStack.latest<FileAssetImporter>(FileAsset::typeKey);
-    if (fileAssetImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    fileAssetImporter->onFileAssetContents(
-        std::unique_ptr<FileAssetContents>(this));
+  auto fileAssetImporter = importStack.latest<FileAssetImporter>(
+      FileAsset::typeKey);
+  if (fileAssetImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  fileAssetImporter->onFileAssetContents(
+      std::unique_ptr<FileAssetContents>(this));
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }
 
 void FileAssetContents::decodeBytes(Span<const uint8_t> value)
 {
-    m_bytes = SimpleArray<uint8_t>(value.data(), value.size());
+  m_bytes = SimpleArray<uint8_t>(value.data(), value.size());
 }
 
 void FileAssetContents::copyBytes(const FileAssetContentsBase& object)
 {
-    // Should never be called.
-    assert(false);
+  // Should never be called.
+  assert(false);
 }
 
 SimpleArray<uint8_t>& FileAssetContents::bytes() { return m_bytes; }
 
 void FileAssetContents::decodeSignature(Span<const uint8_t> value)
 {
-    m_signature = SimpleArray<uint8_t>(value.data(), value.size());
+  m_signature = SimpleArray<uint8_t>(value.data(), value.size());
 }
 
 void FileAssetContents::copySignature(const FileAssetContentsBase& object)
 {
-    // Should never be called.
-    assert(false);
+  // Should never be called.
+  assert(false);
 }
 
 SimpleArray<uint8_t>& FileAssetContents::signature() { return m_signature; }

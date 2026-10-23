@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptInputColorBase::clone() const
 {
-    auto cloned = new ScriptInputColor();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptInputColor();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -7,7 +7,7 @@ namespace rive
 class SemanticInput : public SemanticInputBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

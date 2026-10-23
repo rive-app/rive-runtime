@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionValueIdComparatorBase::clone() const
 {
-    auto cloned = new TransitionValueIdComparator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionValueIdComparator();
+  cloned->copy(*this);
+  return cloned;
 }

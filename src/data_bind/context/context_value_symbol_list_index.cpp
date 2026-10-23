@@ -5,34 +5,35 @@
 using namespace rive;
 
 DataBindContextValueSymbolListIndex::DataBindContextValueSymbolListIndex(
-    DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+    DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueSymbolListIndex::apply(Core* target,
-                                                uint32_t propertyKey,
-                                                bool isMainDirection,
-                                                DataBind* dataBind)
+void DataBindContextValueSymbolListIndex::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value =
-        calculateValue<DataValueSymbolListIndex, uint32_t>(m_dataValue,
-                                                           isMainDirection,
-                                                           dataBind);
-    switch (CoreRegistry::propertyFieldId(propertyKey))
-    {
-        case CoreDoubleType::id:
-            CoreRegistry::setDouble(target, propertyKey, (float)value);
-            break;
-        case CoreUintType::id:
-            if (CoreRegistry::isSignedInt(propertyKey))
-            {
-                CoreRegistry::setInt(target, propertyKey, (int32_t)value);
-            }
-            else
-            {
-                CoreRegistry::setUint(target, propertyKey, value);
-            }
-            break;
-    }
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueSymbolListIndex, uint32_t>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  switch (CoreRegistry::propertyFieldId(propertyKey))
+  {
+    case CoreDoubleType::id:
+      CoreRegistry::setDouble(target, propertyKey, (float)value);
+      break;
+    case CoreUintType::id:
+      if (CoreRegistry::isSignedInt(propertyKey))
+      {
+        CoreRegistry::setInt(target, propertyKey, (int32_t)value);
+      }
+      else
+      {
+        CoreRegistry::setUint(target, propertyKey, value);
+      }
+      break;
+  }
 }

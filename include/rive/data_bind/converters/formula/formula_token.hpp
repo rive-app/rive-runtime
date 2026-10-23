@@ -11,11 +11,11 @@ class DataConverterFormula;
 class FormulaToken : public FormulaTokenBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
-    void addDataBind(DataBind* dataBind);
+  StatusCode import(ImportStack& importStack) override;
+  void addDataBind(DataBind* dataBind);
 
 private:
-    DataConverterFormula* m_formula = nullptr;
+  DataConverterFormula* m_formula = nullptr;
 };
 } // namespace rive
 

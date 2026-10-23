@@ -198,9 +198,9 @@ SPIRV_DRAW_ATOMIC_INPUTS := \
 # MSAA shaders need separate builds with FIXED_FUNCTION_COLOR_OUTPUT and/or
 # DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS, as well as builds for WebGPU.
 SPIRV_DRAW_MSAA_INPUTS := \
+    spirv/draw_depthstencil_path.main \
     spirv/draw_depthstencil_atlas_blit.main \
     spirv/draw_depthstencil_image_mesh.main \
-    spirv/draw_depthstencil_path.main \
     spirv/draw_depthstencil_triangles_nocolor.main \
 
 # MSAA advanced blend reads the color attachment via 'subpassInputMS', which is
@@ -208,22 +208,16 @@ SPIRV_DRAW_MSAA_INPUTS := \
 # NOTE: At the time these were added, they cost us 66KB, or +16% the embedded
 # .spv size on android (which excludes atomic modes).
 SPIRV_DRAW_MSAA_DST_READ_INPUTS := \
+    spirv/draw_depthstencil_path.main \
     spirv/draw_depthstencil_atlas_blit.main \
     spirv/draw_depthstencil_image_mesh.main \
-    spirv/draw_depthstencil_path.main \
-
-# depthStencil fills don't take vertex attributes and aren't instanced, so they
-# get their own vertex shader.
-SPIRV_DEPTHSTENCIL_FILL_INPUTS := \
-    spirv/draw_depthstencil_fill.vert \
 
 # WebGPU (compatibility mode) doesn't always support storage buffers in the
 # vertex shader. These files specifically need WebGPU "nossbo" build variants
 # that polyfill the buffers via textures.
 WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS := \
     spirv/draw_depthstencil_path.main \
-    spirv/draw_depthstencil_atlas_blit.main \
-    $(SPIRV_DEPTHSTENCIL_FILL_INPUTS)
+    spirv/draw_depthstencil_atlas_blit.main
 WEBGPU_NOSSBO_INPUTS := \
     $(WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS) \
     spirv/tessellate.main \
@@ -387,10 +381,6 @@ SPIRV_COMMON_WEBGPU_PARAMS = -DTARGET_WGSL -DUSE_WEBGPU_SAMPLERS
 ## Each of the specialized SPIRV lists have their own associated rules
 $(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
 $(eval $(call make_spirv_rules, \
-    $(SPIRV_DEPTHSTENCIL_FILL_INPUTS), \
-    noclipdistance_vert, \
-    -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
-$(eval $(call make_spirv_rules, \
     $(SPIRV_CLOCKWISE_INPUTS) \
     $(SPIRV_DRAW_ATOMIC_INPUTS) \
     $(SPIRV_DRAW_MSAA_INPUTS), \
@@ -403,13 +393,11 @@ $(eval $(call make_spirv_rules, \
 $(eval $(call make_spirv_rules, \
     $(SPIRV_WEBGPU_INPUTS) \
     $(SPIRV_DRAW_ATOMIC_INPUTS) \
-    $(SPIRV_DRAW_MSAA_INPUTS) \
-    $(SPIRV_DEPTHSTENCIL_FILL_INPUTS), \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
     webgpu_vert, \
     $(SPIRV_COMMON_WEBGPU_PARAMS)))
 $(eval $(call make_spirv_rules, \
-    $(SPIRV_DRAW_MSAA_INPUTS) \
-    $(SPIRV_DEPTHSTENCIL_FILL_INPUTS), \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
     webgpu_noclipdistance_vert, \
     $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
 $(eval $(call make_spirv_rules, \

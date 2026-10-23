@@ -6,13 +6,13 @@ namespace rive
 class CubicDetachedVertex : public CubicDetachedVertexBase
 {
 protected:
-    void computeIn() override;
-    void computeOut() override;
+  void computeIn() override;
+  void computeOut() override;
 
-    void inRotationChanged() override;
-    void inDistanceChanged() override;
-    void outRotationChanged() override;
-    void outDistanceChanged() override;
+  void inRotationChanged() override;
+  void inDistanceChanged() override;
+  void outRotationChanged() override;
+  void outDistanceChanged() override;
 };
 } // namespace rive
 

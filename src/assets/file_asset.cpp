@@ -1,5 +1,3 @@
-#include <sstream>
-#include <iomanip>
 #include <array>
 
 #include "rive/assets/file_asset.hpp"
@@ -10,70 +8,69 @@ using namespace rive;
 
 StatusCode FileAsset::import(ImportStack& importStack)
 {
-    if (addsToBackboard())
+  if (addsToBackboard())
+  {
+    auto backboardImporter = importStack.latest<BackboardImporter>(
+        Backboard::typeKey);
+    if (backboardImporter == nullptr)
     {
-        auto backboardImporter =
-            importStack.latest<BackboardImporter>(Backboard::typeKey);
-        if (backboardImporter == nullptr)
-        {
-            return StatusCode::MissingObject;
-        }
-        backboardImporter->addFileAsset(ref_rcp(this));
+      return StatusCode::MissingObject;
     }
+    backboardImporter->addFileAsset(ref_rcp(this));
+  }
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }
 
 std::string FileAsset::uniqueName() const
 {
-    // remove final extension
-    std::string uniqueName = name();
-    std::size_t finalDot = uniqueName.rfind('.');
+  // remove final extension
+  std::string uniqueName = name();
+  std::size_t finalDot = uniqueName.rfind('.');
 
-    if (finalDot != std::string::npos)
-    {
-        uniqueName = uniqueName.substr(0, finalDot);
-    }
-    return uniqueName + "-" + std::to_string(assetId());
+  if (finalDot != std::string::npos)
+  {
+    uniqueName = uniqueName.substr(0, finalDot);
+  }
+  return uniqueName + "-" + std::to_string(assetId());
 }
 
 std::string FileAsset::uniqueFilename() const
 {
-    return uniqueName() + "." + fileExtension();
+  return uniqueName() + "." + fileExtension();
 }
 
 void FileAsset::copyCdnUuid(const FileAssetBase& object)
 {
-    // Should never be called.
-    assert(false);
+  // Should never be called.
+  assert(false);
 }
 
 void FileAsset::decodeCdnUuid(Span<const uint8_t> value)
 {
-    m_cdnUuid = std::vector<uint8_t>(value.begin(), value.end());
+  m_cdnUuid = std::vector<uint8_t>(value.begin(), value.end());
 }
 
 Span<const uint8_t> FileAsset::cdnUuid() const { return m_cdnUuid; }
 
 std::string FileAsset::cdnUuidStr() const
 {
-    constexpr uint8_t uuidSize = 16;
-    if (m_cdnUuid.size() != uuidSize)
-    {
-        return "";
-    }
-    const std::array<const int, uuidSize>
-        indices{3, 2, 1, 0, 5, 4, 7, 6, 9, 8, 15, 14, 13, 12, 11, 10};
+  constexpr uint8_t uuidSize = 16;
+  if (m_cdnUuid.size() != uuidSize)
+  {
+    return "";
+  }
+  const std::array<const int, uuidSize>
+      indices{3, 2, 1, 0, 5, 4, 7, 6, 9, 8, 15, 14, 13, 12, 11, 10};
 
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (int idx : indices)
-    {
-        ss << std::setw(2) // always 2 chars
-           << static_cast<unsigned int>(m_cdnUuid[idx]);
-        if (idx == 0 || idx == 4 || idx == 6 || idx == 8)
-            ss << '-';
-    }
+  std::string uuid;
+  for (int idx : indices)
+  {
+    uuid += "0123456789abcdef"[m_cdnUuid[idx] >> 4];
+    uuid += "0123456789abcdef"[m_cdnUuid[idx] & 0xF];
+    if (idx == 0 || idx == 4 || idx == 6 || idx == 8)
+      uuid += '-';
+  }
 
-    return ss.str();
+  return uuid;
 }

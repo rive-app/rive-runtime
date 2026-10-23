@@ -8,8 +8,8 @@ class ViewModelInstance;
 class DataBindViewModelConsumer
 {
 public:
-    static DataBindViewModelConsumer* from(Core* component);
-    virtual void updateViewModel(ViewModelInstance* value) = 0;
+  static DataBindViewModelConsumer* from(Core* component);
+  virtual void updateViewModel(ViewModelInstance* value) = 0;
 };
 } // namespace rive
 

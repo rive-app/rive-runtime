@@ -9,21 +9,22 @@ namespace rive
 class TransformConstraint : public TransformConstraintBase
 {
 private:
-    TransformComponents m_ComponentsA;
-    TransformComponents m_ComponentsB;
+  TransformComponents m_ComponentsA;
+  TransformComponents m_ComponentsB;
 
 public:
-    virtual const Mat2D targetTransform() const;
-    void constrain(TransformComponent* component) override;
-    void originXChanged() override;
-    void originYChanged() override;
+  virtual const Mat2D targetTransform() const;
+  void constrain(TransformComponent* component) override;
+  void originXChanged() override;
+  void originYChanged() override;
 
-    static void constrainWorld(TransformComponent* component,
-                               Mat2D from,
-                               TransformComponents componentsFrom,
-                               Mat2D to,
-                               TransformComponents componentsTo,
-                               float strength);
+  static void constrainWorld(
+      TransformComponent* component,
+      Mat2D from,
+      TransformComponents componentsFrom,
+      Mat2D to,
+      TransformComponents componentsTo,
+      float strength);
 };
 } // namespace rive
 

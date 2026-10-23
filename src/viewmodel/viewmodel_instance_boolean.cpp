@@ -9,17 +9,17 @@ using namespace rive;
 
 void ViewModelInstanceBoolean::propertyValueChanged()
 {
-    addDirt(ComponentDirt::Bindings);
+  addDirt(ComponentDirt::Bindings);
 #ifdef WITH_RIVE_TOOLS
-    if (m_changedCallback != nullptr)
-    {
-        m_changedCallback(this, propertyValue());
-    }
+  if (m_changedCallback != nullptr)
+  {
+    m_changedCallback(this, propertyValue());
+  }
 #endif
-    onValueChanged();
+  onValueChanged();
 }
 
 void ViewModelInstanceBoolean::applyValue(DataValueBoolean* dataValue)
 {
-    propertyValue(dataValue->value());
+  propertyValue(dataValue->value());
 }

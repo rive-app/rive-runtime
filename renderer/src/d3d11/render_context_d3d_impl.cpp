@@ -6,6 +6,8 @@
 
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
+#include "rive/renderer/range_chunker.hpp"
+
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
 #include <rive/renderer/ore/ore_context_d3d11.hpp>
@@ -54,29 +56,30 @@ namespace atlas::stroke
 
 namespace rive::gpu
 {
-ComPtr<ID3D11Texture2D> make_simple_2d_texture(ID3D11Device* gpu,
-                                               DXGI_FORMAT format,
-                                               UINT width,
-                                               UINT height,
-                                               UINT mipLevelCount,
-                                               UINT bindFlags,
-                                               UINT miscFlags = 0)
+ComPtr<ID3D11Texture2D> make_simple_2d_texture(
+    ID3D11Device* gpu,
+    DXGI_FORMAT format,
+    UINT width,
+    UINT height,
+    UINT mipLevelCount,
+    UINT bindFlags,
+    UINT miscFlags = 0)
 {
-    D3D11_TEXTURE2D_DESC desc{};
-    desc.Width = width;
-    desc.Height = height;
-    desc.MipLevels = mipLevelCount;
-    desc.ArraySize = 1;
-    desc.Format = format;
-    desc.SampleDesc.Count = 1;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = bindFlags;
-    desc.CPUAccessFlags = 0;
-    desc.MiscFlags = miscFlags;
+  D3D11_TEXTURE2D_DESC desc{};
+  desc.Width = width;
+  desc.Height = height;
+  desc.MipLevels = mipLevelCount;
+  desc.ArraySize = 1;
+  desc.Format = format;
+  desc.SampleDesc.Count = 1;
+  desc.Usage = D3D11_USAGE_DEFAULT;
+  desc.BindFlags = bindFlags;
+  desc.CPUAccessFlags = 0;
+  desc.MiscFlags = miscFlags;
 
-    ComPtr<ID3D11Texture2D> tex;
-    VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.ReleaseAndGetAddressOf()));
-    return tex;
+  ComPtr<ID3D11Texture2D> tex;
+  VERIFY_OK(gpu->CreateTexture2D(&desc, NULL, tex.ReleaseAndGetAddressOf()));
+  return tex;
 }
 
 static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(
@@ -84,133 +87,138 @@ static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(
     ID3D11Texture2D* tex,
     DXGI_FORMAT format)
 {
-    D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-    uavDesc.Format = format;
-    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+  D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+  uavDesc.Format = format;
+  uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 
-    ComPtr<ID3D11UnorderedAccessView> uav;
-    VERIFY_OK(gpu->CreateUnorderedAccessView(tex,
-                                             &uavDesc,
-                                             uav.ReleaseAndGetAddressOf()));
-    return uav;
+  ComPtr<ID3D11UnorderedAccessView> uav;
+  VERIFY_OK(gpu->CreateUnorderedAccessView(
+      tex,
+      &uavDesc,
+      uav.ReleaseAndGetAddressOf()));
+  return uav;
 }
 
 D3D11PipelineManager::D3D11PipelineManager(
     ComPtr<ID3D11DeviceContext> context,
     ComPtr<ID3D11Device> device,
     const D3DCapabilities& capabilities,
-    ShaderCompilationMode shaderCompilationMode) :
-    Super(device, capabilities, shaderCompilationMode, "vs_5_0", "ps_5_0"),
-    m_context(context)
+    ShaderCompilationMode shaderCompilationMode)
+    : Super(device, capabilities, shaderCompilationMode, "vs_5_0", "ps_5_0")
+    , m_context(context)
 {
-    D3D11_INPUT_ELEMENT_DESC spanDesc = {GLSL_a_span,
-                                         0,
-                                         DXGI_FORMAT_R32G32B32A32_UINT,
-                                         0,
-                                         0,
-                                         D3D11_INPUT_PER_INSTANCE_DATA,
-                                         1};
+  D3D11_INPUT_ELEMENT_DESC spanDesc = {
+      GLSL_a_span,
+      0,
+      DXGI_FORMAT_R32G32B32A32_UINT,
+      0,
+      0,
+      D3D11_INPUT_PER_INSTANCE_DATA,
+      1};
 
-    VERIFY_OK(
-        this->device()->CreateInputLayout(&spanDesc,
-                                          1,
-                                          shader::grad::vert::g_main,
-                                          std::size(shader::grad::vert::g_main),
-                                          &m_colorRampLayout));
-    VERIFY_OK(this->device()->CreateVertexShader(
-        shader::grad::vert::g_main,
-        std::size(shader::grad::vert::g_main),
-        nullptr,
-        &m_colorRampVertexShader));
-    VERIFY_OK(
-        this->device()->CreatePixelShader(shader::grad::frag::g_main,
-                                          std::size(shader::grad::frag::g_main),
-                                          nullptr,
-                                          &m_colorRampPixelShader));
+  VERIFY_OK(this->device()->CreateInputLayout(
+      &spanDesc,
+      1,
+      shader::grad::vert::g_main,
+      std::size(shader::grad::vert::g_main),
+      &m_colorRampLayout));
+  VERIFY_OK(this->device()->CreateVertexShader(
+      shader::grad::vert::g_main,
+      std::size(shader::grad::vert::g_main),
+      nullptr,
+      &m_colorRampVertexShader));
+  VERIFY_OK(this->device()->CreatePixelShader(
+      shader::grad::frag::g_main,
+      std::size(shader::grad::frag::g_main),
+      nullptr,
+      &m_colorRampPixelShader));
 
-    D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {{GLSL_a_p0p1_,
-                                               0,
-                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                               0,
-                                               D3D11_APPEND_ALIGNED_ELEMENT,
-                                               D3D11_INPUT_PER_INSTANCE_DATA,
-                                               1},
-                                              {GLSL_a_p2p3_,
-                                               0,
-                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                               0,
-                                               D3D11_APPEND_ALIGNED_ELEMENT,
-                                               D3D11_INPUT_PER_INSTANCE_DATA,
-                                               1},
-                                              {GLSL_a_joinTan_and_ys,
-                                               0,
-                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                               0,
-                                               D3D11_APPEND_ALIGNED_ELEMENT,
-                                               D3D11_INPUT_PER_INSTANCE_DATA,
-                                               1},
-                                              {GLSL_a_args,
-                                               0,
-                                               DXGI_FORMAT_R32G32B32A32_UINT,
-                                               0,
-                                               D3D11_APPEND_ALIGNED_ELEMENT,
-                                               D3D11_INPUT_PER_INSTANCE_DATA,
-                                               1}};
-    VERIFY_OK(
-        this->device()->CreateInputLayout(attribsDesc,
-                                          std::size(attribsDesc),
-                                          shader::tess::vert::g_main,
-                                          std::size(shader::tess::vert::g_main),
-                                          &m_tessellateLayout));
-    VERIFY_OK(this->device()->CreateVertexShader(
-        shader::tess::vert::g_main,
-        std::size(shader::tess::vert::g_main),
-        nullptr,
-        &m_tessellateVertexShader));
-    VERIFY_OK(
-        this->device()->CreatePixelShader(shader::tess::frag::g_main,
-                                          std::size(shader::tess::frag::g_main),
-                                          nullptr,
-                                          &m_tessellatePixelShader));
+  D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {
+      {GLSL_a_p0p1_,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_p2p3_,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_joinTan_and_ys,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_args,
+       0,
+       DXGI_FORMAT_R32G32B32A32_UINT,
+       0,
+       D3D11_APPEND_ALIGNED_ELEMENT,
+       D3D11_INPUT_PER_INSTANCE_DATA,
+       1}};
+  VERIFY_OK(this->device()->CreateInputLayout(
+      attribsDesc,
+      std::size(attribsDesc),
+      shader::tess::vert::g_main,
+      std::size(shader::tess::vert::g_main),
+      &m_tessellateLayout));
+  VERIFY_OK(this->device()->CreateVertexShader(
+      shader::tess::vert::g_main,
+      std::size(shader::tess::vert::g_main),
+      nullptr,
+      &m_tessellateVertexShader));
+  VERIFY_OK(this->device()->CreatePixelShader(
+      shader::tess::frag::g_main,
+      std::size(shader::tess::frag::g_main),
+      nullptr,
+      &m_tessellatePixelShader));
 
-    D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-    layoutDesc[0] = {GLSL_a_patchVertexData,
-                     0,
-                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                     PATCH_VERTEX_DATA_SLOT,
-                     D3D11_APPEND_ALIGNED_ELEMENT,
-                     D3D11_INPUT_PER_VERTEX_DATA,
-                     0};
-    layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                     0,
-                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                     PATCH_VERTEX_DATA_SLOT,
-                     D3D11_APPEND_ALIGNED_ELEMENT,
-                     D3D11_INPUT_PER_VERTEX_DATA,
-                     0};
-    VERIFY_OK(this->device()->CreateInputLayout(
-        layoutDesc,
-        2,
-        shader::atlas::vert::g_main,
-        std::size(shader::atlas::vert::g_main),
-        &m_featherAtlasLayout));
-    VERIFY_OK(this->device()->CreateVertexShader(
-        shader::atlas::vert::g_main,
-        std::size(shader::atlas::vert::g_main),
-        nullptr,
-        &m_featherAtlasVertexShader));
+  D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+  layoutDesc[0] = {
+      GLSL_a_patchVertexData,
+      0,
+      DXGI_FORMAT_R32G32B32A32_FLOAT,
+      PATCH_VERTEX_DATA_SLOT,
+      D3D11_APPEND_ALIGNED_ELEMENT,
+      D3D11_INPUT_PER_VERTEX_DATA,
+      0};
+  layoutDesc[1] = {
+      GLSL_a_mirroredVertexData,
+      0,
+      DXGI_FORMAT_R32G32B32A32_FLOAT,
+      PATCH_VERTEX_DATA_SLOT,
+      D3D11_APPEND_ALIGNED_ELEMENT,
+      D3D11_INPUT_PER_VERTEX_DATA,
+      0};
+  VERIFY_OK(this->device()->CreateInputLayout(
+      layoutDesc,
+      2,
+      shader::atlas::vert::g_main,
+      std::size(shader::atlas::vert::g_main),
+      &m_featherAtlasLayout));
+  VERIFY_OK(this->device()->CreateVertexShader(
+      shader::atlas::vert::g_main,
+      std::size(shader::atlas::vert::g_main),
+      nullptr,
+      &m_featherAtlasVertexShader));
 
-    VERIFY_OK(this->device()->CreatePixelShader(
-        shader::atlas::fill::g_main,
-        std::size(shader::atlas::fill::g_main),
-        nullptr,
-        &m_featherAtlasFillPixelShader));
+  VERIFY_OK(this->device()->CreatePixelShader(
+      shader::atlas::fill::g_main,
+      std::size(shader::atlas::fill::g_main),
+      nullptr,
+      &m_featherAtlasFillPixelShader));
 
-    VERIFY_OK(this->device()->CreatePixelShader(
-        shader::atlas::stroke::g_main,
-        std::size(shader::atlas::stroke::g_main),
-        nullptr,
-        &m_featherAtlasStrokePixelShader));
+  VERIFY_OK(this->device()->CreatePixelShader(
+      shader::atlas::stroke::g_main,
+      std::size(shader::atlas::stroke::g_main),
+      nullptr,
+      &m_featherAtlasStrokePixelShader));
 }
 
 bool D3D11PipelineManager::setPipelineState(
@@ -225,251 +233,265 @@ bool D3D11PipelineManager::setPipelineState(
 #endif
 )
 {
-    auto* pipeline = tryGetPipeline(
-        {
-            .drawType = drawType,
-            .shaderFeatures = features,
-            .interlockMode = interlockMode,
-            .shaderMiscFlags = miscFlags,
+  auto* pipeline = tryGetPipeline(
+      {
+          .drawType = drawType,
+          .shaderFeatures = features,
+          .interlockMode = interlockMode,
+          .shaderMiscFlags = miscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizedFailureType = synthesizedFailureType,
+          .synthesizedFailureType = synthesizedFailureType,
 #endif
-        },
-        platformFeatures);
+      },
+      platformFeatures);
 
-    if (pipeline == nullptr)
-    {
-        return false;
-    }
+  if (pipeline == nullptr)
+  {
+    return false;
+  }
 
-    m_context->IASetInputLayout(pipeline->m_vertexShader.layout.Get());
-    m_context->VSSetShader(pipeline->m_vertexShader.shader.Get(), nullptr, 0);
-    m_context->PSSetShader(pipeline->m_pixelShader.shader.Get(), nullptr, 0);
-    return true;
+  m_context->IASetInputLayout(pipeline->m_vertexShader.layout.Get());
+  m_context->VSSetShader(pipeline->m_vertexShader.shader.Get(), nullptr, 0);
+  m_context->PSSetShader(pipeline->m_pixelShader.shader.Get(), nullptr, 0);
+  return true;
 }
 
 inline DXGI_FORMAT getDXGIFormat(VertexElementFormat format)
 {
-    switch (format)
-    {
-        case VertexElementFormat::float1:
-            return DXGI_FORMAT_R32_FLOAT;
-        case VertexElementFormat::float2:
-            return DXGI_FORMAT_R32G32_FLOAT;
-        case VertexElementFormat::float3:
-            return DXGI_FORMAT_R32G32B32_FLOAT;
-        case VertexElementFormat::float4:
-            return DXGI_FORMAT_R32G32B32A32_FLOAT;
-        case VertexElementFormat::uint8x4:
-            return DXGI_FORMAT_R8G8B8A8_UINT;
-        case VertexElementFormat::sint8x4:
-            return DXGI_FORMAT_R8G8B8A8_SINT;
-        case VertexElementFormat::unorm8x4:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
-        case VertexElementFormat::snorm8x4:
-            return DXGI_FORMAT_R8G8B8A8_SNORM;
-        case VertexElementFormat::uint16x2:
-            return DXGI_FORMAT_R16G16_UINT;
-        case VertexElementFormat::sint16x2:
-            return DXGI_FORMAT_R16G16_SINT;
-        case VertexElementFormat::unorm16x2:
-            return DXGI_FORMAT_R16G16_UNORM;
-        case VertexElementFormat::snorm16x2:
-            return DXGI_FORMAT_R16G16_SNORM;
-        case VertexElementFormat::uint16x4:
-            return DXGI_FORMAT_R16G16B16A16_UINT;
-        case VertexElementFormat::sint16x4:
-            return DXGI_FORMAT_R16G16B16A16_SINT;
-        case VertexElementFormat::float16x2:
-            return DXGI_FORMAT_R16G16_FLOAT;
-        case VertexElementFormat::float16x4:
-            return DXGI_FORMAT_R16G16B16A16_FLOAT;
-        case VertexElementFormat::uint32:
-            return DXGI_FORMAT_R32_UINT;
-    }
+  switch (format)
+  {
+    case VertexElementFormat::float1:
+      return DXGI_FORMAT_R32_FLOAT;
+    case VertexElementFormat::float2:
+      return DXGI_FORMAT_R32G32_FLOAT;
+    case VertexElementFormat::float3:
+      return DXGI_FORMAT_R32G32B32_FLOAT;
+    case VertexElementFormat::float4:
+      return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    case VertexElementFormat::uint8x4:
+      return DXGI_FORMAT_R8G8B8A8_UINT;
+    case VertexElementFormat::sint8x4:
+      return DXGI_FORMAT_R8G8B8A8_SINT;
+    case VertexElementFormat::unorm8x4:
+      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case VertexElementFormat::snorm8x4:
+      return DXGI_FORMAT_R8G8B8A8_SNORM;
+    case VertexElementFormat::uint16x2:
+      return DXGI_FORMAT_R16G16_UINT;
+    case VertexElementFormat::sint16x2:
+      return DXGI_FORMAT_R16G16_SINT;
+    case VertexElementFormat::unorm16x2:
+      return DXGI_FORMAT_R16G16_UNORM;
+    case VertexElementFormat::snorm16x2:
+      return DXGI_FORMAT_R16G16_SNORM;
+    case VertexElementFormat::uint16x4:
+      return DXGI_FORMAT_R16G16B16A16_UINT;
+    case VertexElementFormat::sint16x4:
+      return DXGI_FORMAT_R16G16B16A16_SINT;
+    case VertexElementFormat::float16x2:
+      return DXGI_FORMAT_R16G16_FLOAT;
+    case VertexElementFormat::float16x4:
+      return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case VertexElementFormat::uint32:
+      return DXGI_FORMAT_R32_UINT;
+  }
 
-    RIVE_UNREACHABLE();
+  RIVE_UNREACHABLE();
 }
 
 template <typename ImageDrawInstance, uint32_t N>
 void addInstanceElements(StackVector<D3D11_INPUT_ELEMENT_DESC, N>& layoutDesc)
 {
-    for (auto& attribute : ImageDrawInstance::getAttributes())
-    {
-        layoutDesc.push_back({
-            .SemanticName = attribute.semanticName,
-            .SemanticIndex = 0,
-            .Format = getDXGIFormat(attribute.format),
-            .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
-            .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-            .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
-            .InstanceDataStepRate = 1,
-        });
-    }
+  for (auto& attribute : ImageDrawInstance::getAttributes())
+  {
+    layoutDesc.push_back({
+        .SemanticName = attribute.semanticName,
+        .SemanticIndex = 0,
+        .Format = getDXGIFormat(attribute.format),
+        .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
+        .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
+        .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
+        .InstanceDataStepRate = 1,
+    });
+  }
 }
 std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
-    StackVector<D3D11_INPUT_ELEMENT_DESC, MaxVertexAttributeCount + 1>
-        layoutDesc;
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-            layoutDesc.push_back({GLSL_a_patchVertexData,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                  PATCH_VERTEX_DATA_SLOT,
-                                  D3D11_APPEND_ALIGNED_ELEMENT,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            layoutDesc.push_back({GLSL_a_mirroredVertexData,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                  PATCH_VERTEX_DATA_SLOT,
-                                  D3D11_APPEND_ALIGNED_ELEMENT,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            break;
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-            layoutDesc.push_back({GLSL_a_triangleVertex,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32_FLOAT,
-                                  TRIANGLE_VERTEX_DATA_SLOT,
-                                  0,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            break;
-        case DrawType::imageRect:
-            layoutDesc.push_back({GLSL_a_imageRectVertex,
-                                  0,
-                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                  IMAGE_RECT_VERTEX_DATA_SLOT,
-                                  0,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            addInstanceElements<ImageRectInstance>(layoutDesc);
-            break;
-        case DrawType::imageMesh:
-            layoutDesc.push_back({GLSL_a_position,
-                                  0,
-                                  DXGI_FORMAT_R32G32_FLOAT,
-                                  IMAGE_MESH_VERTEX_DATA_SLOT,
-                                  D3D11_APPEND_ALIGNED_ELEMENT,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            layoutDesc.push_back({GLSL_a_texCoord,
-                                  0,
-                                  DXGI_FORMAT_R32G32_FLOAT,
-                                  IMAGE_MESH_UV_DATA_SLOT,
-                                  D3D11_APPEND_ALIGNED_ELEMENT,
-                                  D3D11_INPUT_PER_VERTEX_DATA,
-                                  0});
-            addInstanceElements<ImageMeshInstance>(layoutDesc);
-            break;
-        case DrawType::renderPassResolve:
-            break;
-        case DrawType::depthStrokes:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::stencilOuterCubics:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-            RIVE_UNREACHABLE();
-    }
+  StackVector<D3D11_INPUT_ELEMENT_DESC, MaxVertexAttributeCount + 1> layoutDesc;
+  switch (drawType)
+  {
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+      layoutDesc.push_back(
+          {GLSL_a_patchVertexData,
+           0,
+           DXGI_FORMAT_R32G32B32A32_FLOAT,
+           PATCH_VERTEX_DATA_SLOT,
+           D3D11_APPEND_ALIGNED_ELEMENT,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      layoutDesc.push_back(
+          {GLSL_a_mirroredVertexData,
+           0,
+           DXGI_FORMAT_R32G32B32A32_FLOAT,
+           PATCH_VERTEX_DATA_SLOT,
+           D3D11_APPEND_ALIGNED_ELEMENT,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      break;
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::clipReset:
+      layoutDesc.push_back(
+          {GLSL_a_triangleVertex,
+           0,
+           DXGI_FORMAT_R32G32B32_FLOAT,
+           TRIANGLE_VERTEX_DATA_SLOT,
+           0,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      break;
+    case DrawType::imageRect:
+      layoutDesc.push_back(
+          {GLSL_a_imageRectVertex,
+           0,
+           DXGI_FORMAT_R32G32B32A32_FLOAT,
+           IMAGE_RECT_VERTEX_DATA_SLOT,
+           0,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      addInstanceElements<ImageRectInstance>(layoutDesc);
+      break;
+    case DrawType::imageMesh:
+      layoutDesc.push_back(
+          {GLSL_a_position,
+           0,
+           DXGI_FORMAT_R32G32_FLOAT,
+           IMAGE_MESH_VERTEX_DATA_SLOT,
+           D3D11_APPEND_ALIGNED_ELEMENT,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      layoutDesc.push_back(
+          {GLSL_a_texCoord,
+           0,
+           DXGI_FORMAT_R32G32_FLOAT,
+           IMAGE_MESH_UV_DATA_SLOT,
+           D3D11_APPEND_ALIGNED_ELEMENT,
+           D3D11_INPUT_PER_VERTEX_DATA,
+           0});
+      addInstanceElements<ImageMeshInstance>(layoutDesc);
+      break;
+    case DrawType::renderPassResolve:
+      break;
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::stencilOuterCubics:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      break;
+    case DrawType::renderPassInitialize:
+      RIVE_UNREACHABLE();
+  }
 
-    auto result = std::make_unique<D3D11DrawVertexShader>();
+  auto result = std::make_unique<D3D11DrawVertexShader>();
 
-    VERIFY_OK(device()->CreateInputLayout(layoutDesc.data(),
-                                          layoutDesc.size(),
-                                          blob->GetBufferPointer(),
-                                          blob->GetBufferSize(),
-                                          &result->layout));
-    VERIFY_OK(device()->CreateVertexShader(blob->GetBufferPointer(),
-                                           blob->GetBufferSize(),
-                                           nullptr,
-                                           &result->shader));
-    return result;
+  if (!layoutDesc.empty())
+  {
+    VERIFY_OK(device()->CreateInputLayout(
+        layoutDesc.data(),
+        layoutDesc.size(),
+        blob->GetBufferPointer(),
+        blob->GetBufferSize(),
+        &result->layout));
+  }
+  VERIFY_OK(device()->CreateVertexShader(
+      blob->GetBufferPointer(),
+      blob->GetBufferSize(),
+      nullptr,
+      &result->shader));
+  return result;
 }
 
 std::unique_ptr<D3D11DrawPixelShader> D3D11PipelineManager ::
     compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob)
 {
-    auto result = std::make_unique<D3D11DrawPixelShader>();
+  auto result = std::make_unique<D3D11DrawPixelShader>();
 
-    VERIFY_OK(device()->CreatePixelShader(blob->GetBufferPointer(),
-                                          blob->GetBufferSize(),
-                                          nullptr,
-                                          &result->shader));
+  VERIFY_OK(device()->CreatePixelShader(
+      blob->GetBufferPointer(),
+      blob->GetBufferSize(),
+      nullptr,
+      &result->shader));
 
-    return result;
+  return result;
 }
 
 std::unique_ptr<D3D11DrawPipeline> D3D11PipelineManager::linkPipeline(
     const PipelineProps& props,
     const D3D11DrawVertexShader& vs,
-    const D3D11DrawPixelShader& ps)
+    const D3D11DrawPixelShader& ps,
+    const PlatformFeatures&)
 {
-    // For D3D11 this just puts the vs and ps into a single structure together.
-    auto pipeline = std::make_unique<D3D11DrawPipeline>();
+  // For D3D11 this just puts the vs and ps into a single structure together.
+  auto pipeline = std::make_unique<D3D11DrawPipeline>();
 #ifdef WITH_RIVE_TOOLS
-    if (props.synthesizedFailureType ==
-            SynthesizedFailureType::pipelineCreation ||
-        props.synthesizedFailureType ==
-            SynthesizedFailureType::shaderCompilation)
-    {
-        // An empty result is what counts as "failed"
-        return pipeline;
-    }
+  if (props.synthesizedFailureType ==
+          SynthesizedFailureType::pipelineCreation ||
+      props.synthesizedFailureType == SynthesizedFailureType::shaderCompilation)
+  {
+    // An empty result is what counts as "failed"
+    return pipeline;
+  }
 #else
-    std::ignore = props;
+  std::ignore = props;
 #endif
 
-    pipeline->m_vertexShader = vs;
-    pipeline->m_pixelShader = ps;
-    return pipeline;
+  pipeline->m_vertexShader = vs;
+  pipeline->m_pixelShader = ps;
+  return pipeline;
 }
 
 static D3D11_FILTER filter_for_sampler_filter_options(ImageFilter option)
 {
-    switch (option)
-    {
-        case ImageFilter::nearest:
-            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_POINT;
-        case ImageFilter::bilinear:
-            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    }
+  switch (option)
+  {
+    case ImageFilter::nearest:
+      return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_POINT;
+    case ImageFilter::bilinear:
+      return D3D11_FILTER::D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+  }
 
-    RIVE_UNREACHABLE();
-    return D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+  RIVE_UNREACHABLE();
+  return D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 }
 
 static D3D11_TEXTURE_ADDRESS_MODE address_mode_for_sampler_filter_options(
     ImageWrap option)
 {
-    switch (option)
-    {
-        case ImageWrap::clamp:
-            return D3D11_TEXTURE_ADDRESS_CLAMP;
-        case ImageWrap::repeat:
-            return D3D11_TEXTURE_ADDRESS_WRAP;
-        case ImageWrap::mirror:
-            return D3D11_TEXTURE_ADDRESS_MIRROR;
-    }
+  switch (option)
+  {
+    case ImageWrap::clamp:
+      return D3D11_TEXTURE_ADDRESS_CLAMP;
+    case ImageWrap::repeat:
+      return D3D11_TEXTURE_ADDRESS_WRAP;
+    case ImageWrap::mirror:
+      return D3D11_TEXTURE_ADDRESS_MIRROR;
+  }
 
-    RIVE_UNREACHABLE();
-    return D3D11_TEXTURE_ADDRESS_CLAMP;
+  RIVE_UNREACHABLE();
+  return D3D11_TEXTURE_ADDRESS_CLAMP;
 }
 
 std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
@@ -478,339 +500,351 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     const D3DContextOptions& contextOptions)
 {
 #if defined(RIVE_MICROPROFILE)
-    // MicroProfile keeps process-global GPU state and asserts on re-init, so
-    // bind it to the first device we see (e.g. with desktop_multi_window,
-    // multiple plugin instances each create their own RenderContext).
-    static std::once_flag s_microProfileInit;
-    std::call_once(s_microProfileInit,
-                   [&] { MicroProfileGpuInitD3D11(gpu.Get()); });
+  // MicroProfile keeps process-global GPU state and asserts on re-init, so
+  // bind it to the first device we see (e.g. with desktop_multi_window,
+  // multiple plugin instances each create their own RenderContext).
+  static std::once_flag s_microProfileInit;
+  std::call_once(s_microProfileInit, [&] {
+    MicroProfileGpuInitD3D11(gpu.Get());
+  });
 #endif
-    D3DCapabilities d3dCapabilities;
-    D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
+  D3DCapabilities d3dCapabilities;
+  D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
 
-    if (gpu->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_1)
+  if (gpu->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_1)
+  {
+    if (SUCCEEDED(gpu->CheckFeatureSupport(
+            D3D11_FEATURE_D3D11_OPTIONS2,
+            &d3d11Options2,
+            sizeof(D3D11_FEATURE_DATA_D3D11_OPTIONS2))))
     {
-        if (SUCCEEDED(gpu->CheckFeatureSupport(
-                D3D11_FEATURE_D3D11_OPTIONS2,
-                &d3d11Options2,
-                sizeof(D3D11_FEATURE_DATA_D3D11_OPTIONS2))))
-        {
-            d3dCapabilities.supportsRasterizerOrderedViews =
-                d3d11Options2.ROVsSupported;
-            if (d3d11Options2.TypedUAVLoadAdditionalFormats)
-            {
-                // TypedUAVLoadAdditionalFormats is true. Now check if we can
-                // both load and store all formats used by Rive (currently only
-                // RGBA8 and BGRA8):
-                // https://learn.microsoft.com/en-us/windows/win32/direct3d11/typed-unordered-access-view-loads.
-                auto check_typed_uav_load = [gpu](DXGI_FORMAT format) {
-                    D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
-                    d3d11Format2.InFormat = format;
-                    if (SUCCEEDED(gpu->CheckFeatureSupport(
-                            D3D11_FEATURE_FORMAT_SUPPORT2,
-                            &d3d11Format2,
-                            sizeof(d3d11Format2))))
-                    {
-                        constexpr UINT loadStoreFlags =
-                            D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD |
-                            D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
-                        return (d3d11Format2.OutFormatSupport2 &
-                                loadStoreFlags) == loadStoreFlags;
-                    }
-                    return false;
-                };
-                d3dCapabilities.supportsTypedUAVLoadStore =
-                    check_typed_uav_load(DXGI_FORMAT_R8G8B8A8_UNORM) &&
-                    check_typed_uav_load(DXGI_FORMAT_B8G8R8A8_UNORM);
-            }
-        }
-
-        // Check if we can use HLSL minimum precision types (e.g. min16int)
-        D3D11_FEATURE_DATA_SHADER_MIN_PRECISION_SUPPORT
-        d3d11MinPrecisionSupport;
-        if (SUCCEEDED(gpu->CheckFeatureSupport(
-                D3D11_FEATURE_SHADER_MIN_PRECISION_SUPPORT,
-                &d3d11MinPrecisionSupport,
-                sizeof(d3d11MinPrecisionSupport))))
-        {
-            const UINT allStageMinPrecision =
-                (d3d11MinPrecisionSupport.AllOtherShaderStagesMinPrecision &
-                 d3d11MinPrecisionSupport.PixelShaderMinPrecision);
-
-            d3dCapabilities.supportsMin16Precision =
-                (allStageMinPrecision & D3D11_SHADER_MIN_PRECISION_16_BIT) != 0;
-        }
+      d3dCapabilities.supportsRasterizerOrderedViews = d3d11Options2
+                                                           .ROVsSupported;
+      if (d3d11Options2.TypedUAVLoadAdditionalFormats)
+      {
+        // TypedUAVLoadAdditionalFormats is true. Now check if we can
+        // both load and store all formats used by Rive (currently only
+        // RGBA8 and BGRA8):
+        // https://learn.microsoft.com/en-us/windows/win32/direct3d11/typed-unordered-access-view-loads.
+        auto check_typed_uav_load = [gpu](DXGI_FORMAT format) {
+          D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
+          d3d11Format2.InFormat = format;
+          if (SUCCEEDED(gpu->CheckFeatureSupport(
+                  D3D11_FEATURE_FORMAT_SUPPORT2,
+                  &d3d11Format2,
+                  sizeof(d3d11Format2))))
+          {
+            constexpr UINT
+                loadStoreFlags = D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD |
+                                 D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
+            return (d3d11Format2.OutFormatSupport2 & loadStoreFlags) ==
+                   loadStoreFlags;
+          }
+          return false;
+        };
+        d3dCapabilities
+            .supportsTypedUAVLoadStore = check_typed_uav_load(
+                                             DXGI_FORMAT_R8G8B8A8_UNORM) &&
+                                         check_typed_uav_load(
+                                             DXGI_FORMAT_B8G8R8A8_UNORM);
+      }
     }
 
-    if (contextOptions.disableRasterizerOrderedViews)
+    // Check if we can use HLSL minimum precision types (e.g. min16int)
+    D3D11_FEATURE_DATA_SHADER_MIN_PRECISION_SUPPORT
+    d3d11MinPrecisionSupport;
+    if (SUCCEEDED(gpu->CheckFeatureSupport(
+            D3D11_FEATURE_SHADER_MIN_PRECISION_SUPPORT,
+            &d3d11MinPrecisionSupport,
+            sizeof(d3d11MinPrecisionSupport))))
     {
-        d3dCapabilities.supportsRasterizerOrderedViews = false;
-    }
-    if (contextOptions.disableTypedUAVLoadStore)
-    {
-        d3dCapabilities.supportsTypedUAVLoadStore = false;
-    }
+      const UINT allStageMinPrecision =
+          (d3d11MinPrecisionSupport.AllOtherShaderStagesMinPrecision &
+           d3d11MinPrecisionSupport.PixelShaderMinPrecision);
 
-    d3dCapabilities.isIntel = contextOptions.isIntel;
-    d3dCapabilities.allowsUAVSlot0WithColorOutput = false;
+      d3dCapabilities
+          .supportsMin16Precision = (allStageMinPrecision &
+                                     D3D11_SHADER_MIN_PRECISION_16_BIT) != 0;
+    }
+  }
 
-    auto renderContextImpl = std::unique_ptr<RenderContextD3DImpl>(
-        new RenderContextD3DImpl(std::move(gpu),
-                                 std::move(gpuContext),
-                                 d3dCapabilities,
-                                 contextOptions));
-    return std::make_unique<RenderContext>(std::move(renderContextImpl));
+  if (contextOptions.disableRasterizerOrderedViews)
+  {
+    d3dCapabilities.supportsRasterizerOrderedViews = false;
+  }
+  if (contextOptions.disableTypedUAVLoadStore)
+  {
+    d3dCapabilities.supportsTypedUAVLoadStore = false;
+  }
+
+  d3dCapabilities.isIntel = contextOptions.isIntel;
+  d3dCapabilities.allowsUAVSlot0WithColorOutput = false;
+
+  auto renderContextImpl = std::unique_ptr<RenderContextD3DImpl>(
+      new RenderContextD3DImpl(
+          std::move(gpu),
+          std::move(gpuContext),
+          d3dCapabilities,
+          contextOptions));
+  return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
 RenderContextD3DImpl::RenderContextD3DImpl(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
     const D3DCapabilities& d3dCapabilities,
-    const D3DContextOptions& d3dContextOptions) :
-    m_pipelineManager(gpuContext,
-                      gpu,
-                      d3dCapabilities,
-                      d3dContextOptions.shaderCompilationMode),
-    m_d3dCapabilities(d3dCapabilities),
-    m_gpu(std::move(gpu)),
-    m_gpuContext(std::move(gpuContext))
+    const D3DContextOptions& d3dContextOptions)
+    : m_pipelineManager(
+          gpuContext,
+          gpu,
+          d3dCapabilities,
+          d3dContextOptions.shaderCompilationMode)
+    , m_d3dCapabilities(d3dCapabilities)
+    , m_gpu(std::move(gpu))
+    , m_gpuContext(std::move(gpuContext))
 {
-    m_platformFeatures.clipSpaceBottomUp = true;
-    m_platformFeatures.framebufferBottomUp = false;
-    m_platformFeatures.supportsRasterOrderingMode =
-        d3dCapabilities.supportsRasterizerOrderedViews;
-    m_platformFeatures.supportsAtomicMode = true;
-    m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+  m_platformFeatures.supportsPipelineDynamicState = true;
+  m_platformFeatures.clipSpaceBottomUp = true;
+  m_platformFeatures.framebufferBottomUp = false;
+  m_platformFeatures
+      .supportsRasterOrderingMode = d3dCapabilities
+                                        .supportsRasterizerOrderedViews;
+  m_platformFeatures.supportsAtomicMode = true;
+  m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 
-    m_platformFeatures.supportsClipScissor = true;
+  m_platformFeatures.supportsClipScissor = true;
 
-    // BC1–BC7 are required at D3D feature level 11.0+.
-    m_platformFeatures.supportsTextureCompressionBC = true;
+  // BC1–BC7 are required at D3D feature level 11.0+.
+  m_platformFeatures.supportsTextureCompressionBC = true;
 
-    // Create a default raster state for path and offscreen draws.
-    D3D11_RASTERIZER_DESC rasterDesc;
-    rasterDesc.FillMode = D3D11_FILL_SOLID;
-    rasterDesc.CullMode = D3D11_CULL_BACK;
-    rasterDesc.FrontCounterClockwise =
-        FALSE; // FrontCounterClockwise must be FALSE in order to
-               // match the winding sense of interior triangulations.
+  // Create a default raster state for path and offscreen draws.
+  D3D11_RASTERIZER_DESC rasterDesc;
+  rasterDesc.FillMode = D3D11_FILL_SOLID;
+  rasterDesc.CullMode = D3D11_CULL_BACK;
+  rasterDesc
+      .FrontCounterClockwise = FALSE; // FrontCounterClockwise must be FALSE in
+                                      // order to match the winding sense of
+                                      // interior triangulations.
 
-    rasterDesc.DepthBias = 0;
-    rasterDesc.SlopeScaledDepthBias = 0;
-    rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable =
-        TRUE; // This is the default state which reset to before flushing.
-              // Details on default state here:
-    // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
+  rasterDesc.DepthBias = 0;
+  rasterDesc.SlopeScaledDepthBias = 0;
+  rasterDesc.DepthBiasClamp = 0;
+  rasterDesc.DepthClipEnable = TRUE; // This is the default state which reset to
+                                     // before flushing. Details on default
+                                     // state here:
+  // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
 
-    // Always enable scissor - we'll set it to the full display when it's unused
-    rasterDesc.ScissorEnable = TRUE;
-    rasterDesc.MultisampleEnable = FALSE;
-    rasterDesc.AntialiasedLineEnable = FALSE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_backCulledRasterState[0].ReleaseAndGetAddressOf()));
+  // Always enable scissor - we'll set it to the full display when it's unused
+  rasterDesc.ScissorEnable = TRUE;
+  rasterDesc.MultisampleEnable = FALSE;
+  rasterDesc.AntialiasedLineEnable = FALSE;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_backCulledRasterState[0].ReleaseAndGetAddressOf()));
 
-    // ...And with scissor and no culling for the atlas fill.
-    rasterDesc.CullMode = D3D11_CULL_NONE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_featherAtlasFillRasterState.ReleaseAndGetAddressOf()));
+  // ...And with scissor and no culling for the atlas fill.
+  rasterDesc.CullMode = D3D11_CULL_NONE;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_featherAtlasFillRasterState.ReleaseAndGetAddressOf()));
 
-    // ...And with culling back on for the atlas stroke.
-    rasterDesc.CullMode = D3D11_CULL_BACK;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_featherAtlasStrokeRasterState.ReleaseAndGetAddressOf()));
+  // ...And with culling back on for the atlas stroke.
+  rasterDesc.CullMode = D3D11_CULL_BACK;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_featherAtlasStrokeRasterState.ReleaseAndGetAddressOf()));
 
-    // ...And with wireframe for debugging.
-    rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_backCulledRasterState[1].ReleaseAndGetAddressOf()));
+  // ...And with wireframe for debugging.
+  rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_backCulledRasterState[1].ReleaseAndGetAddressOf()));
 
-    // Create a raster state without face culling for drawing image meshes.
-    rasterDesc.FillMode = D3D11_FILL_SOLID;
-    rasterDesc.CullMode = D3D11_CULL_NONE;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_doubleSidedRasterState[0].ReleaseAndGetAddressOf()));
+  rasterDesc.FillMode = D3D11_FILL_SOLID;
+  rasterDesc.CullMode = D3D11_CULL_FRONT;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_frontCulledRasterState[0].ReleaseAndGetAddressOf()));
 
-    // ...And once more with wireframe for debugging.
-    rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
-    VERIFY_OK(m_gpu->CreateRasterizerState(
-        &rasterDesc,
-        m_doubleSidedRasterState[1].ReleaseAndGetAddressOf()));
+  rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_frontCulledRasterState[1].ReleaseAndGetAddressOf()));
 
-    // Create the gaussian integral texture.
-    D3D11_TEXTURE1D_DESC gaussianIntegralTextureDesc{};
-    gaussianIntegralTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
-    gaussianIntegralTextureDesc.Width = gpu::GAUSSIAN_TABLE_SIZE;
-    gaussianIntegralTextureDesc.MipLevels = 1;
-    gaussianIntegralTextureDesc.ArraySize =
-        GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH;
-    gaussianIntegralTextureDesc.Usage = D3D11_USAGE_DEFAULT;
-    gaussianIntegralTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    gaussianIntegralTextureDesc.CPUAccessFlags = 0;
-    gaussianIntegralTextureDesc.MiscFlags = 0;
-    VERIFY_OK(m_gpu->CreateTexture1D(
-        &gaussianIntegralTextureDesc,
-        NULL,
-        m_gaussianIntegralTexture.ReleaseAndGetAddressOf()));
+  // Create a raster state without face culling for drawing image meshes.
+  rasterDesc.FillMode = D3D11_FILL_SOLID;
+  rasterDesc.CullMode = D3D11_CULL_NONE;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_doubleSidedRasterState[0].ReleaseAndGetAddressOf()));
 
-    D3D11_BOX box;
-    box.left = 0;
-    box.right = gpu::GAUSSIAN_TABLE_SIZE;
-    box.top = 0;
-    box.bottom = 1;
-    box.front = 0;
-    box.back = 1;
-    m_gpuContext->UpdateSubresource(m_gaussianIntegralTexture.Get(),
-                                    FEATHER_FUNCTION_ARRAY_INDEX,
-                                    &box,
-                                    gpu::g_gaussianIntegralTableF16,
-                                    sizeof(gpu::g_gaussianIntegralTableF16),
-                                    sizeof(gpu::g_gaussianIntegralTableF16));
-    m_gpuContext->UpdateSubresource(m_gaussianIntegralTexture.Get(),
-                                    FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
-                                    &box,
-                                    gpu::g_inverseGaussianIntegralTableF16,
-                                    sizeof(gpu::g_gaussianIntegralTableF16),
-                                    0);
-    VERIFY_OK(m_gpu->CreateShaderResourceView(
-        m_gaussianIntegralTexture.Get(),
-        NULL,
-        m_gaussianIntegralTextureSRV.ReleaseAndGetAddressOf()));
+  // ...And once more with wireframe for debugging.
+  rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
+  VERIFY_OK(m_gpu->CreateRasterizerState(
+      &rasterDesc,
+      m_doubleSidedRasterState[1].ReleaseAndGetAddressOf()));
 
-    // Compile the tessellation shaders.
-    {
-        m_tessSpanIndexBuffer =
-            makeSimpleImmutableBuffer(sizeof(gpu::kTessSpanIndices),
-                                      D3D11_BIND_INDEX_BUFFER,
-                                      gpu::kTessSpanIndices);
-    }
+  // Create the gaussian integral texture.
+  D3D11_TEXTURE1D_DESC gaussianIntegralTextureDesc{};
+  gaussianIntegralTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
+  gaussianIntegralTextureDesc.Width = gpu::GAUSSIAN_TABLE_SIZE;
+  gaussianIntegralTextureDesc.MipLevels = 1;
+  gaussianIntegralTextureDesc
+      .ArraySize = GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH;
+  gaussianIntegralTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+  gaussianIntegralTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+  gaussianIntegralTextureDesc.CPUAccessFlags = 0;
+  gaussianIntegralTextureDesc.MiscFlags = 0;
+  VERIFY_OK(m_gpu->CreateTexture1D(
+      &gaussianIntegralTextureDesc,
+      NULL,
+      m_gaussianIntegralTexture.ReleaseAndGetAddressOf()));
 
-    // Set up the path patch rendering buffers.
-    PatchVertex patchVertices[kPatchVertexBufferCount];
-    std::vector<uint16_t> patchIndices(kPatchIndexBufferCount);
-    GeneratePatchBufferData(patchVertices, patchIndices.data());
-    m_patchVertexBuffer = makeSimpleImmutableBuffer(sizeof(patchVertices),
-                                                    D3D11_BIND_VERTEX_BUFFER,
-                                                    patchVertices);
-    m_patchIndexBuffer =
-        makeSimpleImmutableBuffer(patchIndices.size() * sizeof(uint16_t),
-                                  D3D11_BIND_INDEX_BUFFER,
-                                  patchIndices.data());
+  D3D11_BOX box;
+  box.left = 0;
+  box.right = gpu::GAUSSIAN_TABLE_SIZE;
+  box.top = 0;
+  box.bottom = 1;
+  box.front = 0;
+  box.back = 1;
+  m_gpuContext->UpdateSubresource(
+      m_gaussianIntegralTexture.Get(),
+      FEATHER_FUNCTION_ARRAY_INDEX,
+      &box,
+      gpu::g_gaussianIntegralTableF16,
+      sizeof(gpu::g_gaussianIntegralTableF16),
+      sizeof(gpu::g_gaussianIntegralTableF16));
+  m_gpuContext->UpdateSubresource(
+      m_gaussianIntegralTexture.Get(),
+      FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
+      &box,
+      gpu::g_inverseGaussianIntegralTableF16,
+      sizeof(gpu::g_gaussianIntegralTableF16),
+      0);
+  VERIFY_OK(m_gpu->CreateShaderResourceView(
+      m_gaussianIntegralTexture.Get(),
+      NULL,
+      m_gaussianIntegralTextureSRV.ReleaseAndGetAddressOf()));
 
-    // Set up the imageRect rendering buffers. (gpu::InterlockMode::atomics
-    // only.)
-    m_imageRectVertexBuffer =
-        makeSimpleImmutableBuffer(sizeof(gpu::kImageRectVertices),
-                                  D3D11_BIND_VERTEX_BUFFER,
-                                  gpu::kImageRectVertices);
-    m_imageRectIndexBuffer =
-        makeSimpleImmutableBuffer(sizeof(gpu::kImageRectIndices),
-                                  D3D11_BIND_INDEX_BUFFER,
-                                  gpu::kImageRectIndices);
+  // Compile the tessellation shaders.
+  {
+    m_tessSpanIndexBuffer = makeSimpleImmutableBuffer(
+        sizeof(gpu::kTessSpanIndices),
+        D3D11_BIND_INDEX_BUFFER,
+        gpu::kTessSpanIndices);
+  }
 
-    // Create buffers for uniforms.
-    {
-        D3D11_BUFFER_DESC desc{};
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+  // Set up the path patch rendering buffers.
+  PatchVertex patchVertices[kPatchVertexBufferCount];
+  std::vector<uint16_t> patchIndices(kPatchIndexBufferCount);
+  GeneratePatchBufferData(patchVertices, patchIndices.data());
+  m_patchVertexBuffer = makeSimpleImmutableBuffer(
+      sizeof(patchVertices),
+      D3D11_BIND_VERTEX_BUFFER,
+      patchVertices);
+  m_patchIndexBuffer = makeSimpleImmutableBuffer(
+      patchIndices.size() * sizeof(uint16_t),
+      D3D11_BIND_INDEX_BUFFER,
+      patchIndices.data());
 
-        desc.ByteWidth = sizeof(gpu::FlushUniforms);
-        desc.StructureByteStride = sizeof(gpu::FlushUniforms);
-        VERIFY_OK(
-            m_gpu->CreateBuffer(&desc,
-                                nullptr,
-                                m_flushUniforms.ReleaseAndGetAddressOf()));
+  // Set up the imageRect rendering buffers. (gpu::InterlockMode::atomics
+  // only.)
+  m_imageRectVertexBuffer = makeSimpleImmutableBuffer(
+      sizeof(gpu::kImageRectVertices),
+      D3D11_BIND_VERTEX_BUFFER,
+      gpu::kImageRectVertices);
+  m_imageRectIndexBuffer = makeSimpleImmutableBuffer(
+      sizeof(gpu::kImageRectIndices),
+      D3D11_BIND_INDEX_BUFFER,
+      gpu::kImageRectIndices);
 
-        desc.ByteWidth = sizeof(DrawUniforms);
-        desc.StructureByteStride = sizeof(DrawUniforms);
-        VERIFY_OK(m_gpu->CreateBuffer(&desc,
-                                      nullptr,
-                                      m_drawUniforms.ReleaseAndGetAddressOf()));
-    }
+  // Create buffers for uniforms.
+  {
+    D3D11_BUFFER_DESC desc{};
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-    // Create a linear sampler for the gradient & gaussian integral textures.
-    D3D11_SAMPLER_DESC linearSamplerDesc;
-    linearSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    linearSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.MipLODBias = 0.0f;
-    linearSamplerDesc.MaxAnisotropy = 1;
-    linearSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    linearSamplerDesc.MinLOD = 0;
-    linearSamplerDesc.MaxLOD = 0;
-    VERIFY_OK(
-        m_gpu->CreateSamplerState(&linearSamplerDesc,
-                                  m_linearSampler.ReleaseAndGetAddressOf()));
+    desc.ByteWidth = sizeof(gpu::FlushUniforms);
+    desc.StructureByteStride = sizeof(gpu::FlushUniforms);
+    VERIFY_OK(m_gpu->CreateBuffer(
+        &desc,
+        nullptr,
+        m_flushUniforms.ReleaseAndGetAddressOf()));
 
-    // Create a mipmap sampler for each sampler permutation option.
-    for (int samplerKey = 0;
-         samplerKey < ImageSampler::MAX_SAMPLER_PERMUTATIONS;
-         ++samplerKey)
-    {
-        auto xWrap = ImageSampler::GetWrapXOptionFromKey(samplerKey);
-        auto yWrap = ImageSampler::GetWrapYOptionFromKey(samplerKey);
-        D3D11_SAMPLER_DESC mipmapSamplerDesc;
-        mipmapSamplerDesc.Filter = filter_for_sampler_filter_options(
-            ImageSampler::GetFilterOptionFromKey(samplerKey));
-        mipmapSamplerDesc.AddressU =
-            address_mode_for_sampler_filter_options(xWrap);
-        mipmapSamplerDesc.AddressV =
-            address_mode_for_sampler_filter_options(yWrap);
-        mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-        mipmapSamplerDesc.MaxAnisotropy = 1;
-        mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-        mipmapSamplerDesc.MipLODBias = 0.0f;
-        mipmapSamplerDesc.MinLOD = 0;
-        mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-        VERIFY_OK(m_gpu->CreateSamplerState(
-            &mipmapSamplerDesc,
-            m_samplerStates[samplerKey].ReleaseAndGetAddressOf()));
-    }
+    desc.ByteWidth = sizeof(DrawUniforms);
+    desc.StructureByteStride = sizeof(DrawUniforms);
+    VERIFY_OK(m_gpu->CreateBuffer(
+        &desc,
+        nullptr,
+        m_drawUniforms.ReleaseAndGetAddressOf()));
+  }
 
-    m_gpuContext->VSSetSamplers(GAUSSIAN_INTEGRAL_TEXTURE_IDX,
-                                1,
-                                m_linearSampler.GetAddressOf());
+  // Create a mipmap sampler for each sampler permutation option.
+  for (int samplerKey = 0; samplerKey < ImageSampler::MAX_SAMPLER_PERMUTATIONS;
+       ++samplerKey)
+  {
+    auto xWrap = ImageSampler::GetWrapXOptionFromKey(samplerKey);
+    auto yWrap = ImageSampler::GetWrapYOptionFromKey(samplerKey);
+    D3D11_SAMPLER_DESC mipmapSamplerDesc;
+    mipmapSamplerDesc.Filter = filter_for_sampler_filter_options(
+        ImageSampler::GetFilterOptionFromKey(samplerKey));
+    mipmapSamplerDesc.AddressU = address_mode_for_sampler_filter_options(xWrap);
+    mipmapSamplerDesc.AddressV = address_mode_for_sampler_filter_options(yWrap);
+    mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    mipmapSamplerDesc.MaxAnisotropy = 1;
+    mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    mipmapSamplerDesc.MipLODBias = 0.0f;
+    mipmapSamplerDesc.MinLOD = 0;
+    mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    VERIFY_OK(m_gpu->CreateSamplerState(
+        &mipmapSamplerDesc,
+        m_samplerStates[samplerKey].ReleaseAndGetAddressOf()));
+  }
 
-    D3D11_BLEND_DESC srcOverDesc{};
-    srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
-    srcOverDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-    srcOverDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-    srcOverDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-    srcOverDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-    srcOverDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-    srcOverDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-    srcOverDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D11_COLOR_WRITE_ENABLE_ALL;
-    VERIFY_OK(
-        m_gpu->CreateBlendState(&srcOverDesc,
-                                m_srcOverBlendState.ReleaseAndGetAddressOf()));
+  m_gpuContext->VSSetSamplers(
+      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+      1,
+      m_samplerStates[BilinearClampImageSamplerKey].GetAddressOf());
 
-    D3D11_BLEND_DESC plusDesc{};
-    plusDesc.RenderTarget[0].BlendEnable = TRUE;
-    plusDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-    plusDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
-    plusDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-    plusDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-    plusDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
-    plusDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-    plusDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D11_COLOR_WRITE_ENABLE_ALL;
-    VERIFY_OK(
-        m_gpu->CreateBlendState(&plusDesc,
-                                m_plusBlendState.ReleaseAndGetAddressOf()));
+  D3D11_BLEND_DESC srcOverDesc{};
+  srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
+  srcOverDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+  srcOverDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+  srcOverDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+  srcOverDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+  srcOverDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+  srcOverDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+  srcOverDesc.RenderTarget[0]
+      .RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+  VERIFY_OK(m_gpu->CreateBlendState(
+      &srcOverDesc,
+      m_srcOverBlendState.ReleaseAndGetAddressOf()));
 
-    D3D11_BLEND_DESC maxDesc = plusDesc;
-    maxDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MAX;
-    maxDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
-    VERIFY_OK(
-        m_gpu->CreateBlendState(&maxDesc,
-                                m_maxBlendState.ReleaseAndGetAddressOf()));
+  D3D11_BLEND_DESC plusDesc{};
+  plusDesc.RenderTarget[0].BlendEnable = TRUE;
+  plusDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+  plusDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+  plusDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+  plusDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+  plusDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+  plusDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+  plusDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+  VERIFY_OK(m_gpu->CreateBlendState(
+      &plusDesc,
+      m_plusBlendState.ReleaseAndGetAddressOf()));
+
+  D3D11_BLEND_DESC maxDesc = plusDesc;
+  maxDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MAX;
+  maxDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+  VERIFY_OK(m_gpu->CreateBlendState(
+      &maxDesc,
+      m_maxBlendState.ReleaseAndGetAddressOf()));
+
+  D3D11_BLEND_DESC colorWriteDisabledDesc = srcOverDesc;
+  colorWriteDisabledDesc.RenderTarget[0].RenderTargetWriteMask = 0;
+  VERIFY_OK(m_gpu->CreateBlendState(
+      &colorWriteDisabledDesc,
+      m_colorWriteDisabledBlendState.ReleaseAndGetAddressOf()));
 }
 
 ComPtr<ID3D11Texture2D> RenderContextD3DImpl::makeSimple2DTexture(
@@ -821,20 +855,21 @@ ComPtr<ID3D11Texture2D> RenderContextD3DImpl::makeSimple2DTexture(
     UINT bindFlags,
     UINT miscFlags)
 {
-    return make_simple_2d_texture(m_gpu.Get(),
-                                  format,
-                                  width,
-                                  height,
-                                  mipLevelCount,
-                                  bindFlags,
-                                  miscFlags);
+  return make_simple_2d_texture(
+      m_gpu.Get(),
+      format,
+      width,
+      height,
+      mipLevelCount,
+      bindFlags,
+      miscFlags);
 }
 
 ComPtr<ID3D11UnorderedAccessView> RenderContextD3DImpl::makeSimple2DUAV(
     ID3D11Texture2D* tex,
     DXGI_FORMAT format)
 {
-    return make_simple_2d_uav(m_gpu.Get(), tex, format);
+  return make_simple_2d_uav(m_gpu.Get(), tex, format);
 }
 
 ComPtr<ID3D11Buffer> RenderContextD3DImpl::makeSimpleImmutableBuffer(
@@ -842,104 +877,111 @@ ComPtr<ID3D11Buffer> RenderContextD3DImpl::makeSimpleImmutableBuffer(
     UINT bindFlags,
     const void* data)
 {
-    D3D11_BUFFER_DESC desc{};
-    desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
-    desc.Usage = D3D11_USAGE_IMMUTABLE;
-    desc.BindFlags = bindFlags;
-    desc.StructureByteStride = sizeof(PatchVertex);
+  D3D11_BUFFER_DESC desc{};
+  desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
+  desc.Usage = D3D11_USAGE_IMMUTABLE;
+  desc.BindFlags = bindFlags;
+  desc.StructureByteStride = sizeof(PatchVertex);
 
-    D3D11_SUBRESOURCE_DATA dataDesc{};
-    dataDesc.pSysMem = data;
+  D3D11_SUBRESOURCE_DATA dataDesc{};
+  dataDesc.pSysMem = data;
 
-    ComPtr<ID3D11Buffer> buffer;
-    VERIFY_OK(
-        m_gpu->CreateBuffer(&desc, &dataDesc, buffer.ReleaseAndGetAddressOf()));
-    return buffer;
+  ComPtr<ID3D11Buffer> buffer;
+  VERIFY_OK(
+      m_gpu->CreateBuffer(&desc, &dataDesc, buffer.ReleaseAndGetAddressOf()));
+  return buffer;
 }
 
 class RenderBufferD3DImpl
     : public LITE_RTTI_OVERRIDE(RenderBuffer, RenderBufferD3DImpl)
 {
 public:
-    RenderBufferD3DImpl(RenderBufferType renderBufferType,
-                        RenderBufferFlags renderBufferFlags,
-                        size_t sizeInBytes,
-                        ComPtr<ID3D11Device> gpu,
-                        ComPtr<ID3D11DeviceContext> gpuContext) :
-        lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes),
-        m_gpu(std::move(gpu)),
-        m_gpuContext(std::move(gpuContext))
+  RenderBufferD3DImpl(
+      RenderBufferType renderBufferType,
+      RenderBufferFlags renderBufferFlags,
+      size_t sizeInBytes,
+      ComPtr<ID3D11Device> gpu,
+      ComPtr<ID3D11DeviceContext> gpuContext)
+      : lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes)
+      , m_gpu(std::move(gpu))
+      , m_gpuContext(std::move(gpuContext))
+  {
+    m_desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
+    m_desc.BindFlags = type() == RenderBufferType::vertex
+                           ? D3D11_BIND_VERTEX_BUFFER
+                           : D3D11_BIND_INDEX_BUFFER;
+    if (enums::is_flag_set(
+            flags(),
+            RenderBufferFlags::mappedOnceAtInitialization))
     {
-        m_desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
-        m_desc.BindFlags = type() == RenderBufferType::vertex
-                               ? D3D11_BIND_VERTEX_BUFFER
-                               : D3D11_BIND_INDEX_BUFFER;
-        if (enums::is_flag_set(flags(),
-                               RenderBufferFlags::mappedOnceAtInitialization))
-        {
-            m_desc.Usage = D3D11_USAGE_IMMUTABLE;
-            m_desc.CPUAccessFlags = 0;
-            m_mappedMemoryForImmutableBuffer.reset(new char[sizeInBytes]);
-        }
-        else
-        {
-            m_desc.Usage = D3D11_USAGE_DYNAMIC;
-            m_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-            VERIFY_OK(m_gpu->CreateBuffer(&m_desc,
-                                          nullptr,
-                                          m_buffer.ReleaseAndGetAddressOf()));
-        }
+      m_desc.Usage = D3D11_USAGE_IMMUTABLE;
+      m_desc.CPUAccessFlags = 0;
+      m_mappedMemoryForImmutableBuffer.reset(new char[sizeInBytes]);
     }
+    else
+    {
+      m_desc.Usage = D3D11_USAGE_DYNAMIC;
+      m_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+      VERIFY_OK(m_gpu->CreateBuffer(
+          &m_desc,
+          nullptr,
+          m_buffer.ReleaseAndGetAddressOf()));
+    }
+  }
 
-    ID3D11Buffer* buffer() const { return m_buffer.Get(); }
+  ID3D11Buffer* buffer() const { return m_buffer.Get(); }
 
 protected:
-    void* onMap() override
+  void* onMap() override
+  {
+    if (enums::is_flag_set(
+            flags(),
+            RenderBufferFlags::mappedOnceAtInitialization))
     {
-        if (enums::is_flag_set(flags(),
-                               RenderBufferFlags::mappedOnceAtInitialization))
-        {
-            assert(m_mappedMemoryForImmutableBuffer);
-            return m_mappedMemoryForImmutableBuffer.get();
-        }
-        else
-        {
-            D3D11_MAPPED_SUBRESOURCE mappedSubresource;
-            m_gpuContext->Map(m_buffer.Get(),
-                              0,
-                              D3D11_MAP_WRITE_DISCARD,
-                              0,
-                              &mappedSubresource);
-            return mappedSubresource.pData;
-        }
+      assert(m_mappedMemoryForImmutableBuffer);
+      return m_mappedMemoryForImmutableBuffer.get();
     }
+    else
+    {
+      D3D11_MAPPED_SUBRESOURCE mappedSubresource;
+      m_gpuContext->Map(
+          m_buffer.Get(),
+          0,
+          D3D11_MAP_WRITE_DISCARD,
+          0,
+          &mappedSubresource);
+      return mappedSubresource.pData;
+    }
+  }
 
-    void onUnmap() override
+  void onUnmap() override
+  {
+    if (enums::is_flag_set(
+            flags(),
+            RenderBufferFlags::mappedOnceAtInitialization))
     {
-        if (enums::is_flag_set(flags(),
-                               RenderBufferFlags::mappedOnceAtInitialization))
-        {
-            assert(!m_buffer);
-            D3D11_SUBRESOURCE_DATA bufferDataDesc{};
-            bufferDataDesc.pSysMem = m_mappedMemoryForImmutableBuffer.get();
-            VERIFY_OK(m_gpu->CreateBuffer(&m_desc,
-                                          &bufferDataDesc,
-                                          m_buffer.ReleaseAndGetAddressOf()));
-            m_mappedMemoryForImmutableBuffer
-                .reset(); // This buffer will only be mapped once.
-        }
-        else
-        {
-            m_gpuContext->Unmap(m_buffer.Get(), 0);
-        }
+      assert(!m_buffer);
+      D3D11_SUBRESOURCE_DATA bufferDataDesc{};
+      bufferDataDesc.pSysMem = m_mappedMemoryForImmutableBuffer.get();
+      VERIFY_OK(m_gpu->CreateBuffer(
+          &m_desc,
+          &bufferDataDesc,
+          m_buffer.ReleaseAndGetAddressOf()));
+      m_mappedMemoryForImmutableBuffer
+          .reset(); // This buffer will only be mapped once.
     }
+    else
+    {
+      m_gpuContext->Unmap(m_buffer.Get(), 0);
+    }
+  }
 
 private:
-    const ComPtr<ID3D11Device> m_gpu;
-    const ComPtr<ID3D11DeviceContext> m_gpuContext;
-    D3D11_BUFFER_DESC m_desc{};
-    ComPtr<ID3D11Buffer> m_buffer;
-    std::unique_ptr<char[]> m_mappedMemoryForImmutableBuffer;
+  const ComPtr<ID3D11Device> m_gpu;
+  const ComPtr<ID3D11DeviceContext> m_gpuContext;
+  D3D11_BUFFER_DESC m_desc{};
+  ComPtr<ID3D11Buffer> m_buffer;
+  std::unique_ptr<char[]> m_mappedMemoryForImmutableBuffer;
 };
 
 rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(
@@ -947,185 +989,181 @@ rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(
     RenderBufferFlags flags,
     size_t sizeInBytes)
 {
-    return make_rcp<RenderBufferD3DImpl>(type,
-                                         flags,
-                                         sizeInBytes,
-                                         m_gpu,
-                                         m_gpuContext);
+  return make_rcp<RenderBufferD3DImpl>(
+      type,
+      flags,
+      sizeInBytes,
+      m_gpu,
+      m_gpuContext);
 }
 
 class TextureD3DImpl : public Texture
 {
 public:
-    // viewFormat = DXGI_FORMAT_UNKNOWN → infer (TYPELESS storage gets
-    // mapped to its UNORM variant; other formats use desc.Format as-is).
-    // Pass an explicit format to override (e.g. Unity sRGB RTs).
-    TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
-                   ComPtr<ID3D11Texture2D> image,
-                   UINT width,
-                   UINT height,
-                   DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN) :
-        Texture(width, height), m_texture(image)
+  // viewFormat = DXGI_FORMAT_UNKNOWN → infer (TYPELESS storage gets
+  // mapped to its UNORM variant; other formats use desc.Format as-is).
+  // Pass an explicit format to override (e.g. Unity sRGB RTs).
+  TextureD3DImpl(
+      RenderContextD3DImpl* renderContextImpl,
+      ComPtr<ID3D11Texture2D> image,
+      UINT width,
+      UINT height,
+      DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN)
+      : Texture(width, height)
+      , m_texture(image)
+  {
+    D3D11_TEXTURE2D_DESC desc;
+    m_texture->GetDesc(&desc);
+    if (viewFormat == DXGI_FORMAT_UNKNOWN)
     {
-        D3D11_TEXTURE2D_DESC desc;
-        m_texture->GetDesc(&desc);
-        if (viewFormat == DXGI_FORMAT_UNKNOWN)
-        {
-            switch (desc.Format)
-            {
-                case DXGI_FORMAT_R8G8B8A8_TYPELESS:
-                    viewFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-                    break;
-                case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-                    viewFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
-                    break;
-                case DXGI_FORMAT_R16G16B16A16_TYPELESS:
-                    viewFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-                    break;
-                default:
-                    viewFormat = desc.Format;
-                    break;
-            }
-        }
-        const D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
-            .Format = viewFormat,
-            .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
-            .Texture2D = {.MostDetailedMip = 0, .MipLevels = desc.MipLevels},
-        };
-        const D3D11_SHADER_RESOURCE_VIEW_DESC* srvDescPtr =
-            (viewFormat == desc.Format) ? nullptr : &srvDesc;
-        VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
-            m_texture.Get(),
-            srvDescPtr,
-            m_srv.ReleaseAndGetAddressOf()));
+      switch (desc.Format)
+      {
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+          viewFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+          break;
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+          viewFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+          break;
+        case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+          viewFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+          break;
+        default:
+          viewFormat = desc.Format;
+          break;
+      }
+    }
+    const D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+        .Format = viewFormat,
+        .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+        .Texture2D = {.MostDetailedMip = 0, .MipLevels = desc.MipLevels},
+    };
+    const D3D11_SHADER_RESOURCE_VIEW_DESC* srvDescPtr = (viewFormat ==
+                                                         desc.Format)
+                                                            ? nullptr
+                                                            : &srvDesc;
+    VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
+        m_texture.Get(),
+        srvDescPtr,
+        m_srv.ReleaseAndGetAddressOf()));
+  }
+
+  TextureD3DImpl(
+      RenderContextD3DImpl* renderContextImpl,
+      UINT width,
+      UINT height,
+      UINT mipLevelCount,
+      GPUTextureFormat format,
+      const uint8_t imageDataRGBAPremul[],
+      bool generateRemainingMips)
+      : Texture(width, height)
+  {
+    if (format == GPUTextureFormat::bc7)
+    {
+      m_texture = renderContextImpl->makeSimple2DTexture(
+          DXGI_FORMAT_BC7_UNORM,
+          width,
+          height,
+          mipLevelCount,
+          D3D11_BIND_SHADER_RESOURCE);
+
+      // Specify the top-level image in the mipmap chain.
+      int W = width;
+      int H = height;
+
+      const uint8_t* pData = imageDataRGBAPremul;
+      for (UINT i = 0; i < mipLevelCount; i++)
+      {
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = math::round_up_to_multiple_of<4>(W);
+        box.top = 0;
+        box.bottom = math::round_up_to_multiple_of<4>(H);
+        box.front = 0;
+        box.back = 1;
+
+        int BX = (W + 3) / 4;
+        int BY = (H + 3) / 4;
+
+        renderContextImpl->gpuContext()
+            ->UpdateSubresource(m_texture.Get(), i, &box, pData, BX * 16, 0);
+
+        pData += (BX * BY * 16);
+
+        W = W / 2;
+        H = H / 2;
+      }
+    }
+    else if (format == GPUTextureFormat::rgba32)
+    {
+      // GENERATE_MIPS flag + RTV binding are only needed when the
+      // GPU is going to fill in the chain. For the KTX2-supplied
+      // chain (caller-provided mips) it's pure overhead.
+      const UINT miscFlags = generateRemainingMips
+                                 ? D3D11_RESOURCE_MISC_GENERATE_MIPS
+                                 : 0u;
+      const UINT bindFlags = generateRemainingMips
+                                 ? (D3D11_BIND_SHADER_RESOURCE |
+                                    D3D11_BIND_RENDER_TARGET)
+                                 : D3D11_BIND_SHADER_RESOURCE;
+      m_texture = renderContextImpl->makeSimple2DTexture(
+          DXGI_FORMAT_R8G8B8A8_UNORM,
+          width,
+          height,
+          mipLevelCount,
+          bindFlags,
+          miscFlags);
+
+      const uint8_t* src = imageDataRGBAPremul;
+      const UINT levelsToUpload = generateRemainingMips ? 1u : mipLevelCount;
+      UINT W = width;
+      UINT H = height;
+      for (UINT i = 0; i < levelsToUpload; ++i)
+      {
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = W;
+        box.top = 0;
+        box.bottom = H;
+        box.front = 0;
+        box.back = 1;
+        renderContextImpl->gpuContext()
+            ->UpdateSubresource(m_texture.Get(), i, &box, src, W * 4, 0);
+        src += static_cast<size_t>(W) * H * 4;
+        W = std::max<UINT>(1u, W >> 1);
+        H = std::max<UINT>(1u, H >> 1);
+      }
+    }
+    else
+    {
+      assert(!"unsupported format");
     }
 
-    TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
-                   UINT width,
-                   UINT height,
-                   UINT mipLevelCount,
-                   GPUTextureFormat format,
-                   const uint8_t imageDataRGBAPremul[],
-                   bool generateRemainingMips) :
-        Texture(width, height)
+    // Create a view and generate mipmaps.
+    VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
+        m_texture.Get(),
+        NULL,
+        m_srv.ReleaseAndGetAddressOf()));
+
+    if (format == GPUTextureFormat::rgba32 && generateRemainingMips &&
+        mipLevelCount > 1)
     {
-        if (format == GPUTextureFormat::bc7)
-        {
-            m_texture = renderContextImpl->makeSimple2DTexture(
-                DXGI_FORMAT_BC7_UNORM,
-                width,
-                height,
-                mipLevelCount,
-                D3D11_BIND_SHADER_RESOURCE);
-
-            // Specify the top-level image in the mipmap chain.
-            int W = width;
-            int H = height;
-
-            const uint8_t* pData = imageDataRGBAPremul;
-            for (UINT i = 0; i < mipLevelCount; i++)
-            {
-                D3D11_BOX box;
-                box.left = 0;
-                box.right = math::round_up_to_multiple_of<4>(W);
-                box.top = 0;
-                box.bottom = math::round_up_to_multiple_of<4>(H);
-                box.front = 0;
-                box.back = 1;
-
-                int BX = (W + 3) / 4;
-                int BY = (H + 3) / 4;
-
-                renderContextImpl->gpuContext()->UpdateSubresource(
-                    m_texture.Get(),
-                    i,
-                    &box,
-                    pData,
-                    BX * 16,
-                    0);
-
-                pData += (BX * BY * 16);
-
-                W = W / 2;
-                H = H / 2;
-            }
-        }
-        else if (format == GPUTextureFormat::rgba32)
-        {
-            // GENERATE_MIPS flag + RTV binding are only needed when the
-            // GPU is going to fill in the chain. For the KTX2-supplied
-            // chain (caller-provided mips) it's pure overhead.
-            const UINT miscFlags =
-                generateRemainingMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0u;
-            const UINT bindFlags =
-                generateRemainingMips
-                    ? (D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET)
-                    : D3D11_BIND_SHADER_RESOURCE;
-            m_texture = renderContextImpl->makeSimple2DTexture(
-                DXGI_FORMAT_R8G8B8A8_UNORM,
-                width,
-                height,
-                mipLevelCount,
-                bindFlags,
-                miscFlags);
-
-            const uint8_t* src = imageDataRGBAPremul;
-            const UINT levelsToUpload =
-                generateRemainingMips ? 1u : mipLevelCount;
-            UINT W = width;
-            UINT H = height;
-            for (UINT i = 0; i < levelsToUpload; ++i)
-            {
-                D3D11_BOX box;
-                box.left = 0;
-                box.right = W;
-                box.top = 0;
-                box.bottom = H;
-                box.front = 0;
-                box.back = 1;
-                renderContextImpl->gpuContext()->UpdateSubresource(
-                    m_texture.Get(),
-                    i,
-                    &box,
-                    src,
-                    W * 4,
-                    0);
-                src += static_cast<size_t>(W) * H * 4;
-                W = std::max<UINT>(1u, W >> 1);
-                H = std::max<UINT>(1u, H >> 1);
-            }
-        }
-        else
-        {
-            assert(!"unsupported format");
-        }
-
-        // Create a view and generate mipmaps.
-        VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
-            m_texture.Get(),
-            NULL,
-            m_srv.ReleaseAndGetAddressOf()));
-
-        if (format == GPUTextureFormat::rgba32 && generateRemainingMips &&
-            mipLevelCount > 1)
-        {
-            renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
-        }
+      renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
     }
+  }
 
-    ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
-    ID3D11ShaderResourceView* const* srvAddressOf() const
-    {
-        return m_srv.GetAddressOf();
-    }
-    void* nativeHandle() const override
-    {
-        return static_cast<void*>(m_texture.Get());
-    }
+  ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
+  ID3D11ShaderResourceView* const* srvAddressOf() const
+  {
+    return m_srv.GetAddressOf();
+  }
+  void* nativeHandle() const override
+  {
+    return static_cast<void*>(m_texture.Get());
+  }
 
 private:
-    ComPtr<ID3D11Texture2D> m_texture;
-    ComPtr<ID3D11ShaderResourceView> m_srv;
+  ComPtr<ID3D11Texture2D> m_texture;
+  ComPtr<ID3D11ShaderResourceView> m_srv;
 };
 
 rcp<Texture> RenderContextD3DImpl::makeImageTexture(
@@ -1139,13 +1177,14 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     bool /*srgb*/,
     bool generateRemainingMips)
 {
-    return make_rcp<TextureD3DImpl>(this,
-                                    width,
-                                    height,
-                                    mipLevelCount,
-                                    format,
-                                    imageDataRGBAPremul,
-                                    generateRemainingMips);
+  return make_rcp<TextureD3DImpl>(
+      this,
+      width,
+      height,
+      mipLevelCount,
+      format,
+      imageDataRGBAPremul,
+      generateRemainingMips);
 }
 
 rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
@@ -1154,36 +1193,37 @@ rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     uint32_t height,
     DXGI_FORMAT viewFormat)
 {
-    return make_rcp<TextureD3DImpl>(this, image, width, height, viewFormat);
+  return make_rcp<TextureD3DImpl>(this, image, width, height, viewFormat);
 }
 
 #ifdef RIVE_CANVAS
 void RenderContextD3DImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
-    if (canvas->isBacked())
-    {
-        return;
-    }
+  if (canvas->isBacked())
+  {
+    return;
+  }
 
-    uint32_t width = canvas->width(), height = canvas->height();
-    auto texture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                       width,
-                                       height,
-                                       1,
-                                       D3D11_BIND_UNORDERED_ACCESS |
-                                           D3D11_BIND_RENDER_TARGET |
-                                           D3D11_BIND_SHADER_RESOURCE);
+  uint32_t width = canvas->width(), height = canvas->height();
+  auto texture = makeSimple2DTexture(
+      DXGI_FORMAT_R8G8B8A8_UNORM,
+      width,
+      height,
+      1,
+      D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET |
+          D3D11_BIND_SHADER_RESOURCE);
 
-    auto renderTarget = makeRenderTarget(width, height);
-    renderTarget->setTargetTexture(texture);
+  auto renderTarget = makeRenderTarget(width, height);
+  renderTarget->setTargetTexture(texture);
 
-    canvas->setBacking(adoptImageTexture(texture, width, height),
-                       std::move(renderTarget));
+  canvas->setBacking(
+      adoptImageTexture(texture, width, height),
+      std::move(renderTarget));
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()
 {
-    return rive::ore::ContextD3D11::Make(m_gpu.Get(), m_gpuContext.Get());
+  return rive::ore::ContextD3D11::Make(m_gpu.Get(), m_gpuContext.Get());
 }
 
 #endif
@@ -1191,422 +1231,545 @@ std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()
 class BufferRingD3D : public BufferRing
 {
 public:
-    BufferRingD3D(RenderContextD3DImpl* renderContextImpl,
-                  size_t capacityInBytes,
-                  UINT bindFlags) :
-        BufferRingD3D(renderContextImpl, capacityInBytes, bindFlags, 0, 0)
-    {}
+  BufferRingD3D(
+      RenderContextD3DImpl* renderContextImpl,
+      size_t capacityInBytes,
+      UINT bindFlags)
+      : BufferRingD3D(renderContextImpl, capacityInBytes, bindFlags, 0, 0)
+  {}
 
-    ID3D11Buffer* flush(ID3D11DeviceContext* gpuContext)
-    {
-        updateBuffer(gpuContext, 0, m_dirtySizeInBytes);
-        m_dirtySizeInBytes = 0;
-        return m_buffer.Get();
-    }
+  ID3D11Buffer* flush(ID3D11DeviceContext* gpuContext)
+  {
+    updateBuffer(gpuContext, 0, m_dirtySizeInBytes);
+    m_dirtySizeInBytes = 0;
+    return m_buffer.Get();
+  }
 
 protected:
-    BufferRingD3D(RenderContextD3DImpl* renderContextImpl,
-                  size_t capacityInBytes,
-                  UINT bindFlags,
-                  UINT elementSizeInBytes,
-                  UINT miscFlags) :
-        BufferRing(capacityInBytes)
-    {
-        D3D11_BUFFER_DESC desc{};
-        desc.ByteWidth = math::lossless_numeric_cast<UINT>(capacityInBytes);
-        desc.Usage = D3D11_USAGE_DEFAULT;
-        desc.BindFlags = bindFlags;
-        desc.CPUAccessFlags = 0;
-        desc.StructureByteStride = elementSizeInBytes;
-        desc.MiscFlags = miscFlags;
-        VERIFY_OK(renderContextImpl->gpu()->CreateBuffer(
-            &desc,
-            nullptr,
-            m_buffer.ReleaseAndGetAddressOf()));
-    }
+  BufferRingD3D(
+      RenderContextD3DImpl* renderContextImpl,
+      size_t capacityInBytes,
+      UINT bindFlags,
+      UINT elementSizeInBytes,
+      UINT miscFlags)
+      : BufferRing(capacityInBytes)
+  {
+    D3D11_BUFFER_DESC desc{};
+    desc.ByteWidth = math::lossless_numeric_cast<UINT>(capacityInBytes);
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = bindFlags;
+    desc.CPUAccessFlags = 0;
+    desc.StructureByteStride = elementSizeInBytes;
+    desc.MiscFlags = miscFlags;
+    VERIFY_OK(renderContextImpl->gpu()->CreateBuffer(
+        &desc,
+        nullptr,
+        m_buffer.ReleaseAndGetAddressOf()));
+  }
 
-    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
-    {
-        // Use a CPU-side shadow buffer since D3D11 doesn't have an API to map a
-        // sub-range.
-        return shadowBuffer();
-    }
+  void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+  {
+    // Use a CPU-side shadow buffer since D3D11 doesn't have an API to map a
+    // sub-range.
+    return shadowBuffer();
+  }
 
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
-    {
-        m_dirtySizeInBytes = math::lossless_numeric_cast<UINT>(mapSizeInBytes);
-    }
+  void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
+  {
+    m_dirtySizeInBytes = math::lossless_numeric_cast<UINT>(mapSizeInBytes);
+  }
 
-    void updateBuffer(ID3D11DeviceContext* gpuContext,
-                      UINT offsetInBytes,
-                      UINT sizeInBytes) const
+  void updateBuffer(
+      ID3D11DeviceContext* gpuContext,
+      UINT offsetInBytes,
+      UINT sizeInBytes) const
+  {
+    assert(offsetInBytes + sizeInBytes <= m_dirtySizeInBytes);
+    if (sizeInBytes != 0)
     {
-        assert(offsetInBytes + sizeInBytes <= m_dirtySizeInBytes);
-        if (sizeInBytes != 0)
-        {
-            D3D11_BOX box;
-            box.left = 0;
-            box.right = sizeInBytes;
-            box.top = 0;
-            box.bottom = 1;
-            box.front = 0;
-            box.back = 1;
-            gpuContext->UpdateSubresource(m_buffer.Get(),
-                                          0,
-                                          &box,
-                                          shadowBuffer() + offsetInBytes,
-                                          0,
-                                          0);
-        }
+      D3D11_BOX box;
+      box.left = 0;
+      box.right = sizeInBytes;
+      box.top = 0;
+      box.bottom = 1;
+      box.front = 0;
+      box.back = 1;
+      gpuContext->UpdateSubresource(
+          m_buffer.Get(),
+          0,
+          &box,
+          shadowBuffer() + offsetInBytes,
+          0,
+          0);
     }
+  }
 
-    ComPtr<ID3D11Buffer> m_buffer;
-    UINT m_dirtySizeInBytes = 0;
+  ComPtr<ID3D11Buffer> m_buffer;
+  UINT m_dirtySizeInBytes = 0;
 };
 
 class StructuredBufferRingD3D : public BufferRingD3D
 {
 public:
-    StructuredBufferRingD3D(RenderContextD3DImpl* renderContextImpl,
-                            size_t capacityInBytes,
-                            UINT elementSizeInBytes) :
-        BufferRingD3D(renderContextImpl,
-                      capacityInBytes,
-                      D3D11_BIND_SHADER_RESOURCE,
-                      elementSizeInBytes,
-                      D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
-    {
-        assert(capacityInBytes % elementSizeInBytes == 0);
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = math::lossless_numeric_cast<UINT>(
-            capacityInBytes / elementSizeInBytes);
-        VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
-            m_buffer.Get(),
-            &srvDesc,
-            m_srv.ReleaseAndGetAddressOf()));
-    }
+  StructuredBufferRingD3D(
+      RenderContextD3DImpl* renderContextImpl,
+      size_t capacityInBytes,
+      UINT elementSizeInBytes)
+      : BufferRingD3D(
+            renderContextImpl,
+            capacityInBytes,
+            D3D11_BIND_SHADER_RESOURCE,
+            elementSizeInBytes,
+            D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
+  {
+    assert(capacityInBytes % elementSizeInBytes == 0);
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    srvDesc.Buffer.FirstElement = 0;
+    srvDesc.Buffer.NumElements = math::lossless_numeric_cast<UINT>(
+        capacityInBytes / elementSizeInBytes);
+    VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
+        m_buffer.Get(),
+        &srvDesc,
+        m_srv.ReleaseAndGetAddressOf()));
+  }
 
-    ID3D11ShaderResourceView* flush(ID3D11DeviceContext* gpuContext,
-                                    UINT offsetInBytes,
-                                    UINT sizeInBytes) const
-    {
-        updateBuffer(gpuContext, offsetInBytes, sizeInBytes);
-        return m_srv.Get();
-    }
+  ID3D11ShaderResourceView* flush(
+      ID3D11DeviceContext* gpuContext,
+      UINT offsetInBytes,
+      UINT sizeInBytes) const
+  {
+    updateBuffer(gpuContext, offsetInBytes, sizeInBytes);
+    return m_srv.Get();
+  }
 
 protected:
-    ComPtr<ID3D11ShaderResourceView> m_srv;
+  ComPtr<ID3D11ShaderResourceView> m_srv;
 };
 
 std::unique_ptr<BufferRing> RenderContextD3DImpl::makeUniformBufferRing(
     size_t capacityInBytes)
 {
-    // In D3D we update uniform data inline with commands, rather than filling a
-    // buffer up front.
-    return std::make_unique<HeapBufferRing>(capacityInBytes);
+  // In D3D we update uniform data inline with commands, rather than filling a
+  // buffer up front.
+  return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
 std::unique_ptr<BufferRing> RenderContextD3DImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-    return capacityInBytes != 0
-               ? std::make_unique<StructuredBufferRingD3D>(
-                     this,
-                     capacityInBytes,
-                     gpu::StorageBufferElementSizeInBytes(bufferStructure))
-               : nullptr;
+  return capacityInBytes != 0
+             ? std::make_unique<StructuredBufferRingD3D>(
+                   this,
+                   capacityInBytes,
+                   gpu::StorageBufferElementSizeInBytes(bufferStructure))
+             : nullptr;
 }
 
 std::unique_ptr<BufferRing> RenderContextD3DImpl::makeVertexBufferRing(
     size_t capacityInBytes)
 {
-    return capacityInBytes != 0
-               ? std::make_unique<BufferRingD3D>(this,
-                                                 capacityInBytes,
-                                                 D3D11_BIND_VERTEX_BUFFER)
-               : nullptr;
+  return capacityInBytes != 0 ? std::make_unique<BufferRingD3D>(
+                                    this,
+                                    capacityInBytes,
+                                    D3D11_BIND_VERTEX_BUFFER)
+                              : nullptr;
 }
 
-RenderTargetD3D::RenderTargetD3D(RenderContextD3DImpl* renderContextImpl,
-                                 uint32_t width,
-                                 uint32_t height) :
-    RenderTarget(width, height),
-    m_gpu(renderContextImpl->gpu()),
-    m_gpuSupportsTypedUAVLoadStore(
-        renderContextImpl->d3dCapabilities().supportsTypedUAVLoadStore)
+RenderTargetD3D::RenderTargetD3D(
+    RenderContextD3DImpl* renderContextImpl,
+    uint32_t width,
+    uint32_t height)
+    : RenderTarget(width, height)
+    , m_gpu(renderContextImpl->gpu())
+    , m_gpuSupportsTypedUAVLoadStore(
+          renderContextImpl->d3dCapabilities().supportsTypedUAVLoadStore)
 {}
 
 void RenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 {
-    if (tex != nullptr)
-    {
-        D3D11_TEXTURE2D_DESC desc;
-        tex->GetDesc(&desc);
+  if (tex != nullptr)
+  {
+    D3D11_TEXTURE2D_DESC desc;
+    tex->GetDesc(&desc);
 #ifdef DEBUG
-        assert(desc.Width == width());
-        assert(desc.Height == height());
-        assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
-               desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
-               desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS ||
-               desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
+    assert(desc.Width == width());
+    assert(desc.Height == height());
+    assert(
+        desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
+        desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
+        desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS ||
+        desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
 #endif
-        m_targetTextureSupportsUAV =
-            (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
-            m_gpuSupportsTypedUAVLoadStore;
-        m_targetFormat = desc.Format;
-    }
-    else
-    {
-        m_targetTextureSupportsUAV = false;
-    }
-    m_targetTexture = std::move(tex);
-    m_targetRTV = nullptr;
-    m_targetUAV = nullptr;
+    m_targetTextureSupportsUAV = (desc.BindFlags &
+                                  D3D11_BIND_UNORDERED_ACCESS) &&
+                                 m_gpuSupportsTypedUAVLoadStore;
+    m_targetFormat = desc.Format;
+  }
+  else
+  {
+    m_targetTextureSupportsUAV = false;
+  }
+  m_targetTexture = std::move(tex);
+  m_targetRTV = nullptr;
+  m_targetUAV = nullptr;
 }
 
 ID3D11RenderTargetView* RenderTargetD3D::targetRTV()
 {
-    if (m_targetRTV == nullptr && m_targetTexture != nullptr)
+  if (m_targetRTV == nullptr && m_targetTexture != nullptr)
+  {
+    D3D11_RENDER_TARGET_VIEW_DESC desc{};
+    desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+
+    switch (m_targetFormat)
     {
-        D3D11_RENDER_TARGET_VIEW_DESC desc{};
-        desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+      case DXGI_FORMAT_R8G8B8A8_UNORM:
+      case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        break;
+      case DXGI_FORMAT_B8G8R8A8_UNORM:
+      case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        break;
 
-        switch (m_targetFormat)
-        {
-            case DXGI_FORMAT_R8G8B8A8_UNORM:
-            case DXGI_FORMAT_R8G8B8A8_TYPELESS:
-                desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                break;
-            case DXGI_FORMAT_B8G8R8A8_UNORM:
-            case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-                desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-                break;
-
-            default:
-                RIVE_UNREACHABLE();
-        }
-
-        VERIFY_OK(m_gpu->CreateRenderTargetView(
-            m_targetTexture.Get(),
-            &desc,
-            m_targetRTV.ReleaseAndGetAddressOf()));
+      default:
+        RIVE_UNREACHABLE();
     }
-    return m_targetRTV.Get();
+
+    VERIFY_OK(m_gpu->CreateRenderTargetView(
+        m_targetTexture.Get(),
+        &desc,
+        m_targetRTV.ReleaseAndGetAddressOf()));
+  }
+  return m_targetRTV.Get();
 }
 
 ID3D11Texture2D* RenderTargetD3D::offscreenTexture()
 {
-    assert(!m_targetTextureSupportsUAV);
-    if (m_offscreenTexture == nullptr)
-    {
-        m_offscreenTexture =
-            make_simple_2d_texture(m_gpu.Get(),
-                                   DXGI_FORMAT_R8G8B8A8_TYPELESS,
-                                   width(),
-                                   height(),
-                                   1,
-                                   D3D11_BIND_UNORDERED_ACCESS);
-    }
-    return m_offscreenTexture.Get();
+  assert(!m_targetTextureSupportsUAV);
+  if (m_offscreenTexture == nullptr)
+  {
+    m_offscreenTexture = make_simple_2d_texture(
+        m_gpu.Get(),
+        DXGI_FORMAT_R8G8B8A8_TYPELESS,
+        width(),
+        height(),
+        1,
+        D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_RENDER_TARGET);
+  }
+  return m_offscreenTexture.Get();
+}
+
+ID3D11RenderTargetView* RenderTargetD3D::offscreenRTV()
+{
+  if (m_offscreenRTV == nullptr)
+  {
+    D3D11_RENDER_TARGET_VIEW_DESC desc{};
+    desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    VERIFY_OK(m_gpu->CreateRenderTargetView(
+        offscreenTexture(),
+        &desc,
+        m_offscreenRTV.ReleaseAndGetAddressOf()));
+  }
+  return m_offscreenRTV.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::targetUAV()
 {
-    if (m_targetUAV == nullptr)
+  if (m_targetUAV == nullptr)
+  {
+    if (auto* uavTexture = m_targetTextureSupportsUAV ? m_targetTexture.Get()
+                                                      : offscreenTexture())
     {
-        if (auto* uavTexture = m_targetTextureSupportsUAV
-                                   ? m_targetTexture.Get()
-                                   : offscreenTexture())
-        {
-            DXGI_FORMAT targetUavFormat;
-            switch (m_targetFormat)
-            {
-                case DXGI_FORMAT_R8G8B8A8_UNORM:
-                case DXGI_FORMAT_R8G8B8A8_TYPELESS:
-                    targetUavFormat = m_gpuSupportsTypedUAVLoadStore
-                                          ? DXGI_FORMAT_R8G8B8A8_UNORM
-                                          : DXGI_FORMAT_R32_UINT;
-                    break;
-                case DXGI_FORMAT_B8G8R8A8_UNORM:
-                case DXGI_FORMAT_B8G8R8A8_TYPELESS:
-                    targetUavFormat = m_gpuSupportsTypedUAVLoadStore
-                                          ? DXGI_FORMAT_B8G8R8A8_UNORM
-                                          : DXGI_FORMAT_R32_UINT;
-                    break;
-                default:
-                    RIVE_UNREACHABLE();
-            }
-            m_targetUAV =
-                make_simple_2d_uav(m_gpu.Get(), uavTexture, targetUavFormat);
-        }
+      DXGI_FORMAT targetUavFormat;
+      switch (m_targetFormat)
+      {
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+        case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+          targetUavFormat = m_gpuSupportsTypedUAVLoadStore
+                                ? DXGI_FORMAT_R8G8B8A8_UNORM
+                                : DXGI_FORMAT_R32_UINT;
+          break;
+        case DXGI_FORMAT_B8G8R8A8_UNORM:
+        case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+          targetUavFormat = m_gpuSupportsTypedUAVLoadStore
+                                ? DXGI_FORMAT_B8G8R8A8_UNORM
+                                : DXGI_FORMAT_R32_UINT;
+          break;
+        default:
+          RIVE_UNREACHABLE();
+      }
+      m_targetUAV = make_simple_2d_uav(
+          m_gpu.Get(),
+          uavTexture,
+          targetUavFormat);
     }
-    return m_targetUAV.Get();
+  }
+  return m_targetUAV.Get();
+}
+
+static D3D11_STENCIL_OP d3d_stencil_op(gpu::StencilOp op)
+{
+  switch (op)
+  {
+    case gpu::StencilOp::keep:
+      return D3D11_STENCIL_OP_KEEP;
+    case gpu::StencilOp::replace:
+      return D3D11_STENCIL_OP_REPLACE;
+    case gpu::StencilOp::zero:
+      return D3D11_STENCIL_OP_ZERO;
+    case gpu::StencilOp::decrClamp:
+      return D3D11_STENCIL_OP_DECR_SAT;
+    case gpu::StencilOp::incrWrap:
+      return D3D11_STENCIL_OP_INCR;
+    case gpu::StencilOp::decrWrap:
+      return D3D11_STENCIL_OP_DECR;
+  }
+  RIVE_UNREACHABLE();
+}
+
+static D3D11_COMPARISON_FUNC d3d_stencil_compare(gpu::StencilCompareOp op)
+{
+  switch (op)
+  {
+    case gpu::StencilCompareOp::less:
+      return D3D11_COMPARISON_LESS;
+    case gpu::StencilCompareOp::equal:
+      return D3D11_COMPARISON_EQUAL;
+    case gpu::StencilCompareOp::lessOrEqual:
+      return D3D11_COMPARISON_LESS_EQUAL;
+    case gpu::StencilCompareOp::notEqual:
+      return D3D11_COMPARISON_NOT_EQUAL;
+    case gpu::StencilCompareOp::always:
+      return D3D11_COMPARISON_ALWAYS;
+  }
+  RIVE_UNREACHABLE();
+}
+
+static void fill_stencil_face(
+    const gpu::StencilFaceOps& ops,
+    D3D11_DEPTH_STENCILOP_DESC* out)
+{
+  out->StencilFailOp = d3d_stencil_op(ops.stencilFailOp);
+  out->StencilDepthFailOp = d3d_stencil_op(ops.depthFailOp);
+  out->StencilPassOp = d3d_stencil_op(ops.depthStencilPassOp);
+  out->StencilFunc = d3d_stencil_compare(ops.compareOp);
+}
+
+static uint64_t depth_stencil_state_key(const gpu::PipelineState& p)
+{
+  auto faceKey = [](const gpu::StencilFaceOps& ops) -> uint64_t {
+    return static_cast<uint64_t>(ops.stencilFailOp) |
+           (static_cast<uint64_t>(ops.depthFailOp) << 3) |
+           (static_cast<uint64_t>(ops.depthStencilPassOp) << 6) |
+           (static_cast<uint64_t>(ops.compareOp) << 9);
+  };
+  return (p.depthTestEnabled ? 1ull : 0ull) |
+         (p.depthWriteEnabled ? 2ull : 0ull) |
+         (p.stencilTestEnabled ? 4ull : 0ull) |
+         (p.stencilDoubleSided ? 8ull : 0ull) |
+         (static_cast<uint64_t>(p.stencilCompareMask) << 4) |
+         (static_cast<uint64_t>(p.stencilWriteMask) << 12) |
+         (faceKey(p.stencilFrontOps) << 20) | (faceKey(p.stencilBackOps) << 33);
+}
+
+ID3D11DepthStencilView* RenderTargetD3D::depthStencilView()
+{
+  if (m_depthStencilTexture == nullptr)
+  {
+    m_depthStencilTexture = make_simple_2d_texture(
+        m_gpu.Get(),
+        DXGI_FORMAT_D24_UNORM_S8_UINT,
+        width(),
+        height(),
+        1,
+        D3D11_BIND_DEPTH_STENCIL);
+  }
+  if (m_depthStencilView == nullptr)
+  {
+    D3D11_DEPTH_STENCIL_VIEW_DESC desc{};
+    desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    VERIFY_OK(m_gpu->CreateDepthStencilView(
+        m_depthStencilTexture.Get(),
+        &desc,
+        m_depthStencilView.ReleaseAndGetAddressOf()));
+  }
+  return m_depthStencilView.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::clipUAV()
 {
-    if (m_clipTexture == nullptr)
-    {
-        m_clipTexture = make_simple_2d_texture(m_gpu.Get(),
-                                               DXGI_FORMAT_R32_UINT,
-                                               width(),
-                                               height(),
-                                               1,
-                                               D3D11_BIND_UNORDERED_ACCESS);
-    }
-    if (m_clipUAV == nullptr)
-    {
-        m_clipUAV = make_simple_2d_uav(m_gpu.Get(),
-                                       m_clipTexture.Get(),
-                                       DXGI_FORMAT_R32_UINT);
-    }
-    return m_clipUAV.Get();
+  if (m_clipTexture == nullptr)
+  {
+    m_clipTexture = make_simple_2d_texture(
+        m_gpu.Get(),
+        DXGI_FORMAT_R32_UINT,
+        width(),
+        height(),
+        1,
+        D3D11_BIND_UNORDERED_ACCESS);
+  }
+  if (m_clipUAV == nullptr)
+  {
+    m_clipUAV = make_simple_2d_uav(
+        m_gpu.Get(),
+        m_clipTexture.Get(),
+        DXGI_FORMAT_R32_UINT);
+  }
+  return m_clipUAV.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::scratchColorUAV()
 {
-    if (m_scratchColorTexture == nullptr)
-    {
-        m_scratchColorTexture =
-            make_simple_2d_texture(m_gpu.Get(),
-                                   DXGI_FORMAT_R8G8B8A8_TYPELESS,
-                                   width(),
-                                   height(),
-                                   1,
-                                   D3D11_BIND_UNORDERED_ACCESS);
-    }
-    if (m_scratchColorUAV == nullptr)
-    {
-        m_scratchColorUAV = make_simple_2d_uav(m_gpu.Get(),
-                                               m_scratchColorTexture.Get(),
-                                               m_gpuSupportsTypedUAVLoadStore
-                                                   ? DXGI_FORMAT_R8G8B8A8_UNORM
-                                                   : DXGI_FORMAT_R32_UINT);
-    }
-    return m_scratchColorUAV.Get();
+  if (m_scratchColorTexture == nullptr)
+  {
+    m_scratchColorTexture = make_simple_2d_texture(
+        m_gpu.Get(),
+        DXGI_FORMAT_R8G8B8A8_TYPELESS,
+        width(),
+        height(),
+        1,
+        D3D11_BIND_UNORDERED_ACCESS);
+  }
+  if (m_scratchColorUAV == nullptr)
+  {
+    m_scratchColorUAV = make_simple_2d_uav(
+        m_gpu.Get(),
+        m_scratchColorTexture.Get(),
+        m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM
+                                       : DXGI_FORMAT_R32_UINT);
+  }
+  return m_scratchColorUAV.Get();
 }
 
 ID3D11UnorderedAccessView* RenderTargetD3D::coverageUAV()
 {
-    if (m_coverageTexture == nullptr)
-    {
-        m_coverageTexture = make_simple_2d_texture(m_gpu.Get(),
-                                                   DXGI_FORMAT_R32_UINT,
-                                                   width(),
-                                                   height(),
-                                                   1,
-                                                   D3D11_BIND_UNORDERED_ACCESS);
-    }
-    if (m_coverageUAV == nullptr)
-    {
-        m_coverageUAV = make_simple_2d_uav(m_gpu.Get(),
-                                           m_coverageTexture.Get(),
-                                           DXGI_FORMAT_R32_UINT);
-    }
-    return m_coverageUAV.Get();
+  if (m_coverageTexture == nullptr)
+  {
+    m_coverageTexture = make_simple_2d_texture(
+        m_gpu.Get(),
+        DXGI_FORMAT_R32_UINT,
+        width(),
+        height(),
+        1,
+        D3D11_BIND_UNORDERED_ACCESS);
+  }
+  if (m_coverageUAV == nullptr)
+  {
+    m_coverageUAV = make_simple_2d_uav(
+        m_gpu.Get(),
+        m_coverageTexture.Get(),
+        DXGI_FORMAT_R32_UINT);
+  }
+  return m_coverageUAV.Get();
 }
 
-void RenderContextD3DImpl::resizeGradientTexture(uint32_t width,
-                                                 uint32_t height)
+void RenderContextD3DImpl::resizeGradientTexture(
+    uint32_t width,
+    uint32_t height)
 {
-    if (width == 0 || height == 0)
-    {
-        m_gradTexture = nullptr;
-        m_gradTextureSRV = nullptr;
-        m_gradTextureRTV = nullptr;
-    }
-    else
-    {
-        m_gradTexture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                            width,
-                                            height,
-                                            1,
-                                            D3D11_BIND_RENDER_TARGET |
-                                                D3D11_BIND_SHADER_RESOURCE);
-        VERIFY_OK(m_gpu->CreateShaderResourceView(
-            m_gradTexture.Get(),
-            NULL,
-            m_gradTextureSRV.ReleaseAndGetAddressOf()));
-        VERIFY_OK(m_gpu->CreateRenderTargetView(
-            m_gradTexture.Get(),
-            NULL,
-            m_gradTextureRTV.ReleaseAndGetAddressOf()));
-    }
+  if (width == 0 || height == 0)
+  {
+    m_gradTexture = nullptr;
+    m_gradTextureSRV = nullptr;
+    m_gradTextureRTV = nullptr;
+  }
+  else
+  {
+    m_gradTexture = makeSimple2DTexture(
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        width,
+        height,
+        1,
+        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(
+        m_gradTexture.Get(),
+        NULL,
+        m_gradTextureSRV.ReleaseAndGetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRenderTargetView(
+        m_gradTexture.Get(),
+        NULL,
+        m_gradTextureRTV.ReleaseAndGetAddressOf()));
+  }
 }
 
-void RenderContextD3DImpl::resizeTessellationTexture(uint32_t width,
-                                                     uint32_t height)
+void RenderContextD3DImpl::resizeTessellationTexture(
+    uint32_t width,
+    uint32_t height)
 {
-    if (width == 0 || height == 0)
-    {
-        m_tessTexture = nullptr;
-        m_tessTextureSRV = nullptr;
-        m_tessTextureRTV = nullptr;
-    }
-    else
-    {
-        m_tessTexture = makeSimple2DTexture(DXGI_FORMAT_R32G32B32A32_UINT,
-                                            width,
-                                            height,
-                                            1,
-                                            D3D11_BIND_RENDER_TARGET |
-                                                D3D11_BIND_SHADER_RESOURCE);
-        VERIFY_OK(m_gpu->CreateShaderResourceView(
-            m_tessTexture.Get(),
-            NULL,
-            m_tessTextureSRV.ReleaseAndGetAddressOf()));
-        VERIFY_OK(m_gpu->CreateRenderTargetView(
-            m_tessTexture.Get(),
-            NULL,
-            m_tessTextureRTV.ReleaseAndGetAddressOf()));
-    }
+  if (width == 0 || height == 0)
+  {
+    m_tessTexture = nullptr;
+    m_tessTextureSRV = nullptr;
+    m_tessTextureRTV = nullptr;
+  }
+  else
+  {
+    m_tessTexture = makeSimple2DTexture(
+        DXGI_FORMAT_R32G32B32A32_UINT,
+        width,
+        height,
+        1,
+        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(
+        m_tessTexture.Get(),
+        NULL,
+        m_tessTextureSRV.ReleaseAndGetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRenderTargetView(
+        m_tessTexture.Get(),
+        NULL,
+        m_tessTextureRTV.ReleaseAndGetAddressOf()));
+  }
 }
 
-void RenderContextD3DImpl::resizeFeatherAtlasTexture(uint32_t width,
-                                                     uint32_t height)
+void RenderContextD3DImpl::resizeFeatherAtlasTexture(
+    uint32_t width,
+    uint32_t height)
 {
 
-    if (width == 0 || height == 0)
-    {
-        m_featherAtlasTexture = nullptr;
-        m_featherAtlasTextureSRV = nullptr;
-        m_featherAtlasTextureRTV = nullptr;
-    }
-    else
-    {
-        m_featherAtlasTexture = makeSimple2DTexture(
-            DXGI_FORMAT_R16_FLOAT,
-            width,
-            height,
-            1,
-            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
-        VERIFY_OK(m_gpu->CreateShaderResourceView(
-            m_featherAtlasTexture.Get(),
-            NULL,
-            m_featherAtlasTextureSRV.ReleaseAndGetAddressOf()));
-        VERIFY_OK(m_gpu->CreateRenderTargetView(
-            m_featherAtlasTexture.Get(),
-            NULL,
-            m_featherAtlasTextureRTV.ReleaseAndGetAddressOf()));
-    }
+  if (width == 0 || height == 0)
+  {
+    m_featherAtlasTexture = nullptr;
+    m_featherAtlasTextureSRV = nullptr;
+    m_featherAtlasTextureRTV = nullptr;
+  }
+  else
+  {
+    m_featherAtlasTexture = makeSimple2DTexture(
+        DXGI_FORMAT_R16_FLOAT,
+        width,
+        height,
+        1,
+        D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(
+        m_featherAtlasTexture.Get(),
+        NULL,
+        m_featherAtlasTextureSRV.ReleaseAndGetAddressOf()));
+    VERIFY_OK(m_gpu->CreateRenderTargetView(
+        m_featherAtlasTexture.Get(),
+        NULL,
+        m_featherAtlasTextureRTV.ReleaseAndGetAddressOf()));
+  }
 }
 
 static const char* heap_buffer_contents(const BufferRing* bufferRing)
 {
-    assert(bufferRing != nullptr);
-    auto heapBuffer = static_cast<const HeapBufferRing*>(bufferRing);
-    return reinterpret_cast<const char*>(heapBuffer->contents());
+  assert(bufferRing != nullptr);
+  auto heapBuffer = static_cast<const HeapBufferRing*>(bufferRing);
+  return reinterpret_cast<const char*>(heapBuffer->contents());
 }
 
-static ID3D11Buffer* flush_buffer(ID3D11DeviceContext* gpuContext,
-                                  BufferRing* bufferRing)
+static ID3D11Buffer* flush_buffer(
+    ID3D11DeviceContext* gpuContext,
+    BufferRing* bufferRing)
 {
-    assert(bufferRing != nullptr);
-    return static_cast<BufferRingD3D*>(bufferRing)->flush(gpuContext);
+  assert(bufferRing != nullptr);
+  return static_cast<BufferRingD3D*>(bufferRing)->flush(gpuContext);
 }
 
 template <typename HighLevelStruct>
@@ -1616,434 +1779,549 @@ ID3D11ShaderResourceView* flush_structured_buffer(
     UINT highLevelStructCount,
     UINT firstHighLevelStruct)
 {
-    return static_cast<const StructuredBufferRingD3D*>(bufferRing)
-        ->flush(gpuContext,
-                firstHighLevelStruct * sizeof(HighLevelStruct),
-                highLevelStructCount * sizeof(HighLevelStruct));
+  return static_cast<const StructuredBufferRingD3D*>(bufferRing)
+      ->flush(
+          gpuContext,
+          firstHighLevelStruct * sizeof(HighLevelStruct),
+          highLevelStructCount * sizeof(HighLevelStruct));
 }
 
-static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
-                          ID3D11Texture2D* dst,
-                          ID3D11Texture2D* src,
-                          const IAABB& rect)
+static void blit_sub_rect(
+    ID3D11DeviceContext* gpuContext,
+    ID3D11Texture2D* dst,
+    ID3D11Texture2D* src,
+    const IAABB& rect)
 {
-    D3D11_BOX updateBox = {
-        static_cast<UINT>(rect.left),
-        static_cast<UINT>(rect.top),
-        0,
-        static_cast<UINT>(rect.right),
-        static_cast<UINT>(rect.bottom),
-        1,
-    };
-    gpuContext->CopySubresourceRegion(dst,
-                                      0,
-                                      updateBox.left,
-                                      updateBox.top,
-                                      0,
-                                      src,
-                                      0,
-                                      &updateBox);
+  D3D11_BOX updateBox = {
+      static_cast<UINT>(rect.left),
+      static_cast<UINT>(rect.top),
+      0,
+      static_cast<UINT>(rect.right),
+      static_cast<UINT>(rect.bottom),
+      1,
+  };
+  gpuContext->CopySubresourceRegion(
+      dst,
+      0,
+      updateBox.left,
+      updateBox.top,
+      0,
+      src,
+      0,
+      &updateBox);
 }
 
 static D3D11_RECT make_scissor(const AABBu16 scissor)
 {
-    D3D11_RECT rect;
-    rect.left = scissor.left;
-    rect.top = scissor.top;
-    rect.right = scissor.right;
-    rect.bottom = scissor.bottom;
-    return rect;
+  D3D11_RECT rect;
+  rect.left = scissor.left;
+  rect.top = scissor.top;
+  rect.right = scissor.right;
+  rect.bottom = scissor.bottom;
+  return rect;
+}
+
+ID3D11DepthStencilState* RenderContextD3DImpl::depthStencilStateFor(
+    const gpu::PipelineState& pipelineState)
+{
+  const uint64_t key = depth_stencil_state_key(pipelineState);
+  auto iter = m_depthStencilStates.find(key);
+  if (iter != m_depthStencilStates.end())
+  {
+    return iter->second.Get();
+  }
+
+  D3D11_DEPTH_STENCIL_DESC desc{};
+  desc.DepthEnable = pipelineState.depthTestEnabled ||
+                     pipelineState.depthWriteEnabled;
+  desc.DepthWriteMask = pipelineState.depthWriteEnabled
+                            ? D3D11_DEPTH_WRITE_MASK_ALL
+                            : D3D11_DEPTH_WRITE_MASK_ZERO;
+  desc.DepthFunc = pipelineState.depthTestEnabled ? D3D11_COMPARISON_GREATER
+                                                  : D3D11_COMPARISON_ALWAYS;
+  desc.StencilEnable = pipelineState.stencilTestEnabled;
+  desc.StencilReadMask = pipelineState.stencilCompareMask;
+  desc.StencilWriteMask = pipelineState.stencilWriteMask;
+  fill_stencil_face(pipelineState.stencilFrontOps, &desc.FrontFace);
+  fill_stencil_face(
+      pipelineState.stencilDoubleSided ? pipelineState.stencilBackOps
+                                       : pipelineState.stencilFrontOps,
+      &desc.BackFace);
+
+  ComPtr<ID3D11DepthStencilState> state;
+  VERIFY_OK(
+      m_gpu->CreateDepthStencilState(&desc, state.ReleaseAndGetAddressOf()));
+  return m_depthStencilStates.insert({key, std::move(state)})
+      .first->second.Get();
+}
+
+ID3D11RasterizerState* RenderContextD3DImpl::rasterStateFor(
+    gpu::CullFace cull,
+    bool wireframe)
+{
+  const int fill = wireframe ? 1 : 0;
+  switch (cull)
+  {
+    case gpu::CullFace::none:
+      return m_doubleSidedRasterState[fill].Get();
+    case gpu::CullFace::clockwise:
+      return m_frontCulledRasterState[fill].Get();
+    case gpu::CullFace::counterclockwise:
+      return m_backCulledRasterState[fill].Get();
+  }
+  RIVE_UNREACHABLE();
+}
+
+void RenderContextD3DImpl::setColorOnlyPipelineState()
+{
+  m_gpuContext->RSSetState(m_doubleSidedRasterState[0].Get());
+  m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+}
+
+void RenderContextD3DImpl::applyDepthStencilPipelineState(
+    const gpu::PipelineState& pipelineState,
+    bool wireframe)
+{
+  m_gpuContext->OMSetDepthStencilState(
+      depthStencilStateFor(pipelineState),
+      pipelineState.stencilReference);
+  m_gpuContext->RSSetState(rasterStateFor(pipelineState.cullFace, wireframe));
+  m_gpuContext->OMSetBlendState(
+      pipelineState.colorWriteEnabled ? m_srcOverBlendState.Get()
+                                      : m_colorWriteDisabledBlendState.Get(),
+      NULL,
+      0xffffffff);
 }
 
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
-    RIVE_PROF_GPUNAME_L(0, "RiveFlush");
-    assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
-    auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
+  RIVE_PROF_GPUNAME_L(0, "RiveFlush");
+  assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
+  auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
 
-    m_gpuContext->ClearState();
+  m_gpuContext->ClearState();
 
-    // All programs use the same set of per-flush uniforms.
-    m_gpuContext->UpdateSubresource(
-        m_flushUniforms.Get(),
+  // All programs use the same set of per-flush uniforms.
+  m_gpuContext->UpdateSubresource(
+      m_flushUniforms.Get(),
+      0,
+      NULL,
+      heap_buffer_contents(flushUniformBufferRing()) +
+          desc.flushUniformDataOffsetInBytes,
+      0,
+      0);
+
+  ID3D11Buffer* uniformBuffers[] = {
+      m_flushUniforms.Get(),
+      m_drawUniforms.Get()};
+  static_assert(
+      PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
+  m_gpuContext->VSSetConstantBuffers(
+      FLUSH_UNIFORM_BUFFER_IDX,
+      std::size(uniformBuffers),
+      uniformBuffers);
+  m_gpuContext->PSSetConstantBuffers(
+      FLUSH_UNIFORM_BUFFER_IDX,
+      std::size(uniformBuffers),
+      uniformBuffers);
+
+  // All programs use the same storage buffers.
+  ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
+      desc.pathCount > 0
+          ? flush_structured_buffer<gpu::PathData>(
+                m_gpuContext.Get(),
+                pathBufferRing(),
+                desc.pathCount,
+                math::lossless_numeric_cast<UINT>(desc.firstPath))
+          : nullptr,
+      desc.pathCount > 0
+          ? flush_structured_buffer<gpu::PaintData>(
+                m_gpuContext.Get(),
+                paintBufferRing(),
+                desc.pathCount,
+                math::lossless_numeric_cast<UINT>(desc.firstPaint))
+          : nullptr,
+      desc.pathCount > 0
+          ? flush_structured_buffer<gpu::PaintAuxData>(
+                m_gpuContext.Get(),
+                paintAuxBufferRing(),
+                desc.pathCount,
+                math::lossless_numeric_cast<UINT>(desc.firstPaintAux))
+          : nullptr,
+      desc.contourCount > 0
+          ? flush_structured_buffer<gpu::ContourData>(
+                m_gpuContext.Get(),
+                contourBufferRing(),
+                desc.contourCount,
+                math::lossless_numeric_cast<UINT>(desc.firstContour))
+          : nullptr,
+  };
+  static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
+  static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
+  static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
+  m_gpuContext->VSSetShaderResources(
+      PATH_BUFFER_IDX,
+      std::size(storageBufferBufferSRVs),
+      storageBufferBufferSRVs);
+  if (desc.interlockMode == gpu::InterlockMode::atomics)
+  {
+    // Atomic mode accesses the paint buffers from the pixel shader.
+    m_gpuContext->PSSetShaderResources(
+        PAINT_BUFFER_IDX,
+        2,
+        storageBufferBufferSRVs + 1);
+  }
+
+  // All programs use the same gaussian integral texture.
+  m_gpuContext->VSSetShaderResources(
+      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+      1,
+      m_gaussianIntegralTextureSRV.GetAddressOf());
+  m_gpuContext->PSSetShaderResources(
+      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+      1,
+      m_gaussianIntegralTextureSRV.GetAddressOf());
+
+  // The gradient, gaussian, and feather atlas samplers are the same for all
+  // programs.
+  ID3D11SamplerState* samplers[4] = {
+      m_samplerStates[BilinearRepeatImageSamplerKey].Get(), // gradient
+      m_samplerStates[BilinearClampImageSamplerKey].Get(),  // gaussian
+      m_samplerStates[BilinearClampImageSamplerKey].Get(),  // feather atlas
+      m_samplerStates[BilinearClampImageSamplerKey].Get(),  // default image
+  };
+
+  static_assert(GAUSSIAN_INTEGRAL_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+  static_assert(FEATHER_ATLAS_TEXTURE_IDX == GAUSSIAN_INTEGRAL_TEXTURE_IDX + 1);
+  static_assert(IMAGE_TEXTURE_IDX == FEATHER_ATLAS_TEXTURE_IDX + 1);
+  m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
+  m_gpuContext->VSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
+
+  // Render the complex color ramps to the gradient texture.
+  if (desc.gradSpanCount > 0)
+  {
+    ID3D11Buffer* gradSpanBuffer = flush_buffer(
+        m_gpuContext.Get(),
+        gradSpanBufferRing());
+    UINT gradStride = sizeof(GradientSpan);
+    UINT gradOffset = 0;
+    m_gpuContext
+        ->IASetVertexBuffers(0, 1, &gradSpanBuffer, &gradStride, &gradOffset);
+
+    m_gpuContext->IASetPrimitiveTopology(
+        D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+    m_pipelineManager.setColorRampState();
+
+    setColorOnlyPipelineState();
+
+    D3D11_VIEWPORT viewport = {
         0,
-        NULL,
-        heap_buffer_contents(flushUniformBufferRing()) +
-            desc.flushUniformDataOffsetInBytes,
         0,
+        static_cast<float>(kGradTextureWidth),
+        static_cast<float>(desc.gradDataHeight),
+        0,
+        1};
+    m_gpuContext->RSSetViewports(1, &viewport);
+    D3D11_RECT scissor = {
+        0,
+        0,
+        static_cast<LONG>(kGradTextureWidth),
+        static_cast<LONG>(desc.gradDataHeight)};
+    m_gpuContext->RSSetScissorRects(1, &scissor);
+
+    // Unbind the gradient texture before rendering it.
+    ID3D11ShaderResourceView* nullTextureView = nullptr;
+    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 1, &nullTextureView);
+
+    m_gpuContext->OMSetRenderTargets(1, m_gradTextureRTV.GetAddressOf(), NULL);
+
+    m_gpuContext->DrawInstanced(
+        gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+        desc.gradSpanCount,
+        0,
+        math::lossless_numeric_cast<UINT>(desc.firstGradSpan));
+  }
+
+  // Tessellate all curves into vertices in the tessellation texture.
+  if (desc.tessVertexSpanCount > 0)
+  {
+    RIVE_PROF_GPUNAME_L(1, "Tessellate Curves");
+
+    ID3D11Buffer* tessSpanBuffer = flush_buffer(
+        m_gpuContext.Get(),
+        tessSpanBufferRing());
+    UINT tessStride = sizeof(TessVertexSpan);
+    UINT tessOffset = 0;
+    m_gpuContext
+        ->IASetVertexBuffers(0, 1, &tessSpanBuffer, &tessStride, &tessOffset);
+    m_gpuContext->IASetIndexBuffer(
+        m_tessSpanIndexBuffer.Get(),
+        DXGI_FORMAT_R16_UINT,
         0);
 
-    ID3D11Buffer* uniformBuffers[] = {m_flushUniforms.Get(),
-                                      m_drawUniforms.Get()};
-    static_assert(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX ==
-                  FLUSH_UNIFORM_BUFFER_IDX + 1);
-    m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
-                                       std::size(uniformBuffers),
-                                       uniformBuffers);
-    m_gpuContext->PSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
-                                       std::size(uniformBuffers),
-                                       uniformBuffers);
+    m_pipelineManager.setTesselationState();
+    m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // All programs use the same storage buffers.
-    ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
-        desc.pathCount > 0
-            ? flush_structured_buffer<gpu::PathData>(
-                  m_gpuContext.Get(),
-                  pathBufferRing(),
-                  desc.pathCount,
-                  math::lossless_numeric_cast<UINT>(desc.firstPath))
-            : nullptr,
-        desc.pathCount > 0
-            ? flush_structured_buffer<gpu::PaintData>(
-                  m_gpuContext.Get(),
-                  paintBufferRing(),
-                  desc.pathCount,
-                  math::lossless_numeric_cast<UINT>(desc.firstPaint))
-            : nullptr,
-        desc.pathCount > 0
-            ? flush_structured_buffer<gpu::PaintAuxData>(
-                  m_gpuContext.Get(),
-                  paintAuxBufferRing(),
-                  desc.pathCount,
-                  math::lossless_numeric_cast<UINT>(desc.firstPaintAux))
-            : nullptr,
-        desc.contourCount > 0
-            ? flush_structured_buffer<gpu::ContourData>(
-                  m_gpuContext.Get(),
-                  contourBufferRing(),
-                  desc.contourCount,
-                  math::lossless_numeric_cast<UINT>(desc.firstContour))
-            : nullptr,
-    };
-    static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
-    static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
-    static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
-    m_gpuContext->VSSetShaderResources(PATH_BUFFER_IDX,
-                                       std::size(storageBufferBufferSRVs),
-                                       storageBufferBufferSRVs);
-    if (desc.interlockMode == gpu::InterlockMode::atomics)
-    {
-        // Atomic mode accesses the paint buffers from the pixel shader.
-        m_gpuContext->PSSetShaderResources(PAINT_BUFFER_IDX,
-                                           2,
-                                           storageBufferBufferSRVs + 1);
-    }
+    setColorOnlyPipelineState();
 
-    // All programs use the same gaussian integral texture.
+    // Unbind the tessellation texture before rendering it.
+    ID3D11ShaderResourceView* nullTessTextureView = NULL;
     m_gpuContext->VSSetShaderResources(
-        GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+        TESS_VERTEX_TEXTURE_IDX,
         1,
-        m_gaussianIntegralTextureSRV.GetAddressOf());
-    m_gpuContext->PSSetShaderResources(
-        GAUSSIAN_INTEGRAL_TEXTURE_IDX,
-        1,
-        m_gaussianIntegralTextureSRV.GetAddressOf());
+        &nullTessTextureView);
 
-    // All programs use the same samplers.
-    ID3D11SamplerState* samplers[4] = {
-        m_linearSampler.Get(),
-        m_linearSampler.Get(),
-        m_linearSampler.Get(),
-        // 0 is the default which is MIN_MAG_MIP_LINEAR
-        m_samplerStates[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY].Get(),
+    D3D11_VIEWPORT viewport = {
+        0,
+        0,
+        static_cast<float>(kTessTextureWidth),
+        static_cast<float>(desc.tessDataHeight),
+        0,
+        1};
+    m_gpuContext->RSSetViewports(1, &viewport);
+    D3D11_RECT scissor = {
+        0,
+        0,
+        static_cast<LONG>(kTessTextureWidth),
+        static_cast<LONG>(desc.tessDataHeight)};
+    m_gpuContext->RSSetScissorRects(1, &scissor);
+
+    m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
+
+    m_gpuContext->DrawIndexedInstanced(
+        std::size(gpu::kTessSpanIndices),
+        desc.tessVertexSpanCount,
+        0,
+        0,
+        math::lossless_numeric_cast<UINT>(desc.firstTessVertexSpan));
+
+    if (m_d3dCapabilities.isIntel)
+    {
+      // FIXME! Intel needs this flush! Driver bug? Find a lighter
+      // workaround?
+      m_gpuContext->Flush();
+    }
+  }
+
+  ID3D11Buffer* vertexBuffers[3] = {
+      m_patchVertexBuffer.Get(),
+      desc.hasTriangleVertices
+          ? flush_buffer(m_gpuContext.Get(), triangleBufferRing())
+          : NULL,
+      m_imageRectVertexBuffer.Get()};
+  UINT vertexStrides[3] = {
+      sizeof(gpu::PatchVertex),
+      sizeof(gpu::TriangleVertex),
+      sizeof(gpu::ImageRectVertex)};
+  UINT vertexOffsets[3] = {0, 0, 0};
+  static_assert(PATCH_VERTEX_DATA_SLOT == 0);
+  static_assert(TRIANGLE_VERTEX_DATA_SLOT == 1);
+  static_assert(IMAGE_RECT_VERTEX_DATA_SLOT == 2);
+  m_gpuContext
+      ->IASetVertexBuffers(0, 3, vertexBuffers, vertexStrides, vertexOffsets);
+
+  // Unbind the tess and grad texture as a render target before binding them
+  // as images.
+  m_gpuContext->OMSetRenderTargets(0, NULL, NULL);
+  m_gpuContext->VSSetShaderResources(
+      TESS_VERTEX_TEXTURE_IDX,
+      1,
+      m_tessTextureSRV.GetAddressOf());
+  m_gpuContext->PSSetShaderResources(
+      GRAD_TEXTURE_IDX,
+      1,
+      m_gradTextureSRV.GetAddressOf());
+
+  // Render the feather atlas if we have any offscreen feathers.
+  if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+      0)
+  {
+    RIVE_PROF_GPUNAME_L(1, "featherAtlasRender");
+
+    float clearZero[4]{};
+    m_gpuContext->ClearRenderTargetView(
+        m_featherAtlasTextureRTV.Get(),
+        clearZero);
+
+    m_pipelineManager.setFeatherAtlasVertexState();
+    m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_gpuContext->IASetIndexBuffer(
+        m_patchIndexBuffer.Get(),
+        DXGI_FORMAT_R16_UINT,
+        0);
+
+    D3D11_VIEWPORT viewport = {
+        0,
+        0,
+        static_cast<float>(desc.featherAtlasContentWidth),
+        static_cast<float>(desc.featherAtlasContentHeight),
+        0,
+        1,
     };
+    m_gpuContext->RSSetViewports(1, &viewport);
 
-    static_assert(GAUSSIAN_INTEGRAL_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-    static_assert(FEATHER_ATLAS_TEXTURE_IDX ==
-                  GAUSSIAN_INTEGRAL_TEXTURE_IDX + 1);
-    static_assert(IMAGE_TEXTURE_IDX == FEATHER_ATLAS_TEXTURE_IDX + 1);
-    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
-    m_gpuContext->VSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
+    m_gpuContext->OMSetRenderTargets(
+        1,
+        m_featherAtlasTextureRTV.GetAddressOf(),
+        NULL);
 
-    // Render the complex color ramps to the gradient texture.
-    if (desc.gradSpanCount > 0)
+    if (desc.featherAtlasFillBatchCount != 0)
     {
-        ID3D11Buffer* gradSpanBuffer =
-            flush_buffer(m_gpuContext.Get(), gradSpanBufferRing());
-        UINT gradStride = sizeof(GradientSpan);
-        UINT gradOffset = 0;
-        m_gpuContext->IASetVertexBuffers(0,
-                                         1,
-                                         &gradSpanBuffer,
-                                         &gradStride,
-                                         &gradOffset);
-
-        m_gpuContext->IASetPrimitiveTopology(
-            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-        m_pipelineManager.setColorRampState();
-
-        D3D11_VIEWPORT viewport = {0,
-                                   0,
-                                   static_cast<float>(kGradTextureWidth),
-                                   static_cast<float>(desc.gradDataHeight),
-                                   0,
-                                   1};
-        m_gpuContext->RSSetViewports(1, &viewport);
-
-        // Unbind the gradient texture before rendering it.
-        ID3D11ShaderResourceView* nullTextureView = nullptr;
-        m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX,
-                                           1,
-                                           &nullTextureView);
-
-        m_gpuContext->OMSetRenderTargets(1,
-                                         m_gradTextureRTV.GetAddressOf(),
-                                         NULL);
-
-        m_gpuContext->DrawInstanced(
-            gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
-            desc.gradSpanCount,
+      m_gpuContext->RSSetState(m_featherAtlasFillRasterState.Get());
+      m_pipelineManager.setFeatherAtlasFillState();
+      m_gpuContext->OMSetBlendState(m_plusBlendState.Get(), NULL, 0xffffffff);
+      for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
+      {
+        const gpu::AtlasDrawBatch& fillBatch = desc.featherAtlasFillBatches[i];
+        D3D11_RECT scissor = make_scissor(fillBatch.scissor);
+        m_gpuContext->RSSetScissorRects(1, &scissor);
+        DrawUniforms drawUniforms(fillBatch.basePatch);
+        m_gpuContext->UpdateSubresource(
+            m_drawUniforms.Get(),
             0,
-            math::lossless_numeric_cast<UINT>(desc.firstGradSpan));
-    }
-
-    // Tessellate all curves into vertices in the tessellation texture.
-    if (desc.tessVertexSpanCount > 0)
-    {
-        RIVE_PROF_GPUNAME_L(1, "Tessellate Curves");
-
-        ID3D11Buffer* tessSpanBuffer =
-            flush_buffer(m_gpuContext.Get(), tessSpanBufferRing());
-        UINT tessStride = sizeof(TessVertexSpan);
-        UINT tessOffset = 0;
-        m_gpuContext->IASetVertexBuffers(0,
-                                         1,
-                                         &tessSpanBuffer,
-                                         &tessStride,
-                                         &tessOffset);
-        m_gpuContext->IASetIndexBuffer(m_tessSpanIndexBuffer.Get(),
-                                       DXGI_FORMAT_R16_UINT,
-                                       0);
-
-        m_pipelineManager.setTesselationState();
-        m_gpuContext->IASetPrimitiveTopology(
-            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-        // Unbind the tessellation texture before rendering it.
-        ID3D11ShaderResourceView* nullTessTextureView = NULL;
-        m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
-                                           1,
-                                           &nullTessTextureView);
-
-        D3D11_VIEWPORT viewport = {0,
-                                   0,
-                                   static_cast<float>(kTessTextureWidth),
-                                   static_cast<float>(desc.tessDataHeight),
-                                   0,
-                                   1};
-        m_gpuContext->RSSetViewports(1, &viewport);
-
-        m_gpuContext->OMSetRenderTargets(1,
-                                         m_tessTextureRTV.GetAddressOf(),
-                                         NULL);
-
+            NULL,
+            &drawUniforms,
+            0,
+            0);
         m_gpuContext->DrawIndexedInstanced(
-            std::size(gpu::kTessSpanIndices),
-            desc.tessVertexSpanCount,
+            gpu::kMidpointFanCenterAAPatchIndexCount,
+            fillBatch.patchCount,
+            gpu::kMidpointFanCenterAAPatchBaseIndex,
             0,
-            0,
-            math::lossless_numeric_cast<UINT>(desc.firstTessVertexSpan));
-
-        if (m_d3dCapabilities.isIntel)
-        {
-            // FIXME! Intel needs this flush! Driver bug? Find a lighter
-            // workaround?
-            m_gpuContext->Flush();
-        }
+            fillBatch.basePatch);
+      }
     }
 
-    ID3D11Buffer* vertexBuffers[3] = {
-        m_patchVertexBuffer.Get(),
-        desc.hasTriangleVertices
-            ? flush_buffer(m_gpuContext.Get(), triangleBufferRing())
-            : NULL,
-        m_imageRectVertexBuffer.Get()};
-    UINT vertexStrides[3] = {sizeof(gpu::PatchVertex),
-                             sizeof(gpu::TriangleVertex),
-                             sizeof(gpu::ImageRectVertex)};
-    UINT vertexOffsets[3] = {0, 0, 0};
-    static_assert(PATCH_VERTEX_DATA_SLOT == 0);
-    static_assert(TRIANGLE_VERTEX_DATA_SLOT == 1);
-    static_assert(IMAGE_RECT_VERTEX_DATA_SLOT == 2);
-    m_gpuContext->IASetVertexBuffers(0,
-                                     3,
-                                     vertexBuffers,
-                                     vertexStrides,
-                                     vertexOffsets);
-
-    // Unbind the tess and grad texture as a render target before binding them
-    // as images.
-    m_gpuContext->OMSetRenderTargets(0, NULL, NULL);
-    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
-                                       1,
-                                       m_tessTextureSRV.GetAddressOf());
-    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX,
-                                       1,
-                                       m_gradTextureSRV.GetAddressOf());
-
-    // Render the feather atlas if we have any offscreen feathers.
-    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
-        0)
+    if (desc.featherAtlasStrokeBatchCount != 0)
     {
-        RIVE_PROF_GPUNAME_L(1, "featherAtlasRender");
-
-        float clearZero[4]{};
-        m_gpuContext->ClearRenderTargetView(m_featherAtlasTextureRTV.Get(),
-                                            clearZero);
-
-        m_pipelineManager.setFeatherAtlasVertexState();
-        m_gpuContext->IASetPrimitiveTopology(
-            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
-                                       DXGI_FORMAT_R16_UINT,
-                                       0);
-
-        D3D11_VIEWPORT viewport = {
+      m_gpuContext->RSSetState(m_featherAtlasStrokeRasterState.Get());
+      m_pipelineManager.setFeatherAtlasStrokeState();
+      m_gpuContext->OMSetBlendState(m_maxBlendState.Get(), NULL, 0xffffffff);
+      for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
+      {
+        const gpu::AtlasDrawBatch&
+            strokeBatch = desc.featherAtlasStrokeBatches[i];
+        D3D11_RECT scissor = make_scissor(strokeBatch.scissor);
+        m_gpuContext->RSSetScissorRects(1, &scissor);
+        DrawUniforms drawUniforms(strokeBatch.basePatch);
+        m_gpuContext->UpdateSubresource(
+            m_drawUniforms.Get(),
             0,
+            NULL,
+            &drawUniforms,
             0,
-            static_cast<float>(desc.featherAtlasContentWidth),
-            static_cast<float>(desc.featherAtlasContentHeight),
+            0);
+        m_gpuContext->DrawIndexedInstanced(
+            gpu::kMidpointFanPatchBorderIndexCount,
+            strokeBatch.patchCount,
+            gpu::kMidpointFanPatchBaseIndex,
             0,
-            1,
-        };
-        m_gpuContext->RSSetViewports(1, &viewport);
-
-        m_gpuContext->OMSetRenderTargets(
-            1,
-            m_featherAtlasTextureRTV.GetAddressOf(),
-            NULL);
-
-        if (desc.featherAtlasFillBatchCount != 0)
-        {
-            m_gpuContext->RSSetState(m_featherAtlasFillRasterState.Get());
-            m_pipelineManager.setFeatherAtlasFillState();
-            m_gpuContext->OMSetBlendState(m_plusBlendState.Get(),
-                                          NULL,
-                                          0xffffffff);
-            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
-            {
-                const gpu::AtlasDrawBatch& fillBatch =
-                    desc.featherAtlasFillBatches[i];
-                D3D11_RECT scissor = make_scissor(fillBatch.scissor);
-                m_gpuContext->RSSetScissorRects(1, &scissor);
-                DrawUniforms drawUniforms(fillBatch.basePatch);
-                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
-                                                0,
-                                                NULL,
-                                                &drawUniforms,
-                                                0,
-                                                0);
-                m_gpuContext->DrawIndexedInstanced(
-                    gpu::kMidpointFanCenterAAPatchIndexCount,
-                    fillBatch.patchCount,
-                    gpu::kMidpointFanCenterAAPatchBaseIndex,
-                    0,
-                    fillBatch.basePatch);
-            }
-        }
-
-        if (desc.featherAtlasStrokeBatchCount != 0)
-        {
-            m_gpuContext->RSSetState(m_featherAtlasStrokeRasterState.Get());
-            m_pipelineManager.setFeatherAtlasStrokeState();
-            m_gpuContext->OMSetBlendState(m_maxBlendState.Get(),
-                                          NULL,
-                                          0xffffffff);
-            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
-            {
-                const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.featherAtlasStrokeBatches[i];
-                D3D11_RECT scissor = make_scissor(strokeBatch.scissor);
-                m_gpuContext->RSSetScissorRects(1, &scissor);
-                DrawUniforms drawUniforms(strokeBatch.basePatch);
-                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
-                                                0,
-                                                NULL,
-                                                &drawUniforms,
-                                                0,
-                                                0);
-                m_gpuContext->DrawIndexedInstanced(
-                    gpu::kMidpointFanPatchBorderIndexCount,
-                    strokeBatch.patchCount,
-                    gpu::kMidpointFanPatchBaseIndex,
-                    0,
-                    strokeBatch.basePatch);
-            }
-        }
-
-        m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+            strokeBatch.basePatch);
+      }
     }
 
-    // Setup and clear the PLS textures.
+    m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+  }
+
+  // Setup and clear the PLS textures.
+  {
+    RIVE_PROF_GPUNAME_L(1, "clearPLSTextures");
+    switch (desc.colorLoadAction)
     {
-        RIVE_PROF_GPUNAME_L(1, "clearPLSTextures");
-        switch (desc.colorLoadAction)
-        {
 
-            case gpu::LoadAction::clear:
-                if (desc.fixedFunctionColorOutput)
-                {
-                    float clearColor4f[4];
-                    UnpackColorToRGBA32FPremul(desc.colorClearValue,
-                                               clearColor4f);
-                    m_gpuContext->ClearRenderTargetView(
-                        renderTarget->targetRTV(),
-                        clearColor4f);
-                }
-                else if (m_d3dCapabilities.supportsTypedUAVLoadStore)
-                {
-                    float clearColor4f[4];
-                    UnpackColorToRGBA32FPremul(desc.colorClearValue,
-                                               clearColor4f);
-                    m_gpuContext->ClearUnorderedAccessViewFloat(
-                        renderTarget->targetUAV(),
-                        clearColor4f);
-                }
-                else
-                {
-                    UINT clearColorui[4] = {gpu::SwizzleRiveColorToRGBAPremul(
-                        desc.colorClearValue)};
-                    m_gpuContext->ClearUnorderedAccessViewUint(
-                        renderTarget->targetUAV(),
-                        clearColorui);
-                }
-                break;
-            case gpu::LoadAction::preserveRenderTarget:
-                if (!desc.fixedFunctionColorOutput &&
-                    !renderTarget->targetTextureSupportsUAV())
-                {
-                    // We're rendering to an offscreen UAV and preserving the
-                    // target. Copy the target texture over.
-                    blit_sub_rect(m_gpuContext.Get(),
-                                  renderTarget->offscreenTexture(),
-                                  renderTarget->targetTexture(),
-                                  desc.renderTargetUpdateBounds);
-                }
-                break;
-            case gpu::LoadAction::dontCare:
-                break;
-        }
-        if (enums::is_flag_set(desc.combinedShaderFeatures,
-                               gpu::ShaderFeatures::ENABLE_CLIPPING))
+      case gpu::LoadAction::clear:
+        if (desc.fixedFunctionColorOutput)
         {
-            constexpr static UINT kZero[4]{};
-            m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(),
-                                                       kZero);
+          float clearColor4f[4];
+          UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
+          m_gpuContext->ClearRenderTargetView(
+              renderTarget->targetRTV(),
+              clearColor4f);
         }
+        else if (m_d3dCapabilities.supportsTypedUAVLoadStore)
         {
-            UINT coverageClear[4]{desc.coverageClearValue};
-            m_gpuContext->ClearUnorderedAccessViewUint(
-                renderTarget->coverageUAV(),
-                coverageClear);
+          float clearColor4f[4];
+          UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
+          m_gpuContext->ClearUnorderedAccessViewFloat(
+              renderTarget->targetUAV(),
+              clearColor4f);
         }
+        else
+        {
+          UINT clearColorui[4] = {
+              gpu::SwizzleRiveColorToRGBAPremul(desc.colorClearValue)};
+          m_gpuContext->ClearUnorderedAccessViewUint(
+              renderTarget->targetUAV(),
+              clearColorui);
+        }
+        break;
+      case gpu::LoadAction::preserveRenderTarget:
+        if (!desc.fixedFunctionColorOutput &&
+            !renderTarget->targetTextureSupportsUAV())
+        {
+          // We're rendering to an offscreen UAV and preserving the
+          // target. Copy the target texture over.
+          blit_sub_rect(
+              m_gpuContext.Get(),
+              renderTarget->offscreenTexture(),
+              renderTarget->targetTexture(),
+              desc.renderTargetUpdateBounds);
+        }
+        break;
+      case gpu::LoadAction::dontCare:
+        break;
     }
+    if (enums::is_flag_set(
+            desc.combinedShaderFeatures,
+            gpu::ShaderFeatures::ENABLE_CLIPPING))
+    {
+      constexpr static UINT kZero[4]{};
+      m_gpuContext->ClearUnorderedAccessViewUint(
+          renderTarget->clipUAV(),
+          kZero);
+    }
+    {
+      UINT coverageClear[4]{desc.coverageClearValue};
+      m_gpuContext->ClearUnorderedAccessViewUint(
+          renderTarget->coverageUAV(),
+          coverageClear);
+    }
+  }
 
-    RIVE_PROF_GPUNAME_L(1, "DrawList");
+  RIVE_PROF_GPUNAME_L(1, "DrawList");
 
-    // Execute the DrawList.
-    ID3D11RenderTargetView* targetRTV =
-        desc.fixedFunctionColorOutput ? renderTarget->targetRTV() : NULL;
+  // Execute the DrawList.
+  ID3D11DepthStencilView* dsDepthStencilView = NULL;
+  ID3D11RenderTargetView* dsColorRTV = NULL;
+  ID3D11UnorderedAccessView* dsColorUAV = NULL;
+  bool dsColorBoundAsUAV = false;
+  if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+  {
+    dsDepthStencilView = renderTarget->depthStencilView();
+    m_gpuContext->ClearDepthStencilView(
+        dsDepthStencilView,
+        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL,
+        desc.depthClearValue,
+        desc.stencilClearValue);
+    if (desc.fixedFunctionColorOutput)
+    {
+      dsColorRTV = renderTarget->targetRTV();
+    }
+    else
+    {
+      dsColorUAV = renderTarget->targetUAV();
+      dsColorRTV = renderTarget->targetTextureSupportsUAV()
+                       ? renderTarget->targetRTV()
+                       : renderTarget->offscreenRTV();
+    }
+    m_gpuContext->OMSetRenderTargets(1, &dsColorRTV, dsDepthStencilView);
+  }
+  else
+  {
+    ID3D11RenderTargetView* targetRTV = desc.fixedFunctionColorOutput
+                                            ? renderTarget->targetRTV()
+                                            : NULL;
     ID3D11UnorderedAccessView* plsUAVs[] = {
         desc.fixedFunctionColorOutput ? NULL : renderTarget->targetUAV(),
         renderTarget->clipUAV(),
@@ -2065,318 +2343,462 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                       : std::size(plsUAVs),
         desc.fixedFunctionColorOutput ? plsUAVs + 1 : plsUAVs,
         NULL);
+  }
 
-    if (desc.fixedFunctionColorOutput)
+  if (desc.fixedFunctionColorOutput)
+  {
+    // When rendering directly to the target RTV, we use the built-in blend
+    // hardware for opacity and antialiasing.
+    m_gpuContext->OMSetBlendState(m_srcOverBlendState.Get(), NULL, 0xffffffff);
+  }
+
+  D3D11_VIEWPORT viewport = {
+      0,
+      0,
+      static_cast<float>(renderTarget->width()),
+      static_cast<float>(renderTarget->height()),
+      0,
+      1};
+  m_gpuContext->RSSetViewports(1, &viewport);
+
+  // Set this last, when the atlas texture is no longer bound as a render
+  // target.
+  m_gpuContext->PSSetShaderResources(
+      FEATHER_ATLAS_TEXTURE_IDX,
+      1,
+      m_featherAtlasTextureSRV.GetAddressOf());
+
+  bool renderPassHasCoalescedResolveAndTransfer =
+      desc.interlockMode == gpu::InterlockMode::atomics &&
+      !desc.fixedFunctionColorOutput &&
+      !renderTarget->targetTextureSupportsUAV();
+
+  const auto fullUpdateScissorRect = desc.renderTargetUpdateBounds
+                                         .lossless_numeric_cast<uint16_t>();
+
+  // Start the current scissor rect out inside-out to guarantee that the first
+  //  rectangle we get doesn't match it.
+  auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
+
+  auto boundVertexInstanceType = BoundVertexInstanceType::none;
+
+  for (const DrawBatch& batch : *desc.drawList)
+  {
+    DrawType drawType = batch.drawType;
+
+    if (drawType == DrawType::imageRect &&
+        boundVertexInstanceType != BoundVertexInstanceType::imageRect)
     {
-        // When rendering directly to the target RTV, we use the built-in blend
-        // hardware for opacity and antialiasing.
-        m_gpuContext->OMSetBlendState(m_srcOverBlendState.Get(),
-                                      NULL,
-                                      0xffffffff);
+      assert(imageRectInstanceBufferRing() != nullptr);
+
+      // Bind the image-rect-attribute records as a per-instance vertex
+      // buffer once; each image rect selects its record via the draw
+      // call's base instance (batch.baseElement).
+      ID3D11Buffer* imageRectInstanceBuffer = flush_buffer(
+          m_gpuContext.Get(),
+          imageRectInstanceBufferRing());
+      UINT instanceStride = sizeof(gpu::ImageRectInstance);
+      UINT instanceOffset = 0;
+      m_gpuContext->IASetVertexBuffers(
+          IMAGE_DRAW_INSTANCE_DATA_SLOT,
+          1,
+          &imageRectInstanceBuffer,
+          &instanceStride,
+          &instanceOffset);
+      boundVertexInstanceType = BoundVertexInstanceType::imageRect;
+    }
+    else if (
+        drawType == DrawType::imageMesh &&
+        boundVertexInstanceType != BoundVertexInstanceType::imageMesh)
+    {
+      assert(imageMeshInstanceBufferRing() != nullptr);
+
+      // Bind the image-mesh-attribute records as a per-instance vertex
+      // buffer once; each image mesh selects its record via the draw
+      // call's base instance (batch.baseElement).
+      ID3D11Buffer* imageMeshInstanceBuffer = flush_buffer(
+          m_gpuContext.Get(),
+          imageMeshInstanceBufferRing());
+      UINT instanceStride = sizeof(gpu::ImageMeshInstance);
+      UINT instanceOffset = 0;
+      m_gpuContext->IASetVertexBuffers(
+          IMAGE_DRAW_INSTANCE_DATA_SLOT,
+          1,
+          &imageMeshInstanceBuffer,
+          &instanceStride,
+          &instanceOffset);
+      boundVertexInstanceType = BoundVertexInstanceType::imageMesh;
     }
 
-    D3D11_VIEWPORT viewport = {0,
-                               0,
-                               static_cast<float>(renderTarget->width()),
-                               static_cast<float>(renderTarget->height()),
-                               0,
-                               1};
-    m_gpuContext->RSSetViewports(1, &viewport);
-
-    // Set this last, when the atlas texture is no longer bound as a render
-    // target.
-    m_gpuContext->PSSetShaderResources(FEATHER_ATLAS_TEXTURE_IDX,
-                                       1,
-                                       m_featherAtlasTextureSRV.GetAddressOf());
-
-    bool renderPassHasCoalescedResolveAndTransfer =
-        desc.interlockMode == gpu::InterlockMode::atomics &&
-        !desc.fixedFunctionColorOutput &&
-        !renderTarget->targetTextureSupportsUAV();
-
-    const auto fullUpdateScissorRect =
-        desc.renderTargetUpdateBounds.lossless_numeric_cast<uint16_t>();
-
-    // Start the current scissor rect out inside-out to guarantee that the first
-    //  rectangle we get doesn't match it.
-    auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
-
-    auto boundVertexInstanceType = BoundVertexInstanceType::none;
-
-    for (const DrawBatch& batch : *desc.drawList)
+    auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
+                              ? desc.combinedShaderFeatures
+                              : batch.shaderFeatures;
+    auto shaderMiscFlags = batch.shaderMiscFlags;
+    if (drawType == gpu::DrawType::renderPassResolve &&
+        renderPassHasCoalescedResolveAndTransfer)
     {
-        DrawType drawType = batch.drawType;
+      assert(desc.interlockMode == gpu::InterlockMode::atomics);
+      shaderMiscFlags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
+    }
 
-        if (drawType == DrawType::imageRect &&
-            boundVertexInstanceType != BoundVertexInstanceType::imageRect)
-        {
-            assert(imageRectInstanceBufferRing() != nullptr);
-
-            // Bind the image-rect-attribute records as a per-instance vertex
-            // buffer once; each image rect selects its record via the draw
-            // call's base instance (batch.baseElement).
-            ID3D11Buffer* imageRectInstanceBuffer =
-                flush_buffer(m_gpuContext.Get(), imageRectInstanceBufferRing());
-            UINT instanceStride = sizeof(gpu::ImageRectInstance);
-            UINT instanceOffset = 0;
-            m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                                             1,
-                                             &imageRectInstanceBuffer,
-                                             &instanceStride,
-                                             &instanceOffset);
-            boundVertexInstanceType = BoundVertexInstanceType::imageRect;
-        }
-        else if (drawType == DrawType::imageMesh &&
-                 boundVertexInstanceType != BoundVertexInstanceType::imageMesh)
-        {
-            assert(imageMeshInstanceBufferRing() != nullptr);
-
-            // Bind the image-mesh-attribute records as a per-instance vertex
-            // buffer once; each image mesh selects its record via the draw
-            // call's base instance (batch.baseElement).
-            ID3D11Buffer* imageMeshInstanceBuffer =
-                flush_buffer(m_gpuContext.Get(), imageMeshInstanceBufferRing());
-            UINT instanceStride = sizeof(gpu::ImageMeshInstance);
-            UINT instanceOffset = 0;
-            m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                                             1,
-                                             &imageMeshInstanceBuffer,
-                                             &instanceStride,
-                                             &instanceOffset);
-            boundVertexInstanceType = BoundVertexInstanceType::imageMesh;
-        }
-
-        auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
-                                  ? desc.combinedShaderFeatures
-                                  : batch.shaderFeatures;
-        auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (drawType == gpu::DrawType::renderPassResolve &&
-            renderPassHasCoalescedResolveAndTransfer)
-        {
-            assert(desc.interlockMode == gpu::InterlockMode::atomics);
-            shaderMiscFlags |=
-                gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
-        }
-
-        if (!m_pipelineManager.setPipelineState(drawType,
-                                                shaderFeatures,
-                                                desc.interlockMode,
-                                                shaderMiscFlags,
-                                                m_platformFeatures
+    if (!m_pipelineManager.setPipelineState(
+            drawType,
+            shaderFeatures,
+            desc.interlockMode,
+            shaderMiscFlags,
+            m_platformFeatures
 #ifdef WITH_RIVE_TOOLS
-                                                ,
-                                                desc.synthesizedFailureType
+            ,
+            desc.synthesizedFailureType
 #endif
-                                                ))
-        {
-            // There was an issue getting either the requested pipeline state or
-            // its ubershader counterpart so we cannot draw anything.
-            continue;
-        }
-
-        auto desiredScissorRect = batch.scissorRect.has_value()
-                                      ? fullUpdateScissorRect.intersectOrEmpty(
-                                            batch.scissorRect.value())
-                                      : fullUpdateScissorRect;
-
-        if (desiredScissorRect != currentScissorRect)
-        {
-            currentScissorRect = desiredScissorRect;
-            D3D11_RECT scissor = make_scissor(currentScissorRect);
-            m_gpuContext->RSSetScissorRects(1, &scissor);
-        }
-
-        if (auto imageTextureD3D =
-                static_cast<const TextureD3DImpl*>(batch.imageTexture))
-        {
-            m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
-                                               1,
-                                               imageTextureD3D->srvAddressOf());
-        }
-
-        {
-            // we should never get a sampler option that is greater then our
-            // array size
-            assert(batch.imageSampler.asKey() <
-                   ImageSampler::MAX_SAMPLER_PERMUTATIONS);
-            ID3D11SamplerState* samplers[1] = {
-                m_samplerStates[batch.imageSampler.asKey()].Get()};
-            m_gpuContext->PSSetSamplers(IMAGE_TEXTURE_IDX, 1, samplers);
-        }
-
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-            {
-                m_gpuContext->IASetPrimitiveTopology(
-                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
-                                               DXGI_FORMAT_R16_UINT,
-                                               0);
-                m_gpuContext->RSSetState(
-                    m_backCulledRasterState[desc.wireframe].Get());
-                DrawUniforms drawUniforms(batch.baseElement);
-                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
-                                                0,
-                                                NULL,
-                                                &drawUniforms,
-                                                0,
-                                                0);
-                RIVE_PROF_GPUNAME_L(2, "Patches");
-                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
-                                                   batch.elementCount,
-                                                   batch.baseIndex,
-                                                   0,
-                                                   batch.baseElement);
-                break;
-            }
-            case DrawType::interiorTriangulation:
-            case DrawType::featherAtlasBlit:
-            {
-                m_gpuContext->IASetPrimitiveTopology(
-                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                m_gpuContext->RSSetState(
-                    m_backCulledRasterState[desc.wireframe].Get());
-                RIVE_PROF_GPUNAME_L(2,
-                                    drawType == DrawType::featherAtlasBlit
-                                        ? "featherAtlasBlit"
-                                        : "interiorTriangulation");
-                m_gpuContext->Draw(batch.elementCount, batch.baseElement);
-                break;
-            }
-            case DrawType::imageRect:
-            {
-                RIVE_PROF_GPUNAME_L(2, "imageRect");
-
-                m_gpuContext->IASetPrimitiveTopology(
-                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                m_gpuContext->IASetIndexBuffer(m_imageRectIndexBuffer.Get(),
-                                               DXGI_FORMAT_R16_UINT,
-                                               0);
-                m_gpuContext->RSSetState(
-                    m_doubleSidedRasterState[desc.wireframe].Get());
-                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
-                                                   batch.elementCount,
-                                                   batch.baseIndex,
-                                                   0,
-                                                   batch.baseElement);
-                break;
-            }
-            case DrawType::imageMesh:
-            {
-                RIVE_PROF_GPUNAME_L(2, "imageMesh");
-                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
-                                        RenderBufferD3DImpl*,
-                                        batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer,
-                                        RenderBufferD3DImpl*,
-                                        batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
-                                        RenderBufferD3DImpl*,
-                                        batch.indexBuffer);
-                ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(),
-                                                    uvBuffer->buffer()};
-                UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
-                UINT imageMeshOffsets[] = {0, 0};
-                m_gpuContext->IASetVertexBuffers(IMAGE_MESH_VERTEX_DATA_SLOT,
-                                                 2,
-                                                 imageMeshBuffers,
-                                                 imageMeshStrides,
-                                                 imageMeshOffsets);
-                static_assert(IMAGE_MESH_UV_DATA_SLOT ==
-                              IMAGE_MESH_VERTEX_DATA_SLOT + 1);
-                m_gpuContext->IASetPrimitiveTopology(
-                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                m_gpuContext->IASetIndexBuffer(indexBuffer->buffer(),
-                                               DXGI_FORMAT_R16_UINT,
-                                               0);
-                m_gpuContext->RSSetState(
-                    m_doubleSidedRasterState[desc.wireframe].Get());
-                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
-                                                   batch.elementCount,
-                                                   batch.baseIndex,
-                                                   0,
-                                                   batch.baseElement);
-                break;
-            }
-            case DrawType::renderPassResolve:
-            {
-                RIVE_PROF_GPUNAME_L(1, "renderPassResolve");
-
-                assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                m_gpuContext->IASetPrimitiveTopology(
-                    D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-                m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
-                if (renderPassHasCoalescedResolveAndTransfer)
-                {
-                    // Bind the actual target texture as the render target for
-                    // the PLS resolve, so we don't have to copy to it after the
-                    // render pass. (And ince we're changing the render target,
-                    // this also better be the final batch of the render pass.)
-                    assert(&batch == desc.drawList->tail());
-                    assert(!desc.fixedFunctionColorOutput);
-                    assert(!renderTarget->targetTextureSupportsUAV());
-                    ID3D11RenderTargetView* resolveRTV =
-                        renderTarget->targetRTV();
-                    ID3D11UnorderedAccessView* resolveUAVs[] = {
-                        renderTarget->clipUAV(),
-                        renderTarget
-                            ->targetUAV(), // Bind the target UAV (for reading)
-                                           // to a different slot for the
-                                           // resolve because D3D doesn't let us
-                                           // use slot 0 when there's a render
-                                           // target.
-                        renderTarget->coverageUAV(),
-                    };
-                    static_assert(CLIP_PLANE_IDX == 1);
-                    static_assert(COALESCED_OFFSCREEN_COLOR_PLANE_IDX == 2);
-                    static_assert(COVERAGE_PLANE_IDX == 3);
-                    m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
-                        1,
-                        &resolveRTV,
-                        NULL,
-                        1,
-                        std::size(resolveUAVs),
-                        resolveUAVs,
-                        NULL);
-                }
-                m_gpuContext->Draw(4, 0);
-            }
-            break;
-            case DrawType::depthStrokes:
-            case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilDynamicMidpointFans:
-            case DrawType::stencilDynamicOuterCubics:
-            case DrawType::stencilMidpointFans:
-            case DrawType::stencilMidpointFanReset:
-            case DrawType::stencilMidpointFanWinding:
-            case DrawType::stencilMidpointFanCover:
-            case DrawType::stencilOuterCubicBorrowedCoverage:
-            case DrawType::stencilOuterCubicReset:
-            case DrawType::stencilOuterCubicWinding:
-            case DrawType::stencilOuterCubicCover:
-            case DrawType::stencilOuterCubics:
-            case DrawType::clipReset:
-            case DrawType::renderPassInitialize:
-                RIVE_UNREACHABLE();
-        }
-    }
-
-    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-        !renderTarget->targetTextureSupportsUAV())
+            ))
     {
-        RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");
-
-        // We rendered to an offscreen UAV and did not resolve to the
-        // renderTarget. Copy back to the main target.
-        assert(!desc.fixedFunctionColorOutput);
-        assert(!renderPassHasCoalescedResolveAndTransfer);
-        blit_sub_rect(m_gpuContext.Get(),
-                      renderTarget->targetTexture(),
-                      renderTarget->offscreenTexture(),
-                      desc.renderTargetUpdateBounds);
+      // There was an issue getting either the requested pipeline state or
+      // its ubershader counterpart so we cannot draw anything.
+      continue;
     }
+
+    auto desiredScissorRect = batch.scissorRect.has_value()
+                                  ? fullUpdateScissorRect.intersectOrEmpty(
+                                        batch.scissorRect.value())
+                                  : fullUpdateScissorRect;
+
+    if (desiredScissorRect != currentScissorRect)
+    {
+      currentScissorRect = desiredScissorRect;
+      D3D11_RECT scissor = make_scissor(currentScissorRect);
+      m_gpuContext->RSSetScissorRects(1, &scissor);
+    }
+
+    if (auto imageTextureD3D = static_cast<const TextureD3DImpl*>(
+            batch.imageTexture))
+    {
+      m_gpuContext->PSSetShaderResources(
+          IMAGE_TEXTURE_IDX,
+          1,
+          imageTextureD3D->srvAddressOf());
+    }
+
+    {
+      // we should never get a sampler option that is greater then our
+      // array size
+      assert(
+          batch.imageSampler.asKey() < ImageSampler::MAX_SAMPLER_PERMUTATIONS);
+      ID3D11SamplerState* samplers[1] = {
+          m_samplerStates[batch.imageSampler.asKey()].Get()};
+      m_gpuContext->PSSetSamplers(IMAGE_TEXTURE_IDX, 1, samplers);
+    }
+
+    if (dsColorUAV != NULL)
+    {
+      const bool
+          batchUsesUAV = enums::is_flag_set(
+                             shaderFeatures,
+                             gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+                         !enums::is_flag_set(
+                             shaderMiscFlags,
+                             gpu::ShaderMiscFlags::fixedFunctionColorOutput);
+      if (batchUsesUAV != dsColorBoundAsUAV)
+      {
+        dsColorBoundAsUAV = batchUsesUAV;
+        if (batchUsesUAV)
+        {
+          static_assert(COLOR_PLANE_IDX == 0);
+          m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
+              0,
+              NULL,
+              dsDepthStencilView,
+              COLOR_PLANE_IDX,
+              1,
+              &dsColorUAV,
+              NULL);
+        }
+        else
+        {
+          m_gpuContext->OMSetRenderTargets(1, &dsColorRTV, dsDepthStencilView);
+        }
+      }
+    }
+
+    gpu::PipelineState dsPipelineState;
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    {
+      gpu::get_pipeline_state(
+          batch,
+          desc,
+          m_platformFeatures,
+          &dsPipelineState);
+      applyDepthStencilPipelineState(dsPipelineState, desc.wireframe);
+    }
+
+    switch (drawType)
+    {
+      case DrawType::midpointFanPatches:
+      case DrawType::midpointFanCenterAAPatches:
+      case DrawType::outerCurvePatches:
+      {
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(
+            m_patchIndexBuffer.Get(),
+            DXGI_FORMAT_R16_UINT,
+            0);
+        m_gpuContext->RSSetState(m_backCulledRasterState[desc.wireframe].Get());
+        DrawUniforms drawUniforms(batch.baseElement);
+        m_gpuContext->UpdateSubresource(
+            m_drawUniforms.Get(),
+            0,
+            NULL,
+            &drawUniforms,
+            0,
+            0);
+        RIVE_PROF_GPUNAME_L(2, "Patches");
+        m_gpuContext->DrawIndexedInstanced(
+            batch.indexCountPerInstance,
+            batch.elementCount,
+            batch.baseIndex,
+            0,
+            batch.baseElement);
+        break;
+      }
+      case DrawType::interiorTriangulation:
+      case DrawType::featherAtlasBlit:
+      {
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->RSSetState(m_backCulledRasterState[desc.wireframe].Get());
+        RIVE_PROF_GPUNAME_L(
+            2,
+            drawType == DrawType::featherAtlasBlit ? "featherAtlasBlit"
+                                                   : "interiorTriangulation");
+        m_gpuContext->Draw(batch.elementCount, batch.baseElement);
+        break;
+      }
+      case DrawType::imageRect:
+      {
+        RIVE_PROF_GPUNAME_L(2, "imageRect");
+
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(
+            m_imageRectIndexBuffer.Get(),
+            DXGI_FORMAT_R16_UINT,
+            0);
+        m_gpuContext->RSSetState(
+            m_doubleSidedRasterState[desc.wireframe].Get());
+        m_gpuContext->DrawIndexedInstanced(
+            batch.indexCountPerInstance,
+            batch.elementCount,
+            batch.baseIndex,
+            0,
+            batch.baseElement);
+        break;
+      }
+      case DrawType::imageMesh:
+      {
+        RIVE_PROF_GPUNAME_L(2, "imageMesh");
+        LITE_RTTI_CAST_OR_BREAK(
+            vertexBuffer,
+            RenderBufferD3DImpl*,
+            batch.vertexBuffer);
+        LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferD3DImpl*, batch.uvBuffer);
+        LITE_RTTI_CAST_OR_BREAK(
+            indexBuffer,
+            RenderBufferD3DImpl*,
+            batch.indexBuffer);
+        ID3D11Buffer* imageMeshBuffers[] = {
+            vertexBuffer->buffer(),
+            uvBuffer->buffer()};
+        UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
+        UINT imageMeshOffsets[] = {0, 0};
+        m_gpuContext->IASetVertexBuffers(
+            IMAGE_MESH_VERTEX_DATA_SLOT,
+            2,
+            imageMeshBuffers,
+            imageMeshStrides,
+            imageMeshOffsets);
+        static_assert(
+            IMAGE_MESH_UV_DATA_SLOT == IMAGE_MESH_VERTEX_DATA_SLOT + 1);
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(
+            indexBuffer->buffer(),
+            DXGI_FORMAT_R16_UINT,
+            0);
+        m_gpuContext->RSSetState(
+            m_doubleSidedRasterState[desc.wireframe].Get());
+        m_gpuContext->DrawIndexedInstanced(
+            batch.indexCountPerInstance,
+            batch.elementCount,
+            batch.baseIndex,
+            0,
+            batch.baseElement);
+        break;
+      }
+      case DrawType::renderPassResolve:
+      {
+        RIVE_PROF_GPUNAME_L(1, "renderPassResolve");
+
+        assert(desc.interlockMode == gpu::InterlockMode::atomics);
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
+        if (renderPassHasCoalescedResolveAndTransfer)
+        {
+          // Bind the actual target texture as the render target for
+          // the PLS resolve, so we don't have to copy to it after the
+          // render pass. (And ince we're changing the render target,
+          // this also better be the final batch of the render pass.)
+          assert(&batch == desc.drawList->tail());
+          assert(!desc.fixedFunctionColorOutput);
+          assert(!renderTarget->targetTextureSupportsUAV());
+          ID3D11RenderTargetView* resolveRTV = renderTarget->targetRTV();
+          ID3D11UnorderedAccessView* resolveUAVs[] = {
+              renderTarget->clipUAV(),
+              renderTarget->targetUAV(), // Bind the target UAV (for reading)
+                                         // to a different slot for the
+                                         // resolve because D3D doesn't let us
+                                         // use slot 0 when there's a render
+                                         // target.
+              renderTarget->coverageUAV(),
+          };
+          static_assert(CLIP_PLANE_IDX == 1);
+          static_assert(COALESCED_OFFSCREEN_COLOR_PLANE_IDX == 2);
+          static_assert(COVERAGE_PLANE_IDX == 3);
+          m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
+              1,
+              &resolveRTV,
+              NULL,
+              1,
+              std::size(resolveUAVs),
+              resolveUAVs,
+              NULL);
+        }
+        m_gpuContext->Draw(4, 0);
+      }
+      break;
+      case DrawType::stencilMidpointFanBorrowedCoverage:
+      case DrawType::stencilMidpointFans:
+      case DrawType::stencilMidpointFanReset:
+      case DrawType::stencilMidpointFanWinding:
+      case DrawType::stencilMidpointFanCover:
+      case DrawType::stencilOuterCubicBorrowedCoverage:
+      case DrawType::stencilOuterCubicReset:
+      case DrawType::stencilOuterCubicWinding:
+      case DrawType::stencilOuterCubicCover:
+      case DrawType::stencilOuterCubics:
+      case DrawType::depthStrokes:
+      case DrawType::depthAAStrokes:
+      case DrawType::depthAAOuterHairline:
+      {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        RIVE_PROF_GPUNAME_L(2, "depthStencilFill");
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(
+            m_patchIndexBuffer.Get(),
+            DXGI_FORMAT_R16_UINT,
+            0);
+        for (auto [chunkIndexCount, chunkBaseVertex] :
+             gpu::DSIndexRangeChunker(batch))
+        {
+          DrawUniforms drawUniforms(0, static_cast<uint32_t>(chunkBaseVertex));
+          m_gpuContext->UpdateSubresource(
+              m_drawUniforms.Get(),
+              0,
+              NULL,
+              &drawUniforms,
+              0,
+              0);
+          m_gpuContext->DrawIndexed(chunkIndexCount, batch.baseIndex, 0);
+        }
+        break;
+      }
+      case DrawType::stencilDynamicMidpointFans:
+      case DrawType::stencilDynamicOuterCubics:
+      {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        RIVE_PROF_GPUNAME_L(2, "depthStencilDynamicFill");
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(
+            m_patchIndexBuffer.Get(),
+            DXGI_FORMAT_R16_UINT,
+            0);
+        for (DrawType pass :
+             {DrawType::stencilMidpointFanBorrowedCoverage,
+              DrawType::stencilMidpointFans,
+              DrawType::stencilMidpointFanReset})
+        {
+          gpu::PipelineState passState = gpu::get_pipeline_state(
+              pass,
+              desc.interlockMode,
+              batch.shaderMiscFlags,
+              batch.drawContents,
+              desc.fixedFunctionColorOutput,
+              batch.firstBlendMode,
+              m_platformFeatures);
+          applyDepthStencilPipelineState(passState, desc.wireframe);
+          for (auto [chunkIndexCount, chunkBaseVertex] :
+               gpu::DSIndexRangeChunker(
+                   batch,
+                   passState.colorWriteEnabled
+                       ? 0
+                       : VERTEX_FLAG_DISABLE_COLOR_WRITE))
+          {
+            DrawUniforms drawUniforms(
+                0,
+                static_cast<uint32_t>(chunkBaseVertex));
+            m_gpuContext->UpdateSubresource(
+                m_drawUniforms.Get(),
+                0,
+                NULL,
+                &drawUniforms,
+                0,
+                0);
+            m_gpuContext->DrawIndexed(chunkIndexCount, batch.baseIndex, 0);
+          }
+        }
+        break;
+      }
+      case DrawType::clipReset:
+      {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        RIVE_PROF_GPUNAME_L(2, "clipReset");
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        DrawUniforms drawUniforms(0);
+        m_gpuContext->UpdateSubresource(
+            m_drawUniforms.Get(),
+            0,
+            NULL,
+            &drawUniforms,
+            0,
+            0);
+        m_gpuContext->Draw(batch.elementCount, batch.baseElement);
+        break;
+      }
+      case DrawType::renderPassInitialize:
+        RIVE_UNREACHABLE();
+    }
+  }
+
+  if ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+       desc.interlockMode == gpu::InterlockMode::depthStencil) &&
+      !desc.fixedFunctionColorOutput &&
+      !renderTarget->targetTextureSupportsUAV())
+  {
+    RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");
+
+    // We rendered to an offscreen UAV and did not resolve to the
+    // renderTarget. Copy back to the main target.
+    assert(!desc.fixedFunctionColorOutput);
+    assert(!renderPassHasCoalescedResolveAndTransfer);
+    blit_sub_rect(
+        m_gpuContext.Get(),
+        renderTarget->targetTexture(),
+        renderTarget->offscreenTexture(),
+        desc.renderTargetUpdateBounds);
+  }
 }
 } // namespace rive::gpu

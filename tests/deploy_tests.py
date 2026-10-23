@@ -50,6 +50,16 @@ METAL_SHADER_VALIDATION_ENV = {
     "MTL_SHADER_VALIDATION_REPORT_TO_STDERR": "1",
 }
 
+windows_ctrl_c_handler = None
+def register_ctrl_c_handler(handler):
+    if sys.platform == "win32":
+        # Python on Windows doesn't handle ctrl-C via SIGINT so we'll
+        # handle it a different way.
+        global windows_ctrl_c_handler
+        windows_ctrl_c_handler = handler
+    else:
+        signal.signal(signal.SIGINT, handler)
+
 # The Metal validation vars for this run, or {} if it doesn't get validation.
 def metal_validation_env():
     # NOTE: MoltenVK generates Metal validation errors right now, so only turn
@@ -197,9 +207,10 @@ def get_input():
 
 def cancel_input():
     global input_cancelled
-    with input_lock:
-        input_cancelled = True
-        input_received_cond.notify_all()
+    if input_lock:
+        with input_lock:
+            input_cancelled = True
+            input_received_cond.notify_all()
 
 class text_colors:
     ERROR = '\033[91m'
@@ -211,23 +222,38 @@ class CheckProcess(threading.Thread):
         threading.Thread.__init__(self)
         self.cmd = cmd
         if args.server_only:
-            self.cmd = ["echo", "\n    <command> "] + ['"%s"' % arg for arg in self.cmd]
-        if args.verbose:
-            print(' '.join(self.cmd), flush=True)
-        if shutil.which(self.cmd[0]) is None:
+            # We're not running a client, so clear the command.
+            self.cmd = None
+
+        if args.verbose or (self.cmd != None and self.cmd[0] == ""):
+            # We were given a blank command, which means we want to
+            # print the rest of the command pieces.
+            print(' '.join(self.cmd[1:]), flush=True)
+
+        if self.cmd == None or self.cmd[0] == "":
+            # We've opted to not run a client.
+            self.proc = None
+        elif shutil.which(self.cmd[0]) is None:
+            # We wanted to run a client but it can't be found.
             print(f'{text_colors.ERROR}' + self.cmd[0] + ' does not exist!' + f'{text_colors.ENDCOL}')
+            raise
         else:
             self.proc = subprocess.Popen(self.cmd, env=env)
         self._did_terminate = False
 
     def run(self):
-        self.proc.wait()
-        if not self._did_terminate and self.proc.returncode != 0:
+        if self.proc:
+            self.proc.wait()
+            returnCode = self.proc.returncode
+        else:
+            returnCode = 0
+        if not self._did_terminate and returnCode != 0:
             os._exit(self.proc.returncode)
 
     def terminate(self):
         self._did_terminate = True
-        self.proc.terminate()
+        if self.proc:
+            self.proc.terminate()
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -251,6 +277,7 @@ def start_http_server(directory, server_ip):
     http_port_ready_event = threading.Event()
 
     class COOPHandler(http.server.SimpleHTTPRequestHandler):
+
         def end_headers(self):
             # Serve cross-origin isolated pages so SharedArrayBuffer is defined
             # for emscripten POSIX emulation.
@@ -262,6 +289,12 @@ def start_http_server(directory, server_ip):
             # Suppress default HTTP logs like:
             # 127.0.0.1 - - [22/Aug/2025 13:37:00] "GET /index.html HTTP/1.1" 200 -
             pass
+
+    # Some browsers will disallow loading scripts unless the MIME type is set
+    # correctly, so this will ensure that every instance of COOPHandler sets
+    # the MIME type for .mjs files.
+    COOPHandler.extensions_map[".mjs"] = "text/javascript"
+
 
     handler = functools.partial(COOPHandler, directory=directory)
 
@@ -615,7 +648,9 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         elif args.webclient:
             client = shlex.split(args.webclient)
         else:
-            client = ["echo", "\nPlease navigate your web client to:\n\n"]
+            # A blank first element means "no command to run", which will cause the
+            # rest of the entries to print out to the terminal.
+            client = ["", "\nPlease navigate your web client to:\n\n"]
         return client + ["http://%s:%u/%s.html#%s" % (*test_harness_server.http_address,
                                                       toolname,
                                                       '%20'.join(cmd[1:]))]
@@ -763,6 +798,9 @@ UNREAL_INTERLOCK_OVERRIDES = {
     "": "raster",
     "atomic": "atomics",
     "msaa": "msaa",
+    "msaa1": "msaa1",
+    "cwmsaa1": "cwmsaa1",
+    "cwib": "cwib",
 }
 
 SUPPORTED_UNREAL_BACKENDS = {
@@ -1003,7 +1041,7 @@ def main():
             args.backend = "gl"
     elif args.target == "console":
         args.jobs_per_tool = 1
-        args.remote = True 
+        args.remote = True
     else:
         assert(args.target == "host")
         if args.builddir == None:
@@ -1169,7 +1207,7 @@ def main():
         serial_deploy = not args.server_only and ("ios" in args.target or
                                                   args.target == "android" or
                                                   "unreal" in args.target or
-                                                  args.target.startswith("web") or 
+                                                  args.target.startswith("web") or
                                                   args.target == "console")
         procs = []
 
@@ -1179,14 +1217,12 @@ def main():
         SERIAL_TARGET_TERMINATE_SECONDS = 1.5
 
         def keyboard_interrupt_handler(signal, frame):
-            if os.name == "nt":
-                print("^C", end="", flush=True)
             cancel_input()
             for proc in procs:
                 proc.terminate()
             if not test_harness_server.wait_for_shutdown_event(1.5):
                 test_harness_server.synthesize_shutdown_event()
-        signal.signal(signal.SIGINT, keyboard_interrupt_handler)
+        register_ctrl_c_handler(keyboard_interrupt_handler)
 
         if "gms" in args.tools:
             os.makedirs(args.outdir, exist_ok=True)
@@ -1248,5 +1284,52 @@ def main():
 
     return 0
 
+# Windows doesn't handle ctrl-C natively so we're going to run
+# main in another thread and then poll the keyboard instead.
+def run_win32_main():
+    import msvcrt
+
+    # Want to get the return value from main, and strangely thread.join
+    # doesn't handle that, so do it this way
+    result = None
+    def run_main():
+        nonlocal result
+        result = main()
+
+    thread = threading.Thread(target=run_main)
+    thread.daemon = True
+    thread.start()
+    while thread.is_alive():
+        # Test for the CTRL-C key
+        if msvcrt.kbhit() and msvcrt.getch() == b'\x03':
+            print("\033[91mCTRL-C pressed, exiting\033[0m")
+            global windows_ctrl_c_handler
+            if windows_ctrl_c_handler:
+                # If we have a handler, run it to finish gracefully
+                # (it takes two arguments but we don't care about either)
+                windows_ctrl_c_handler(None, None)
+
+                # Wait for up to 2 seconds for the thread to finish on its own
+                thread.join(2.0)
+                if thread.is_alive():
+                    # Give it another 8 seconds after printing that we're waiting
+                    print("Attempting to shut down....")
+                    thread.join(8.0)
+                    if thread.is_alive():
+                        print("\033[91mCould not shut down gracefully, ending process\033[0m")
+                        os._exit(-1)
+                break
+            else:
+                # No handler, so force-exit the process.
+                os._exit(-1)
+        time.sleep(0.25)
+    thread.join()
+
+    return result if result != None else -1
+
 if __name__ == "__main__":
-    sys.exit(main())
+    if sys.platform == "win32":
+        sys.exit(run_win32_main())
+    else:
+        # Non-windows can just run main() directly and return when done.
+        sys.exit(main())

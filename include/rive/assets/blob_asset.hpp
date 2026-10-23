@@ -8,13 +8,13 @@ namespace rive
 class BlobAsset : public BlobAssetBase
 {
 public:
-    bool decode(SimpleArray<uint8_t>&, Factory*) override;
-    std::string fileExtension() const override;
+  bool decode(SimpleArray<uint8_t>&, Factory*) override;
+  std::string fileExtension() const override;
 
-    Span<const uint8_t> bytes() const { return m_bytes; }
+  Span<const uint8_t> bytes() const { return m_bytes; }
 
 private:
-    SimpleArray<uint8_t> m_bytes;
+  SimpleArray<uint8_t> m_bytes;
 };
 } // namespace rive
 

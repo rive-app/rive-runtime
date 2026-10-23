@@ -1,0 +1,558 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source of assets/semantic/nested_collapse.riv, for
+      semantic_nested_collapse_test.cpp. A layout hides and shows artboards
+      nested four deep; every semantic node under it must come back on show,
+      except the ones hidden for a reason of their own. No fonts: every node
+      carries an explicit label, so the build stays a few KB. Rebuild with
+      `rive assets/rml/semantic_nested_collapse --once` and copy
+      assets/rml/semantic_nested_collapse/build/semantic_nested_collapse.riv
+      over assets/semantic/nested_collapse.riv.
+      Ids: 0:* converters, 1:* Collapse, 2:* Outer, 3:* Middle, 4:* Inner,
+      5:* Active, 6:* Inactive, 7:* Row, 8:* Bare, 9:* Leaf, 10:* TieA,
+      11:* TieB, 12:* Deep.
+    -->
+
+    <!-- ====================================================================
+         Collapse: the host. The button flips `visible`; the state machine
+         keys the Screen box's display from it, as an editor file would.
+         ==================================================================== -->
+    <Artboard defaultStateMachineId="1:50" viewModelId="1:100" viewModelInstanceId="1:110"
+              x="0" y="0" styleId="1:9" width="480" height="720" name="Collapse" id="1:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="1:9"/>
+        <Fill name="Background"><SolidColor colorValue="FF000000" name="C"/></Fill>
+
+        <LayoutComponent clip="false" styleId="1:4" name="Root" id="1:3">
+            <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                  layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                  paddingLeft="16" paddingRight="16" paddingTop="16" paddingBottom="16"
+                                  paddingLeftUnitsValue="points" paddingRightUnitsValue="points"
+                                  paddingTopUnitsValue="points" paddingBottomUnitsValue="points"
+                                  gapVertical="16" gapVerticalUnitsValue="points"
+                                  name="Root Style" id="1:4"/>
+
+            <LayoutComponent clip="false" height="48" styleId="1:6" name="Toggle" id="1:5">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed"
+                                      cornerRadiusTL="4" cornerRadiusTR="4" cornerRadiusBL="4" cornerRadiusBR="4"
+                                      name="Toggle Style" id="1:6"/>
+                <SemanticData role="button" label="Hide or show" name="Semantics"/>
+                <Fill name="F"><SolidColor colorValue="FF19F2FF" name="C"/></Fill>
+            </LayoutComponent>
+
+            <!-- The box whose display the state machine keys. -->
+            <LayoutComponent clip="false" styleId="1:21" name="Screen" id="1:20">
+                <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                      layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                      displayValue="flex"
+                                      paddingLeft="8" paddingRight="8" paddingTop="8" paddingBottom="8"
+                                      paddingLeftUnitsValue="points" paddingRightUnitsValue="points"
+                                      paddingTopUnitsValue="points" paddingBottomUnitsValue="points"
+                                      name="Screen Style" id="1:21"/>
+                <SemanticData role="group" label="Screen" name="Semantics"/>
+                <Fill name="F"><SolidColor colorValue="FF141414" name="C"/></Fill>
+                <NestedArtboardLayout artboardId="2:1" dataBindPathIds="1:100-1:102" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="Outer" id="1:22">
+                    <NestedStateMachine animationId="2:50" name="SM"/>
+                </NestedArtboardLayout>
+            </LayoutComponent>
+        </LayoutComponent>
+
+        <LinearAnimation name="Shown" id="1:70">
+            <KeyedObject objectId="1:21"><KeyedProperty propertyKey="596"><KeyFrameUint value="0" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Hidden" id="1:71">
+            <KeyedObject objectId="1:21"><KeyedProperty propertyKey="596"><KeyFrameUint value="1" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="State Machine 1" id="1:50">
+            <StateMachineLayer name="Display" id="1:60">
+                <AnyState x="200" y="-120"/><ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="1:61"/></EntryState>
+                <AnimationState x="200" animationId="1:70" id="1:61">
+                    <StateTransition stateToId="1:62">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="1:100-1:101" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="1:71" id="1:62">
+                    <StateTransition stateToId="1:61">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="1:100-1:101" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <!-- A pointer click and a screen reader's activate both flip it. -->
+            <StateMachineListener targetId="1:5" name="Flip" id="1:51">
+                <ListenerInputType listenerTypeValue="click"/>
+                <ListenerInputTypeSemantic listenerTypeValue="semanticAction">
+                    <SemanticInput actionType="tap"/>
+                </ListenerInputTypeSemantic>
+                <ListenerViewModelChange fromViewModelProperty="true" fromDataBindId="1:52">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="1:100-1:101" propertyKey="634" id="1:52" converterId="0:21"/>
+                        <DataBindContext sourcePathIds="1:100-1:101" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Outer: one level in. A root group holding a box its own layout hides, a
+         Solo whose inactive child hosts an artboard, a list of rows, and
+         Middle.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="2:50" viewModelId="2:100" viewModelInstanceId="2:110"
+              x="560" y="0" styleId="2:9" width="440" height="720" name="Outer" id="2:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="2:9"/>
+        <LayoutComponent clip="false" styleId="2:4" name="Root" id="2:3">
+            <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                  layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                  gapVertical="8" gapVerticalUnitsValue="points"
+                                  name="Root Style" id="2:4"/>
+            <SemanticData role="group" label="Outer" name="Semantics"/>
+            <!-- Hidden by its own layout: no outer show may bring it back. -->
+            <LayoutComponent clip="false" height="40" styleId="2:8" name="Outer details" id="2:7">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" displayValue="none" name="Outer details Style" id="2:8"/>
+                <LayoutComponent clip="false" height="40" styleId="2:11" name="Outer details box" id="2:10">
+                    <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Outer details box Style" id="2:11"/>
+                    <SemanticData role="text" label="Outer details" name="Semantics"/>
+                    <Fill name="F"><SolidColor colorValue="FF5C5C5C" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+            <!-- Active shows; Inactive is collapsed by the Solo, and its
+                 artboard's node must stay out after the outer show. -->
+            <LayoutComponent clip="false" height="40" styleId="2:13" name="Solo slot" id="2:12">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Solo slot Style" id="2:13"/>
+                <Solo activeComponentId="2:15" name="Solo" id="2:14">
+                    <NestedArtboard artboardId="5:1" x="0" y="0" name="Active" id="2:15">
+                        <NestedStateMachine animationId="5:50" name="SM"/>
+                    </NestedArtboard>
+                    <NestedArtboard artboardId="6:1" x="0" y="0" name="Inactive" id="2:16">
+                        <NestedStateMachine animationId="6:50" name="SM"/>
+                    </NestedArtboard>
+                </Solo>
+            </LayoutComponent>
+            <LayoutComponent clip="false" styleId="2:18" name="Rows" id="2:17">
+                <LayoutComponentStyle flexDirectionValue="column" layoutWidthScaleType="fill" layoutHeightScaleType="hug"
+                                      gapVertical="8" gapVerticalUnitsValue="points"
+                                      name="Rows Style" id="2:18"/>
+                <ArtboardComponentList name="List" id="2:19">
+                    <DataBindContext sourcePathIds="2:100-2:101" propertyKey="800"/>
+                </ArtboardComponentList>
+            </LayoutComponent>
+            <!-- Two placements at the same spot: their nodes tie on position, and
+                 hiding and showing one must not swap their reading order. -->
+            <LayoutComponent clip="false" height="32" styleId="2:34" name="Tie slot" id="2:33">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Tie slot Style" id="2:34"/>
+                <NestedArtboard artboardId="10:1" x="0" y="0" name="Tie A host" id="2:35">
+                    <NestedStateMachine animationId="10:50" name="SM"/>
+                </NestedArtboard>
+                <NestedArtboard artboardId="11:1" x="0" y="0" name="Tie B host" id="2:36">
+                    <NestedStateMachine animationId="11:50" name="SM"/>
+                </NestedArtboard>
+            </LayoutComponent>
+            <!-- Bare has no SemanticData above the Leaf it hosts. Hiding this
+                 slot must still hide Bare leaf, and Bare leaf is read between
+                 the header and footer it sits between. -->
+            <LayoutComponent clip="false" height="112" styleId="2:31" name="Bare slot" id="2:30">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" displayValue="flex" name="Bare slot Style" id="2:31"/>
+                <NestedArtboardLayout artboardId="8:1" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="Bare" id="2:32">
+                    <NestedStateMachine animationId="8:50" name="SM"/>
+                </NestedArtboardLayout>
+            </LayoutComponent>
+            <NestedArtboardLayout artboardId="3:1" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="Middle" id="2:20">
+                <NestedStateMachine animationId="3:50" name="SM"/>
+            </NestedArtboardLayout>
+        </LayoutComponent>
+        <LinearAnimation name="Details hidden" id="2:70">
+            <KeyedObject objectId="2:8"><KeyedProperty propertyKey="596"><KeyFrameUint value="1" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Details shown" id="2:71">
+            <KeyedObject objectId="2:8"><KeyedProperty propertyKey="596"><KeyFrameUint value="0" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="List hidden" id="2:72">
+            <KeyedObject objectId="2:18"><KeyedProperty propertyKey="596"><KeyFrameUint value="1" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="List shown" id="2:73">
+            <KeyedObject objectId="2:18"><KeyedProperty propertyKey="596"><KeyFrameUint value="0" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Solo first" id="2:74">
+            <KeyedObject objectId="2:14"><KeyedProperty propertyKey="296"><KeyFrameId value="2:15"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Solo second" id="2:75">
+            <KeyedObject objectId="2:14"><KeyedProperty propertyKey="296"><KeyFrameId value="2:16"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Bare hidden" id="2:76">
+            <KeyedObject objectId="2:31"><KeyedProperty propertyKey="596"><KeyFrameUint value="1" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Bare shown" id="2:77">
+            <KeyedObject objectId="2:31"><KeyedProperty propertyKey="596"><KeyFrameUint value="0" interpolationType="hold"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="State Machine 1" id="2:50">
+            <StateMachineLayer name="Details" id="2:60">
+                <AnyState x="200" y="-120"/><ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="2:80"/></EntryState>
+                <AnimationState x="200" animationId="2:70" id="2:80">
+                    <StateTransition stateToId="2:81">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:102" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="2:71" id="2:81">
+                    <StateTransition stateToId="2:80">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:102" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="List" id="2:61">
+                <AnyState x="200" y="-120"/><ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="2:83"/></EntryState>
+                <AnimationState x="200" animationId="2:72" id="2:82">
+                    <StateTransition stateToId="2:83">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:103" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="2:73" id="2:83">
+                    <StateTransition stateToId="2:82">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:103" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Solo" id="2:62">
+                <AnyState x="200" y="-120"/><ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="2:84"/></EntryState>
+                <AnimationState x="200" animationId="2:74" id="2:84">
+                    <StateTransition stateToId="2:85">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:104" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="2:75" id="2:85">
+                    <StateTransition stateToId="2:84">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:104" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Bare" id="2:63">
+                <AnyState x="200" y="-120"/><ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="2:87"/></EntryState>
+                <AnimationState x="200" animationId="2:76" id="2:86">
+                    <StateTransition stateToId="2:87">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:105" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="2:77" id="2:87">
+                    <StateTransition stateToId="2:86">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:100-2:105" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <!-- A screen reader's activate on Outer sets `tapped`; it must not
+                 arrive while Outer is hidden. -->
+            <StateMachineListener targetId="2:3" name="Tap" id="2:51">
+                <ListenerInputTypeSemantic listenerTypeValue="semanticAction">
+                    <SemanticInput actionType="tap"/>
+                </ListenerInputTypeSemantic>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true"><DataBindContext sourcePathIds="2:100-2:106" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Middle: two levels in. A root group holding Inner.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="3:50"
+              x="560" y="760" styleId="3:9" width="420" height="200" name="Middle" id="3:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="3:9"/>
+        <LayoutComponent clip="false" styleId="3:4" name="Root" id="3:3">
+            <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                  layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                  gapVertical="8" gapVerticalUnitsValue="points"
+                                  name="Root Style" id="3:4"/>
+            <SemanticData role="group" label="Middle" name="Semantics"/>
+            <FocusData name="Focus"/>
+            <NestedArtboardLayout artboardId="4:1" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="Inner" id="3:7">
+                <NestedStateMachine animationId="4:50" name="SM"/>
+            </NestedArtboardLayout>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="3:50">
+            <StateMachineLayer name="Layer 1" id="3:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Inner: three levels in. A root group holding a box its own layout hides,
+         and one box carrying two SemanticData, which must land beside each
+         other rather than under each other.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="4:50"
+              x="560" y="1040" styleId="4:9" width="400" height="140" name="Inner" id="4:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="4:9"/>
+        <!-- Two SemanticData on the artboard itself, the root case: nothing
+             above them in this artboard, so both belong under its boundary. -->
+        <SemanticData role="text" label="Root A" name="Semantics Root A"/>
+        <SemanticData role="text" label="Root B" name="Semantics Root B"/>
+        <!-- Placed on the artboard itself. SemanticData on the artboard is
+             skipped, so Deep's boundary hangs under Inner's and Deep leaf
+             reads under Middle. -->
+        <NestedArtboard artboardId="12:1" x="300" y="120" name="Deep host" id="4:20">
+            <NestedStateMachine animationId="12:50" name="SM"/>
+        </NestedArtboard>
+        <LayoutComponent clip="false" styleId="4:4" name="Root" id="4:3">
+            <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                  layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                  gapVertical="8" gapVerticalUnitsValue="points"
+                                  name="Root Style" id="4:4"/>
+            <SemanticData role="group" label="Inner" name="Semantics"/>
+            <LayoutComponent clip="false" height="40" styleId="4:8" name="Inner details" id="4:7">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" displayValue="none" name="Inner details Style" id="4:8"/>
+                <LayoutComponent clip="false" height="40" styleId="4:11" name="Inner details box" id="4:10">
+                    <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Inner details box Style" id="4:11"/>
+                    <SemanticData role="text" label="Inner details" name="Semantics"/>
+                    <Fill name="F"><SolidColor colorValue="FF5C5C5C" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+            <LayoutComponent clip="false" height="40" styleId="4:13" name="Siblings" id="4:12">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Siblings Style" id="4:13"/>
+                <SemanticData role="text" label="Sibling A" name="Semantics A"/>
+                <SemanticData role="text" label="Sibling B" name="Semantics B"/>
+                <Fill name="F"><SolidColor colorValue="FF71FF19" name="C"/></Fill>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="4:50">
+            <StateMachineLayer name="Layer 1" id="4:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Active and Inactive: the Solo's two children.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="5:50"
+              x="1080" y="0" styleId="5:9" width="200" height="40" name="Active" id="5:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="5:9"/>
+        <Shape x="100" y="20" name="Box" id="5:2">
+            <Rectangle width="200" height="40" name="P"/>
+            <SemanticData role="text" label="Solo active" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF3084FF" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="5:50">
+            <StateMachineLayer name="Layer 1" id="5:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="6:50"
+              x="1080" y="120" styleId="6:9" width="200" height="40" name="Inactive" id="6:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="6:9"/>
+        <Shape x="100" y="20" name="Box" id="6:2">
+            <Rectangle width="200" height="40" name="P"/>
+            <SemanticData role="text" label="Solo inactive" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF5C5C5C" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="6:50">
+            <StateMachineLayer name="Layer 1" id="6:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Bare: no SemanticData above the Leaf it hosts. Header, leaf and
+         footer stack top to bottom and must be read in that order.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="8:50"
+              x="1080" y="400" styleId="8:9" width="400" height="112" name="Bare" id="8:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="8:9"/>
+        <LayoutComponent clip="false" styleId="8:4" name="Root" id="8:3">
+            <LayoutComponentStyle flexDirectionValue="column" layoutAlignmentType="topLeft"
+                                  layoutWidthScaleType="fill" layoutHeightScaleType="fill"
+                                  gapVertical="8" gapVerticalUnitsValue="points"
+                                  name="Root Style" id="8:4"/>
+            <LayoutComponent clip="false" height="24" styleId="8:6" name="Header" id="8:5">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Header Style" id="8:6"/>
+                <SemanticData role="text" label="Bare header" name="Semantics"/>
+                <Fill name="F"><SolidColor colorValue="FFA0A0A0" name="C"/></Fill>
+            </LayoutComponent>
+            <NestedArtboardLayout artboardId="9:1" instanceWidthScaleType="fill" instanceHeight="24" name="Leaf" id="8:7">
+                <NestedStateMachine animationId="9:50" name="SM"/>
+            </NestedArtboardLayout>
+            <LayoutComponent clip="false" height="24" styleId="8:11" name="Footer" id="8:10">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fixed" name="Footer Style" id="8:11"/>
+                <SemanticData role="text" label="Bare footer" name="Semantics"/>
+                <Fill name="F"><SolidColor colorValue="FFA0A0A0" name="C"/></Fill>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="8:50">
+            <StateMachineLayer name="Layer 1" id="8:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="9:50"
+              x="1080" y="560" styleId="9:9" width="400" height="24" name="Leaf" id="9:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="9:9"/>
+        <LayoutComponent clip="false" styleId="9:4" name="Root" id="9:3">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="Root Style" id="9:4"/>
+            <SemanticData role="text" label="Bare leaf" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF19F2FF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="9:50">
+            <StateMachineLayer name="Layer 1" id="9:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard isComponent="true" defaultStateMachineId="10:50"
+              x="1080" y="700" styleId="10:9" width="200" height="32" name="TieA" id="10:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="10:9"/>
+        <Shape x="100" y="16" name="Box" id="10:2">
+            <Rectangle width="200" height="32" name="P"/>
+            <SemanticData role="text" label="Tie A" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF3084FF" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="10:50">
+            <StateMachineLayer name="Layer 1" id="10:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="11:50"
+              x="1080" y="760" styleId="11:9" width="200" height="32" name="TieB" id="11:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="11:9"/>
+        <Shape x="100" y="16" name="Box" id="11:2">
+            <Rectangle width="200" height="32" name="P"/>
+            <SemanticData role="text" label="Tie B" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF3084FF" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="11:50">
+            <StateMachineLayer name="Layer 1" id="11:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard isComponent="true" defaultStateMachineId="12:50"
+              x="1080" y="820" styleId="12:9" width="200" height="32" name="Deep" id="12:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="12:9"/>
+        <Shape x="100" y="16" name="Box" id="12:2">
+            <Rectangle width="200" height="32" name="P"/>
+            <SemanticData role="text" label="Deep leaf" name="Semantics"/>
+            <Fill name="F"><SolidColor colorValue="FF71FF19" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="12:50">
+            <StateMachineLayer name="Layer 1" id="12:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ====================================================================
+         Row: one item of Outer's component list, labelled from its data.
+         ==================================================================== -->
+    <Artboard isComponent="true" defaultStateMachineId="7:50" viewModelId="7:100" viewModelInstanceId="7:110"
+              x="1080" y="240" styleId="7:9" width="400" height="32" name="Row" id="7:1">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Style" id="7:9"/>
+        <LayoutComponent clip="false" styleId="7:4" name="Root" id="7:3">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="Root Style" id="7:4"/>
+            <SemanticData role="text" label="Row" name="Semantics">
+                <DataBindContext sourcePathIds="7:100-7:101" propertyKey="983"/>
+            </SemanticData>
+            <Fill name="F"><SolidColor colorValue="FFA0A0A0" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="7:50">
+            <StateMachineLayer name="Layer 1" id="7:60"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+
+    <ComponentAsset artboardId="2:1" name="Outer"/>
+    <ComponentAsset artboardId="3:1" name="Middle"/>
+    <ComponentAsset artboardId="4:1" name="Inner"/>
+    <ComponentAsset artboardId="5:1" name="Active"/>
+    <ComponentAsset artboardId="6:1" name="Inactive"/>
+    <ComponentAsset artboardId="7:1" name="Row"/>
+    <ComponentAsset artboardId="8:1" name="Bare"/>
+    <ComponentAsset artboardId="9:1" name="Leaf"/>
+    <ComponentAsset artboardId="10:1" name="TieA"/>
+    <ComponentAsset artboardId="11:1" name="TieB"/>
+    <ComponentAsset artboardId="12:1" name="Deep"/>
+
+    <DataConverterBooleanNegate name="Not" id="0:21"/>
+
+    <ViewModel defaultInstanceId="1:110" name="Collapse" id="1:100">
+        <ViewModelPropertyBoolean name="visible" id="1:101"/>
+        <ViewModelPropertyViewModel viewModelReferenceId="2:100" name="outer" id="1:102"/>
+        <ViewModelInstance exports="true" name="Default" id="1:110">
+            <ViewModelInstanceBoolean propertyValue="true" viewModelPropertyId="1:101"/>
+            <ViewModelInstanceViewModel propertyValue="2:110" viewModelPropertyId="1:102"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="2:110" name="Outer" id="2:100">
+        <ViewModelPropertyList name="rows" id="2:101"/>
+        <ViewModelPropertyBoolean name="details" id="2:102"/>
+        <ViewModelPropertyBoolean name="listShown" id="2:103"/>
+        <ViewModelPropertyBoolean name="soloSwitched" id="2:104"/>
+        <ViewModelPropertyBoolean name="bare" id="2:105"/>
+        <ViewModelPropertyBoolean name="tapped" id="2:106"/>
+        <ViewModelInstance exports="true" name="Default" id="2:110">
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="2:102"/>
+            <ViewModelInstanceBoolean propertyValue="true" viewModelPropertyId="2:103"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="2:104"/>
+            <ViewModelInstanceBoolean propertyValue="true" viewModelPropertyId="2:105"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="2:106"/>
+            <ViewModelInstanceList viewModelPropertyId="2:101">
+                <ViewModelInstanceListItem viewModelId="7:100" viewModelInstanceId="7:111"/>
+                <ViewModelInstanceListItem viewModelId="7:100" viewModelInstanceId="7:112"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="7:110" name="Row" id="7:100">
+        <ViewModelPropertyString name="label" id="7:101"/>
+        <ViewModelInstance exports="true" name="Default" id="7:110">
+            <ViewModelInstanceString propertyValue="Row" viewModelPropertyId="7:101"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="Row one" id="7:111">
+            <ViewModelInstanceString propertyValue="Row one" viewModelPropertyId="7:101"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="Row two" id="7:112">
+            <ViewModelInstanceString propertyValue="Row two" viewModelPropertyId="7:101"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

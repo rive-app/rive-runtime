@@ -4,9 +4,9 @@ namespace rive
 {
 enum class RandomMode : unsigned char
 {
-    once = 0,
-    always = 1,
-    sourceChange = 2,
+  once = 0,
+  always = 1,
+  sourceChange = 2,
 };
 }
 #endif

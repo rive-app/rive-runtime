@@ -8,6 +8,7 @@
 #include "rive/shapes/path_flags.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
+#include "rive/shapes/paint/artboard_paint_source.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
@@ -22,122 +23,128 @@ class ShapePaint : public ShapePaintBase,
                    public PathProvider
 {
 protected:
-    rcp<RenderPaint> m_RenderPaint;
-    ShapePaintMutator* m_PaintMutator = nullptr;
-    // update() skipped measuring the effects because this paint was fully
-    // transparent. Showing the paint again owes them a run.
-    bool m_effectsDeferred = false;
+  rcp<RenderPaint> m_RenderPaint;
+  ShapePaintMutator* m_PaintMutator = nullptr;
+  // update() skipped measuring the effects because this paint was fully
+  // transparent. Showing the paint again owes them a run.
+  bool m_effectsDeferred = false;
 
 public:
-    StatusCode onAddedClean(CoreContext* context) override;
+  StatusCode onAddedClean(CoreContext* context) override;
 
-    void invalidateEffects(StrokeEffect* effect) override;
-    void invalidateEffects() override;
-    virtual void invalidateRendering();
+  void invalidateEffects(StrokeEffect* effect) override;
+  void invalidateEffects() override;
+  virtual void invalidateRendering();
 
-    float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
-    void renderOpacity(float value);
+  float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
+  void renderOpacity(float value);
 
-    /// Syncs this paint's blend mode onto its RenderPaint. A ShapePaint whose
-    /// blendModeValue is 127 inherits both the mode and the additive amount
-    /// from its parent drawable, hence both parameters.
-    void blendMode(BlendMode parentValue, uint8_t parentAdditiveAmount);
+  /// Syncs this paint's blend mode onto its RenderPaint. A ShapePaint whose
+  /// blendModeValue is 127 inherits both the mode and the additive amount
+  /// from its parent drawable, hence both parameters.
+  void blendMode(BlendMode parentValue, uint8_t parentAdditiveAmount);
 
-    /// 127 in the mode byte means "take the parent drawable's blend mode".
-    bool inheritsBlendMode() const { return blendModeValue() == 127; }
-    BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
+  /// 127 in the mode byte means "take the parent drawable's blend mode".
+  bool inheritsBlendMode() const { return blendModeValue() == 127; }
+  BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
 
-    void additiveAmountChanged() override;
+  void additiveAmountChanged() override;
 
-    void addStrokeEffect(StrokeEffect* effect) override;
+  void addStrokeEffect(StrokeEffect* effect) override;
 
-    /// Creates a RenderPaint object for the provided ShapePaintMutator*.
-    /// This should be called only once as the ShapePaint manages the
-    /// lifecycle of the RenderPaint.
-    virtual RenderPaint* initRenderPaint(ShapePaintMutator* mutator);
+  /// Creates a RenderPaint object for the provided ShapePaintMutator*.
+  /// This should be called only once as the ShapePaint manages the
+  /// lifecycle of the RenderPaint.
+  virtual RenderPaint* initRenderPaint(ShapePaintMutator* mutator);
 
-    virtual PathFlags pathFlags() const = 0;
-    bool isFlagged(PathFlags flags) const
-    {
-        return (int)(pathFlags() & flags) != 0x00;
-    }
+  virtual PathFlags pathFlags() const = 0;
+  bool isFlagged(PathFlags flags) const
+  {
+    return (int)(pathFlags() & flags) != 0x00;
+  }
 
-    virtual void draw(Renderer* renderer,
-                      ShapePaintPath* shapePaintPath,
-                      const Mat2D& transform,
-                      bool usePathFillRule = false,
-                      RenderPaint* overridePaint = nullptr,
-                      bool needsSaveOperation = true);
+  virtual void draw(
+      Renderer* renderer,
+      ShapePaintPath* shapePaintPath,
+      const Mat2D& transform,
+      bool usePathFillRule = false,
+      RenderPaint* overridePaint = nullptr,
+      bool needsSaveOperation = true);
 
-    RenderPaint* renderPaint() { return m_RenderPaint.get(); }
+  RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 
-    /// Get the component that represents the ShapePaintMutator for this
-    /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
-    /// RadialGradient.
-    Component* paint() const { return m_PaintMutator->component(); }
+  /// Get the component that represents the ShapePaintMutator for this
+  /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
+  /// RadialGradient.
+  Component* paint() const { return m_PaintMutator->component(); }
 
-    bool isTranslucent() const
-    {
-        return !this->isVisible() || m_PaintMutator->isTranslucent();
-    }
+  bool isTranslucent() const
+  {
+    return !this->isVisible() || m_PaintMutator->isTranslucent();
+  }
 
-    bool shouldDraw() const
-    {
-        return this->isVisible() && m_PaintMutator->isVisible();
-    }
+  bool shouldDraw() const
+  {
+    return this->isVisible() && m_PaintMutator->isVisible();
+  }
 
-    /// Apply this ShapePaint to an external RenderPaint and optionally modulate
-    /// the opacity by opacityModifer.
-    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) = 0;
+  /// Apply this ShapePaint to an external RenderPaint and optionally modulate
+  /// the opacity by opacityModifer.
+  virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) = 0;
 
-    void feather(Feather* feather);
-    Feather* feather() const;
+  void feather(Feather* feather);
+  Feather* feather() const;
 #ifdef WITH_RIVE_EDITOR
-    /// Set the feather pointer in editor mode (idempotent).
-    void setFeatherForEditor(Feather* f) { m_feather = f; }
-    /// Clear m_feather only if it currently points at `expected`.
-    void clearFeatherIfForEditor(Feather* expected)
+  /// Set the feather pointer in editor mode (idempotent).
+  void setFeatherForEditor(Feather* f) { m_feather = f; }
+  /// Clear m_feather only if it currently points at `expected`.
+  void clearFeatherIfForEditor(Feather* expected)
+  {
+    if (m_feather == expected)
     {
-        if (m_feather == expected)
-        {
-            m_feather = nullptr;
-        }
+      m_feather = nullptr;
     }
-    // Edit-time reparent/remove dispatch — registers this paint into
-    // the new parent's `m_ShapePaints` and removes from the old
-    // parent's. Without this, removing a Fill/Stroke leaves a stale
-    // pointer in the host Shape's m_ShapePaints, which `buildDeps`
-    // and `pathChanged` iterate and crash on. Body in
-    // `component_parent_editor.cpp`.
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
+  }
+  // Edit-time reparent/remove dispatch — registers this paint into
+  // the new parent's `m_ShapePaints` and removes from the old
+  // parent's. Without this, removing a Fill/Stroke leaves a stale
+  // pointer in the host Shape's m_ShapePaints, which `buildDeps`
+  // and `pathChanged` iterate and crash on. Body in
+  // `component_parent_editor.cpp`.
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
 #endif
 
-    virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
-    void update(ComponentDirt value) override;
-    virtual ShapePaintType paintType() const = 0;
+  virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
+  void update(ComponentDirt value) override;
+  virtual ShapePaintType paintType() const = 0;
 
-    TransformComponent* parentTransformComponent() const;
+  TransformComponent* parentTransformComponent() const;
 
 private:
-    /// Install (or clear) the modulating image contributed by the optional
-    /// PaintImage child onto m_RenderPaint, fit to [path]'s bounds. The bounds
-    /// walk every point, so they are only measured when that child exists.
-    void applyModulatedImage(const ShapePaintPath* path);
+  /// Install (or clear) the modulating image contributed by the optional
+  /// PaintImage child onto m_RenderPaint, fit to [path]'s bounds. The bounds
+  /// walk every point, so they are only measured when that child exists.
+  /// [target] receives the renderer the path has to be drawn through, which
+  /// is [renderer] unless an artboard source had to reroute it.
+  void applyModulatedImage(
+      Renderer* renderer,
+      const ShapePaintPath* path,
+      ModulatedDrawTarget* target);
 
-    Feather* m_feather = nullptr;
-    /// Whether this paint has a PaintImage child, and whether it is a Fill,
-    /// both found once all children are known (onAddedClean): draw() needs
-    /// them on every call, and at runtime neither changes after import. They
-    /// sit in padding, so they cost no memory, and only a paint that has the
-    /// child looks it up. The editor can add or remove the child, so it checks
-    /// both on every draw instead.
-    bool m_hasPaintImage = false;
-    bool m_isFill = false;
-    /// Whether the last draw installed a modulating image on m_RenderPaint. The
-    /// paint persists across draws, so we track this to clear it once the
-    /// PaintImage child (or its asset) goes away.
-    bool m_hasModulatedImage = false;
+  Feather* m_feather = nullptr;
+  /// Whether this paint has a PaintImage child, and whether it is a Fill,
+  /// both found once all children are known (onAddedClean): draw() needs
+  /// them on every call, and at runtime neither changes after import. They
+  /// sit in padding, so they cost no memory, and only a paint that has the
+  /// child looks it up. The editor can add or remove the child, so it checks
+  /// both on every draw instead.
+  bool m_hasPaintImage = false;
+  bool m_isFill = false;
+  /// Whether the last draw installed a modulating image on m_RenderPaint. The
+  /// paint persists across draws, so we track this to clear it once the
+  /// PaintImage child (or its asset) goes away.
+  bool m_hasModulatedImage = false;
 };
 } // namespace rive
 

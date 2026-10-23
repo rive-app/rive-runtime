@@ -11,12 +11,12 @@ class TransitionCondition;
 class StateTransitionImporter : public ImportStackObject
 {
 private:
-    StateTransition* m_Transition;
+  StateTransition* m_Transition;
 
 public:
-    StateTransitionImporter(StateTransition* transition);
-    void addCondition(TransitionCondition* condition);
-    StatusCode resolve() override;
+  StateTransitionImporter(StateTransition* transition);
+  void addCondition(TransitionCondition* condition);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

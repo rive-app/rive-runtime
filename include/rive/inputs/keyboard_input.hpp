@@ -8,7 +8,7 @@ namespace rive
 class KeyboardInput : public KeyboardInputBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

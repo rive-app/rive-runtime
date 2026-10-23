@@ -39,151 +39,156 @@ const char* string_from_vk_result(VkResult);
 // Prints a diagnostic if 'res' is a failure; returns whether it succeeded.
 inline static bool vkReportError(VkResult res, const char* file, int line)
 {
-    // Positive codes such as VK_SUBOPTIMAL_KHR are successes.
-    if (res < 0)
-    {
-        fprintf(stderr,
-                "%s:%i: vulkan error: %s (%i)\n",
-                file,
-                line,
-                string_from_vk_result(res),
-                res);
-        return false;
-    }
-    return true;
+  // Positive codes such as VK_SUBOPTIMAL_KHR are successes.
+  if (res < 0)
+  {
+    fprintf(
+        stderr,
+        "%s:%i: vulkan error: %s (%i)\n",
+        file,
+        line,
+        string_from_vk_result(res),
+        res);
+    return false;
+  }
+  return true;
 }
 
 // Same, but also names the resource.
-inline static bool vkReportAllocationError(VkResult res,
-                                           const char* what,
-                                           const char* file,
-                                           int line)
+inline static bool vkReportAllocationError(
+    VkResult res,
+    const char* what,
+    const char* file,
+    int line)
 {
-    if (res != VK_SUCCESS)
-    {
-        fprintf(stderr,
-                "%s:%i: vulkan error: %s (%i) allocating %s\n",
-                file,
-                line,
-                string_from_vk_result(res),
-                res,
-                what);
-        return false;
-    }
-    return true;
+  if (res != VK_SUCCESS)
+  {
+    fprintf(
+        stderr,
+        "%s:%i: vulkan error: %s (%i) allocating %s\n",
+        file,
+        line,
+        string_from_vk_result(res),
+        res,
+        what);
+    return false;
+  }
+  return true;
 }
 
 inline static void vkAbortOnError(VkResult res, const char* file, int line)
 {
-    if (!vkReportError(res, file, line))
-    {
-        abort();
-    }
+  if (!vkReportError(res, file, line))
+  {
+    abort();
+  }
 }
 
 // For call sites that have no way to recover from a driver failure.
 #define VK_ABORT_ON_FAIL(x)                                                    \
-    ::rive::gpu::vkutil::vkAbortOnError(x, __FILE__, __LINE__)
+  ::rive::gpu::vkutil::vkAbortOnError(x, __FILE__, __LINE__)
 
 // For call sites in initialization paths, where a driver failure can be
 // reported back to the client instead of crashing.
 #define VK_RETURN_FALSE_ON_FAIL(x)                                             \
-    do                                                                         \
+  do                                                                           \
+  {                                                                            \
+    if (!::rive::gpu::vkutil::vkReportError(x, __FILE__, __LINE__))            \
     {                                                                          \
-        if (!::rive::gpu::vkutil::vkReportError(x, __FILE__, __LINE__))        \
-        {                                                                      \
-            return false;                                                      \
-        }                                                                      \
-    } while (false)
+      return false;                                                            \
+    }                                                                          \
+  } while (false)
 
 // Prints a diagnostic if the allocation 'x' failed, naming the resource it was
 // for. Evaluates to whether it succeeded.
 #define VK_SUCCEEDED(x, what)                                                  \
-    ::rive::gpu::vkutil::vkReportAllocationError(x, what, __FILE__, __LINE__)
+  ::rive::gpu::vkutil::vkReportAllocationError(x, what, __FILE__, __LINE__)
 
 // The handle a vkCreate*() command writes to its final out parameter.
 template <typename PFN_vkCreate> struct CreatedHandle;
 
 template <typename CreateInfo, typename Handle>
-struct CreatedHandle<VkResult(VKAPI_PTR*)(VkDevice,
-                                          const CreateInfo*,
-                                          const VkAllocationCallbacks*,
-                                          Handle*)>
+struct CreatedHandle<VkResult(VKAPI_PTR*)(
+    VkDevice,
+    const CreateInfo*,
+    const VkAllocationCallbacks*,
+    Handle*)>
 {
-    using type = Handle;
+  using type = Handle;
 };
 
 // Creates a Vulkan object. Prints a diagnostic, bumps
 // vk->allocationFailureCount() and returns VK_NULL_HANDLE if the driver fails.
 #define VK_CREATE_HANDLE(vk, createCommand, pCreateInfo)                       \
-    (vk)->createHandle(&::rive::gpu::VulkanContext::createCommand,             \
-                       pCreateInfo,                                            \
-                       __FILE__,                                               \
-                       __LINE__)
+  (vk)->createHandle(                                                          \
+      &::rive::gpu::VulkanContext::createCommand,                              \
+      pCreateInfo,                                                             \
+      __FILE__,                                                                \
+      __LINE__)
 
 constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
-constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
-    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+constexpr static VkColorComponentFlags
+    kColorWriteMaskRGBA = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 // gpu::PipelineState -> Vulkan conversions.
 inline VkStencilOp vkStencilOp(StencilOp op)
 {
-    switch (op)
-    {
-        case StencilOp::keep:
-            return VK_STENCIL_OP_KEEP;
-        case StencilOp::replace:
-            return VK_STENCIL_OP_REPLACE;
-        case StencilOp::zero:
-            return VK_STENCIL_OP_ZERO;
-        case StencilOp::decrClamp:
-            return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-        case StencilOp::incrWrap:
-            return VK_STENCIL_OP_INCREMENT_AND_WRAP;
-        case StencilOp::decrWrap:
-            return VK_STENCIL_OP_DECREMENT_AND_WRAP;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case StencilOp::keep:
+      return VK_STENCIL_OP_KEEP;
+    case StencilOp::replace:
+      return VK_STENCIL_OP_REPLACE;
+    case StencilOp::zero:
+      return VK_STENCIL_OP_ZERO;
+    case StencilOp::decrClamp:
+      return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    case StencilOp::incrWrap:
+      return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+    case StencilOp::decrWrap:
+      return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+  }
+  RIVE_UNREACHABLE();
 }
 
 inline VkCompareOp vkCompareOp(StencilCompareOp op)
 {
-    switch (op)
-    {
-        case StencilCompareOp::less:
-            return VK_COMPARE_OP_LESS;
-        case StencilCompareOp::equal:
-            return VK_COMPARE_OP_EQUAL;
-        case StencilCompareOp::lessOrEqual:
-            return VK_COMPARE_OP_LESS_OR_EQUAL;
-        case StencilCompareOp::notEqual:
-            return VK_COMPARE_OP_NOT_EQUAL;
-        case StencilCompareOp::always:
-            return VK_COMPARE_OP_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case StencilCompareOp::less:
+      return VK_COMPARE_OP_LESS;
+    case StencilCompareOp::equal:
+      return VK_COMPARE_OP_EQUAL;
+    case StencilCompareOp::lessOrEqual:
+      return VK_COMPARE_OP_LESS_OR_EQUAL;
+    case StencilCompareOp::notEqual:
+      return VK_COMPARE_OP_NOT_EQUAL;
+    case StencilCompareOp::always:
+      return VK_COMPARE_OP_ALWAYS;
+  }
+  RIVE_UNREACHABLE();
 }
 
 inline VkCullModeFlags vkCullMode(CullFace cullFace)
 {
-    switch (cullFace)
-    {
-        case CullFace::none:
-            return VK_CULL_MODE_NONE;
-        case CullFace::clockwise:
-            return VK_CULL_MODE_FRONT_BIT;
-        case CullFace::counterclockwise:
-            return VK_CULL_MODE_BACK_BIT;
-    }
-    RIVE_UNREACHABLE();
+  switch (cullFace)
+  {
+    case CullFace::none:
+      return VK_CULL_MODE_NONE;
+    case CullFace::clockwise:
+      return VK_CULL_MODE_FRONT_BIT;
+    case CullFace::counterclockwise:
+      return VK_CULL_MODE_BACK_BIT;
+  }
+  RIVE_UNREACHABLE();
 }
 
 enum class Mappability
 {
-    none,
-    writeOnly,
-    readWrite,
+  none,
+  writeOnly,
+  readWrite,
 };
 
 // Base class for a GPU resource that needs to be kept alive until any in-flight
@@ -191,317 +196,322 @@ enum class Mappability
 class Resource : public GPUResource
 {
 public:
-    virtual ~Resource() {}
+  virtual ~Resource() {}
 
-    VulkanContext* vk() const;
+  VulkanContext* vk() const;
 
 protected:
-    Resource(rcp<VulkanContext>);
+  Resource(rcp<VulkanContext>);
 };
 
 class Buffer : public Resource
 {
 public:
-    ~Buffer() override;
+  ~Buffer() override;
 
-    VkBufferCreateInfo info() const { return m_info; }
-    operator VkBuffer() const { return m_vkBuffer; }
-    const VkBuffer* vkBufferAddressOf() const { return &m_vkBuffer; }
+  VkBufferCreateInfo info() const { return m_info; }
+  operator VkBuffer() const { return m_vkBuffer; }
+  const VkBuffer* vkBufferAddressOf() const { return &m_vkBuffer; }
 
-    // Resize the underlying VkBuffer without waiting for any pipeline
-    // synchronization. The caller is responsible to guarantee the underlying
-    // VkBuffer is not queued up in any in-flight command buffers.
-    void resizeImmediately(VkDeviceSize sizeInBytes);
+  // Resize the underlying VkBuffer without waiting for any pipeline
+  // synchronization. The caller is responsible to guarantee the underlying
+  // VkBuffer is not queued up in any in-flight command buffers.
+  void resizeImmediately(VkDeviceSize sizeInBytes);
 
-    // Whether contents() is safe to call. False if either the buffer or its
-    // memory map failed to allocate.
-    bool hasContents() const { return m_contents != nullptr; }
+  // Whether contents() is safe to call. False if either the buffer or its
+  // memory map failed to allocate.
+  bool hasContents() const { return m_contents != nullptr; }
 
-    void* contents()
-    {
-        assert(m_contents != nullptr);
-        return m_contents;
-    }
+  void* contents()
+  {
+    assert(m_contents != nullptr);
+    return m_contents;
+  }
 
-    // Calls through to vkFlushMappedMemoryRanges().
-    // Called after modifying contents() with the CPU. Makes those modifications
-    // available to the GPU.
-    void flushContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
+  // Calls through to vkFlushMappedMemoryRanges().
+  // Called after modifying contents() with the CPU. Makes those modifications
+  // available to the GPU.
+  void flushContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
 
-    // Calls through to vkInvalidateMappedMemoryRanges().
-    // Called after modifying the buffer with the GPU. Makes those modifications
-    // available to the CPU via contents().
-    void invalidateContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
+  // Calls through to vkInvalidateMappedMemoryRanges().
+  // Called after modifying the buffer with the GPU. Makes those modifications
+  // available to the CPU via contents().
+  void invalidateContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
 
 private:
-    friend class ::rive::gpu::VulkanContext;
+  friend class ::rive::gpu::VulkanContext;
 
-    Buffer(rcp<VulkanContext>, const VkBufferCreateInfo&, Mappability);
+  Buffer(rcp<VulkanContext>, const VkBufferCreateInfo&, Mappability);
 
-    void init();
+  void init();
 
-    const Mappability m_mappability;
-    VkBufferCreateInfo m_info;
-    VmaAllocation m_vmaAllocation;
-    VkBuffer m_vkBuffer;
-    void* m_contents;
+  const Mappability m_mappability;
+  VkBufferCreateInfo m_info;
+  VmaAllocation m_vmaAllocation;
+  VkBuffer m_vkBuffer;
+  void* m_contents;
 };
 
 // Wraps a pool of Buffers so we can map one while other(s) are in-flight.
 class BufferPool : public GPUResourcePool
 {
 public:
-    BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, VkDeviceSize size = 0);
+  BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, VkDeviceSize size = 0);
 
-    BufferPool(const BufferPool&) = delete;
-    BufferPool& operator=(const BufferPool&) = delete;
+  BufferPool(const BufferPool&) = delete;
+  BufferPool& operator=(const BufferPool&) = delete;
 
-    VkDeviceSize size() const { return m_targetSize; }
-    void setTargetSize(VkDeviceSize size);
+  VkDeviceSize size() const { return m_targetSize; }
+  void setTargetSize(VkDeviceSize size);
 
-    // Returns a Buffer that is guaranteed to exist and be of size
-    // 'm_targetSize'.
-    rcp<vkutil::Buffer> acquire();
+  // Returns a Buffer that is guaranteed to exist and be of size
+  // 'm_targetSize'.
+  rcp<vkutil::Buffer> acquire();
 
-    void recycle(rcp<vkutil::Buffer> buffer)
-    {
-        GPUResourcePool::recycle(std::move(buffer));
-    }
+  void recycle(rcp<vkutil::Buffer> buffer)
+  {
+    GPUResourcePool::recycle(std::move(buffer));
+  }
 
 private:
-    VulkanContext* vk() const;
+  VulkanContext* vk() const;
 
-    constexpr static VkDeviceSize MAX_POOL_SIZE = 8;
-    const VkBufferUsageFlags m_usageFlags;
-    VkDeviceSize m_targetSize;
+  constexpr static VkDeviceSize MAX_POOL_SIZE = 8;
+  const VkBufferUsageFlags m_usageFlags;
+  VkDeviceSize m_targetSize;
 };
 
 class Image : public Resource
 {
 public:
-    ~Image() override;
+  ~Image() override;
 
-    const VkImageCreateInfo& info() { return m_info; }
-    operator VkImage() const { return m_vkImage; }
-    const VkImage* vkImageAddressOf() const { return &m_vkImage; }
+  const VkImageCreateInfo& info() { return m_info; }
+  operator VkImage() const { return m_vkImage; }
+  const VkImage* vkImageAddressOf() const { return &m_vkImage; }
 
 private:
-    friend class ::rive::gpu::VulkanContext;
+  friend class ::rive::gpu::VulkanContext;
 
-    Image(rcp<VulkanContext>, const VkImageCreateInfo&, const char* name);
+  Image(rcp<VulkanContext>, const VkImageCreateInfo&, const char* name);
 
-    // Adopts an externally-owned VkImage; destructor leaves it untouched
-    // (m_vmaAllocation stays null).
-    Image(rcp<VulkanContext>,
-          VkImage externalImage,
-          const VkImageCreateInfo&,
-          const char* name);
+  // Adopts an externally-owned VkImage; destructor leaves it untouched
+  // (m_vmaAllocation stays null).
+  Image(
+      rcp<VulkanContext>,
+      VkImage externalImage,
+      const VkImageCreateInfo&,
+      const char* name);
 
-    VkImageCreateInfo m_info;
-    VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
-    VkImage m_vkImage = VK_NULL_HANDLE;
+  VkImageCreateInfo m_info;
+  VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
+  VkImage m_vkImage = VK_NULL_HANDLE;
 };
 
 class ImageView : public Resource
 {
 public:
-    ~ImageView() override;
+  ~ImageView() override;
 
-    const VkImageViewCreateInfo& info() { return m_info; }
-    operator VkImageView() const { return m_vkImageView; }
-    VkImageView vkImageView() const { return m_vkImageView; }
-    const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
+  const VkImageViewCreateInfo& info() { return m_info; }
+  operator VkImageView() const { return m_vkImageView; }
+  VkImageView vkImageView() const { return m_vkImageView; }
+  const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
 
 private:
-    friend class ::rive::gpu::VulkanContext;
+  friend class ::rive::gpu::VulkanContext;
 
-    ImageView(rcp<VulkanContext>,
-              rcp<Image> textureRef,
-              const VkImageViewCreateInfo&,
-              const char* name);
+  ImageView(
+      rcp<VulkanContext>,
+      rcp<Image> textureRef,
+      const VkImageViewCreateInfo&,
+      const char* name);
 
-    const rcp<Image> m_textureRefOrNull;
-    VkImageViewCreateInfo m_info;
-    VkImageView m_vkImageView = VK_NULL_HANDLE;
+  const rcp<Image> m_textureRefOrNull;
+  VkImageViewCreateInfo m_info;
+  VkImageView m_vkImageView = VK_NULL_HANDLE;
 };
 
 // Tracks the current layout and access parameters of a VkImage.
 struct ImageAccess
 {
-    VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    VkAccessFlags accessMask = VK_ACCESS_NONE;
-    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+  VkAccessFlags accessMask = VK_ACCESS_NONE;
+  VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    bool operator==(const ImageAccess& rhs) const
-    {
-        return pipelineStages == rhs.pipelineStages &&
-               accessMask == rhs.accessMask && layout == rhs.layout;
-    }
-    bool operator!=(const ImageAccess& rhs) const { return !(*this == rhs); }
+  bool operator==(const ImageAccess& rhs) const
+  {
+    return pipelineStages == rhs.pipelineStages &&
+           accessMask == rhs.accessMask && layout == rhs.layout;
+  }
+  bool operator!=(const ImageAccess& rhs) const { return !(*this == rhs); }
 };
 
 // Provides a way to communicate that a VkImage may be invalidated (layout
 // converted to VK_IMAGE_LAYOUT_UNDEFINED) while performing a barrier.
 enum class ImageAccessAction : bool
 {
-    preserveContents,
-    invalidateContents,
+  preserveContents,
+  invalidateContents,
 };
 
 // Wrapper for a simple 2D VkImage and VkImageView.
 class Texture2D : public rive::gpu::Texture
 {
 public:
-    VkImage vkImage() const { return *m_image; }
-    VkImageView vkImageView() const { return *m_imageView; }
-    const VkImageView* vkImageViewAddressOf() const
+  VkImage vkImage() const { return *m_image; }
+  VkImageView vkImageView() const { return *m_imageView; }
+  const VkImageView* vkImageViewAddressOf() const
+  {
+    return m_imageView->vkImageViewAddressOf();
+  }
+  ImageAccess& lastAccess() { return m_lastAccess; }
+  const ImageAccess& lastAccess() const { return m_lastAccess; }
+  void* nativeHandle() const override { return (void*)vkImage(); }
+
+  // Deferred mechanism for uploading image data without a command buffer.
+  //
+  // Single-region upload: one VkBufferImageCopy covering mip 0 in full.
+  // If the texture has more than one mip level, generateMipmaps() is
+  // called on apply (suitable for the PNG/JPEG path).
+  void scheduleUpload(
+      const void* imageDataRGBAPremul,
+      size_t imageDataSizeInBytes);
+  void scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul);
+
+  // Multi-region upload: caller hands over a staging buffer and the full
+  // list of VkBufferImageCopy regions (typically one per mip level).
+  // No automatic mipmap generation — the caller is responsible for
+  // supplying every level that exists in the texture.
+  void scheduleUpload(
+      rcp<vkutil::Buffer> stagingBuffer,
+      std::vector<VkBufferImageCopy> regions);
+
+  void barrier(
+      VkCommandBuffer,
+      const ImageAccess& dstAccess,
+      ImageAccessAction = ImageAccessAction::preserveContents,
+      VkDependencyFlags = 0);
+
+  // Downscales the top level into sub-levels.
+  // NOTE: Does not wrap the edges when filtering down. This is not an ideal
+  // situation for non-power-of-two textures that are intended to be used with
+  // a wrap mode of "repeat". We may want to add a "wrap" argument at some
+  // point.
+  void generateMipmaps(VkCommandBuffer, const ImageAccess& dstAccess);
+
+  // These methods are inlined intentionally, in order to avoid function calls
+  // in the common usecase.
+  inline void prepareForVertexOrFragmentShaderRead(
+      VkCommandBuffer commandBuffer)
+  {
+    if (m_imageUploadBuffer != nullptr)
     {
-        return m_imageView->vkImageViewAddressOf();
+      applyImageUploadBuffer(commandBuffer);
     }
-    ImageAccess& lastAccess() { return m_lastAccess; }
-    const ImageAccess& lastAccess() const { return m_lastAccess; }
-    void* nativeHandle() const override { return (void*)vkImage(); }
-
-    // Deferred mechanism for uploading image data without a command buffer.
-    //
-    // Single-region upload: one VkBufferImageCopy covering mip 0 in full.
-    // If the texture has more than one mip level, generateMipmaps() is
-    // called on apply (suitable for the PNG/JPEG path).
-    void scheduleUpload(const void* imageDataRGBAPremul,
-                        size_t imageDataSizeInBytes);
-    void scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul);
-
-    // Multi-region upload: caller hands over a staging buffer and the full
-    // list of VkBufferImageCopy regions (typically one per mip level).
-    // No automatic mipmap generation — the caller is responsible for
-    // supplying every level that exists in the texture.
-    void scheduleUpload(rcp<vkutil::Buffer> stagingBuffer,
-                        std::vector<VkBufferImageCopy> regions);
-
-    void barrier(VkCommandBuffer,
-                 const ImageAccess& dstAccess,
-                 ImageAccessAction = ImageAccessAction::preserveContents,
-                 VkDependencyFlags = 0);
-
-    // Downscales the top level into sub-levels.
-    // NOTE: Does not wrap the edges when filtering down. This is not an ideal
-    // situation for non-power-of-two textures that are intended to be used with
-    // a wrap mode of "repeat". We may want to add a "wrap" argument at some
-    // point.
-    void generateMipmaps(VkCommandBuffer, const ImageAccess& dstAccess);
-
-    // These methods are inlined intentionally, in order to avoid function calls
-    // in the common usecase.
-    inline void prepareForVertexOrFragmentShaderRead(
-        VkCommandBuffer commandBuffer)
+    constexpr static ImageAccess READ_ACCESS = {
+        .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    if (m_lastAccess != READ_ACCESS)
     {
-        if (m_imageUploadBuffer != nullptr)
-        {
-            applyImageUploadBuffer(commandBuffer);
-        }
-        constexpr static ImageAccess READ_ACCESS = {
-            .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .accessMask = VK_ACCESS_SHADER_READ_BIT,
-            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-        if (m_lastAccess != READ_ACCESS)
-        {
-            barrier(commandBuffer, READ_ACCESS);
-        }
+      barrier(commandBuffer, READ_ACCESS);
     }
+  }
 
-    inline void prepareForFragmentShaderRead(VkCommandBuffer commandBuffer)
+  inline void prepareForFragmentShaderRead(VkCommandBuffer commandBuffer)
+  {
+    if (m_imageUploadBuffer != nullptr)
     {
-        if (m_imageUploadBuffer != nullptr)
-        {
-            applyImageUploadBuffer(commandBuffer);
-        }
-        constexpr static ImageAccess READ_ACCESS = {
-            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .accessMask = VK_ACCESS_SHADER_READ_BIT,
-            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-        if (m_lastAccess != READ_ACCESS)
-        {
-            barrier(commandBuffer, READ_ACCESS);
-        }
+      applyImageUploadBuffer(commandBuffer);
     }
-
-    // Simple mechanism for caching and reusing a descriptor set for this
-    // texture within a frame.
-    VkDescriptorSet getCachedDescriptorSet(uint64_t frameNumber,
-                                           ImageSampler sampler) const
+    constexpr static ImageAccess READ_ACCESS = {
+        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    if (m_lastAccess != READ_ACCESS)
     {
-        return frameNumber == m_cachedDescriptorSetFrameNumber &&
-                       sampler == m_cachedDescriptorSetSampler
-                   ? m_cachedDescriptorSet
-                   : VK_NULL_HANDLE;
+      barrier(commandBuffer, READ_ACCESS);
     }
+  }
 
-    void updateCachedDescriptorSet(VkDescriptorSet descriptorSet,
-                                   uint64_t frameNumber,
-                                   ImageSampler sampler)
-    {
-        m_cachedDescriptorSet = descriptorSet;
-        m_cachedDescriptorSetFrameNumber = frameNumber;
-        m_cachedDescriptorSetSampler = sampler;
-    }
+  // Simple mechanism for caching and reusing a descriptor set for this
+  // texture within a frame.
+  VkDescriptorSet getCachedDescriptorSet(
+      uint64_t frameNumber,
+      ImageSampler sampler) const
+  {
+    return frameNumber == m_cachedDescriptorSetFrameNumber &&
+                   sampler == m_cachedDescriptorSetSampler
+               ? m_cachedDescriptorSet
+               : VK_NULL_HANDLE;
+  }
 
-    // Sets the cached layout/access for an externally-managed image whose
-    // current state is known (so Rive skips a redundant first barrier).
-    void overrideLastAccess(const ImageAccess& a) { m_lastAccess = a; }
+  void updateCachedDescriptorSet(
+      VkDescriptorSet descriptorSet,
+      uint64_t frameNumber,
+      ImageSampler sampler)
+  {
+    m_cachedDescriptorSet = descriptorSet;
+    m_cachedDescriptorSetFrameNumber = frameNumber;
+    m_cachedDescriptorSetSampler = sampler;
+  }
+
+  // Sets the cached layout/access for an externally-managed image whose
+  // current state is known (so Rive skips a redundant first barrier).
+  void overrideLastAccess(const ImageAccess& a) { m_lastAccess = a; }
 
 protected:
-    friend class ::rive::gpu::VulkanContext;
+  friend class ::rive::gpu::VulkanContext;
 
-    void applyImageUploadBuffer(VkCommandBuffer);
+  void applyImageUploadBuffer(VkCommandBuffer);
 
-    Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo, const char* name);
+  Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo, const char* name);
 
-    // Adopts an externally-allocated Image; owns only the derived ImageView.
-    Texture2D(rcp<VulkanContext> vk,
-              rcp<Image> existingImage,
-              const char* name);
+  // Adopts an externally-allocated Image; owns only the derived ImageView.
+  Texture2D(rcp<VulkanContext> vk, rcp<Image> existingImage, const char* name);
 
-    rcp<Image> m_image;
-    rcp<ImageView> m_imageView;
-    ImageAccess m_lastAccess;
+  rcp<Image> m_image;
+  rcp<ImageView> m_imageView;
+  ImageAccess m_lastAccess;
 
-    rcp<vkutil::Buffer> m_imageUploadBuffer;
-    // When non-empty, overrides the default single-region/auto-mip path.
-    std::vector<VkBufferImageCopy> m_imageUploadRegions;
+  rcp<vkutil::Buffer> m_imageUploadBuffer;
+  // When non-empty, overrides the default single-region/auto-mip path.
+  std::vector<VkBufferImageCopy> m_imageUploadRegions;
 
-    // Simple mechanism for caching and reusing a descriptor set for this
-    // texture within a frame.
-    VkDescriptorSet m_cachedDescriptorSet = VK_NULL_HANDLE;
-    uint64_t m_cachedDescriptorSetFrameNumber;
-    ImageSampler m_cachedDescriptorSetSampler;
+  // Simple mechanism for caching and reusing a descriptor set for this
+  // texture within a frame.
+  VkDescriptorSet m_cachedDescriptorSet = VK_NULL_HANDLE;
+  uint64_t m_cachedDescriptorSetFrameNumber;
+  ImageSampler m_cachedDescriptorSetSampler;
 };
 
 class Framebuffer : public Resource
 {
 public:
-    ~Framebuffer() override;
+  ~Framebuffer() override;
 
-    const VkFramebufferCreateInfo& info() const { return m_info; }
-    operator VkFramebuffer() const { return m_vkFramebuffer; }
+  const VkFramebufferCreateInfo& info() const { return m_info; }
+  operator VkFramebuffer() const { return m_vkFramebuffer; }
 
 private:
-    friend class ::rive::gpu::VulkanContext;
+  friend class ::rive::gpu::VulkanContext;
 
-    Framebuffer(rcp<VulkanContext>, const VkFramebufferCreateInfo&);
+  Framebuffer(rcp<VulkanContext>, const VkFramebufferCreateInfo&);
 
-    VkFramebufferCreateInfo m_info;
-    VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
+  VkFramebufferCreateInfo m_info;
+  VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
 };
 
 // Utility to generate a simple 2D VkViewport from a VkRect2D.
 class ViewportFromRect2D
 {
 public:
-    ViewportFromRect2D(const VkRect2D rect) :
-        m_viewport{
+  ViewportFromRect2D(const VkRect2D rect)
+      : m_viewport{
             .x = static_cast<float>(rect.offset.x),
             .y = static_cast<float>(rect.offset.y),
             .width = static_cast<float>(rect.extent.width),
@@ -509,87 +519,92 @@ public:
             .minDepth = DEPTH_MIN,
             .maxDepth = DEPTH_MAX,
         }
-    {}
+  {}
 
-    operator const VkViewport*() const { return &m_viewport; }
+  operator const VkViewport*() const { return &m_viewport; }
 
 private:
-    VkViewport m_viewport;
+  VkViewport m_viewport;
 };
 
-inline void set_shader_code(VkShaderModuleCreateInfo& info,
-                            const uint32_t* code,
-                            size_t codeSize)
+inline void set_shader_code(
+    VkShaderModuleCreateInfo& info,
+    const uint32_t* code,
+    size_t codeSize)
 {
-    info.codeSize = codeSize;
-    info.pCode = code;
+  info.codeSize = codeSize;
+  info.pCode = code;
 }
 
-inline void set_shader_code_if_then_else(VkShaderModuleCreateInfo& info,
-                                         bool _if,
-                                         const uint32_t* codeIf,
-                                         size_t codeSizeIf,
-                                         const uint32_t* codeElse,
-                                         size_t codeSizeElse)
+inline void set_shader_code_if_then_else(
+    VkShaderModuleCreateInfo& info,
+    bool _if,
+    const uint32_t* codeIf,
+    size_t codeSizeIf,
+    const uint32_t* codeElse,
+    size_t codeSizeElse)
 {
-    if (_if)
-    {
-        set_shader_code(info, codeIf, codeSizeIf);
-    }
-    else
-    {
-        set_shader_code(info, codeElse, codeSizeElse);
-    }
+  if (_if)
+  {
+    set_shader_code(info, codeIf, codeSizeIf);
+  }
+  else
+  {
+    set_shader_code(info, codeElse, codeSizeElse);
+  }
 }
 
-inline void set_shader_code(VkShaderModuleCreateInfo& info,
-                            rive::Span<const uint32_t> code)
+inline void set_shader_code(
+    VkShaderModuleCreateInfo& info,
+    rive::Span<const uint32_t> code)
 {
-    info.codeSize = code.size_bytes();
-    info.pCode = code.data();
+  info.codeSize = code.size_bytes();
+  info.pCode = code.data();
 }
 
-inline void set_shader_code_if_then_else(VkShaderModuleCreateInfo& info,
-                                         bool _if,
-                                         rive::Span<const uint32_t> codeIf,
-                                         rive::Span<const uint32_t> codeElse)
+inline void set_shader_code_if_then_else(
+    VkShaderModuleCreateInfo& info,
+    bool _if,
+    rive::Span<const uint32_t> codeIf,
+    rive::Span<const uint32_t> codeElse)
 {
-    if (_if)
-    {
-        set_shader_code(info, codeIf);
-    }
-    else
-    {
-        set_shader_code(info, codeElse);
-    }
+  if (_if)
+  {
+    set_shader_code(info, codeIf);
+  }
+  else
+  {
+    set_shader_code(info, codeElse);
+  }
 }
 
 inline VkClearColorValue color_clear_rgba32f(ColorInt riveColor)
 {
-    VkClearColorValue ret;
-    UnpackColorToRGBA32FPremul(riveColor, ret.float32);
-    return ret;
+  VkClearColorValue ret;
+  UnpackColorToRGBA32FPremul(riveColor, ret.float32);
+  return ret;
 }
 
 inline VkClearColorValue color_clear_r32ui(uint32_t value)
 {
-    VkClearColorValue ret;
-    ret.uint32[0] = value;
-    return ret;
+  VkClearColorValue ret;
+  ret.uint32[0] = value;
+  return ret;
 }
 
 inline VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
 {
-    return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
-                            : VK_FORMAT_D32_SFLOAT_S8_UINT;
+  return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
+                          : VK_FORMAT_D32_SFLOAT_S8_UINT;
 }
 
 inline VkRect2D rect2d(const IAABB& iaabb)
 {
-    return {
-        .offset = {iaabb.left, iaabb.top},
-        .extent = {static_cast<uint32_t>(iaabb.width()),
-                   static_cast<uint32_t>(iaabb.height())},
-    };
+  return {
+      .offset = {iaabb.left, iaabb.top},
+      .extent =
+          {static_cast<uint32_t>(iaabb.width()),
+           static_cast<uint32_t>(iaabb.height())},
+  };
 }
 } // namespace rive::gpu::vkutil

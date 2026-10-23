@@ -9,108 +9,92 @@ namespace rive
 class DataConverterToStringBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 490;
+  static const uint16_t typeKey = 490;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataConverterToStringBase::typeKey:
-            case DataConverterBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t flagsPropertyKey = 764;
-    static const uint16_t decimalsPropertyKey = 765;
-    static const uint16_t colorFormatPropertyKey = 766;
+  static const uint16_t flagsPropertyKey = 764;
+  static const uint16_t decimalsPropertyKey = 765;
+  static const uint16_t colorFormatPropertyKey = 766;
 
 protected:
-    uint32_t m_Flags = 0;
-    uint32_t m_Decimals = 0;
-    std::string m_ColorFormat = "";
+  uint32_t m_Flags = 0;
+  uint32_t m_Decimals = 0;
+  std::string m_ColorFormat = "";
 
 public:
-    inline uint32_t flags() const { return m_Flags; }
-    void flags(uint32_t value)
+  inline uint32_t flags() const { return m_Flags; }
+  void flags(uint32_t value)
+  {
+    if (m_Flags == value)
     {
-        if (m_Flags == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(flagsPropertyKey, &m_Flags, &value);
-        m_Flags = value;
-        RIVE_EDITOR_CHANGED(flagsChanged());
-        notifyPropertyChanged(flagsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(flagsPropertyKey, &m_Flags, &value);
+    m_Flags = value;
+    RIVE_EDITOR_CHANGED(flagsChanged());
+    notifyPropertyChanged(flagsPropertyKey);
+  }
 
-    inline uint32_t decimals() const { return m_Decimals; }
-    void decimals(uint32_t value)
+  inline uint32_t decimals() const { return m_Decimals; }
+  void decimals(uint32_t value)
+  {
+    if (m_Decimals == value)
     {
-        if (m_Decimals == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(decimalsPropertyKey, &m_Decimals, &value);
-        m_Decimals = value;
-        RIVE_EDITOR_CHANGED(decimalsChanged());
-        notifyPropertyChanged(decimalsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(decimalsPropertyKey, &m_Decimals, &value);
+    m_Decimals = value;
+    RIVE_EDITOR_CHANGED(decimalsChanged());
+    notifyPropertyChanged(decimalsPropertyKey);
+  }
 
-    inline const std::string& colorFormat() const { return m_ColorFormat; }
-    void colorFormat(std::string value)
+  inline const std::string& colorFormat() const { return m_ColorFormat; }
+  void colorFormat(std::string value)
+  {
+    if (m_ColorFormat == value)
     {
-        if (m_ColorFormat == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(colorFormatPropertyKey,
-                                    m_ColorFormat,
-                                    value);
-        m_ColorFormat = value;
-        RIVE_EDITOR_CHANGED(colorFormatChanged());
-        notifyPropertyChanged(colorFormatPropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(colorFormatPropertyKey, m_ColorFormat, value);
+    m_ColorFormat = value;
+    RIVE_EDITOR_CHANGED(colorFormatChanged());
+    notifyPropertyChanged(colorFormatPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataConverterToStringBase& object)
-    {
-        m_Flags = object.m_Flags;
-        m_Decimals = object.m_Decimals;
-        m_ColorFormat = object.m_ColorFormat;
-        DataConverter::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataConverterToStringBase& object)
+  {
+    m_Flags = object.m_Flags;
+    m_Decimals = object.m_Decimals;
+    m_ColorFormat = object.m_ColorFormat;
+    DataConverter::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case flagsPropertyKey:
-                m_Flags = CoreUintType::deserialize(reader);
-                return true;
-            case decimalsPropertyKey:
-                m_Decimals = CoreUintType::deserialize(reader);
-                return true;
-            case colorFormatPropertyKey:
-                m_ColorFormat = CoreStringType::deserialize(reader);
-                return true;
-        }
-        return DataConverter::deserialize(propertyKey, reader);
+      case flagsPropertyKey:
+        m_Flags = CoreUintType::deserialize(reader);
+        return true;
+      case decimalsPropertyKey:
+        m_Decimals = CoreUintType::deserialize(reader);
+        return true;
+      case colorFormatPropertyKey:
+        m_ColorFormat = CoreStringType::deserialize(reader);
+        return true;
     }
+    return DataConverter::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void flagsChanged() {}
-    virtual void decimalsChanged() {}
-    virtual void colorFormatChanged() {}
+  virtual void flagsChanged() {}
+  virtual void decimalsChanged() {}
+  virtual void colorFormatChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/data_converter_to_string_ext.inl"
 #endif

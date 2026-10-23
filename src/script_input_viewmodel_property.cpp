@@ -10,147 +10,163 @@ using namespace rive;
 
 ScriptInputViewModelProperty::~ScriptInputViewModelProperty()
 {
-    auto obj = scriptedObject();
-    if (obj != nullptr)
-    {
-        obj->removeProperty(this);
-    }
+  auto obj = scriptedObject();
+  if (obj != nullptr)
+  {
+    obj->removeProperty(this);
+  }
 }
 
 void ScriptInputViewModelProperty::decodeDataBindPathIds(
     Span<const uint8_t> value)
 {
-    decodeDataBindPath(value);
+  decodeDataBindPath(value);
 }
 
 void ScriptInputViewModelProperty::copyDataBindPathIds(
     const ScriptInputViewModelPropertyBase& object)
 {
-    copyDataBindPath(object.as<ScriptInputViewModelProperty>()->dataBindPath());
+  copyDataBindPath(object.as<ScriptInputViewModelProperty>()->dataBindPath());
 }
 
 void ScriptInputViewModelProperty::initScriptedValue()
 {
-    ScriptInput::initScriptedValue();
-    if (m_viewModelInstanceValue == nullptr)
-    {
-        return;
-    }
-    auto obj = scriptedObject();
-    if (obj)
-    {
-        obj->setViewModelInput(name(), m_viewModelInstanceValue);
-    }
+  ScriptInput::initScriptedValue();
+  if (m_viewModelInstanceValue == nullptr)
+  {
+    return;
+  }
+  auto obj = scriptedObject();
+  if (obj)
+  {
+    obj->setViewModelInput(name(), m_viewModelInstanceValue);
+  }
 }
 
 bool ScriptInputViewModelProperty::validateForScriptInit()
 {
-    // Binding validation happens in hydrateScriptInput(); cold init does not
-    // require a resolved view-model property.
-    m_viewModelInstanceValue = nullptr;
-    return true;
+  // Binding validation happens in hydrateScriptInput(); cold init does not
+  // require a resolved view-model property.
+  m_viewModelInstanceValue = nullptr;
+  return true;
 }
 
 bool ScriptInputViewModelProperty::validateForColdScriptInit()
 {
-    m_viewModelInstanceValue = nullptr;
-    return true;
+  m_viewModelInstanceValue = nullptr;
+  return true;
 }
 
 bool ScriptInputViewModelProperty::validateHydrationPrerequisites()
 {
-    auto scriptedObj = scriptedObject();
-    if (scriptedObj == nullptr)
-    {
-        return false;
-    }
-    auto dataContext = scriptedObj->dataContext();
-    if (dataContext == nullptr)
-    {
-        return false;
-    }
-    if (m_dataBindPath == nullptr)
-    {
-        return false;
-    }
-    auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
-    if (instanceValue == nullptr)
-    {
-        return false;
-    }
-    return instanceValue->viewModelProperty() != nullptr;
+  auto scriptedObj = scriptedObject();
+  if (scriptedObj == nullptr)
+  {
+    return false;
+  }
+  auto dataContext = scriptedObj->dataContext();
+  if (dataContext == nullptr)
+  {
+    return false;
+  }
+  if (m_dataBindPath == nullptr)
+  {
+    return false;
+  }
+  auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
+  if (instanceValue == nullptr)
+  {
+    return false;
+  }
+  return instanceValue->viewModelProperty() != nullptr;
 }
 
 bool ScriptInputViewModelProperty::hydrateScriptInput()
 {
-    m_viewModelInstanceValue = nullptr;
-    auto scriptedObj = scriptedObject();
-    if (scriptedObj == nullptr)
-    {
-        return false;
-    }
-    auto dataContext = scriptedObj->dataContext();
-    if (dataContext == nullptr)
-    {
-        return false;
-    }
-    if (m_dataBindPath == nullptr)
-    {
-        return false;
-    }
-    auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
-    if (instanceValue == nullptr)
-    {
-        return false;
-    }
-    auto viewModelProperty = instanceValue->viewModelProperty();
-    if (viewModelProperty == nullptr)
-    {
-        return false;
-    }
-    m_viewModelInstanceValue = instanceValue;
-    initScriptedValue();
-    return true;
+  m_viewModelInstanceValue = nullptr;
+  auto scriptedObj = scriptedObject();
+  if (scriptedObj == nullptr)
+  {
+    return false;
+  }
+  auto dataContext = scriptedObj->dataContext();
+  if (dataContext == nullptr)
+  {
+    return false;
+  }
+  if (m_dataBindPath == nullptr)
+  {
+    return false;
+  }
+  auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
+  if (instanceValue == nullptr)
+  {
+    return false;
+  }
+  auto viewModelProperty = instanceValue->viewModelProperty();
+  if (viewModelProperty == nullptr)
+  {
+    return false;
+  }
+  m_viewModelInstanceValue = instanceValue;
+  initScriptedValue();
+  return true;
 }
 
 StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
 {
-    importDataBindPath(importStack);
-    auto importer =
-        importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
-    if (importer == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    importer->addInput(this);
+  importDataBindPath(importStack);
+  auto importer = ScriptInput::ownerImporter(importStack, this);
+  if (importer == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  importer->addInput(this);
 
-    auto obj = scriptedObject();
-    if (obj && obj->component() != nullptr)
-    {
-        // If the ScriptedObject is a Component, we need the ArtboardImporter
-        // to add it as a Component, otherwise, return Ok
-        return Super::import(importStack);
-    }
-    return StatusCode::Ok;
+  auto obj = scriptedObject();
+  if (obj && obj->component() != nullptr)
+  {
+    // If the ScriptedObject is a Component, this input is an artboard
+    // child (File::readObjects gave it a slot, see takesArtboardSlot), so
+    // import it as a Component, otherwise, return Ok
+    return Super::import(importStack);
+  }
+  return StatusCode::Ok;
 }
 
 StatusCode ScriptInputViewModelProperty::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    auto p = parent();
-    if (p != nullptr)
+  auto p = parent();
+  if (p != nullptr)
+  {
+    auto scriptedObj = ScriptedObject::from(p);
+    if (scriptedObj != nullptr)
     {
-        auto scriptedObj = ScriptedObject::from(p);
-        if (scriptedObj != nullptr)
-        {
-            scriptedObj->addProperty(this);
-        }
+      scriptedObj->addProperty(this);
     }
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
+#ifdef WITH_RIVE_EDITOR
+bool ScriptInputViewModelProperty::applyChange(
+    uint16_t key,
+    BinaryReader& reader)
+{
+  if (key != dataBindPathIdsPropertyKey)
+    return Super::applyChange(key, reader);
+  delete m_dataBindPath;
+  m_dataBindPath = new DataBindPath();
+  // The REV field is a bytes envelope containing a counted list of IDs.
+  auto bytes = CoreBytesType::deserialize(reader);
+  BinaryReader pathReader(bytes);
+  m_dataBindPath->decodeEditorPath(pathReader);
+  return true;
+}
+#endif

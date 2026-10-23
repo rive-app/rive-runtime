@@ -3,11 +3,11 @@
 using namespace rive;
 
 ListenerInputTypeSemanticImporter::ListenerInputTypeSemanticImporter(
-    ListenerInputTypeSemantic* listenerInputTypeSemantic) :
-    m_listenerInputTypeSemantic(listenerInputTypeSemantic)
+    ListenerInputTypeSemantic* listenerInputTypeSemantic)
+    : m_listenerInputTypeSemantic(listenerInputTypeSemantic)
 {}
 
 StatusCode ListenerInputTypeSemanticImporter::resolve()
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }

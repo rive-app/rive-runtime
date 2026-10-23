@@ -8,10 +8,7 @@ namespace rive
 class TransitionValueCondition : public TransitionValueConditionBase
 {
 public:
-    TransitionConditionOp op() const
-    {
-        return (TransitionConditionOp)opValue();
-    }
+  TransitionConditionOp op() const { return (TransitionConditionOp)opValue(); }
 };
 } // namespace rive
 

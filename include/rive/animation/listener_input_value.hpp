@@ -15,31 +15,31 @@ namespace rive
 /// not of the value's type, the action is skipped.
 enum class ListenerInputValue : uint8_t
 {
-    /// Write the bindable property's value (a constant, or another view model
-    /// property bound to it).
-    none = 0,
-    /// Pointer position, in the state machine artboard's space (number).
-    pointerX = 1,
-    pointerY = 2,
-    /// Pointer movement since the previous event, `position - previousPosition`
-    /// (number).
-    pointerDeltaX = 3,
-    pointerDeltaY = 4,
-    /// Whether the key is down: true on press and repeat, false on release
-    /// (boolean).
-    keyPressed = 5,
-    /// Committed text of a text input event (string).
-    text = 6,
-    /// True on focus, false on blur (boolean).
-    focused = 7,
-    /// Whether W3C button `inputValueIndex` is pressed (boolean).
-    gamepadButtonPressed = 8,
-    /// Analog value (0-1) of W3C button `inputValueIndex` (number).
-    gamepadButtonValue = 9,
-    /// Value of W3C axis `inputValueIndex` (number).
-    gamepadAxis = 10,
-    /// Value of whichever button or axis changed (number).
-    gamepadChangedValue = 11,
+  /// Write the bindable property's value (a constant, or another view model
+  /// property bound to it).
+  none = 0,
+  /// Pointer position, in the state machine artboard's space (number).
+  pointerX = 1,
+  pointerY = 2,
+  /// Pointer movement since the previous event, `position - previousPosition`
+  /// (number).
+  pointerDeltaX = 3,
+  pointerDeltaY = 4,
+  /// Whether the key is down: true on press and repeat, false on release
+  /// (boolean).
+  keyPressed = 5,
+  /// Committed text of a text input event (string).
+  text = 6,
+  /// True on focus, false on blur (boolean).
+  focused = 7,
+  /// Whether W3C button `inputValueIndex` is pressed (boolean).
+  gamepadButtonPressed = 8,
+  /// Analog value (0-1) of W3C button `inputValueIndex` (number).
+  gamepadButtonValue = 9,
+  /// Value of W3C axis `inputValueIndex` (number).
+  gamepadAxis = 10,
+  /// Value of whichever button or axis changed (number).
+  gamepadChangedValue = 11,
 };
 } // namespace rive
 

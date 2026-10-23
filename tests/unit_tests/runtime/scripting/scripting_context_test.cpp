@@ -25,35 +25,35 @@ using namespace rive;
 // File
 class ScriptedObjectWithFile : public ScriptedObject
 {
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        return true;
-    }
-    bool m_markedToUpdate = false;
-    ScriptProtocol scriptProtocol() override { return ScriptProtocol::utility; }
-    void markNeedsUpdate() override { m_markedToUpdate = true; }
-    Component* component() override { return nullptr; }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    return true;
+  }
+  bool m_markedToUpdate = false;
+  ScriptProtocol scriptProtocol() override { return ScriptProtocol::utility; }
+  void markNeedsUpdate() override { m_markedToUpdate = true; }
+  Component* component() override { return nullptr; }
 
-    rcp<ScriptAsset> m_scriptAsset;
+  rcp<ScriptAsset> m_scriptAsset;
 
 public:
-    void setFileForScriptAsset(File* file)
-    {
-        m_scriptAsset = make_rcp<ScriptAsset>();
-        m_scriptAsset->file(file);
-        setAsset(m_scriptAsset);
-    }
-    uint32_t assetId() override
-    {
-        return m_scriptAsset ? m_scriptAsset->assetId() : 0;
-    }
-    bool needsUpdate() { return m_markedToUpdate; }
+  void setFileForScriptAsset(File* file)
+  {
+    m_scriptAsset = make_rcp<ScriptAsset>();
+    m_scriptAsset->file(file);
+    setAsset(m_scriptAsset);
+  }
+  uint32_t assetId() override
+  {
+    return m_scriptAsset ? m_scriptAsset->assetId() : 0;
+  }
+  bool needsUpdate() { return m_markedToUpdate; }
 };
 
 TEST_CASE("Scripted Context markNeedsUpdate works", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 
 -- Called once when the script initializes.
 function init(self: MyNode, context: Context): boolean
@@ -62,191 +62,192 @@ function init(self: MyNode, context: Context): boolean
 end
 
 )");
-    ScriptedObjectTest scriptedObjectTest;
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "init");
-        lua_pushvalue(L, -2);
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        rive_lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-        CHECK(scriptedObjectTest.needsUpdate());
-    }
+  ScriptedObjectTest scriptedObjectTest;
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "init");
+    lua_pushvalue(L, -2);
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    rive_lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+    CHECK(scriptedObjectTest.needsUpdate());
+  }
 }
 
 TEST_CASE("Scripted Context errors when used after disposal", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function callMarkNeedsUpdate(context: Context)
   context:markNeedsUpdate()
 end
 )");
-    ScriptedObjectTest scriptedObjectTest;
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  ScriptedObjectTest scriptedObjectTest;
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    lua_getglobal(L, "callMarkNeedsUpdate");
-    auto scriptedContext = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-    scriptedContext->clearScriptedObject();
-    int result = lua_pcall(L, 1, 0, 0);
-    REQUIRE(result == LUA_ERRRUN);
-    const char* error = lua_tostring(L, -1);
-    REQUIRE(error != nullptr);
-    CHECK(std::string(error).find(
-              "context:markNeedsUpdate() called on a disposed context") !=
-          std::string::npos);
-    lua_pop(L, 1);
-    CHECK(top == lua_gettop(L));
+  lua_getglobal(L, "callMarkNeedsUpdate");
+  auto scriptedContext = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+  scriptedContext->clearScriptedObject();
+  int result = lua_pcall(L, 1, 0, 0);
+  REQUIRE(result == LUA_ERRRUN);
+  const char* error = lua_tostring(L, -1);
+  REQUIRE(error != nullptr);
+  CHECK(
+      std::string(error).find(
+          "context:markNeedsUpdate() called on a disposed context") !=
+      std::string::npos);
+  lua_pop(L, 1);
+  CHECK(top == lua_gettop(L));
 }
 
 TEST_CASE("script has access to user created view models via Data", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/script_create_viewmodel_instance.riv", &silver);
-    auto artboard = file->artboardNamed("main");
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/script_create_viewmodel_instance.riv",
+      &silver);
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  // Push element
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("newButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
     stateMachine->advanceAndApply(0.1f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    // Push element
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("newButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Push element at specific index
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("newAtButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Push element at specific index
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("newAtButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Swap elements from indexes
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("swapButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Swap elements from indexes
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("swapButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Shift first element
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("shiftButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Shift first element
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("shiftButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Pop last element
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("popButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Pop last element
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("popButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Pop all elements and pop beyond empty list
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("popButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    trigger->trigger();
+    trigger->trigger();
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Pop all elements and pop beyond empty list
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("popButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        trigger->trigger();
-        trigger->trigger();
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+  // Push 2 elements
+  {
+    silver.addFrame();
+    rive::ViewModelInstanceViewModel*
+        button = vmi->propertyValue("newButton")
+                     ->as<rive::ViewModelInstanceViewModel>();
+    REQUIRE(button != nullptr);
+    auto instance = button->referenceViewModelInstance();
+    rive::ViewModelInstanceTrigger*
+        trigger = instance->propertyValue("onClick")
+                      ->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+    trigger->trigger();
+    trigger->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    // Push 2 elements
-    {
-        silver.addFrame();
-        rive::ViewModelInstanceViewModel* button =
-            vmi->propertyValue("newButton")
-                ->as<rive::ViewModelInstanceViewModel>();
-        REQUIRE(button != nullptr);
-        auto instance = button->referenceViewModelInstance();
-        rive::ViewModelInstanceTrigger* trigger =
-            instance->propertyValue("onClick")
-                ->as<rive::ViewModelInstanceTrigger>();
-        REQUIRE(trigger != nullptr);
-        trigger->trigger();
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("script_create_viewmodel_instance"));
+  CHECK(silver.matches("script_create_viewmodel_instance"));
 }
 
 // Regression test for rive-ios#454: when a ScriptingVM is supplied to
@@ -255,120 +256,153 @@ TEST_CASE("script has access to user created view models via Data", "[silver]")
 // still be initialized. Before the fix, initializeLuaData only ran inside
 // makeScriptingVM(), which is skipped when an external VM is provided, so
 // `Data` was nil in scripts.
-TEST_CASE("Data global is initialized when a ScriptingVM is provided to import",
-          "[scripting]")
+TEST_CASE(
+    "Data global is initialized when a ScriptingVM is provided to import",
+    "[scripting]")
 {
-    // Mirror CommandServer::processCommands: create the VM up front and pass
-    // it into File::import.
-    auto context =
-        std::make_unique<rive::CPPRuntimeScriptingContext>(&gNoOpFactory);
-    auto vm = rive::make_rcp<rive::ScriptingVM>(std::move(context));
+  // Mirror CommandServer::processCommands: create the VM up front and pass
+  // it into File::import.
+  auto context = std::make_unique<rive::CPPRuntimeScriptingContext>(
+      &gNoOpFactory);
+  auto vm = rive::make_rcp<rive::ScriptingVM>(std::move(context));
 
-    auto bytes = ReadFile("assets/data_global_repro.riv");
-    rive::ImportResult result;
-    auto file =
-        rive::File::import(bytes, &gNoOpFactory, &result, nullptr, vm.get());
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
+  auto bytes = ReadFile("assets/data_global_repro.riv");
+  rive::ImportResult result;
+  auto file = rive::File::import(
+      bytes,
+      &gNoOpFactory,
+      &result,
+      nullptr,
+      vm.get());
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
 
-    // The file adopts the VM we supplied...
-    REQUIRE(file->scriptingVM() == vm.get());
+  // The file adopts the VM we supplied...
+  REQUIRE(file->scriptingVM() == vm.get());
 
-    // ...and its `Data` global is a populated table (was nil before the fix),
-    // exposing the file's view model as a constructor.
-    lua_State* L = vm->state();
-    REQUIRE(L != nullptr);
-    lua_getglobal(L, "Data");
-    REQUIRE(lua_istable(L, -1));
-    lua_getfield(L, -1, "ProbeChipVM");
-    REQUIRE(lua_istable(L, -1));
-    lua_getfield(L, -1, "new");
-    CHECK(lua_isfunction(L, -1));
-    lua_pop(L, 3);
+  // ...and its `Data` global is a populated table (was nil before the fix),
+  // exposing the file's view model as a constructor.
+  lua_State* L = vm->state();
+  REQUIRE(L != nullptr);
+  lua_getglobal(L, "Data");
+  REQUIRE(lua_istable(L, -1));
+  lua_getfield(L, -1, "ProbeChipVM");
+  REQUIRE(lua_istable(L, -1));
+  lua_getfield(L, -1, "new");
+  CHECK(lua_isfunction(L, -1));
+  lua_pop(L, 3);
+}
+
+// Two view models can share a name: a host's and one a library ships, or two
+// snapshots of one library. Data resolves the name to the first, like
+// File::viewModel and the editor's Data, rather than letting a later one
+// replace it.
+TEST_CASE("Data keeps the first view model carrying a name", "[scripting]")
+{
+  auto context = std::make_unique<rive::CPPRuntimeScriptingContext>(
+      &gNoOpFactory);
+  auto vm = rive::make_rcp<rive::ScriptingVM>(std::move(context));
+  auto first = rive::make_rcp<rive::ViewModel>();
+  first->name("Dup");
+  auto second = rive::make_rcp<rive::ViewModel>();
+  second->name("Dup");
+  std::vector<rive::ViewModel*> viewModels = {first.get(), second.get()};
+
+  lua_State* L = vm->state();
+  rive::initializeLuaData(L, viewModels);
+  lua_getglobal(L, "Data");
+  REQUIRE(lua_istable(L, -1));
+  lua_getfield(L, -1, "Dup");
+  REQUIRE(lua_istable(L, -1));
+  lua_getfield(L, -1, "new");
+  REQUIRE(lua_isfunction(L, -1));
+  // The constructor closes over the view model it builds.
+  REQUIRE(lua_getupvalue(L, -1, 1) != nullptr);
+  CHECK(lua_touserdata(L, -1) == first.get());
+  lua_pop(L, 4);
 }
 
 TEST_CASE("script has access to the data bound view model", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/viewmodel_from_context.riv", &silver);
-    auto artboard = file->artboardNamed("main");
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/viewmodel_from_context.riv", &silver);
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("viewmodel_from_context"));
+  CHECK(silver.matches("viewmodel_from_context"));
 }
 
 TEST_CASE("script has access to the data root view model", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/scripting_root_viewmodel.riv", &silver);
-    auto artboard = file->artboardNamed("parent");
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/scripting_root_viewmodel.riv", &silver);
+  auto artboard = file->artboardNamed("parent");
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripting_root_viewmodel"));
+  CHECK(silver.matches("scripting_root_viewmodel"));
 }
 
 TEST_CASE("context:image returns image asset by name", "[scripting]")
 {
-    // Load a file with image assets using SerializingFactory which decodes
-    // images
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/walle.riv", &silver);
-    REQUIRE(file != nullptr);
+  // Load a file with image assets using SerializingFactory which decodes
+  // images
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/walle.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    // Verify the file has image assets with render images
-    auto assets = file->assets();
-    bool foundImageWithRenderImage = false;
-    for (const auto& asset : assets)
+  // Verify the file has image assets with render images
+  auto assets = file->assets();
+  bool foundImageWithRenderImage = false;
+  for (const auto& asset : assets)
+  {
+    if (asset->is<ImageAsset>())
     {
-        if (asset->is<ImageAsset>())
-        {
-            ImageAsset* imageAsset = asset->as<ImageAsset>();
-            if (imageAsset->name() == "walle.jpg" &&
-                imageAsset->renderImage() != nullptr)
-            {
-                foundImageWithRenderImage = true;
-                break;
-            }
-        }
+      ImageAsset* imageAsset = asset->as<ImageAsset>();
+      if (imageAsset->name() == "walle.jpg" &&
+          imageAsset->renderImage() != nullptr)
+      {
+        foundImageWithRenderImage = true;
+        break;
+      }
     }
-    REQUIRE(foundImageWithRenderImage);
+  }
+  REQUIRE(foundImageWithRenderImage);
 
-    // Create a ScriptedObject with a ScriptAsset that references this file
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  // Create a ScriptedObject with a ScriptAsset that references this file
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
 
-    // Create a scripting VM and test context:image()
-    ScriptingTest vm(
-        R"(
+  // Create a scripting VM and test context:image()
+  ScriptingTest vm(
+      R"(
 local foundImage = nil
 local imageWidth = 0
 local imageHeight = 0
@@ -397,62 +431,62 @@ function getImageHeight(): number
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Call testImage with the context
+  // Call testImage with the context
+  {
+    lua_getglobal(L, "testImage");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    int result = lua_pcall(L, 1, 0, 0);
+    if (result != LUA_OK)
     {
-        lua_getglobal(L, "testImage");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        int result = lua_pcall(L, 1, 0, 0);
-        if (result != LUA_OK)
-        {
-            const char* error = lua_tostring(L, -1);
-            fprintf(stderr, "Lua error: %s\n", error);
-            lua_pop(L, 1);
-        }
-        CHECK(result == LUA_OK);
-        CHECK(top == lua_gettop(L));
+      const char* error = lua_tostring(L, -1);
+      fprintf(stderr, "Lua error: %s\n", error);
+      lua_pop(L, 1);
     }
+    CHECK(result == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the image was found
-    {
-        lua_getglobal(L, "getFoundImage");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the image was found
+  {
+    lua_getglobal(L, "getFoundImage");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify dimensions (SerializingFactory provides real decoded images)
-    {
-        lua_getglobal(L, "getImageWidth");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) > 0);
-        lua_pop(L, 1);
+  // Verify dimensions (SerializingFactory provides real decoded images)
+  {
+    lua_getglobal(L, "getImageWidth");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) > 0);
+    lua_pop(L, 1);
 
-        lua_getglobal(L, "getImageHeight");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) > 0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    lua_getglobal(L, "getImageHeight");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) > 0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("context:image returns nil for non-existent image", "[scripting]")
 {
-    // Load a file with image assets
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/walle.riv", &silver);
-    REQUIRE(file != nullptr);
+  // Load a file with image assets
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/walle.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    // Create a ScriptedObject with a ScriptAsset that references this file
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  // Create a ScriptedObject with a ScriptAsset that references this file
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
 
-    // Create a scripting VM and test context:image() with non-existent name
-    ScriptingTest vm(
-        R"(
+  // Create a scripting VM and test context:image() with non-existent name
+  ScriptingTest vm(
+      R"(
 local foundImage = nil
 
 function testNonExistentImage(context: Context)
@@ -469,42 +503,42 @@ function getFoundImage(): boolean?
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Call testNonExistentImage with the context
+  // Call testNonExistentImage with the context
+  {
+    lua_getglobal(L, "testNonExistentImage");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    int result = lua_pcall(L, 1, 0, 0);
+    if (result != LUA_OK)
     {
-        lua_getglobal(L, "testNonExistentImage");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        int result = lua_pcall(L, 1, 0, 0);
-        if (result != LUA_OK)
-        {
-            const char* error = lua_tostring(L, -1);
-            fprintf(stderr, "Lua error: %s\n", error);
-            lua_pop(L, 1);
-        }
-        CHECK(result == LUA_OK);
-        CHECK(top == lua_gettop(L));
+      const char* error = lua_tostring(L, -1);
+      fprintf(stderr, "Lua error: %s\n", error);
+      lua_pop(L, 1);
     }
+    CHECK(result == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the image was NOT found (should be false, not nil)
-    {
-        lua_getglobal(L, "getFoundImage");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the image was NOT found (should be false, not nil)
+  {
+    lua_getglobal(L, "getFoundImage");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("context:image returns nil when no script asset", "[scripting]")
 {
-    // Create a ScriptedObject WITHOUT a file (default ScriptedObjectTest)
-    ScriptedObjectTest scriptedObjectTest;
+  // Create a ScriptedObject WITHOUT a file (default ScriptedObjectTest)
+  ScriptedObjectTest scriptedObjectTest;
 
-    // Create a scripting VM and test context:image()
-    ScriptingTest vm(
-        R"(
+  // Create a scripting VM and test context:image()
+  ScriptingTest vm(
+      R"(
 local foundImage = nil
 
 function testNoFile(context: Context)
@@ -521,126 +555,128 @@ function getFoundImage(): boolean?
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Call testNoFile with the context (which has no scriptAsset/file)
+  // Call testNoFile with the context (which has no scriptAsset/file)
+  {
+    lua_getglobal(L, "testNoFile");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    int result = lua_pcall(L, 1, 0, 0);
+    if (result != LUA_OK)
     {
-        lua_getglobal(L, "testNoFile");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        int result = lua_pcall(L, 1, 0, 0);
-        if (result != LUA_OK)
-        {
-            const char* error = lua_tostring(L, -1);
-            fprintf(stderr, "Lua error: %s\n", error);
-            lua_pop(L, 1);
-        }
-        CHECK(result == LUA_OK);
-        CHECK(top == lua_gettop(L));
+      const char* error = lua_tostring(L, -1);
+      fprintf(stderr, "Lua error: %s\n", error);
+      lua_pop(L, 1);
     }
+    CHECK(result == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the image was NOT found
-    {
-        lua_getglobal(L, "getFoundImage");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the image was NOT found
+  {
+    lua_getglobal(L, "getFoundImage");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("expose data context to scripts through context", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/scripted_data_context.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/scripted_data_context.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Main");
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripted_data_context"));
+  CHECK(silver.matches("scripted_data_context"));
 }
 
-TEST_CASE("Provide data context and view model instance to artboard",
-          "[silver]")
+TEST_CASE(
+    "Provide data context and view model instance to artboard",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/viewmodel_instance_to_artboard.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/viewmodel_instance_to_artboard.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("viewmodel_instance_to_artboard"));
+  CHECK(silver.matches("viewmodel_instance_to_artboard"));
 }
 
 TEST_CASE("context methods error on disposed context", "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function testDisposed(context: Context)
   context:markNeedsUpdate()
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Create a context and dispose it before calling methods
-    auto* ctx = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-    int ctxIdx = lua_gettop(L);
-    ctx->clearScriptedObject();
-    CHECK(ctx->scriptedObject() == nullptr);
+  // Create a context and dispose it before calling methods
+  auto* ctx = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+  int ctxIdx = lua_gettop(L);
+  ctx->clearScriptedObject();
+  CHECK(ctx->scriptedObject() == nullptr);
 
-    // Calling a method on a disposed context should error
-    {
-        lua_getglobal(L, "testDisposed");
-        lua_pushvalue(L, ctxIdx);
-        int result = lua_pcall(L, 1, 0, 0);
-        CHECK(result == LUA_ERRRUN);
-        // Error message should mention "disposed context"
-        const char* err = lua_tostring(L, -1);
-        CHECK(err != nullptr);
-        CHECK(std::string(err).find("disposed context") != std::string::npos);
-        lua_pop(L, 1); // pop error
-    }
+  // Calling a method on a disposed context should error
+  {
+    lua_getglobal(L, "testDisposed");
+    lua_pushvalue(L, ctxIdx);
+    int result = lua_pcall(L, 1, 0, 0);
+    CHECK(result == LUA_ERRRUN);
+    // Error message should mention "disposed context"
+    const char* err = lua_tostring(L, -1);
+    CHECK(err != nullptr);
+    CHECK(std::string(err).find("disposed context") != std::string::npos);
+    lua_pop(L, 1); // pop error
+  }
 
-    lua_pop(L, 1); // pop ctx
-    CHECK(top == lua_gettop(L));
+  lua_pop(L, 1); // pop ctx
+  CHECK(top == lua_gettop(L));
 }
 
 TEST_CASE("context:viewModel returns nil with no data context", "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testViewModel(context: Context)
@@ -657,32 +693,33 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testViewModel");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testViewModel");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:rootViewModel returns nil with no data context",
-          "[scripting]")
+TEST_CASE(
+    "context:rootViewModel returns nil with no data context",
+    "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testRootViewModel(context: Context)
@@ -699,32 +736,33 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testRootViewModel");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testRootViewModel");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:globalViewModel returns nil with no data context",
-          "[scripting]")
+TEST_CASE(
+    "context:globalViewModel returns nil with no data context",
+    "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testGlobalViewModel(context: Context)
@@ -741,32 +779,33 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testGlobalViewModel");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testGlobalViewModel");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:globalViewModelNames returns empty table with no file",
-          "[scripting]")
+TEST_CASE(
+    "context:globalViewModelNames returns empty table with no file",
+    "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local count = -1
 
 function testNames(context: Context)
@@ -779,58 +818,60 @@ function getCount(): number
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testNames");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testNames");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:globalViewModel returns a bound global by name",
-          "[scripting]")
+TEST_CASE(
+    "context:globalViewModel returns a bound global by name",
+    "[scripting]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
-    REQUIRE(file != nullptr);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    // The fixture must declare at least one global view model.
-    auto globalNames = file->globalViewModelNames();
-    REQUIRE(!globalNames.empty());
-    const std::string globalName = globalNames.front();
+  // The fixture must declare at least one global view model.
+  auto globalNames = file->globalViewModelNames();
+  REQUIRE(!globalNames.empty());
+  const std::string globalName = globalNames.front();
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    // Build a data context holding the artboard's main instance plus the global
-    // bound into its slot (keyed by the global's file index), mirroring what
-    // the runtime does when binding globals.
-    auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
-    auto global =
-        file->createDefaultViewModelInstance(file->viewModel(globalName));
-    REQUIRE(global != nullptr);
+  // Build a data context holding the artboard's main instance plus the global
+  // bound into its slot (keyed by the global's file index), mirroring what
+  // the runtime does when binding globals.
+  auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
+  auto global = file->createDefaultViewModelInstance(
+      file->viewModel(globalName));
+  REQUIRE(global != nullptr);
 
-    auto dataContext = make_rcp<DataContext>(mainInstance);
-    dataContext->setViewModelInstanceForSlot(file->viewModelId(globalName),
-                                             global);
+  auto dataContext = make_rcp<DataContext>(mainInstance);
+  dataContext->setViewModelInstanceForSlot(
+      file->viewModelId(globalName),
+      global);
 
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
-    scriptedObjectWithFile.dataContext(dataContext);
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  scriptedObjectWithFile.dataContext(dataContext);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local found = false
 local nameCount = 0
 local nameMatched = false
@@ -861,92 +902,93 @@ function getNameMatched(): boolean
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
+  {
+    lua_getglobal(L, "testGlobal");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    lua_pushstring(L, globalName.c_str());
+    int result = lua_pcall(L, 2, 0, 0);
+    if (result != LUA_OK)
     {
-        lua_getglobal(L, "testGlobal");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        lua_pushstring(L, globalName.c_str());
-        int result = lua_pcall(L, 2, 0, 0);
-        if (result != LUA_OK)
-        {
-            fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
-        CHECK(result == LUA_OK);
-        CHECK(top == lua_gettop(L));
+      fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);
     }
+    CHECK(result == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getFound");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1);
-    }
+  {
+    lua_getglobal(L, "getFound");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+  }
 
-    {
-        lua_getglobal(L, "getNameCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == (double)globalNames.size());
-        lua_pop(L, 1);
-    }
+  {
+    lua_getglobal(L, "getNameCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == (double)globalNames.size());
+    lua_pop(L, 1);
+  }
 
-    {
-        lua_getglobal(L, "getNameMatched");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getNameMatched");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:globalViewModel finds a global in a fully unslotted chain",
-          "[scripting]")
+TEST_CASE(
+    "context:globalViewModel finds a global in a fully unslotted chain",
+    "[scripting]")
 {
-    // The editor (and nested-artboard propagation inside it) builds data
-    // contexts with the vector DataContext constructor, which assigns NO slot
-    // keys anywhere in the chain. This reproduces that shape — a nested,
-    // unslotted child whose parent is an unslotted root — and verifies the
-    // identity-scan fallback in pushGlobalViewModel still resolves the global.
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
-    REQUIRE(file != nullptr);
+  // The editor (and nested-artboard propagation inside it) builds data
+  // contexts with the vector DataContext constructor, which assigns NO slot
+  // keys anywhere in the chain. This reproduces that shape — a nested,
+  // unslotted child whose parent is an unslotted root — and verifies the
+  // identity-scan fallback in pushGlobalViewModel still resolves the global.
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    auto globalNames = file->globalViewModelNames();
-    REQUIRE(!globalNames.empty());
-    const std::string globalName = globalNames.front();
-    const uint32_t slotKey = file->viewModelId(globalName);
+  auto globalNames = file->globalViewModelNames();
+  REQUIRE(!globalNames.empty());
+  const std::string globalName = globalNames.front();
+  const uint32_t slotKey = file->viewModelId(globalName);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    auto global =
-        file->createDefaultViewModelInstance(file->viewModel(globalName));
-    REQUIRE(global != nullptr);
+  auto global = file->createDefaultViewModelInstance(
+      file->viewModel(globalName));
+  REQUIRE(global != nullptr);
 
-    // Root context: unslotted [main, global] (vector constructor), like the
-    // editor's internalDataContextFromInstances.
-    auto rootMain = file->createDefaultViewModelInstance(artboard.get());
-    std::vector<rcp<ViewModelInstance>> rootInstances{rootMain, global};
-    auto rootContext = make_rcp<DataContext>(std::move(rootInstances));
+  // Root context: unslotted [main, global] (vector constructor), like the
+  // editor's internalDataContextFromInstances.
+  auto rootMain = file->createDefaultViewModelInstance(artboard.get());
+  std::vector<rcp<ViewModelInstance>> rootInstances{rootMain, global};
+  auto rootContext = make_rcp<DataContext>(std::move(rootInstances));
 
-    // Nested child context: also unslotted, parented to the unslotted root.
-    auto nestedMain = file->createDefaultViewModelInstance(artboard.get());
-    std::vector<rcp<ViewModelInstance>> instances{nestedMain, global};
-    auto dataContext = make_rcp<DataContext>(std::move(instances));
-    dataContext->parent(rootContext);
-    // Sanity: no slot keys exist anywhere, so slot lookup misses at every
-    // level.
-    REQUIRE(dataContext->instanceForSlot(slotKey) == nullptr);
-    REQUIRE(rootContext->instanceForSlot(slotKey) == nullptr);
+  // Nested child context: also unslotted, parented to the unslotted root.
+  auto nestedMain = file->createDefaultViewModelInstance(artboard.get());
+  std::vector<rcp<ViewModelInstance>> instances{nestedMain, global};
+  auto dataContext = make_rcp<DataContext>(std::move(instances));
+  dataContext->parent(rootContext);
+  // Sanity: no slot keys exist anywhere, so slot lookup misses at every
+  // level.
+  REQUIRE(dataContext->instanceForSlot(slotKey) == nullptr);
+  REQUIRE(rootContext->instanceForSlot(slotKey) == nullptr);
 
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
-    scriptedObjectWithFile.dataContext(dataContext);
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  scriptedObjectWithFile.dataContext(dataContext);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local found = false
 
 function testGlobal(context: Context, name: string)
@@ -958,63 +1000,63 @@ function getFound(): boolean
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
+  {
+    lua_getglobal(L, "testGlobal");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    lua_pushstring(L, globalName.c_str());
+    int result = lua_pcall(L, 2, 0, 0);
+    if (result != LUA_OK)
     {
-        lua_getglobal(L, "testGlobal");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        lua_pushstring(L, globalName.c_str());
-        int result = lua_pcall(L, 2, 0, 0);
-        if (result != LUA_OK)
-        {
-            fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
-        CHECK(result == LUA_OK);
-        CHECK(top == lua_gettop(L));
+      fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);
     }
+    CHECK(result == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getFound");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getFound");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE(
     "context:globalViewModel returns nil for a non-global or unknown name",
     "[scripting]")
 {
-    // The named view model must be validated as an actual global before any
-    // resolution: a non-global (e.g. the main VM) name must never resolve, and
-    // an unknown name must not query an out-of-range slot key.
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
-    REQUIRE(file != nullptr);
+  // The named view model must be validated as an actual global before any
+  // resolution: a non-global (e.g. the main VM) name must never resolve, and
+  // an unknown name must not query an out-of-range slot key.
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(mainInstance != nullptr);
-    REQUIRE(mainInstance->viewModel() != nullptr);
-    // The main artboard view model is not a global.
-    const std::string mainName = mainInstance->viewModel()->name();
-    REQUIRE(static_cast<ViewModelType>(
-                mainInstance->viewModel()->viewModelType()) !=
-            ViewModelType::global);
+  auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(mainInstance != nullptr);
+  REQUIRE(mainInstance->viewModel() != nullptr);
+  // The main artboard view model is not a global.
+  const std::string mainName = mainInstance->viewModel()->name();
+  REQUIRE(
+      static_cast<ViewModelType>(mainInstance->viewModel()->viewModelType()) !=
+      ViewModelType::global);
 
-    auto dataContext = make_rcp<DataContext>(mainInstance);
+  auto dataContext = make_rcp<DataContext>(mainInstance);
 
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
-    scriptedObjectWithFile.dataContext(dataContext);
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  scriptedObjectWithFile.dataContext(dataContext);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local mainResult = "not_called"
 local unknownResult = "not_called"
 
@@ -1028,39 +1070,39 @@ function getMain(): string return mainResult end
 function getUnknown(): string return unknownResult end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testNames");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        lua_pushstring(L, mainName.c_str());
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testNames");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    lua_pushstring(L, mainName.c_str());
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getMain");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-    }
+  {
+    lua_getglobal(L, "getMain");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+  }
 
-    {
-        lua_getglobal(L, "getUnknown");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getUnknown");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("context:dataContext returns nil with no data context", "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testDataContext(context: Context)
@@ -1077,32 +1119,33 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testDataContext");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testDataContext");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:features returns fallback table without RIVE_CANVAS",
-          "[scripting]")
+TEST_CASE(
+    "context:features returns fallback table without RIVE_CANVAS",
+    "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local featuresTable = nil
 
 function testFeatures(context: Context)
@@ -1114,136 +1157,134 @@ function getFeatures()
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testFeatures");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testFeatures");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify features table was returned with expected fallback values
-    {
-        lua_getglobal(L, "getFeatures");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_istable(L, -1));
+  // Verify features table was returned with expected fallback values
+  {
+    lua_getglobal(L, "getFeatures");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_istable(L, -1));
 
-        // Check boolean fields default to false
-        lua_getfield(L, -1, "bc");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
+    // Check boolean fields default to false
+    lua_getfield(L, -1, "bc");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "etc2");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "etc2");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "astc");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "astc");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "anisotropicFiltering");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "anisotropicFiltering");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "texture3D");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "texture3D");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
 
-        // Check numeric fields have expected defaults
-        lua_getfield(L, -1, "maxTextureSize2D");
-        CHECK(lua_tonumber(L, -1) == 4096);
-        lua_pop(L, 1);
+    // Check numeric fields have expected defaults
+    lua_getfield(L, -1, "maxTextureSize2D");
+    CHECK(lua_tonumber(L, -1) == 4096);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxTextureSizeCube");
-        CHECK(lua_tonumber(L, -1) == 4096);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxTextureSizeCube");
+    CHECK(lua_tonumber(L, -1) == 4096);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxTextureSize3D");
-        CHECK(lua_tonumber(L, -1) == 256);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxTextureSize3D");
+    CHECK(lua_tonumber(L, -1) == 256);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxColorAttachments");
-        CHECK(lua_tonumber(L, -1) == 4);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxColorAttachments");
+    CHECK(lua_tonumber(L, -1) == 4);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxUniformBufferSize");
-        CHECK(lua_tonumber(L, -1) == 16384);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxUniformBufferSize");
+    CHECK(lua_tonumber(L, -1) == 16384);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxSamplers");
-        CHECK(lua_tonumber(L, -1) == 16);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxSamplers");
+    CHECK(lua_tonumber(L, -1) == 16);
+    lua_pop(L, 1);
 
-        lua_getfield(L, -1, "maxSamples");
-        CHECK(lua_tonumber(L, -1) == 4);
-        lua_pop(L, 1);
+    lua_getfield(L, -1, "maxSamples");
+    CHECK(lua_tonumber(L, -1) == 4);
+    lua_pop(L, 1);
 
-        lua_pop(L, 1); // pop table
-        CHECK(top == lua_gettop(L));
-    }
+    lua_pop(L, 1); // pop table
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("context:preferredCanvasFormat is removed", "[scripting]")
 {
-    // Removed in favor of canvas.format, which reports the speculative format
-    // even before a deferred canvas is resized.
-    ScriptedObjectTest scriptedObjectTest;
+  // Removed in favor of canvas.format, which reports the speculative format
+  // even before a deferred canvas is resized.
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function testRemoved(context: Context)
   context:preferredCanvasFormat()
 end
 )",
-        1,
-        true); // errorOk = true
+      1,
+      true); // errorOk = true
 
-    lua_State* L = vm.state();
+  lua_State* L = vm.state();
 
-    lua_getglobal(L, "testRemoved");
-    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-    int result = lua_pcall(L, 1, 0, 0);
-    CHECK(result != LUA_OK);
-    const char* error = lua_tostring(L, -1);
-    CHECK(std::string(error).find("is not a valid method") !=
-          std::string::npos);
-    lua_pop(L, 1);
+  lua_getglobal(L, "testRemoved");
+  lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+  int result = lua_pcall(L, 1, 0, 0);
+  CHECK(result != LUA_OK);
+  const char* error = lua_tostring(L, -1);
+  CHECK(std::string(error).find("is not a valid method") != std::string::npos);
+  lua_pop(L, 1);
 }
 
 TEST_CASE("context invalid method raises error", "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function testInvalidMethod(context: Context)
   context:thisMethodDoesNotExist()
 end
 )",
-        1,
-        true); // errorOk = true
+      1,
+      true); // errorOk = true
 
-    lua_State* L = vm.state();
+  lua_State* L = vm.state();
 
-    lua_getglobal(L, "testInvalidMethod");
-    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-    int result = lua_pcall(L, 1, 0, 0);
-    CHECK(result != LUA_OK);
-    // Error message should mention invalid method
-    const char* error = lua_tostring(L, -1);
-    CHECK(std::string(error).find("is not a valid method") !=
-          std::string::npos);
-    lua_pop(L, 1);
+  lua_getglobal(L, "testInvalidMethod");
+  lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+  int result = lua_pcall(L, 1, 0, 0);
+  CHECK(result != LUA_OK);
+  // Error message should mention invalid method
+  const char* error = lua_tostring(L, -1);
+  CHECK(std::string(error).find("is not a valid method") != std::string::npos);
+  lua_pop(L, 1);
 }
 
 TEST_CASE("context:blob returns nil when no script asset", "[scripting]")
 {
-    ScriptedObjectTest scriptedObjectTest;
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testBlob(context: Context)
@@ -1260,36 +1301,36 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testBlob");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testBlob");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("context:blob returns nil for non-existent blob", "[scripting]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/walle.riv", &silver);
-    REQUIRE(file != nullptr);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/walle.riv", &silver);
+  REQUIRE(file != nullptr);
 
-    ScriptedObjectWithFile scriptedObjectWithFile;
-    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 local result = "not_called"
 
 function testBlob(context: Context)
@@ -1306,60 +1347,61 @@ function getResult(): string
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testBlob");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "testBlob");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "getResult");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "nil");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "getResult");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "nil");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("context:markNeedsUpdate on context without dataContext",
-          "[scripting]")
+TEST_CASE(
+    "context:markNeedsUpdate on context without dataContext",
+    "[scripting]")
 {
-    // markNeedsUpdate should work regardless of dataContext
-    ScriptedObjectTest scriptedObjectTest;
+  // markNeedsUpdate should work regardless of dataContext
+  ScriptedObjectTest scriptedObjectTest;
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function testMark(context: Context)
   context:markNeedsUpdate()
 end
 )");
 
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testMark");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-        CHECK(scriptedObjectTest.needsUpdate());
-    }
+  {
+    lua_getglobal(L, "testMark");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+    CHECK(scriptedObjectTest.needsUpdate());
+  }
 }
 
 TEST_CASE("ScriptingContext ore/render context default to null", "[scripting]")
 {
-    // Guard against regression where ore/render context were static globals.
-    // A freshly created VM must start with null ore and render context — not
-    // inheriting any previously set value from another VM or a prior run.
-    ScriptingTest vm("-- empty");
-    ScriptingContext* ctx = vm.vm()->context();
-    REQUIRE(ctx != nullptr);
-    CHECK(ctx->oreContext() == nullptr);
-    CHECK(ctx->renderContext() == nullptr);
+  // Guard against regression where ore/render context were static globals.
+  // A freshly created VM must start with null ore and render context — not
+  // inheriting any previously set value from another VM or a prior run.
+  ScriptingTest vm("-- empty");
+  ScriptingContext* ctx = vm.vm()->context();
+  REQUIRE(ctx != nullptr);
+  CHECK(ctx->oreContext() == nullptr);
+  CHECK(ctx->renderContext() == nullptr);
 }
 
 // Script calls nest: a ScriptedDrawable that draws an artboard into its canvas
@@ -1367,26 +1409,27 @@ TEST_CASE("ScriptingContext ore/render context default to null", "[scripting]")
 // post-call cleanup used to take the whole open-frame list, so the inner call's
 // return closed the frame the outer call was still drawing into -- the outer
 // renderer went invalid mid-draw and its canvas composited nothing.
-TEST_CASE("open canvas frames are reclaimed per call, not wholesale",
-          "[scripting]")
+TEST_CASE(
+    "open canvas frames are reclaimed per call, not wholesale",
+    "[scripting]")
 {
-    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+  rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
 
-    // The frame an enclosing draw opened, and the token a nested call takes.
-    context.registerOpenCanvasFrame(11);
-    uint64_t token = context.nextOpenCanvasFrameToken();
+  // The frame an enclosing draw opened, and the token a nested call takes.
+  context.registerOpenCanvasFrame(11);
+  uint64_t token = context.nextOpenCanvasFrameToken();
 
-    // The nested call opens one of its own and returns without ending it.
-    context.registerOpenCanvasFrame(22);
-    auto leaked = context.takeOpenCanvasFramesFrom(token);
-    REQUIRE(leaked.size() == 1);
-    CHECK(leaked[0] == 22);
-    CHECK(context.openCanvasFrameCount() == 1);
+  // The nested call opens one of its own and returns without ending it.
+  context.registerOpenCanvasFrame(22);
+  auto leaked = context.takeOpenCanvasFramesFrom(token);
+  REQUIRE(leaked.size() == 1);
+  CHECK(leaked[0] == 22);
+  CHECK(context.openCanvasFrameCount() == 1);
 
-    // The enclosing frame is still open, and is reclaimed by its own call.
-    auto outer = context.takeOpenCanvasFramesFrom(0);
-    REQUIRE(outer.size() == 1);
-    CHECK(outer[0] == 11);
+  // The enclosing frame is still open, and is reclaimed by its own call.
+  auto outer = context.takeOpenCanvasFramesFrom(0);
+  REQUIRE(outer.size() == 1);
+  CHECK(outer[0] == 11);
 }
 
 // A nested call may end a frame it inherited and open one of its own, leaving
@@ -1397,54 +1440,55 @@ TEST_CASE(
     "a nested call that swaps out an inherited frame still reclaims its own",
     "[scripting]")
 {
-    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
-    context.registerOpenCanvasFrame(11);
-    uint64_t token = context.nextOpenCanvasFrameToken();
+  rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+  context.registerOpenCanvasFrame(11);
+  uint64_t token = context.nextOpenCanvasFrameToken();
 
-    context.unregisterOpenCanvasFrame(11); // the nested call ends it
-    context.registerOpenCanvasFrame(22);   // ...and opens its own
-    REQUIRE(context.openCanvasFrameCount() == 1);
+  context.unregisterOpenCanvasFrame(11); // the nested call ends it
+  context.registerOpenCanvasFrame(22);   // ...and opens its own
+  REQUIRE(context.openCanvasFrameCount() == 1);
 
-    auto leaked = context.takeOpenCanvasFramesFrom(token);
-    REQUIRE(leaked.size() == 1);
-    CHECK(leaked[0] == 22);
-    CHECK(context.openCanvasFrameCount() == 0);
+  auto leaked = context.takeOpenCanvasFramesFrom(token);
+  REQUIRE(leaked.size() == 1);
+  CHECK(leaked[0] == 22);
+  CHECK(context.openCanvasFrameCount() == 0);
 }
 
 // The same shape one level deeper: frames the enclosing call opened both before
 // and after an inherited one was ended stay put, and only the nested call's do
 // not.
-TEST_CASE("reclaiming a nested call's frames leaves interleaved outer ones",
-          "[scripting]")
+TEST_CASE(
+    "reclaiming a nested call's frames leaves interleaved outer ones",
+    "[scripting]")
 {
-    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
-    context.registerOpenCanvasFrame(11);
-    context.registerOpenCanvasFrame(12);
-    uint64_t token = context.nextOpenCanvasFrameToken();
+  rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+  context.registerOpenCanvasFrame(11);
+  context.registerOpenCanvasFrame(12);
+  uint64_t token = context.nextOpenCanvasFrameToken();
 
-    context.unregisterOpenCanvasFrame(11);
-    context.registerOpenCanvasFrame(22);
-    context.registerOpenCanvasFrame(23);
+  context.unregisterOpenCanvasFrame(11);
+  context.registerOpenCanvasFrame(22);
+  context.registerOpenCanvasFrame(23);
 
-    auto leaked = context.takeOpenCanvasFramesFrom(token);
-    REQUIRE(leaked.size() == 2);
-    CHECK(leaked[0] == 22);
-    CHECK(leaked[1] == 23);
-    REQUIRE(context.openCanvasFrameCount() == 1);
-    auto outer = context.takeOpenCanvasFramesFrom(0);
-    REQUIRE(outer.size() == 1);
-    CHECK(outer[0] == 12);
+  auto leaked = context.takeOpenCanvasFramesFrom(token);
+  REQUIRE(leaked.size() == 2);
+  CHECK(leaked[0] == 22);
+  CHECK(leaked[1] == 23);
+  REQUIRE(context.openCanvasFrameCount() == 1);
+  auto outer = context.takeOpenCanvasFramesFrom(0);
+  REQUIRE(outer.size() == 1);
+  CHECK(outer[0] == 12);
 }
 
 // Nothing open, and a token from before anything was ever registered, both
 // reclaim nothing rather than walking the list.
 TEST_CASE("reclaiming from an empty open frame list is a no-op", "[scripting]")
 {
-    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
-    uint64_t token = context.nextOpenCanvasFrameToken();
-    CHECK(context.takeOpenCanvasFramesFrom(token).empty());
-    CHECK(context.takeOpenCanvasFramesFrom(0).empty());
-    CHECK(context.openCanvasFrameCount() == 0);
+  rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+  uint64_t token = context.nextOpenCanvasFrameToken();
+  CHECK(context.takeOpenCanvasFramesFrom(token).empty());
+  CHECK(context.takeOpenCanvasFramesFrom(0).empty());
+  CHECK(context.openCanvasFrameCount() == 0);
 }
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
@@ -1458,72 +1502,73 @@ using rive::ore::cmd::RenderPassRecording;
 class StubOreContext : public rive::ore::Context
 {
 public:
-    StubOreContext() : rive::ore::Context(nullptr) {}
+  StubOreContext() : rive::ore::Context(nullptr) {}
 
-    rive::rcp<rive::ore::Buffer> makeBuffer(
-        const rive::ore::BufferDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::Texture> makeTexture(
-        const rive::ore::TextureDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::TextureView> makeTextureViewImpl(
-        const rive::ore::TextureViewDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::Sampler> makeSampler(
-        const rive::ore::SamplerDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::ShaderModule> makeShaderModule(
-        const rive::ore::ShaderModuleDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::BindGroupLayout> makeBindGroupLayout(
-        const rive::ore::BindGroupLayoutDesc&) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::Pipeline> makePipeline(const rive::ore::PipelineDesc&,
-                                                std::string*) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::BindGroup> makeBindGroup(
-        const rive::ore::BindGroupDesc&) override
-    {
-        return nullptr;
-    }
-    std::unique_ptr<rive::ore::RenderPass> beginRenderPass(
-        const rive::ore::RenderPassDesc&,
-        std::string*) override
-    {
-        return nullptr;
-    }
-    void beginFrame(const FrameDescriptor&) override {}
-    void endFrame() override {}
-    void waitForGPU() override {}
-    rive::rcp<rive::ore::TextureView> wrapCanvasTexture(
-        rive::gpu::RenderCanvas*) override
-    {
-        return nullptr;
-    }
-    rive::rcp<rive::ore::TextureView> wrapRiveTexture(rive::gpu::Texture*,
-                                                      uint32_t,
-                                                      uint32_t) override
-    {
-        return nullptr;
-    }
-    rive::ore::ShaderTarget shaderTarget() const override
-    {
-        return rive::ore::ShaderTarget::wgsl;
-    }
+  rive::rcp<rive::ore::Buffer> makeBuffer(const rive::ore::BufferDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::Texture> makeTexture(
+      const rive::ore::TextureDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::TextureView> makeTextureViewImpl(
+      const rive::ore::TextureViewDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::Sampler> makeSampler(
+      const rive::ore::SamplerDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::ShaderModule> makeShaderModule(
+      const rive::ore::ShaderModuleDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::BindGroupLayout> makeBindGroupLayout(
+      const rive::ore::BindGroupLayoutDesc&) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::Pipeline> makePipeline(
+      const rive::ore::PipelineDesc&,
+      std::string*) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::BindGroup> makeBindGroup(
+      const rive::ore::BindGroupDesc&) override
+  {
+    return nullptr;
+  }
+  std::unique_ptr<rive::ore::RenderPass> beginRenderPass(
+      const rive::ore::RenderPassDesc&,
+      std::string*) override
+  {
+    return nullptr;
+  }
+  void beginFrame(const FrameDescriptor&) override {}
+  void endFrame() override {}
+  void waitForGPU() override {}
+  rive::rcp<rive::ore::TextureView> wrapCanvasTexture(
+      rive::gpu::RenderCanvas*) override
+  {
+    return nullptr;
+  }
+  rive::rcp<rive::ore::TextureView> wrapRiveTexture(
+      rive::gpu::Texture*,
+      uint32_t,
+      uint32_t) override
+  {
+    return nullptr;
+  }
+  rive::ore::ShaderTarget shaderTarget() const override
+  {
+    return rive::ore::ShaderTarget::wgsl;
+  }
 };
 
 // Routes the VM's oreContext() to the stub, the way a recording session's
@@ -1531,22 +1576,23 @@ public:
 class StubOreFactory : public rive::NoOpFactory
 {
 public:
-    StubOreContext oreContext;
-    rive::ore::Context* ore() override { return &oreContext; }
+  StubOreContext oreContext;
+  rive::ore::Context* ore() override { return &oreContext; }
 };
 
 std::vector<CommandType> opcodesOf(const OreCommandBuffer& stream)
 {
-    std::vector<CommandType> ops;
-    rive::ore::cmd::OreCommandReader reader(stream.commandBytes(),
-                                            stream.blobBytes());
-    CommandType type;
-    while (reader.next(type))
-    {
-        ops.push_back(type);
-        reader.skip(rive::ore::cmd::orePayloadSizeOf(type));
-    }
-    return ops;
+  std::vector<CommandType> ops;
+  rive::ore::cmd::OreCommandReader reader(
+      stream.commandBytes(),
+      stream.blobBytes());
+  CommandType type;
+  while (reader.next(type))
+  {
+    ops.push_back(type);
+    reader.skip(rive::ore::cmd::orePayloadSizeOf(type));
+  }
+  return ops;
 }
 
 const char* kPassLeftOpen = "GPU render pass left open at script return. "
@@ -1567,149 +1613,155 @@ bool gNestedOpensCanvasFrame = false;
 // enter/exit wiring rather than the scope helpers in isolation.
 int nestedScriptCall(lua_State* L)
 {
-    if (gNestedOpensRenderPass)
-    {
-        gNestedPass =
-            std::make_unique<RenderPassRecording>(gNestedOre,
-                                                  gNestedStream,
-                                                  rive::ore::RenderPassDesc{});
-    }
-    if (gNestedOpensCanvasFrame)
-    {
-        // Idle, so the cleanup releases the ref without ending a frame.
-        rive::lua_newrive<rive::ScriptedCanvas>(L);
-        int ref = lua_ref(L, -1);
-        lua_pop(L, 1);
-        gNestedContext->registerOpenCanvasFrame(ref);
-    }
-    return 0;
+  if (gNestedOpensRenderPass)
+  {
+    gNestedPass = std::make_unique<RenderPassRecording>(
+        gNestedOre,
+        gNestedStream,
+        rive::ore::RenderPassDesc{});
+  }
+  if (gNestedOpensCanvasFrame)
+  {
+    // Idle, so the cleanup releases the ref without ending a frame.
+    rive::lua_newrive<rive::ScriptedCanvas>(L);
+    int ref = lua_ref(L, -1);
+    lua_pop(L, 1);
+    gNestedContext->registerOpenCanvasFrame(ref);
+  }
+  return 0;
 }
 } // namespace
 
 // The pass half of the same nesting problem: an inner script call returning
 // must not finish the render pass the enclosing call is still recording into.
-TEST_CASE("a nested call leaves the render pass it inherited open",
-          "[scripting]")
+TEST_CASE(
+    "a nested call leaves the render pass it inherited open",
+    "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
-    REQUIRE(vm.vm()->context()->oreContext() ==
-            static_cast<void*>(&factory.oreContext));
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
+  REQUIRE(
+      vm.vm()->context()->oreContext() ==
+      static_cast<void*>(&factory.oreContext));
 
-    OreCommandBuffer stream;
-    RenderPassRecording outer(&factory.oreContext, &stream, {});
+  OreCommandBuffer stream;
+  RenderPassRecording outer(&factory.oreContext, &stream, {});
 
-    // A nested script call begins and returns without touching the pass.
-    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
-    rive_lua_exitScriptCallGpuScope(L, scope);
+  // A nested script call begins and returns without touching the pass.
+  ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+  rive_lua_exitScriptCallGpuScope(L, scope);
 
-    CHECK_FALSE(outer.isFinished());
-    CHECK(factory.oreContext.hasOpenRenderPasses());
-    CHECK(vm.errors.empty());
+  CHECK_FALSE(outer.isFinished());
+  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(vm.errors.empty());
 }
 
 // The leak the cleanup is there for is still caught: a pass the call itself
 // opened and forgot is finished and reported.
-TEST_CASE("a call's own abandoned render pass is finished and reported",
-          "[scripting]")
+TEST_CASE(
+    "a call's own abandoned render pass is finished and reported",
+    "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
 
-    OreCommandBuffer stream;
-    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
-    RenderPassRecording own(&factory.oreContext, &stream, {});
-    rive_lua_exitScriptCallGpuScope(L, scope);
+  OreCommandBuffer stream;
+  ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+  RenderPassRecording own(&factory.oreContext, &stream, {});
+  rive_lua_exitScriptCallGpuScope(L, scope);
 
-    CHECK(own.isFinished());
-    CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
-    REQUIRE(vm.errors.size() == 1);
-    CHECK(vm.errors[0] == kPassLeftOpen);
+  CHECK(own.isFinished());
+  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  REQUIRE(vm.errors.size() == 1);
+  CHECK(vm.errors[0] == kPassLeftOpen);
 }
 
 // Both at once, which is the shape a nested drawable hits: the nested call
 // opens its own pass inside the enclosing one. Its pass is reclaimed and
 // lands ahead of the enclosing pass in the stream, which the enclosing call
 // still finishes itself.
-TEST_CASE("a nested call's pass is reclaimed without finishing the outer one",
-          "[scripting]")
+TEST_CASE(
+    "a nested call's pass is reclaimed without finishing the outer one",
+    "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
 
-    OreCommandBuffer stream;
-    RenderPassRecording outer(&factory.oreContext, &stream, {});
-    outer.draw(3);
+  OreCommandBuffer stream;
+  RenderPassRecording outer(&factory.oreContext, &stream, {});
+  outer.draw(3);
 
-    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
-    RenderPassRecording inner(&factory.oreContext, &stream, {});
-    inner.draw(6);
-    rive_lua_exitScriptCallGpuScope(L, scope);
+  ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+  RenderPassRecording inner(&factory.oreContext, &stream, {});
+  inner.draw(6);
+  rive_lua_exitScriptCallGpuScope(L, scope);
 
-    CHECK(inner.isFinished());
-    CHECK_FALSE(outer.isFinished());
-    CHECK(factory.oreContext.hasOpenRenderPasses());
-    REQUIRE(vm.errors.size() == 1);
+  CHECK(inner.isFinished());
+  CHECK_FALSE(outer.isFinished());
+  CHECK(factory.oreContext.hasOpenRenderPasses());
+  REQUIRE(vm.errors.size() == 1);
 
-    outer.draw(9);
-    outer.finish();
-    CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
-    CHECK(opcodesOf(stream) == std::vector<CommandType>{
-                                   CommandType::beginRenderPass,
-                                   CommandType::draw,
-                                   CommandType::finish,
-                                   CommandType::beginRenderPass,
-                                   CommandType::draw,
-                                   CommandType::draw,
-                                   CommandType::finish,
-                               });
+  outer.draw(9);
+  outer.finish();
+  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  CHECK(
+      opcodesOf(stream) == std::vector<CommandType>{
+                               CommandType::beginRenderPass,
+                               CommandType::draw,
+                               CommandType::finish,
+                               CommandType::beginRenderPass,
+                               CommandType::draw,
+                               CommandType::draw,
+                               CommandType::finish,
+                           });
 }
 
 // An already finished pass is nobody's leak, so the cleanup reports nothing.
 TEST_CASE("a finished render pass is not reported as left open", "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
 
-    OreCommandBuffer stream;
-    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
-    RenderPassRecording own(&factory.oreContext, &stream, {});
-    own.finish();
-    rive_lua_exitScriptCallGpuScope(L, scope);
+  OreCommandBuffer stream;
+  ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+  RenderPassRecording own(&factory.oreContext, &stream, {});
+  own.finish();
+  rive_lua_exitScriptCallGpuScope(L, scope);
 
-    CHECK(vm.errors.empty());
+  CHECK(vm.errors.empty());
 }
 
 // A script that finishes the enclosing pass first loses the nested one with
 // it, and the nested wrapper says so instead of recording into a closed pass.
-TEST_CASE("a pass closed by its enclosing pass expires for the script",
-          "[scripting]")
+TEST_CASE(
+    "a pass closed by its enclosing pass expires for the script",
+    "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("rp:draw(3)", 0, true, {}, false, &factory);
-    lua_State* L = vm.state();
+  StubOreFactory factory;
+  ScriptingTest vm("rp:draw(3)", 0, true, {}, false, &factory);
+  lua_State* L = vm.state();
 
-    OreCommandBuffer stream;
-    RenderPassRecording outer(&factory.oreContext, &stream, {});
-    auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    rp->pass =
-        std::make_unique<RenderPassRecording>(&factory.oreContext,
-                                              &stream,
-                                              rive::ore::RenderPassDesc{});
-    lua_setglobal(L, "rp");
+  OreCommandBuffer stream;
+  RenderPassRecording outer(&factory.oreContext, &stream, {});
+  auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
+  rp->pass = std::make_unique<RenderPassRecording>(
+      &factory.oreContext,
+      &stream,
+      rive::ore::RenderPassDesc{});
+  lua_setglobal(L, "rp");
 
-    outer.finish();
-    CHECK(rp->pass->isFinished());
-    CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  outer.finish();
+  CHECK(rp->pass->isFinished());
+  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
 
-    REQUIRE(lua_pcall(L, 0, 0, 0) != LUA_OK);
-    std::string message = lua_tostring(L, -1);
-    CHECK(message.find("render pass expired") != std::string::npos);
-    lua_pop(L, 1);
+  REQUIRE(lua_pcall(L, 0, 0, 0) != LUA_OK);
+  std::string message = lua_tostring(L, -1);
+  CHECK(message.find("render pass expired") != std::string::npos);
+  lua_pop(L, 1);
 }
 
 // The scope helpers above are only correct if rive_lua_pcall actually brackets
@@ -1717,84 +1769,86 @@ TEST_CASE("a pass closed by its enclosing pass expires for the script",
 // through rive_lua_pcall the same way a ScriptedDrawable's draw does.
 TEST_CASE("rive_lua_pcall leaves the caller's GPU work alone", "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
-    ScriptingContext* context = vm.vm()->context();
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
+  ScriptingContext* context = vm.vm()->context();
 
-    // The enclosing draw's pass and canvas frame.
-    OreCommandBuffer stream;
-    RenderPassRecording outer(&factory.oreContext, &stream, {});
-    lua_newrive<ScriptedCanvas>(L);
-    int outerFrame = lua_ref(L, -1);
-    lua_pop(L, 1);
-    context->registerOpenCanvasFrame(outerFrame);
+  // The enclosing draw's pass and canvas frame.
+  OreCommandBuffer stream;
+  RenderPassRecording outer(&factory.oreContext, &stream, {});
+  lua_newrive<ScriptedCanvas>(L);
+  int outerFrame = lua_ref(L, -1);
+  lua_pop(L, 1);
+  context->registerOpenCanvasFrame(outerFrame);
 
-    // A nested call that opens nothing of its own.
-    gNestedContext = context;
-    gNestedOre = &factory.oreContext;
-    gNestedStream = &stream;
-    gNestedOpensRenderPass = false;
-    gNestedOpensCanvasFrame = false;
-    lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
-    CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
-    gNestedContext = nullptr;
-    gNestedOre = nullptr;
-    gNestedStream = nullptr;
+  // A nested call that opens nothing of its own.
+  gNestedContext = context;
+  gNestedOre = &factory.oreContext;
+  gNestedStream = &stream;
+  gNestedOpensRenderPass = false;
+  gNestedOpensCanvasFrame = false;
+  lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
+  CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
+  gNestedContext = nullptr;
+  gNestedOre = nullptr;
+  gNestedStream = nullptr;
 
-    CHECK_FALSE(outer.isFinished());
-    CHECK(factory.oreContext.hasOpenRenderPasses());
-    CHECK(context->openCanvasFrameCount() == 1);
-    CHECK(vm.errors.empty());
+  CHECK_FALSE(outer.isFinished());
+  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(context->openCanvasFrameCount() == 1);
+  CHECK(vm.errors.empty());
 }
 
-TEST_CASE("rive_lua_pcall reclaims only what the nested call opened",
-          "[scripting]")
+TEST_CASE(
+    "rive_lua_pcall reclaims only what the nested call opened",
+    "[scripting]")
 {
-    StubOreFactory factory;
-    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
-    lua_State* L = vm.state();
-    ScriptingContext* context = vm.vm()->context();
+  StubOreFactory factory;
+  ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+  lua_State* L = vm.state();
+  ScriptingContext* context = vm.vm()->context();
 
-    OreCommandBuffer stream;
-    RenderPassRecording outer(&factory.oreContext, &stream, {});
-    lua_newrive<ScriptedCanvas>(L);
-    int outerFrame = lua_ref(L, -1);
-    lua_pop(L, 1);
-    context->registerOpenCanvasFrame(outerFrame);
+  OreCommandBuffer stream;
+  RenderPassRecording outer(&factory.oreContext, &stream, {});
+  lua_newrive<ScriptedCanvas>(L);
+  int outerFrame = lua_ref(L, -1);
+  lua_pop(L, 1);
+  context->registerOpenCanvasFrame(outerFrame);
 
-    // The nested call opens its own pass and canvas frame and forgets both.
-    gNestedContext = context;
-    gNestedOre = &factory.oreContext;
-    gNestedStream = &stream;
-    gNestedOpensRenderPass = true;
-    gNestedOpensCanvasFrame = true;
-    lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
-    CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
-    gNestedContext = nullptr;
-    gNestedOre = nullptr;
-    gNestedStream = nullptr;
-    gNestedOpensRenderPass = false;
-    gNestedOpensCanvasFrame = false;
+  // The nested call opens its own pass and canvas frame and forgets both.
+  gNestedContext = context;
+  gNestedOre = &factory.oreContext;
+  gNestedStream = &stream;
+  gNestedOpensRenderPass = true;
+  gNestedOpensCanvasFrame = true;
+  lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
+  CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
+  gNestedContext = nullptr;
+  gNestedOre = nullptr;
+  gNestedStream = nullptr;
+  gNestedOpensRenderPass = false;
+  gNestedOpensCanvasFrame = false;
 
-    // Reclaimed: the nested call's own work, reported as left open.
-    REQUIRE(gNestedPass != nullptr);
-    CHECK(gNestedPass->isFinished());
-    CHECK(vm.errors.size() == 2);
+  // Reclaimed: the nested call's own work, reported as left open.
+  REQUIRE(gNestedPass != nullptr);
+  CHECK(gNestedPass->isFinished());
+  CHECK(vm.errors.size() == 2);
 
-    // Untouched: the enclosing draw's, which it is still using.
-    CHECK_FALSE(outer.isFinished());
-    CHECK(factory.oreContext.hasOpenRenderPasses());
-    CHECK(context->openCanvasFrameCount() == 1);
+  // Untouched: the enclosing draw's, which it is still using.
+  CHECK_FALSE(outer.isFinished());
+  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(context->openCanvasFrameCount() == 1);
 
-    outer.finish();
-    gNestedPass.reset();
-    CHECK(opcodesOf(stream) == std::vector<CommandType>{
-                                   CommandType::beginRenderPass,
-                                   CommandType::finish,
-                                   CommandType::beginRenderPass,
-                                   CommandType::finish,
-                               });
+  outer.finish();
+  gNestedPass.reset();
+  CHECK(
+      opcodesOf(stream) == std::vector<CommandType>{
+                               CommandType::beginRenderPass,
+                               CommandType::finish,
+                               CommandType::beginRenderPass,
+                               CommandType::finish,
+                           });
 }
 #endif // RIVE_CANVAS && RIVE_ORE
 
@@ -1809,16 +1863,15 @@ TEST_CASE("rive_lua_pcall reclaims only what the nested call opened",
 // instance it wraps, so == cannot tell two wrappers of one instance apart.
 TEST_CASE("context view model wrappers are reused across calls", "[scripting]")
 {
-    auto file = ReadRiveFile("assets/scripted_color.riv");
-    auto artboard = file->artboard("ColorArtboard")->instance();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/scripted_color.riv");
+  auto artboard = file->artboard("ColorArtboard")->instance();
+  REQUIRE(artboard != nullptr);
 
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function init(self, context)
   self.context = context
   print(tostring(rawequal(context:viewModel(), context:viewModel())))
@@ -1837,43 +1890,43 @@ return function()
 end
 )");
 
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    ScriptedObjectTest object;
-    object.implementedMethods(object.implementedMethods() |
-                              (1 << 9)); // m_initsBit, so init() runs
-    object.dataContext(make_rcp<DataContext>(viewModelInstance));
-    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    REQUIRE(object.hydrateScriptInputs());
+  ScriptedObjectTest object;
+  object.implementedMethods(
+      object.implementedMethods() | (1 << 9)); // m_initsBit, so init() runs
+  object.dataContext(make_rcp<DataContext>(viewModelInstance));
+  REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  REQUIRE(object.hydrateScriptInputs());
 
-    REQUIRE(vm.console.size() == 4);
-    CHECK(vm.console[0] == "true"); // context:viewModel()
-    CHECK(vm.console[1] == "true"); // context:rootViewModel()
-    CHECK(vm.console[2] == "true"); // context:dataContext()
-    CHECK(vm.console[3] == "true"); // dataContext:viewModel()
+  REQUIRE(vm.console.size() == 4);
+  CHECK(vm.console[0] == "true"); // context:viewModel()
+  CHECK(vm.console[1] == "true"); // context:rootViewModel()
+  CHECK(vm.console[2] == "true"); // context:dataContext()
+  CHECK(vm.console[3] == "true"); // dataContext:viewModel()
 
-    object.scriptDispose();
+  object.scriptDispose();
 }
 
 // The symptom this guards: a pointer handler walking its view model every
 // frame grew the Lua heap without bound until playback stalled and the process
 // ran out of memory. Counting distinct wrappers is the deterministic form of
 // that -- a heap measurement depends on when the collector happens to run.
-TEST_CASE("repeated context view model access allocates no new wrappers",
-          "[scripting]")
+TEST_CASE(
+    "repeated context view model access allocates no new wrappers",
+    "[scripting]")
 {
-    auto file = ReadRiveFile("assets/scripted_color.riv");
-    auto artboard = file->artboard("ColorArtboard")->instance();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/scripted_color.riv");
+  auto artboard = file->artboard("ColorArtboard")->instance();
+  REQUIRE(artboard != nullptr);
 
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function init(self, context)
   self.context = context
   return true
@@ -1907,50 +1960,51 @@ return function()
 end
 )");
 
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    ScriptedObjectTest object;
-    object.implementedMethods(object.implementedMethods() |
-                              (1 << 9)); // m_initsBit, so init() runs
-    object.dataContext(make_rcp<DataContext>(viewModelInstance));
-    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    REQUIRE(object.hydrateScriptInputs());
+  ScriptedObjectTest object;
+  object.implementedMethods(
+      object.implementedMethods() | (1 << 9)); // m_initsBit, so init() runs
+  object.dataContext(make_rcp<DataContext>(viewModelInstance));
+  REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  REQUIRE(object.hydrateScriptInputs());
 
-    object.trigger("churn");
+  object.trigger("churn");
 
-    REQUIRE(vm.console.size() == 2);
-    CHECK(vm.console[0] == "true"); // one view model wrapper for 2000 calls
-    CHECK(vm.console[1] == "true"); // and one property wrapper under it
+  REQUIRE(vm.console.size() == 2);
+  CHECK(vm.console[0] == "true"); // one view model wrapper for 2000 calls
+  CHECK(vm.console[1] == "true"); // and one property wrapper under it
 
-    object.scriptDispose();
+  object.scriptDispose();
 }
 
 // The cache is keyed to the bound instance, not held forever: rebinding the
 // data context has to hand out a wrapper for the new instance.
-TEST_CASE("context view model wrapper is rebuilt when the instance changes",
-          "[scripting]")
+TEST_CASE(
+    "context view model wrapper is rebuilt when the instance changes",
+    "[scripting]")
 {
-    auto file = ReadRiveFile("assets/scripted_color.riv");
-    auto artboard = file->artboard("ColorArtboard")->instance();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/scripted_color.riv");
+  auto artboard = file->artboard("ColorArtboard")->instance();
+  REQUIRE(artboard != nullptr);
 
-    auto first = file->createDefaultViewModelInstance(artboard.get());
-    auto second = file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(first != nullptr);
-    REQUIRE(second != nullptr);
-    REQUIRE(first != second);
+  auto first = file->createDefaultViewModelInstance(artboard.get());
+  auto second = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(first != nullptr);
+  REQUIRE(second != nullptr);
+  REQUIRE(first != second);
 
-    first->propertyValue("colorProp")
-        ->as<ViewModelInstanceColor>()
-        ->propertyValue(0xFF112233);
-    second->propertyValue("colorProp")
-        ->as<ViewModelInstanceColor>()
-        ->propertyValue(0xFF445566);
+  first->propertyValue("colorProp")
+      ->as<ViewModelInstanceColor>()
+      ->propertyValue(0xFF112233);
+  second->propertyValue("colorProp")
+      ->as<ViewModelInstanceColor>()
+      ->propertyValue(0xFF445566);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function init(self, context)
   self.context = context
   return true
@@ -1970,26 +2024,35 @@ return function()
 end
 )");
 
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    ScriptedObjectTest object;
-    object.implementedMethods(object.implementedMethods() |
-                              (1 << 9)); // m_initsBit, so init() runs
-    object.dataContext(make_rcp<DataContext>(first));
-    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    REQUIRE(object.hydrateScriptInputs());
+  ScriptedObjectTest object;
+  object.implementedMethods(
+      object.implementedMethods() | (1 << 9)); // m_initsBit, so init() runs
+  object.dataContext(make_rcp<DataContext>(first));
+  REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  REQUIRE(object.hydrateScriptInputs());
 
-    object.trigger("probe");
-    REQUIRE(vm.console.size() == 1);
-    const std::string firstValue = vm.console[0];
+  object.trigger("probe");
+  REQUIRE(vm.console.size() == 1);
+  const std::string firstValue = vm.console[0];
 
-    // Rebind to a different instance; the cached wrapper must not be reused.
-    object.dataContext(make_rcp<DataContext>(second));
-    object.trigger("probe");
-    REQUIRE(vm.console.size() == 2);
-    CHECK(vm.console[1] != firstValue);
+  // Rebind to a different instance; the cached wrapper must not be reused.
+  object.dataContext(make_rcp<DataContext>(second));
+  object.trigger("probe");
+  REQUIRE(vm.console.size() == 2);
+  CHECK(vm.console[1] != firstValue);
 
-    object.scriptDispose();
+  object.scriptDispose();
+}
+
+// print joins its arguments with a tab, as Luau's own print does, so several
+// values on one line read back apart rather than run together.
+TEST_CASE("print separates its arguments with tabs", "[scripting]")
+{
+  ScriptingTest vm(R"(print("alpha", 1, true, nil, 2.5))", 0);
+  REQUIRE(vm.console.size() == 1);
+  CHECK(vm.console[0] == "alpha\t1\ttrue\tnil\t2.5");
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* LayerMaskBase::clone() const
 {
-    auto cloned = new LayerMask();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new LayerMask();
+  cloned->copy(*this);
+  return cloned;
 }

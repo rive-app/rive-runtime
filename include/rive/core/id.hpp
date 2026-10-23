@@ -32,100 +32,100 @@ namespace rive
 #ifdef WITH_RIVE_EDITOR
 struct Id
 {
-    // The "unset" / "invalid" sentinel is `{UINT32_MAX, UINT32_MAX}` —
-    // not `{0, 0}`. Runtime `.riv` files use index `0` as a legitimate
-    // first-object reference (parentId=0 means "child of the artboard
-    // at m_Objects[0]"), and we want `Artboard::resolve(Id{0, 0})` to
-    // keep returning that object. The JSON defs use
-    // `initialValueRuntime: "-1"` for Id fields that really mean
-    // "unset"; `IdFieldType::convertCpp` rewrites both `-1` and `0`-
-    // with-`type:Id`+initial-matches-missing into `kEmptyId`.
-    static constexpr uint32_t kUnsetField = 0xFFFFFFFFu;
+  // The "unset" / "invalid" sentinel is `{UINT32_MAX, UINT32_MAX}` —
+  // not `{0, 0}`. Runtime `.riv` files use index `0` as a legitimate
+  // first-object reference (parentId=0 means "child of the artboard
+  // at m_Objects[0]"), and we want `Artboard::resolve(Id{0, 0})` to
+  // keep returning that object. The JSON defs use
+  // `initialValueRuntime: "-1"` for Id fields that really mean
+  // "unset"; `IdFieldType::convertCpp` rewrites both `-1` and `0`-
+  // with-`type:Id`+initial-matches-missing into `kEmptyId`.
+  static constexpr uint32_t kUnsetField = 0xFFFFFFFFu;
 
-    uint32_t client = kUnsetField;
-    uint32_t object = kUnsetField;
+  uint32_t client = kUnsetField;
+  uint32_t object = kUnsetField;
 
-    constexpr Id() = default;
-    constexpr Id(uint32_t c, uint32_t o) : client(c), object(o) {}
-    // Implicit conversion from runtime-index uint32_t. Still callable
-    // from code that treats `Id` as an integer (e.g. `id == 0`).
-    // `0xFFFFFFFF` is the defs' unset sentinel, so it has to land on
-    // `kEmptyId` rather than a client-0 index that far out.
-    constexpr Id(uint32_t runtimeIndex) :
-        client(runtimeIndex == kUnsetField ? kUnsetField : 0),
-        object(runtimeIndex)
-    {}
+  constexpr Id() = default;
+  constexpr Id(uint32_t c, uint32_t o) : client(c), object(o) {}
+  // Implicit conversion from runtime-index uint32_t. Still callable
+  // from code that treats `Id` as an integer (e.g. `id == 0`).
+  // `0xFFFFFFFF` is the defs' unset sentinel, so it has to land on
+  // `kEmptyId` rather than a client-0 index that far out.
+  constexpr Id(uint32_t runtimeIndex)
+      : client(runtimeIndex == kUnsetField ? kUnsetField : 0)
+      , object(runtimeIndex)
+  {}
 
-    friend constexpr bool operator==(const Id& a, const Id& b)
-    {
-        return a.client == b.client && a.object == b.object;
-    }
-    friend constexpr bool operator!=(const Id& a, const Id& b)
-    {
-        return !(a == b);
-    }
+  friend constexpr bool operator==(const Id& a, const Id& b)
+  {
+    return a.client == b.client && a.object == b.object;
+  }
+  friend constexpr bool operator!=(const Id& a, const Id& b)
+  {
+    return !(a == b);
+  }
 
-    constexpr bool empty() const
-    {
-        return client == kUnsetField && object == kUnsetField;
-    }
+  constexpr bool empty() const
+  {
+    return client == kUnsetField && object == kUnsetField;
+  }
 
-    // Direct comparisons against integer literals — specifically
-    // disambiguate `id == 0 / id != 0` against the combined presence
-    // of the `Id(uint32_t)` promoting constructor and the implicit
-    // `operator uint32_t()` narrowing conversion (either path is a
-    // "valid" way to unify the operand types, and the compiler refuses
-    // to pick).
-    //
-    // Semantics (match pre-refactor runtime behavior):
-    //   - `-1` (== UINT32_MAX as unsigned) is the "unset" sentinel
-    //     per the JSON defs' `initialValueRuntime: "-1"` convention,
-    //     so it compares equal to `kEmptyId` regardless of `client`.
-    //     This preserves the runtime idiom `if (id != -1)` which is
-    //     sprinkled through `animation/*.cpp` to check "is this Id
-    //     field set at all?".
-    //   - Any other integer matches an Id at `client == 0` with that
-    //     `object` index — matching how `Id(uint32_t)` projects
-    //     runtime indices into the struct.
-    friend constexpr bool operator==(const Id& a, int b)
-    {
-        if (b == -1)
-            return a.empty();
-        return a.client == 0 && a.object == static_cast<uint32_t>(b);
-    }
-    friend constexpr bool operator==(int a, const Id& b) { return b == a; }
-    friend constexpr bool operator!=(const Id& a, int b) { return !(a == b); }
-    friend constexpr bool operator!=(int a, const Id& b) { return !(a == b); }
-    friend constexpr bool operator==(const Id& a, uint32_t b)
-    {
-        if (b == 0xFFFFFFFFu)
-            return a.empty();
-        return a.client == 0 && a.object == b;
-    }
-    friend constexpr bool operator==(uint32_t a, const Id& b) { return b == a; }
-    friend constexpr bool operator!=(const Id& a, uint32_t b)
-    {
-        return !(a == b);
-    }
-    friend constexpr bool operator!=(uint32_t a, const Id& b)
-    {
-        return !(a == b);
-    }
+  // Direct comparisons against integer literals — specifically
+  // disambiguate `id == 0 / id != 0` against the combined presence
+  // of the `Id(uint32_t)` promoting constructor and the implicit
+  // `operator uint32_t()` narrowing conversion (either path is a
+  // "valid" way to unify the operand types, and the compiler refuses
+  // to pick).
+  //
+  // Semantics (match pre-refactor runtime behavior):
+  //   - `-1` (== UINT32_MAX as unsigned) is the "unset" sentinel
+  //     per the JSON defs' `initialValueRuntime: "-1"` convention,
+  //     so it compares equal to `kEmptyId` regardless of `client`.
+  //     This preserves the runtime idiom `if (id != -1)` which is
+  //     sprinkled through `animation/*.cpp` to check "is this Id
+  //     field set at all?".
+  //   - Any other integer matches an Id at `client == 0` with that
+  //     `object` index — matching how `Id(uint32_t)` projects
+  //     runtime indices into the struct.
+  friend constexpr bool operator==(const Id& a, int b)
+  {
+    if (b == -1)
+      return a.empty();
+    return a.client == 0 && a.object == static_cast<uint32_t>(b);
+  }
+  friend constexpr bool operator==(int a, const Id& b) { return b == a; }
+  friend constexpr bool operator!=(const Id& a, int b) { return !(a == b); }
+  friend constexpr bool operator!=(int a, const Id& b) { return !(a == b); }
+  friend constexpr bool operator==(const Id& a, uint32_t b)
+  {
+    if (b == 0xFFFFFFFFu)
+      return a.empty();
+    return a.client == 0 && a.object == b;
+  }
+  friend constexpr bool operator==(uint32_t a, const Id& b) { return b == a; }
+  friend constexpr bool operator!=(const Id& a, uint32_t b)
+  {
+    return !(a == b);
+  }
+  friend constexpr bool operator!=(uint32_t a, const Id& b)
+  {
+    return !(a == b);
+  }
 
-    // Implicit narrowing to `uint32_t` so runtime-shaped code that
-    // returns Ids from `uint32_t`-typed APIs (`animation/*.hpp`
-    // getters, `rive_binding.cpp` callback scaffolding, `size_t`
-    // bounds checks on vertex / object arrays, etc.) keeps compiling
-    // against the editor-mode struct. This drops the `client` field —
-    // which is meaningful only for coop (non-runtime) Ids. For every
-    // synthesized-from-runtime Id (`client == 0`) the object-field
-    // IS the runtime index, so the conversion is lossless; for true
-    // CoopIds it is lossy, and any path that cares about the client
-    // must take `const Id&` (or access `.client` / `.object`
-    // explicitly) rather than accept a `uint32_t` here. The pattern
-    // matches the Dart editor, where runtime-typed APIs use the
-    // `Id.object` field and editor code branches on `client`.
-    constexpr operator uint32_t() const { return object; }
+  // Implicit narrowing to `uint32_t` so runtime-shaped code that
+  // returns Ids from `uint32_t`-typed APIs (`animation/*.hpp`
+  // getters, `rive_binding.cpp` callback scaffolding, `size_t`
+  // bounds checks on vertex / object arrays, etc.) keeps compiling
+  // against the editor-mode struct. This drops the `client` field —
+  // which is meaningful only for coop (non-runtime) Ids. For every
+  // synthesized-from-runtime Id (`client == 0`) the object-field
+  // IS the runtime index, so the conversion is lossless; for true
+  // CoopIds it is lossy, and any path that cares about the client
+  // must take `const Id&` (or access `.client` / `.object`
+  // explicitly) rather than accept a `uint32_t` here. The pattern
+  // matches the Dart editor, where runtime-typed APIs use the
+  // `Id.object` field and editor code branches on `client`.
+  constexpr operator uint32_t() const { return object; }
 };
 constexpr Id kEmptyId = {};
 #else

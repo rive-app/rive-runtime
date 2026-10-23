@@ -14,17 +14,16 @@ class ViewModelInstanceArtboardRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceArtboardRuntime(
-        ViewModelInstanceArtboard* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    void value(rcp<BindableArtboard> bindableArtboard);
-    void viewModelInstance(rcp<ViewModelInstance> viewModelInstance);
-    const DataType dataType() override { return DataType::artboard; }
-    std::string artboardName() const;
+  ViewModelInstanceArtboardRuntime(ViewModelInstanceArtboard* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  void value(rcp<BindableArtboard> bindableArtboard);
+  void viewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+  const DataType dataType() override { return DataType::artboard; }
+  std::string artboardName() const;
 
 #ifdef TESTING
-    rcp<BindableArtboard> testing_value();
+  rcp<BindableArtboard> testing_value();
 #endif
 };
 } // namespace rive

@@ -9,26 +9,31 @@ class ScriptedTransitionCondition : public ScriptedTransitionConditionBase,
                                     public ScriptedObject
 {
 public:
-    ~ScriptedTransitionCondition();
-    virtual void disposeScriptInputs() override;
-    bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  StateMachineLayerInstance* layerInstance) const override;
-    bool evaluateStateful(const StateMachineInstance* stateMachineInstance,
-                          StateMachineLayerInstance* layerInstance) const;
-    uint32_t assetId() override { return scriptAssetId(); }
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        return false;
-    }
-    ScriptProtocol scriptProtocol() override
-    {
-        return ScriptProtocol::transitionCondition;
-    }
-    Component* component() override { return nullptr; }
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
-    ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
-    void addProperty(CustomProperty* prop) override;
+#ifdef WITH_RIVE_EDITOR
+  void editorPrepareForDestruction() override;
+#endif
+  ~ScriptedTransitionCondition();
+  virtual void disposeScriptInputs() override;
+  bool evaluate(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
+  bool evaluateStateful(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const;
+  uint32_t assetId() override { return scriptAssetId(); }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    return false;
+  }
+  ScriptProtocol scriptProtocol() override
+  {
+    return ScriptProtocol::transitionCondition;
+  }
+  Component* component() override { return nullptr; }
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
+  ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
+  void addProperty(CustomProperty* prop) override;
 };
 } // namespace rive
 

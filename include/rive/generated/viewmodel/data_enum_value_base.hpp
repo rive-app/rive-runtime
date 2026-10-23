@@ -11,87 +11,72 @@ namespace rive
 class DataEnumValueBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 445;
+  static const uint16_t typeKey = 445;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataEnumValueBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t keyPropertyKey = 578;
-    static const uint16_t valuePropertyKey = 579;
+  static const uint16_t keyPropertyKey = 578;
+  static const uint16_t valuePropertyKey = 579;
 
 protected:
-    std::string m_Key = "";
-    std::string m_Value = "";
+  std::string m_Key = "";
+  std::string m_Value = "";
 
 public:
-    inline const std::string& key() const { return m_Key; }
-    void key(std::string value)
+  inline const std::string& key() const { return m_Key; }
+  void key(std::string value)
+  {
+    if (m_Key == value)
     {
-        if (m_Key == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(keyPropertyKey, m_Key, value);
-        m_Key = value;
-        RIVE_EDITOR_CHANGED(keyChanged());
-        notifyPropertyChanged(keyPropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(keyPropertyKey, m_Key, value);
+    m_Key = value;
+    notifyPropertyChanged(keyPropertyKey);
+  }
 
-    inline const std::string& value() const { return m_Value; }
-    void value(std::string value)
+  inline const std::string& value() const { return m_Value; }
+  void value(std::string value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(valuePropertyKey, m_Value, value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(valuePropertyKey, m_Value, value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataEnumValueBase& object)
-    {
-        m_Key = object.m_Key;
-        m_Value = object.m_Value;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const DataEnumValueBase& object)
+  {
+    m_Key = object.m_Key;
+    m_Value = object.m_Value;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case keyPropertyKey:
-                m_Key = CoreStringType::deserialize(reader);
-                return true;
-            case valuePropertyKey:
-                m_Value = CoreStringType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case keyPropertyKey:
+        m_Key = CoreStringType::deserialize(reader);
+        return true;
+      case valuePropertyKey:
+        m_Value = CoreStringType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
-    virtual void keyChanged() {}
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/data_enum_value_ext.inl"
 #endif

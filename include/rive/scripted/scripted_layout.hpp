@@ -9,48 +9,50 @@ namespace rive
 class ScriptedLayout : public ScriptedLayoutBase
 {
 private:
-    Vec2D m_size;
-    // controlSize has run; before then m_size is uninitialized and must not
-    // be announced.
-    bool m_sizeKnown = false;
+  Vec2D m_size;
+  // controlSize has run; before then m_size is uninitialized and must not
+  // be announced.
+  bool m_sizeKnown = false;
 #ifdef WITH_RIVE_SCRIPTING
-    void callScriptedResize(Vec2D size);
+  void callScriptedResize(Vec2D size);
 #endif
 
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    void didHydrateScriptInputs() override;
-    void displayScaleChanged() override
+  void didHydrateScriptInputs() override;
+  void displayScaleChanged() override
+  {
+    if (m_sizeKnown)
     {
-        if (m_sizeKnown)
-        {
-            callScriptedResize(m_size);
-        }
+      callScriptedResize(m_size);
     }
+  }
 #endif
-    Vec2D measureLayout(float width,
-                        LayoutMeasureMode widthMode,
-                        float height,
-                        LayoutMeasureMode heightMode) override;
+  Vec2D measureLayout(
+      float width,
+      LayoutMeasureMode widthMode,
+      float height,
+      LayoutMeasureMode heightMode) override;
 
-    void controlSize(Vec2D size,
-                     LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType,
-                     LayoutDirection direction) override;
-    void addProperty(CustomProperty* prop) override;
-    Core* clone() const override;
-    ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
-    /// The size the layout engine last gave this box; false before it has.
-    bool layoutSize(Vec2D& outSize) const
+  void controlSize(
+      Vec2D size,
+      LayoutScaleType widthScaleType,
+      LayoutScaleType heightScaleType,
+      LayoutDirection direction) override;
+  void addProperty(CustomProperty* prop) override;
+  Core* clone() const override;
+  ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
+  /// The size the layout engine last gave this box; false before it has.
+  bool layoutSize(Vec2D& outSize) const
+  {
+    if (!m_sizeKnown)
     {
-        if (!m_sizeKnown)
-        {
-            // m_size is unset until then; outSize is left alone.
-            return false;
-        }
-        outSize = m_size;
-        return true;
+      // m_size is unset until then; outSize is left alone.
+      return false;
     }
+    outSize = m_size;
+    return true;
+  }
 };
 } // namespace rive
 

@@ -11,17 +11,17 @@ using namespace rive;
 GamepadListenerGroup::GamepadListenerGroup(
     FocusData* focusData,
     const StateMachineListener* listener,
-    StateMachineInstance* stateMachineInstance) :
-    m_focusData(focusData),
-    m_listener(listener),
-    m_stateMachineInstance(stateMachineInstance)
+    StateMachineInstance* stateMachineInstance)
+    : m_focusData(focusData)
+    , m_listener(listener)
+    , m_stateMachineInstance(stateMachineInstance)
 {
-    m_focusData->addGamepadListener(this);
+  m_focusData->addGamepadListener(this);
 }
 
 GamepadListenerGroup::~GamepadListenerGroup()
 {
-    m_focusData->removeGamepadListener(this);
+  m_focusData->removeGamepadListener(this);
 }
 
 bool GamepadListenerGroup::gamepadDispatch(
@@ -29,31 +29,31 @@ bool GamepadListenerGroup::gamepadDispatch(
     ScriptedDrawable** outDispatchedScriptedDrawable)
 {
 #ifdef WITH_RIVE_SCRIPTING
-    if (m_focusData && m_focusData->parent())
-    {
+  if (m_focusData && m_focusData->parent())
+  {
 
-        auto parent = m_focusData->parent();
-        if (parent->is<ScriptedDrawable>())
-        {
-            auto* scriptedDrawable = parent->as<ScriptedDrawable>();
-            bool handled = scriptedDrawable->gamepadDispatch(invocation);
-            // Report which scripted drawable consumed the focus-tree dispatch
-            // so a subsequent broadcast pass can skip it.
-            if (outDispatchedScriptedDrawable != nullptr)
-            {
-                *outDispatchedScriptedDrawable = scriptedDrawable;
-            }
-            return handled;
-        }
-    }
-#endif
-    if (!m_listener ||
-        !ListenerInputTypeGamepad::gamepadListenerConstraintsMet(m_listener,
-                                                                 invocation))
+    auto parent = m_focusData->parent();
+    if (parent->is<ScriptedDrawable>())
     {
-        return false;
+      auto* scriptedDrawable = parent->as<ScriptedDrawable>();
+      bool handled = scriptedDrawable->gamepadDispatch(invocation);
+      // Report which scripted drawable consumed the focus-tree dispatch
+      // so a subsequent broadcast pass can skip it.
+      if (outDispatchedScriptedDrawable != nullptr)
+      {
+        *outDispatchedScriptedDrawable = scriptedDrawable;
+      }
+      return handled;
     }
-    m_listener->performChanges(m_stateMachineInstance, invocation);
-    m_stateMachineInstance->markNeedsAdvance();
+  }
+#endif
+  if (!m_listener || !ListenerInputTypeGamepad::gamepadListenerConstraintsMet(
+                         m_listener,
+                         invocation))
+  {
     return false;
+  }
+  m_listener->performChanges(m_stateMachineInstance, invocation);
+  m_stateMachineInstance->markNeedsAdvance();
+  return false;
 }

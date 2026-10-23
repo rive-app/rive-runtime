@@ -14,37 +14,38 @@ class Drawable;
 class Artboard;
 class DrawTarget : public DrawTargetBase
 {
-    friend class Artboard;
+  friend class Artboard;
 
 private:
-    Drawable* m_Drawable = nullptr;
+  Drawable* m_Drawable = nullptr;
 #ifdef WITH_RIVE_EDITOR
-    // Slice 6 Phase E dual-storage. See targeted_constraint.hpp.
-    CoreHandle m_DrawableHandle;
+  // Slice 6 Phase E dual-storage. See targeted_constraint.hpp.
+  CoreHandle m_DrawableHandle;
 #endif
 
-    // Controlled by the artboard.
-    Drawable* first = nullptr;
-    Drawable* last = nullptr;
+  // Controlled by the artboard.
+  Drawable* first = nullptr;
+  Drawable* last = nullptr;
 
 public:
 #ifdef WITH_RIVE_EDITOR
-    // Body in editor_native/native/src/editor/draw_target_editor.cpp.
-    Drawable* drawable() const;
-    void setDrawableForEditor(Drawable* d);
+  // Body in editor_native/native/src/editor/draw_target_editor.cpp.
+  Drawable* drawable() const;
+  void setDrawableForEditor(Drawable* d);
 #else
-    inline Drawable* drawable() const { return m_Drawable; }
+  inline Drawable* drawable() const { return m_Drawable; }
 #endif
-    StatusCode onAddedDirty(CoreContext* context) override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  bool validate(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedClean(CoreContext* context) override;
 
-    DrawTargetPlacement placement() const
-    {
-        return (DrawTargetPlacement)placementValue();
-    }
+  DrawTargetPlacement placement() const
+  {
+    return (DrawTargetPlacement)placementValue();
+  }
 
 protected:
-    void placementValueChanged() override;
+  void placementValueChanged() override;
 };
 } // namespace rive
 

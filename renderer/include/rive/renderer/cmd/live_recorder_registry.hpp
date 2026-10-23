@@ -15,23 +15,23 @@ namespace rive::cmd
 
 inline std::mutex& recorderRegistryMutex()
 {
-    static std::mutex m;
-    return m;
+  static std::mutex m;
+  return m;
 }
 inline std::unordered_set<const void*>& liveRecorders()
 {
-    static std::unordered_set<const void*> s;
-    return s;
+  static std::unordered_set<const void*> s;
+  return s;
 }
 inline void registerRecorder(const void* recorder)
 {
-    std::lock_guard<std::mutex> lock(recorderRegistryMutex());
-    liveRecorders().insert(recorder);
+  std::lock_guard<std::mutex> lock(recorderRegistryMutex());
+  liveRecorders().insert(recorder);
 }
 inline void unregisterRecorder(const void* recorder)
 {
-    std::lock_guard<std::mutex> lock(recorderRegistryMutex());
-    liveRecorders().erase(recorder);
+  std::lock_guard<std::mutex> lock(recorderRegistryMutex());
+  liveRecorders().erase(recorder);
 }
 
 } // namespace rive::cmd

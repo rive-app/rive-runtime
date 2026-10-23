@@ -6,7 +6,7 @@
 std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
     FiddleContextOptions fiddleOptions)
 {
-    return nullptr;
+  return nullptr;
 }
 
 #else
@@ -31,19 +31,21 @@ using namespace rive::gpu;
 static bool s_d3d12MessageCallbackActive = false;
 
 #ifdef DEBUG
-static void __stdcall D3D12MessageCallback(D3D12_MESSAGE_CATEGORY category,
-                                           D3D12_MESSAGE_SEVERITY severity,
-                                           D3D12_MESSAGE_ID id,
-                                           LPCSTR description,
-                                           void*)
+static void __stdcall D3D12MessageCallback(
+    D3D12_MESSAGE_CATEGORY category,
+    D3D12_MESSAGE_SEVERITY severity,
+    D3D12_MESSAGE_ID id,
+    LPCSTR description,
+    void*)
 {
-    fprintf(stderr,
-            "[D3D12 debug @ live] sev=%d id=%d cat=%d: %s\n",
-            static_cast<int>(severity),
-            static_cast<int>(id),
-            static_cast<int>(category),
-            description);
-    fflush(stderr);
+  fprintf(
+      stderr,
+      "[D3D12 debug @ live] sev=%d id=%d cat=%d: %s\n",
+      static_cast<int>(severity),
+      static_cast<int>(id),
+      static_cast<int>(category),
+      description);
+  fflush(stderr);
 }
 #endif
 
@@ -54,806 +56,841 @@ static void __stdcall D3D12MessageCallback(D3D12_MESSAGE_CATEGORY category,
 // before/after a failing op surfaces the real cause in CI logs.
 static void DrainD3D12DebugMessages(ID3D12Device* device, const char* context)
 {
-    if (device == nullptr)
+  if (device == nullptr)
+  {
+    return;
+  }
+  ComPtr<ID3D12InfoQueue> infoQueue;
+  if (FAILED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+  {
+    return;
+  }
+  // The live callback already printed each message as it posted.
+  if (s_d3d12MessageCallbackActive)
+  {
+    infoQueue->ClearStoredMessages();
+    return;
+  }
+  UINT64 numMessages = infoQueue->GetNumStoredMessages();
+  for (UINT64 i = 0; i < numMessages; ++i)
+  {
+    SIZE_T messageLength = 0;
+    infoQueue->GetMessage(i, nullptr, &messageLength);
+    std::vector<uint8_t> data(messageLength);
+    auto* message = reinterpret_cast<D3D12_MESSAGE*>(data.data());
+    if (FAILED(infoQueue->GetMessage(i, message, &messageLength)))
     {
-        return;
+      continue;
     }
-    ComPtr<ID3D12InfoQueue> infoQueue;
-    if (FAILED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
-    {
-        return;
-    }
-    // The live callback already printed each message as it posted.
-    if (s_d3d12MessageCallbackActive)
-    {
-        infoQueue->ClearStoredMessages();
-        return;
-    }
-    UINT64 numMessages = infoQueue->GetNumStoredMessages();
-    for (UINT64 i = 0; i < numMessages; ++i)
-    {
-        SIZE_T messageLength = 0;
-        infoQueue->GetMessage(i, nullptr, &messageLength);
-        std::vector<uint8_t> data(messageLength);
-        auto* message = reinterpret_cast<D3D12_MESSAGE*>(data.data());
-        if (FAILED(infoQueue->GetMessage(i, message, &messageLength)))
-        {
-            continue;
-        }
-        fprintf(stderr,
-                "[D3D12 debug @ %s] sev=%d id=%d cat=%d: %s\n",
-                context,
-                static_cast<int>(message->Severity),
-                static_cast<int>(message->ID),
-                static_cast<int>(message->Category),
-                message->pDescription);
-    }
-    if (numMessages > 0)
-    {
-        fflush(stderr);
-        infoQueue->ClearStoredMessages();
-    }
+    fprintf(
+        stderr,
+        "[D3D12 debug @ %s] sev=%d id=%d cat=%d: %s\n",
+        context,
+        static_cast<int>(message->Severity),
+        static_cast<int>(message->ID),
+        static_cast<int>(message->Category),
+        message->pDescription);
+  }
+  if (numMessages > 0)
+  {
+    fflush(stderr);
+    infoQueue->ClearStoredMessages();
+  }
 }
 
-void SetIntelInformation(const DXGI_ADAPTER_DESC& desc,
-                         D3DContextOptions& contextOptions)
+void SetIntelInformation(
+    const DXGI_ADAPTER_DESC& desc,
+    D3DContextOptions& contextOptions)
 {
-    contextOptions.isIntel = desc.VendorId == 0x163C ||
-                             desc.VendorId == 0x8086 || desc.VendorId == 0x8087;
+  contextOptions.isIntel = desc.VendorId == 0x163C || desc.VendorId == 0x8086 ||
+                           desc.VendorId == 0x8087;
 
-    contextOptions.isIntelArc =
-        contextOptions.isIntel &&
-        std::wstring(desc.Description).find(L"Arc") != std::wstring::npos;
+  contextOptions.isIntelArc = contextOptions.isIntel &&
+                              std::wstring(desc.Description).find(L"Arc") !=
+                                  std::wstring::npos;
 }
 
-bool GetHardwareAdapter(IDXGIFactory1* pFactory,
-                        const char* gpuNameFilter,
-                        IDXGIAdapter1** ppAdapter)
+bool GetHardwareAdapter(
+    IDXGIFactory1* pFactory,
+    const char* gpuNameFilter,
+    IDXGIAdapter1** ppAdapter)
 {
-    using namespace Microsoft::WRL;
+  using namespace Microsoft::WRL;
 
-    *ppAdapter = nullptr;
+  *ppAdapter = nullptr;
 
-    bool shouldUseNameFilter = false;
-    std::wstring gpuNameFilterW;
-    if (gpuNameFilter)
+  bool shouldUseNameFilter = false;
+  std::wstring gpuNameFilterW;
+  if (gpuNameFilter)
+  {
+    shouldUseNameFilter = d3d_utils::GetWStringFromString(
+        gpuNameFilter,
+        gpuNameFilterW);
+  }
+
+  ComPtr<IDXGIAdapter1> adapter;
+  ComPtr<IDXGIFactory6> factory6;
+  if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6))))
+  {
+    for (UINT adapterIndex = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(
+             adapterIndex,
+             DXGI_GPU_PREFERENCE_UNSPECIFIED,
+             IID_PPV_ARGS(&adapter)));
+         ++adapterIndex)
     {
-        shouldUseNameFilter =
-            d3d_utils::GetWStringFromString(gpuNameFilter, gpuNameFilterW);
-    }
+      DXGI_ADAPTER_DESC1 desc;
+      adapter->GetDesc1(&desc);
 
-    ComPtr<IDXGIAdapter1> adapter;
-    ComPtr<IDXGIFactory6> factory6;
-    if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6))))
-    {
-        for (UINT adapterIndex = 0;
-             SUCCEEDED(factory6->EnumAdapterByGpuPreference(
-                 adapterIndex,
-                 DXGI_GPU_PREFERENCE_UNSPECIFIED,
-                 IID_PPV_ARGS(&adapter)));
-             ++adapterIndex)
+      if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+      {
+        // Don't select the Basic Render Driver adapter.
+        continue;
+      }
+
+      if (shouldUseNameFilter)
+      {
+        std::wstring gpuName(desc.Description, wcslen(desc.Description));
+        if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
         {
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-            {
-                // Don't select the Basic Render Driver adapter.
-                continue;
-            }
-
-            if (shouldUseNameFilter)
-            {
-                std::wstring gpuName(desc.Description,
-                                     wcslen(desc.Description));
-                if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
-                {
-                    continue;
-                }
-            }
-
-            // Check to see whether the adapter supports Direct3D 12, but don't
-            // create the actual device yet.
-            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(),
-                                            D3D_FEATURE_LEVEL_11_0,
-                                            _uuidof(ID3D12Device),
-                                            nullptr)))
-            {
-                *ppAdapter = adapter.Detach();
-                return true;
-            }
+          continue;
         }
-    }
+      }
 
-    if (adapter.Get() == nullptr)
+      // Check to see whether the adapter supports Direct3D 12, but don't
+      // create the actual device yet.
+      if (SUCCEEDED(D3D12CreateDevice(
+              adapter.Get(),
+              D3D_FEATURE_LEVEL_11_0,
+              _uuidof(ID3D12Device),
+              nullptr)))
+      {
+        *ppAdapter = adapter.Detach();
+        return true;
+      }
+    }
+  }
+
+  if (adapter.Get() == nullptr)
+  {
+    for (UINT adapterIndex = 0;
+         SUCCEEDED(pFactory->EnumAdapters1(adapterIndex, &adapter));
+         ++adapterIndex)
     {
-        for (UINT adapterIndex = 0;
-             SUCCEEDED(pFactory->EnumAdapters1(adapterIndex, &adapter));
-             ++adapterIndex)
+      DXGI_ADAPTER_DESC1 desc;
+      adapter->GetDesc1(&desc);
+
+      if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+      {
+        // Don't select the Basic Render Driver adapter.
+        // If you want a software adapter, pass in "/warp" on the
+        // command line.
+        continue;
+      }
+
+      if (shouldUseNameFilter)
+      {
+        std::wstring gpuName(desc.Description, wcslen(desc.Description));
+        if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
         {
-            DXGI_ADAPTER_DESC1 desc;
-            adapter->GetDesc1(&desc);
-
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-            {
-                // Don't select the Basic Render Driver adapter.
-                // If you want a software adapter, pass in "/warp" on the
-                // command line.
-                continue;
-            }
-
-            if (shouldUseNameFilter)
-            {
-                std::wstring gpuName(desc.Description,
-                                     wcslen(desc.Description));
-                if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
-                {
-                    continue;
-                }
-            }
-
-            // Check to see whether the adapter supports Direct3D 12, but don't
-            // create the actual device yet.
-            if (SUCCEEDED(D3D12CreateDevice(adapter.Get(),
-                                            D3D_FEATURE_LEVEL_11_0,
-                                            _uuidof(ID3D12Device),
-                                            nullptr)))
-            {
-                *ppAdapter = adapter.Detach();
-                return true;
-            }
+          continue;
         }
-    }
+      }
 
-    return false;
+      // Check to see whether the adapter supports Direct3D 12, but don't
+      // create the actual device yet.
+      if (SUCCEEDED(D3D12CreateDevice(
+              adapter.Get(),
+              D3D_FEATURE_LEVEL_11_0,
+              _uuidof(ID3D12Device),
+              nullptr)))
+      {
+        *ppAdapter = adapter.Detach();
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 class FiddleContextD3D12PLS : public FiddleContext
 {
 public:
-    FiddleContextD3D12PLS(ComPtr<IDXGIFactory4> factory,
-                          ComPtr<ID3D12Device> device,
-                          bool isHeadless,
-                          D3DContextOptions& contextOptions) :
-        m_isHeadless(isHeadless), m_factory(factory), m_device(device)
-    {
+  FiddleContextD3D12PLS(
+      ComPtr<IDXGIFactory4> factory,
+      ComPtr<ID3D12Device> device,
+      bool isHeadless,
+      D3DContextOptions& contextOptions)
+      : m_isHeadless(isHeadless)
+      , m_factory(factory)
+      , m_device(device)
+  {
 
-        D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-        queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-        VERIFY_OK(m_device->CreateCommandQueue(&queueDesc,
-                                               IID_PPV_ARGS(&m_commandQueue)));
+    VERIFY_OK(m_device->CreateCommandQueue(
+        &queueDesc,
+        IID_PPV_ARGS(&m_commandQueue)));
 
-        NAME_RAW_D3D12_OBJECT(m_commandQueue);
+    NAME_RAW_D3D12_OBJECT(m_commandQueue);
 
-        queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
-        VERIFY_OK(
-            m_device->CreateCommandQueue(&queueDesc,
-                                         IID_PPV_ARGS(&m_copyCommandQueue)));
-        NAME_RAW_D3D12_OBJECT(m_copyCommandQueue);
+    queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+    VERIFY_OK(m_device->CreateCommandQueue(
+        &queueDesc,
+        IID_PPV_ARGS(&m_copyCommandQueue)));
+    NAME_RAW_D3D12_OBJECT(m_copyCommandQueue);
 
 #if defined(RIVE_MICROPROFILE)
-        MicroProfileGpuInitD3D12(m_device.Get(), m_commandQueue.Get());
+    MicroProfileGpuInitD3D12(m_device.Get(), m_commandQueue.Get());
 #endif
 
+    for (auto i = 0; i < FrameCount; ++i)
+    {
+      VERIFY_OK(m_device->CreateCommandAllocator(
+          D3D12_COMMAND_LIST_TYPE_DIRECT,
+          IID_PPV_ARGS(&m_allocators[i])));
+
+      NAME_RAW_D3D12_OBJECT(m_allocators[i]);
+
+      VERIFY_OK(m_device->CreateCommandAllocator(
+          D3D12_COMMAND_LIST_TYPE_COPY,
+          IID_PPV_ARGS(&m_copyAllocators[i])));
+      NAME_RAW_D3D12_OBJECT(m_copyAllocators[i]);
+    }
+
+    VERIFY_OK(m_device->CreateCommandList(
+        0,
+        D3D12_COMMAND_LIST_TYPE_DIRECT,
+        m_allocators[0].Get(),
+        NULL,
+        IID_PPV_ARGS(&m_commandList)));
+    NAME_RAW_D3D12_OBJECT(m_commandList);
+
+    VERIFY_OK(m_device->CreateCommandList(
+        0,
+        D3D12_COMMAND_LIST_TYPE_COPY,
+        m_copyAllocators[0].Get(),
+        NULL,
+        IID_PPV_ARGS(&m_copyCommandList)));
+    NAME_RAW_D3D12_OBJECT(m_copyCommandList);
+
+    m_renderContext = RenderContextD3D12Impl::MakeContext(
+        m_device,
+        m_copyCommandList.Get(),
+        contextOptions);
+    // Enable canvas pre-pass support
+    // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+    // for canvas rendering.
+    m_renderContext->static_impl_cast<RenderContextD3D12Impl>()
+        ->setCommandQueue(m_commandQueue.Get());
+    VERIFY_OK(m_copyCommandList->Close());
+    VERIFY_OK(m_commandList->Close());
+
+    ID3D12CommandList* ppCommandLists[] = {m_copyCommandList.Get()};
+    m_copyCommandQueue->ExecuteCommandLists(1, ppCommandLists);
+
+    VERIFY_OK(m_device->CreateFence(
+        m_currentFrame,
+        D3D12_FENCE_FLAG_NONE,
+        IID_PPV_ARGS(&m_fence)));
+
+    // NOTE: Originally the code was setting this to -1 and then waiting on
+    // a signal of 0, but this does not work in practice because some D3D12
+    // implementations only allow the signaled value to increase - so
+    // starting the fence at unsigned -1 meant that it can never be changed
+    // again.
+    VERIFY_OK(m_device->CreateFence(
+        m_currentFrame,
+        D3D12_FENCE_FLAG_NONE,
+        IID_PPV_ARGS(&m_copyFence)));
+
+    // Increment m_currentFrame since the value we initialized the fences to
+    // cannot be waited on (it'll return immediately).
+    m_currentFrame++;
+
+    m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    VERIFY_OK(HRESULT_FROM_WIN32(GetLastError()));
+
+    assert(m_fenceEvent);
+
+    // Signal the fence to ensure that we wait for creation to be complete.
+    // Start at m_currentFrame which should currently be set to 1.
+    VERIFY_OK(m_copyCommandQueue->Signal(m_copyFence.Get(), m_currentFrame));
+
+    if (m_copyFence->GetCompletedValue() != m_currentFrame)
+    {
+      VERIFY_OK(
+          m_copyFence->SetEventOnCompletion(m_currentFrame, m_fenceEvent));
+      WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+
+      assert(m_copyFence->GetCompletedValue() == m_currentFrame);
+    }
+
+    // Increment the current frame one more to get past this wait.
+    m_currentFrame++;
+  }
+  ~FiddleContextD3D12PLS()
+  {
+    if (!m_isHeadless && m_swapChain)
+      m_swapChain->Release();
+
+    waitForLastFrame();
+  }
+
+  float dpiScale(GLFWwindow*) const override { return 1; }
+
+  rive::Factory* factory() override { return m_renderContext.get(); }
+
+  rive::gpu::RenderContext* renderContextOrNull() override
+  {
+    return m_renderContext.get();
+  }
+
+  rive::gpu::RenderContextD3D12Impl* renderContextD3D12Impl()
+      const override final
+  {
+    return m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
+  }
+
+  // Asked before this frame's flush refreshes m_frameIndex, which still
+  // names the buffer just presented.
+  rive::gpu::RenderTarget* renderTargetOrNull() override
+  {
+    return m_renderTargets[getFrameIndex()].get();
+  }
+
+  void* getCommandBuffer() override { return m_commandList.Get(); }
+
+  void beginOreFrame(rive::ore::Context* oreContext) override
+  {
+    m_frameIndex = getFrameIndex();
+    beginFrame();
+    oreContext->beginFrame(
+        {.externalCommandBuffer = m_commandList.Get(),
+         .safeFrameNumber = m_safeFrame,
+         .currentFrameNumber = m_currentFrame});
+  }
+  void endOreFrame(rive::ore::Context* oreContext) override
+  {
+    FiddleContext::endOreFrame(oreContext);
+    moveToNextFrame();
+  }
+
+  void onSizeChanged(
+      GLFWwindow* window,
+      int width,
+      int height,
+      uint32_t sampleCount) override
+  {
+    // wait for all frames to finish
+    waitForLastFrame();
+
+    if (!m_isHeadless)
+    {
+      if (!m_swapChain)
+      {
+        DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+        swapChainDesc.BufferCount = FrameCount;
+        swapChainDesc.Width = width;
+        swapChainDesc.Height = height;
+        swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        swapChainDesc.SampleDesc.Count = 1;
+        // A flip-model swapchain still paces to the display refresh at
+        // sync interval 0 unless tearing is allowed, which would cap
+        // benchmark numbers at the monitor's rate.
+        m_allowTearing = false;
+        ComPtr<IDXGIFactory5> factory5;
+        if (SUCCEEDED(m_factory.As(&factory5)))
+        {
+          BOOL tearingSupported = FALSE;
+          if (SUCCEEDED(factory5->CheckFeatureSupport(
+                  DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+                  &tearingSupported,
+                  sizeof(tearingSupported))))
+          {
+            m_allowTearing = tearingSupported;
+          }
+        }
+        swapChainDesc.Flags = m_allowTearing
+                                  ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING
+                                  : 0;
+
+        ComPtr<IDXGISwapChain1> swapChain;
+        VERIFY_OK(m_factory->CreateSwapChainForHwnd(
+            m_commandQueue.Get(), // Swap chain needs the queue so that
+                                  // it can force a flush on it.
+            glfwGetWin32Window(window),
+            &swapChainDesc,
+            nullptr,
+            nullptr,
+            &swapChain));
+
+        VERIFY_OK(swapChain.As(&m_swapChain));
+      }
+      else
+      {
+        // we must release all references to resize swapchain
         for (auto i = 0; i < FrameCount; ++i)
         {
-            VERIFY_OK(m_device->CreateCommandAllocator(
-                D3D12_COMMAND_LIST_TYPE_DIRECT,
-                IID_PPV_ARGS(&m_allocators[i])));
-
-            NAME_RAW_D3D12_OBJECT(m_allocators[i]);
-
-            VERIFY_OK(m_device->CreateCommandAllocator(
-                D3D12_COMMAND_LIST_TYPE_COPY,
-                IID_PPV_ARGS(&m_copyAllocators[i])));
-            NAME_RAW_D3D12_OBJECT(m_copyAllocators[i]);
+          m_renderTargets[i]->releaseTexturesImmediately();
         }
+        // invalidates all previous buffers
+        m_swapChain->ResizeBuffers(
+            FrameCount,
+            width,
+            height,
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            0);
+      }
 
-        VERIFY_OK(m_device->CreateCommandList(0,
-                                              D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                              m_allocators[0].Get(),
-                                              NULL,
-                                              IID_PPV_ARGS(&m_commandList)));
-        NAME_RAW_D3D12_OBJECT(m_commandList);
-
-        VERIFY_OK(
-            m_device->CreateCommandList(0,
-                                        D3D12_COMMAND_LIST_TYPE_COPY,
-                                        m_copyAllocators[0].Get(),
-                                        NULL,
-                                        IID_PPV_ARGS(&m_copyCommandList)));
-        NAME_RAW_D3D12_OBJECT(m_copyCommandList);
-
-        m_renderContext =
-            RenderContextD3D12Impl::MakeContext(m_device,
-                                                m_copyCommandList.Get(),
-                                                contextOptions);
-        // Enable canvas pre-pass support
-        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
-        // for canvas rendering.
-        m_renderContext->static_impl_cast<RenderContextD3D12Impl>()
-            ->setCommandQueue(m_commandQueue.Get());
-        VERIFY_OK(m_copyCommandList->Close());
-        VERIFY_OK(m_commandList->Close());
-
-        ID3D12CommandList* ppCommandLists[] = {m_copyCommandList.Get()};
-        m_copyCommandQueue->ExecuteCommandLists(1, ppCommandLists);
-
-        VERIFY_OK(m_device->CreateFence(m_currentFrame,
-                                        D3D12_FENCE_FLAG_NONE,
-                                        IID_PPV_ARGS(&m_fence)));
-
-        // NOTE: Originally the code was setting this to -1 and then waiting on
-        // a signal of 0, but this does not work in practice because some D3D12
-        // implementations only allow the signaled value to increase - so
-        // starting the fence at unsigned -1 meant that it can never be changed
-        // again.
-        VERIFY_OK(m_device->CreateFence(m_currentFrame,
-                                        D3D12_FENCE_FLAG_NONE,
-                                        IID_PPV_ARGS(&m_copyFence)));
-
-        // Increment m_currentFrame since the value we initialized the fences to
-        // cannot be waited on (it'll return immediately).
-        m_currentFrame++;
-
-        m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        VERIFY_OK(HRESULT_FROM_WIN32(GetLastError()));
-
-        assert(m_fenceEvent);
-
-        // Signal the fence to ensure that we wait for creation to be complete.
-        // Start at m_currentFrame which should currently be set to 1.
-        VERIFY_OK(
-            m_copyCommandQueue->Signal(m_copyFence.Get(), m_currentFrame));
-
-        if (m_copyFence->GetCompletedValue() != m_currentFrame)
-        {
-            VERIFY_OK(m_copyFence->SetEventOnCompletion(m_currentFrame,
-                                                        m_fenceEvent));
-            WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-
-            assert(m_copyFence->GetCompletedValue() == m_currentFrame);
-        }
-
-        // Increment the current frame one more to get past this wait.
-        m_currentFrame++;
-    }
-    ~FiddleContextD3D12PLS()
-    {
-        if (!m_isHeadless && m_swapChain)
-            m_swapChain->Release();
-
-        waitForLastFrame();
+      for (auto i = 0; i < FrameCount; ++i)
+      {
+        ComPtr<ID3D12Resource> backbuffer;
+        VERIFY_OK(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&backbuffer)));
+        auto renderContextImpl = m_renderContext->static_impl_cast<
+            RenderContextD3D12Impl>();
+        m_renderTargets[i] = renderContextImpl->makeRenderTarget(width, height);
+        m_renderTargets[i]->setTargetTexture(backbuffer);
+      }
     }
 
-    float dpiScale(GLFWwindow*) const override { return 1; }
-
-    rive::Factory* factory() override { return m_renderContext.get(); }
-
-    rive::gpu::RenderContext* renderContextOrNull() override
+    if (m_isHeadless)
     {
-        return m_renderContext.get();
+      ComPtr<ID3D12Resource> backbuffer;
+      auto desc = CD3DX12_RESOURCE_DESC::Tex2D(
+          DXGI_FORMAT_R8G8B8A8_UNORM,
+          width,
+          height);
+      desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+      D3D12_CLEAR_VALUE clearValue{DXGI_FORMAT_R8G8B8A8_UNORM, {}};
+      auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+      m_device->CreateCommittedResource(
+          &heapProperties,
+          D3D12_HEAP_FLAG_NONE,
+          &desc,
+          D3D12_RESOURCE_STATE_PRESENT,
+          &clearValue,
+          IID_PPV_ARGS(&backbuffer));
+      auto renderContextImpl = m_renderContext
+                                   ->static_impl_cast<RenderContextD3D12Impl>();
+      m_renderTargets[0] = renderContextImpl->makeRenderTarget(width, height);
+      m_renderTargets[0]->setTargetTexture(backbuffer);
+    }
+  }
+
+  void toggleZoomWindow() override {}
+
+  std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+  {
+    return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
+
+  void begin(
+      const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor) override
+  {
+    m_renderContext->beginFrame(frameDescriptor);
+  }
+
+  UINT64 getFrameIndex() const
+  {
+    // when headless we only ever use one frames worth of textures for
+    // rendering
+    if (m_isHeadless)
+    {
+      return 0;
+    }
+    else
+    {
+      return m_swapChain->GetCurrentBackBufferIndex();
+    }
+  }
+
+  UINT64 waitForNextSafeFrame()
+  {
+    // wait in case this swapchain still hasnt finished
+    auto safeFrame = m_fence->GetCompletedValue();
+    if (safeFrame < m_previousFrames[m_frameIndex])
+    {
+      VERIFY_OK(m_fence->SetEventOnCompletion(
+          m_previousFrames[m_frameIndex],
+          m_fenceEvent));
+      WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+      safeFrame = m_previousFrames[m_frameIndex];
     }
 
-    rive::gpu::RenderContextD3D12Impl* renderContextD3D12Impl()
-        const override final
+    auto copySafeFrame = m_copyFence->GetCompletedValue();
+    if (copySafeFrame < m_previousFrames[m_frameIndex])
     {
-        return m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
+      VERIFY_OK(m_copyFence->SetEventOnCompletion(
+          m_previousFrames[m_frameIndex],
+          m_fenceEvent));
+      WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+      copySafeFrame = m_previousFrames[m_frameIndex];
     }
 
-    // Asked before this frame's flush refreshes m_frameIndex, which still
-    // names the buffer just presented.
-    rive::gpu::RenderTarget* renderTargetOrNull() override
-    {
-        return m_renderTargets[getFrameIndex()].get();
-    }
+    return std::min(copySafeFrame, safeFrame);
+  }
 
-    void* getCommandBuffer() override { return m_commandList.Get(); }
+  void waitForLastFrame()
+  {
+    auto frame = m_currentFrame++;
+    m_previousFrames[m_frameIndex] = frame;
+    VERIFY_OK(m_copyCommandQueue->Signal(m_copyFence.Get(), frame));
+    VERIFY_OK(m_commandQueue->Signal(m_fence.Get(), frame));
 
-    void beginOreFrame(rive::ore::Context* oreContext) override
-    {
-        m_frameIndex = getFrameIndex();
-        beginFrame();
-        oreContext->beginFrame({.externalCommandBuffer = m_commandList.Get(),
-                                .safeFrameNumber = m_safeFrame,
-                                .currentFrameNumber = m_currentFrame});
-    }
-    void endOreFrame(rive::ore::Context* oreContext) override
-    {
-        FiddleContext::endOreFrame(oreContext);
-        moveToNextFrame();
-    }
+    VERIFY_OK(m_fence->SetEventOnCompletion(frame, m_fenceEvent));
+    WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
-    void onSizeChanged(GLFWwindow* window,
-                       int width,
-                       int height,
-                       uint32_t sampleCount) override
-    {
-        // wait for all frames to finish
-        waitForLastFrame();
+    VERIFY_OK(m_copyFence->SetEventOnCompletion(frame, m_fenceEvent));
+    WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+  }
 
-        if (!m_isHeadless)
-        {
-            if (!m_swapChain)
-            {
-                DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-                swapChainDesc.BufferCount = FrameCount;
-                swapChainDesc.Width = width;
-                swapChainDesc.Height = height;
-                swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-                swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-                swapChainDesc.SampleDesc.Count = 1;
-                swapChainDesc.Flags = 0;
+  void moveToNextFrame()
+  {
+    DrainD3D12DebugMessages(m_device.Get(), "moveToNextFrame.entry");
+    VERIFY_OK(m_commandList->Close());
+    VERIFY_OK(m_copyCommandList->Close());
 
-                ComPtr<IDXGISwapChain1> swapChain;
-                VERIFY_OK(m_factory->CreateSwapChainForHwnd(
-                    m_commandQueue.Get(), // Swap chain needs the queue so that
-                                          // it can force a flush on it.
-                    glfwGetWin32Window(window),
-                    &swapChainDesc,
-                    nullptr,
-                    nullptr,
-                    &swapChain));
+    ID3D12CommandList* ppCopyCommandLists[] = {m_copyCommandList.Get()};
 
-                VERIFY_OK(swapChain.As(&m_swapChain));
-            }
-            else
-            {
-                // we must release all references to resize swapchain
-                for (auto i = 0; i < FrameCount; ++i)
-                {
-                    m_renderTargets[i]->releaseTexturesImmediately();
-                }
-                // invalidates all previous buffers
-                m_swapChain->ResizeBuffers(FrameCount,
-                                           width,
-                                           height,
-                                           DXGI_FORMAT_R8G8B8A8_UNORM,
-                                           0);
-            }
+    ID3D12CommandList* ppCommandLists[] = {m_commandList.Get()};
 
-            for (auto i = 0; i < FrameCount; ++i)
-            {
-                ComPtr<ID3D12Resource> backbuffer;
-                VERIFY_OK(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&backbuffer)));
-                auto renderContextImpl =
-                    m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
-                m_renderTargets[i] =
-                    renderContextImpl->makeRenderTarget(width, height);
-                m_renderTargets[i]->setTargetTexture(backbuffer);
-            }
-        }
+    m_previousFrames[m_frameIndex] = m_currentFrame++;
 
-        if (m_isHeadless)
-        {
-            ComPtr<ID3D12Resource> backbuffer;
-            auto desc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                                     width,
-                                                     height);
-            desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-            D3D12_CLEAR_VALUE clearValue{DXGI_FORMAT_R8G8B8A8_UNORM, {}};
-            auto heapProperties =
-                CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-            m_device->CreateCommittedResource(&heapProperties,
-                                              D3D12_HEAP_FLAG_NONE,
-                                              &desc,
-                                              D3D12_RESOURCE_STATE_PRESENT,
-                                              &clearValue,
-                                              IID_PPV_ARGS(&backbuffer));
-            auto renderContextImpl =
-                m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
-            m_renderTargets[0] =
-                renderContextImpl->makeRenderTarget(width, height);
-            m_renderTargets[0]->setTargetTexture(backbuffer);
-        }
-    }
+    m_copyCommandQueue->ExecuteCommandLists(
+        _countof(ppCopyCommandLists),
+        ppCopyCommandLists);
 
-    void toggleZoomWindow() override {}
+    VERIFY_OK(m_copyCommandQueue->Signal(
+        m_copyFence.Get(),
+        m_previousFrames[m_frameIndex]));
 
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
-    {
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
-    }
+    // tell the direct command que to wait for the copy command que to
+    // finish
+    m_commandQueue->Wait(m_copyFence.Get(), m_previousFrames[m_frameIndex]);
 
-    void begin(const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor)
-        override
-    {
-        m_renderContext->beginFrame(frameDescriptor);
-    }
+    m_commandQueue->ExecuteCommandLists(
+        _countof(ppCommandLists),
+        ppCommandLists);
 
-    UINT64 getFrameIndex() const
-    {
-        // when headless we only ever use one frames worth of textures for
-        // rendering
-        if (m_isHeadless)
-        {
-            return 0;
-        }
-        else
-        {
-            return m_swapChain->GetCurrentBackBufferIndex();
-        }
-    }
+    VERIFY_OK(
+        m_commandQueue->Signal(m_fence.Get(), m_previousFrames[m_frameIndex]));
 
-    UINT64 waitForNextSafeFrame()
-    {
-        // wait in case this swapchain still hasnt finished
-        auto safeFrame = m_fence->GetCompletedValue();
-        if (safeFrame < m_previousFrames[m_frameIndex])
-        {
-            VERIFY_OK(
-                m_fence->SetEventOnCompletion(m_previousFrames[m_frameIndex],
-                                              m_fenceEvent));
-            WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-            safeFrame = m_previousFrames[m_frameIndex];
-        }
+    RIVE_PROF_GPUSUBMIT(0);
+    RIVE_PROF_ENDFRAME()
+  }
 
-        auto copySafeFrame = m_copyFence->GetCompletedValue();
-        if (copySafeFrame < m_previousFrames[m_frameIndex])
-        {
-            VERIFY_OK(m_copyFence->SetEventOnCompletion(
-                m_previousFrames[m_frameIndex],
-                m_fenceEvent));
-            WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-            copySafeFrame = m_previousFrames[m_frameIndex];
-        }
+  void beginFrame()
+  {
+    m_safeFrame = waitForNextSafeFrame();
 
-        return std::min(copySafeFrame, safeFrame);
-    }
+    VERIFY_OK(m_allocators[m_frameIndex]->Reset());
 
-    void waitForLastFrame()
-    {
-        auto frame = m_currentFrame++;
-        m_previousFrames[m_frameIndex] = frame;
-        VERIFY_OK(m_copyCommandQueue->Signal(m_copyFence.Get(), frame));
-        VERIFY_OK(m_commandQueue->Signal(m_fence.Get(), frame));
+    VERIFY_OK(m_copyAllocators[m_frameIndex]->Reset());
 
-        VERIFY_OK(m_fence->SetEventOnCompletion(frame, m_fenceEvent));
-        WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+    VERIFY_OK(m_commandList->Reset(m_allocators[m_frameIndex].Get(), NULL));
 
-        VERIFY_OK(m_copyFence->SetEventOnCompletion(frame, m_fenceEvent));
-        WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-    }
+    VERIFY_OK(
+        m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(), NULL));
+  }
 
-    void moveToNextFrame()
-    {
-        DrainD3D12DebugMessages(m_device.Get(), "moveToNextFrame.entry");
-        VERIFY_OK(m_commandList->Close());
-        VERIFY_OK(m_copyCommandList->Close());
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  {
+    m_frameIndex = getFrameIndex();
 
-        ID3D12CommandList* ppCopyCommandLists[] = {m_copyCommandList.Get()};
-
-        ID3D12CommandList* ppCommandLists[] = {m_commandList.Get()};
-
-        m_previousFrames[m_frameIndex] = m_currentFrame++;
-
-        m_copyCommandQueue->ExecuteCommandLists(_countof(ppCopyCommandLists),
-                                                ppCopyCommandLists);
-
-        VERIFY_OK(m_copyCommandQueue->Signal(m_copyFence.Get(),
-                                             m_previousFrames[m_frameIndex]));
-
-        // tell the direct command que to wait for the copy command que to
-        // finish
-        m_commandQueue->Wait(m_copyFence.Get(), m_previousFrames[m_frameIndex]);
-
-        m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists),
-                                            ppCommandLists);
-
-        VERIFY_OK(m_commandQueue->Signal(m_fence.Get(),
-                                         m_previousFrames[m_frameIndex]));
-
-        RIVE_PROF_GPUSUBMIT(0);
-        RIVE_PROF_ENDFRAME()
-    }
-
-    void beginFrame()
-    {
-        m_safeFrame = waitForNextSafeFrame();
-
-        VERIFY_OK(m_allocators[m_frameIndex]->Reset());
-
-        VERIFY_OK(m_copyAllocators[m_frameIndex]->Reset());
-
-        VERIFY_OK(m_commandList->Reset(m_allocators[m_frameIndex].Get(), NULL));
-
-        VERIFY_OK(m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(),
-                                           NULL));
-    }
-
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
-    {
-        m_frameIndex = getFrameIndex();
-
-        beginFrame();
+    beginFrame();
 
 #if defined(RIVE_MICROPROFILE)
-        MicroProfileGpuSetContext(m_commandList.Get());
+    MicroProfileGpuSetContext(m_commandList.Get());
 #endif
-        RenderContextD3D12Impl::CommandLists cmdLists = {
-            m_copyCommandList.Get(),
-            m_commandList.Get()};
+    RenderContextD3D12Impl::CommandLists cmdLists = {
+        m_copyCommandList.Get(),
+        m_commandList.Get()};
 
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTargets[m_frameIndex].get(),
-            .externalCommandBuffer = &cmdLists,
-            .currentFrameNumber = m_currentFrame,
-            .safeFrameNumber = m_safeFrame,
-        });
+    m_renderContext->flush({
+        .renderTarget = offscreenRenderTarget != nullptr
+                            ? offscreenRenderTarget
+                            : m_renderTargets[m_frameIndex].get(),
+        .externalCommandBuffer = &cmdLists,
+        .currentFrameNumber = m_currentFrame,
+        .safeFrameNumber = m_safeFrame,
+    });
 
-        moveToNextFrame();
-    }
+    moveToNextFrame();
+  }
 
-    void readBackPixels(std::vector<uint8_t>* pixelData)
+  void readBackPixels(std::vector<uint8_t>* pixelData)
+  {
+    waitForLastFrame();
+
+    VERIFY_OK(m_allocators[m_frameIndex]->Reset());
+    VERIFY_OK(m_copyAllocators[m_frameIndex]->Reset());
+    VERIFY_OK(m_commandList->Reset(m_allocators[m_frameIndex].Get(), NULL));
+    VERIFY_OK(
+        m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(), NULL));
+
+    ComPtr<ID3D12Resource> readbackBuffer;
+    auto w = m_renderTargets[m_frameIndex]->width();
+    auto h = m_renderTargets[m_frameIndex]->height();
+    const size_t outputBufferSize = w * h * 4;
+
+    auto targetTexture = m_renderTargets[m_frameIndex]
+                             ->targetTexture()
+                             ->resource();
+
+    // GetCopyableFootprints returns a RowPitch already aligned to
+    // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256), and totalBytes accounts
+    // for that padded layout. Per the D3D12 spec the
+    // D3D12_PLACED_SUBRESOURCE_FOOTPRINT used by CopyTextureRegion MUST
+    // have a 256-aligned RowPitch — overriding it to the natural pitch
+    // (w * bytesPerPixel) violates the rule and causes Close() to return
+    // E_INVALIDARG under strict validation. Match Dawn's pattern in
+    // CommandBufferD3D12.cpp (Align(..., kTextureBytesPerRowAlignment)):
+    // size the readback buffer for the padded layout and strip the
+    // padding when copying out to the tightly-packed pixelData.
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+    UINT numRows;
+    UINT64 rowSizeInBytes;
+    UINT64 totalBytes;
+    auto desc = targetTexture->GetDesc();
+    m_device->GetCopyableFootprints(
+        &desc,
+        0,
+        1,
+        0,
+        &footprint,
+        &numRows,
+        &rowSizeInBytes,
+        &totalBytes);
+
+    D3D12_HEAP_PROPERTIES readbackHeapProperties{
+        CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK)};
+
+    D3D12_RESOURCE_DESC readbackBufferDesc{
+        CD3DX12_RESOURCE_DESC::Buffer(totalBytes)};
+
+    VERIFY_OK(m_device->CreateCommittedResource(
+        &readbackHeapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &readbackBufferDesc,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        nullptr,
+        IID_PPV_ARGS(&readbackBuffer)));
+
     {
-        waitForLastFrame();
-
-        VERIFY_OK(m_allocators[m_frameIndex]->Reset());
-        VERIFY_OK(m_copyAllocators[m_frameIndex]->Reset());
-        VERIFY_OK(m_commandList->Reset(m_allocators[m_frameIndex].Get(), NULL));
-        VERIFY_OK(m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(),
-                                           NULL));
-
-        ComPtr<ID3D12Resource> readbackBuffer;
-        auto w = m_renderTargets[m_frameIndex]->width();
-        auto h = m_renderTargets[m_frameIndex]->height();
-        const size_t outputBufferSize = w * h * 4;
-
-        auto targetTexture =
-            m_renderTargets[m_frameIndex]->targetTexture()->resource();
-
-        // GetCopyableFootprints returns a RowPitch already aligned to
-        // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256), and totalBytes accounts
-        // for that padded layout. Per the D3D12 spec the
-        // D3D12_PLACED_SUBRESOURCE_FOOTPRINT used by CopyTextureRegion MUST
-        // have a 256-aligned RowPitch — overriding it to the natural pitch
-        // (w * bytesPerPixel) violates the rule and causes Close() to return
-        // E_INVALIDARG under strict validation. Match Dawn's pattern in
-        // CommandBufferD3D12.cpp (Align(..., kTextureBytesPerRowAlignment)):
-        // size the readback buffer for the padded layout and strip the
-        // padding when copying out to the tightly-packed pixelData.
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-        UINT numRows;
-        UINT64 rowSizeInBytes;
-        UINT64 totalBytes;
-        auto desc = targetTexture->GetDesc();
-        m_device->GetCopyableFootprints(&desc,
-                                        0,
-                                        1,
-                                        0,
-                                        &footprint,
-                                        &numRows,
-                                        &rowSizeInBytes,
-                                        &totalBytes);
-
-        D3D12_HEAP_PROPERTIES readbackHeapProperties{
-            CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK)};
-
-        D3D12_RESOURCE_DESC readbackBufferDesc{
-            CD3DX12_RESOURCE_DESC::Buffer(totalBytes)};
-
-        VERIFY_OK(
-            m_device->CreateCommittedResource(&readbackHeapProperties,
-                                              D3D12_HEAP_FLAG_NONE,
-                                              &readbackBufferDesc,
-                                              D3D12_RESOURCE_STATE_COPY_DEST,
-                                              nullptr,
-                                              IID_PPV_ARGS(&readbackBuffer)));
-
-        {
-            D3D12_RESOURCE_BARRIER outputBufferResourceBarrier{
-                CD3DX12_RESOURCE_BARRIER::Transition(
-                    targetTexture,
-                    D3D12_RESOURCE_STATE_PRESENT,
-                    D3D12_RESOURCE_STATE_COPY_SOURCE)};
-            m_commandList->ResourceBarrier(1, &outputBufferResourceBarrier);
-        }
-
-        const CD3DX12_TEXTURE_COPY_LOCATION dst(readbackBuffer.Get(),
-                                                footprint);
-        const CD3DX12_TEXTURE_COPY_LOCATION src(targetTexture, 0);
-
-        m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-
-        {
-            D3D12_RESOURCE_BARRIER outputBufferResourceBarrier{
-                CD3DX12_RESOURCE_BARRIER::Transition(
-                    targetTexture,
-                    D3D12_RESOURCE_STATE_COPY_SOURCE,
-                    D3D12_RESOURCE_STATE_PRESENT)};
-            m_commandList->ResourceBarrier(1, &outputBufferResourceBarrier);
-        }
-
-        moveToNextFrame();
-
-        waitForLastFrame();
-
-        assert(pixelData);
-        pixelData->resize(outputBufferSize);
-
-        uint8_t* mappedData;
-        D3D12_RANGE range{0, static_cast<size_t>(totalBytes)};
-        VERIFY_OK(readbackBuffer->Map(0,
-                                      &range,
-                                      reinterpret_cast<void**>(&mappedData)));
-
-        for (uint32_t y = 0; y < h; ++y)
-        {
-            auto row = reinterpret_cast<const char*>(mappedData) +
-                       footprint.Footprint.RowPitch * y;
-            memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);
-        }
-
-        D3D12_RANGE emptyRange{0, 0};
-        readbackBuffer->Unmap(0, &emptyRange);
+      D3D12_RESOURCE_BARRIER outputBufferResourceBarrier{
+          CD3DX12_RESOURCE_BARRIER::Transition(
+              targetTexture,
+              D3D12_RESOURCE_STATE_PRESENT,
+              D3D12_RESOURCE_STATE_COPY_SOURCE)};
+      m_commandList->ResourceBarrier(1, &outputBufferResourceBarrier);
     }
 
-    void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
+    const CD3DX12_TEXTURE_COPY_LOCATION dst(readbackBuffer.Get(), footprint);
+    const CD3DX12_TEXTURE_COPY_LOCATION src(targetTexture, 0);
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
     {
-        flushPLSContext(nullptr);
-
-        if (pixelData != nullptr)
-        {
-            auto w = m_renderTargets[m_frameIndex]->width();
-            auto h = m_renderTargets[m_frameIndex]->height();
-            pixelData->resize(w * h * 4);
-            readBackPixels(pixelData);
-        }
-
-        if (!m_isHeadless)
-            m_swapChain->Present(0, 0);
-
-        RIVE_PROF_GPUFLIP();
+      D3D12_RESOURCE_BARRIER outputBufferResourceBarrier{
+          CD3DX12_RESOURCE_BARRIER::Transition(
+              targetTexture,
+              D3D12_RESOURCE_STATE_COPY_SOURCE,
+              D3D12_RESOURCE_STATE_PRESENT)};
+      m_commandList->ResourceBarrier(1, &outputBufferResourceBarrier);
     }
+
+    moveToNextFrame();
+
+    waitForLastFrame();
+
+    assert(pixelData);
+    pixelData->resize(outputBufferSize);
+
+    uint8_t* mappedData;
+    D3D12_RANGE range{0, static_cast<size_t>(totalBytes)};
+    VERIFY_OK(
+        readbackBuffer->Map(0, &range, reinterpret_cast<void**>(&mappedData)));
+
+    for (uint32_t y = 0; y < h; ++y)
+    {
+      auto row = reinterpret_cast<const char*>(mappedData) +
+                 footprint.Footprint.RowPitch * y;
+      memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);
+    }
+
+    D3D12_RANGE emptyRange{0, 0};
+    readbackBuffer->Unmap(0, &emptyRange);
+  }
+
+  void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
+  {
+    flushPLSContext(nullptr);
+
+    if (pixelData != nullptr)
+    {
+      auto w = m_renderTargets[m_frameIndex]->width();
+      auto h = m_renderTargets[m_frameIndex]->height();
+      pixelData->resize(w * h * 4);
+      readBackPixels(pixelData);
+    }
+
+    if (!m_isHeadless)
+      m_swapChain->Present(0, m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+
+    RIVE_PROF_GPUFLIP();
+  }
 
 private:
-    static constexpr SIZE_T FrameCount = 2;
+  static constexpr SIZE_T FrameCount = 2;
 
-    ComPtr<ID3D12CommandAllocator> m_allocators[FrameCount];
-    ComPtr<ID3D12CommandAllocator> m_copyAllocators[FrameCount];
-    rcp<RenderTargetD3D12> m_renderTargets[FrameCount];
-    ComPtr<ID3D12Fence> m_fence;
-    ComPtr<ID3D12Fence> m_copyFence;
-    HANDLE m_fenceEvent = NULL;
-    UINT64 m_previousFrames[FrameCount] = {0};
-    UINT64 m_currentFrame = 0;
-    UINT64 m_frameIndex = 0;
-    UINT64 m_safeFrame = 0;
-    const bool m_isHeadless;
+  ComPtr<ID3D12CommandAllocator> m_allocators[FrameCount];
+  ComPtr<ID3D12CommandAllocator> m_copyAllocators[FrameCount];
+  rcp<RenderTargetD3D12> m_renderTargets[FrameCount];
+  ComPtr<ID3D12Fence> m_fence;
+  ComPtr<ID3D12Fence> m_copyFence;
+  HANDLE m_fenceEvent = NULL;
+  UINT64 m_previousFrames[FrameCount] = {0};
+  UINT64 m_currentFrame = 0;
+  UINT64 m_frameIndex = 0;
+  UINT64 m_safeFrame = 0;
+  const bool m_isHeadless;
+  bool m_allowTearing = false;
 
-    ComPtr<IDXGIFactory4> m_factory;
-    ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12CommandQueue> m_commandQueue;
-    ComPtr<ID3D12CommandQueue> m_copyCommandQueue;
-    ComPtr<ID3D12GraphicsCommandList> m_commandList;
-    ComPtr<ID3D12GraphicsCommandList> m_copyCommandList;
-    ComPtr<ID3D12Device> m_device;
-    std::unique_ptr<RenderContext> m_renderContext;
+  ComPtr<IDXGIFactory4> m_factory;
+  ComPtr<IDXGISwapChain3> m_swapChain;
+  ComPtr<ID3D12CommandQueue> m_commandQueue;
+  ComPtr<ID3D12CommandQueue> m_copyCommandQueue;
+  ComPtr<ID3D12GraphicsCommandList> m_commandList;
+  ComPtr<ID3D12GraphicsCommandList> m_copyCommandList;
+  ComPtr<ID3D12Device> m_device;
+  std::unique_ptr<RenderContext> m_renderContext;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
     FiddleContextOptions fiddleOptions)
 {
-    UINT dxgiFactoryFlags = 0;
+  UINT dxgiFactoryFlags = 0;
 
 #ifdef DEBUG
-    // Enable the debug layer (requires the Graphics Tools "optional feature").
-    // NOTE: Enabling the debug layer after device creation will invalidate the
-    // active device.
+  // Enable the debug layer (requires the Graphics Tools "optional feature").
+  // NOTE: Enabling the debug layer after device creation will invalidate the
+  // active device.
+  {
+    ComPtr<ID3D12Debug> debugController;
+    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
     {
-        ComPtr<ID3D12Debug> debugController;
-        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-        {
-            debugController->EnableDebugLayer();
+      debugController->EnableDebugLayer();
 
-            // Enable additional debug layers.
-            dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-        }
-
-        if (fiddleOptions.enableValidationLayer)
-        {
-            ComPtr<ID3D12Debug1> debugController1;
-            if (SUCCEEDED(
-                    D3D12GetDebugInterface(IID_PPV_ARGS(&debugController1))))
-            {
-                debugController1->SetEnableGPUBasedValidation(TRUE);
-            }
-        }
+      // Enable additional debug layers.
+      dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
     }
+
+    if (fiddleOptions.enableValidationLayer)
+    {
+      ComPtr<ID3D12Debug1> debugController1;
+      if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController1))))
+      {
+        debugController1->SetEnableGPUBasedValidation(TRUE);
+      }
+    }
+  }
 #endif
 
-    ComPtr<IDXGIFactory4> factory;
-    VERIFY_OK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+  ComPtr<IDXGIFactory4> factory;
+  VERIFY_OK(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
 
-    ComPtr<ID3D12Device> device;
+  ComPtr<ID3D12Device> device;
 
-    D3DContextOptions contextOptions;
+  D3DContextOptions contextOptions;
 
-    contextOptions.shaderCompilationMode = fiddleOptions.shaderCompilationMode;
+  contextOptions.shaderCompilationMode = fiddleOptions.shaderCompilationMode;
 
-    if (fiddleOptions.d3d12UseWarpDevice)
+  if (fiddleOptions.d3d12UseWarpDevice)
+  {
+    ComPtr<IDXGIAdapter> warpAdapter;
+    DXGI_ADAPTER_DESC adapterDesc{};
+    VERIFY_OK(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
+    warpAdapter->GetDesc(&adapterDesc);
+    SetIntelInformation(adapterDesc, contextOptions);
+    VERIFY_OK(D3D12CreateDevice(
+        warpAdapter.Get(),
+        D3D_FEATURE_LEVEL_11_0,
+        IID_PPV_ARGS(&device)));
+    printf("D3D12 device: %S\n", adapterDesc.Description);
+  }
+  else
+  {
+    ComPtr<IDXGIAdapter1> hardwareAdapter;
+    DXGI_ADAPTER_DESC adapterDesc{};
+
+    if (!GetHardwareAdapter(
+            factory.Get(),
+            fiddleOptions.gpuNameFilter,
+            &hardwareAdapter))
     {
-        ComPtr<IDXGIAdapter> warpAdapter;
-        DXGI_ADAPTER_DESC adapterDesc{};
-        VERIFY_OK(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
-        warpAdapter->GetDesc(&adapterDesc);
-        SetIntelInformation(adapterDesc, contextOptions);
-        VERIFY_OK(D3D12CreateDevice(warpAdapter.Get(),
-                                    D3D_FEATURE_LEVEL_11_0,
-                                    IID_PPV_ARGS(&device)));
-        printf("D3D12 device: %S\n", adapterDesc.Description);
+      std::cout << "Failed to get adapter with name filter \""
+                << fiddleOptions.gpuNameFilter
+                << "\" trying again with out one.\n";
+      // try again with now filter
+      if (!GetHardwareAdapter(factory.Get(), nullptr, &hardwareAdapter))
+      {
+        std::cerr << "Failed to get hardware adaptor for dx12.\n";
+        assert(false);
+      }
     }
-    else
-    {
-        ComPtr<IDXGIAdapter1> hardwareAdapter;
-        DXGI_ADAPTER_DESC adapterDesc{};
+    hardwareAdapter->GetDesc(&adapterDesc);
 
-        if (!GetHardwareAdapter(factory.Get(),
-                                fiddleOptions.gpuNameFilter,
-                                &hardwareAdapter))
-        {
-            std::cout << "Failed to get adapter with name filter \""
-                      << fiddleOptions.gpuNameFilter
-                      << "\" trying again with out one.\n";
-            // try again with now filter
-            if (!GetHardwareAdapter(factory.Get(), nullptr, &hardwareAdapter))
-            {
-                std::cerr << "Failed to get hardware adaptor for dx12.\n";
-                assert(false);
-            }
-        }
-        hardwareAdapter->GetDesc(&adapterDesc);
+    SetIntelInformation(adapterDesc, contextOptions);
 
-        SetIntelInformation(adapterDesc, contextOptions);
+    VERIFY_OK(D3D12CreateDevice(
+        hardwareAdapter.Get(),
+        D3D_FEATURE_LEVEL_11_0,
+        IID_PPV_ARGS(&device)));
+    printf("D3D12 device: %S\n", adapterDesc.Description);
+  }
 
-        VERIFY_OK(D3D12CreateDevice(hardwareAdapter.Get(),
-                                    D3D_FEATURE_LEVEL_11_0,
-                                    IID_PPV_ARGS(&device)));
-        printf("D3D12 device: %S\n", adapterDesc.Description);
-    }
-
-    if (!device)
-    {
-        return nullptr;
-    }
+  if (!device)
+  {
+    return nullptr;
+  }
 
 #ifdef DEBUG
-    // Print debug-layer messages as they post; the frame-boundary drain misses
-    // a mid-frame break that kills the process first.
+  // Print debug-layer messages as they post; the frame-boundary drain misses
+  // a mid-frame break that kills the process first.
+  {
+    ComPtr<ID3D12InfoQueue1> infoQueue1;
+    if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue1))))
     {
-        ComPtr<ID3D12InfoQueue1> infoQueue1;
-        if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue1))))
-        {
-            DWORD cookie = 0;
-            if (SUCCEEDED(infoQueue1->RegisterMessageCallback(
-                    &D3D12MessageCallback,
-                    D3D12_MESSAGE_CALLBACK_FLAG_NONE,
-                    nullptr,
-                    &cookie)))
-            {
-                s_d3d12MessageCallbackActive = true;
-            }
-        }
+      DWORD cookie = 0;
+      if (SUCCEEDED(infoQueue1->RegisterMessageCallback(
+              &D3D12MessageCallback,
+              D3D12_MESSAGE_CALLBACK_FLAG_NONE,
+              nullptr,
+              &cookie)))
+      {
+        s_d3d12MessageCallbackActive = true;
+      }
     }
+  }
 #endif
 
-    if (fiddleOptions.disableRasterOrdering)
-    {
-        contextOptions.disableRasterizerOrderedViews = true;
-        // Also disable typed UAVs in atomic mode, to get more complete test
-        // coverage.
-        contextOptions.disableTypedUAVLoadStore = true;
-    }
+  if (fiddleOptions.disableRasterOrdering)
+  {
+    contextOptions.disableRasterizerOrderedViews = true;
+    // Also disable typed UAVs in atomic mode, to get more complete test
+    // coverage.
+    contextOptions.disableTypedUAVLoadStore = true;
+  }
 
-    return std::make_unique<FiddleContextD3D12PLS>(
-        std::move(factory),
-        std::move(device),
-        fiddleOptions.allowHeadlessRendering,
-        contextOptions);
+  return std::make_unique<FiddleContextD3D12PLS>(
+      std::move(factory),
+      std::move(device),
+      fiddleOptions.allowHeadlessRendering,
+      contextOptions);
 }
 
 #endif

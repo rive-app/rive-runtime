@@ -10,16 +10,16 @@ class ListenerInputTypeKeyboard;
 class ListenerInputTypeKeyboardImporter : public ImportStackObject
 {
 private:
-    ListenerInputTypeKeyboard* m_listenerInputTypeKeyboard;
+  ListenerInputTypeKeyboard* m_listenerInputTypeKeyboard;
 
 public:
-    explicit ListenerInputTypeKeyboardImporter(
-        ListenerInputTypeKeyboard* listenerInputTypeKeyboard);
-    ListenerInputTypeKeyboard* listenerInputTypeKeyboard() const
-    {
-        return m_listenerInputTypeKeyboard;
-    }
-    StatusCode resolve() override;
+  explicit ListenerInputTypeKeyboardImporter(
+      ListenerInputTypeKeyboard* listenerInputTypeKeyboard);
+  ListenerInputTypeKeyboard* listenerInputTypeKeyboard() const
+  {
+    return m_listenerInputTypeKeyboard;
+  }
+  StatusCode resolve() override;
 };
 } // namespace rive
 

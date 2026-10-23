@@ -18,78 +18,87 @@ class ScrollConstraint;
 
 enum class ScrollPhysicsType : uint8_t
 {
-    elastic,
-    clamped
+  elastic,
+  clamped
 };
 
 class ScrollPhysics : public ScrollPhysicsBase
 {
 private:
-    long long m_lastTime =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::high_resolution_clock::now().time_since_epoch())
-            .count();
-    bool m_isRunning = false;
+  long long m_lastTime = std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::high_resolution_clock::now()
+                                 .time_since_epoch())
+                             .count();
+  bool m_isRunning = false;
 
 protected:
-    Vec2D m_speed;
-    Vec2D m_acceleration;
-    DraggableConstraintDirection m_direction;
+  Vec2D m_speed;
+  Vec2D m_acceleration;
+  DraggableConstraintDirection m_direction;
 
 public:
-    virtual bool enabled() { return isRunning(); }
-    virtual bool isRunning() { return m_isRunning; }
-    /// False once a settle has torn down state that only prepare() rebuilds.
-    /// A gesture still in flight re-primes when it sees this.
-    virtual bool isPrimed() { return true; }
-    virtual void prepare(DraggableConstraintDirection dir)
-    {
-        reset();
-        m_direction = dir;
-    }
-    virtual Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
-    {
-        return Vec2D();
-    };
-    virtual Vec2D advance(float elapsedSeconds) { return Vec2D(); };
-    virtual void accumulate(Vec2D delta, float timeStamp);
-    virtual void run(Vec2D rangeMin,
-                     Vec2D rangeMax,
-                     Vec2D value,
-                     std::vector<Vec2D> snappingPoints,
-                     float contentSize,
-                     float viewportSize)
-    {
-        m_isRunning = true;
-    }
-    virtual void stop()
-    {
-        m_isRunning = false;
-        m_speed = Vec2D();
-    }
-    virtual void reset();
-    Vec2D speed() const { return m_speed; }
-    void clearVelocity() { m_speed = Vec2D(); }
+  virtual bool enabled() { return isRunning(); }
+  virtual bool isRunning() { return m_isRunning; }
+  /// False once a settle has torn down state that only prepare() rebuilds.
+  /// A gesture still in flight re-primes when it sees this.
+  virtual bool isPrimed() { return true; }
+  virtual void prepare(DraggableConstraintDirection dir)
+  {
+    reset();
+    m_direction = dir;
+  }
+  virtual Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
+  {
+    return Vec2D();
+  };
+  virtual Vec2D advance(float elapsedSeconds) { return Vec2D(); };
+  // Moves the simulation by delta, for content that moved under it.
+  virtual void shift(Vec2D delta) {}
+  virtual void accumulate(Vec2D delta, float timeStamp);
+  virtual void run(
+      Vec2D rangeMin,
+      Vec2D rangeMax,
+      Vec2D value,
+      std::vector<Vec2D> snappingPoints,
+      Vec2D contentSize,
+      Vec2D viewportSize)
+  {
+    m_isRunning = true;
+  }
+  virtual void stop()
+  {
+    m_isRunning = false;
+    m_speed = Vec2D();
+  }
+  virtual void reset();
+  Vec2D speed() const { return m_speed; }
+  void clearVelocity() { m_speed = Vec2D(); }
 
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
+  // Physics live on the backboard, never in an artboard's object list.
+  bool claimsArtboardSlot(ImportStack& importStack) const override
+  {
+    return false;
+  }
 
-    /// Initiate animated scroll to target position.
-    virtual void scrollToPosition(Vec2D current,
-                                  Vec2D target,
-                                  Vec2D rangeMin,
-                                  Vec2D rangeMax,
-                                  bool horizontal,
-                                  bool vertical)
-    {}
+  /// Initiate animated scroll to target position.
+  virtual void scrollToPosition(
+      Vec2D current,
+      Vec2D target,
+      Vec2D rangeMin,
+      Vec2D rangeMax,
+      bool horizontal,
+      bool vertical)
+  {}
 
-    /// Get the target X position if animating.
-    virtual float targetX() { return 0.0f; }
-    /// Get the target Y position if animating.
-    virtual float targetY() { return 0.0f; }
-    /// Whether there's an active X target.
-    virtual bool hasTargetX() { return false; }
-    /// Whether there's an active Y target.
-    virtual bool hasTargetY() { return false; }
+  /// Get the target X position if animating.
+  virtual float targetX() { return 0.0f; }
+  /// Get the target Y position if animating.
+  virtual float targetY() { return 0.0f; }
+  /// Whether there's an active X target.
+  virtual bool hasTargetX() { return false; }
+  /// Whether there's an active Y target.
+  virtual bool hasTargetY() { return false; }
 };
 } // namespace rive
 

@@ -10,60 +10,64 @@ enum class AxisType : int;
 
 struct SliceMeshVertex
 {
-    int id = -1;
-    Vec2D uv;
-    Vec2D vertex;
+  int id = -1;
+  Vec2D uv;
+  Vec2D vertex;
 };
 
 struct Corner
 {
-    int x;
-    int y;
+  int x;
+  int y;
 };
 
 // A temporary mesh that backs up an NSlicer.
 class SliceMesh : public MeshDrawable
 {
 private:
-    NSlicer* m_nslicer;
+  NSlicer* m_nslicer;
 
-    // More readable representation of the render buffers.
-    std::vector<Vec2D> m_uvs;
-    std::vector<Vec2D> m_vertices;
-    std::vector<uint16_t> m_indices;
+  // More readable representation of the render buffers.
+  std::vector<Vec2D> m_uvs;
+  std::vector<Vec2D> m_vertices;
+  std::vector<uint16_t> m_indices;
 
-    std::vector<float> uvStops(AxisType forAxis);
-    std::vector<float> vertexStops(const std::vector<float>& normalizedStops,
-                                   AxisType forAxis);
+  std::vector<float> uvStops(AxisType forAxis);
+  std::vector<float> vertexStops(
+      const std::vector<float>& normalizedStops,
+      AxisType forAxis);
 
-    uint16_t tileRepeat(std::vector<SliceMeshVertex>& vertices,
-                        std::vector<uint16_t>& indices,
-                        const std::vector<SliceMeshVertex>& box,
-                        uint16_t start);
+  uint16_t tileRepeat(
+      std::vector<SliceMeshVertex>& vertices,
+      std::vector<uint16_t>& indices,
+      const std::vector<SliceMeshVertex>& box,
+      uint16_t start);
 
-    // Update the member (non-render) buffers.
-    void calc();
+  // Update the member (non-render) buffers.
+  void calc();
 
-    // Copy the member (non-render) buffers into the render buffers.
-    void updateBuffers();
+  // Copy the member (non-render) buffers into the render buffers.
+  void updateBuffers();
 
-    static const uint16_t triangulation[];
-    static const Corner patchCorners[];
-    bool isFixedSegment(int i) const;
+  static const uint16_t triangulation[];
+  static const Corner patchCorners[];
+  bool isFixedSegment(int i) const;
 
 protected:
 public:
-    SliceMesh(NSlicer* nslicer);
-    MeshType type() override { return MeshType::nslice; }
-    void draw(Renderer* renderer,
-              const RenderImage* image,
-              ImageSampler,
-              BlendMode blendMode,
-              float opacity,
-              float additiveness) override;
-    void onAssetLoaded(RenderImage* renderImage) override;
+  SliceMesh(NSlicer* nslicer);
+  MeshType type() override { return MeshType::nslice; }
+  void draw(
+      Renderer* renderer,
+      const RenderImage* image,
+      ImageSampler,
+      BlendMode blendMode,
+      float opacity,
+      float additiveness) override;
+  void onAssetLoaded(RenderImage* renderImage) override;
+  void uvTransformChanged(const Mat2D& uvTransform) override;
 
-    void update(); // not Component::update() as SliceMesh is not in core.
+  void update(); // not Component::update() as SliceMesh is not in core.
 };
 } // namespace rive
 

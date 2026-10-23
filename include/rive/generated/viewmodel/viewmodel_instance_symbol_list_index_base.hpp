@@ -10,72 +10,54 @@ namespace rive
 class ViewModelInstanceSymbolListIndexBase : public ViewModelInstanceSymbol
 {
 protected:
-    typedef ViewModelInstanceSymbol Super;
+  typedef ViewModelInstanceSymbol Super;
 
 public:
-    static const uint16_t typeKey = 566;
+  static const uint16_t typeKey = 566;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ViewModelInstanceSymbolListIndexBase::typeKey:
-            case ViewModelInstanceSymbolBase::typeKey:
-            case ViewModelInstanceValueBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t propertyValuePropertyKey = 814;
+  static const uint16_t propertyValuePropertyKey = 814;
 
 protected:
-    uint32_t m_PropertyValue = 0;
+  uint32_t m_PropertyValue = 0;
 
 public:
-    inline uint32_t propertyValue() const { return m_PropertyValue; }
-    void propertyValue(uint32_t value)
+  inline uint32_t propertyValue() const { return m_PropertyValue; }
+  void propertyValue(uint32_t value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ViewModelInstanceSymbolListIndexBase& object)
-    {
-        m_PropertyValue = object.m_PropertyValue;
-        RIVE_EDITOR_COPY(object);
-        ViewModelInstanceSymbol::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ViewModelInstanceSymbolListIndexBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    RIVE_EDITOR_COPY(object);
+    ViewModelInstanceSymbol::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ViewModelInstanceSymbol::deserialize(propertyKey, reader);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ViewModelInstanceSymbol::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/viewmodel_instance_symbol_list_index_ext.inl"
 #endif

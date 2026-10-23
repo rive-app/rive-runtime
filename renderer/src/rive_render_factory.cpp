@@ -19,7 +19,7 @@ rcp<RenderShader> RiveRenderFactory::makeLinearGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    return gpu::Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
+  return gpu::Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
 }
 
 rcp<RenderShader> RiveRenderFactory::makeRadialGradient(
@@ -30,22 +30,51 @@ rcp<RenderShader> RiveRenderFactory::makeRadialGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    return gpu::Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
+  return gpu::Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 
-rcp<RenderPath> RiveRenderFactory::makeRenderPath(RawPath& rawPath,
-                                                  FillRule fillRule)
+rcp<RenderShader> RiveRenderFactory::makeAngularGradient(
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
-    return make_rcp<RiveRenderPath>(fillRule, rawPath);
+  return gpu::Gradient::MakeAngular(colors, stops, count);
+}
+
+rcp<RenderPath> RiveRenderFactory::makeRenderPath(
+    RawPath& rawPath,
+    FillRule fillRule)
+{
+  return make_rcp<RiveRenderPath>(fillRule, rawPath);
 }
 
 rcp<RenderPath> RiveRenderFactory::makeEmptyRenderPath()
 {
-    return make_rcp<RiveRenderPath>();
+  return make_rcp<RiveRenderPath>();
 }
 
 rcp<RenderPaint> RiveRenderFactory::makeRenderPaint()
 {
-    return make_rcp<RiveRenderPaint>();
+  return make_rcp<RiveRenderPaint>();
+}
+
+RiveRenderPath* asRiveRenderPath(RenderPath* path)
+{
+  return lite_rtti_cast_or_assert<RiveRenderPath*>(path);
+}
+
+const RiveRenderPath* asRiveRenderPath(const RenderPath* path)
+{
+  return lite_rtti_cast_or_assert<const RiveRenderPath*>(path);
+}
+
+RiveRenderPaint* asRiveRenderPaint(RenderPaint* paint)
+{
+  return lite_rtti_cast_or_assert<RiveRenderPaint*>(paint);
+}
+
+const RiveRenderPaint* asRiveRenderPaint(const RenderPaint* paint)
+{
+  return lite_rtti_cast_or_assert<const RiveRenderPaint*>(paint);
 }
 } // namespace rive

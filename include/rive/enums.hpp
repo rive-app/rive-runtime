@@ -56,20 +56,21 @@ template <typename Enum>
 constexpr bool is_flag_enum = IsFlagEnumImpl<Enum>::value;
 
 #define RIVE_ENABLE_IF_IS_SCOPED_ENUM(Enum)                                    \
-    template <typename Enum,                                                   \
-              std::enable_if_t<enums::internal::is_scoped_enum<Enum>, int> =   \
-                  0>
+  template <                                                                   \
+      typename Enum,                                                           \
+      std::enable_if_t<enums::internal::is_scoped_enum<Enum>, int> = 0>
 
 #define RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)                                      \
-    template <typename Enum,                                                   \
-              std::enable_if_t<enums::internal::is_flag_enum<Enum>, int> = 0>
+  template <                                                                   \
+      typename Enum,                                                           \
+      std::enable_if_t<enums::internal::is_flag_enum<Enum>, int> = 0>
 
 } // namespace internal
 
 RIVE_ENABLE_IF_IS_SCOPED_ENUM(Enum)
 constexpr std::underlying_type_t<Enum> underlying_value(Enum v) noexcept
 {
-    return std::underlying_type_t<Enum>(v);
+  return std::underlying_type_t<Enum>(v);
 }
 
 RIVE_ENABLE_IF_IS_SCOPED_ENUM(Enum)
@@ -88,46 +89,46 @@ namespace rive
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum operator&(Enum a, Enum b) noexcept
 {
-    return Enum(enums::underlying_value(a) & enums::underlying_value(b));
+  return Enum(enums::underlying_value(a) & enums::underlying_value(b));
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum operator^(Enum a, Enum b) noexcept
 {
-    return Enum(enums::underlying_value(a) ^ enums::underlying_value(b));
+  return Enum(enums::underlying_value(a) ^ enums::underlying_value(b));
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum operator|(Enum a, Enum b) noexcept
 {
-    return Enum(enums::underlying_value(a) | enums::underlying_value(b));
+  return Enum(enums::underlying_value(a) | enums::underlying_value(b));
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum operator~(Enum a) noexcept
 {
-    return Enum(~enums::underlying_value(a));
+  return Enum(~enums::underlying_value(a));
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum& operator&=(Enum& a, Enum b) noexcept
 {
-    a = (a & b);
-    return a;
+  a = (a & b);
+  return a;
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum& operator^=(Enum& a, Enum b) noexcept
 {
-    a = (a ^ b);
-    return a;
+  a = (a ^ b);
+  return a;
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 inline constexpr Enum& operator|=(Enum& a, Enum b) noexcept
 {
-    a = (a | b);
-    return a;
+  a = (a | b);
+  return a;
 }
 } // namespace rive
 
@@ -136,15 +137,15 @@ namespace rive::enums
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 constexpr bool is_single_flag(Enum flags) noexcept
 {
-    auto u = underlying_value(flags);
-    return u != 0 && (u & (u - 1)) == 0;
+  auto u = underlying_value(flags);
+  return u != 0 && (u & (u - 1)) == 0;
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 constexpr bool is_flag_set(Enum flags, Enum testFlag) noexcept
 {
-    assert(is_single_flag(testFlag));
-    return (flags & testFlag) != Enum(0);
+  assert(is_single_flag(testFlag));
+  return (flags & testFlag) != Enum(0);
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
@@ -153,13 +154,13 @@ constexpr bool any_flag_set(Enum flags) noexcept { return flags != Enum(0); }
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 constexpr bool any_flag_set(Enum flags, Enum mask) noexcept
 {
-    return any_flag_set(flags & mask);
+  return any_flag_set(flags & mask);
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 constexpr bool all_flags_set(Enum flags, Enum mask) noexcept
 {
-    return (flags & mask) == mask;
+  return (flags & mask) == mask;
 }
 
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
@@ -168,7 +169,7 @@ constexpr bool no_flags_set(Enum flags) noexcept { return flags == Enum(0); }
 RIVE_ENABLE_IF_IS_FLAG_ENUM(Enum)
 constexpr bool no_flags_set(Enum flags, Enum mask) noexcept
 {
-    return no_flags_set(flags & mask);
+  return no_flags_set(flags & mask);
 }
 } // namespace rive::enums
 

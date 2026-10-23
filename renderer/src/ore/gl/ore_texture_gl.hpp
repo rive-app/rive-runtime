@@ -9,28 +9,30 @@ class ContextGL;
 class TextureGL : public LITE_RTTI_OVERRIDE(Texture, TextureGL)
 {
 public:
-    TextureGL(const TextureDesc& desc) : lite_rtti_override(desc) {}
-    ~TextureGL() override;
-    void uploadImpl(const TextureDataDesc& data) override;
+  TextureGL(const TextureDesc& desc) : lite_rtti_override(desc) {}
+  ~TextureGL() override;
+  void uploadImpl(const TextureDataDesc& data) override;
 
 private:
-    friend class ContextGL;
-    unsigned int m_glTexture = 0;
-    unsigned int m_glRenderbuffer = 0;
-    unsigned int m_glTarget = 0; // GLenum
-    bool m_glOwnsTexture = false;
+  friend class ContextGL;
+  unsigned int m_glTexture = 0;
+  unsigned int m_glRenderbuffer = 0;
+  unsigned int m_glTarget = 0; // GLenum
+  // False only for textures wrapped from outside, which aren't ours to
+  // delete.
+  bool m_glOwnsTexture = true;
 };
 
 class TextureViewGL : public LITE_RTTI_OVERRIDE(TextureView, TextureViewGL)
 {
 public:
-    TextureViewGL(rcp<Texture> texture, const TextureViewDesc& desc) :
-        lite_rtti_override(std::move(texture), desc)
-    {}
-    ~TextureViewGL() override;
+  TextureViewGL(rcp<Texture> texture, const TextureViewDesc& desc)
+      : lite_rtti_override(std::move(texture), desc)
+  {}
+  ~TextureViewGL() override;
 
 private:
-    friend class ContextGL;
-    unsigned int m_glTextureView = 0; // GLenum; 0 means use base texture
+  friend class ContextGL;
+  unsigned int m_glTextureView = 0; // GLenum; 0 means use base texture
 };
 } // namespace rive::ore

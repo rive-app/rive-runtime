@@ -9,12 +9,12 @@ class RenderPassGL;
 class PipelineGL : public LITE_RTTI_OVERRIDE(Pipeline, PipelineGL)
 {
 public:
-    PipelineGL(const PipelineDesc& desc) : lite_rtti_override(desc) {}
-    ~PipelineGL() override;
+  PipelineGL(const PipelineDesc& desc) : lite_rtti_override(desc) {}
+  ~PipelineGL() override;
 
 private:
-    friend class ContextGL;
-    friend class RenderPassGL;
-    unsigned int m_glProgram = 0; // GLuint; 0 = unlinked
+  friend class ContextGL;
+  friend class RenderPassGL;
+  unsigned int m_glProgram = 0; // GLuint; 0 = unlinked
 };
 } // namespace rive::ore

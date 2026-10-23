@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DashBase::clone() const
 {
-    auto cloned = new Dash();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Dash();
+  cloned->copy(*this);
+  return cloned;
 }

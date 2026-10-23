@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataEnumValueBase::clone() const
 {
-    auto cloned = new DataEnumValue();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataEnumValue();
+  cloned->copy(*this);
+  return cloned;
 }

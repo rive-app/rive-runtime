@@ -10,12 +10,12 @@ namespace rive
 /// Runtime-only flags stored in NestedArtboard::m_hostFlags (not serialized).
 enum class NestedArtboardHostFlags : uint8_t
 {
-    none = 0,
-    /// Stateful VM binding is scheduled and should run on next advance.
-    pendingStatefulBinding = 1 << 0,
-    /// artboardId is data-bound (VM artboard property); host needs a focus
-    /// scope for runtime-swappable nested artboards.
-    artboardDataBound = 1 << 1,
+  none = 0,
+  /// Stateful VM binding is scheduled and should run on next advance.
+  pendingStatefulBinding = 1 << 0,
+  /// artboardId is data-bound (VM artboard property); host needs a focus
+  /// scope for runtime-swappable nested artboards.
+  artboardDataBound = 1 << 1,
 };
 
 } // namespace rive

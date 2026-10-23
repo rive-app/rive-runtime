@@ -9,9 +9,9 @@ int reallocCount = 0;
 int freeCount = 0;
 void resetCounters()
 {
-    mallocCount = 0;
-    reallocCount = 0;
-    freeCount = 0;
+  mallocCount = 0;
+  reallocCount = 0;
+  freeCount = 0;
 }
 } // namespace SimpleArrayTesting
 } // namespace rive

@@ -31,33 +31,36 @@ static inline Vec2D two(Vec2D v) { return v + v; }
 // want to evaluate the save curve at multiple t values.
 struct EvalCubic
 {
-    const Vec2D a, b, c, d; // at^3 + bt^2 + ct + d
+  const Vec2D a, b, c, d; // at^3 + bt^2 + ct + d
 
-    // pts are the 4 cubic bezier control points
-    EvalCubic(const Vec2D pts[4]) :
-        a(pts[3] + 3 * (pts[1] - pts[2]) - pts[0]),
-        b(3 * (pts[2] - two(pts[1]) + pts[0])),
-        c(3 * (pts[1] - pts[0])),
-        d(pts[0])
-    {}
+  // pts are the 4 cubic bezier control points
+  EvalCubic(const Vec2D pts[4])
+      : a(pts[3] + 3 * (pts[1] - pts[2]) - pts[0])
+      , b(3 * (pts[2] - two(pts[1]) + pts[0]))
+      , c(3 * (pts[1] - pts[0]))
+      , d(pts[0])
+  {}
 
-    Vec2D operator()(float t) const { return ((a * t + b) * t + c) * t + d; }
+  Vec2D operator()(float t) const { return ((a * t + b) * t + c) * t + d; }
 };
 
 // Extract a subcurve from the curve (given start and end t-values)
 
-extern void line_extract(const Vec2D src[2],
-                         float startT,
-                         float endT,
-                         Vec2D dst[2]);
-extern void quad_extract(const Vec2D src[3],
-                         float startT,
-                         float endT,
-                         Vec2D dst[3]);
-extern void cubic_extract(const Vec2D src[4],
-                          float startT,
-                          float endT,
-                          Vec2D dst[4]);
+extern void line_extract(
+    const Vec2D src[2],
+    float startT,
+    float endT,
+    Vec2D dst[2]);
+extern void quad_extract(
+    const Vec2D src[3],
+    float startT,
+    float endT,
+    Vec2D dst[3]);
+extern void cubic_extract(
+    const Vec2D src[4],
+    float startT,
+    float endT,
+    Vec2D dst[4]);
 
 } // namespace rive
 

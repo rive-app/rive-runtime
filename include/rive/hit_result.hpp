@@ -5,9 +5,9 @@ namespace rive
 {
 enum class HitResult : uint8_t
 {
-    none,
-    hit,
-    hitOpaque,
+  none,
+  hit,
+  hitOpaque,
 };
 } // namespace rive
 #endif

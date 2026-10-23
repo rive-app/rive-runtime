@@ -5,12 +5,16 @@
 
 using namespace rive;
 
-LinearAnimationImporter::LinearAnimationImporter(LinearAnimation* animation) :
-    m_Animation(animation)
-{}
+LinearAnimationImporter::LinearAnimationImporter(LinearAnimation* animation)
+    : m_Animation(animation)
+{
+  // Its keyed properties are imported next; a callback among them sets this
+  // again (see KeyedProperty::import).
+  m_Animation->hasKeyedCallbacks(false);
+}
 
 void LinearAnimationImporter::addKeyedObject(
     std::unique_ptr<KeyedObject> object)
 {
-    m_Animation->addKeyedObject(std::move(object));
+  m_Animation->addKeyedObject(std::move(object));
 }

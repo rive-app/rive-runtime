@@ -12,10 +12,10 @@ namespace rive::ore
 
 ShaderModuleGL::~ShaderModuleGL()
 {
-    if (m_glShader != 0)
-    {
-        glDeleteShader(m_glShader);
-    }
+  if (m_glShader != 0)
+  {
+    glDeleteShader(m_glShader);
+  }
 }
 
 #endif // ORE_BACKEND_GL

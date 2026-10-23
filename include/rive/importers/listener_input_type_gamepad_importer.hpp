@@ -10,16 +10,16 @@ class ListenerInputTypeGamepad;
 class ListenerInputTypeGamepadImporter : public ImportStackObject
 {
 private:
-    ListenerInputTypeGamepad* m_listenerInputTypeGamepad;
+  ListenerInputTypeGamepad* m_listenerInputTypeGamepad;
 
 public:
-    explicit ListenerInputTypeGamepadImporter(
-        ListenerInputTypeGamepad* listenerInputTypeGamepad);
-    ListenerInputTypeGamepad* listenerInputTypeGamepad() const
-    {
-        return m_listenerInputTypeGamepad;
-    }
-    StatusCode resolve() override;
+  explicit ListenerInputTypeGamepadImporter(
+      ListenerInputTypeGamepad* listenerInputTypeGamepad);
+  ListenerInputTypeGamepad* listenerInputTypeGamepad() const
+  {
+    return m_listenerInputTypeGamepad;
+  }
+  StatusCode resolve() override;
 };
 } // namespace rive
 

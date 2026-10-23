@@ -16,170 +16,170 @@ namespace rive::ore
 
 static GLenum oreTopologyToGL(PrimitiveTopology topo)
 {
-    switch (topo)
-    {
-        case PrimitiveTopology::pointList:
-            return GL_POINTS;
-        case PrimitiveTopology::lineList:
-            return GL_LINES;
-        case PrimitiveTopology::lineStrip:
-            return GL_LINE_STRIP;
-        case PrimitiveTopology::triangleList:
-            return GL_TRIANGLES;
-        case PrimitiveTopology::triangleStrip:
-            return GL_TRIANGLE_STRIP;
-    }
-    RIVE_UNREACHABLE();
+  switch (topo)
+  {
+    case PrimitiveTopology::pointList:
+      return GL_POINTS;
+    case PrimitiveTopology::lineList:
+      return GL_LINES;
+    case PrimitiveTopology::lineStrip:
+      return GL_LINE_STRIP;
+    case PrimitiveTopology::triangleList:
+      return GL_TRIANGLES;
+    case PrimitiveTopology::triangleStrip:
+      return GL_TRIANGLE_STRIP;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreBlendFactorToGL(BlendFactor f)
 {
-    switch (f)
-    {
-        case BlendFactor::zero:
-            return GL_ZERO;
-        case BlendFactor::one:
-            return GL_ONE;
-        case BlendFactor::srcColor:
-            return GL_SRC_COLOR;
-        case BlendFactor::oneMinusSrcColor:
-            return GL_ONE_MINUS_SRC_COLOR;
-        case BlendFactor::srcAlpha:
-            return GL_SRC_ALPHA;
-        case BlendFactor::oneMinusSrcAlpha:
-            return GL_ONE_MINUS_SRC_ALPHA;
-        case BlendFactor::dstColor:
-            return GL_DST_COLOR;
-        case BlendFactor::oneMinusDstColor:
-            return GL_ONE_MINUS_DST_COLOR;
-        case BlendFactor::dstAlpha:
-            return GL_DST_ALPHA;
-        case BlendFactor::oneMinusDstAlpha:
-            return GL_ONE_MINUS_DST_ALPHA;
-        case BlendFactor::srcAlphaSaturated:
-            return GL_SRC_ALPHA_SATURATE;
-        case BlendFactor::blendColor:
-            return GL_CONSTANT_COLOR;
-        case BlendFactor::oneMinusBlendColor:
-            return GL_ONE_MINUS_CONSTANT_COLOR;
-    }
-    RIVE_UNREACHABLE();
+  switch (f)
+  {
+    case BlendFactor::zero:
+      return GL_ZERO;
+    case BlendFactor::one:
+      return GL_ONE;
+    case BlendFactor::srcColor:
+      return GL_SRC_COLOR;
+    case BlendFactor::oneMinusSrcColor:
+      return GL_ONE_MINUS_SRC_COLOR;
+    case BlendFactor::srcAlpha:
+      return GL_SRC_ALPHA;
+    case BlendFactor::oneMinusSrcAlpha:
+      return GL_ONE_MINUS_SRC_ALPHA;
+    case BlendFactor::dstColor:
+      return GL_DST_COLOR;
+    case BlendFactor::oneMinusDstColor:
+      return GL_ONE_MINUS_DST_COLOR;
+    case BlendFactor::dstAlpha:
+      return GL_DST_ALPHA;
+    case BlendFactor::oneMinusDstAlpha:
+      return GL_ONE_MINUS_DST_ALPHA;
+    case BlendFactor::srcAlphaSaturated:
+      return GL_SRC_ALPHA_SATURATE;
+    case BlendFactor::blendColor:
+      return GL_CONSTANT_COLOR;
+    case BlendFactor::oneMinusBlendColor:
+      return GL_ONE_MINUS_CONSTANT_COLOR;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreBlendOpToGL(BlendOp op)
 {
-    switch (op)
-    {
-        case BlendOp::add:
-            return GL_FUNC_ADD;
-        case BlendOp::subtract:
-            return GL_FUNC_SUBTRACT;
-        case BlendOp::reverseSubtract:
-            return GL_FUNC_REVERSE_SUBTRACT;
-        case BlendOp::min:
-            return GL_MIN;
-        case BlendOp::max:
-            return GL_MAX;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case BlendOp::add:
+      return GL_FUNC_ADD;
+    case BlendOp::subtract:
+      return GL_FUNC_SUBTRACT;
+    case BlendOp::reverseSubtract:
+      return GL_FUNC_REVERSE_SUBTRACT;
+    case BlendOp::min:
+      return GL_MIN;
+    case BlendOp::max:
+      return GL_MAX;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreCompareFunctionToGL(CompareFunction fn)
 {
-    switch (fn)
-    {
-        case CompareFunction::none:
-        case CompareFunction::never:
-            return GL_NEVER;
-        case CompareFunction::less:
-            return GL_LESS;
-        case CompareFunction::equal:
-            return GL_EQUAL;
-        case CompareFunction::lessEqual:
-            return GL_LEQUAL;
-        case CompareFunction::greater:
-            return GL_GREATER;
-        case CompareFunction::notEqual:
-            return GL_NOTEQUAL;
-        case CompareFunction::greaterEqual:
-            return GL_GEQUAL;
-        case CompareFunction::always:
-            return GL_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
+  switch (fn)
+  {
+    case CompareFunction::none:
+    case CompareFunction::never:
+      return GL_NEVER;
+    case CompareFunction::less:
+      return GL_LESS;
+    case CompareFunction::equal:
+      return GL_EQUAL;
+    case CompareFunction::lessEqual:
+      return GL_LEQUAL;
+    case CompareFunction::greater:
+      return GL_GREATER;
+    case CompareFunction::notEqual:
+      return GL_NOTEQUAL;
+    case CompareFunction::greaterEqual:
+      return GL_GEQUAL;
+    case CompareFunction::always:
+      return GL_ALWAYS;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreStencilOpToGL(StencilOp op)
 {
-    switch (op)
-    {
-        case StencilOp::keep:
-            return GL_KEEP;
-        case StencilOp::zero:
-            return GL_ZERO;
-        case StencilOp::replace:
-            return GL_REPLACE;
-        case StencilOp::incrementClamp:
-            return GL_INCR;
-        case StencilOp::decrementClamp:
-            return GL_DECR;
-        case StencilOp::invert:
-            return GL_INVERT;
-        case StencilOp::incrementWrap:
-            return GL_INCR_WRAP;
-        case StencilOp::decrementWrap:
-            return GL_DECR_WRAP;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case StencilOp::keep:
+      return GL_KEEP;
+    case StencilOp::zero:
+      return GL_ZERO;
+    case StencilOp::replace:
+      return GL_REPLACE;
+    case StencilOp::incrementClamp:
+      return GL_INCR;
+    case StencilOp::decrementClamp:
+      return GL_DECR;
+    case StencilOp::invert:
+      return GL_INVERT;
+    case StencilOp::incrementWrap:
+      return GL_INCR_WRAP;
+    case StencilOp::decrementWrap:
+      return GL_DECR_WRAP;
+  }
+  RIVE_UNREACHABLE();
 }
 
 struct GLVertexInfo
 {
-    GLenum type;
-    GLint count;
-    GLboolean normalized;
+  GLenum type;
+  GLint count;
+  GLboolean normalized;
 };
 
 static GLVertexInfo oreVertexFormatToGL(VertexFormat fmt)
 {
-    switch (fmt)
-    {
-        case VertexFormat::float1:
-            return {GL_FLOAT, 1, GL_FALSE};
-        case VertexFormat::float2:
-            return {GL_FLOAT, 2, GL_FALSE};
-        case VertexFormat::float3:
-            return {GL_FLOAT, 3, GL_FALSE};
-        case VertexFormat::float4:
-            return {GL_FLOAT, 4, GL_FALSE};
-        case VertexFormat::uint8x4:
-            return {GL_UNSIGNED_BYTE, 4, GL_FALSE};
-        case VertexFormat::sint8x4:
-            return {GL_BYTE, 4, GL_FALSE};
-        case VertexFormat::unorm8x4:
-            return {GL_UNSIGNED_BYTE, 4, GL_TRUE};
-        case VertexFormat::snorm8x4:
-            return {GL_BYTE, 4, GL_TRUE};
-        case VertexFormat::uint16x2:
-            return {GL_UNSIGNED_SHORT, 2, GL_FALSE};
-        case VertexFormat::sint16x2:
-            return {GL_SHORT, 2, GL_FALSE};
-        case VertexFormat::unorm16x2:
-            return {GL_UNSIGNED_SHORT, 2, GL_TRUE};
-        case VertexFormat::snorm16x2:
-            return {GL_SHORT, 2, GL_TRUE};
-        case VertexFormat::uint16x4:
-            return {GL_UNSIGNED_SHORT, 4, GL_FALSE};
-        case VertexFormat::sint16x4:
-            return {GL_SHORT, 4, GL_FALSE};
-        case VertexFormat::float16x2:
-            return {GL_HALF_FLOAT, 2, GL_FALSE};
-        case VertexFormat::float16x4:
-            return {GL_HALF_FLOAT, 4, GL_FALSE};
-        case VertexFormat::uint32:
-            return {GL_UNSIGNED_INT, 1, GL_FALSE};
-    }
-    RIVE_UNREACHABLE();
+  switch (fmt)
+  {
+    case VertexFormat::float1:
+      return {GL_FLOAT, 1, GL_FALSE};
+    case VertexFormat::float2:
+      return {GL_FLOAT, 2, GL_FALSE};
+    case VertexFormat::float3:
+      return {GL_FLOAT, 3, GL_FALSE};
+    case VertexFormat::float4:
+      return {GL_FLOAT, 4, GL_FALSE};
+    case VertexFormat::uint8x4:
+      return {GL_UNSIGNED_BYTE, 4, GL_FALSE};
+    case VertexFormat::sint8x4:
+      return {GL_BYTE, 4, GL_FALSE};
+    case VertexFormat::unorm8x4:
+      return {GL_UNSIGNED_BYTE, 4, GL_TRUE};
+    case VertexFormat::snorm8x4:
+      return {GL_BYTE, 4, GL_TRUE};
+    case VertexFormat::uint16x2:
+      return {GL_UNSIGNED_SHORT, 2, GL_FALSE};
+    case VertexFormat::sint16x2:
+      return {GL_SHORT, 2, GL_FALSE};
+    case VertexFormat::unorm16x2:
+      return {GL_UNSIGNED_SHORT, 2, GL_TRUE};
+    case VertexFormat::snorm16x2:
+      return {GL_SHORT, 2, GL_TRUE};
+    case VertexFormat::uint16x4:
+      return {GL_UNSIGNED_SHORT, 4, GL_FALSE};
+    case VertexFormat::sint16x4:
+      return {GL_SHORT, 4, GL_FALSE};
+    case VertexFormat::float16x2:
+      return {GL_HALF_FLOAT, 2, GL_FALSE};
+    case VertexFormat::float16x4:
+      return {GL_HALF_FLOAT, 4, GL_FALSE};
+    case VertexFormat::uint32:
+      return {GL_UNSIGNED_INT, 1, GL_FALSE};
+  }
+  RIVE_UNREACHABLE();
 }
 
 // ============================================================================
@@ -193,150 +193,161 @@ static GLVertexInfo oreVertexFormatToGL(VertexFormat fmt)
 
 RenderPassGL::~RenderPassGL()
 {
-    if (!m_finished && m_context != nullptr)
-    {
-        finish();
-    }
+  if (!m_finished && m_context != nullptr)
+  {
+    finish();
+  }
 }
 
 void RenderPassGL::validate() const
 {
-    assert(!m_finished && "RenderPass already finished");
-    assert(m_context != nullptr);
+  assert(!m_finished && "RenderPass already finished");
+  assert(m_context != nullptr);
 }
 
 static void disableGLAttribs(uint32_t mask)
 {
-    for (uint32_t location = 0; mask != 0; ++location, mask >>= 1)
-    {
-        if (mask & 1)
-            glDisableVertexAttribArray(location);
-    }
+  for (uint32_t location = 0; mask != 0; ++location, mask >>= 1)
+  {
+    if (mask & 1)
+      glDisableVertexAttribArray(location);
+  }
 }
 
 void RenderPassGL::setPipeline(Pipeline* pipeline)
 {
-    validate();
-    if (!checkPipelineCompat(pipeline))
-        return;
-    m_currentPipeline = ref_rcp(pipeline);
-    m_samplerBindingsDirty = true;
+  validate();
+  if (!checkPipelineCompat(pipeline))
+    return;
+  m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
+  m_currentPipeline = ref_rcp(pipeline);
+  m_samplerBindingsDirty = true;
 
-    auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
-    assert(glPipeline);
-    const auto& desc = pipeline->desc();
+  auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
+  assert(glPipeline);
+  const auto& desc = pipeline->desc();
 
-    glUseProgram(glPipeline->m_glProgram);
+  glUseProgram(glPipeline->m_glProgram);
 
-    // Every bound vertex buffer takes this pipeline's layout at the next draw.
-    m_dirtyVertexSlots = kAllVertexSlotsDirty;
+  // Every bound vertex buffer takes this pipeline's layout at the next draw.
+  m_dirtyVertexSlots = kAllVertexSlotsDirty;
 
-    if (desc.cullMode == CullMode::none)
-    {
-        glDisable(GL_CULL_FACE);
-    }
-    else
-    {
-        glEnable(GL_CULL_FACE);
-        glCullFace(desc.cullMode == CullMode::front ? GL_FRONT : GL_BACK);
-    }
+  if (desc.cullMode == CullMode::none)
+  {
+    glDisable(GL_CULL_FACE);
+  }
+  else
+  {
+    glEnable(GL_CULL_FACE);
+    glCullFace(desc.cullMode == CullMode::front ? GL_FRONT : GL_BACK);
+  }
 
-    // Face winding — inverted to compensate for the WGSL→GLSL Y-flip
-    // baked into every vertex shader at compile time.
-    glFrontFace(desc.winding == FaceWinding::counterClockwise ? GL_CW : GL_CCW);
+  // Face winding — inverted to compensate for the WGSL→GLSL Y-flip
+  // baked into every vertex shader at compile time.
+  glFrontFace(desc.winding == FaceWinding::counterClockwise ? GL_CW : GL_CCW);
 
-    if (desc.depthStencil.depthCompare != CompareFunction::always ||
-        desc.depthStencil.depthWriteEnabled)
-    {
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(oreCompareFunctionToGL(desc.depthStencil.depthCompare));
-        glDepthMask(desc.depthStencil.depthWriteEnabled ? GL_TRUE : GL_FALSE);
-    }
-    else
-    {
-        glDisable(GL_DEPTH_TEST);
-    }
+  if (desc.depthStencil.depthCompare != CompareFunction::always ||
+      desc.depthStencil.depthWriteEnabled)
+  {
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(oreCompareFunctionToGL(desc.depthStencil.depthCompare));
+    glDepthMask(desc.depthStencil.depthWriteEnabled ? GL_TRUE : GL_FALSE);
+  }
+  else
+  {
+    glDisable(GL_DEPTH_TEST);
+  }
 
-    if (desc.depthStencil.depthBias != 0 ||
-        desc.depthStencil.depthBiasSlopeScale != 0.0f)
-    {
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(desc.depthStencil.depthBiasSlopeScale,
-                        static_cast<float>(desc.depthStencil.depthBias));
-    }
-    else
-    {
-        glDisable(GL_POLYGON_OFFSET_FILL);
-    }
+  if (desc.depthStencil.depthBias != 0 ||
+      desc.depthStencil.depthBiasSlopeScale != 0.0f)
+  {
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(
+        desc.depthStencil.depthBiasSlopeScale,
+        static_cast<float>(desc.depthStencil.depthBias));
+  }
+  else
+  {
+    glDisable(GL_POLYGON_OFFSET_FILL);
+  }
 
-    bool hasStencil = (desc.stencilFront.compare != CompareFunction::always ||
-                       desc.stencilFront.failOp != StencilOp::keep ||
-                       desc.stencilFront.depthFailOp != StencilOp::keep ||
-                       desc.stencilFront.passOp != StencilOp::keep ||
-                       desc.stencilBack.compare != CompareFunction::always ||
-                       desc.stencilBack.failOp != StencilOp::keep ||
-                       desc.stencilBack.depthFailOp != StencilOp::keep ||
-                       desc.stencilBack.passOp != StencilOp::keep);
+  bool hasStencil =
+      (desc.stencilFront.compare != CompareFunction::always ||
+       desc.stencilFront.failOp != StencilOp::keep ||
+       desc.stencilFront.depthFailOp != StencilOp::keep ||
+       desc.stencilFront.passOp != StencilOp::keep ||
+       desc.stencilBack.compare != CompareFunction::always ||
+       desc.stencilBack.failOp != StencilOp::keep ||
+       desc.stencilBack.depthFailOp != StencilOp::keep ||
+       desc.stencilBack.passOp != StencilOp::keep);
 
-    if (hasStencil)
-    {
-        glEnable(GL_STENCIL_TEST);
-        glStencilMaskSeparate(GL_FRONT, desc.stencilWriteMask);
-        glStencilMaskSeparate(GL_BACK, desc.stencilWriteMask);
-        glStencilFuncSeparate(GL_FRONT,
-                              oreCompareFunctionToGL(desc.stencilFront.compare),
-                              static_cast<GLint>(m_glStencilRef),
-                              desc.stencilReadMask);
-        glStencilFuncSeparate(GL_BACK,
-                              oreCompareFunctionToGL(desc.stencilBack.compare),
-                              static_cast<GLint>(m_glStencilRef),
-                              desc.stencilReadMask);
-        glStencilOpSeparate(GL_FRONT,
-                            oreStencilOpToGL(desc.stencilFront.failOp),
-                            oreStencilOpToGL(desc.stencilFront.depthFailOp),
-                            oreStencilOpToGL(desc.stencilFront.passOp));
-        glStencilOpSeparate(GL_BACK,
-                            oreStencilOpToGL(desc.stencilBack.failOp),
-                            oreStencilOpToGL(desc.stencilBack.depthFailOp),
-                            oreStencilOpToGL(desc.stencilBack.passOp));
-    }
-    else
-    {
-        glDisable(GL_STENCIL_TEST);
-    }
+  if (hasStencil)
+  {
+    glEnable(GL_STENCIL_TEST);
+    glStencilMaskSeparate(GL_FRONT, desc.stencilWriteMask);
+    glStencilMaskSeparate(GL_BACK, desc.stencilWriteMask);
+    glStencilFuncSeparate(
+        GL_FRONT,
+        oreCompareFunctionToGL(desc.stencilFront.compare),
+        static_cast<GLint>(m_glStencilRef),
+        desc.stencilReadMask);
+    glStencilFuncSeparate(
+        GL_BACK,
+        oreCompareFunctionToGL(desc.stencilBack.compare),
+        static_cast<GLint>(m_glStencilRef),
+        desc.stencilReadMask);
+    glStencilOpSeparate(
+        GL_FRONT,
+        oreStencilOpToGL(desc.stencilFront.failOp),
+        oreStencilOpToGL(desc.stencilFront.depthFailOp),
+        oreStencilOpToGL(desc.stencilFront.passOp));
+    glStencilOpSeparate(
+        GL_BACK,
+        oreStencilOpToGL(desc.stencilBack.failOp),
+        oreStencilOpToGL(desc.stencilBack.depthFailOp),
+        oreStencilOpToGL(desc.stencilBack.passOp));
+  }
+  else
+  {
+    glDisable(GL_STENCIL_TEST);
+  }
 
-    if (desc.colorCount > 0 && desc.colorTargets[0].blendEnabled)
-    {
-        glEnable(GL_BLEND);
-        const auto& b = desc.colorTargets[0].blend;
-        glBlendFuncSeparate(oreBlendFactorToGL(b.srcColor),
-                            oreBlendFactorToGL(b.dstColor),
-                            oreBlendFactorToGL(b.srcAlpha),
-                            oreBlendFactorToGL(b.dstAlpha));
-        glBlendEquationSeparate(oreBlendOpToGL(b.colorOp),
-                                oreBlendOpToGL(b.alphaOp));
-    }
-    else
-    {
-        glDisable(GL_BLEND);
-    }
+  if (desc.colorCount > 0 && desc.colorTargets[0].blendEnabled)
+  {
+    glEnable(GL_BLEND);
+    const auto& b = desc.colorTargets[0].blend;
+    glBlendFuncSeparate(
+        oreBlendFactorToGL(b.srcColor),
+        oreBlendFactorToGL(b.dstColor),
+        oreBlendFactorToGL(b.srcAlpha),
+        oreBlendFactorToGL(b.dstAlpha));
+    glBlendEquationSeparate(
+        oreBlendOpToGL(b.colorOp),
+        oreBlendOpToGL(b.alphaOp));
+  }
+  else
+  {
+    glDisable(GL_BLEND);
+  }
 
-    if (desc.colorCount > 0)
-    {
-        auto mask = desc.colorTargets[0].writeMask;
-        glColorMask((mask & ColorWriteMask::red) != ColorWriteMask::none,
-                    (mask & ColorWriteMask::green) != ColorWriteMask::none,
-                    (mask & ColorWriteMask::blue) != ColorWriteMask::none,
-                    (mask & ColorWriteMask::alpha) != ColorWriteMask::none);
-    }
+  if (desc.colorCount > 0)
+  {
+    auto mask = desc.colorTargets[0].writeMask;
+    glColorMask(
+        (mask & ColorWriteMask::red) != ColorWriteMask::none,
+        (mask & ColorWriteMask::green) != ColorWriteMask::none,
+        (mask & ColorWriteMask::blue) != ColorWriteMask::none,
+        (mask & ColorWriteMask::alpha) != ColorWriteMask::none);
+  }
 }
 
-void RenderPassGL::setVertexBuffer(uint32_t slot,
-                                   Buffer* buffer,
-                                   uint32_t offset)
+void RenderPassGL::setVertexBuffer(
+    uint32_t slot,
+    Buffer* buffer,
+    uint32_t offset)
 {
-    validate();
-    setVertexBufferSlot(slot, buffer, offset);
+  validate();
+  setVertexBufferSlot(slot, buffer, offset);
 }
 
 // A pipeline change dirties every slot, so the enabled set is rebuilt and
@@ -344,413 +355,462 @@ void RenderPassGL::setVertexBuffer(uint32_t slot,
 // sourcing the old buffer, which WebGL rejects at draw time.
 void RenderPassGL::flushVertexBuffers()
 {
-    uint32_t previousAttribs = m_enabledAttribs;
-    if (m_dirtyVertexSlots == kAllVertexSlotsDirty)
-        m_enabledAttribs = 0;
-    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
-    disableGLAttribs(previousAttribs & ~m_enabledAttribs);
+  uint32_t previousAttribs = m_enabledAttribs;
+  if (m_dirtyVertexSlots == kAllVertexSlotsDirty)
+    m_enabledAttribs = 0;
+  flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
+  disableGLAttribs(previousAttribs & ~m_enabledAttribs);
 }
 
 void RenderPassGL::applyVertexBuffer(uint32_t slot)
 {
-    assert(m_currentPipeline != nullptr);
-    const auto& slotState = m_vertexBufferSlots[slot];
-    if (slotState.buffer == nullptr ||
-        slot >= m_currentPipeline->desc().vertexBufferCount)
+  assert(m_currentPipeline != nullptr);
+  const auto& slotState = m_vertexBufferSlots[slot];
+  if (slotState.buffer == nullptr ||
+      slot >= m_currentPipeline->desc().vertexBufferCount)
+  {
+    return;
+  }
+  const uint32_t offset = slotState.offset;
+
+  const auto& layout = m_currentPipeline->desc().vertexBuffers[slot];
+  auto* glBuffer = lite_rtti_cast<BufferGL*>(slotState.buffer.get());
+  assert(glBuffer);
+
+  glBindBuffer(GL_ARRAY_BUFFER, glBuffer->m_glBuffer);
+
+  for (uint32_t i = 0; i < layout.attributeCount; ++i)
+  {
+    const auto& attr = layout.attributes[i];
+    GLVertexInfo info = oreVertexFormatToGL(attr.format);
+
+    glEnableVertexAttribArray(attr.shaderSlot);
+
+    bool isIntType = (info.type == GL_UNSIGNED_INT || info.type == GL_INT ||
+                      info.type == GL_UNSIGNED_BYTE || info.type == GL_BYTE ||
+                      info.type == GL_UNSIGNED_SHORT ||
+                      info.type == GL_SHORT) &&
+                     !info.normalized;
+
+    if (isIntType)
     {
-        return;
+      glVertexAttribIPointer(
+          attr.shaderSlot,
+          info.count,
+          info.type,
+          layout.stride,
+          reinterpret_cast<const void*>(
+              static_cast<uintptr_t>(attr.offset + offset)));
     }
-    const uint32_t offset = slotState.offset;
-
-    const auto& layout = m_currentPipeline->desc().vertexBuffers[slot];
-    auto* glBuffer = lite_rtti_cast<BufferGL*>(slotState.buffer.get());
-    assert(glBuffer);
-
-    glBindBuffer(GL_ARRAY_BUFFER, glBuffer->m_glBuffer);
-
-    for (uint32_t i = 0; i < layout.attributeCount; ++i)
+    else
     {
-        const auto& attr = layout.attributes[i];
-        GLVertexInfo info = oreVertexFormatToGL(attr.format);
-
-        glEnableVertexAttribArray(attr.shaderSlot);
-
-        bool isIntType =
-            (info.type == GL_UNSIGNED_INT || info.type == GL_INT ||
-             info.type == GL_UNSIGNED_BYTE || info.type == GL_BYTE ||
-             info.type == GL_UNSIGNED_SHORT || info.type == GL_SHORT) &&
-            !info.normalized;
-
-        if (isIntType)
-        {
-            glVertexAttribIPointer(
-                attr.shaderSlot,
-                info.count,
-                info.type,
-                layout.stride,
-                reinterpret_cast<const void*>(
-                    static_cast<uintptr_t>(attr.offset + offset)));
-        }
-        else
-        {
-            glVertexAttribPointer(
-                attr.shaderSlot,
-                info.count,
-                info.type,
-                info.normalized,
-                layout.stride,
-                reinterpret_cast<const void*>(
-                    static_cast<uintptr_t>(attr.offset + offset)));
-        }
-
-        if (layout.stepMode == VertexStepMode::instance)
-            glVertexAttribDivisor(attr.shaderSlot, 1);
-        else
-            glVertexAttribDivisor(attr.shaderSlot, 0);
-
-        assert(attr.shaderSlot < 32);
-        m_enabledAttribs |= 1u << attr.shaderSlot;
+      glVertexAttribPointer(
+          attr.shaderSlot,
+          info.count,
+          info.type,
+          info.normalized,
+          layout.stride,
+          reinterpret_cast<const void*>(
+              static_cast<uintptr_t>(attr.offset + offset)));
     }
+
+    if (layout.stepMode == VertexStepMode::instance)
+      glVertexAttribDivisor(attr.shaderSlot, 1);
+    else
+      glVertexAttribDivisor(attr.shaderSlot, 0);
+
+    assert(attr.shaderSlot < 32);
+    m_enabledAttribs |= 1u << attr.shaderSlot;
+  }
 }
 
-void RenderPassGL::setIndexBuffer(Buffer* buffer,
-                                  IndexFormat format,
-                                  uint32_t offset)
+void RenderPassGL::setIndexBuffer(
+    Buffer* buffer,
+    IndexFormat format,
+    uint32_t offset)
 {
-    validate();
-    auto* glBuffer = lite_rtti_cast<BufferGL*>(buffer);
-    assert(glBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glBuffer->m_glBuffer);
-    m_glIndexFormat = format;
-    m_glIndexOffset = offset;
+  validate();
+  auto* glBuffer = lite_rtti_cast<BufferGL*>(buffer);
+  assert(glBuffer);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glBuffer->m_glBuffer);
+  m_glIndexFormat = format;
+  m_glIndexOffset = offset;
 }
 
-void RenderPassGL::setBindGroup(uint32_t groupIndex,
-                                BindGroup* bg,
-                                const uint32_t* dynamicOffsets,
-                                uint32_t dynamicOffsetCount)
+// GL numbers each kind once per program, so either stage's slot is the unit.
+static uint16_t glUnit(Pipeline::StageSlots slots)
 {
-    validate();
-    assert(bg != nullptr);
+  return slots.vs != BindingMap::kAbsent ? slots.vs : slots.fs;
+}
 
-    m_boundGroups[groupIndex] = ref_rcp(bg);
+void RenderPassGL::setBindGroup(
+    uint32_t groupIndex,
+    BindGroup* bg,
+    const uint32_t* dynamicOffsets,
+    uint32_t dynamicOffsetCount)
+{
+  validate();
+  assert(bg != nullptr);
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+  m_samplerBindingsDirty = true;
+}
 
-    auto* glBg = lite_rtti_cast<BindGroupGL*>(bg);
-    assert(glBg);
-    uint32_t dynIdx = 0;
+void RenderPassGL::applyBindGroup(uint32_t groupIndex)
+{
+  auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[groupIndex].get());
+  assert(glBg);
+  const Pipeline* pipeline = m_currentPipeline.get();
+  const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
+  const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
+  uint32_t dynIdx = 0;
 
-    for (const auto& ubo : glBg->m_glUBOs)
+  for (const auto& ubo : glBg->m_glUBOs)
+  {
+    uint32_t offset = ubo.offset;
+    if (ubo.hasDynamicOffset && dynIdx < dynamicOffsetCount)
     {
-        uint32_t offset = ubo.offset;
-        if (ubo.hasDynamicOffset && dynIdx < dynamicOffsetCount)
-        {
-            offset += dynamicOffsets[dynIdx];
-            ++dynIdx;
-        }
-        glBindBufferRange(GL_UNIFORM_BUFFER,
-                          ubo.slot,
-                          ubo.buffer,
-                          offset,
-                          ubo.size);
+      offset += dynamicOffsets[dynIdx];
+      ++dynIdx;
     }
+    const uint16_t unit = glUnit(
+        pipeline->slots(groupIndex, ubo.binding, SlotSpace::buffer));
+    if (unit == BindingMap::kAbsent)
+      continue;
+    glBindBufferRange(GL_UNIFORM_BUFFER, unit, ubo.buffer, offset, ubo.size);
+  }
 
-    for (const auto& tex : glBg->m_glTextures)
-    {
-        glActiveTexture(GL_TEXTURE0 + tex.slot);
-        glBindTexture(tex.target, tex.texture);
+  for (const auto& tex : glBg->m_glTextures)
+  {
+    const uint16_t unit = glUnit(
+        pipeline->slots(groupIndex, tex.binding, SlotSpace::texture));
+    if (unit == BindingMap::kAbsent)
+      continue;
+    glActiveTexture(GL_TEXTURE0 + unit);
+    glBindTexture(tex.target, tex.texture);
 
-        if (!m_usedSamplers || tex.slot > m_maxSamplerSlot)
-            m_maxSamplerSlot = tex.slot;
-        m_usedSamplers = true;
-    }
-
-    // Samplers wait for the pipeline: it carries the pairing.
-    m_samplerBindingsDirty = true;
+    if (!m_usedSamplers || unit > m_maxSamplerSlot)
+      m_maxSamplerSlot = unit;
+    m_usedSamplers = true;
+  }
 }
 
 // GLSL folds a texture and its sampler into one uniform at the texture's unit,
 // so a sampler binds to every unit whose texture it serves.
 void RenderPassGL::applySamplerBindings()
 {
-    if (!m_samplerBindingsDirty)
-        return;
-    m_samplerBindingsDirty = false;
+  if (!m_samplerBindingsDirty)
+    return;
+  m_samplerBindingsDirty = false;
 
-    const std::vector<ShaderModule::TextureSamplerPair>* pairs =
-        m_currentPipeline != nullptr ? &m_currentPipeline->m_textureSamplerPairs
-                                     : nullptr;
+  const std::vector<ShaderModule::TextureSamplerPair>*
+      pairs = m_currentPipeline != nullptr
+                  ? &m_currentPipeline->m_textureSamplerPairs
+                  : nullptr;
 
-    auto bindTo = [this](uint32_t slot, unsigned int sampler) {
-        glBindSampler(slot, sampler);
-        if (!m_usedSamplers || slot > m_maxSamplerSlot)
-            m_maxSamplerSlot = slot;
-        m_usedSamplers = true;
-    };
+  auto bindTo = [this](uint32_t slot, unsigned int sampler) {
+    glBindSampler(slot, sampler);
+    if (!m_usedSamplers || slot > m_maxSamplerSlot)
+      m_maxSamplerSlot = slot;
+    m_usedSamplers = true;
+  };
 
+  auto forEachPairedUnit =
+      [&](uint32_t group, uint32_t binding, const auto& fn) {
+        bool paired = false;
+        if (pairs == nullptr)
+          return paired;
+        for (const auto& pair : *pairs)
+        {
+          if (pair.samplerGroup != group || pair.samplerBinding != binding)
+            continue;
+          auto* texBg = lite_rtti_cast<BindGroupGL*>(
+              m_boundGroups[pair.textureGroup].get());
+          if (texBg == nullptr)
+            continue;
+          const uint16_t unit = glUnit(m_currentPipeline->slots(
+              pair.textureGroup,
+              pair.textureBinding,
+              SlotSpace::texture));
+          if (unit == BindingMap::kAbsent)
+            continue;
+          for (const auto& tex : texBg->m_glTextures)
+          {
+            if (tex.binding != pair.textureBinding)
+              continue;
+            fn(unit);
+            paired = true;
+          }
+        }
+        return paired;
+      };
+
+  // Unpaired samplers bind first, so one this pipeline never samples through
+  // cannot take a unit from one it does.
+  for (bool pairedPass : {false, true})
+  {
     for (uint32_t group = 0; group < kMaxBindGroups; ++group)
     {
-        auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
-        if (glBg == nullptr)
-            continue;
+      auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+      if (glBg == nullptr)
+        continue;
 
-        for (const auto& samp : glBg->m_glSamplers)
+      for (const auto& samp : glBg->m_glSamplers)
+      {
+        if (pairedPass)
         {
-            bool paired = false;
-            if (pairs != nullptr)
-            {
-                for (const auto& pair : *pairs)
-                {
-                    if (pair.samplerGroup != group ||
-                        pair.samplerBinding != samp.binding)
-                        continue;
-                    auto* texBg = lite_rtti_cast<BindGroupGL*>(
-                        m_boundGroups[pair.textureGroup].get());
-                    if (texBg == nullptr)
-                        continue;
-                    for (const auto& tex : texBg->m_glTextures)
-                    {
-                        if (tex.binding != pair.textureBinding)
-                            continue;
-                        bindTo(tex.slot, samp.sampler);
-                        paired = true;
-                    }
-                }
-            }
-            if (!paired)
-            {
-                bindTo(samp.slot, samp.sampler);
-            }
+          forEachPairedUnit(group, samp.binding, [&](uint32_t slot) {
+            bindTo(slot, samp.sampler);
+          });
         }
+        else if (!forEachPairedUnit(group, samp.binding, [](uint32_t) {}))
+        {
+          const uint16_t unit = glUnit(m_currentPipeline->slots(
+              group,
+              samp.binding,
+              SlotSpace::sampler));
+          if (unit != BindingMap::kAbsent)
+            bindTo(unit, samp.sampler);
+        }
+      }
     }
+  }
 }
 
-void RenderPassGL::setViewport(float x,
-                               float y,
-                               float width,
-                               float height,
-                               float minDepth,
-                               float maxDepth)
+void RenderPassGL::setViewport(
+    float x,
+    float y,
+    float width,
+    float height,
+    float minDepth,
+    float maxDepth)
 {
-    validate();
-    m_viewportWidth = static_cast<uint32_t>(width);
-    m_viewportHeight = static_cast<uint32_t>(height);
-    glViewport(static_cast<GLint>(x),
-               static_cast<GLint>(y),
-               static_cast<GLsizei>(width),
-               static_cast<GLsizei>(height));
-    glDepthRangef(minDepth, maxDepth);
+  validate();
+  m_viewportWidth = static_cast<uint32_t>(width);
+  m_viewportHeight = static_cast<uint32_t>(height);
+  glViewport(
+      static_cast<GLint>(x),
+      static_cast<GLint>(y),
+      static_cast<GLsizei>(width),
+      static_cast<GLsizei>(height));
+  glDepthRangef(minDepth, maxDepth);
 }
 
-void RenderPassGL::setScissorRect(uint32_t x,
-                                  uint32_t y,
-                                  uint32_t width,
-                                  uint32_t height)
+void RenderPassGL::setScissorRect(
+    uint32_t x,
+    uint32_t y,
+    uint32_t width,
+    uint32_t height)
 {
-    validate();
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(x, y, width, height);
+  validate();
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(x, y, width, height);
 }
 
 void RenderPassGL::setStencilReference(uint32_t ref)
 {
-    validate();
-    m_glStencilRef = ref;
-    if (m_currentPipeline)
-    {
-        const auto& desc = m_currentPipeline->desc();
-        glStencilFuncSeparate(GL_FRONT,
-                              oreCompareFunctionToGL(desc.stencilFront.compare),
-                              static_cast<GLint>(ref),
-                              desc.stencilReadMask);
-        glStencilFuncSeparate(GL_BACK,
-                              oreCompareFunctionToGL(desc.stencilBack.compare),
-                              static_cast<GLint>(ref),
-                              desc.stencilReadMask);
-    }
+  validate();
+  m_glStencilRef = ref;
+  if (m_currentPipeline)
+  {
+    const auto& desc = m_currentPipeline->desc();
+    glStencilFuncSeparate(
+        GL_FRONT,
+        oreCompareFunctionToGL(desc.stencilFront.compare),
+        static_cast<GLint>(ref),
+        desc.stencilReadMask);
+    glStencilFuncSeparate(
+        GL_BACK,
+        oreCompareFunctionToGL(desc.stencilBack.compare),
+        static_cast<GLint>(ref),
+        desc.stencilReadMask);
+  }
 }
 
 void RenderPassGL::setBlendColor(float r, float g, float b, float a)
 {
-    validate();
-    glBlendColor(r, g, b, a);
+  validate();
+  glBlendColor(r, g, b, a);
 }
 
-void RenderPassGL::draw(uint32_t vertexCount,
-                        uint32_t instanceCount,
-                        uint32_t firstVertex,
-                        uint32_t firstInstance)
+void RenderPassGL::draw(
+    uint32_t vertexCount,
+    uint32_t instanceCount,
+    uint32_t firstVertex,
+    uint32_t firstInstance)
 {
-    validate();
-    assert(m_currentPipeline != nullptr);
-    applySamplerBindings();
-    flushVertexBuffers();
-    GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
+  validate();
+  assert(m_currentPipeline != nullptr);
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applySamplerBindings();
+  flushVertexBuffers();
+  GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
-    // drawBaseInstance=false on GL, so the script guards reject
-    // firstInstance>0. Wiring needs glDrawArraysInstancedBaseInstance (ANGLE).
-    (void)firstInstance;
+  // drawBaseInstance=false on GL, so the script guards reject
+  // firstInstance>0. Wiring needs glDrawArraysInstancedBaseInstance (ANGLE).
+  (void)firstInstance;
 
-    if (instanceCount > 1)
-        glDrawArraysInstanced(mode, firstVertex, vertexCount, instanceCount);
-    else
-        glDrawArrays(mode, firstVertex, vertexCount);
+  if (instanceCount > 1)
+    glDrawArraysInstanced(mode, firstVertex, vertexCount, instanceCount);
+  else
+    glDrawArrays(mode, firstVertex, vertexCount);
 }
 
-void RenderPassGL::drawIndexed(uint32_t indexCount,
-                               uint32_t instanceCount,
-                               uint32_t firstIndex,
-                               int32_t baseVertex,
-                               uint32_t firstInstance)
+void RenderPassGL::drawIndexed(
+    uint32_t indexCount,
+    uint32_t instanceCount,
+    uint32_t firstIndex,
+    int32_t baseVertex,
+    uint32_t firstInstance)
 {
-    validate();
-    assert(m_currentPipeline != nullptr);
-    applySamplerBindings();
-    flushVertexBuffers();
-    GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
-    GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
-                           ? GL_UNSIGNED_INT
-                           : GL_UNSIGNED_SHORT;
-    uint32_t indexSize =
-        (indexType == GL_UNSIGNED_INT) ? sizeof(uint32_t) : sizeof(uint16_t);
-    const void* offset = reinterpret_cast<const void*>(
-        static_cast<uintptr_t>(m_glIndexOffset + firstIndex * indexSize));
+  validate();
+  assert(m_currentPipeline != nullptr);
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applySamplerBindings();
+  flushVertexBuffers();
+  GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
+  GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
+                         ? GL_UNSIGNED_INT
+                         : GL_UNSIGNED_SHORT;
+  uint32_t indexSize = (indexType == GL_UNSIGNED_INT) ? sizeof(uint32_t)
+                                                      : sizeof(uint16_t);
+  const void* offset = reinterpret_cast<const void*>(
+      static_cast<uintptr_t>(m_glIndexOffset + firstIndex * indexSize));
 
-    // drawBaseInstance=false on GL, so the script guards reject baseVertex!=0
-    // and firstInstance>0. Wiring needs
-    // glDrawElementsInstancedBaseVertexBaseInstance (ANGLE).
-    (void)baseVertex;
-    (void)firstInstance;
+  // drawBaseInstance=false on GL, so the script guards reject baseVertex!=0
+  // and firstInstance>0. Wiring needs
+  // glDrawElementsInstancedBaseVertexBaseInstance (ANGLE).
+  (void)baseVertex;
+  (void)firstInstance;
 
-    if (instanceCount > 1)
-        glDrawElementsInstanced(mode,
-                                indexCount,
-                                indexType,
-                                offset,
-                                instanceCount);
-    else
-        glDrawElements(mode, indexCount, indexType, offset);
+  if (instanceCount > 1)
+    glDrawElementsInstanced(mode, indexCount, indexType, offset, instanceCount);
+  else
+    glDrawElements(mode, indexCount, indexType, offset);
 }
 
 void RenderPassGL::finish()
 {
-    if (m_finished)
-        return;
-    m_finished = true;
+  if (m_finished)
+    return;
+  m_finished = true;
 
-    m_currentPipeline = nullptr;
-    releaseBoundResources();
+  m_currentPipeline = nullptr;
+  releaseBoundResources();
 
-    glDisable(GL_SCISSOR_TEST);
-    glDisable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_POLYGON_OFFSET_FILL);
-    glDepthMask(GL_TRUE);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  glDisable(GL_SCISSOR_TEST);
+  glDisable(GL_BLEND);
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_STENCIL_TEST);
+  glDisable(GL_CULL_FACE);
+  glDisable(GL_POLYGON_OFFSET_FILL);
+  glDepthMask(GL_TRUE);
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-    if (m_usedSamplers)
+  if (m_usedSamplers)
+  {
+    for (uint32_t i = 0; i <= m_maxSamplerSlot; ++i)
     {
-        for (uint32_t i = 0; i <= m_maxSamplerSlot; ++i)
-        {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-            glBindSampler(i, 0);
-        }
-        glActiveTexture(GL_TEXTURE0);
+      glActiveTexture(GL_TEXTURE0 + i);
+      glBindTexture(GL_TEXTURE_2D, 0);
+      glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+      glBindSampler(i, 0);
     }
+    glActiveTexture(GL_TEXTURE0);
+  }
 
-    // Disabling an array leaves its buffer binding on the VAO until the next
-    // borrower overwrites the slot: deliberate, since a disabled array cannot
-    // source from it.
-    disableGLAttribs(m_enabledAttribs);
-    m_enabledAttribs = 0;
+  // Disabling an array leaves its buffer binding on the VAO until the next
+  // borrower overwrites the slot: deliberate, since a disabled array cannot
+  // source from it.
+  disableGLAttribs(m_enabledAttribs);
+  m_enabledAttribs = 0;
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // The context lends this pass its FBO and VAO unless another pass already
-    // had them, so most passes hand them back here rather than deleting: GL
-    // names are never recycled on WebGL, and a per pass pair ratchets the
-    // browser's tables for the life of the page.
-    auto* ctx = static_cast<ContextGL*>(m_context);
+  // The context lends this pass its FBO and VAO unless another pass already
+  // had them, so most passes hand them back here rather than deleting: GL
+  // names are never recycled on WebGL, and a per pass pair ratchets the
+  // browser's tables for the life of the page.
+  auto* ctx = static_cast<ContextGL*>(m_context);
 
-    if (m_ownsVAO && m_glVAO != 0)
+  if (m_ownsVAO && m_glVAO != 0)
+  {
+    glDeleteVertexArrays(1, &m_glVAO);
+    m_glVAO = 0;
+  }
+  else if (m_glVAO != 0 && ctx != nullptr)
+  {
+    // Element buffer bindings are VAO state and outlive the buffer they
+    // name, so a borrowed VAO must not carry one past its owner.
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    ctx->releaseScratchVAO();
+    m_glVAO = 0;
+  }
+  glBindVertexArray(m_prevVAO);
+
+  if (m_glResolveCount > 0)
+  {
+    GLuint resolveFBO = ctx != nullptr ? ctx->scratchResolveFBO() : 0;
+    const bool ownsResolveFBO = resolveFBO == 0;
+    if (ownsResolveFBO)
     {
-        glDeleteVertexArrays(1, &m_glVAO);
-        m_glVAO = 0;
+      glGenFramebuffers(1, &resolveFBO);
     }
-    else if (m_glVAO != 0 && ctx != nullptr)
+    for (uint32_t i = 0; i < m_glResolveCount; ++i)
     {
-        // Element buffer bindings are VAO state and outlive the buffer they
-        // name, so a borrowed VAO must not carry one past its owner.
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        ctx->releaseScratchVAO();
-        m_glVAO = 0;
-    }
-    glBindVertexArray(m_prevVAO);
+      const auto& r = m_glResolves[i];
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, m_glFBO);
+      glReadBuffer(GL_COLOR_ATTACHMENT0 + r.colorIndex);
 
-    if (m_glResolveCount > 0)
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFBO);
+      glFramebufferTexture2D(
+          GL_DRAW_FRAMEBUFFER,
+          GL_COLOR_ATTACHMENT0,
+          r.resolveTarget,
+          r.resolveTex,
+          0);
+
+      glBlitFramebuffer(
+          0,
+          0,
+          r.width,
+          r.height,
+          0,
+          0,
+          r.width,
+          r.height,
+          GL_COLOR_BUFFER_BIT,
+          GL_NEAREST);
+    }
+    if (ownsResolveFBO)
     {
-        GLuint resolveFBO = ctx != nullptr ? ctx->scratchResolveFBO() : 0;
-        const bool ownsResolveFBO = resolveFBO == 0;
-        if (ownsResolveFBO)
-        {
-            glGenFramebuffers(1, &resolveFBO);
-        }
-        for (uint32_t i = 0; i < m_glResolveCount; ++i)
-        {
-            const auto& r = m_glResolves[i];
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_glFBO);
-            glReadBuffer(GL_COLOR_ATTACHMENT0 + r.colorIndex);
-
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFBO);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
-                                   GL_COLOR_ATTACHMENT0,
-                                   r.resolveTarget,
-                                   r.resolveTex,
-                                   0);
-
-            glBlitFramebuffer(0,
-                              0,
-                              r.width,
-                              r.height,
-                              0,
-                              0,
-                              r.width,
-                              r.height,
-                              GL_COLOR_BUFFER_BIT,
-                              GL_NEAREST);
-        }
-        if (ownsResolveFBO)
-        {
-            glDeleteFramebuffers(1, &resolveFBO);
-        }
-        else
-        {
-            // A kept resolve FBO would otherwise name this frame's resolve
-            // texture until the next resolve overwrites it.
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
-                                   GL_COLOR_ATTACHMENT0,
-                                   GL_TEXTURE_2D,
-                                   0,
-                                   0);
-        }
+      glDeleteFramebuffers(1, &resolveFBO);
     }
-
-    if (m_ownsFBO && m_glFBO != 0)
+    else
     {
-        glDeleteFramebuffers(1, &m_glFBO);
-        m_glFBO = 0;
+      // A kept resolve FBO would otherwise name this frame's resolve
+      // texture until the next resolve overwrites it.
+      glFramebufferTexture2D(
+          GL_DRAW_FRAMEBUFFER,
+          GL_COLOR_ATTACHMENT0,
+          GL_TEXTURE_2D,
+          0,
+          0);
     }
-    else if (m_glFBO != 0 && ctx != nullptr)
-    {
-        ctx->releaseScratchFBO(m_colorCount, m_glDepthAttachment);
-        m_glFBO = 0;
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, m_prevFBO);
+  }
 
-    m_context = nullptr;
+  if (m_ownsFBO && m_glFBO != 0)
+  {
+    glDeleteFramebuffers(1, &m_glFBO);
+    m_glFBO = 0;
+  }
+  else if (m_glFBO != 0 && ctx != nullptr)
+  {
+    ctx->releaseScratchFBO(m_colorCount, m_glDepthAttachment);
+    m_glFBO = 0;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, m_prevFBO);
+
+  m_context = nullptr;
 }
 
 #endif // ORE_BACKEND_GL

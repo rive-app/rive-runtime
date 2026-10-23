@@ -6,10 +6,10 @@ namespace rive
 class ListenerInputTypePointerButton : public ListenerInputTypePointerButtonBase
 {
 public:
-    PointerButton pointerButton() const override
-    {
-        return (PointerButton)pointerButtonValue();
-    }
+  PointerButton pointerButton() const override
+  {
+    return (PointerButton)pointerButtonValue();
+  }
 };
 } // namespace rive
 

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelPropertyAssetBase::clone() const
 {
-    auto cloned = new ViewModelPropertyAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelPropertyAsset();
+  cloned->copy(*this);
+  return cloned;
 }

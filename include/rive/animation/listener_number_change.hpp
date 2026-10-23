@@ -8,10 +8,11 @@ class NestedInput;
 class ListenerNumberChange : public ListenerNumberChangeBase
 {
 public:
-    bool validateInputType(const StateMachineInput* input) const override;
-    bool validateNestedInputType(const NestedInput* input) const override;
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
+  bool validateInputType(const StateMachineInput* input) const override;
+  bool validateNestedInputType(const NestedInput* input) const override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
 };
 } // namespace rive
 

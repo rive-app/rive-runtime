@@ -16,21 +16,21 @@ class ImageAsset : public ImageAssetBase
 #endif
 {
 private:
-    rcp<RenderImage> m_RenderImage;
+  rcp<RenderImage> m_RenderImage;
 
 public:
-    ImageAsset() {}
-    ~ImageAsset() override;
+  ImageAsset() {}
+  ~ImageAsset() override;
 
 #ifdef TESTING
-    std::size_t decodedByteSize = 0;
+  std::size_t decodedByteSize = 0;
 #endif
-    bool decode(SimpleArray<uint8_t>&, Factory*) override;
-    std::string fileExtension() const override;
-    RenderImage* renderImage() const { return m_RenderImage.get(); }
-    void renderImage(rcp<RenderImage> renderImage);
+  bool decode(SimpleArray<uint8_t>&, Factory*) override;
+  std::string fileExtension() const override;
+  RenderImage* renderImage() const { return m_RenderImage.get(); }
+  void renderImage(rcp<RenderImage> renderImage);
 #if defined(__EMSCRIPTEN__)
-    void decodedAsync() override;
+  void decodedAsync() override;
 #endif
 };
 } // namespace rive

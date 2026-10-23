@@ -7,68 +7,52 @@ namespace rive
 class BindablePropertyColorBase : public BindableProperty
 {
 protected:
-    typedef BindableProperty Super;
+  typedef BindableProperty Super;
 
 public:
-    static const uint16_t typeKey = 475;
+  static const uint16_t typeKey = 475;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case BindablePropertyColorBase::typeKey:
-            case BindablePropertyBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t propertyValuePropertyKey = 638;
+  static const uint16_t propertyValuePropertyKey = 638;
 
 protected:
-    int m_PropertyValue = 0xFF1D1D1D;
+  int m_PropertyValue = 0xFF1D1D1D;
 
 public:
-    inline int propertyValue() const { return m_PropertyValue; }
-    void propertyValue(int value)
+  inline int propertyValue() const { return m_PropertyValue; }
+  void propertyValue(int value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const BindablePropertyColorBase& object)
-    {
-        m_PropertyValue = object.m_PropertyValue;
-        BindableProperty::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const BindablePropertyColorBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    BindableProperty::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreColorType::deserialize(reader);
-                return true;
-        }
-        return BindableProperty::deserialize(propertyKey, reader);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreColorType::deserialize(reader);
+        return true;
     }
+    return BindableProperty::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/bindable_property_color_ext.inl"
 #endif

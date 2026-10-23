@@ -7,12 +7,12 @@ namespace rive
 class Fill : public FillBase
 {
 public:
-    RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
-    PathFlags pathFlags() const override;
-    void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
-    ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
-    ShapePaintType paintType() const override { return ShapePaintType::fill; }
-    void buildDependencies() override;
+  RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
+  PathFlags pathFlags() const override;
+  void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
+  ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
+  ShapePaintType paintType() const override { return ShapePaintType::fill; }
+  void buildDependencies() override;
 };
 } // namespace rive
 

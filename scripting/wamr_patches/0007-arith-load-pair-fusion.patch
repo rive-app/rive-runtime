@@ -98,7 +98,7 @@ index 5c78d30..c2aebd3 100644
              {
  #if WASM_ENABLE_THREAD_MGR != 0
 diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
-index 8cf82b0..3f64472 100644
+index 8cf82b0..e14bdd1 100644
 --- a/core/iwasm/interpreter/wasm_loader.c
 +++ b/core/iwasm/interpreter/wasm_loader.c
 @@ -9255,6 +9255,15 @@ fail:
@@ -265,7 +265,7 @@ index 8cf82b0..3f64472 100644
  
              case WASM_OP_I64_CLZ:
              case WASM_OP_I64_CTZ:
-@@ -16996,6 +17123,46 @@ re_scan:
+@@ -16996,6 +17123,48 @@ re_scan:
  
  #if WASM_ENABLE_FAST_INTERP != 0
          last_op = opcode;
@@ -297,7 +297,9 @@ index 8cf82b0..3f64472 100644
 +                    break;
 +                case WASM_OP_I32_CONST:
 +                case WASM_OP_GET_LOCAL:
-+                    if (fuse_prod_depth == 0
++                    /* the rewrite expects the producer to be the last code
++                       emitted, which an inlined constant is not */
++                    if (fuse_prod_depth == 0 && disable_emit
 +                        && (opcode == WASM_OP_I32_CONST
 +                            || is_32bit_type(local_type)))
 +                        fuse_prod_depth = 1;

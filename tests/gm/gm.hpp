@@ -15,31 +15,31 @@ namespace rivegm
 
 class GM
 {
-    const int m_Width, m_Height;
+  const int m_Width, m_Height;
 
 public:
-    GM(int width, int height) : m_Width(width), m_Height(height) {}
-    virtual ~GM() {}
+  GM(int width, int height) : m_Width(width), m_Height(height) {}
+  virtual ~GM() {}
 
-    int width() const { return m_Width; }
-    int height() const { return m_Height; }
+  int width() const { return m_Width; }
+  int height() const { return m_Height; }
 
-    void onceBeforeDraw() { this->onOnceBeforeDraw(); }
+  void onceBeforeDraw() { this->onOnceBeforeDraw(); }
 
-    // Calls clearColor(), updateFrameOptions(),
-    // TestingWindow::beginFrame(), draw(), TestingWindow::flush(). (Most GMs
-    // just need to override onDraw() instead of overriding this method.)
-    virtual void run(const char* name, std::vector<uint8_t>* pixels);
+  // Calls clearColor(), updateFrameOptions(),
+  // TestingWindow::beginFrame(), draw(), TestingWindow::flush(). (Most GMs
+  // just need to override onDraw() instead of overriding this method.)
+  virtual void run(const char* name, std::vector<uint8_t>* pixels);
 
-    virtual rive::ColorInt clearColor() const { return 0xffffffff; }
+  virtual rive::ColorInt clearColor() const { return 0xffffffff; }
 
-    virtual void updateFrameOptions(TestingWindow::FrameOptions*) const {}
+  virtual void updateFrameOptions(TestingWindow::FrameOptions*) const {}
 
-    void draw(rive::Renderer*);
+  void draw(rive::Renderer*);
 
 protected:
-    virtual void onOnceBeforeDraw() {}
-    virtual void onDraw(rive::Renderer*) = 0;
+  virtual void onOnceBeforeDraw() {}
+  virtual void onDraw(rive::Renderer*) = 0;
 };
 } // namespace rivegm
 
@@ -52,7 +52,7 @@ protected:
 // Usage: GMREGISTER( return new mygmclass(...) )
 //
 #define GMREGISTER(name, code)                                                 \
-    extern "C" GM* RIVE_MACRO_CONCAT(make_, name)() { code; }
+  extern "C" GM* RIVE_MACRO_CONCAT(make_, name)() { code; }
 
 // Usage:
 //
@@ -61,14 +61,14 @@ protected:
 //   }
 //
 #define DEF_SIMPLE_GM(NAME, WIDTH, HEIGHT, RENDERER)                           \
-    class NAME##_GM : public rivegm::GM                                        \
-    {                                                                          \
-    public:                                                                    \
-        NAME##_GM() : GM(WIDTH, HEIGHT) {}                                     \
-        void onDraw(rive::Renderer*) override;                                 \
-    };                                                                         \
-    GMREGISTER(NAME, return new NAME##_GM)                                     \
-    void NAME##_GM::onDraw(rive::Renderer* RENDERER)
+  class NAME##_GM : public rivegm::GM                                          \
+  {                                                                            \
+  public:                                                                      \
+    NAME##_GM() : GM(WIDTH, HEIGHT) {}                                         \
+    void onDraw(rive::Renderer*) override;                                     \
+  };                                                                           \
+  GMREGISTER(NAME, return new NAME##_GM)                                       \
+  void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 // Usage:
 //
@@ -76,20 +76,21 @@ protected:
 //       renderer->...
 //   }
 //
-#define DEF_SIMPLE_GM_WITH_CLEAR_COLOR(NAME,                                   \
-                                       CLEAR_COLOR,                            \
-                                       WIDTH,                                  \
-                                       HEIGHT,                                 \
-                                       RENDERER)                               \
-    class NAME##_GM : public rivegm::GM                                        \
-    {                                                                          \
-    public:                                                                    \
-        NAME##_GM() : GM(WIDTH, HEIGHT) {}                                     \
-        ColorInt clearColor() const override { return CLEAR_COLOR; }           \
-        void onDraw(rive::Renderer*) override;                                 \
-    };                                                                         \
-    GMREGISTER(NAME, return new NAME##_GM)                                     \
-    void NAME##_GM::onDraw(rive::Renderer* RENDERER)
+#define DEF_SIMPLE_GM_WITH_CLEAR_COLOR(                                        \
+    NAME,                                                                      \
+    CLEAR_COLOR,                                                               \
+    WIDTH,                                                                     \
+    HEIGHT,                                                                    \
+    RENDERER)                                                                  \
+  class NAME##_GM : public rivegm::GM                                          \
+  {                                                                            \
+  public:                                                                      \
+    NAME##_GM() : GM(WIDTH, HEIGHT) {}                                         \
+    ColorInt clearColor() const override { return CLEAR_COLOR; }               \
+    void onDraw(rive::Renderer*) override;                                     \
+  };                                                                           \
+  GMREGISTER(NAME, return new NAME##_GM)                                       \
+  void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 #endif
 
@@ -101,9 +102,11 @@ extern "C" REGISTRY_HANDLE gms_registry_get_next(
     REGISTRY_HANDLE position_handle);
 extern "C" void gms_build_registry();
 extern "C" bool gms_run_gm(REGISTRY_HANDLE gm_handle);
-extern "C" bool gms_registry_get_name(REGISTRY_HANDLE position_handle,
-                                      std::string& name);
-extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
-                                      size_t& width,
-                                      size_t& height);
+extern "C" bool gms_registry_get_name(
+    REGISTRY_HANDLE position_handle,
+    std::string& name);
+extern "C" bool gms_registry_get_size(
+    REGISTRY_HANDLE position_handle,
+    size_t& width,
+    size_t& height);
 #endif

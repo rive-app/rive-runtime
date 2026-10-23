@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* AudioEventBase::clone() const
 {
-    auto cloned = new AudioEvent();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new AudioEvent();
+  cloned->copy(*this);
+  return cloned;
 }

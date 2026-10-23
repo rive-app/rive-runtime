@@ -13,12 +13,12 @@ class ViewModelInstanceListIndexRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceListIndexRuntime(
-        ViewModelInstanceSymbolListIndex* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    uint32_t value() const;
-    const DataType dataType() override { return DataType::symbolListIndex; }
+  ViewModelInstanceListIndexRuntime(
+      ViewModelInstanceSymbolListIndex* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  uint32_t value() const;
+  const DataType dataType() override { return DataType::symbolListIndex; }
 };
 } // namespace rive
 #endif

@@ -14,65 +14,65 @@ class AudioSound;
 class AudioSource : public RefCnt<AudioSource>
 {
 public:
-    // Validates the bytes before passing through to constructor. Returns
-    // nullptr if fails
-    static rcp<AudioSource> MakeAudioSource(rive::Span<uint8_t> fileBytes);
-    // Validates the bytes before passing through to constructor. Returns
-    // nullptr if fails
-    static rcp<AudioSource> MakeAudioSource(
-        rive::SimpleArray<uint8_t> fileBytes);
-    // Makes an audio source that does not own it's backing bytes.
-    AudioSource(rive::Span<uint8_t> fileBytes);
+  // Validates the bytes before passing through to constructor. Returns
+  // nullptr if fails
+  static rcp<AudioSource> MakeAudioSource(rive::Span<uint8_t> fileBytes);
+  // Validates the bytes before passing through to constructor. Returns
+  // nullptr if fails
+  static rcp<AudioSource> MakeAudioSource(rive::SimpleArray<uint8_t> fileBytes);
+  // Makes an audio source that does not own it's backing bytes.
+  AudioSource(rive::Span<uint8_t> fileBytes);
 
-    // Makes an audio source whose backing bytes will be deleted when the
-    // AudioSource deletes.
-    AudioSource(rive::SimpleArray<uint8_t> fileBytes);
+  // Makes an audio source whose backing bytes will be deleted when the
+  // AudioSource deletes.
+  AudioSource(rive::SimpleArray<uint8_t> fileBytes);
 
-    // Makes a buffered audio source whose backing bytes will be deleted when
-    // the AudioSource deletes.
-    AudioSource(rive::Span<float> samples,
-                uint32_t numChannels,
-                uint32_t sampleRate);
+  // Makes a buffered audio source whose backing bytes will be deleted when
+  // the AudioSource deletes.
+  AudioSource(
+      rive::Span<float> samples,
+      uint32_t numChannels,
+      uint32_t sampleRate);
 
 #ifdef WITH_RIVE_AUDIO
-    rcp<AudioReader> makeReader(uint32_t numChannels, uint32_t sampleRate);
+  rcp<AudioReader> makeReader(uint32_t numChannels, uint32_t sampleRate);
 #endif
 
-    uint32_t channels();
-    uint32_t sampleRate();
+  uint32_t channels();
+  uint32_t sampleRate();
 #ifdef WITH_RIVE_AUDIO
-    float duration();
+  float duration();
 #else
-    float duration() { return 0; }
+  float duration() { return 0; }
 #endif
-    AudioFormat format() const;
-    const rive::Span<uint8_t> bytes() const
-    {
+  AudioFormat format() const;
+  const rive::Span<uint8_t> bytes() const
+  {
 #ifdef WITH_RIVE_AUDIO
-        return m_fileBytes;
+    return m_fileBytes;
 #else
-        return rive::Span<uint8_t>(nullptr, 0);
+    return rive::Span<uint8_t>(nullptr, 0);
 #endif
-    }
+  }
 
-    const rive::Span<float> bufferedSamples() const;
-    bool isBuffered() const
-    {
+  const rive::Span<float> bufferedSamples() const;
+  bool isBuffered() const
+  {
 #ifdef WITH_RIVE_AUDIO
-        return m_isBuffered;
+    return m_isBuffered;
 #else
-        return false;
+    return false;
 #endif
-    }
+  }
 
 private:
 #ifdef WITH_RIVE_AUDIO
-    bool m_isBuffered;
-    uint32_t m_channels;
-    uint32_t m_sampleRate;
-    float m_duration;
-    rive::Span<uint8_t> m_fileBytes;
-    rive::SimpleArray<uint8_t> m_ownedBytes;
+  bool m_isBuffered;
+  uint32_t m_channels;
+  uint32_t m_sampleRate;
+  float m_duration;
+  rive::Span<uint8_t> m_fileBytes;
+  rive::SimpleArray<uint8_t> m_ownedBytes;
 #endif
 };
 } // namespace rive

@@ -6,23 +6,23 @@ using namespace rive;
 
 StatusCode TransitionInputCondition::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    // Make sure the inputId doesn't overflow the input buffer.
-    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
-    {
-        return StatusCode::InvalidObject;
-    }
-    if (!validateInputType(
-            stateMachineImporter->stateMachine()->input((size_t)inputId())))
-    {
-        return StatusCode::InvalidObject;
-    }
+  // Make sure the inputId doesn't overflow the input buffer.
+  if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
+  {
+    return StatusCode::InvalidObject;
+  }
+  if (!validateInputType(
+          stateMachineImporter->stateMachine()->input((size_t)inputId())))
+  {
+    return StatusCode::InvalidObject;
+  }
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }

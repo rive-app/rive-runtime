@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:colorize/colorize.dart';
-import 'package:core_generator/src/comment.dart';
 import 'package:core_generator/src/configuration.dart';
 import 'package:core_generator/src/cpp_formatter.dart';
 import 'package:core_generator/src/field_type.dart';
@@ -89,6 +89,42 @@ class Definition {
 
   String _sidecarStructName(Property property) =>
       '${_name}${property.capitalizedSidecarName}Sidecar';
+
+  // Change callbacks hand written code names. Any other one is never
+  // overridden, so neither its virtual nor its call is emitted.
+  static Set<String>? _changedInUseCache;
+  static bool changedInUse(String accessor) {
+    final inUse = _changedInUseCache ??= () {
+      final names = <String>{};
+      final callback = RegExp(r'\b\w+Changed\b');
+      for (final root in [
+        concreteHppPath,
+        '../src/',
+        '../renderer/',
+        '../scripting/',
+        editorConcreteHppPath,
+        '../../editor_native/kernel/src/',
+      ]) {
+        final dir = Directory(root);
+        if (!dir.existsSync()) {
+          continue;
+        }
+        for (final entity in dir.listSync(recursive: true)) {
+          final path = entity.path.replaceAll('\\', '/');
+          if (entity is! File ||
+              path.contains('/generated/') ||
+              !RegExp(r'\.(hpp|h|cpp|inl|mm)$').hasMatch(path)) {
+            continue;
+          }
+          names.addAll(callback
+              .allMatches(entity.readAsStringSync())
+              .map((match) => match[0]!));
+        }
+      }
+      return names;
+    }();
+    return inUse.contains('${accessor}Changed');
+  }
 
   Definition? _extensionOf;
   Definition? _rawExtensionOf;
@@ -697,22 +733,6 @@ class Definition {
     code.writeln('public:');
     code.writeln('static const uint16_t typeKey = ${_key!.intValue};\n');
 
-    code.write(comment(
-        'Helper to quickly determine if a core object extends another '
-        'without RTTI at runtime.',
-        indent: 1));
-    code.writeln('bool isTypeOf(uint16_t typeKey) const override {');
-
-    code.writeln('switch(typeKey) {');
-    code.writeln('case ${_name}Base::typeKey:');
-    for (var p = _extensionOf; p != null; p = p._extensionOf) {
-      code.writeln('case ${p._name}Base::typeKey:');
-    }
-    code.writeln('return true;');
-    code.writeln('default: return false;}');
-
-    code.writeln('}\n');
-
     code.writeln('uint16_t coreType() const override { return typeKey; }\n');
     if (properties.isNotEmpty) {
       for (final property in properties) {
@@ -877,7 +897,9 @@ class Definition {
             acc.writeln('$targetField = value ? ($targetField | $maskName) : '
                 '($targetField & ~$maskName);');
           }
-          acc.writeln('RIVE_EDITOR_CHANGED($changedFn());');
+          if (changedInUse(target.cppAccessor)) {
+            acc.writeln('RIVE_EDITOR_CHANGED($changedFn());');
+          }
           // Push-notify on the MASK property's key — matches master's
           // path, which routes registry writes through the mask's own
           // setter (mask Changed + notify(mask key)).
@@ -925,8 +947,10 @@ class Definition {
                   '{'
                       'if(${property.cppAccessor}() == value)'
                       '{return;}'
-                      'set${property.capitalizedName}(value);'
-                      '${property.cppAccessor}Changed();'
+                      'set${property.capitalizedName}(value);' +
+                  (changedInUse(property.cppAccessor)
+                      ? '${property.cppAccessor}Changed();'
+                      : '') +
                       'notifyPropertyChanged(${property.name}PropertyKey);'
                       '}');
         } else if (property.isSidecar) {
@@ -953,7 +977,10 @@ class Definition {
                 '&m_${property.capitalizedName},&value);');
           }
           acc.writeln('m_${property.capitalizedName} = value;');
-          acc.writeln('RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+          if (changedInUse(property.cppAccessor)) {
+            acc.writeln(
+                'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+          }
           acc.writeln('notifyPropertyChanged(${property.name}PropertyKey);');
           acc.writeln('}');
           acc.writeln('#else');
@@ -988,8 +1015,10 @@ class Definition {
           }
           acc.writeln('void ${property.name}(${property.type.cppName} value) {'
               'if(${property.name}() == value){return;}'
-              '$memberName.ensureAllocated()->${property.name} = value;'
-              '${property.name}Changed();'
+              '$memberName.ensureAllocated()->${property.name} = value;' +
+              (changedInUse(property.name)
+                  ? '${property.name}Changed();'
+                  : '') +
               'notifyPropertyChanged(${property.name}PropertyKey);'
               '}');
           addPreprocessorEnd(acc);
@@ -1071,8 +1100,10 @@ class Definition {
             // guard in packages/rive_core/**/*_base.dart setters.
             // Runtime builds keep the unconditional call so there's
             // zero overhead and nothing to flip.
-            acc.writeln(
-                'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+            if (changedInUse(property.cppAccessor)) {
+              acc.writeln(
+                  'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+            }
             // Push-notification for target->source data binds — mirrors
             // master's plain setter. Cheap no-observer null check; editor
             // arena Cores never subscribe (push stays disabled there), so
@@ -1331,7 +1362,8 @@ class Definition {
       for (final property in storedProperties) {
         // A bitmask passthrough deliberately fires the mask's callback,
         // never its own — emitting one is an override that can never run.
-        if (property.isBitmaskPassthrough) {
+        if (property.isBitmaskPassthrough ||
+            !changedInUse(property.cppAccessor)) {
           continue;
         }
         final changedBuf = toExt(property) ? extChanged : code;
@@ -1555,6 +1587,8 @@ class Definition {
     await _writeEditorFieldTypes();
     await _writeRegistry(forEditor: false);
     await _writeRegistry(forEditor: true);
+    await _writeTypeTree(forEditor: false);
+    await _writeTypeTree(forEditor: true);
 
     return true;
   }
@@ -1593,6 +1627,46 @@ class Definition {
     file.createSync(recursive: true);
     file.writeAsStringSync(
         await _formatter.formatAndGuard('EditorFieldTypes', code.toString()),
+        flush: true);
+  }
+
+  /// Emits Core::hasAncestor as one walk over a parent typeKey table. The
+  /// editor build defines it from its superset table instead.
+  static Future<void> _writeTypeTree({required bool forEditor}) async {
+    final parents = <int, int>{};
+    for (final definition in definitions.values) {
+      final key = definition._key?.intValue;
+      if (key == null || definition._isMixin) {
+        continue;
+      }
+      if (!forEditor && !definition.forRuntime) {
+        continue;
+      }
+      parents[key] = definition._extensionOf?._key?.intValue ?? 0;
+    }
+    final count = parents.keys.reduce(max) + 1;
+    final table = List<int>.generate(count, (key) => parents[key] ?? 0);
+    StringBuffer code = StringBuffer();
+    code.writeln('#include "rive/core.hpp"');
+    code.writeln(forEditor
+        ? '#ifdef $withRiveEditorPreprocessor'
+        : '#ifndef $withRiveEditorPreprocessor');
+    code.writeln('using namespace rive;');
+    code.writeln('// Parent typeKey of each typeKey, 0 at the root.');
+    code.writeln('static const uint16_t parentTypeKeys[$count] = {'
+        '${table.join(',')}};');
+    code.writeln('bool Core::hasAncestor(uint16_t type, uint16_t typeKey) {'
+        'while (type < $count && (type = parentTypeKeys[type]) != 0) {'
+        'if (type == typeKey) { return true; }'
+        '}'
+        'return false;'
+        '}');
+    code.writeln('#endif');
+    var file = File(forEditor
+        ? '${editorGeneratedCppPath}editor_core_type_tree.cpp'
+        : '${generatedCppPath}core_type_tree.cpp');
+    file.createSync(recursive: true);
+    file.writeAsStringSync(await _formatter.format(code.toString()),
         flush: true);
   }
 
@@ -2013,13 +2087,18 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
-    ctxCode.writeln('''
-      static bool objectSupportsProperty(Core* object, uint32_t propertyKey) {
-        switch(propertyKey) {''');
-    for (final fieldType in usedFieldTypes.keys) {
-      var properties = getSetFieldTypes[fieldType];
-      if (properties != null) {
+    // A constant owner per key folds into one lookup table rather than a type
+    // check per case.
+    void emitPropertyCases(bool hostProvided, String Function(Property) body) {
+      for (final fieldType in usedFieldTypes.keys) {
+        var properties = getSetFieldTypes[fieldType];
+        if (properties == null) {
+          continue;
+        }
         for (final property in properties) {
+          if (property.bitmaskTargetIsHostProvided != hostProvided) {
+            continue;
+          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
@@ -2029,22 +2108,32 @@ class Definition {
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${altKey.stringValue}PropertyKey:');
           }
-          if (property.bitmaskTargetIsHostProvided) {
-            // Shared mixin key: supported by any consuming type.
-            ctxCode
-                .writeln('return ${property.definition.name}Base::from(object) '
-                    '!= nullptr;');
-          } else {
-            ctxCode.writeln(
-                'return object->is<${property.definition.name}Base>();');
-          }
+          ctxCode.writeln(body(property));
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }
         }
       }
     }
-    ctxCode.writeln('}return false;}');
+
+    ctxCode.writeln(
+        'static uint16_t propertyOwnerTypeKey(uint32_t propertyKey) {'
+        'switch(propertyKey) {');
+    emitPropertyCases(false,
+        (property) => 'return ${property.definition.name}Base::typeKey;');
+    ctxCode.writeln('}return 0;}');
+
+    ctxCode.writeln(
+        'static bool objectSupportsProperty(Core* object, uint32_t propertyKey) {'
+        'switch(propertyKey) {');
+    // Shared mixin key: supported by any consuming type.
+    emitPropertyCases(
+        true,
+        (property) =>
+            'return ${property.definition.name}Base::from(object) != nullptr;');
+    ctxCode.writeln('}');
+    ctxCode.writeln('uint16_t owner = propertyOwnerTypeKey(propertyKey);');
+    ctxCode.writeln('return owner != 0 && object->isTypeOf(owner);}');
     ctxCode.writeln('};}');
 
     StringBuffer body = StringBuffer();

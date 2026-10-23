@@ -34,259 +34,309 @@ bool sniffImageSize(Span<const uint8_t> b, int& w, int& h);
 class DeferredFactory : public Factory
 {
 public:
-    DeferredFactory()
-    {
-        // Stream order consumes each create destroy pair, so a recycled id
-        // never aliases a live one.
-        registerRecorder(&m_buffer);
-    }
+  DeferredFactory()
+  {
+    // Stream order consumes each create destroy pair, so a recycled id
+    // never aliases a live one.
+    registerRecorder(&m_buffer);
+  }
 
-    ~DeferredFactory()
-    {
-        // Unregister first so resources a straggling wrapper still holds no-op
-        // their release instead of writing into a dead recorder.
-        unregisterRecorder(&m_buffer);
-        // Apply destroys queued from other threads before the stream dies.
-        m_buffer.drainDestroys();
-    }
+  ~DeferredFactory()
+  {
+    // Unregister first so resources a straggling wrapper still holds no-op
+    // their release instead of writing into a dead recorder.
+    unregisterRecorder(&m_buffer);
+    // Apply destroys queued from other threads before the stream dies.
+    m_buffer.drainDestroys();
+  }
 
-    // Creates, mutations, draws, and destroys all record into one ordered
-    // stream so a single replay pass suffices and id reuse stays correct.
-    std::unique_ptr<Renderer> makeRenderer(
-        ForeignImageRegistry* canvases = nullptr);
-    const RenderCommandBuffer& commandBuffer() const { return m_buffer; }
-    RenderCommandBuffer& commandBuffer() { return m_buffer; }
+  // Creates, mutations, draws, and destroys all record into one ordered
+  // stream so a single replay pass suffices and id reuse stays correct.
+  std::unique_ptr<Renderer> makeRenderer(
+      ForeignImageRegistry* canvases = nullptr);
+  const RenderCommandBuffer& commandBuffer() const { return m_buffer; }
+  RenderCommandBuffer& commandBuffer() { return m_buffer; }
 
-    // Clear the ordered stream for the next frame; consumer keeps resources.
-    void resetFrame()
-    {
-        m_buffer.reset();
-        // Drain cross thread GC destroys into the new frame's stream head.
-        m_buffer.drainDestroys();
-    }
+  // Clear the ordered stream for the next frame; consumer keeps resources.
+  void resetFrame()
+  {
+    m_buffer.reset();
+    // Drain cross thread GC destroys into the new frame's stream head.
+    m_buffer.drainDestroys();
+  }
 
-    rcp<RenderPath> makeRenderPath(RawPath& path, FillRule fr) override
-    {
-        auto a = m_pathIds.alloc();
-        auto verbs = path.verbs();
-        auto points = path.points();
-        uint64_t verbsOff = m_buffer.appendBlob(
-            verbs.data(),
-            static_cast<uint32_t>(verbs.size() * sizeof(PathVerb)));
-        uint64_t pointsOff = m_buffer.appendBlob(
-            points.data(),
-            static_cast<uint32_t>(points.size() * sizeof(Vec2D)));
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makePath),
-                        MakePathPOD{a.id,
-                                    a.generation,
-                                    verbsOff,
-                                    pointsOff,
-                                    static_cast<uint32_t>(verbs.size()),
-                                    static_cast<uint32_t>(points.size()),
-                                    static_cast<uint32_t>(fr)});
-        return make_rcp<DeferredRenderPath>(a.id,
-                                            a.generation,
-                                            &m_buffer,
-                                            &m_pathIds);
-    }
+  rcp<RenderPath> makeRenderPath(RawPath& path, FillRule fr) override
+  {
+    auto a = m_pathIds.alloc();
+    auto verbs = path.verbs();
+    auto points = path.points();
+    uint64_t verbsOff = m_buffer.appendBlob(
+        verbs.data(),
+        static_cast<uint32_t>(verbs.size() * sizeof(PathVerb)));
+    uint64_t pointsOff = m_buffer.appendBlob(
+        points.data(),
+        static_cast<uint32_t>(points.size() * sizeof(Vec2D)));
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makePath),
+        MakePathPOD{
+            a.id,
+            a.generation,
+            verbsOff,
+            pointsOff,
+            static_cast<uint32_t>(verbs.size()),
+            static_cast<uint32_t>(points.size()),
+            static_cast<uint32_t>(fr)});
+    return make_rcp<DeferredRenderPath>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_pathIds);
+  }
 
-    rcp<RenderPath> makeEmptyRenderPath() override
-    {
-        auto a = m_pathIds.alloc();
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makeEmptyPath),
-                        MakeIdPOD{a.id, a.generation});
-        return make_rcp<DeferredRenderPath>(a.id,
-                                            a.generation,
-                                            &m_buffer,
-                                            &m_pathIds);
-    }
+  rcp<RenderPath> makeEmptyRenderPath() override
+  {
+    auto a = m_pathIds.alloc();
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeEmptyPath),
+        MakeIdPOD{a.id, a.generation});
+    return make_rcp<DeferredRenderPath>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_pathIds);
+  }
 
-    rcp<RenderPaint> makeRenderPaint() override
-    {
-        auto a = m_paintIds.alloc();
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makePaint),
-                        MakeIdPOD{a.id, a.generation});
-        return make_rcp<DeferredRenderPaint>(a.id,
-                                             a.generation,
-                                             &m_buffer,
-                                             &m_paintIds,
-                                             m_canvasRegistry);
-    }
+  rcp<RenderPaint> makeRenderPaint() override
+  {
+    auto a = m_paintIds.alloc();
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makePaint),
+        MakeIdPOD{a.id, a.generation});
+    return make_rcp<DeferredRenderPaint>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_paintIds,
+        m_canvasRegistry);
+  }
 
-    rcp<RenderShader> makeLinearGradient(float sx,
-                                         float sy,
-                                         float ex,
-                                         float ey,
-                                         const ColorInt colors[],
-                                         const float stops[],
-                                         size_t count) override
-    {
-        auto a = m_shaderIds.alloc();
-        GradientBlobs g = appendGradientStops(colors, stops, count);
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makeLinearGradient),
-                        LinearGradientPOD{a.id,
-                                          a.generation,
-                                          sx,
-                                          sy,
-                                          ex,
-                                          ey,
-                                          g.colorsOffset,
-                                          g.stopsOffset,
-                                          static_cast<uint32_t>(count)});
-        return make_rcp<DeferredRenderShader>(a.id,
-                                              a.generation,
-                                              &m_buffer,
-                                              &m_shaderIds);
-    }
-    rcp<RenderShader> makeRadialGradient(float cx,
-                                         float cy,
-                                         float radius,
-                                         const ColorInt colors[],
-                                         const float stops[],
-                                         size_t count) override
-    {
-        auto a = m_shaderIds.alloc();
-        GradientBlobs g = appendGradientStops(colors, stops, count);
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makeRadialGradient),
-                        RadialGradientPOD{a.id,
-                                          a.generation,
-                                          cx,
-                                          cy,
-                                          radius,
-                                          static_cast<uint32_t>(count),
-                                          g.colorsOffset,
-                                          g.stopsOffset});
-        return make_rcp<DeferredRenderShader>(a.id,
-                                              a.generation,
-                                              &m_buffer,
-                                              &m_shaderIds);
-    }
+  rcp<RenderShader> makeLinearGradient(
+      float sx,
+      float sy,
+      float ex,
+      float ey,
+      const ColorInt colors[],
+      const float stops[],
+      size_t count) override
+  {
+    auto a = m_shaderIds.alloc();
+    GradientBlobs g = appendGradientStops(colors, stops, count);
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeLinearGradient),
+        LinearGradientPOD{
+            a.id,
+            a.generation,
+            sx,
+            sy,
+            ex,
+            ey,
+            g.colorsOffset,
+            g.stopsOffset,
+            static_cast<uint32_t>(count)});
+    return make_rcp<DeferredRenderShader>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_shaderIds);
+  }
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType type,
-                                       RenderBufferFlags flags,
-                                       size_t sizeInBytes) override
-    {
-        auto a = m_bufferIds.alloc();
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::makeBuffer),
-                        MakeBufferPOD{a.id,
-                                      a.generation,
-                                      static_cast<uint8_t>(type),
-                                      static_cast<uint8_t>(flags),
-                                      static_cast<uint32_t>(sizeInBytes)});
-        // The resident buffer keeps its data across frames on the consumer.
-        return make_rcp<DeferredRenderBuffer>(a.id,
-                                              a.generation,
-                                              type,
-                                              flags,
-                                              sizeInBytes,
-                                              &m_buffer,
-                                              &m_bufferIds);
-    }
+  rcp<RenderShader> makeRadialGradient(
+      float cx,
+      float cy,
+      float radius,
+      const ColorInt colors[],
+      const float stops[],
+      size_t count) override
+  {
+    auto a = m_shaderIds.alloc();
+    GradientBlobs g = appendGradientStops(colors, stops, count);
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeRadialGradient),
+        RadialGradientPOD{
+            a.id,
+            a.generation,
+            cx,
+            cy,
+            radius,
+            static_cast<uint32_t>(count),
+            g.colorsOffset,
+            g.stopsOffset});
+    return make_rcp<DeferredRenderShader>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_shaderIds);
+  }
 
-    rcp<ImageMeshInstances> makeImageMeshInstances(size_t count) override
-    {
-        auto a = m_instancesIds.alloc();
-        m_buffer.append(
-            static_cast<uint8_t>(RenderCmd::makeImageMeshInstances),
-            MakeImageMeshInstancesPOD{a.id,
-                                      a.generation,
-                                      static_cast<uint32_t>(count)});
-        return make_rcp<DeferredImageMeshInstances>(a.id,
-                                                    a.generation,
-                                                    count,
-                                                    &m_buffer,
-                                                    &m_instancesIds);
-    }
+  rcp<RenderShader> makeAngularGradient(
+      const ColorInt colors[],
+      const float stops[],
+      size_t count) override
+  {
+    auto a = m_shaderIds.alloc();
+    GradientBlobs g = appendGradientStops(colors, stops, count);
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeAngularGradient),
+        AngularGradientPOD{
+            a.id,
+            a.generation,
+            0, // pad
+            static_cast<uint32_t>(count),
+            g.colorsOffset,
+            g.stopsOffset});
+    return make_rcp<DeferredRenderShader>(
+        a.id,
+        a.generation,
+        &m_buffer,
+        &m_shaderIds);
+  }
 
-    rcp<RenderImage> decodeImage(Span<const uint8_t> bytes) override
-    {
-        auto a = m_imageIds.alloc();
-        // Decode dims at record time so the artboard can read them during
-        // advance; the render side uploads the real texture.
-        int w = 0, h = 0;
+  rcp<RenderBuffer> makeRenderBuffer(
+      RenderBufferType type,
+      RenderBufferFlags flags,
+      size_t sizeInBytes) override
+  {
+    auto a = m_bufferIds.alloc();
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeBuffer),
+        MakeBufferPOD{
+            a.id,
+            a.generation,
+            static_cast<uint8_t>(type),
+            static_cast<uint8_t>(flags),
+            static_cast<uint32_t>(sizeInBytes)});
+    // The resident buffer keeps its data across frames on the consumer.
+    return make_rcp<DeferredRenderBuffer>(
+        a.id,
+        a.generation,
+        type,
+        flags,
+        sizeInBytes,
+        &m_buffer,
+        &m_bufferIds);
+  }
+
+  rcp<ImageMeshInstances> makeImageMeshInstances(size_t count) override
+  {
+    auto a = m_instancesIds.alloc();
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeImageMeshInstances),
+        MakeImageMeshInstancesPOD{
+            a.id,
+            a.generation,
+            static_cast<uint32_t>(count)});
+    return make_rcp<DeferredImageMeshInstances>(
+        a.id,
+        a.generation,
+        count,
+        &m_buffer,
+        &m_instancesIds);
+  }
+
+  rcp<RenderImage> decodeImage(Span<const uint8_t> bytes) override
+  {
+    auto a = m_imageIds.alloc();
+    // Decode dims at record time so the artboard can read them during
+    // advance; the render side uploads the real texture.
+    int w = 0, h = 0;
 #ifdef RIVE_DECODERS
-        if (auto bm = Bitmap::decode(bytes.data(), bytes.size()))
-        {
-            w = static_cast<int>(bm->width());
-            h = static_cast<int>(bm->height());
-        }
-#endif
-        // wasm builds decode in the browser, so sniff dims from the header.
-        if (w == 0 || h == 0)
-        {
-            sniffImageSize(bytes, w, h);
-        }
-#ifndef NDEBUG
-        // Unknown dims silently break layout far from here, so warn once.
-        if (w == 0 || h == 0)
-        {
-            static bool warned = false;
-            if (!warned)
-            {
-                warned = true;
-                fprintf(
-                    stderr,
-                    "DeferredFactory::decodeImage: image dims unknown at "
-                    "record time (decode failed, or built without "
-                    "RIVE_DECODERS); size-dependent layout will be wrong\n");
-            }
-        }
-#endif
-        uint64_t off = m_buffer.appendBlob(bytes.data(),
-                                           static_cast<uint32_t>(bytes.size()));
-        m_buffer.append(static_cast<uint8_t>(RenderCmd::decodeImage),
-                        DecodeImagePOD{a.id,
-                                       a.generation,
-                                       off,
-                                       static_cast<uint32_t>(bytes.size()),
-                                       static_cast<uint32_t>(w),
-                                       static_cast<uint32_t>(h)});
-        return make_rcp<DeferredRenderImage>(a.id,
-                                             a.generation,
-                                             w,
-                                             h,
-                                             &m_buffer,
-                                             &m_imageIds);
+    if (auto bm = Bitmap::decode(bytes.data(), bytes.size()))
+    {
+      w = static_cast<int>(bm->width());
+      h = static_cast<int>(bm->height());
     }
+#endif
+    // wasm builds decode in the browser, so sniff dims from the header.
+    if (w == 0 || h == 0)
+    {
+      sniffImageSize(bytes, w, h);
+    }
+#ifndef NDEBUG
+    // Unknown dims silently break layout far from here, so warn once.
+    if (w == 0 || h == 0)
+    {
+      static bool warned = false;
+      if (!warned)
+      {
+        warned = true;
+        fprintf(
+            stderr,
+            "DeferredFactory::decodeImage: image dims unknown at "
+            "record time (decode failed, or built without "
+            "RIVE_DECODERS); size-dependent layout will be wrong\n");
+      }
+    }
+#endif
+    uint64_t off = m_buffer.appendBlob(
+        bytes.data(),
+        static_cast<uint32_t>(bytes.size()));
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::decodeImage),
+        DecodeImagePOD{
+            a.id,
+            a.generation,
+            off,
+            static_cast<uint32_t>(bytes.size()),
+            static_cast<uint32_t>(w),
+            static_cast<uint32_t>(h)});
+    return make_rcp<DeferredRenderImage>(
+        a.id,
+        a.generation,
+        w,
+        h,
+        &m_buffer,
+        &m_imageIds);
+  }
 
 protected:
-    // Registry used to resolve foreign/canvas images (e.g. a Luau canvas
-    // snapshot) referenced by a paint's modulatedImage, mirroring how the
-    // renderer resolves them for drawImage. DeferredSession points this at its
-    // own registry; it stays null when a DeferredFactory is used without a
-    // session, in which case only decoded images are resolvable.
-    ForeignImageRegistry* m_canvasRegistry = nullptr;
+  // Registry used to resolve foreign/canvas images (e.g. a Luau canvas
+  // snapshot) referenced by a paint's modulatedImage, mirroring how the
+  // renderer resolves them for drawImage. DeferredSession points this at its
+  // own registry; it stays null when a DeferredFactory is used without a
+  // session, in which case only decoded images are resolvable.
+  ForeignImageRegistry* m_canvasRegistry = nullptr;
 
 private:
-    // colors[count] (ColorInt) and stops[count] (float), each its own blob.
-    struct GradientBlobs
-    {
-        uint64_t colorsOffset;
-        uint64_t stopsOffset;
-    };
-    GradientBlobs appendGradientStops(const ColorInt colors[],
-                                      const float stops[],
-                                      size_t count)
-    {
-        GradientBlobs g;
-        g.colorsOffset = m_buffer.appendBlob(
-            colors,
-            static_cast<uint32_t>(count * sizeof(ColorInt)));
-        g.stopsOffset =
-            m_buffer.appendBlob(stops,
-                                static_cast<uint32_t>(count * sizeof(float)));
-        return g;
-    }
+  // colors[count] (ColorInt) and stops[count] (float), each its own blob.
+  struct GradientBlobs
+  {
+    uint64_t colorsOffset;
+    uint64_t stopsOffset;
+  };
+  GradientBlobs appendGradientStops(
+      const ColorInt colors[],
+      const float stops[],
+      size_t count)
+  {
+    GradientBlobs g;
+    g.colorsOffset = m_buffer.appendBlob(
+        colors,
+        static_cast<uint32_t>(count * sizeof(ColorInt)));
+    g.stopsOffset = m_buffer.appendBlob(
+        stops,
+        static_cast<uint32_t>(count * sizeof(float)));
+    return g;
+  }
 
-    RenderCommandBuffer
-        m_buffer; // ordered: creates + mutations + draws + destroys
-    // One reusable id space per resource type (Dawn-style free list + gen).
-    IdAllocator<RenderHandle> m_pathIds;
-    IdAllocator<RenderHandle> m_paintIds;
-    IdAllocator<RenderHandle> m_shaderIds;
-    IdAllocator<RenderHandle> m_imageIds;
-    IdAllocator<RenderHandle> m_bufferIds;
-    IdAllocator<RenderHandle> m_instancesIds;
+  RenderCommandBuffer
+      m_buffer; // ordered: creates + mutations + draws + destroys
+  // One reusable id space per resource type (Dawn-style free list + gen).
+  IdAllocator<RenderHandle> m_pathIds;
+  IdAllocator<RenderHandle> m_paintIds;
+  IdAllocator<RenderHandle> m_shaderIds;
+  IdAllocator<RenderHandle> m_imageIds;
+  IdAllocator<RenderHandle> m_bufferIds;
+  IdAllocator<RenderHandle> m_instancesIds;
 };
 
 // Draws are attributed to the renderer that issues them, not their stream
@@ -294,10 +344,10 @@ private:
 class DeferredRouteHost
 {
 public:
-    virtual void routeTo(uint64_t target) = 0;
+  virtual void routeTo(uint64_t target) = 0;
 
 protected:
-    ~DeferredRouteHost() = default;
+  ~DeferredRouteHost() = default;
 };
 // Canvases and screens share one route target space: a canvas uses its
 // unflagged canvas id, a screen sets this flag over its target id. One session
@@ -308,390 +358,474 @@ constexpr uint64_t kScreenTarget = kScreenTargetFlag; // screen target 0
 constexpr uint64_t screenTarget(uint64_t id) { return kScreenTargetFlag | id; }
 constexpr bool isScreenTarget(uint64_t target)
 {
-    return (target & kScreenTargetFlag) != 0;
+  return (target & kScreenTargetFlag) != 0;
 }
 constexpr uint64_t screenTargetId(uint64_t target)
 {
-    return target & ~kScreenTargetFlag;
+  return target & ~kScreenTargetFlag;
 }
 
 class DeferredRenderer : public Renderer
 {
 public:
-    explicit DeferredRenderer(RenderCommandBuffer* buffer,
-                              ForeignImageRegistry* canvases = nullptr,
-                              DeferredRouteHost* routeHost = nullptr,
-                              uint64_t routeTarget = kScreenTarget) :
-        m_buffer(buffer),
-        m_canvases(canvases),
-        m_routeHost(routeHost),
-        m_routeTarget(routeTarget)
-    {}
+  explicit DeferredRenderer(
+      RenderCommandBuffer* buffer,
+      ForeignImageRegistry* canvases = nullptr,
+      DeferredRouteHost* routeHost = nullptr,
+      uint64_t routeTarget = kScreenTarget)
+      : m_buffer(buffer)
+      , m_canvases(canvases)
+      , m_routeHost(routeHost)
+      , m_routeTarget(routeTarget)
+  {}
 
-    void save() override
+  void save() override
+  {
+    if (!route())
     {
-        route();
-        m_transformStack.push_back(m_transformStack.back());
-        m_buffer->appendType(static_cast<uint8_t>(RenderCmd::save));
+      return;
     }
-    void restore() override
+    m_transformStack.push_back(m_transformStack.back());
+    m_buffer->appendType(static_cast<uint8_t>(RenderCmd::save));
+  }
+  void restore() override
+  {
+    // A restore past this recorder's saves would pop the replaying
+    // renderer's base state.
+    if (m_transformStack.size() <= 1)
     {
-        route();
-        if (m_transformStack.size() > 1)
-        {
-            // An unbalanced restore is the caller's bug, but leaving the
-            // bottom entry in place keeps the shadow usable either way.
-            m_transformStack.pop_back();
-        }
-        m_buffer->appendType(static_cast<uint8_t>(RenderCmd::restore));
+      return;
     }
-    void transform(const Mat2D& m) override
+    if (!route())
     {
-        route();
-        m_transformStack.back() = m_transformStack.back() * m;
+      return;
+    }
+    m_transformStack.pop_back();
+    m_buffer->appendType(static_cast<uint8_t>(RenderCmd::restore));
+  }
+  // A canvas host brackets its recorder's content. Ending it closes the
+  // saves left open, and a holder drawing on past the end records nothing.
+  void endContent()
+  {
+    while (m_transformStack.size() > 1)
+    {
+      restore();
+    }
+    m_contentEnded = true;
+  }
+  void beginContent() { m_contentEnded = false; }
+  void transform(const Mat2D& m) override
+  {
+    if (!route())
+    {
+      return;
+    }
+    m_transformStack.back() = m_transformStack.back() * m;
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::transform),
+        TransformPOD{m.xx(), m.xy(), m.yx(), m.yy(), m.tx(), m.ty()});
+  }
+
+  // Recording is otherwise write only, but a draw that has to pick a raster
+  // size needs to know the scale it will land at -- Artboard's bitmap cache
+  // sizes its offscreen from this. Mirroring the transform ops costs one
+  // Mat2D multiply per transform() and keeps the answer available at record
+  // time, where the decision has to be made.
+  bool currentTransform(Mat2D* out) const override
+  {
+    *out = m_transformStack.back();
+    return true;
+  }
+
+  // Screen recorders outlive a frame (FFI hosts hold a raw pointer across
+  // frames), so the shadow has to drop back to identity at the frame
+  // boundary or a top level transform accumulates into the next frame.
+  void resetTransform()
+  {
+    m_transformStack.clear();
+    m_transformStack.emplace_back();
+  }
+  void drawPath(RenderPath* path, RenderPaint* paint) override
+  {
+    DeferredRenderPath::flushScratchOf(path);
+    RenderHandle pathId = DeferredRenderPath::idOfPath(path);
+    RenderHandle paintId = idOfPaint(paint);
+    if (pathId == kInvalidRenderHandle || paintId == kInvalidRenderHandle)
+    {
+      // A foreign draw is dropped at replay anyway; recording it would
+      // flood the stream every frame.
+      warnForeign("drawPath");
+      return;
+    }
+    auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
+    auto* dpt = lite_rtti_cast<DeferredRenderPaint*>(paint);
+    dp->markDrawn();
+    dpt->markDrawn();
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::drawPath),
+        DrawPathPOD{pathId, paintId, dp->version(), dpt->version()});
+    // The draw carries only the paint, so name the canvas its image
+    // samples beside it, read now so later paint changes don't count.
+    if (!isScreenTarget(m_routeTarget))
+    {
+      RenderHandle sampled = dpt->foreignImageId();
+      if (sampled != kInvalidRenderHandle)
+      {
         m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::transform),
-            TransformPOD{m.xx(), m.xy(), m.yx(), m.yy(), m.tx(), m.ty()});
+            static_cast<uint8_t>(RenderCmd::canvasSample),
+            ResIdPOD{sampled});
+      }
     }
+  }
+  void clipPath(RenderPath* path) override
+  {
+    DeferredRenderPath::flushScratchOf(path);
+    auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
+    if (dp != nullptr)
+    {
+      dp->markDrawn();
+    }
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::clipPath),
+        ClipPathPOD{
+            DeferredRenderPath::idOfPath(path),
+            dp != nullptr ? dp->version() : 0});
+  }
+  void clipStroke(RenderPath* path, const StrokeParams& params) override
+  {
+    DeferredRenderPath::flushScratchOf(path);
+    auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
+    if (dp != nullptr)
+    {
+      dp->markDrawn();
+    }
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::clipStroke),
+        ClipStrokePOD{
+            DeferredRenderPath::idOfPath(path),
+            dp != nullptr ? dp->version() : 0,
+            params.thickness,
+            math::lossless_numeric_cast<uint8_t>(params.join),
+            math::lossless_numeric_cast<uint8_t>(params.cap),
+            math::lossless_numeric_cast<uint8_t>(params.position)});
+  }
+  void modulateOpacity(float opacity) override
+  {
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::modulateOpacity),
+        OpacityPOD{opacity});
+  }
+  void modulateColor(ColorInt color, bool replace) override
+  {
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::modulateColor),
+        ModulateColorPOD{color, replace ? 1u : 0u});
+  }
 
-    // Recording is otherwise write only, but a draw that has to pick a raster
-    // size needs to know the scale it will land at -- Artboard's bitmap cache
-    // sizes its offscreen from this. Mirroring the transform ops costs one
-    // Mat2D multiply per transform() and keeps the answer available at record
-    // time, where the decision has to be made.
-    bool currentTransform(Mat2D* out) const override
+  void drawImage(
+      const RenderImage* image,
+      ImageSampler s,
+      BlendMode blend,
+      float opacity) override
+  {
+    drawImage(image, s, blend, opacity, 0);
+  }
+  void drawImage(
+      const RenderImage* image,
+      ImageSampler s,
+      BlendMode blend,
+      float opacity,
+      float additiveness) override
+  {
+    // Canvas images get a flagged id from the registry on first sight.
+    RenderHandle id = idOfImage(image);
+    if (id == kInvalidRenderHandle && m_canvases)
     {
-        *out = m_transformStack.back();
-        return true;
+      id = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
     }
+    if (id == kInvalidRenderHandle)
+    {
+      // Foreign image is dropped at replay anyway, skip recording.
+      warnForeign("drawImage");
+      return;
+    }
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::drawImage),
+        DrawImagePOD{
+            id,
+            static_cast<uint8_t>(s.wrapX),
+            static_cast<uint8_t>(s.wrapY),
+            static_cast<uint8_t>(s.filter),
+            static_cast<uint8_t>(blend),
+            opacity,
+            additiveness});
+  }
+  void applyLayerMask(
+      const RenderImage* mask,
+      ImageSampler s,
+      LayerMaskMode mode) override
+  {
+    RenderHandle id = idOfImage(mask);
+    if (id == kInvalidRenderHandle && m_canvases)
+    {
+      id = m_canvases->imageDrawId(const_cast<RenderImage*>(mask));
+    }
+    if (id == kInvalidRenderHandle)
+    {
+      // A mask we cannot name at replay would silently drop, leaving the
+      // layer unmasked rather than wrong -- the same degradation the
+      // whole feature falls back to.
+      warnForeign("applyLayerMask");
+      return;
+    }
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::applyLayerMask),
+        ApplyLayerMaskPOD{
+            id,
+            static_cast<uint8_t>(s.wrapX),
+            static_cast<uint8_t>(s.wrapY),
+            static_cast<uint8_t>(s.filter),
+            static_cast<uint8_t>(mode)});
+  }
+  void drawImageMesh(
+      const RenderImage* image,
+      ImageSampler s,
+      rcp<RenderBuffer> vertices,
+      rcp<RenderBuffer> uvCoords,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode blend,
+      float opacity) override
+  {
+    drawImageMesh(
+        image,
+        s,
+        std::move(vertices),
+        std::move(uvCoords),
+        std::move(indices),
+        vertexCount,
+        indexCount,
+        blend,
+        opacity,
+        0);
+  }
+  void drawImageMesh(
+      const RenderImage* image,
+      ImageSampler s,
+      rcp<RenderBuffer> vertices,
+      rcp<RenderBuffer> uvCoords,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode blend,
+      float opacity,
+      float additiveness) override
+  {
+    RenderHandle imgId = idOfImage(image);
+    if (imgId == kInvalidRenderHandle && m_canvases)
+    {
+      // A real image decoded outside the session (the host's decode
+      // wrap makes that legitimate) rides to replay via the registry.
+      imgId = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
+    }
+    RenderHandle vId = idOfBuffer(vertices.get());
+    RenderHandle uvId = idOfBuffer(uvCoords.get());
+    RenderHandle idxId = idOfBuffer(indices.get());
+    bool foreign = imgId == kInvalidRenderHandle ||
+                   vId == kInvalidRenderHandle ||
+                   uvId == kInvalidRenderHandle ||
+                   idxId == kInvalidRenderHandle;
+    if (foreign)
+    {
+      // Foreign mesh is dropped at replay anyway, skip recording.
+      warnForeign("drawImageMesh");
+      return;
+    }
+    auto* dv = lite_rtti_cast<DeferredRenderBuffer*>(vertices.get());
+    auto* duv = lite_rtti_cast<DeferredRenderBuffer*>(uvCoords.get());
+    auto* di = lite_rtti_cast<DeferredRenderBuffer*>(indices.get());
+    dv->markDrawn();
+    duv->markDrawn();
+    di->markDrawn();
+    if (!route())
+    {
+      return;
+    }
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::drawImageMesh),
+        DrawImageMeshPOD{
+            imgId,
+            vId,
+            uvId,
+            idxId,
+            dv->version(),
+            duv->version(),
+            di->version(),
+            vertexCount,
+            indexCount,
+            static_cast<uint8_t>(s.wrapX),
+            static_cast<uint8_t>(s.wrapY),
+            static_cast<uint8_t>(s.filter),
+            static_cast<uint8_t>(blend),
+            opacity,
+            additiveness});
+  }
 
-    // Screen recorders outlive a frame (FFI hosts hold a raw pointer across
-    // frames), so the shadow has to drop back to identity at the frame
-    // boundary or a top level transform accumulates into the next frame.
-    void resetTransform()
+  void drawImageMeshInstanced(
+      const RenderImage* image,
+      ImageSampler s,
+      rcp<RenderBuffer> vertices,
+      rcp<RenderBuffer> uvCoords,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      rcp<ImageMeshInstances> instances) override
+  {
+    if (instances == nullptr || instances->count() == 0)
     {
-        m_transformStack.clear();
-        m_transformStack.emplace_back();
+      return;
     }
-    void drawPath(RenderPath* path, RenderPaint* paint) override
+    RenderHandle imgId = idOfImage(image);
+    if (imgId == kInvalidRenderHandle && m_canvases)
     {
-        DeferredRenderPath::flushScratchOf(path);
-        RenderHandle pathId = DeferredRenderPath::idOfPath(path);
-        RenderHandle paintId = idOfPaint(paint);
-        if (pathId == kInvalidRenderHandle || paintId == kInvalidRenderHandle)
-        {
-            // A foreign draw is dropped at replay anyway; recording it would
-            // flood the stream every frame.
-            warnForeign("drawPath");
-            return;
-        }
-        auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
-        auto* dpt = lite_rtti_cast<DeferredRenderPaint*>(paint);
-        dp->markDrawn();
-        dpt->markDrawn();
-        route();
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::drawPath),
-            DrawPathPOD{pathId, paintId, dp->version(), dpt->version()});
+      imgId = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
     }
-    void clipPath(RenderPath* path) override
+    RenderHandle vId = idOfBuffer(vertices.get());
+    RenderHandle uvId = idOfBuffer(uvCoords.get());
+    RenderHandle idxId = idOfBuffer(indices.get());
+    if (imgId == kInvalidRenderHandle || vId == kInvalidRenderHandle ||
+        uvId == kInvalidRenderHandle || idxId == kInvalidRenderHandle)
     {
-        DeferredRenderPath::flushScratchOf(path);
-        auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
-        if (dp != nullptr)
-        {
-            dp->markDrawn();
-        }
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::clipPath),
-                         ClipPathPOD{DeferredRenderPath::idOfPath(path),
-                                     dp != nullptr ? dp->version() : 0});
+      warnForeign("drawImageMeshInstanced");
+      return;
     }
-    void clipStroke(RenderPath* path, const StrokeParams& params) override
+    auto* dv = lite_rtti_cast<DeferredRenderBuffer*>(vertices.get());
+    auto* duv = lite_rtti_cast<DeferredRenderBuffer*>(uvCoords.get());
+    auto* di = lite_rtti_cast<DeferredRenderBuffer*>(indices.get());
+    dv->markDrawn();
+    duv->markDrawn();
+    di->markDrawn();
+    auto* dinst = lite_rtti_cast<DeferredImageMeshInstances*>(instances.get());
+    if (dinst == nullptr)
     {
-        DeferredRenderPath::flushScratchOf(path);
-        auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
-        if (dp != nullptr)
-        {
-            dp->markDrawn();
-        }
-        route();
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::clipStroke),
-            ClipStrokePOD{
-                DeferredRenderPath::idOfPath(path),
-                dp != nullptr ? dp->version() : 0,
-                params.thickness,
-                math::lossless_numeric_cast<uint8_t>(params.join),
-                math::lossless_numeric_cast<uint8_t>(params.cap),
-                math::lossless_numeric_cast<uint8_t>(params.position)});
+      warnForeign("drawImageMeshInstanced");
+      return;
     }
-    void modulateOpacity(float opacity) override
+    if (!route())
     {
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::modulateOpacity),
-                         OpacityPOD{opacity});
+      return;
     }
-    void modulateColor(ColorInt color, bool replace) override
-    {
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::modulateColor),
-                         ModulateColorPOD{color, replace ? 1u : 0u});
-    }
-
-    void drawImage(const RenderImage* image,
-                   ImageSampler s,
-                   BlendMode blend,
-                   float opacity) override
-    {
-        drawImage(image, s, blend, opacity, 0);
-    }
-    void drawImage(const RenderImage* image,
-                   ImageSampler s,
-                   BlendMode blend,
-                   float opacity,
-                   float additiveness) override
-    {
-        // Canvas images get a flagged id from the registry on first sight.
-        RenderHandle id = idOfImage(image);
-        if (id == kInvalidRenderHandle && m_canvases)
-        {
-            id = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
-        }
-        if (id == kInvalidRenderHandle)
-        {
-            // Foreign image is dropped at replay anyway, skip recording.
-            warnForeign("drawImage");
-            return;
-        }
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::drawImage),
-                         DrawImagePOD{id,
-                                      static_cast<uint8_t>(s.wrapX),
-                                      static_cast<uint8_t>(s.wrapY),
-                                      static_cast<uint8_t>(s.filter),
-                                      static_cast<uint8_t>(blend),
-                                      opacity,
-                                      additiveness});
-    }
-    void applyLayerMask(const RenderImage* mask,
-                        ImageSampler s,
-                        LayerMaskMode mode) override
-    {
-        RenderHandle id = idOfImage(mask);
-        if (id == kInvalidRenderHandle && m_canvases)
-        {
-            id = m_canvases->imageDrawId(const_cast<RenderImage*>(mask));
-        }
-        if (id == kInvalidRenderHandle)
-        {
-            // A mask we cannot name at replay would silently drop, leaving the
-            // layer unmasked rather than wrong -- the same degradation the
-            // whole feature falls back to.
-            warnForeign("applyLayerMask");
-            return;
-        }
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::applyLayerMask),
-                         ApplyLayerMaskPOD{id,
-                                           static_cast<uint8_t>(s.wrapX),
-                                           static_cast<uint8_t>(s.wrapY),
-                                           static_cast<uint8_t>(s.filter),
-                                           static_cast<uint8_t>(mode)});
-    }
-    void drawImageMesh(const RenderImage* image,
-                       ImageSampler s,
-                       rcp<RenderBuffer> vertices,
-                       rcp<RenderBuffer> uvCoords,
-                       rcp<RenderBuffer> indices,
-                       uint32_t vertexCount,
-                       uint32_t indexCount,
-                       BlendMode blend,
-                       float opacity) override
-    {
-        drawImageMesh(image,
-                      s,
-                      std::move(vertices),
-                      std::move(uvCoords),
-                      std::move(indices),
-                      vertexCount,
-                      indexCount,
-                      blend,
-                      opacity,
-                      0);
-    }
-    void drawImageMesh(const RenderImage* image,
-                       ImageSampler s,
-                       rcp<RenderBuffer> vertices,
-                       rcp<RenderBuffer> uvCoords,
-                       rcp<RenderBuffer> indices,
-                       uint32_t vertexCount,
-                       uint32_t indexCount,
-                       BlendMode blend,
-                       float opacity,
-                       float additiveness) override
-    {
-        RenderHandle imgId = idOfImage(image);
-        if (imgId == kInvalidRenderHandle && m_canvases)
-        {
-            // A real image decoded outside the session (the host's decode
-            // wrap makes that legitimate) rides to replay via the registry.
-            imgId = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
-        }
-        RenderHandle vId = idOfBuffer(vertices.get());
-        RenderHandle uvId = idOfBuffer(uvCoords.get());
-        RenderHandle idxId = idOfBuffer(indices.get());
-        bool foreign =
-            imgId == kInvalidRenderHandle || vId == kInvalidRenderHandle ||
-            uvId == kInvalidRenderHandle || idxId == kInvalidRenderHandle;
-        if (foreign)
-        {
-            // Foreign mesh is dropped at replay anyway, skip recording.
-            warnForeign("drawImageMesh");
-            return;
-        }
-        auto* dv = lite_rtti_cast<DeferredRenderBuffer*>(vertices.get());
-        auto* duv = lite_rtti_cast<DeferredRenderBuffer*>(uvCoords.get());
-        auto* di = lite_rtti_cast<DeferredRenderBuffer*>(indices.get());
-        dv->markDrawn();
-        duv->markDrawn();
-        di->markDrawn();
-        route();
-        m_buffer->append(static_cast<uint8_t>(RenderCmd::drawImageMesh),
-                         DrawImageMeshPOD{imgId,
-                                          vId,
-                                          uvId,
-                                          idxId,
-                                          dv->version(),
-                                          duv->version(),
-                                          di->version(),
-                                          vertexCount,
-                                          indexCount,
-                                          static_cast<uint8_t>(s.wrapX),
-                                          static_cast<uint8_t>(s.wrapY),
-                                          static_cast<uint8_t>(s.filter),
-                                          static_cast<uint8_t>(blend),
-                                          opacity,
-                                          additiveness});
-    }
-
-    void drawImageMeshInstanced(const RenderImage* image,
-                                ImageSampler s,
-                                rcp<RenderBuffer> vertices,
-                                rcp<RenderBuffer> uvCoords,
-                                rcp<RenderBuffer> indices,
-                                uint32_t vertexCount,
-                                uint32_t indexCount,
-                                rcp<ImageMeshInstances> instances) override
-    {
-        if (instances == nullptr || instances->count() == 0)
-        {
-            return;
-        }
-        RenderHandle imgId = idOfImage(image);
-        if (imgId == kInvalidRenderHandle && m_canvases)
-        {
-            imgId = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
-        }
-        RenderHandle vId = idOfBuffer(vertices.get());
-        RenderHandle uvId = idOfBuffer(uvCoords.get());
-        RenderHandle idxId = idOfBuffer(indices.get());
-        if (imgId == kInvalidRenderHandle || vId == kInvalidRenderHandle ||
-            uvId == kInvalidRenderHandle || idxId == kInvalidRenderHandle)
-        {
-            warnForeign("drawImageMeshInstanced");
-            return;
-        }
-        auto* dv = lite_rtti_cast<DeferredRenderBuffer*>(vertices.get());
-        auto* duv = lite_rtti_cast<DeferredRenderBuffer*>(uvCoords.get());
-        auto* di = lite_rtti_cast<DeferredRenderBuffer*>(indices.get());
-        dv->markDrawn();
-        duv->markDrawn();
-        di->markDrawn();
-        auto* dinst =
-            lite_rtti_cast<DeferredImageMeshInstances*>(instances.get());
-        if (dinst == nullptr)
-        {
-            warnForeign("drawImageMeshInstanced");
-            return;
-        }
-        route();
-        dinst->markDrawn();
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::drawImageMeshInstanced),
-            DrawImageMeshInstancedPOD{imgId,
-                                      vId,
-                                      uvId,
-                                      idxId,
-                                      dv->version(),
-                                      duv->version(),
-                                      di->version(),
-                                      vertexCount,
-                                      indexCount,
-                                      dinst->id(),
-                                      dinst->version(),
-                                      static_cast<uint8_t>(s.wrapX),
-                                      static_cast<uint8_t>(s.wrapY),
-                                      static_cast<uint8_t>(s.filter)});
-    }
+    dinst->markDrawn();
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::drawImageMeshInstanced),
+        DrawImageMeshInstancedPOD{
+            imgId,
+            vId,
+            uvId,
+            idxId,
+            dv->version(),
+            duv->version(),
+            di->version(),
+            vertexCount,
+            indexCount,
+            dinst->id(),
+            dinst->version(),
+            static_cast<uint8_t>(s.wrapX),
+            static_cast<uint8_t>(s.wrapY),
+            static_cast<uint8_t>(s.filter)});
+  }
 
 private:
-    // A foreign resource means the caller mixed factories; that is always a
-    // bug worth surfacing.
-    static void warnForeign(const char* what)
+  // A foreign resource means the caller mixed factories; that is always a
+  // bug worth surfacing.
+  static void warnForeign(const char* what)
+  {
+    static int warned = 0;
+    if (warned < 16)
     {
-        static int warned = 0;
-        if (warned < 16)
-        {
-            warned = warned + 1;
-            fprintf(stderr,
-                    "rive deferred: %s with a foreign resource (made by a "
-                    "different factory), draw will be dropped\n",
-                    what);
-        }
+      warned = warned + 1;
+      fprintf(
+          stderr,
+          "rive deferred: %s with a foreign resource (made by a "
+          "different factory), draw will be dropped\n",
+          what);
     }
+  }
 
-    static RenderHandle idOfPaint(const RenderPaint* p)
+  static RenderHandle idOfPaint(const RenderPaint* p)
+  {
+    auto* d = lite_rtti_cast<DeferredRenderPaint*>(const_cast<RenderPaint*>(p));
+    return d ? d->id() : kInvalidRenderHandle;
+  }
+  static RenderHandle idOfImage(const RenderImage* i)
+  {
+    auto* d = lite_rtti_cast<DeferredRenderImage*>(const_cast<RenderImage*>(i));
+    return d ? d->id() : kInvalidRenderHandle;
+  }
+  static RenderHandle idOfBuffer(const RenderBuffer* b)
+  {
+    auto* d = lite_rtti_cast<DeferredRenderBuffer*>(
+        const_cast<RenderBuffer*>(b));
+    return d ? d->id() : kInvalidRenderHandle;
+  }
+  // Attribute the coming op to this recorder's target; standalone recorders
+  // have no host and skip it.
+  bool route()
+  {
+    if (m_contentEnded)
     {
-        auto* d =
-            lite_rtti_cast<DeferredRenderPaint*>(const_cast<RenderPaint*>(p));
-        return d ? d->id() : kInvalidRenderHandle;
+      return false;
     }
-    static RenderHandle idOfImage(const RenderImage* i)
+    if (m_routeHost != nullptr)
     {
-        auto* d =
-            lite_rtti_cast<DeferredRenderImage*>(const_cast<RenderImage*>(i));
-        return d ? d->id() : kInvalidRenderHandle;
+      m_routeHost->routeTo(m_routeTarget);
     }
-    static RenderHandle idOfBuffer(const RenderBuffer* b)
-    {
-        auto* d =
-            lite_rtti_cast<DeferredRenderBuffer*>(const_cast<RenderBuffer*>(b));
-        return d ? d->id() : kInvalidRenderHandle;
-    }
-    // Attribute the coming op to this recorder's target; standalone recorders
-    // have no host and skip it.
-    void route()
-    {
-        if (m_routeHost != nullptr)
-        {
-            m_routeHost->routeTo(m_routeTarget);
-        }
-    }
+    return true;
+  }
 
-    RenderCommandBuffer* m_buffer;
-    ForeignImageRegistry* m_canvases;
-    DeferredRouteHost* m_routeHost;
-    uint64_t m_routeTarget;
-    // Shadow of the CTM the replaying renderer will build. Bottom entry is the
-    // identity the replay starts from, so this is never empty.
-    std::vector<Mat2D> m_transformStack{Mat2D()};
+  RenderCommandBuffer* m_buffer;
+  ForeignImageRegistry* m_canvases;
+  DeferredRouteHost* m_routeHost;
+  uint64_t m_routeTarget;
+  bool m_contentEnded = false;
+  // Shadow of the CTM the replaying renderer will build. Bottom entry is the
+  // identity the replay starts from, so this is never empty.
+  std::vector<Mat2D> m_transformStack{Mat2D()};
 };
 
 inline std::unique_ptr<Renderer> DeferredFactory::makeRenderer(
     ForeignImageRegistry* canvases)
 {
-    return std::make_unique<DeferredRenderer>(&m_buffer, canvases);
+  return std::make_unique<DeferredRenderer>(&m_buffer, canvases);
 }
 
 } // namespace rive::cmd

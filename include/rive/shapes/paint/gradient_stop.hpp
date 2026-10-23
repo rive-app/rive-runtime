@@ -6,15 +6,15 @@ namespace rive
 class GradientStop : public GradientStopBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
 #endif
 
 protected:
-    void colorValueChanged() override;
-    void positionChanged() override;
+  void colorValueChanged() override;
+  void positionChanged() override;
 };
 } // namespace rive
 

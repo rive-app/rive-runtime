@@ -7,9 +7,9 @@ namespace rive
 class PointsCommonPath : public PointsCommonPathBase
 {
 public:
-    bool isPathClosed() const override { return isClosed(); }
+  bool isPathClosed() const override { return isClosed(); }
 
-    bool isClockwise() const;
+  bool isClockwise() const;
 };
 } // namespace rive
 

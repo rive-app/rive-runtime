@@ -15,8 +15,8 @@ local wamr = dependency.github('bytecodealliance/wasm-micro-runtime', 'WAMR-2.4.
 local simde = dependency.github('simd-everywhere/simde', 'v0.8.2')
 
 -- Struct layouts in wamr's internal headers follow these; any rive TU that
--- includes them (the tier transplant) must compile with the identical set
--- or instance layouts silently diverge.
+-- includes them must compile with the identical set or instance layouts
+-- silently diverge.
 local wamrConfigDefines = {
     'WASM_ENABLE_INTERP=1',
     'WASM_ENABLE_FAST_INTERP=1',
@@ -60,11 +60,24 @@ if isNx then
     -- executable memory.
     table.insert(wamrConfigDefines, 'WASM_ENABLE_PRELINKED_AOT=1')
 end
+-- iOS devices map no executable memory either, so rive --ios --aot links
+-- modules into the player the same way.
+if
+    _OPTIONS['os'] == 'ios'
+    and _OPTIONS['variant'] ~= 'emulator'
+    and _OPTIONS['variant'] ~= 'xrsimulator'
+    and _OPTIONS['variant'] ~= 'appletvsimulator'
+then
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_PRELINKED_AOT=1')
+end
 if os.target() == 'windows' and not isNx then
     -- We link wamr statically; under clang's msvc mode wasm_export.h and
     -- wasm_c_api.h otherwise declare every API dllimport.
     table.insert(wamrConfigDefines, 'WASM_RUNTIME_API_EXTERN=')
     table.insert(wamrConfigDefines, 'WASM_API_EXTERN=')
+    -- WAMR keys threaded dispatch on __GNUC__, which clang leaves undefined
+    -- for msvc targets even though it supports computed goto.
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_LABELS_AS_VALUES=1')
 end
 
 -- os.target() stays the host under --for_android; the option is the
@@ -90,6 +103,9 @@ do
     -- tail-merges into a single prediction-killing branch.
     optimize('Speed')
     defines({ 'NDEBUG' })
+    -- Compiled code may call the host with only this guard of stack left,
+    -- and WAMR's 1 to 3 KB default cannot hold a printf.
+    defines({ 'WASM_STACK_GUARD_SIZE=65536' })
     -- Replicated per-handler dispatch is what makes the fast interpreter
     -- fast; default heuristics tail-merge the computed gotos into a single
     -- indirect branch (+27% on box2d). Guarded by bench/check_dispatch_sites.
@@ -251,6 +267,17 @@ do
     if os.target() == 'windows' and not isNx then
         -- Linux perf-map support; leans on pid_t/getpid.
         removefiles({ wamr .. '/core/iwasm/aot/aot_perf_map.c' })
+        -- msbuild hands the GAS shim to clang-cl as C, so assemble it with
+        -- clang directly.
+        filter({ 'action:vs*', 'files:**.s' })
+        do
+            buildmessage('assembling %{file.name}')
+            buildcommands({
+                'clang --target=x86_64-pc-windows-msvc -c "%{file.abspath}" -o "%{cfg.objdir}/%{file.basename}.obj"',
+            })
+            buildoutputs({ '%{cfg.objdir}/%{file.basename}.obj' })
+        end
+        filter({})
     end
     if isNx then
         files({ platformPath .. '/*.cpp' })

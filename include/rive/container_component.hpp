@@ -11,45 +11,45 @@ namespace rive
 class ContainerComponent : public ContainerComponentBase
 {
 public:
-    template <typename T> TypedChildren<T> children()
-    {
-        return TypedChildren<T>(
-            Span<Core*>((Core**)m_children.data(), m_children.size()));
-    }
+  template <typename T> TypedChildren<T> children()
+  {
+    return TypedChildren<T>(
+        Span<Core*>((Core**)m_children.data(), m_children.size()));
+  }
 
-    template <typename T> T* firstChild()
+  template <typename T> T* firstChild()
+  {
+    for (auto* child : m_children)
     {
-        for (auto* child : m_children)
-        {
-            if (child->is<T>())
-            {
-                return child->as<T>();
-            }
-        }
-        return nullptr;
+      if (child->is<T>())
+      {
+        return child->as<T>();
+      }
     }
+    return nullptr;
+  }
 
-    const std::vector<Component*>& children() const { return m_children; }
-    virtual void addChild(Component* component);
+  const std::vector<Component*>& children() const { return m_children; }
+  virtual void addChild(Component* component);
 #ifdef WITH_RIVE_EDITOR
-    /// Remove `component` from this container's children list, if
-    /// present. Called by `EditorFile::removeObject` during cull
-    /// teardown so the parent doesn't dangle a pointer to freed
-    /// memory. Body in editor_native.
-    void removeChildForEditor(Component* component);
+  /// Remove `component` from this container's children list, if
+  /// present. Called by `EditorFile::removeObject` during cull
+  /// teardown so the parent doesn't dangle a pointer to freed
+  /// memory. Body in editor_native.
+  void removeChildForEditor(Component* component);
 #endif
-    bool collapse(bool value) override;
+  bool collapse(bool value) override;
 
-    // Returns whether predicate returns true for the current Component.
-    bool forAll(std::function<bool(Component*)> predicate);
+  // Returns whether predicate returns true for the current Component.
+  bool forAll(std::function<bool(Component*)> predicate);
 
-    // Recursively descend onto all the children in the hierarchy tree.
-    // If predicate returns false, it won't recurse down a particular
-    // branch.
-    void forEachChild(std::function<bool(Component*)> predicate);
+  // Recursively descend onto all the children in the hierarchy tree.
+  // If predicate returns false, it won't recurse down a particular
+  // branch.
+  void forEachChild(std::function<bool(Component*)> predicate);
 
 private:
-    std::vector<Component*> m_children;
+  std::vector<Component*> m_children;
 };
 } // namespace rive
 

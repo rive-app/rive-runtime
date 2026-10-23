@@ -16,123 +16,146 @@ namespace rive_vkb
 {
 std::unique_ptr<VulkanLibrary> VulkanLibrary::Create()
 {
-    // Private constructor, can't use make_unique
-    bool success = true;
-    auto outLibrary =
-        std::unique_ptr<VulkanLibrary>{new VulkanLibrary(&success)};
-    CONFIRM_OR_RETURN_VALUE(success, nullptr);
-    return outLibrary;
+  // Private constructor, can't use make_unique
+  bool success = true;
+  auto outLibrary = std::unique_ptr<VulkanLibrary>{new VulkanLibrary(&success)};
+  CONFIRM_OR_RETURN_VALUE(success, nullptr);
+  return outLibrary;
 }
+
+#ifdef TESTING
+PFN_vkGetInstanceProcAddr g_testingVkGetInstanceProcAddr = nullptr;
+#endif
 
 VulkanLibrary::VulkanLibrary(bool* successOut)
 {
-    *successOut = false;
+  *successOut = false;
 
+#ifdef TESTING
+  m_vkGetInstanceProcAddr = g_testingVkGetInstanceProcAddr;
+#endif
+  if (m_vkGetInstanceProcAddr == nullptr)
+  {
+    CONFIRM_OR_RETURN(openSystemLibrary());
+  }
+
+  // This function is allowed to be null
+  LOAD_MEMBER_INSTANCE_FUNC(this, vkEnumerateInstanceVersion, *this);
+
+  LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkCreateInstance, *this);
+  LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(
+      this,
+      vkEnumerateInstanceLayerProperties,
+      *this);
+  LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(
+      this,
+      vkEnumerateInstanceExtensionProperties,
+      *this);
+
+  *successOut = true;
+}
+
+bool VulkanLibrary::openSystemLibrary()
+{
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__linux__)
-    static_assert(false, "Unsupported platform");
+  static_assert(false, "Unsupported platform");
 #endif
 
-    constexpr const char* libFilenameCandidates[] = {
+  constexpr const char* libFilenameCandidates[] = {
 #if defined(_WIN32)
-        "vulkan-1.dll",
+      "vulkan-1.dll",
 #elif defined(__APPLE__)
-        "libvulkan.dylib",
-        "libvulkan.1.dylib",
-        "libMoltenVK.dylib",
-        // The Vulkan SDK on Mac gets installed to /usr/local/lib, which is no
-        // longer on the library search path after Sonoma.
-        "/usr/local/lib/libvulkan.1.dylib",
+      "libvulkan.dylib",
+      "libvulkan.1.dylib",
+      "libMoltenVK.dylib",
+      // The Vulkan SDK on Mac gets installed to /usr/local/lib, which is no
+      // longer on the library search path after Sonoma.
+      "/usr/local/lib/libvulkan.1.dylib",
 #else
-        "libvulkan.so.1",
-        "libvulkan.so",
+      "libvulkan.so.1",
+      "libvulkan.so",
 #endif
-    };
+  };
 
-    for (auto* filenameCandidate : libFilenameCandidates)
+  for (auto* filenameCandidate : libFilenameCandidates)
+  {
+#ifdef _WIN32
+    m_library = LoadLibraryA(filenameCandidate);
+#else
+    m_library = dlopen(filenameCandidate, RTLD_NOW | RTLD_LOCAL);
+#endif
+
+    if (m_library != nullptr)
     {
-#ifdef _WIN32
-        m_library = LoadLibraryA(filenameCandidate);
-#else
-        m_library = dlopen(filenameCandidate, RTLD_NOW | RTLD_LOCAL);
-#endif
-
-        if (m_library != nullptr)
-        {
-            break;
-        }
+      break;
     }
+  }
 
-    CONFIRM_OR_RETURN_MSG(m_library != nullptr,
-                          "Failed to find Vulkan library");
+  CONFIRM_OR_RETURN_VALUE_MSG(
+      m_library != nullptr,
+      false,
+      "Failed to find Vulkan library");
 
 #ifdef _WIN32
-    m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-        GetProcAddress(m_library, "vkGetInstanceProcAddr"));
+  m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+      GetProcAddress(m_library, "vkGetInstanceProcAddr"));
 #else
-    m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-        dlsym(m_library, "vkGetInstanceProcAddr"));
+  m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+      dlsym(m_library, "vkGetInstanceProcAddr"));
 #endif
-    CONFIRM_OR_RETURN_MSG(
-        m_vkGetInstanceProcAddr != nullptr,
-        "Failed to load Vulkan function 'vkGetInstanceProcAddr'");
+  CONFIRM_OR_RETURN_VALUE_MSG(
+      m_vkGetInstanceProcAddr != nullptr,
+      false,
+      "Failed to load Vulkan function 'vkGetInstanceProcAddr'");
 
-    // This function is allowed to be null
-    LOAD_MEMBER_INSTANCE_FUNC(this, vkEnumerateInstanceVersion, *this);
-
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkCreateInstance, *this);
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
-                                        vkEnumerateInstanceLayerProperties,
-                                        *this);
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
-                                        vkEnumerateInstanceExtensionProperties,
-                                        *this);
-
-    *successOut = true;
+  return true;
 }
 
 VulkanLibrary::~VulkanLibrary()
 {
 #ifdef _WIN32
-    if (m_library != nullptr)
-    {
-        FreeLibrary(m_library);
-    }
+  if (m_library != nullptr)
+  {
+    FreeLibrary(m_library);
+  }
 #else
-    if (m_library != nullptr)
-    {
-        dlclose(m_library);
-    }
+  if (m_library != nullptr)
+  {
+    dlclose(m_library);
+  }
 #endif
 }
 
-PFN_vkVoidFunction VulkanLibrary::getInstanceProcAddr(VkInstance instance,
-                                                      const char* name) const
+PFN_vkVoidFunction VulkanLibrary::getInstanceProcAddr(
+    VkInstance instance,
+    const char* name) const
 {
-    return m_vkGetInstanceProcAddr(instance, name);
+  return m_vkGetInstanceProcAddr(instance, name);
 }
 
 bool VulkanLibrary::canEnumerateInstanceVersion() const
 {
-    return m_vkEnumerateInstanceVersion != nullptr;
+  return m_vkEnumerateInstanceVersion != nullptr;
 }
 
 VkResult VulkanLibrary::enumerateInstanceVersion(uint32_t* outVersion) const
 {
-    return m_vkEnumerateInstanceVersion(outVersion);
+  return m_vkEnumerateInstanceVersion(outVersion);
 }
 
-VkResult VulkanLibrary::createInstance(const VkInstanceCreateInfo* pCreateInfo,
-                                       const VkAllocationCallbacks* pAllocator,
-                                       VkInstance* pInstance) const
+VkResult VulkanLibrary::createInstance(
+    const VkInstanceCreateInfo* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    VkInstance* pInstance) const
 {
-    return m_vkCreateInstance(pCreateInfo, pAllocator, pInstance);
+  return m_vkCreateInstance(pCreateInfo, pAllocator, pInstance);
 }
 
 VkResult VulkanLibrary::enumerateInstanceLayerProperties(
     uint32_t* pPropertyCount,
     VkLayerProperties* pProperties) const
 {
-    return m_vkEnumerateInstanceLayerProperties(pPropertyCount, pProperties);
+  return m_vkEnumerateInstanceLayerProperties(pPropertyCount, pProperties);
 }
 
 VkResult VulkanLibrary::enumerateInstanceExtensionProperties(
@@ -140,8 +163,9 @@ VkResult VulkanLibrary::enumerateInstanceExtensionProperties(
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) const
 {
-    return m_vkEnumerateInstanceExtensionProperties(pLayerName,
-                                                    pPropertyCount,
-                                                    pProperties);
+  return m_vkEnumerateInstanceExtensionProperties(
+      pLayerName,
+      pPropertyCount,
+      pProperties);
 }
 } // namespace rive_vkb

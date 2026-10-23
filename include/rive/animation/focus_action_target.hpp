@@ -6,8 +6,9 @@ namespace rive
 class FocusActionTarget : public FocusActionTargetBase
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
 };
 } // namespace rive
 

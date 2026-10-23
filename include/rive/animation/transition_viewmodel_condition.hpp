@@ -39,109 +39,97 @@ class TransitionPropertyComponentComparator;
 class ConditionOperation
 {
 public:
-    virtual ~ConditionOperation() {}
-    virtual bool compareNumbers(float a, float b) { return false; };
-    virtual bool compareBooleans(bool a, bool b) { return false; }
-    virtual bool compareStrings(const std::string& a, const std::string& b)
-    {
-        return false;
-    }
-    virtual bool compareInts(int a, int b) { return false; }
-    virtual bool compareUints32(uint32_t a, uint32_t b) { return false; }
+  virtual ~ConditionOperation() {}
+  virtual bool compareNumbers(float a, float b) { return false; };
+  virtual bool compareBooleans(bool a, bool b) { return false; }
+  virtual bool compareStrings(const std::string& a, const std::string& b)
+  {
+    return false;
+  }
+  virtual bool compareInts(int a, int b) { return false; }
+  virtual bool compareUints32(uint32_t a, uint32_t b) { return false; }
 
 protected:
-    template <typename T> bool equal(T left, T right) { return left == right; }
-    template <typename T> bool notEqual(T left, T right)
-    {
-        return left != right;
-    }
-    template <typename T> bool lessThanOrEqual(T left, T right)
-    {
-        return left <= right;
-    }
-    template <typename T> bool lessThan(T left, T right)
-    {
-        return left < right;
-    }
-    template <typename T> bool greaterThanOrEqual(T left, T right)
-    {
-        return left >= right;
-    }
-    template <typename T> bool greaterThan(T left, T right)
-    {
-        return left > right;
-    }
+  template <typename T> bool equal(T left, T right) { return left == right; }
+  template <typename T> bool notEqual(T left, T right) { return left != right; }
+  template <typename T> bool lessThanOrEqual(T left, T right)
+  {
+    return left <= right;
+  }
+  template <typename T> bool lessThan(T left, T right) { return left < right; }
+  template <typename T> bool greaterThanOrEqual(T left, T right)
+  {
+    return left >= right;
+  }
+  template <typename T> bool greaterThan(T left, T right)
+  {
+    return left > right;
+  }
 };
 class ConditionOperationEqual : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return equal<float>(a, b);
-    }
-    bool compareBooleans(bool a, bool b) override { return equal<bool>(a, b); }
-    bool compareStrings(const std::string& a, const std::string& b) override
-    {
-        return equal<std::string>(a, b);
-    }
-    bool compareInts(int a, int b) override { return equal<int>(a, b); }
-    bool compareUints32(uint32_t a, uint32_t b) override
-    {
-        return equal<uint32_t>(a, b);
-    }
+  bool compareNumbers(float a, float b) override { return equal<float>(a, b); }
+  bool compareBooleans(bool a, bool b) override { return equal<bool>(a, b); }
+  bool compareStrings(const std::string& a, const std::string& b) override
+  {
+    return equal<std::string>(a, b);
+  }
+  bool compareInts(int a, int b) override { return equal<int>(a, b); }
+  bool compareUints32(uint32_t a, uint32_t b) override
+  {
+    return equal<uint32_t>(a, b);
+  }
 };
 class ConditionOperationNotEqual : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return notEqual<float>(a, b);
-    }
-    bool compareBooleans(bool a, bool b) override
-    {
-        return notEqual<bool>(a, b);
-    }
-    bool compareStrings(const std::string& a, const std::string& b) override
-    {
-        return notEqual<std::string>(a, b);
-    }
-    bool compareInts(int a, int b) override { return notEqual<int>(a, b); }
-    bool compareUints32(uint32_t a, uint32_t b) override
-    {
-        return notEqual<uint32_t>(a, b);
-    }
+  bool compareNumbers(float a, float b) override
+  {
+    return notEqual<float>(a, b);
+  }
+  bool compareBooleans(bool a, bool b) override { return notEqual<bool>(a, b); }
+  bool compareStrings(const std::string& a, const std::string& b) override
+  {
+    return notEqual<std::string>(a, b);
+  }
+  bool compareInts(int a, int b) override { return notEqual<int>(a, b); }
+  bool compareUints32(uint32_t a, uint32_t b) override
+  {
+    return notEqual<uint32_t>(a, b);
+  }
 };
 class ConditionOperationLessThanOrEqual : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return lessThanOrEqual<float>(a, b);
-    }
+  bool compareNumbers(float a, float b) override
+  {
+    return lessThanOrEqual<float>(a, b);
+  }
 };
 class ConditionOperationLessThan : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return lessThan<float>(a, b);
-    }
+  bool compareNumbers(float a, float b) override
+  {
+    return lessThan<float>(a, b);
+  }
 };
 class ConditionOperationGreaterThanOrEqual : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return greaterThanOrEqual<float>(a, b);
-    }
+  bool compareNumbers(float a, float b) override
+  {
+    return greaterThanOrEqual<float>(a, b);
+  }
 };
 class ConditionOperationGreaterThan : public ConditionOperation
 {
 public:
-    bool compareNumbers(float a, float b) override
-    {
-        return greaterThan<float>(a, b);
-    }
+  bool compareNumbers(float a, float b) override
+  {
+    return greaterThan<float>(a, b);
+  }
 };
 class ConditionComparand
 {};
@@ -149,607 +137,643 @@ class ConditionComparand
 class ConditionComparandNumber : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandNumber() {}
-    virtual float value(const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandNumber() {}
+  virtual float value(const StateMachineInstance* stateMachineInstance) = 0;
 };
 class ConditionComparandNumberBindable : public ConditionComparandNumber
 {
 public:
-    ConditionComparandNumberBindable(BindablePropertyNumber* property) :
-        m_bindableProperty(property)
-    {}
-    float value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandNumberBindable(BindablePropertyNumber* property)
+      : m_bindableProperty(property)
+  {}
+  float value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyNumber>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyNumber>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyNumber* m_bindableProperty;
+  BindablePropertyNumber* m_bindableProperty;
 };
 class ConditionComparandArtboardProperty : public ConditionComparandNumber
 {
 public:
-    ConditionComparandArtboardProperty(
-        TransitionPropertyArtboardComparator* property) :
-        m_transitionPropertyArtboardComparator(property)
-    {}
-    float value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandArtboardProperty(
+      TransitionPropertyArtboardComparator* property)
+      : m_transitionPropertyArtboardComparator(property)
+  {}
+  float value(const StateMachineInstance* stateMachineInstance) override
+  {
+
+    auto artboard = stateMachineInstance->artboard();
+    if (artboard != nullptr)
     {
+      auto property = static_cast<ArtboardProperty>(
+          m_transitionPropertyArtboardComparator->propertyType());
+      switch (property)
+      {
+        case ArtboardProperty::width:
+          return artboard->layoutWidth();
+          break;
+        case ArtboardProperty::height:
+          return artboard->layoutHeight();
+          break;
+        case ArtboardProperty::ratio:
+          return artboard->layoutWidth() / artboard->layoutHeight();
+          break;
 
-        auto artboard = stateMachineInstance->artboard();
-        if (artboard != nullptr)
-        {
-            auto property = static_cast<ArtboardProperty>(
-                m_transitionPropertyArtboardComparator->propertyType());
-            switch (property)
-            {
-                case ArtboardProperty::width:
-                    return artboard->layoutWidth();
-                    break;
-                case ArtboardProperty::height:
-                    return artboard->layoutHeight();
-                    break;
-                case ArtboardProperty::ratio:
-                    return artboard->layoutWidth() / artboard->layoutHeight();
-                    break;
-
-                default:
-                    break;
-            }
-        }
-        return 0;
+        default:
+          break;
+      }
     }
+    return 0;
+  }
 
 private:
-    TransitionPropertyArtboardComparator*
-        m_transitionPropertyArtboardComparator;
+  TransitionPropertyArtboardComparator* m_transitionPropertyArtboardComparator;
 };
 
 class ConditionComparandNumberBindableInteger : public ConditionComparandNumber
 {
 public:
-    ConditionComparandNumberBindableInteger(BindablePropertyInteger* property) :
-        m_bindableProperty(property)
-    {}
-    float value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandNumberBindableInteger(BindablePropertyInteger* property)
+      : m_bindableProperty(property)
+  {}
+  float value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
 
-            return (float)bindableInstance->as<BindablePropertyInteger>()
-                ->propertyValue();
-        }
-        return 0;
+      return (float)bindableInstance->as<BindablePropertyInteger>()
+          ->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyInteger* m_bindableProperty;
+  BindablePropertyInteger* m_bindableProperty;
 };
 class ConditionComparandNumberValue : public ConditionComparandNumber
 {
 public:
-    ConditionComparandNumberValue(TransitionValueNumberComparator* value) :
-        m_value(value)
-    {}
-    float value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandNumberValue(TransitionValueNumberComparator* value)
+      : m_value(value)
+  {}
+  float value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueNumberComparator* m_value;
+  TransitionValueNumberComparator* m_value;
 };
 
 class ConditionComparandBoolean : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandBoolean() {}
-    virtual bool value(const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandBoolean() {}
+  virtual bool value(const StateMachineInstance* stateMachineInstance) = 0;
 };
 class ConditionComparandBooleanBindable : public ConditionComparandBoolean
 {
 public:
-    ConditionComparandBooleanBindable(BindablePropertyBoolean* property) :
-        m_bindableProperty(property)
-    {}
-    bool value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandBooleanBindable(BindablePropertyBoolean* property)
+      : m_bindableProperty(property)
+  {}
+  bool value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyBoolean>()
-                ->propertyValue();
-        }
-        return false;
+      return bindableInstance->as<BindablePropertyBoolean>()->propertyValue();
     }
+    return false;
+  }
 
 private:
-    BindablePropertyBoolean* m_bindableProperty;
+  BindablePropertyBoolean* m_bindableProperty;
 };
 class ConditionComparandBooleanValue : public ConditionComparandBoolean
 {
 public:
-    ConditionComparandBooleanValue(TransitionValueBooleanComparator* value) :
-        m_value(value)
-    {}
-    bool value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandBooleanValue(TransitionValueBooleanComparator* value)
+      : m_value(value)
+  {}
+  bool value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueBooleanComparator* m_value;
+  TransitionValueBooleanComparator* m_value;
 };
 
 class ConditionComparandString : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandString() {}
-    virtual std::string value(
-        const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandString() {}
+  virtual std::string value(
+      const StateMachineInstance* stateMachineInstance) = 0;
 };
 class ConditionComparandStringBindable : public ConditionComparandString
 {
 public:
-    ConditionComparandStringBindable(BindablePropertyString* property) :
-        m_bindableProperty(property)
-    {}
-    std::string value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandStringBindable(BindablePropertyString* property)
+      : m_bindableProperty(property)
+  {}
+  std::string value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyString>()
-                ->propertyValue();
-        }
-        return std::string{};
+      return bindableInstance->as<BindablePropertyString>()->propertyValue();
     }
+    return std::string{};
+  }
 
 private:
-    BindablePropertyString* m_bindableProperty;
+  BindablePropertyString* m_bindableProperty;
 };
 class ConditionComparandStringValue : public ConditionComparandString
 {
 public:
-    ConditionComparandStringValue(TransitionValueStringComparator* value) :
-        m_value(value)
-    {}
-    std::string value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandStringValue(TransitionValueStringComparator* value)
+      : m_value(value)
+  {}
+  std::string value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueStringComparator* m_value;
+  TransitionValueStringComparator* m_value;
 };
 
 class ConditionComparandColor : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandColor() {}
-    virtual int value(const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandColor() {}
+  virtual int value(const StateMachineInstance* stateMachineInstance) = 0;
 };
 class ConditionComparandColorBindable : public ConditionComparandColor
 {
 public:
-    ConditionComparandColorBindable(BindablePropertyColor* property) :
-        m_bindableProperty(property)
-    {}
-    int value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandColorBindable(BindablePropertyColor* property)
+      : m_bindableProperty(property)
+  {}
+  int value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyColor>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyColor>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyColor* m_bindableProperty;
+  BindablePropertyColor* m_bindableProperty;
 };
 class ConditionComparandColorValue : public ConditionComparandColor
 {
 public:
-    ConditionComparandColorValue(TransitionValueColorComparator* value) :
-        m_value(value)
-    {}
-    int value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandColorValue(TransitionValueColorComparator* value)
+      : m_value(value)
+  {}
+  int value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueColorComparator* m_value;
+  TransitionValueColorComparator* m_value;
 };
 
 class ConditionComparandUint32 : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandUint32() {}
-    virtual uint32_t value(
-        const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandUint32() {}
+  virtual uint32_t value(const StateMachineInstance* stateMachineInstance) = 0;
+  /// The value as `layer`'s transitions read it. Only a trigger's depends on
+  /// the layer, since its fire can be pending for one layer and not another.
+  virtual uint32_t valueForLayer(
+      const StateMachineInstance* stateMachineInstance,
+      const StateMachineLayerInstance* layer)
+  {
+    return value(stateMachineInstance);
+  }
 };
 class ConditionComparandEnumBindable : public ConditionComparandUint32
 {
 public:
-    ConditionComparandEnumBindable(BindablePropertyEnum* property) :
-        m_bindableProperty(property)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandEnumBindable(BindablePropertyEnum* property)
+      : m_bindableProperty(property)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyEnum>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyEnum>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyEnum* m_bindableProperty;
+  BindablePropertyEnum* m_bindableProperty;
 };
 class ConditionComparandEnumValue : public ConditionComparandUint32
 {
 public:
-    ConditionComparandEnumValue(TransitionValueEnumComparator* value) :
-        m_value(value)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandEnumValue(TransitionValueEnumComparator* value)
+      : m_value(value)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueEnumComparator* m_value;
+  TransitionValueEnumComparator* m_value;
 };
+// A trigger compared as a number reads as 1 while its fire is pending for the
+// layer (StateMachineInstance::changePending) and 0 otherwise, the way its
+// count did when triggers went back to 0 every frame. The count itself only
+// ever grows.
 class ConditionComparandTriggerBindable : public ConditionComparandUint32
 {
 public:
-    ConditionComparandTriggerBindable(BindablePropertyTrigger* property) :
-        m_bindableProperty(property)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyTrigger>()
-                ->propertyValue();
-        }
-        return 0;
-    }
+  ConditionComparandTriggerBindable(BindablePropertyTrigger* property)
+      : m_bindableProperty(property)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return valueForLayer(stateMachineInstance, nullptr);
+  }
+  uint32_t valueForLayer(
+      const StateMachineInstance* stateMachineInstance,
+      const StateMachineLayerInstance* layer) override;
 
 private:
-    BindablePropertyTrigger* m_bindableProperty;
+  BindablePropertyTrigger* m_bindableProperty;
 };
 class ConditionComparandTriggerValue : public ConditionComparandUint32
 {
 public:
-    ConditionComparandTriggerValue(TransitionValueTriggerComparator* value) :
-        m_value(value)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandTriggerValue(TransitionValueTriggerComparator* value)
+      : m_value(value)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueTriggerComparator* m_value;
+  TransitionValueTriggerComparator* m_value;
 };
 class ConditionComparandIntegerBindable : public ConditionComparandUint32
 {
 public:
-    ConditionComparandIntegerBindable(BindablePropertyInteger* property) :
-        m_bindableProperty(property)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandIntegerBindable(BindablePropertyInteger* property)
+      : m_bindableProperty(property)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyInteger>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyInteger>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyInteger* m_bindableProperty;
+  BindablePropertyInteger* m_bindableProperty;
 };
 class ConditionComparandAssetBindable : public ConditionComparandUint32
 {
 public:
-    ConditionComparandAssetBindable(BindablePropertyAsset* property) :
-        m_bindableProperty(property)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandAssetBindable(BindablePropertyAsset* property)
+      : m_bindableProperty(property)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyAsset>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyAsset>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyAsset* m_bindableProperty;
+  BindablePropertyAsset* m_bindableProperty;
 };
 class ConditionComparandViewModel : public ConditionComparand
 {
 public:
-    virtual ~ConditionComparandViewModel() {}
-    virtual ViewModelInstance* value(
-        const StateMachineInstance* stateMachineInstance) = 0;
+  virtual ~ConditionComparandViewModel() {}
+  virtual ViewModelInstance* value(
+      const StateMachineInstance* stateMachineInstance) = 0;
 };
 class ConditionComparandViewModelBindable : public ConditionComparandViewModel
 {
 public:
-    ConditionComparandViewModelBindable(BindablePropertyViewModel* property) :
-        m_bindableProperty(property)
-    {}
+  ConditionComparandViewModelBindable(BindablePropertyViewModel* property)
+      : m_bindableProperty(property)
+  {}
 
-    ViewModelInstance* value(
-        const StateMachineInstance* stateMachineInstance) override
+  ViewModelInstance* value(
+      const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
+      auto dataBind = stateMachineInstance->bindableDataBindToTarget(
+          bindableInstance);
+      if (dataBind != nullptr)
+      {
+        if (dataBind->is<DataBindContext>())
         {
-            auto dataBind = stateMachineInstance->bindableDataBindToTarget(
-                bindableInstance);
-            if (dataBind != nullptr)
+          const auto& sourcePathIds = dataBind->as<DataBindContext>()
+                                          ->sourcePathIds();
+          // A root-only source path marks "My ViewModel" for
+          // transition comparands. Resolve it from the state machine
+          // data context.
+          if (sourcePathIds.size() == 1)
+          {
+            auto dataContext = stateMachineInstance->dataContext();
+            if (dataContext != nullptr &&
+                dataContext->mainViewModelInstance() != nullptr)
             {
-                if (dataBind->is<DataBindContext>())
-                {
-                    const auto& sourcePathIds =
-                        dataBind->as<DataBindContext>()->sourcePathIds();
-                    // A root-only source path marks "My ViewModel" for
-                    // transition comparands. Resolve it from the state machine
-                    // data context.
-                    if (sourcePathIds.size() == 1)
-                    {
-                        auto dataContext = stateMachineInstance->dataContext();
-                        if (dataContext != nullptr &&
-                            dataContext->mainViewModelInstance() != nullptr)
-                        {
-                            return dataContext->mainViewModelInstance().get();
-                        }
-                        return nullptr;
-                    }
-                }
-                auto source = dataBind->source();
-                if (source != nullptr &&
-                    source->is<ViewModelInstanceViewModel>())
-                {
-                    auto sourceViewModel =
-                        source->as<ViewModelInstanceViewModel>();
-                    auto referenced =
-                        sourceViewModel->referenceViewModelInstance();
-                    if (referenced != nullptr)
-                    {
-                        return referenced.get();
-                    }
-                }
+              return dataContext->mainViewModelInstance().get();
             }
-            auto bindableViewModel =
-                bindableInstance->as<BindablePropertyViewModel>();
-            auto instanceValue = bindableViewModel->viewModelInstanceValue();
-            if (instanceValue != nullptr)
-            {
-                return instanceValue;
-            }
-            return bindableViewModel->viewModelInstance();
+            return nullptr;
+          }
         }
-        return nullptr;
+        auto source = dataBind->source();
+        if (source != nullptr && source->is<ViewModelInstanceViewModel>())
+        {
+          auto sourceViewModel = source->as<ViewModelInstanceViewModel>();
+          auto referenced = sourceViewModel->referenceViewModelInstance();
+          if (referenced != nullptr)
+          {
+            return referenced.get();
+          }
+        }
+      }
+      auto bindableViewModel = bindableInstance
+                                   ->as<BindablePropertyViewModel>();
+      auto instanceValue = bindableViewModel->viewModelInstanceValue();
+      if (instanceValue != nullptr)
+      {
+        return instanceValue;
+      }
+      return bindableViewModel->viewModelInstance();
     }
+    return nullptr;
+  }
 
 private:
-    BindablePropertyViewModel* m_bindableProperty;
+  BindablePropertyViewModel* m_bindableProperty;
 };
 class ConditionComparandAssetValue : public ConditionComparandUint32
 {
 public:
-    ConditionComparandAssetValue(TransitionValueAssetComparator* value) :
-        m_value(value)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandAssetValue(TransitionValueAssetComparator* value)
+      : m_value(value)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueAssetComparator* m_value;
+  TransitionValueAssetComparator* m_value;
 };
 class ConditionComparandArtboardBindable : public ConditionComparandUint32
 {
 public:
-    ConditionComparandArtboardBindable(BindablePropertyArtboard* property) :
-        m_bindableProperty(property)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  ConditionComparandArtboardBindable(BindablePropertyArtboard* property)
+      : m_bindableProperty(property)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+        m_bindableProperty);
+    if (bindableInstance)
     {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyArtboard>()
-                ->propertyValue();
-        }
-        return 0;
+      return bindableInstance->as<BindablePropertyArtboard>()->propertyValue();
     }
+    return 0;
+  }
 
 private:
-    BindablePropertyArtboard* m_bindableProperty;
+  BindablePropertyArtboard* m_bindableProperty;
 };
 class ConditionComparandArtboardValue : public ConditionComparandUint32
 {
 public:
-    ConditionComparandArtboardValue(TransitionValueArtboardComparator* value) :
-        m_value(value)
-    {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        return m_value->value();
-    }
+  ConditionComparandArtboardValue(TransitionValueArtboardComparator* value)
+      : m_value(value)
+  {}
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return m_value->value();
+  }
 
 private:
-    TransitionValueArtboardComparator* m_value;
+  TransitionValueArtboardComparator* m_value;
 };
 
 class ConditionComparandComponentCoreNumber : public ConditionComparandNumber
 {
 public:
-    explicit ConditionComparandComponentCoreNumber(
-        TransitionPropertyComponentComparator* comparator);
-    float value(const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreNumber(
+      TransitionPropertyComponentComparator* comparator);
+  float value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentCoreUintAsNumber
     : public ConditionComparandNumber
 {
 public:
-    explicit ConditionComparandComponentCoreUintAsNumber(
-        TransitionPropertyComponentComparator* comparator);
-    float value(const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreUintAsNumber(
+      TransitionPropertyComponentComparator* comparator);
+  float value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentCoreBoolean : public ConditionComparandBoolean
 {
 public:
-    explicit ConditionComparandComponentCoreBoolean(
-        TransitionPropertyComponentComparator* comparator);
-    bool value(const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreBoolean(
+      TransitionPropertyComponentComparator* comparator);
+  bool value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentCoreString : public ConditionComparandString
 {
 public:
-    explicit ConditionComparandComponentCoreString(
-        TransitionPropertyComponentComparator* comparator);
-    std::string value(
-        const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreString(
+      TransitionPropertyComponentComparator* comparator);
+  std::string value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentCoreColor : public ConditionComparandColor
 {
 public:
-    explicit ConditionComparandComponentCoreColor(
-        TransitionPropertyComponentComparator* comparator);
-    int value(const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreColor(
+      TransitionPropertyComponentComparator* comparator);
+  int value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentCoreUint : public ConditionComparandUint32
 {
 public:
-    explicit ConditionComparandComponentCoreUint(
-        TransitionPropertyComponentComparator* comparator);
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentCoreUint(
+      TransitionPropertyComponentComparator* comparator);
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
+};
+
+// A component's trigger property, read like ConditionComparandTriggerBindable.
+class ConditionComparandComponentTrigger : public ConditionComparandUint32
+{
+public:
+  explicit ConditionComparandComponentTrigger(
+      TransitionPropertyComponentComparator* comparator);
+  uint32_t value(const StateMachineInstance* stateMachineInstance) override
+  {
+    return valueForLayer(stateMachineInstance, nullptr);
+  }
+  uint32_t valueForLayer(
+      const StateMachineInstance* stateMachineInstance,
+      const StateMachineLayerInstance* layer) override;
+
+private:
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparandComponentViewModel : public ConditionComparandViewModel
 {
 public:
-    explicit ConditionComparandComponentViewModel(
-        TransitionPropertyComponentComparator* comparator);
-    ViewModelInstance* value(
-        const StateMachineInstance* stateMachineInstance) override;
+  explicit ConditionComparandComponentViewModel(
+      TransitionPropertyComponentComparator* comparator);
+  ViewModelInstance* value(
+      const StateMachineInstance* stateMachineInstance) override;
 
 private:
-    TransitionPropertyComponentComparator* m_comparator;
+  TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparison
 {
 public:
-    ConditionComparison(ConditionOperation* op) : m_operation(op) {}
-    virtual ~ConditionComparison() { delete m_operation; }
-    virtual bool compare(const StateMachineInstance* stateMachineInstance,
-                         StateMachineLayerInstance* layerInstance) = 0;
+  ConditionComparison(ConditionOperation* op) : m_operation(op) {}
+  virtual ~ConditionComparison() { delete m_operation; }
+  virtual bool compare(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) = 0;
 
-    bool compareNumbers(float left, float right);
-    bool compareBooleans(bool left, bool right);
-    bool compareStrings(const std::string& left, const std::string& right);
-    bool compareColors(int left, int right);
-    bool compareUints32(uint32_t left, uint32_t right);
-    bool comparePointers(const void* left, const void* right);
+  bool compareNumbers(float left, float right);
+  bool compareBooleans(bool left, bool right);
+  bool compareStrings(const std::string& left, const std::string& right);
+  bool compareColors(int left, int right);
+  bool compareUints32(uint32_t left, uint32_t right);
+  bool comparePointers(const void* left, const void* right);
 
 protected:
-    ConditionOperation* m_operation;
+  ConditionOperation* m_operation;
 };
 class TransitionViewModelCondition : public TransitionViewModelConditionBase
 {
 protected:
-    TransitionComparator* m_leftComparator;
-    TransitionComparator* m_rightComparator;
-    ConditionComparison* m_comparison = nullptr;
+  TransitionComparator* m_leftComparator = nullptr;
+  TransitionComparator* m_rightComparator = nullptr;
+  ConditionComparison* m_comparison = nullptr;
+#ifdef WITH_RIVE_EDITOR
+  bool m_editorComparators = false;
+#endif
 
 public:
-    ~TransitionViewModelCondition();
-    bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  StateMachineLayerInstance* layerInstance) const override;
-    void useInLayer(const StateMachineInstance* stateMachineInstance,
-                    StateMachineLayerInstance* layerInstance) const override;
-    TransitionComparator* leftComparator() const { return m_leftComparator; };
-    TransitionComparator* rightComparator() const { return m_rightComparator; };
-    void comparator(TransitionComparator* value)
+  ~TransitionViewModelCondition();
+  bool evaluate(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
+  void useInLayer(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
+  TransitionComparator* leftComparator() const { return m_leftComparator; };
+  TransitionComparator* rightComparator() const { return m_rightComparator; };
+  void comparator(TransitionComparator* value)
+  {
+    if (m_leftComparator == nullptr)
     {
-        if (m_leftComparator == nullptr)
-        {
-            m_leftComparator = value;
-        }
-        else
-        {
-            m_rightComparator = value;
-        }
-    };
-    TransitionConditionOp op() const
-    {
-        return (TransitionConditionOp)opValue();
+      m_leftComparator = value;
     }
-    ConditionOperation* operation(TransitionConditionOp op);
-    void initialize();
+    else
+    {
+      m_rightComparator = value;
+    }
+  };
+  TransitionConditionOp op() const { return (TransitionConditionOp)opValue(); }
+  ConditionOperation* operation(TransitionConditionOp op);
+  void initialize();
+  // Whether either side compares a component's trigger, which reads as
+  // fired within a frame (ConditionComparandComponentTrigger) and so needs
+  // the instance's change tracking.
+  bool readsComponentTrigger() const;
+  // Whether either side reads whether a change is pending: a trigger (view
+  // model or component) or a "changed" (Self) comparison. Errs on the side
+  // of yes, since a no only saves the per-layer change windows.
+  bool readsPendingChange() const;
+#ifdef WITH_RIVE_EDITOR
+  void setComparatorsForEditor(
+      TransitionComparator* left,
+      TransitionComparator* right)
+  {
+    m_editorComparators = true;
+    m_leftComparator = left;
+    m_rightComparator = right;
+    delete m_comparison;
+    m_comparison = nullptr;
+    initialize();
+  }
+#endif
 
 private:
-    bool canEvaluate(const StateMachineInstance*) const;
+  bool canEvaluate(const StateMachineInstance*) const;
 };
 } // namespace rive
 

@@ -14,27 +14,30 @@ namespace rive::ore
 
 void TextureD3D11::uploadImpl(const TextureDataDesc& data)
 {
-    assert(m_d3d11Context != nullptr);
-    assert(m_d3d11Texture != nullptr);
-    assert(data.data != nullptr);
+  assert(m_d3d11Context != nullptr);
+  assert(m_d3d11Texture != nullptr);
+  assert(data.data != nullptr);
 
-    UINT subresource =
-        D3D11CalcSubresource(data.mipLevel, data.layer, m_numMipmaps);
+  UINT subresource = D3D11CalcSubresource(
+      data.mipLevel,
+      data.layer,
+      m_numMipmaps);
 
-    D3D11_BOX box{};
-    box.left = data.x;
-    box.top = data.y;
-    box.front = data.z;
-    box.right = data.x + data.width;
-    box.bottom = data.y + data.height;
-    box.back = data.z + data.depth;
+  D3D11_BOX box{};
+  box.left = data.x;
+  box.top = data.y;
+  box.front = data.z;
+  box.right = data.x + data.width;
+  box.bottom = data.y + data.height;
+  box.back = data.z + data.depth;
 
-    m_d3d11Context->UpdateSubresource(m_d3d11Texture.Get(),
-                                      subresource,
-                                      &box,
-                                      data.data,
-                                      data.bytesPerRow,
-                                      data.bytesPerRow * data.rowsPerImage);
+  m_d3d11Context->UpdateSubresource(
+      m_d3d11Texture.Get(),
+      subresource,
+      &box,
+      data.data,
+      data.bytesPerRow,
+      data.bytesPerRow * data.rowsPerImage);
 }
 
 #endif // ORE_BACKEND_D3D11

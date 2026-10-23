@@ -10,40 +10,40 @@ class StateMachineInstance;
 // be used anymore and interface directly with the nested input value.
 void NestedNumber::applyValue()
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto numInput = static_cast<SMINumber*>(inputInstance);
+    if (numInput != nullptr)
     {
-        auto numInput = static_cast<SMINumber*>(inputInstance);
-        if (numInput != nullptr)
-        {
-            numInput->value(NestedNumberBase::nestedValue());
-        }
+      numInput->value(NestedNumberBase::nestedValue());
     }
+  }
 }
 
 void NestedNumber::nestedValue(float value)
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto numInput = static_cast<SMINumber*>(inputInstance);
+    if (numInput != nullptr && numInput->value() != value)
     {
-        auto numInput = static_cast<SMINumber*>(inputInstance);
-        if (numInput != nullptr && numInput->value() != value)
-        {
-            numInput->value(value);
-        }
+      numInput->value(value);
     }
+  }
 }
 
 float NestedNumber::nestedValue() const
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto numInput = static_cast<SMINumber*>(inputInstance);
+    if (numInput != nullptr)
     {
-        auto numInput = static_cast<SMINumber*>(inputInstance);
-        if (numInput != nullptr)
-        {
-            return numInput->value();
-        }
+      return numInput->value();
     }
-    return 0.0;
+  }
+  return 0.0;
 }

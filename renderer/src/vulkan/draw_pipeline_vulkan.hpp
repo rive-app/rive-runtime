@@ -15,60 +15,61 @@ class PipelineManagerVulkan;
 class DrawPipelineVulkan
 {
 public:
-    enum class Options
-    {
-        none = 0,
-        wireframe = 1 << 0,
-    };
-    constexpr static int OPTION_COUNT = 1;
+  enum class Options
+  {
+    none = 0,
+    wireframe = 1 << 0,
+  };
+  constexpr static int OPTION_COUNT = 1;
 
-    struct PipelineProps
-    {
-        DrawType drawType;
-        ShaderFeatures shaderFeatures;
-        InterlockMode interlockMode;
-        ShaderMiscFlags shaderMiscFlags;
+  struct PipelineProps
+  {
+    DrawType drawType;
+    ShaderFeatures shaderFeatures;
+    InterlockMode interlockMode;
+    ShaderMiscFlags shaderMiscFlags;
 
-        // Vulkan has pipeline props beyond just the standard ones
+    // Vulkan has pipeline props beyond just the standard ones
 
-        DrawContents drawContents;
-        rive::BlendMode blendMode;
-        Options drawPipelineOptions;
-        RenderPassOptionsVulkan renderPassOptions;
-        VkFormat renderTargetFormat;
-        LoadAction colorLoadAction;
+    DrawContents drawContents;
+    rive::BlendMode blendMode;
+    Options drawPipelineOptions;
+    RenderPassOptionsVulkan renderPassOptions;
+    VkFormat renderTargetFormat;
+    LoadAction colorLoadAction;
 
 #ifdef WITH_RIVE_TOOLS
-        SynthesizedFailureType synthesizedFailureType =
-            SynthesizedFailureType::none;
+    SynthesizedFailureType
+        synthesizedFailureType = SynthesizedFailureType::none;
 #endif
 
-        uint64_t createKey(const PlatformFeatures&) const;
-    };
+    uint64_t createKey(const PlatformFeatures&) const;
+  };
 
-    using VertexShaderType = DrawShaderVulkan;
-    using FragmentShaderType = DrawShaderVulkan;
+  using VertexShaderType = DrawShaderVulkan;
+  using FragmentShaderType = DrawShaderVulkan;
 
-    DrawPipelineVulkan(PipelineManagerVulkan*,
-                       const DrawPipelineLayoutVulkan&,
-                       const PipelineProps&,
-                       VkRenderPass,
-                       const PlatformFeatures&
+  DrawPipelineVulkan(
+      PipelineManagerVulkan*,
+      const DrawPipelineLayoutVulkan&,
+      const PipelineProps&,
+      VkRenderPass,
+      const PlatformFeatures&
 #ifdef WITH_RIVE_TOOLS
-                       ,
-                       SynthesizedFailureType
+      ,
+      SynthesizedFailureType
 #endif
-    );
-    ~DrawPipelineVulkan();
+  );
+  ~DrawPipelineVulkan();
 
-    DrawPipelineVulkan(const DrawPipelineVulkan&) = delete;
-    DrawPipelineVulkan& operator=(const DrawPipelineVulkan&) = delete;
+  DrawPipelineVulkan(const DrawPipelineVulkan&) = delete;
+  DrawPipelineVulkan& operator=(const DrawPipelineVulkan&) = delete;
 
-    operator VkPipeline() const { return m_vkPipeline; }
+  operator VkPipeline() const { return m_vkPipeline; }
 
 private:
-    const rcp<VulkanContext> m_vk;
-    VkPipeline m_vkPipeline = VK_NULL_HANDLE;
+  const rcp<VulkanContext> m_vk;
+  VkPipeline m_vkPipeline = VK_NULL_HANDLE;
 };
 
 } // namespace rive::gpu

@@ -11,31 +11,32 @@
 
 using namespace rive;
 
-void FocusActionTarget::perform(StateMachineInstance* stateMachineInstance,
-                                const ListenerInvocation& invocation) const
+void FocusActionTarget::perform(
+    StateMachineInstance* stateMachineInstance,
+    const ListenerInvocation& invocation) const
 {
-    (void)invocation;
-    auto target = stateMachineInstance->artboard()->resolve(targetId());
-    if (target == nullptr || !target->is<Node>())
-    {
-        return;
-    }
+  (void)invocation;
+  auto target = stateMachineInstance->artboard()->resolve(targetId());
+  if (target == nullptr || !target->is<Node>())
+  {
+    return;
+  }
 
-    auto node = target->as<Node>();
-    FocusData* focusData = nullptr;
+  auto node = target->as<Node>();
+  FocusData* focusData = nullptr;
 
-    // Find FocusData child of the node
-    for (auto child : node->children())
+  // Find FocusData child of the node
+  for (auto child : node->children())
+  {
+    if (child->is<FocusData>())
     {
-        if (child->is<FocusData>())
-        {
-            focusData = child->as<FocusData>();
-            break;
-        }
+      focusData = child->as<FocusData>();
+      break;
     }
+  }
 
-    if (focusData != nullptr)
-    {
-        stateMachineInstance->queueFocusTarget(focusData);
-    }
+  if (focusData != nullptr)
+  {
+    stateMachineInstance->queueFocusTarget(focusData);
+  }
 }

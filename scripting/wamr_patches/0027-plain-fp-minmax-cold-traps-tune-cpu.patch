@@ -1,0 +1,239 @@
+From: rive
+Subject: [PATCH 0027] plain fp ops, wasm min/max, cold traps, --tune-cpu
+
+Wasm fixes round to nearest and raises no fp exceptions, which is LLVM's
+default environment, so arm and x86 lower float arithmetic to plain IR ops
+instead of constrained intrinsics (no strictfp then). f32/f64 min and max
+lower to llvm.minimum/maximum, one fmin/fmax on AArch64. Trap and
+exception edges carry unlikely branch weights and a cold call, so their
+phi constants and spills stay off hot paths. --tune-cpu=<cpu> sets the
+scheduling model on every function without raising the --cpu baseline.
+
+--- a/core/iwasm/compilation/aot_emit_exception.c
++++ b/core/iwasm/compilation/aot_emit_exception.c
+@@ -115,11 +115,19 @@
+         /* Call the aot_set_exception_with_id() function */
+         param_values[0] = func_ctx->aot_inst;
+         param_values[1] = func_ctx->exception_id_phi;
+-        if (!LLVMBuildCall2(comp_ctx->builder, func_type, func, param_values, 2,
+-                            "")) {
++        LLVMValueRef exce_call;
++        if (!(exce_call = LLVMBuildCall2(comp_ctx->builder, func_type, func,
++                                         param_values, 2, ""))) {
+             aot_set_last_error("llvm build call failed.");
+             return false;
+         }
++        /* rive: a cold trap path keeps spills and constant moves for its
++           phi out of the hot code */
++        LLVMAddCallSiteAttribute(
++            exce_call, LLVMAttributeFunctionIndex,
++            LLVMCreateEnumAttribute(comp_ctx->context,
++                                    LLVMGetEnumAttributeKindForName("cold", 4),
++                                    0));
+ 
+         /* Create return IR */
+         AOTFuncType *aot_func_type = func_ctx->aot_func->func_type;
+@@ -172,12 +180,14 @@
+     }
+     else {
+         /* Create condition br */
+-        if (!LLVMBuildCondBr(comp_ctx->builder, cond_br_if,
+-                             func_ctx->got_exception_block,
+-                             cond_br_else_block)) {
++        LLVMValueRef br;
++        if (!(br = LLVMBuildCondBr(comp_ctx->builder, cond_br_if,
++                                   func_ctx->got_exception_block,
++                                   cond_br_else_block))) {
+             aot_set_last_error("llvm build cond br failed.");
+             return false;
+         }
++        aot_set_unlikely_branch(comp_ctx, br, true);
+         /* Start to translate the else block */
+         LLVMPositionBuilderAtEnd(comp_ctx->builder, cond_br_else_block);
+     }
+--- a/core/iwasm/compilation/aot_emit_function.c
++++ b/core/iwasm/compilation/aot_emit_function.c
+@@ -102,11 +102,13 @@
+ 
+     LLVMPositionBuilderAtEnd(comp_ctx->builder, block_curr);
+     /* Create condition br */
+-    if (!LLVMBuildCondBr(comp_ctx->builder, cmp, check_exce_succ,
+-                         func_ctx->func_return_block)) {
++    LLVMValueRef br;
++    if (!(br = LLVMBuildCondBr(comp_ctx->builder, cmp, check_exce_succ,
++                               func_ctx->func_return_block))) {
+         aot_set_last_error("llvm build cond br failed.");
+         return false;
+     }
++    aot_set_unlikely_branch(comp_ctx, br, false);
+ 
+     LLVMPositionBuilderAtEnd(comp_ctx->builder, check_exce_succ);
+     return true;
+--- a/core/iwasm/compilation/aot_emit_numberic.c
++++ b/core/iwasm/compilation/aot_emit_numberic.c
+@@ -236,6 +236,18 @@
+     char *intrinsic = is_min ? (is_f32 ? "llvm.minnum.f32" : "llvm.minnum.f64")
+                              : (is_f32 ? "llvm.maxnum.f32" : "llvm.maxnum.f64");
+     CHECK_LLVM_CONST(nan);
++
++    /* rive: llvm.minimum/maximum propagate NaN and order -0 below +0 like
++       wasm, so AArch64 selects one fmin/fmax instead of compare, bitwise
++       and two selects */
++    if (!comp_ctx->disable_llvm_intrinsics) {
++        LLVMTypeRef minmax_param_types[2] = { ret_type, ret_type };
++        return aot_call_llvm_intrinsic(
++            comp_ctx, func_ctx,
++            is_min ? (is_f32 ? "llvm.minimum.f32" : "llvm.minimum.f64")
++                   : (is_f32 ? "llvm.maximum.f32" : "llvm.maximum.f64"),
++            ret_type, minmax_param_types, 2, left, right);
++    }
+ 
+     /* Note: param_types is used by LLVM_BUILD_OP_OR_INTRINSIC */
+     param_types[0] = param_types[1] = int_type;
+@@ -905,6 +917,10 @@
+     bool ret = false;
+     char *feature_string;
+ 
++    /* rive: plain IR ops; see aot_emits_strict_fp */
++    if (!aot_emits_strict_fp(comp_ctx))
++        return true;
++
+     if (!(feature_string =
+               LLVMGetTargetMachineFeatureString(comp_ctx->target_machine))) {
+         aot_set_last_error("llvm get target machine feature string fail.");
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -100,7 +100,7 @@
+        optimizer and ISel are free to assume default FP semantics and
+        miscompile (observed at opt-level >= 1 once mem2reg/sroa expose the
+        dataflow). */
+-    {
++    if (aot_emits_strict_fp(comp_ctx)) {
+         unsigned kind = LLVMGetEnumAttributeKindForName("strictfp", 8);
+         if (kind != 0) {
+             LLVMAddAttributeAtIndex(
+@@ -110,6 +110,14 @@
+         }
+     }
+ 
++    if (comp_ctx->tune_cpu) {
++        LLVMAddAttributeAtIndex(
++            func, (LLVMAttributeIndex)LLVMAttributeFunctionIndex,
++            LLVMCreateStringAttribute(LLVMGetModuleContext(module), "tune-cpu",
++                                      8, comp_ctx->tune_cpu,
++                                      (unsigned)strlen(comp_ctx->tune_cpu)));
++    }
++
+     j = 0;
+     local_value = LLVMGetParam(func, j++);
+     LLVMSetValueName(local_value, "exec_env");
+@@ -2639,6 +2647,33 @@
+     LLVMShutdown();
+ }
+ 
++bool
++aot_emits_strict_fp(const AOTCompContext *comp_ctx)
++{
++    const char *arch = comp_ctx->target_arch;
++    return strncmp(arch, "aarch64", 7) && strncmp(arch, "arm", 3)
++           && strncmp(arch, "thumb", 5) && strncmp(arch, "x86_64", 6)
++           && strncmp(arch, "i386", 4);
++}
++
++void
++aot_set_unlikely_branch(const AOTCompContext *comp_ctx, LLVMValueRef br,
++                        bool first_unlikely)
++{
++    LLVMContextRef ctx = comp_ctx->context;
++    LLVMTypeRef i32 = LLVMInt32TypeInContext(ctx);
++    LLVMMetadataRef ops[3] = {
++        LLVMMDStringInContext2(ctx, "branch_weights", 14),
++        LLVMValueAsMetadata(
++            LLVMConstInt(i32, first_unlikely ? 1 : 1048575, false)),
++        LLVMValueAsMetadata(
++            LLVMConstInt(i32, first_unlikely ? 1048575 : 1, false)),
++    };
++    LLVMSetMetadata(
++        br, LLVMGetMDKindIDInContext(ctx, "prof", 4),
++        LLVMMetadataAsValue(ctx, LLVMMDNodeInContext2(ctx, ops, 3)));
++}
++
+ /* x18 is the platform register on Apple systems, clobbered by the kernel
+    on interrupts, and the TEB pointer on Windows; code that runs on those
+    hosts must never allocate it. An explicit user triple decides; without
+@@ -2769,6 +2804,8 @@
+ 
+     if (option->rive_interrupt)
+         comp_ctx->rive_interrupt = true;
++
++    comp_ctx->tune_cpu = option->tune_cpu;
+ 
+     if (option->enable_tail_call)
+         comp_ctx->enable_tail_call = true;
+--- a/core/iwasm/compilation/aot_llvm.h
++++ b/core/iwasm/compilation/aot_llvm.h
+@@ -445,6 +445,9 @@
+ 
+     /* rive: loop back-edges trap on the host watchdog's terminate flag */
+     bool rive_interrupt;
++
++    /* rive: tune-cpu attribute for every function, or NULL */
++    const char *tune_cpu;
+ 
+     /* Tail Call */
+     bool enable_tail_call;
+@@ -567,7 +570,20 @@
+ 
+ void
+ aot_destroy_comp_context(AOTCompContext *comp_ctx);
++
++/* rive: whether float arithmetic lowers to constrained intrinsics. Wasm
++   fixes round to nearest and raises no fp exceptions, which is LLVM's
++   default environment, so arm and x86 use plain IR ops: the constrained
++   form only blocks optimization and has miscompiled on AArch64. */
++bool
++aot_emits_strict_fp(const AOTCompContext *comp_ctx);
+ 
++/* rive: weights a conditional branch whose taken (first) or fallthrough
++   (second) successor is a trap or exception return */
++void
++aot_set_unlikely_branch(const AOTCompContext *comp_ctx, LLVMValueRef br,
++                        bool first_unlikely);
++
+ int32
+ aot_get_native_symbol_index(AOTCompContext *comp_ctx, const char *symbol);
+ 
+--- a/core/iwasm/include/aot_comp_option.h
++++ b/core/iwasm/include/aot_comp_option.h
+@@ -99,6 +99,9 @@
+     const char *builtin_intrinsics;
+     /* rive: loop back-edges trap on the host watchdog's terminate flag */
+     bool rive_interrupt;
++    /* rive: scheduling model for every function, leaving the cpu's
++       instruction set baseline alone */
++    const char *tune_cpu;
+ } AOTCompOption, *aot_comp_option_t;
+ 
+ #ifdef __cplusplus
+--- a/wamr-compiler/main.c
++++ b/wamr-compiler/main.c
+@@ -125,6 +125,7 @@
+     printf("                            Use --target-abi=help to list all the ABI supported\n");
+     printf("  --cpu=<cpu>               Set the target CPU (default: host CPU, e.g. skylake)\n");
+     printf("                            Use --cpu=help to list all the CPU supported\n");
++    printf("  --tune-cpu=<cpu>          Schedule for this CPU without raising the --cpu baseline\n");
+     printf("  --cpu-features=<features> Enable or disable the CPU features\n");
+     printf("                            Use +feature to enable a feature, or -feature to disable it\n");
+     printf("                            For example, --cpu-features=+feature1,-feature2\n");
+@@ -458,6 +459,11 @@
+             if (!strcmp(option.target_cpu, "help")) {
+                 use_dummy_wasm = true;
+             }
++        }
++        else if (!strncmp(argv[0], "--tune-cpu=", 11)) {
++            if (argv[0][11] == '\0')
++                PRINT_HELP_AND_EXIT();
++            option.tune_cpu = argv[0] + 11;
+         }
+         else if (!strncmp(argv[0], "--cpu-features=", 15)) {
+             if (argv[0][15] == '\0')

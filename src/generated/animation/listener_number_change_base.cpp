@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerNumberChangeBase::clone() const
 {
-    auto cloned = new ListenerNumberChange();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerNumberChange();
+  cloned->copy(*this);
+  return cloned;
 }

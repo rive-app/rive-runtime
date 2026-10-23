@@ -12,10 +12,11 @@ class StateMachineLayerInstance;
 class TransitionComparator : public TransitionComparatorBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 
-    virtual void useInLayer(const StateMachineInstance* stateMachineInstance,
-                            StateMachineLayerInstance* layerInstance) const {};
+  virtual void useInLayer(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const {};
 };
 } // namespace rive
 #endif

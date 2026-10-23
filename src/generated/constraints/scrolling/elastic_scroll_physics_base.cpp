@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ElasticScrollPhysicsBase::clone() const
 {
-    auto cloned = new ElasticScrollPhysics();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ElasticScrollPhysics();
+  cloned->copy(*this);
+  return cloned;
 }

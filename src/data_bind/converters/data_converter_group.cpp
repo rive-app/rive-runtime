@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "rive/math/math_types.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
@@ -7,139 +8,159 @@ using namespace rive;
 
 DataConverterGroup::~DataConverterGroup()
 {
-    for (auto& item : m_items)
-    {
-        delete item;
-    }
+  for (auto& item : m_items)
+  {
+    delete item;
+  }
 }
 
 void DataConverterGroup::addItem(DataConverterGroupItem* item)
 {
-    m_items.push_back(item);
+  m_items.push_back(item);
 }
 
 DataValue* DataConverterGroup::convert(DataValue* input, DataBind* dataBind)
 {
-    DataValue* value = input;
-    for (auto& item : m_items)
+  DataValue* value = input;
+  for (auto& item : m_items)
+  {
+    if (item->converter() != nullptr)
     {
-        if (item->converter() != nullptr)
-        {
-            value = item->converter()->convert(value, dataBind);
-        }
+      value = item->converter()->convert(value, dataBind);
     }
-    return value;
+  }
+  return value;
 }
 
-DataValue* DataConverterGroup::reverseConvert(DataValue* input,
-                                              DataBind* dataBind)
+DataValue* DataConverterGroup::reverseConvert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    DataValue* value = input;
-    for (auto it = m_items.rbegin(); it != m_items.rend(); ++it)
+  DataValue* value = input;
+  for (auto it = m_items.rbegin(); it != m_items.rend(); ++it)
+  {
+    if ((*it)->converter() != nullptr)
     {
-        if ((*it)->converter() != nullptr)
-        {
-            value = (*it)->converter()->reverseConvert(value, dataBind);
-        }
+      value = (*it)->converter()->reverseConvert(value, dataBind);
     }
-    return value;
+  }
+  return value;
 }
 
 Core* DataConverterGroup::clone() const
 {
-    auto cloned = DataConverterGroupBase::clone()->as<DataConverterGroup>();
-    for (auto& item : m_items)
+  auto cloned = DataConverterGroupBase::clone()->as<DataConverterGroup>();
+  for (auto& item : m_items)
+  {
+    if (item->converter() == nullptr)
     {
-        if (item->converter() == nullptr)
-        {
-            continue;
-        }
-        auto clonedItem = item->clone()->as<DataConverterGroupItem>();
-        cloned->addItem(clonedItem);
+      continue;
     }
-    return cloned;
+    auto clonedItem = item->clone()->as<DataConverterGroupItem>();
+    cloned->addItem(clonedItem);
+  }
+  return cloned;
 }
 
-void DataConverterGroup::bindFromContext(DataContext* dataContext,
-                                         DataBind* dataBind)
+void DataConverterGroup::bindFromContext(
+    DataContext* dataContext,
+    DataBind* dataBind)
 {
-    DataConverter::bindFromContext(dataContext, dataBind);
-    for (auto& item : m_items)
+  DataConverter::bindFromContext(dataContext, dataBind);
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr)
     {
-        auto converter = item->converter();
-        if (converter != nullptr)
-        {
-            converter->bindFromContext(dataContext, dataBind);
-        }
+      converter->bindFromContext(dataContext, dataBind);
     }
+  }
 }
 
 void DataConverterGroup::unbind()
 {
-    for (auto& item : m_items)
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr)
     {
-        auto converter = item->converter();
-        if (converter != nullptr)
-        {
-            converter->unbind();
-        }
+      converter->unbind();
     }
-    // Mirrors bindFromContext, which binds through the base: the base holds
-    // the owning DataContext reference, so skipping it here would keep the
-    // context and its view-model graph alive until this converter dies.
-    DataConverter::unbind();
+  }
+  // Mirrors bindFromContext, which binds through the base: the base holds
+  // the owning DataContext reference, so skipping it here would keep the
+  // context and its view-model graph alive until this converter dies.
+  DataConverter::unbind();
 }
 
 void DataConverterGroup::update()
 {
-    for (auto& item : m_items)
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr)
     {
-        auto converter = item->converter();
-        if (converter != nullptr)
-        {
-            converter->update();
-        }
+      converter->update();
     }
+  }
 }
 
 void DataConverterGroup::reset()
 {
-    for (auto& item : m_items)
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr)
     {
-        auto converter = item->converter();
-        if (converter != nullptr)
-        {
-            converter->reset();
-        }
+      converter->reset();
     }
+  }
 }
 
 bool DataConverterGroup::mayAdvance() const
 {
-    for (auto& item : m_items)
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr && converter->mayAdvance())
     {
-        auto converter = item->converter();
-        if (converter != nullptr && converter->mayAdvance())
-        {
-            return true;
-        }
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 bool DataConverterGroup::advance(float elapsedSeconds)
 {
-    bool didUpdate = false;
-    for (auto& item : m_items)
+  bool didUpdate = false;
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter != nullptr)
     {
-        auto converter = item->converter();
-        if (converter != nullptr)
-        {
-            if (converter->advance(elapsedSeconds))
-            {
-                didUpdate = true;
-            }
-        }
+      if (converter->advance(elapsedSeconds))
+      {
+        didUpdate = true;
+      }
     }
-    return didUpdate;
+  }
+  return didUpdate;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void DataConverterGroup::editorPrepareForDestruction()
+{
+  DataConverter::editorPrepareForDestruction();
+  // Runtime clones own their items; hydrated items belong to the arena.
+  // Descend into non-arena owners too: their children can be arena-backed.
+  for (auto* item : m_items)
+    if (item->editorArena() == nullptr)
+      item->editorPrepareForDestruction();
+  m_items.erase(
+      std::remove_if(
+          m_items.begin(),
+          m_items.end(),
+          [](auto* item) { return item->editorArena() != nullptr; }),
+      m_items.end());
+}
+#endif

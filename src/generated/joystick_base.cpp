@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* JoystickBase::clone() const
 {
-    auto cloned = new Joystick();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Joystick();
+  cloned->copy(*this);
+  return cloned;
 }

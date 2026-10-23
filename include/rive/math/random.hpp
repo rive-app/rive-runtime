@@ -14,37 +14,31 @@ class RandomProvider
 {
 #ifdef TESTING
 private:
-    static int m_randomCallsCount;
-    static std::vector<float> m_randomResults;
+  static int m_randomCallsCount;
+  static std::vector<float> m_randomResults;
 
 public:
-    static void addRandomValue(float value)
+  static void addRandomValue(float value) { m_randomResults.push_back(value); }
+  static void clearRandoms()
+  {
+    m_randomCallsCount = 0;
+    m_randomResults.clear();
+  }
+  static float generateRandomFloat()
+  {
+    m_randomCallsCount++;
+    if (m_randomResults.size() > 0)
     {
-        m_randomResults.push_back(value);
+      auto newRandom = m_randomResults[0];
+      m_randomResults.erase(m_randomResults.begin());
+      return newRandom;
     }
-    static void clearRandoms()
-    {
-        m_randomCallsCount = 0;
-        m_randomResults.clear();
-    }
-    static float generateRandomFloat()
-    {
-        m_randomCallsCount++;
-        if (m_randomResults.size() > 0)
-        {
-            auto newRandom = m_randomResults[0];
-            m_randomResults.erase(m_randomResults.begin());
-            return newRandom;
-        }
-        return 0;
-    }
-    static int totalCalls() { return m_randomCallsCount; };
+    return 0;
+  }
+  static int totalCalls() { return m_randomCallsCount; };
 #else
 public:
-    static float generateRandomFloat()
-    {
-        return (float)rand() / float(RAND_MAX);
-    }
+  static float generateRandomFloat() { return (float)rand() / float(RAND_MAX); }
 #endif
 };
 

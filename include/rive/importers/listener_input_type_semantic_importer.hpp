@@ -10,16 +10,16 @@ class ListenerInputTypeSemantic;
 class ListenerInputTypeSemanticImporter : public ImportStackObject
 {
 private:
-    ListenerInputTypeSemantic* m_listenerInputTypeSemantic;
+  ListenerInputTypeSemantic* m_listenerInputTypeSemantic;
 
 public:
-    explicit ListenerInputTypeSemanticImporter(
-        ListenerInputTypeSemantic* listenerInputTypeSemantic);
-    ListenerInputTypeSemantic* listenerInputTypeSemantic() const
-    {
-        return m_listenerInputTypeSemantic;
-    }
-    StatusCode resolve() override;
+  explicit ListenerInputTypeSemanticImporter(
+      ListenerInputTypeSemantic* listenerInputTypeSemantic);
+  ListenerInputTypeSemantic* listenerInputTypeSemantic() const
+  {
+    return m_listenerInputTypeSemantic;
+  }
+  StatusCode resolve() override;
 };
 } // namespace rive
 

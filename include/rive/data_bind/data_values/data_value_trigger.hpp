@@ -9,13 +9,13 @@ class DataValueTrigger : public DataValueInteger
 {
 
 public:
-    DataValueTrigger(uint32_t value) : DataValueInteger(value) {};
-    DataValueTrigger() {};
-    static const DataType typeKey = DataType::trigger;
-    bool isTypeOf(DataType typeKey) const override
-    {
-        return typeKey == DataType::trigger || typeKey == DataType::integer;
-    }
+  DataValueTrigger(uint32_t value) : DataValueInteger(value) {};
+  DataValueTrigger() {};
+  static const DataType typeKey = DataType::trigger;
+  bool isTypeOf(DataType typeKey) const override
+  {
+    return typeKey == DataType::trigger || typeKey == DataType::integer;
+  }
 };
 } // namespace rive
 

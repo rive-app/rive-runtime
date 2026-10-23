@@ -14,18 +14,18 @@ namespace rive
 class DataConverterNumberToList : public DataConverterNumberToListBase
 {
 private:
-    File* m_file = nullptr;
-    DataValueList m_output;
-    std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
-    void clearItems();
+  File* m_file = nullptr;
+  DataValueList m_output;
+  std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
+  void clearItems();
 
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::list; };
-    void file(File*);
-    File* file() const;
-    Core* clone() const override;
-    void viewModelIdChanged() override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::list; };
+  void file(File*);
+  File* file() const;
+  Core* clone() const override;
+  void viewModelIdChanged() override;
 };
 } // namespace rive
 

@@ -26,28 +26,27 @@ static std::condition_variable s_lifecycleChanged;
 static bool s_active = true;
 static std::atomic<bool> s_shouldQuit{false};
 
-static void push_touch_event(UIView* view,
-                             UITouch* touch,
-                             TestingWindow::InputEvent eventType)
+static void push_touch_event(
+    UIView* view, UITouch* touch, TestingWindow::InputEvent eventType)
 {
-    if (touch == nil)
-    {
-        return;
-    }
-    CGPoint location = [touch locationInView:view];
-    CGFloat scale = view.contentScaleFactor;
-    std::lock_guard<std::mutex> lock(s_inputMutex);
-    s_inputEvents.push(
-        TestingWindow::InputEventData(eventType,
-                                      static_cast<float>(location.x * scale),
-                                      static_cast<float>(location.y * scale)));
+  if (touch == nil)
+  {
+    return;
+  }
+  CGPoint location = [touch locationInView:view];
+  CGFloat scale = view.contentScaleFactor;
+  std::lock_guard<std::mutex> lock(s_inputMutex);
+  s_inputEvents.push(TestingWindow::InputEventData(
+      eventType,
+      static_cast<float>(location.x * scale),
+      static_cast<float>(location.y * scale)));
 }
 
 static void set_active(bool active)
 {
-    std::lock_guard<std::mutex> lock(s_lifecycleMutex);
-    s_active = active;
-    s_lifecycleChanged.notify_all();
+  std::lock_guard<std::mutex> lock(s_lifecycleMutex);
+  s_active = active;
+  s_lifecycleChanged.notify_all();
 }
 
 @interface RiveMetalView : UIView
@@ -57,33 +56,31 @@ static void set_active(bool active)
 
 + (Class)layerClass
 {
-    return [CAMetalLayer class];
+  return [CAMetalLayer class];
 }
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
-    push_touch_event(
-        self, touches.anyObject, TestingWindow::InputEvent::MouseMove);
-    push_touch_event(
-        self, touches.anyObject, TestingWindow::InputEvent::MouseDown);
+  push_touch_event(
+      self, touches.anyObject, TestingWindow::InputEvent::MouseMove);
+  push_touch_event(
+      self, touches.anyObject, TestingWindow::InputEvent::MouseDown);
 }
 
 - (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
-    push_touch_event(
-        self, touches.anyObject, TestingWindow::InputEvent::MouseMove);
+  push_touch_event(
+      self, touches.anyObject, TestingWindow::InputEvent::MouseMove);
 }
 
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
-    push_touch_event(
-        self, touches.anyObject, TestingWindow::InputEvent::MouseUp);
+  push_touch_event(self, touches.anyObject, TestingWindow::InputEvent::MouseUp);
 }
 
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
-    push_touch_event(
-        self, touches.anyObject, TestingWindow::InputEvent::MouseUp);
+  push_touch_event(self, touches.anyObject, TestingWindow::InputEvent::MouseUp);
 }
 
 @end
@@ -95,37 +92,35 @@ static void set_active(bool active)
 
 - (void)loadView
 {
-    self.view =
-        [[RiveMetalView alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    self.view.autoresizingMask =
-        UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+  self.view = [[RiveMetalView alloc] initWithFrame:UIScreen.mainScreen.bounds];
+  self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth |
+                               UIViewAutoresizingFlexibleHeight;
 }
 
 - (void)viewDidLayoutSubviews
 {
-    [super viewDidLayoutSubviews];
+  [super viewDidLayoutSubviews];
 
-    if (![self.view.layer isKindOfClass:[CAMetalLayer class]])
-    {
-        return;
-    }
+  if (![self.view.layer isKindOfClass:[CAMetalLayer class]])
+  {
+    return;
+  }
 
-    UIScreen* screen = self.view.window.screen ?: UIScreen.mainScreen;
-    CGFloat scale = screen.scale;
-    self.view.contentScaleFactor = scale;
+  UIScreen* screen = self.view.window.screen ?: UIScreen.mainScreen;
+  CGFloat scale = screen.scale;
+  self.view.contentScaleFactor = scale;
 
-    CAMetalLayer* layer = (CAMetalLayer*)self.view.layer;
-    CGSize bounds = self.view.bounds.size;
-    layer.contentsScale = scale;
-    layer.drawableSize =
-        CGSizeMake(bounds.width * scale, bounds.height * scale);
+  CAMetalLayer* layer = (CAMetalLayer*)self.view.layer;
+  CGSize bounds = self.view.bounds.size;
+  layer.contentsScale = scale;
+  layer.drawableSize = CGSizeMake(bounds.width * scale, bounds.height * scale);
 
-    std::lock_guard<std::mutex> lock(s_windowMutex);
-    if (s_metalLayer == nil)
-    {
-        s_metalLayer = layer;
-        s_windowReady.notify_all();
-    }
+  std::lock_guard<std::mutex> lock(s_windowMutex);
+  if (s_metalLayer == nil)
+  {
+    s_metalLayer = layer;
+    s_windowReady.notify_all();
+  }
 }
 
 @end
@@ -139,55 +134,55 @@ static void set_active(bool active)
 - (BOOL)application:(UIApplication*)application
     didFinishLaunchingWithOptions:(NSDictionary*)launchOptions
 {
-    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
-    self.window.rootViewController = [[GameViewController alloc] init];
-    [self.window makeKeyAndVisible];
-    return YES;
+  self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+  self.window.rootViewController = [[GameViewController alloc] init];
+  [self.window makeKeyAndVisible];
+  return YES;
 }
 
 - (void)applicationDidBecomeActive:(UIApplication*)application
 {
-    set_active(true);
+  set_active(true);
 }
 
 - (void)applicationWillResignActive:(UIApplication*)application
 {
-    set_active(false);
+  set_active(false);
 }
 
 - (void)applicationWillTerminate:(UIApplication*)application
 {
-    s_shouldQuit = true;
-    set_active(true);
+  s_shouldQuit = true;
+  set_active(true);
 }
 
 @end
 
 void* rive_ios_app_wait_for_window()
 {
-    std::unique_lock<std::mutex> lock(s_windowMutex);
-    s_windowReady.wait(lock, [] { return s_metalLayer != nil; });
-    return (__bridge void*)s_metalLayer;
+  std::unique_lock<std::mutex> lock(s_windowMutex);
+  s_windowReady.wait(lock, [] { return s_metalLayer != nil; });
+  return (__bridge void*)s_metalLayer;
 }
 
 bool rive_ios_app_poll_input_event(TestingWindow::InputEventData& eventData)
 {
-    std::lock_guard<std::mutex> lock(s_inputMutex);
-    if (s_inputEvents.empty())
-    {
-        return false;
-    }
-    eventData = s_inputEvents.front();
-    s_inputEvents.pop();
-    return true;
+  std::lock_guard<std::mutex> lock(s_inputMutex);
+  if (s_inputEvents.empty())
+  {
+    return false;
+  }
+  eventData = s_inputEvents.front();
+  s_inputEvents.pop();
+  return true;
 }
 
 bool rive_ios_app_should_quit() { return s_shouldQuit; }
 
 void rive_ios_app_wait_while_inactive()
 {
-    std::unique_lock<std::mutex> lock(s_lifecycleMutex);
-    s_lifecycleChanged.wait(lock, [] { return s_active || s_shouldQuit; });
+  std::unique_lock<std::mutex> lock(s_lifecycleMutex);
+  s_lifecycleChanged.wait(lock, [] { return s_active || s_shouldQuit; });
 }
 
 #endif

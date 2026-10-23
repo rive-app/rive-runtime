@@ -25,26 +25,29 @@ using namespace rive;
 
 TransitionPropertyViewModelComparator::~TransitionPropertyViewModelComparator()
 {
-    if (m_bindableProperty != nullptr)
-    {
-        delete m_bindableProperty;
-        m_bindableProperty = nullptr;
-    }
+#ifdef WITH_RIVE_EDITOR
+  if (m_editorBindable)
+    return;
+#endif
+  if (m_bindableProperty != nullptr)
+  {
+    delete m_bindableProperty;
+    m_bindableProperty = nullptr;
+  }
 }
 
 StatusCode TransitionPropertyViewModelComparator::import(
     ImportStack& importStack)
 {
-    auto bindablePropertyImporter =
-        importStack.latest<BindablePropertyImporter>(
-            BindablePropertyBase::typeKey);
-    if (bindablePropertyImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    m_bindableProperty = bindablePropertyImporter->bindableProperty();
+  auto bindablePropertyImporter = importStack.latest<BindablePropertyImporter>(
+      BindablePropertyBase::typeKey);
+  if (bindablePropertyImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  m_bindableProperty = bindablePropertyImporter->bindableProperty();
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }
 
 void TransitionPropertyViewModelComparator::useInLayer(
@@ -52,17 +55,21 @@ void TransitionPropertyViewModelComparator::useInLayer(
     StateMachineLayerInstance* layerInstance) const
 {
 
-    auto bindableInstance =
-        stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-    if (bindableInstance == nullptr)
-    {
-        return;
-    }
-    auto dataBind =
-        stateMachineInstance->bindableDataBindToTarget(bindableInstance);
-    auto source = dataBind->source();
-    if (source != nullptr)
-    {
-        source->useInLayer(layerInstance);
-    }
+  auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+      m_bindableProperty);
+  if (bindableInstance == nullptr)
+  {
+    return;
+  }
+  auto dataBind = stateMachineInstance->bindableDataBindToTarget(
+      bindableInstance);
+  if (dataBind == nullptr)
+  {
+    return;
+  }
+  auto source = dataBind->source();
+  if (source != nullptr)
+  {
+    stateMachineInstance->useViewModelValue(source, layerInstance);
+  }
 }

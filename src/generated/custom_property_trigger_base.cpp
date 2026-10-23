@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CustomPropertyTriggerBase::clone() const
 {
-    auto cloned = new CustomPropertyTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new CustomPropertyTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

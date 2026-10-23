@@ -9,10 +9,10 @@ class ListenerInputTypeViewModel : public ListenerInputTypeViewModelBase,
                                    public DataBindPathReferencer
 {
 public:
-    void decodeViewModelPathIds(Span<const uint8_t> value) override;
-    void copyViewModelPathIds(
-        const ListenerInputTypeViewModelBase& object) override;
-    std::vector<uint32_t> viewModelPathIdsBuffer() const;
+  void decodeViewModelPathIds(Span<const uint8_t> value) override;
+  void copyViewModelPathIds(
+      const ListenerInputTypeViewModelBase& object) override;
+  std::vector<uint32_t> viewModelPathIdsBuffer() const;
 };
 } // namespace rive
 

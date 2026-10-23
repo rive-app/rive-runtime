@@ -7,66 +7,49 @@ namespace rive
 class AdvanceableStateBase : public LayerState
 {
 protected:
-    typedef LayerState Super;
+  typedef LayerState Super;
 
 public:
-    static const uint16_t typeKey = 145;
+  static const uint16_t typeKey = 145;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case AdvanceableStateBase::typeKey:
-            case LayerStateBase::typeKey:
-            case StateMachineLayerComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t speedPropertyKey = 292;
+  static const uint16_t speedPropertyKey = 292;
 
 protected:
-    float m_Speed = 1.0f;
+  float m_Speed = 1.0f;
 
 public:
-    inline float speed() const { return m_Speed; }
-    void speed(float value)
+  inline float speed() const { return m_Speed; }
+  void speed(float value)
+  {
+    if (m_Speed == value)
     {
-        if (m_Speed == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
-        m_Speed = value;
-        RIVE_EDITOR_CHANGED(speedChanged());
-        notifyPropertyChanged(speedPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
+    m_Speed = value;
+    notifyPropertyChanged(speedPropertyKey);
+  }
 
-    void copy(const AdvanceableStateBase& object)
-    {
-        m_Speed = object.m_Speed;
-        LayerState::copy(object);
-    }
+  void copy(const AdvanceableStateBase& object)
+  {
+    m_Speed = object.m_Speed;
+    LayerState::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case speedPropertyKey:
-                m_Speed = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return LayerState::deserialize(propertyKey, reader);
+      case speedPropertyKey:
+        m_Speed = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return LayerState::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void speedChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/advanceable_state_ext.inl"
 #endif

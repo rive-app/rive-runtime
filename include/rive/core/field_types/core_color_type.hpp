@@ -7,13 +7,13 @@ class BinaryReader;
 class CoreColorType
 {
 public:
-    static const int id = 3;
-    static int deserialize(BinaryReader& reader);
+  static const int id = 3;
+  static int deserialize(BinaryReader& reader);
 #if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
-    // Coop wire variant: the editor encodes colors as a varuint, while
-    // the runtime `.riv` wire stays raw uint32. Used by generator-
-    // emitted `applyChange`.
-    static int deserializeRev(BinaryReader& reader);
+  // Coop wire variant: the editor encodes colors as a varuint, while
+  // the runtime `.riv` wire stays raw uint32. Used by generator-
+  // emitted `applyChange`.
+  static int deserializeRev(BinaryReader& reader);
 #endif
 };
 } // namespace rive

@@ -8,7 +8,7 @@ namespace rive
 class BindablePropertyString : public BindablePropertyStringBase
 {
 public:
-    static constexpr const char* defaultValue = "";
+  static constexpr const char* defaultValue = "";
 };
 } // namespace rive
 

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TargetEffectBase::clone() const
 {
-    auto cloned = new TargetEffect();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TargetEffect();
+  cloned->copy(*this);
+  return cloned;
 }

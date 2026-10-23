@@ -7,11 +7,12 @@ namespace rive
 class TextVariationModifier : public TextVariationModifierBase
 {
 public:
-    float modify(Font* font,
-                 std::unordered_map<uint32_t, float>& variations,
-                 float fontSize,
-                 float strength) const override;
-    void axisValueChanged() override;
+  float modify(
+      Font* font,
+      std::unordered_map<uint32_t, float>& variations,
+      float fontSize,
+      float strength) const override;
+  void axisValueChanged() override;
 };
 } // namespace rive
 

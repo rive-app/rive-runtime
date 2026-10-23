@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* MeshBase::clone() const
 {
-    auto cloned = new Mesh();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Mesh();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -6,9 +6,9 @@ namespace rive
 {
 enum class Easing : uint8_t
 {
-    easeIn = 0,
-    easeOut = 1,
-    easeInOut = 2
+  easeIn = 0,
+  easeOut = 1,
+  easeInOut = 2
 };
 }
 #endif

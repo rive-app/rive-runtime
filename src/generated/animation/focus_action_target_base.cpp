@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FocusActionTargetBase::clone() const
 {
-    auto cloned = new FocusActionTarget();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FocusActionTarget();
+  cloned->copy(*this);
+  return cloned;
 }

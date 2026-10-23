@@ -7,9 +7,12 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <stdio.h>
-#include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
+#ifdef DEBUG
+#include <sstream>
+#endif
 
 #include "generated/shaders/glsl.glsl.hpp"
 
@@ -26,46 +29,47 @@
 
 // Emscripten's shader preprocessor crashes on PLS shaders. This method allows
 // us to bypass Emscripten and set a WebGL shader source directly.
-EM_JS(void,
-      webgl_shader_source,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLuint shader, const char* source),
-      {
-          gl = GL.getContext(gl).GLctx;
-          shader = GL.shaders[shader];
-          source = UTF8ToString(source);
-          gl.shaderSource(shader, source);
-      });
+EM_JS(
+    void,
+    webgl_shader_source,
+    (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLuint shader, const char* source),
+    {
+      gl = GL.getContext(gl).GLctx;
+      shader = GL.shaders[shader];
+      source = UTF8ToString(source);
+      gl.shaderSource(shader, source);
+    });
 #endif
 
 namespace glutils
 {
 static void delete_name(GLObjectType type, GLuint id)
 {
-    switch (type)
-    {
-        case GLObjectType::buffer:
-            glDeleteBuffers(1, &id);
-            return;
-        case GLObjectType::texture:
-            glDeleteTextures(1, &id);
-            return;
-        case GLObjectType::framebuffer:
-            glDeleteFramebuffers(1, &id);
-            return;
-        case GLObjectType::renderbuffer:
-            glDeleteRenderbuffers(1, &id);
-            return;
-        case GLObjectType::vertexArray:
-            glDeleteVertexArrays(1, &id);
-            return;
-        case GLObjectType::shader:
-            glDeleteShader(id);
-            return;
-        case GLObjectType::program:
-            glDeleteProgram(id);
-            return;
-    }
-    RIVE_UNREACHABLE();
+  switch (type)
+  {
+    case GLObjectType::buffer:
+      glDeleteBuffers(1, &id);
+      return;
+    case GLObjectType::texture:
+      glDeleteTextures(1, &id);
+      return;
+    case GLObjectType::framebuffer:
+      glDeleteFramebuffers(1, &id);
+      return;
+    case GLObjectType::renderbuffer:
+      glDeleteRenderbuffers(1, &id);
+      return;
+    case GLObjectType::vertexArray:
+      glDeleteVertexArrays(1, &id);
+      return;
+    case GLObjectType::shader:
+      glDeleteShader(id);
+      return;
+    case GLObjectType::program:
+      glDeleteProgram(id);
+      return;
+  }
+  RIVE_UNREACHABLE();
 }
 
 #ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
@@ -73,8 +77,8 @@ namespace
 {
 struct AbandonedName
 {
-    GLObjectType type;
-    GLuint id;
+  GLObjectType type;
+  GLuint id;
 };
 
 std::mutex g_abandonedMutex;
@@ -85,223 +89,234 @@ std::atomic<uint32_t> g_reclaimedCount{0};
 
 GLContextID CurrentContextID()
 {
-    return static_cast<GLContextID>(emscripten_webgl_get_current_context());
+  return static_cast<GLContextID>(emscripten_webgl_get_current_context());
 }
 
 static void abandon_name(GLObjectType type, GLuint id, GLContextID owner)
 {
-    {
-        std::lock_guard<std::mutex> lock(g_abandonedMutex);
-        g_abandonedNames[owner].push_back({type, id});
-    }
-    g_abandonedCount.fetch_add(1, std::memory_order_relaxed);
+  {
+    std::lock_guard<std::mutex> lock(g_abandonedMutex);
+    g_abandonedNames[owner].push_back({type, id});
+  }
+  g_abandonedCount.fetch_add(1, std::memory_order_relaxed);
 }
 
 void ReclaimAbandonedNames()
 {
-    if (g_abandonedCount.load(std::memory_order_acquire) ==
-        g_reclaimedCount.load(std::memory_order_relaxed))
+  if (g_abandonedCount.load(std::memory_order_acquire) ==
+      g_reclaimedCount.load(std::memory_order_relaxed))
+  {
+    return;
+  }
+  std::vector<AbandonedName> mine;
+  {
+    std::lock_guard<std::mutex> lock(g_abandonedMutex);
+    auto it = g_abandonedNames.find(CurrentContextID());
+    if (it == g_abandonedNames.end())
     {
-        return;
+      return;
     }
-    std::vector<AbandonedName> mine;
-    {
-        std::lock_guard<std::mutex> lock(g_abandonedMutex);
-        auto it = g_abandonedNames.find(CurrentContextID());
-        if (it == g_abandonedNames.end())
-        {
-            return;
-        }
-        mine.swap(it->second);
-        g_abandonedNames.erase(it);
-    }
-    for (const AbandonedName& name : mine)
-    {
-        delete_name(name.type, name.id);
-    }
-    g_reclaimedCount.fetch_add(static_cast<uint32_t>(mine.size()),
-                               std::memory_order_release);
+    mine.swap(it->second);
+    g_abandonedNames.erase(it);
+  }
+  for (const AbandonedName& name : mine)
+  {
+    delete_name(name.type, name.id);
+  }
+  g_reclaimedCount.fetch_add(
+      static_cast<uint32_t>(mine.size()),
+      std::memory_order_release);
 }
 
 uint32_t AbandonedNameCount()
 {
-    return g_abandonedCount.load(std::memory_order_relaxed);
+  return g_abandonedCount.load(std::memory_order_relaxed);
 }
 
 uint32_t ReclaimedNameCount()
 {
-    return g_reclaimedCount.load(std::memory_order_relaxed);
+  return g_reclaimedCount.load(std::memory_order_relaxed);
 }
 #endif
 
 void GLObject::destroy(GLObjectType type)
 {
-    if (m_id == 0)
-    {
-        return;
-    }
+  if (m_id == 0)
+  {
+    return;
+  }
 #ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
-    if (m_context != CurrentContextID())
-    {
-        abandon_name(type, m_id, m_context);
-        m_id = 0;
-        return;
-    }
-#endif
-    delete_name(type, m_id);
+  if (m_context != CurrentContextID())
+  {
+    abandon_name(type, m_id, m_context);
     m_id = 0;
+    return;
+  }
+#endif
+  delete_name(type, m_id);
+  m_id = 0;
 }
 
 void GLObject::adopt(GLObjectType type, GLObject&& rhs)
 {
-    destroy(type);
-    m_id = std::exchange(rhs.m_id, 0);
+  destroy(type);
+  m_id = std::exchange(rhs.m_id, 0);
 #ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
-    m_context = rhs.m_context;
+  m_context = rhs.m_context;
 #endif
 }
 
 void GLObject::adoptName(GLObjectType type, GLuint adoptedID)
 {
-    destroy(type);
-    m_id = adoptedID;
+  destroy(type);
+  m_id = adoptedID;
 #ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
-    m_context = CurrentContextID();
+  m_context = CurrentContextID();
 #endif
 }
 
-void CompileAndAttachShader(GLuint program,
-                            GLenum type,
-                            const char* source,
-                            const GLCapabilities& capabilities,
-                            DebugPrintErrorAndAbort debugPrintErrornAndAbort)
+void CompileAndAttachShader(
+    GLuint program,
+    GLenum type,
+    const char* source,
+    const GLCapabilities& capabilities,
+    DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    CompileAndAttachShader(program,
-                           type,
-                           nullptr,
-                           0,
-                           &source,
-                           1,
-                           capabilities,
-                           debugPrintErrornAndAbort);
+  CompileAndAttachShader(
+      program,
+      type,
+      nullptr,
+      0,
+      &source,
+      1,
+      capabilities,
+      debugPrintErrornAndAbort);
 }
 
-void CompileAndAttachShader(GLuint program,
-                            GLenum type,
-                            const char* defines[],
-                            size_t numDefines,
-                            const char* inputSources[],
-                            size_t numInputSources,
-                            const GLCapabilities& capabilities,
-                            DebugPrintErrorAndAbort debugPrintErrornAndAbort)
+void CompileAndAttachShader(
+    GLuint program,
+    GLenum type,
+    const char* defines[],
+    size_t numDefines,
+    const char* inputSources[],
+    size_t numInputSources,
+    const GLCapabilities& capabilities,
+    DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    GLuint shader = CompileShader(type,
-                                  defines,
-                                  numDefines,
-                                  inputSources,
-                                  numInputSources,
-                                  capabilities,
-                                  debugPrintErrornAndAbort);
-    glAttachShader(program, shader);
-    glDeleteShader(shader);
+  GLuint shader = CompileShader(
+      type,
+      defines,
+      numDefines,
+      inputSources,
+      numInputSources,
+      capabilities,
+      debugPrintErrornAndAbort);
+  glAttachShader(program, shader);
+  glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type,
-                     const char* source,
-                     const GLCapabilities& capabilities,
-                     DebugPrintErrorAndAbort debugPrintErrornAndAbort)
+GLuint CompileShader(
+    GLuint type,
+    const char* source,
+    const GLCapabilities& capabilities,
+    DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    return CompileShader(type,
-                         nullptr,
-                         0,
-                         &source,
-                         1,
-                         capabilities,
-                         debugPrintErrornAndAbort);
+  return CompileShader(
+      type,
+      nullptr,
+      0,
+      &source,
+      1,
+      capabilities,
+      debugPrintErrornAndAbort);
 }
 
-GLuint CompileShader(GLuint type,
-                     const char* defines[],
-                     size_t numDefines,
-                     const char* inputSources[],
-                     size_t numInputSources,
-                     const GLCapabilities& capabilities,
-                     DebugPrintErrorAndAbort debugPrintErrornAndAbort)
+GLuint CompileShader(
+    GLuint type,
+    const char* defines[],
+    size_t numDefines,
+    const char* inputSources[],
+    size_t numInputSources,
+    const GLCapabilities& capabilities,
+    DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    std::ostringstream shaderSource;
-    shaderSource << "#version " << capabilities.contextVersionMajor
-                 << capabilities.contextVersionMinor << '0';
-    if (capabilities.isGLES)
-    {
-        shaderSource << " es";
-    }
-    shaderSource << '\n';
-    // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm
-    // incorrectly substitutes
-    // __VERSION__ to 300.
-    shaderSource << "#define " << GLSL_GLSL_VERSION << ' '
-                 << capabilities.contextVersionMajor
-                 << capabilities.contextVersionMinor << "0\n";
-    if (type == GL_VERTEX_SHADER)
-    {
-        shaderSource << "#define " << GLSL_VERTEX "\n";
-    }
-    else if (GL_FRAGMENT_SHADER)
-    {
-        shaderSource << "#define " << GLSL_FRAGMENT "\n";
-    }
-    for (size_t i = 0; i < numDefines; ++i)
-    {
-        shaderSource << "#define " << defines[i] << " true\n";
-    }
-    shaderSource << "#define " << GLSL_BASE_VERTEX_UNIFORM_NAME << ' '
-                 << BASE_VERTEX_UNIFORM_NAME << '\n';
-    if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
-    {
-        shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
-                     << BASE_INSTANCE_UNIFORM_NAME << '\n';
-    }
-    if (capabilities.isMali)
-    {
-        shaderSource << "#define " << GLSL_GL_RENDERER_MALI << '\n';
-    }
-    shaderSource << rive::gpu::glsl::glsl << "\n";
-    for (size_t i = 0; i < numInputSources; ++i)
-    {
-        shaderSource << inputSources[i] << "\n";
-    }
-    return CompileRawGLSL(type,
-                          shaderSource.str().c_str(),
-                          debugPrintErrornAndAbort);
+  const std::string version = std::to_string(capabilities.contextVersionMajor) +
+                              std::to_string(capabilities.contextVersionMinor) +
+                              '0';
+  std::string shaderSource = "#version " + version;
+  if (capabilities.isGLES)
+  {
+    shaderSource += " es";
+  }
+  shaderSource += '\n';
+  // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm
+  // incorrectly substitutes
+  // __VERSION__ to 300.
+  shaderSource += "#define " GLSL_GLSL_VERSION " " + version + "\n";
+  if (type == GL_VERTEX_SHADER)
+  {
+    shaderSource += "#define " GLSL_VERTEX "\n";
+  }
+  else if (GL_FRAGMENT_SHADER)
+  {
+    shaderSource += "#define " GLSL_FRAGMENT "\n";
+  }
+  for (size_t i = 0; i < numDefines; ++i)
+  {
+    shaderSource += "#define ";
+    shaderSource += defines[i];
+    shaderSource += " true\n";
+  }
+  shaderSource += "#define " GLSL_BASE_VERTEX_UNIFORM_NAME " ";
+  shaderSource += BASE_VERTEX_UNIFORM_NAME;
+  shaderSource += '\n';
+  if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+  {
+    shaderSource += "#define " GLSL_BASE_INSTANCE_UNIFORM_NAME " ";
+    shaderSource += BASE_INSTANCE_UNIFORM_NAME;
+    shaderSource += '\n';
+  }
+  if (capabilities.isMali)
+  {
+    shaderSource += "#define " GLSL_GL_RENDERER_MALI "\n";
+  }
+  shaderSource += rive::gpu::glsl::glsl;
+  shaderSource += '\n';
+  for (size_t i = 0; i < numInputSources; ++i)
+  {
+    shaderSource += inputSources[i];
+    shaderSource += '\n';
+  }
+  return CompileRawGLSL(type, shaderSource.c_str(), debugPrintErrornAndAbort);
 }
 
 #ifdef DEBUG
 void PrintShaderCompilationErrors(GLuint shader)
 {
-    GLint maxLength = 0;
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
-    std::vector<GLchar> infoLog(maxLength);
-    glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
-    fprintf(stderr, "Failed to compile shader\n");
-    // Print the error message *before* the shader in case stderr hasn't
-    // finished flushing when we call abort() further on.
-    fprintf(stderr, "%s\n", &infoLog[0]);
+  GLint maxLength = 0;
+  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+  std::vector<GLchar> infoLog(maxLength);
+  glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
+  fprintf(stderr, "Failed to compile shader\n");
+  // Print the error message *before* the shader in case stderr hasn't
+  // finished flushing when we call abort() further on.
+  fprintf(stderr, "%s\n", &infoLog[0]);
 
-    GLint sourceLength = 0;
-    glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &sourceLength);
-    std::vector<GLchar> shaderSource(sourceLength);
-    glGetShaderSource(shader, sourceLength, nullptr, shaderSource.data());
-    int l = 1;
-    std::stringstream stream(shaderSource.data());
-    std::string lineStr;
-    while (std::getline(stream, lineStr, '\n'))
-    {
-        fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
-    }
-    // Print the error message, again, *after* the shader where it's easier
-    // to find in the console.
-    fprintf(stderr, "%s\n", &infoLog[0]);
-    fflush(stderr);
+  GLint sourceLength = 0;
+  glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &sourceLength);
+  std::vector<GLchar> shaderSource(sourceLength);
+  glGetShaderSource(shader, sourceLength, nullptr, shaderSource.data());
+  int l = 1;
+  std::stringstream stream(shaderSource.data());
+  std::string lineStr;
+  while (std::getline(stream, lineStr, '\n'))
+  {
+    fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
+  }
+  // Print the error message, again, *after* the shader where it's easier
+  // to find in the console.
+  fprintf(stderr, "%s\n", &infoLog[0]);
+  fflush(stderr);
 }
 #endif
 
@@ -310,191 +325,202 @@ void PrintShaderCompilationErrors(GLuint shader)
     const char* rawGLSL,
     DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    GLuint shader = glCreateShader(shaderType);
+  GLuint shader = glCreateShader(shaderType);
 #ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
-    // Emscripten's shader preprocessor crashes on PLS shaders. Feed Emscripten
-    // something very simple and then hop to WebGL to bypass it and set the real
-    // shader source.
-    const char* kMinimalShader =
-        shaderType == GL_VERTEX_SHADER
-            ? "#version 300 es\nvoid main() { gl_Position = vec4(0); }"
-            : "#version 300 es\nvoid main() {}";
-    glShaderSource(shader, 1, &kMinimalShader, nullptr);
-    webgl_shader_source(emscripten_webgl_get_current_context(),
-                        shader,
-                        rawGLSL);
+  // Emscripten's shader preprocessor crashes on PLS shaders. Feed Emscripten
+  // something very simple and then hop to WebGL to bypass it and set the real
+  // shader source.
+  const char* kMinimalShader =
+      shaderType == GL_VERTEX_SHADER
+          ? "#version 300 es\nvoid main() { gl_Position = vec4(0); }"
+          : "#version 300 es\nvoid main() {}";
+  glShaderSource(shader, 1, &kMinimalShader, nullptr);
+  webgl_shader_source(emscripten_webgl_get_current_context(), shader, rawGLSL);
 #else
-    glShaderSource(shader, 1, &rawGLSL, nullptr);
+  glShaderSource(shader, 1, &rawGLSL, nullptr);
 #endif
-    glCompileShader(shader);
+  glCompileShader(shader);
 #ifdef DEBUG
-    if (debugPrintErrornAndAbort == DebugPrintErrorAndAbort::yes)
+  if (debugPrintErrornAndAbort == DebugPrintErrorAndAbort::yes)
+  {
+    GLint isCompiled = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+    if (isCompiled == GL_FALSE)
     {
-        GLint isCompiled = 0;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
-        if (isCompiled == GL_FALSE)
-        {
-            PrintShaderCompilationErrors(shader);
-            glDeleteShader(shader);
-            // Give stderr another second to finish flushing before we abort.
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            abort();
-        }
+      PrintShaderCompilationErrors(shader);
+      glDeleteShader(shader);
+      // Give stderr another second to finish flushing before we abort.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      abort();
     }
+  }
 #else
-    std::ignore = debugPrintErrornAndAbort;
+  std::ignore = debugPrintErrornAndAbort;
 #endif
-    return shader;
+  return shader;
 }
 
 #ifdef DEBUG
 void PrintLinkProgramErrors(GLuint program)
 {
-    GLint maxLength = 0;
-    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
-    std::vector<GLchar> infoLog(maxLength);
-    glGetProgramInfoLog(program, maxLength, &maxLength, &infoLog[0]);
-    fprintf(stderr, "Failed to link program %s\n", &infoLog[0]);
-    fflush(stderr);
+  GLint maxLength = 0;
+  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+  std::vector<GLchar> infoLog(maxLength);
+  glGetProgramInfoLog(program, maxLength, &maxLength, &infoLog[0]);
+  fprintf(stderr, "Failed to link program %s\n", &infoLog[0]);
+  fflush(stderr);
 }
 #endif
 
-void LinkProgram(GLuint program,
-                 DebugPrintErrorAndAbort debugPrintErrornAndAbort)
+void LinkProgram(
+    GLuint program,
+    DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    glLinkProgram(program);
+  glLinkProgram(program);
 #ifdef DEBUG
-    if (debugPrintErrornAndAbort == DebugPrintErrorAndAbort::yes)
+  if (debugPrintErrornAndAbort == DebugPrintErrorAndAbort::yes)
+  {
+    GLint isLinked = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
+    if (isLinked == GL_FALSE)
     {
-        GLint isLinked = 0;
-        glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
-        if (isLinked == GL_FALSE)
-        {
-            PrintLinkProgramErrors(program);
-            abort();
-        }
+      PrintLinkProgramErrors(program);
+      abort();
     }
+  }
 #else
-    std::ignore = debugPrintErrornAndAbort;
+  std::ignore = debugPrintErrornAndAbort;
 #endif
 }
 
-void Program::compileAndAttachShader(GLuint type,
-                                     const char* defines[],
-                                     size_t numDefines,
-                                     const char* sources[],
-                                     size_t numSources,
-                                     const GLCapabilities& capabilities)
+void Program::compileAndAttachShader(
+    GLuint type,
+    const char* defines[],
+    size_t numDefines,
+    const char* sources[],
+    size_t numSources,
+    const GLCapabilities& capabilities)
 {
-    assert(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
-    glutils::Shader& internalShader =
-        type == GL_VERTEX_SHADER ? m_vertexShader : m_fragmentShader;
-    internalShader
-        .compile(type, defines, numDefines, sources, numSources, capabilities);
-    glAttachShader(m_id, internalShader);
+  assert(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
+  glutils::Shader& internalShader = type == GL_VERTEX_SHADER ? m_vertexShader
+                                                             : m_fragmentShader;
+  internalShader
+      .compile(type, defines, numDefines, sources, numSources, capabilities);
+  glAttachShader(m_id, internalShader);
 }
 
-void Shader::compile(GLenum type,
-                     const char* defines[],
-                     size_t numDefines,
-                     const char* sources[],
-                     size_t numSources,
-                     const GLCapabilities& capabilities)
+void Shader::compile(
+    GLenum type,
+    const char* defines[],
+    size_t numDefines,
+    const char* sources[],
+    size_t numSources,
+    const GLCapabilities& capabilities)
 {
-    reset(CompileShader(type,
-                        defines,
-                        numDefines,
-                        sources,
-                        numSources,
-                        capabilities));
+  reset(CompileShader(
+      type,
+      defines,
+      numDefines,
+      sources,
+      numSources,
+      capabilities));
 }
 
-void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
+void SetTexture2DSamplingParams(
+    GLenum minFilter,
+    GLenum magFilter,
+    GLint wrapU,
+    GLint wrapV)
 {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapU);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapV);
 }
 
 GLint gl_wrap_from_image_wrap(rive::ImageWrap wrap)
 {
-    switch (wrap)
-    {
-        case rive::ImageWrap::clamp:
-            return GL_CLAMP_TO_EDGE;
-        case rive::ImageWrap::repeat:
-            return GL_REPEAT;
-        case rive::ImageWrap::mirror:
-            return GL_MIRRORED_REPEAT;
-    }
+  switch (wrap)
+  {
+    case rive::ImageWrap::clamp:
+      return GL_CLAMP_TO_EDGE;
+    case rive::ImageWrap::repeat:
+      return GL_REPEAT;
+    case rive::ImageWrap::mirror:
+      return GL_MIRRORED_REPEAT;
+  }
 
-    RIVE_UNREACHABLE();
+  RIVE_UNREACHABLE();
 }
 
 GLint gl_min_filter_for_image_filter(rive::ImageFilter filter)
 {
-    switch (filter)
-    {
-        case rive::ImageFilter::bilinear:
-            return GL_LINEAR_MIPMAP_NEAREST;
-        case rive::ImageFilter::nearest:
-            return GL_NEAREST;
-    }
+  switch (filter)
+  {
+    case rive::ImageFilter::bilinear:
+      return GL_LINEAR_MIPMAP_NEAREST;
+    case rive::ImageFilter::nearest:
+      return GL_NEAREST;
+  }
 
-    RIVE_UNREACHABLE();
+  RIVE_UNREACHABLE();
 }
 
 GLint gl_mag_filter_for_image_filter(rive::ImageFilter filter)
 {
-    switch (filter)
-    {
-        case rive::ImageFilter::nearest:
-            return GL_NEAREST;
-        case rive::ImageFilter::bilinear:
-            return GL_LINEAR;
-    }
+  switch (filter)
+  {
+    case rive::ImageFilter::nearest:
+      return GL_NEAREST;
+    case rive::ImageFilter::bilinear:
+      return GL_LINEAR;
+  }
 
-    RIVE_UNREACHABLE();
+  RIVE_UNREACHABLE();
 }
 
 void SetTexture2DSamplingParams(rive::ImageSampler samplingParams)
 {
-    glTexParameteri(GL_TEXTURE_2D,
-                    GL_TEXTURE_MIN_FILTER,
-                    gl_min_filter_for_image_filter(samplingParams.filter));
-    glTexParameteri(GL_TEXTURE_2D,
-                    GL_TEXTURE_MAG_FILTER,
-                    gl_mag_filter_for_image_filter(samplingParams.filter));
-    glTexParameteri(GL_TEXTURE_2D,
-                    GL_TEXTURE_WRAP_S,
-                    gl_wrap_from_image_wrap(samplingParams.wrapX));
-    glTexParameteri(GL_TEXTURE_2D,
-                    GL_TEXTURE_WRAP_T,
-                    gl_wrap_from_image_wrap(samplingParams.wrapY));
+  glTexParameteri(
+      GL_TEXTURE_2D,
+      GL_TEXTURE_MIN_FILTER,
+      gl_min_filter_for_image_filter(samplingParams.filter));
+  glTexParameteri(
+      GL_TEXTURE_2D,
+      GL_TEXTURE_MAG_FILTER,
+      gl_mag_filter_for_image_filter(samplingParams.filter));
+  glTexParameteri(
+      GL_TEXTURE_2D,
+      GL_TEXTURE_WRAP_S,
+      gl_wrap_from_image_wrap(samplingParams.wrapX));
+  glTexParameteri(
+      GL_TEXTURE_2D,
+      GL_TEXTURE_WRAP_T,
+      gl_wrap_from_image_wrap(samplingParams.wrapY));
 }
 
-void BlitFramebuffer(rive::IAABB bounds,
-                     uint32_t renderTargetHeight,
-                     bool bottomUp,
-                     GLbitfield mask)
+void BlitFramebuffer(
+    rive::IAABB bounds,
+    uint32_t renderTargetHeight,
+    bool bottomUp,
+    GLbitfield mask)
 {
-    // glBlitFramebuffer addresses rows from memory row 0.
-    uint32_t l = bounds.left;
-    uint32_t b = bottomUp ? renderTargetHeight - bounds.bottom : bounds.top;
-    uint32_t r = bounds.right;
-    uint32_t t = bottomUp ? renderTargetHeight - bounds.top : bounds.bottom;
-    glBlitFramebuffer(l, b, r, t, l, b, r, t, mask, GL_NEAREST);
+  // glBlitFramebuffer addresses rows from memory row 0.
+  uint32_t l = bounds.left;
+  uint32_t b = bottomUp ? renderTargetHeight - bounds.bottom : bounds.top;
+  uint32_t r = bounds.right;
+  uint32_t t = bottomUp ? renderTargetHeight - bounds.top : bounds.bottom;
+  glBlitFramebuffer(l, b, r, t, l, b, r, t, mask, GL_NEAREST);
 }
 
 void Uniform1iByName(GLuint programID, const char* name, GLint value)
 {
-    GLint location = glGetUniformLocation(programID, name);
-    // Don't allow non-existent uniforms. glUniform1i() is supposed to silently
-    // ignore -1, but Moto G7 Play throws an error. We also just shouldn't be
-    // querying uniform locations we know aren't going to exist anyway for
-    // performance reasons.
-    assert(location != -1);
-    glUniform1i(location, value);
+  GLint location = glGetUniformLocation(programID, name);
+  // Don't allow non-existent uniforms. glUniform1i() is supposed to silently
+  // ignore -1, but Moto G7 Play throws an error. We also just shouldn't be
+  // querying uniform locations we know aren't going to exist anyway for
+  // performance reasons.
+  assert(location != -1);
+  glUniform1i(location, value);
 }
 } // namespace glutils

@@ -7,68 +7,52 @@ namespace rive
 class TransitionNumberConditionBase : public TransitionValueCondition
 {
 protected:
-    typedef TransitionValueCondition Super;
+  typedef TransitionValueCondition Super;
 
 public:
-    static const uint16_t typeKey = 70;
+  static const uint16_t typeKey = 70;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransitionNumberConditionBase::typeKey:
-            case TransitionValueConditionBase::typeKey:
-            case TransitionInputConditionBase::typeKey:
-            case TransitionConditionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t valuePropertyKey = 157;
+  static const uint16_t valuePropertyKey = 157;
 
 protected:
-    float m_Value = 0.0f;
+  float m_Value = 0.0f;
 
 public:
-    inline float value() const { return m_Value; }
-    void value(float value)
+  inline float value() const { return m_Value; }
+  void value(float value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TransitionNumberConditionBase& object)
-    {
-        m_Value = object.m_Value;
-        TransitionValueCondition::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TransitionNumberConditionBase& object)
+  {
+    m_Value = object.m_Value;
+    TransitionValueCondition::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return TransitionValueCondition::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return TransitionValueCondition::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/transition_number_condition_ext.inl"
 #endif

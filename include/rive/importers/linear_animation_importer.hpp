@@ -11,12 +11,12 @@ class KeyedObject;
 class LinearAnimationImporter : public ImportStackObject
 {
 private:
-    LinearAnimation* m_Animation;
+  LinearAnimation* m_Animation;
 
 public:
-    LinearAnimation* animation() const { return m_Animation; }
-    LinearAnimationImporter(LinearAnimation* animation);
-    void addKeyedObject(std::unique_ptr<KeyedObject>);
+  LinearAnimation* animation() const { return m_Animation; }
+  LinearAnimationImporter(LinearAnimation* animation);
+  void addKeyedObject(std::unique_ptr<KeyedObject>);
 };
 } // namespace rive
 #endif

@@ -18,14 +18,14 @@ namespace rive::gpu
 // enabled.
 struct BackgroundCompileJob
 {
-    gpu::DrawType drawType;
-    gpu::ShaderFeatures shaderFeatures;
-    gpu::InterlockMode interlockMode;
-    gpu::ShaderMiscFlags shaderMiscFlags;
-    id<MTLLibrary> compiledLibrary = nil;
+  gpu::DrawType drawType;
+  gpu::ShaderFeatures shaderFeatures;
+  gpu::InterlockMode interlockMode;
+  gpu::ShaderMiscFlags shaderMiscFlags;
+  id<MTLLibrary> compiledLibrary = nil;
 #ifdef WITH_RIVE_TOOLS
-    gpu::SynthesizedFailureType synthesizedFailureType =
-        gpu::SynthesizedFailureType::none;
+  gpu::SynthesizedFailureType
+      synthesizedFailureType = gpu::SynthesizedFailureType::none;
 #endif
 };
 
@@ -34,29 +34,30 @@ struct BackgroundCompileJob
 class BackgroundShaderCompiler
 {
 public:
-    using AtomicBarrierType = RenderContextMetalImpl::AtomicBarrierType;
-    using MetalFeatures = RenderContextMetalImpl::MetalFeatures;
+  using AtomicBarrierType = RenderContextMetalImpl::AtomicBarrierType;
+  using MetalFeatures = RenderContextMetalImpl::MetalFeatures;
 
-    BackgroundShaderCompiler(id<MTLDevice> gpu, MetalFeatures metalFeatures) :
-        m_gpu(gpu), m_metalFeatures(metalFeatures)
-    {}
+  BackgroundShaderCompiler(id<MTLDevice> gpu, MetalFeatures metalFeatures)
+      : m_gpu(gpu)
+      , m_metalFeatures(metalFeatures)
+  {}
 
-    ~BackgroundShaderCompiler();
+  ~BackgroundShaderCompiler();
 
-    void pushJob(const BackgroundCompileJob&);
-    bool popFinishedJob(BackgroundCompileJob* job, bool wait);
+  void pushJob(const BackgroundCompileJob&);
+  bool popFinishedJob(BackgroundCompileJob* job, bool wait);
 
 private:
-    void threadMain();
+  void threadMain();
 
-    const id<MTLDevice> m_gpu;
-    const MetalFeatures m_metalFeatures;
-    std::queue<BackgroundCompileJob> m_pendingJobs;
-    std::vector<BackgroundCompileJob> m_finishedJobs;
-    std::mutex m_mutex;
-    std::condition_variable m_workAddedCondition;
-    std::condition_variable m_workFinishedCondition;
-    bool m_shouldQuit = false;
-    std::thread m_compilerThread;
+  const id<MTLDevice> m_gpu;
+  const MetalFeatures m_metalFeatures;
+  std::queue<BackgroundCompileJob> m_pendingJobs;
+  std::vector<BackgroundCompileJob> m_finishedJobs;
+  std::mutex m_mutex;
+  std::condition_variable m_workAddedCondition;
+  std::condition_variable m_workFinishedCondition;
+  bool m_shouldQuit = false;
+  std::thread m_compilerThread;
 };
 } // namespace rive::gpu

@@ -9,32 +9,32 @@
 // These objects are simple in that they can write their fragments out directly,
 // without having to cooperate with overlapping fragments to work out coverage.
 
-#if (defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@ENABLE_CLIPPING)) ||   \
-    defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
-// @FIXED_FUNCTION_COLOR_OUTPUT without clipping can skip the interlock.
-#undef NEEDS_INTERLOCK
-#else
-#define NEEDS_INTERLOCK
-#endif
+  #if (defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@ENABLE_CLIPPING)) || \
+      defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
+    // @FIXED_FUNCTION_COLOR_OUTPUT without clipping can skip the interlock.
+    #undef NEEDS_INTERLOCK
+  #else
+    #define NEEDS_INTERLOCK
+  #endif
 
 PLS_BLOCK_BEGIN
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+  #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
-#endif
-#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
+  #endif
+  #ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+    #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
-#endif
+    #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
-#else // @RENDER_MODE_CLOCKWISE_ATOMIC
+  #else // @RENDER_MODE_CLOCKWISE_ATOMIC
 PLS_DECL4F(CLIP_PLANE_IDX, clipBuffer);
-#endif
+  #endif
 PLS_BLOCK_END
 
-// FEATHER_ATLAS_BLIT includes draw_path_common.glsl, which declares the
-// textures & samplers, so we only need to declare these for image meshes.
-#ifdef @DRAW_IMAGE_MESH
+  // FEATHER_ATLAS_BLIT includes draw_path_common.glsl, which declares the
+  // textures & samplers, so we only need to declare these for image meshes.
+  #ifdef @DRAW_IMAGE_MESH
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
@@ -45,166 +45,172 @@ DYNAMIC_SAMPLER_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
-#endif // @DRAW_IMAGE_MESH
+  #endif // @DRAW_IMAGE_MESH
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
-#ifdef @DRAW_IMAGE_MESH
+  #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+    #ifdef @DRAW_IMAGE_MESH
 PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
-#else
+    #else
 PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
-#endif
-#else
-#ifdef @DRAW_IMAGE_MESH
+    #endif
+  #else
+    #ifdef @DRAW_IMAGE_MESH
 PLS_MAIN(@drawFragmentMain)
-#else
+    #else
 PLS_MAIN(@drawFragmentMain)
-#endif
-#endif
+    #endif
+  #endif
 {
-#ifdef @FEATHER_ATLAS_BLIT
-    VARYING_UNPACK(v_paint, float4);
-#if defined(@ENABLE_MODULATED_IMAGE)
-    VARYING_UNPACK(v_image, float3);
-#endif
-    VARYING_UNPACK(v_atlasCoord, float2);
-#endif
-#ifdef @ENABLE_CLIPPING
-    VARYING_UNPACK(v_clipID, half);
-#endif
-#ifdef @ENABLE_CLIP_RECT
-    VARYING_UNPACK(v_clipRect, float4);
-#endif
-#if defined(@FEATHER_ATLAS_BLIT) && defined(@ENABLE_ADVANCED_BLEND)
-    VARYING_UNPACK(v_blendMode, half);
-#endif
-#ifdef @DRAW_IMAGE_MESH
-    VARYING_UNPACK(v_imageTexCoord, float2);
-    VARYING_UNPACK(v_imageModulatedColor, half4);
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_UNPACK(v_imageBlendMode, ushort);
-#endif
-#endif
+  #ifdef @FEATHER_ATLAS_BLIT
+  VARYING_UNPACK(v_paint, float4);
+    #if defined(@ENABLE_MODULATED_IMAGE)
+  VARYING_UNPACK(v_image, float3);
+    #endif
+  VARYING_UNPACK(v_atlasCoord, float2);
+  #endif
+  #ifdef @ENABLE_CLIPPING
+  VARYING_UNPACK(v_clipID, half);
+  #endif
+  #ifdef @ENABLE_CLIP_RECT
+  VARYING_UNPACK(v_clipRect, float4);
+  #endif
+  #if defined(@FEATHER_ATLAS_BLIT) && defined(@ENABLE_ADVANCED_BLEND)
+  VARYING_UNPACK(v_blendMode, half);
+  #endif
+  #ifdef @DRAW_IMAGE_MESH
+  VARYING_UNPACK(v_imageTexCoord, float2);
+  VARYING_UNPACK(v_imageModulatedColor, half4);
+    #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_UNPACK(v_imageBlendMode, ushort);
+    #endif
+  #endif
 
-#ifdef @FEATHER_ATLAS_BLIT
-    half4 color = find_paint_color(
-#ifdef @ENABLE_MODULATED_IMAGE
-        v_image,
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-        cast_half_to_ushort(v_blendMode),
-#endif
-        v_paint FRAGMENT_CONTEXT_UNPACK);
-    half coverage = clamp(TEXTURE_SAMPLE_LOD(@featherAtlasTexture,
-                                             featherAtlasSampler,
-                                             v_atlasCoord,
-                                             .0)
-                              .r,
-                          make_half(.0),
-                          make_half(1.));
-#endif
+  #ifdef @FEATHER_ATLAS_BLIT
+  half4 color = find_paint_color(
+    #ifdef @ENABLE_MODULATED_IMAGE
+      v_image,
+    #endif
+    #ifdef @ENABLE_ADVANCED_BLEND
+      cast_half_to_ushort(v_blendMode),
+    #endif
+      v_paint FRAGMENT_CONTEXT_UNPACK);
+  half coverage = clamp(
+      TEXTURE_SAMPLE_LOD(
+          @featherAtlasTexture,
+          featherAtlasSampler,
+          v_atlasCoord,
+          .0)
+          .r,
+      make_half(.0),
+      make_half(1.));
+  #endif
 
-#ifdef @DRAW_IMAGE_MESH
-    half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(@imageTexture,
-                                                 imageSampler,
-                                                 v_imageTexCoord,
-                                                 uniforms.mipMapLODBias);
-    half coverage = 1.;
-#endif
+  #ifdef @DRAW_IMAGE_MESH
+  half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(
+      @imageTexture,
+      imageSampler,
+      v_imageTexCoord,
+      uniforms.mipMapLODBias);
+  half coverage = 1.;
+  #endif
 
-#ifdef @ENABLE_CLIP_RECT
-    // Calculate the clip rect before entering the interlock.
-    if (@ENABLE_CLIP_RECT)
-    {
-        half clipRectCoverage =
-            max(min_component(cast_float4_to_half4(v_clipRect)), make_half(.0));
-        coverage = min(clipRectCoverage, coverage);
-    }
-#endif
+  #ifdef @ENABLE_CLIP_RECT
+  // Calculate the clip rect before entering the interlock.
+  if (@ENABLE_CLIP_RECT)
+  {
+    half clipRectCoverage = max(
+        min_component(cast_float4_to_half4(v_clipRect)),
+        make_half(.0));
+    coverage = min(clipRectCoverage, coverage);
+  }
+  #endif
 
-#ifdef NEEDS_INTERLOCK
-    PLS_INTERLOCK_BEGIN;
-#endif
+  #ifdef NEEDS_INTERLOCK
+  PLS_INTERLOCK_BEGIN;
+  #endif
 
-#if defined(@ENABLE_CLIPPING)
-    if (@ENABLE_CLIPPING && v_clipID != .0)
-    {
-        half clipCoverage;
-#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
-        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-        half clipContentID = clipData.g;
-        clipCoverage =
-            max(clipContentID == v_clipID ? clipData.r : make_half(.0),
-                make_half(.0));
-#else
-        clipCoverage = PLS_LOAD4F(clipBuffer).r;
-#endif
-        clipCoverage = max(clipCoverage, make_half(.0));
-        coverage = min(coverage, clipCoverage);
-    }
-#endif
+  #if defined(@ENABLE_CLIPPING)
+  if (@ENABLE_CLIPPING && v_clipID != .0)
+  {
+    half clipCoverage;
+    #ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
+    half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+    half clipContentID = clipData.g;
+    clipCoverage = max(
+        clipContentID == v_clipID ? clipData.r : make_half(.0),
+        make_half(.0));
+    #else
+    clipCoverage = PLS_LOAD4F(clipBuffer).r;
+    #endif
+    clipCoverage = max(clipCoverage, make_half(.0));
+    coverage = min(coverage, clipCoverage);
+  }
+  #endif
 
-#ifdef @DRAW_IMAGE_MESH
-    color *= v_imageModulatedColor;
-#endif
+  #ifdef @DRAW_IMAGE_MESH
+  color *= v_imageModulatedColor;
+  #endif
 
-#if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
-    half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
-#ifdef @ENABLE_ADVANCED_BLEND
-#ifdef @FEATHER_ATLAS_BLIT
-    ushort blendMode = cast_half_to_ushort(v_blendMode);
-#endif
-#ifdef @DRAW_IMAGE_MESH
-    ushort blendMode = v_imageBlendMode;
-#endif
-    if (@ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER)
-    {
+  #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+  half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
+    #ifdef @ENABLE_ADVANCED_BLEND
+      #ifdef @FEATHER_ATLAS_BLIT
+  ushort blendMode = cast_half_to_ushort(v_blendMode);
+      #endif
+      #ifdef @DRAW_IMAGE_MESH
+  ushort blendMode = v_imageBlendMode;
+      #endif
+  if (@ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER)
+  {
         // Advanced-blend draws operate on unmultiplied color.
-#ifdef @DRAW_IMAGE_MESH
-        color.rgb = unmultiply_rgb(color);
-#endif
-        color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode) *
-                    color.a;
-    }
-#endif // @ENABLE_ADVANCED_BLEND
-    color *= coverage;
+      #ifdef @DRAW_IMAGE_MESH
+    color.rgb = unmultiply_rgb(color);
+      #endif
+    color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode) *
+                color.a;
+  }
+    #endif // @ENABLE_ADVANCED_BLEND
+  color *= coverage;
 
-    color.rgb = add_dither_if_alpha_nonzero(color.rgb,
-                                            color.a,
-                                            _fragCoord.xy,
-                                            uniforms.ditherScale,
-                                            uniforms.ditherBias);
+  color.rgb = add_dither_if_alpha_nonzero(
+      color.rgb,
+      color.a,
+      _fragCoord.xy,
+      uniforms.ditherScale,
+      uniforms.ditherBias);
 
-#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
-    color = dstColorPremul * (1. - color.a) + color;
-#endif
+    #ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
+  color = dstColorPremul * (1. - color.a) + color;
+    #endif
 
-    PLS_STORE4F(colorBuffer, color);
-#endif // !@FIXED_FUNCTION_COLOR_OUTPUT
+  PLS_STORE4F(colorBuffer, color);
+  #endif // !@FIXED_FUNCTION_COLOR_OUTPUT
 
-#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
-    PLS_PRESERVE_UI(clipBuffer);
-    PLS_PRESERVE_UI(coverageBuffer);
-#else
-    // Since blend is enabled, storing 0 to the clip will ensure it remains
-    // unchanged.
-    PLS_STORE4F(clipBuffer, make_half4(.0));
-#endif
-#ifdef NEEDS_INTERLOCK
-    PLS_INTERLOCK_END;
-#endif
+  #ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
+  PLS_PRESERVE_UI(clipBuffer);
+  PLS_PRESERVE_UI(coverageBuffer);
+  #else
+  // Since blend is enabled, storing 0 to the clip will ensure it remains
+  // unchanged.
+  PLS_STORE4F(clipBuffer, make_half4(.0));
+  #endif
+  #ifdef NEEDS_INTERLOCK
+  PLS_INTERLOCK_END;
+  #endif
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
-    color = (color * coverage);
-    color.rgb = add_dither_if_alpha_nonzero(color.rgb,
-                                            color.a,
-                                            _fragCoord.xy,
-                                            uniforms.ditherScale,
-                                            uniforms.ditherBias);
-    _fragColor = color;
-    EMIT_PLS_AND_FRAG_COLOR
-#else
-    EMIT_PLS;
-#endif
+  #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+  color = (color * coverage);
+  color.rgb = add_dither_if_alpha_nonzero(
+      color.rgb,
+      color.a,
+      _fragCoord.xy,
+      uniforms.ditherScale,
+      uniforms.ditherBias);
+  _fragColor = color;
+  EMIT_PLS_AND_FRAG_COLOR
+  #else
+  EMIT_PLS;
+  #endif
 }
 
 #endif // @FRAGMENT

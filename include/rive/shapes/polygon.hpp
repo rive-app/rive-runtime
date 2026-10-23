@@ -9,18 +9,18 @@ namespace rive
 class Polygon : public PolygonBase
 {
 protected:
-    std::vector<StraightVertex> m_PolygonVertices;
+  std::vector<StraightVertex> m_PolygonVertices;
 
 public:
-    Polygon();
-    ~Polygon() override;
-    void update(ComponentDirt value) override;
+  Polygon();
+  ~Polygon() override;
+  void update(ComponentDirt value) override;
 
 protected:
-    void cornerRadiusChanged() override;
-    void pointsChanged() override;
-    virtual std::size_t vertexCount();
-    virtual void buildPolygon();
+  void cornerRadiusChanged() override;
+  void pointsChanged() override;
+  virtual std::size_t vertexCount();
+  virtual void buildPolygon();
 };
 } // namespace rive
 

@@ -11,267 +11,250 @@ namespace rive
 class TextModifierRangeBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 158;
+  static const uint16_t typeKey = 158;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextModifierRangeBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t modifyFromPropertyKey = 327;
-    static const uint16_t modifyToPropertyKey = 336;
-    static const uint16_t strengthPropertyKey = 334;
-    static const uint16_t unitsValuePropertyKey = 316;
-    static const uint16_t typeValuePropertyKey = 325;
-    static const uint16_t modeValuePropertyKey = 326;
-    static const uint16_t clampPropertyKey = 333;
-    static const uint16_t falloffFromPropertyKey = 317;
-    static const uint16_t falloffToPropertyKey = 318;
-    static const uint16_t offsetPropertyKey = 319;
-    static const uint16_t runIdPropertyKey = 378;
+  static const uint16_t modifyFromPropertyKey = 327;
+  static const uint16_t modifyToPropertyKey = 336;
+  static const uint16_t strengthPropertyKey = 334;
+  static const uint16_t unitsValuePropertyKey = 316;
+  static const uint16_t typeValuePropertyKey = 325;
+  static const uint16_t modeValuePropertyKey = 326;
+  static const uint16_t clampPropertyKey = 333;
+  static const uint16_t falloffFromPropertyKey = 317;
+  static const uint16_t falloffToPropertyKey = 318;
+  static const uint16_t offsetPropertyKey = 319;
+  static const uint16_t runIdPropertyKey = 378;
 
 protected:
-    float m_ModifyFrom = 0.0f;
-    float m_ModifyTo = 1.0f;
-    float m_Strength = 1.0f;
-    uint32_t m_UnitsValue = 0;
-    uint32_t m_TypeValue = 0;
-    uint32_t m_ModeValue = 0;
-    bool m_Clamp = false;
-    float m_FalloffFrom = 0.0f;
-    float m_FalloffTo = 1.0f;
-    float m_Offset = 0.0f;
-    Id m_RunId = kEmptyId;
+  float m_ModifyFrom = 0.0f;
+  float m_ModifyTo = 1.0f;
+  float m_Strength = 1.0f;
+  uint32_t m_UnitsValue = 0;
+  uint32_t m_TypeValue = 0;
+  uint32_t m_ModeValue = 0;
+  bool m_Clamp = false;
+  float m_FalloffFrom = 0.0f;
+  float m_FalloffTo = 1.0f;
+  float m_Offset = 0.0f;
+  Id m_RunId = kEmptyId;
 
 public:
-    inline float modifyFrom() const { return m_ModifyFrom; }
-    void modifyFrom(float value)
+  inline float modifyFrom() const { return m_ModifyFrom; }
+  void modifyFrom(float value)
+  {
+    if (m_ModifyFrom == value)
     {
-        if (m_ModifyFrom == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(modifyFromPropertyKey, &m_ModifyFrom, &value);
-        m_ModifyFrom = value;
-        RIVE_EDITOR_CHANGED(modifyFromChanged());
-        notifyPropertyChanged(modifyFromPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(modifyFromPropertyKey, &m_ModifyFrom, &value);
+    m_ModifyFrom = value;
+    RIVE_EDITOR_CHANGED(modifyFromChanged());
+    notifyPropertyChanged(modifyFromPropertyKey);
+  }
 
-    inline float modifyTo() const { return m_ModifyTo; }
-    void modifyTo(float value)
+  inline float modifyTo() const { return m_ModifyTo; }
+  void modifyTo(float value)
+  {
+    if (m_ModifyTo == value)
     {
-        if (m_ModifyTo == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(modifyToPropertyKey, &m_ModifyTo, &value);
-        m_ModifyTo = value;
-        RIVE_EDITOR_CHANGED(modifyToChanged());
-        notifyPropertyChanged(modifyToPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(modifyToPropertyKey, &m_ModifyTo, &value);
+    m_ModifyTo = value;
+    RIVE_EDITOR_CHANGED(modifyToChanged());
+    notifyPropertyChanged(modifyToPropertyKey);
+  }
 
-    inline float strength() const { return m_Strength; }
-    void strength(float value)
+  inline float strength() const { return m_Strength; }
+  void strength(float value)
+  {
+    if (m_Strength == value)
     {
-        if (m_Strength == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
-        m_Strength = value;
-        RIVE_EDITOR_CHANGED(strengthChanged());
-        notifyPropertyChanged(strengthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
+    m_Strength = value;
+    RIVE_EDITOR_CHANGED(strengthChanged());
+    notifyPropertyChanged(strengthPropertyKey);
+  }
 
-    inline uint32_t unitsValue() const { return m_UnitsValue; }
-    void unitsValue(uint32_t value)
+  inline uint32_t unitsValue() const { return m_UnitsValue; }
+  void unitsValue(uint32_t value)
+  {
+    if (m_UnitsValue == value)
     {
-        if (m_UnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(unitsValuePropertyKey, &m_UnitsValue, &value);
-        m_UnitsValue = value;
-        RIVE_EDITOR_CHANGED(unitsValueChanged());
-        notifyPropertyChanged(unitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(unitsValuePropertyKey, &m_UnitsValue, &value);
+    m_UnitsValue = value;
+    RIVE_EDITOR_CHANGED(unitsValueChanged());
+    notifyPropertyChanged(unitsValuePropertyKey);
+  }
 
-    inline uint32_t typeValue() const { return m_TypeValue; }
-    void typeValue(uint32_t value)
+  inline uint32_t typeValue() const { return m_TypeValue; }
+  void typeValue(uint32_t value)
+  {
+    if (m_TypeValue == value)
     {
-        if (m_TypeValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(typeValuePropertyKey, &m_TypeValue, &value);
-        m_TypeValue = value;
-        RIVE_EDITOR_CHANGED(typeValueChanged());
-        notifyPropertyChanged(typeValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(typeValuePropertyKey, &m_TypeValue, &value);
+    m_TypeValue = value;
+    RIVE_EDITOR_CHANGED(typeValueChanged());
+    notifyPropertyChanged(typeValuePropertyKey);
+  }
 
-    inline uint32_t modeValue() const { return m_ModeValue; }
-    void modeValue(uint32_t value)
+  inline uint32_t modeValue() const { return m_ModeValue; }
+  void modeValue(uint32_t value)
+  {
+    if (m_ModeValue == value)
     {
-        if (m_ModeValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
-        m_ModeValue = value;
-        RIVE_EDITOR_CHANGED(modeValueChanged());
-        notifyPropertyChanged(modeValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
+    m_ModeValue = value;
+    RIVE_EDITOR_CHANGED(modeValueChanged());
+    notifyPropertyChanged(modeValuePropertyKey);
+  }
 
-    inline bool clamp() const { return m_Clamp; }
-    void clamp(bool value)
+  inline bool clamp() const { return m_Clamp; }
+  void clamp(bool value)
+  {
+    if (m_Clamp == value)
     {
-        if (m_Clamp == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(clampPropertyKey, &m_Clamp, &value);
-        m_Clamp = value;
-        RIVE_EDITOR_CHANGED(clampChanged());
-        notifyPropertyChanged(clampPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(clampPropertyKey, &m_Clamp, &value);
+    m_Clamp = value;
+    RIVE_EDITOR_CHANGED(clampChanged());
+    notifyPropertyChanged(clampPropertyKey);
+  }
 
-    inline float falloffFrom() const { return m_FalloffFrom; }
-    void falloffFrom(float value)
+  inline float falloffFrom() const { return m_FalloffFrom; }
+  void falloffFrom(float value)
+  {
+    if (m_FalloffFrom == value)
     {
-        if (m_FalloffFrom == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(falloffFromPropertyKey, &m_FalloffFrom, &value);
-        m_FalloffFrom = value;
-        RIVE_EDITOR_CHANGED(falloffFromChanged());
-        notifyPropertyChanged(falloffFromPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(falloffFromPropertyKey, &m_FalloffFrom, &value);
+    m_FalloffFrom = value;
+    RIVE_EDITOR_CHANGED(falloffFromChanged());
+    notifyPropertyChanged(falloffFromPropertyKey);
+  }
 
-    inline float falloffTo() const { return m_FalloffTo; }
-    void falloffTo(float value)
+  inline float falloffTo() const { return m_FalloffTo; }
+  void falloffTo(float value)
+  {
+    if (m_FalloffTo == value)
     {
-        if (m_FalloffTo == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(falloffToPropertyKey, &m_FalloffTo, &value);
-        m_FalloffTo = value;
-        RIVE_EDITOR_CHANGED(falloffToChanged());
-        notifyPropertyChanged(falloffToPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(falloffToPropertyKey, &m_FalloffTo, &value);
+    m_FalloffTo = value;
+    RIVE_EDITOR_CHANGED(falloffToChanged());
+    notifyPropertyChanged(falloffToPropertyKey);
+  }
 
-    inline float offset() const { return m_Offset; }
-    void offset(float value)
+  inline float offset() const { return m_Offset; }
+  void offset(float value)
+  {
+    if (m_Offset == value)
     {
-        if (m_Offset == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
-        m_Offset = value;
-        RIVE_EDITOR_CHANGED(offsetChanged());
-        notifyPropertyChanged(offsetPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
+    m_Offset = value;
+    RIVE_EDITOR_CHANGED(offsetChanged());
+    notifyPropertyChanged(offsetPropertyKey);
+  }
 
-    inline Id runId() const { return m_RunId; }
-    void runId(Id value)
+  inline Id runId() const { return m_RunId; }
+  void runId(Id value)
+  {
+    if (m_RunId == value)
     {
-        if (m_RunId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(runIdPropertyKey, &m_RunId, &value);
-        m_RunId = value;
-        RIVE_EDITOR_CHANGED(runIdChanged());
-        notifyPropertyChanged(runIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(runIdPropertyKey, &m_RunId, &value);
+    m_RunId = value;
+    notifyPropertyChanged(runIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextModifierRangeBase& object)
-    {
-        m_ModifyFrom = object.m_ModifyFrom;
-        m_ModifyTo = object.m_ModifyTo;
-        m_Strength = object.m_Strength;
-        m_UnitsValue = object.m_UnitsValue;
-        m_TypeValue = object.m_TypeValue;
-        m_ModeValue = object.m_ModeValue;
-        m_Clamp = object.m_Clamp;
-        m_FalloffFrom = object.m_FalloffFrom;
-        m_FalloffTo = object.m_FalloffTo;
-        m_Offset = object.m_Offset;
-        m_RunId = object.m_RunId;
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextModifierRangeBase& object)
+  {
+    m_ModifyFrom = object.m_ModifyFrom;
+    m_ModifyTo = object.m_ModifyTo;
+    m_Strength = object.m_Strength;
+    m_UnitsValue = object.m_UnitsValue;
+    m_TypeValue = object.m_TypeValue;
+    m_ModeValue = object.m_ModeValue;
+    m_Clamp = object.m_Clamp;
+    m_FalloffFrom = object.m_FalloffFrom;
+    m_FalloffTo = object.m_FalloffTo;
+    m_Offset = object.m_Offset;
+    m_RunId = object.m_RunId;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case modifyFromPropertyKey:
-                m_ModifyFrom = CoreDoubleType::deserialize(reader);
-                return true;
-            case modifyToPropertyKey:
-                m_ModifyTo = CoreDoubleType::deserialize(reader);
-                return true;
-            case strengthPropertyKey:
-                m_Strength = CoreDoubleType::deserialize(reader);
-                return true;
-            case unitsValuePropertyKey:
-                m_UnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case typeValuePropertyKey:
-                m_TypeValue = CoreUintType::deserialize(reader);
-                return true;
-            case modeValuePropertyKey:
-                m_ModeValue = CoreUintType::deserialize(reader);
-                return true;
-            case clampPropertyKey:
-                m_Clamp = CoreBoolType::deserialize(reader);
-                return true;
-            case falloffFromPropertyKey:
-                m_FalloffFrom = CoreDoubleType::deserialize(reader);
-                return true;
-            case falloffToPropertyKey:
-                m_FalloffTo = CoreDoubleType::deserialize(reader);
-                return true;
-            case offsetPropertyKey:
-                m_Offset = CoreDoubleType::deserialize(reader);
-                return true;
-            case runIdPropertyKey:
-                m_RunId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case modifyFromPropertyKey:
+        m_ModifyFrom = CoreDoubleType::deserialize(reader);
+        return true;
+      case modifyToPropertyKey:
+        m_ModifyTo = CoreDoubleType::deserialize(reader);
+        return true;
+      case strengthPropertyKey:
+        m_Strength = CoreDoubleType::deserialize(reader);
+        return true;
+      case unitsValuePropertyKey:
+        m_UnitsValue = CoreUintType::deserialize(reader);
+        return true;
+      case typeValuePropertyKey:
+        m_TypeValue = CoreUintType::deserialize(reader);
+        return true;
+      case modeValuePropertyKey:
+        m_ModeValue = CoreUintType::deserialize(reader);
+        return true;
+      case clampPropertyKey:
+        m_Clamp = CoreBoolType::deserialize(reader);
+        return true;
+      case falloffFromPropertyKey:
+        m_FalloffFrom = CoreDoubleType::deserialize(reader);
+        return true;
+      case falloffToPropertyKey:
+        m_FalloffTo = CoreDoubleType::deserialize(reader);
+        return true;
+      case offsetPropertyKey:
+        m_Offset = CoreDoubleType::deserialize(reader);
+        return true;
+      case runIdPropertyKey:
+        m_RunId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void modifyFromChanged() {}
-    virtual void modifyToChanged() {}
-    virtual void strengthChanged() {}
-    virtual void unitsValueChanged() {}
-    virtual void typeValueChanged() {}
-    virtual void modeValueChanged() {}
-    virtual void clampChanged() {}
-    virtual void falloffFromChanged() {}
-    virtual void falloffToChanged() {}
-    virtual void offsetChanged() {}
-    virtual void runIdChanged() {}
+  virtual void modifyFromChanged() {}
+  virtual void modifyToChanged() {}
+  virtual void strengthChanged() {}
+  virtual void unitsValueChanged() {}
+  virtual void typeValueChanged() {}
+  virtual void modeValueChanged() {}
+  virtual void clampChanged() {}
+  virtual void falloffFromChanged() {}
+  virtual void falloffToChanged() {}
+  virtual void offsetChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_modifier_range_ext.inl"
 #endif

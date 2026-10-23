@@ -11,38 +11,37 @@ using namespace rive;
 
 TEST_CASE("Scripted transition condition", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/scripted_transition_condition.riv", &silver);
-    auto artboard = file->artboardDefault();
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/scripted_transition_condition.riv", &silver);
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto tlBool =
-        vmi->propertyValue("timelineBool")->as<ViewModelInstanceBoolean>();
-    auto anyBool =
-        vmi->propertyValue("anyStateBool")->as<ViewModelInstanceBoolean>();
+  auto tlBool = vmi->propertyValue("timelineBool")
+                    ->as<ViewModelInstanceBoolean>();
+  auto anyBool = vmi->propertyValue("anyStateBool")
+                     ->as<ViewModelInstanceBoolean>();
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
+  silver.addFrame();
 
-    tlBool->propertyValue(true);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  tlBool->propertyValue(true);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
+  silver.addFrame();
 
-    anyBool->propertyValue(true);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  anyBool->propertyValue(true);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripted_transition_condition"));
+  CHECK(silver.matches("scripted_transition_condition"));
 }

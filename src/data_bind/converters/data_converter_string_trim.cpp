@@ -4,34 +4,35 @@
 
 using namespace rive;
 
-DataValue* DataConverterStringTrim::convert(DataValue* input,
-                                            DataBind* dataBind)
+DataValue* DataConverterStringTrim::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    if (input->is<DataValueString>())
+  if (input->is<DataValueString>())
+  {
+    auto inputValue = input->as<DataValueString>()->value();
+    switch (trimValue())
     {
-        auto inputValue = input->as<DataValueString>()->value();
-        switch (trimValue())
-        {
-            case TrimType::start:
-                ltrim(inputValue);
-                break;
-            case TrimType::end:
-                rtrim(inputValue);
-                break;
-            case TrimType::all:
-                trim(inputValue);
-                break;
-            default:
-                break;
-        }
+      case TrimType::start:
+        ltrim(inputValue);
+        break;
+      case TrimType::end:
+        rtrim(inputValue);
+        break;
+      case TrimType::all:
+        trim(inputValue);
+        break;
+      default:
+        break;
+    }
 
-        m_output.value(inputValue);
-    }
-    else
-    {
-        m_output.value(DataValueString::defaultValue);
-    }
-    return &m_output;
+    m_output.value(inputValue);
+  }
+  else
+  {
+    m_output.value(DataValueString::defaultValue);
+  }
+  return &m_output;
 }
 
 void DataConverterStringTrim::trimTypeChanged() { markConverterDirty(); }

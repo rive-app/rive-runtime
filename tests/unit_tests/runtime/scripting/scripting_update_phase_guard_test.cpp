@@ -17,24 +17,24 @@ using namespace rive;
 // addScriptedDirt so the test doesn't need a full artboard graph.
 class TestScriptedDrawable : public ScriptedDrawable
 {
-    int m_dirtCount = 0;
+  int m_dirtCount = 0;
 
 public:
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        m_dirtCount++;
-        return true;
-    }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    m_dirtCount++;
+    return true;
+  }
 
-    int dirtCount() const { return m_dirtCount; }
-    void resetDirtCount() { m_dirtCount = 0; }
-    bool isInUpdatePhase() const { return inUpdatePhase(); }
+  int dirtCount() const { return m_dirtCount; }
+  void resetDirtCount() { m_dirtCount = 0; }
+  bool isInUpdatePhase() const { return inUpdatePhase(); }
 };
 
 TEST_CASE("markNeedsUpdate is ignored during scriptUpdate", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 type MyObj = {
   _ctx: Context?,
 }
@@ -53,48 +53,48 @@ return function(): Node<MyObj>
 end
 )");
 
-    TestScriptedDrawable obj;
-    lua_State* L = vm.state();
+  TestScriptedDrawable obj;
+  lua_State* L = vm.state();
 
-    CHECK(obj.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  CHECK(obj.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
-    // Attach the context to the Lua self table.
-    rive_lua_pushRef(L, obj.self());
-    auto* ctxPtr = lua_newrive<ScriptedContext>(L, &obj);
-    lua_setfield(L, -2, "_ctx");
-    rive_lua_pop(L, 1);
+  // Attach the context to the Lua self table.
+  rive_lua_pushRef(L, obj.self());
+  auto* ctxPtr = lua_newrive<ScriptedContext>(L, &obj);
+  lua_setfield(L, -2, "_ctx");
+  rive_lua_pop(L, 1);
 
-    // Mark the object as having an update method.
-    obj.implementedMethods(obj.implementedMethods() | (1 << 1));
-    CHECK(obj.updates());
+  // Mark the object as having an update method.
+  obj.implementedMethods(obj.implementedMethods() | (1 << 1));
+  CHECK(obj.updates());
 
-    // scriptUpdate sets the phase flag, so markNeedsUpdate is suppressed.
-    obj.resetDirtCount();
-    CHECK(obj.isInUpdatePhase() == false);
-    obj.scriptUpdate();
-    CHECK(obj.isInUpdatePhase() == false);
-    CHECK(obj.dirtCount() == 0);
+  // scriptUpdate sets the phase flag, so markNeedsUpdate is suppressed.
+  obj.resetDirtCount();
+  CHECK(obj.isInUpdatePhase() == false);
+  obj.scriptUpdate();
+  CHECK(obj.isInUpdatePhase() == false);
+  CHECK(obj.dirtCount() == 0);
 
-    // Outside the update phase, markNeedsUpdate adds dirt normally.
-    obj.resetDirtCount();
-    obj.markNeedsUpdate();
-    CHECK(obj.dirtCount() == 1);
+  // Outside the update phase, markNeedsUpdate adds dirt normally.
+  obj.resetDirtCount();
+  obj.markNeedsUpdate();
+  CHECK(obj.dirtCount() == 1);
 
-    ctxPtr->clearScriptedObject();
+  ctxPtr->clearScriptedObject();
 }
 
 TEST_CASE("inUpdatePhase defaults to false", "[scripting]")
 {
-    TestScriptedDrawable obj;
-    CHECK(obj.isInUpdatePhase() == false);
+  TestScriptedDrawable obj;
+  CHECK(obj.isInUpdatePhase() == false);
 }
 
 TEST_CASE("markNeedsUpdate works outside update phase", "[scripting]")
 {
-    TestScriptedDrawable obj;
-    CHECK(obj.dirtCount() == 0);
-    obj.markNeedsUpdate();
-    CHECK(obj.dirtCount() == 1);
-    obj.markNeedsUpdate();
-    CHECK(obj.dirtCount() == 2);
+  TestScriptedDrawable obj;
+  CHECK(obj.dirtCount() == 0);
+  obj.markNeedsUpdate();
+  CHECK(obj.dirtCount() == 1);
+  obj.markNeedsUpdate();
+  CHECK(obj.dirtCount() == 2);
 }

@@ -15,13 +15,14 @@ ENABLE_CLIPPING = Feature('ENABLE_CLIPPING', 0)
 ENABLE_CLIP_RECT =  Feature('ENABLE_CLIP_RECT', 1)
 ENABLE_ADVANCED_BLEND = Feature('ENABLE_ADVANCED_BLEND', 2)
 ENABLE_FEATHER = Feature('ENABLE_FEATHER', 3)
-ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 4)
-ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
-ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
-ENABLE_DITHER = Feature('ENABLE_DITHER', 7)
-ENABLE_MODULATED_IMAGE = Feature('ENABLE_MODULATED_IMAGE', 8)
-DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 9)
-FEATHER_ATLAS_BLIT = Feature('FEATHER_ATLAS_BLIT', 10)
+ENABLE_MODULATED_IMAGE = Feature('ENABLE_MODULATED_IMAGE', 4)
+ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 5)
+ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 6)
+ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 7)
+ENABLE_DITHER = Feature('ENABLE_DITHER', 8)
+ENABLE_ANGULAR_GRADIENT = Feature('ENABLE_ANGULAR_GRADIENT', 9)
+DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 10)
+FEATHER_ATLAS_BLIT = Feature('FEATHER_ATLAS_BLIT', 11)
 
 whole_program_features = {ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
@@ -32,7 +33,8 @@ whole_program_features = {ENABLE_CLIPPING,
 fragment_only_features = {ENABLE_EVEN_ODD,
                           ENABLE_NESTED_CLIPPING,
                           ENABLE_HSL_BLEND_MODES,
-                          ENABLE_DITHER}
+                          ENABLE_DITHER,
+                          ENABLE_ANGULAR_GRADIENT}
 
 all_features = whole_program_features.union(fragment_only_features)
 
@@ -57,11 +59,13 @@ non_atlas_coverage_features = {ENABLE_FEATHER,
                                ENABLE_NESTED_CLIPPING}
 
 non_image_mesh_features = {ENABLE_FEATHER,
+                           ENABLE_MODULATED_IMAGE,
                            ENABLE_EVEN_ODD,
                            ENABLE_NESTED_CLIPPING,
+                           ENABLE_ANGULAR_GRADIENT,
                            DRAW_INTERIOR_TRIANGLES,
-                           FEATHER_ATLAS_BLIT,
-                           ENABLE_MODULATED_IMAGE}
+                           FEATHER_ATLAS_BLIT}
+
 
 # Returns whether the given feature set is compatible with an image mesh shader.
 def is_image_mesh_feature_set(feature_set):
@@ -80,7 +84,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
         out.write('#define FRAGMENT\n')
     if draw_type == DrawType.IMAGE_MESH:
         assert(is_image_mesh_feature_set(feature_set))
-    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
+    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
     for feature in feature_set:
         namespace_id[feature.index] = '1'
     for feature in feature_set:

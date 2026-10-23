@@ -18,52 +18,52 @@ static RenderContext::FrameDescriptor s_frameDescriptor = {
 // Ensures that clip contents get reused when we pop and push the same path(s).
 TEST_CASE("clip-stack", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
 
-    for (int i = 0; i < 3; ++i)
-    {
-        renderContext->beginFrame(s_frameDescriptor);
+  for (int i = 0; i < 3; ++i)
+  {
+    renderContext->beginFrame(s_frameDescriptor);
 
-        auto pathA = renderContext->makeEmptyRenderPath();
-        auto pathB = renderContext->makeEmptyRenderPath();
-        auto pathC = renderContext->makeEmptyRenderPath();
-        auto drawablePath = renderContext->makeEmptyRenderPath();
-        pathA->cubicTo(1, 1, 1, 2, 2, 2);
-        pathA->lineTo(3, 4);
-        pathB->cubicTo(5, 5, 5, 6, 6, 6);
-        pathB->lineTo(7, 8);
-        pathC->lineTo(9, 10);
-        pathC->cubicTo(11, 12, 13, 14, 15, 16);
-        drawablePath->cubicTo(17, 17, 17, 18, 18, 18);
-        drawablePath->lineTo(19, 20);
+    auto pathA = renderContext->makeEmptyRenderPath();
+    auto pathB = renderContext->makeEmptyRenderPath();
+    auto pathC = renderContext->makeEmptyRenderPath();
+    auto drawablePath = renderContext->makeEmptyRenderPath();
+    pathA->cubicTo(1, 1, 1, 2, 2, 2);
+    pathA->lineTo(3, 4);
+    pathB->cubicTo(5, 5, 5, 6, 6, 6);
+    pathB->lineTo(7, 8);
+    pathC->lineTo(9, 10);
+    pathC->cubicTo(11, 12, 13, 14, 15, 16);
+    drawablePath->cubicTo(17, 17, 17, 18, 18, 18);
+    drawablePath->lineTo(19, 20);
 
-        auto paint = renderContext->makeRenderPaint();
-        paint->color(0xffffffff);
+    auto paint = renderContext->makeRenderPaint();
+    paint->color(0xffffffff);
 
-        RiveRenderer renderer(renderContext.get());
+    RiveRenderer renderer(renderContext.get());
 
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        uint32_t clipID = renderContext->getClipContentID();
-        CHECK(clipID != 0);
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    uint32_t clipID = renderContext->getClipContentID();
+    CHECK(clipID != 0);
 
-        // Pushing the same clip sholdn't cause us to redraw the clipBuffer
-        // (clipID will stay the same.)
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        CHECK(clipID == renderContext->getClipContentID());
+    // Pushing the same clip sholdn't cause us to redraw the clipBuffer
+    // (clipID will stay the same.)
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    CHECK(clipID == renderContext->getClipContentID());
 
-        // We can't modify paths anymore once they've been pushed to the
-        // context.
+    // We can't modify paths anymore once they've been pushed to the
+    // context.
 #if 0
         // Modifying the path will cause the clip to be regenerated.
         renderer.save();
@@ -75,1147 +75,1138 @@ TEST_CASE("clip-stack", "[RiveRenderer]")
         clipID = renderContext->getClipContentID();
 #endif
 
-        // Pushing the same (modified) clip sholdn't cause us to redraw the
-        // clipBuffer, again.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        CHECK(clipID == renderContext->getClipContentID());
+    // Pushing the same (modified) clip sholdn't cause us to redraw the
+    // clipBuffer, again.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    CHECK(clipID == renderContext->getClipContentID());
 
-        // Changing the view matrix will invalidate the clip.
-        renderer.translate(.5f, 1.5f);
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        CHECK(clipID != renderContext->getClipContentID());
-        clipID = renderContext->getClipContentID();
+    // Changing the view matrix will invalidate the clip.
+    renderer.translate(.5f, 1.5f);
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    CHECK(clipID != renderContext->getClipContentID());
+    clipID = renderContext->getClipContentID();
 
-        // Now we should reuse the clip again on the new matrix.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        CHECK(clipID == renderContext->getClipContentID());
+    // Now we should reuse the clip again on the new matrix.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    CHECK(clipID == renderContext->getClipContentID());
 
-        // Pushing and popping a nested clip will cause the clip to be
-        // regenerated.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID == renderContext->getClipContentID());
-        renderer.clipPath(pathB.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID != renderContext->getClipContentID());
-        clipID = renderContext->getClipContentID();
-        renderer.restore();
+    // Pushing and popping a nested clip will cause the clip to be
+    // regenerated.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID == renderContext->getClipContentID());
+    renderer.clipPath(pathB.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID != renderContext->getClipContentID());
+    clipID = renderContext->getClipContentID();
+    renderer.restore();
 
-        // Pushing both back will reuse the clip.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.clipPath(pathB.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        renderer.restore();
-        CHECK(clipID == renderContext->getClipContentID());
+    // Pushing both back will reuse the clip.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.clipPath(pathB.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    renderer.restore();
+    CHECK(clipID == renderContext->getClipContentID());
 
-        // Pushing a new clip and not using it will also not affect the clip
-        // buffer.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.clipPath(pathB.get());
-        renderer.save();
-        renderer.clipPath(pathC.get());
-        renderer.restore();
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID == renderContext->getClipContentID());
-        renderer.restore();
+    // Pushing a new clip and not using it will also not affect the clip
+    // buffer.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.clipPath(pathB.get());
+    renderer.save();
+    renderer.clipPath(pathC.get());
+    renderer.restore();
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID == renderContext->getClipContentID());
+    renderer.restore();
 
-        // Now go three deep, just for fun.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.save();
-        renderer.clipPath(pathB.get());
-        renderer.clipPath(pathC.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID != renderContext->getClipContentID());
-        clipID = renderContext->getClipContentID();
-        renderer.restore();
-        renderer.clipPath(pathB.get());
-        renderer.clipPath(pathC.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID == renderContext->getClipContentID());
-        renderer.restore();
+    // Now go three deep, just for fun.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.save();
+    renderer.clipPath(pathB.get());
+    renderer.clipPath(pathC.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID != renderContext->getClipContentID());
+    clipID = renderContext->getClipContentID();
+    renderer.restore();
+    renderer.clipPath(pathB.get());
+    renderer.clipPath(pathC.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID == renderContext->getClipContentID());
+    renderer.restore();
 
-        // Adding them back in a different order will regenerate the clip.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.clipPath(pathC.get());
-        renderer.clipPath(pathB.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID != renderContext->getClipContentID());
-        clipID = renderContext->getClipContentID();
-        renderer.restore();
+    // Adding them back in a different order will regenerate the clip.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.clipPath(pathC.get());
+    renderer.clipPath(pathB.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID != renderContext->getClipContentID());
+    clipID = renderContext->getClipContentID();
+    renderer.restore();
 
-        // And now the alternate order should stick.
-        renderer.save();
-        renderer.clipPath(pathA.get());
-        renderer.clipPath(pathC.get());
-        renderer.clipPath(pathB.get());
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(clipID == renderContext->getClipContentID());
-        renderer.restore();
+    // And now the alternate order should stick.
+    renderer.save();
+    renderer.clipPath(pathA.get());
+    renderer.clipPath(pathC.get());
+    renderer.clipPath(pathB.get());
+    renderer.drawPath(drawablePath.get(), paint.get());
+    CHECK(clipID == renderContext->getClipContentID());
+    renderer.restore();
 
-        for (bool logicalFlush : {false, true})
-        {
-            if (logicalFlush)
-            {
-                renderContext->logicalFlush();
-            }
-            else
-            {
-                renderContext->flush({.renderTarget = renderTarget.get()});
-                renderContext->beginFrame(s_frameDescriptor);
-            }
-
-            // The clip content ID gets reset after a flush.
-            CHECK(renderContext->getClipContentID() == 0);
-
-            // The clip gets cleared after a flush, so this should start over
-            // with a new clip ID.
-            renderer.save();
-            renderer.clipPath(pathA.get());
-            renderer.clipPath(pathC.get());
-            renderer.clipPath(pathB.get());
-            renderer.drawPath(drawablePath.get(), paint.get());
-            CHECK(clipID != renderContext->getClipContentID());
-            CHECK(renderContext->getClipContentID() == 3);
-            clipID = renderContext->getClipContentID();
-            renderer.restore();
-
-            // And now that we're in the new flush, doing it again will reuse
-            // the same clipID.
-            renderer.save();
-            renderer.clipPath(pathA.get());
-            renderer.clipPath(pathC.get());
-            renderer.clipPath(pathB.get());
-            renderer.drawPath(drawablePath.get(), paint.get());
-            renderer.restore();
-            CHECK(clipID == renderContext->getClipContentID());
-
-            // Draw another clip so the clipID isn't 1 anymore.
-            renderer.save();
-            renderer.clipPath(pathA.get());
-            renderer.drawPath(drawablePath.get(), paint.get());
-            renderer.restore();
-            CHECK(clipID != renderContext->getClipContentID());
-            clipID = renderContext->getClipContentID();
-        }
-
+    for (bool logicalFlush : {false, true})
+    {
+      if (logicalFlush)
+      {
+        renderContext->logicalFlush();
+      }
+      else
+      {
         renderContext->flush({.renderTarget = renderTarget.get()});
+        renderContext->beginFrame(s_frameDescriptor);
+      }
+
+      // The clip content ID gets reset after a flush.
+      CHECK(renderContext->getClipContentID() == 0);
+
+      // The clip gets cleared after a flush, so this should start over
+      // with a new clip ID.
+      renderer.save();
+      renderer.clipPath(pathA.get());
+      renderer.clipPath(pathC.get());
+      renderer.clipPath(pathB.get());
+      renderer.drawPath(drawablePath.get(), paint.get());
+      CHECK(clipID != renderContext->getClipContentID());
+      CHECK(renderContext->getClipContentID() == 3);
+      clipID = renderContext->getClipContentID();
+      renderer.restore();
+
+      // And now that we're in the new flush, doing it again will reuse
+      // the same clipID.
+      renderer.save();
+      renderer.clipPath(pathA.get());
+      renderer.clipPath(pathC.get());
+      renderer.clipPath(pathB.get());
+      renderer.drawPath(drawablePath.get(), paint.get());
+      renderer.restore();
+      CHECK(clipID == renderContext->getClipContentID());
+
+      // Draw another clip so the clipID isn't 1 anymore.
+      renderer.save();
+      renderer.clipPath(pathA.get());
+      renderer.drawPath(drawablePath.get(), paint.get());
+      renderer.restore();
+      CHECK(clipID != renderContext->getClipContentID());
+      clipID = renderContext->getClipContentID();
     }
+
+    renderContext->flush({.renderTarget = renderTarget.get()});
+  }
 }
 
 static RawPath& make_oval(const AABB& bounds)
 {
-    static RawPath path;
-    path.rewind();
-    path.addOval(bounds);
-    return path;
+  static RawPath path;
+  path.rewind();
+  path.addOval(bounds);
+  return path;
 };
 
 // Ensures that a flush only invalidates the current clip once, and that we can
 // start reusing it again after.
 TEST_CASE("clip-flush-clip-clip", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
 
-    renderContext->beginFrame(s_frameDescriptor);
+  renderContext->beginFrame(s_frameDescriptor);
 
-    auto pathA = renderContext->makeRenderPath(make_oval({0, 0, 1, 5}),
-                                               FillRule::nonZero);
-    auto pathB = renderContext->makeRenderPath(make_oval({0, 0, 2, 6}),
-                                               FillRule::nonZero);
-    auto pathC = renderContext->makeRenderPath(make_oval({0, 0, 3, 7}),
-                                               FillRule::nonZero);
-    auto pathD = renderContext->makeRenderPath(make_oval({0, 0, 4, 8}),
-                                               FillRule::nonZero);
-    auto drawablePath = renderContext->makeRenderPath(make_oval({0, 0, 9, 10}),
-                                                      FillRule::nonZero);
+  auto pathA = renderContext->makeRenderPath(
+      make_oval({0, 0, 1, 5}),
+      FillRule::nonZero);
+  auto pathB = renderContext->makeRenderPath(
+      make_oval({0, 0, 2, 6}),
+      FillRule::nonZero);
+  auto pathC = renderContext->makeRenderPath(
+      make_oval({0, 0, 3, 7}),
+      FillRule::nonZero);
+  auto pathD = renderContext->makeRenderPath(
+      make_oval({0, 0, 4, 8}),
+      FillRule::nonZero);
+  auto drawablePath = renderContext->makeRenderPath(
+      make_oval({0, 0, 9, 10}),
+      FillRule::nonZero);
 
-    auto paint = renderContext->makeRenderPaint();
-    paint->color(0xffffffff);
+  auto paint = renderContext->makeRenderPaint();
+  paint->color(0xffffffff);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    renderer.save();
-    renderer.clipPath(pathD.get());
+  renderer.save();
+  renderer.clipPath(pathD.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  uint32_t clipID = renderContext->getClipContentID();
+  CHECK(clipID != 0);
+  renderer.restore();
+
+  renderer.clipPath(pathC.get());
+  renderer.clipPath(pathB.get());
+  renderer.clipPath(pathA.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+
+  // Flushing should invalidate the clip.
+  renderContext->logicalFlush();
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+
+  // The clip should now get reused again for subsequent draws.
+  for (size_t i = 0; i < 3; ++i)
+  {
     renderer.drawPath(drawablePath.get(), paint.get());
-    uint32_t clipID = renderContext->getClipContentID();
-    CHECK(clipID != 0);
-    renderer.restore();
+    CHECK(renderContext->getClipContentID() == clipID);
+  }
 
-    renderer.clipPath(pathC.get());
-    renderer.clipPath(pathB.get());
-    renderer.clipPath(pathA.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-
-    // Flushing should invalidate the clip.
-    renderContext->logicalFlush();
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-
-    // The clip should now get reused again for subsequent draws.
-    for (size_t i = 0; i < 3; ++i)
-    {
-        renderer.drawPath(drawablePath.get(), paint.get());
-        CHECK(renderContext->getClipContentID() == clipID);
-    }
-
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 static RawPath& make_cusp(const IAABB& rect)
 {
-    static RawPath path;
-    path.rewind();
-    path.moveTo(rect.left, rect.top);
-    path.lineTo(rect.right, rect.bottom);
-    path.lineTo(rect.right, rect.top);
-    path.lineTo(rect.left, rect.bottom);
-    return path;
+  static RawPath path;
+  path.rewind();
+  path.moveTo(rect.left, rect.top);
+  path.lineTo(rect.right, rect.bottom);
+  path.lineTo(rect.right, rect.top);
+  path.lineTo(rect.left, rect.bottom);
+  return path;
 }
 
 // Check that clip contentBounds get tracked properly.
 TEST_CASE("clip-content-bounds", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    RenderContext::FrameDescriptor frameDescriptor = s_frameDescriptor;
-    frameDescriptor.msaaSampleCount = 4;
-    renderContext->beginFrame(frameDescriptor);
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  RenderContext::FrameDescriptor frameDescriptor = s_frameDescriptor;
+  frameDescriptor.msaaSampleCount = 4;
+  renderContext->beginFrame(frameDescriptor);
 
-    auto cuspA = static_rcp_cast<RiveRenderPath>(
-        renderContext->makeRenderPath(make_cusp({0, 0, 1, 5}),
-                                      FillRule::nonZero));
-    auto cuspB = static_rcp_cast<RiveRenderPath>(
-        renderContext->makeRenderPath(make_cusp({-1, -1, 1, 1}),
-                                      FillRule::nonZero));
-    auto cuspC = static_rcp_cast<RiveRenderPath>(
-        renderContext->makeRenderPath(make_cusp({0, 0, 5, 1}),
-                                      FillRule::nonZero));
+  auto cuspA = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+      make_cusp({0, 0, 1, 5}),
+      FillRule::nonZero));
+  auto cuspB = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+      make_cusp({-1, -1, 1, 1}),
+      FillRule::nonZero));
+  auto cuspC = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+      make_cusp({0, 0, 5, 1}),
+      FillRule::nonZero));
 
-    auto paint = renderContext->makeRenderPaint();
-    paint->color(0xffffffff);
+  auto paint = renderContext->makeRenderPaint();
+  paint->color(0xffffffff);
 
-    // Clip read bounds are affected by the view matrix.
-    Mat2D xforms[] = {Mat2D(),
-                      Mat2D::fromTranslate(3, 1),
-                      Mat2D::fromScale(3, 2),
-                      Mat2D::fromTranslate(-1, 3).scale({2, 3})};
+  // Clip read bounds are affected by the view matrix.
+  Mat2D xforms[] = {
+      Mat2D(),
+      Mat2D::fromTranslate(3, 1),
+      Mat2D::fromScale(3, 2),
+      Mat2D::fromTranslate(-1, 3).scale({2, 3})};
 
-    RiveRenderer renderer(renderContext.get());
-    auto emptyClipID = 0u;
+  RiveRenderer renderer(renderContext.get());
+  auto emptyClipID = 0u;
 
-    const auto screenRect = IAABB::MakeWH(s_frameDescriptor.renderTargetWidth,
-                                          s_frameDescriptor.renderTargetHeight);
-    for (const Mat2D& m : xforms)
+  const auto screenRect = IAABB::MakeWH(
+      s_frameDescriptor.renderTargetWidth,
+      s_frameDescriptor.renderTargetHeight);
+  for (const Mat2D& m : xforms)
+  {
+    // Flush and re-start the frame so that
+    renderer.save();
+    renderer.clipPath(cuspA.get());
+    renderer.transform(m);
+    renderer.drawPath(cuspB.get(), paint.get());
+
+    auto clipAContentBounds = cuspA->getBounds().roundOut();
+    const auto clipBContentBounds = m.mapBoundingBox(cuspB->getBounds())
+                                        .roundOut();
+
+    uint32_t clipAID = renderContext->getClipContentID();
+    if (clipAContentBounds.overlaps(clipBContentBounds))
     {
-        // Flush and re-start the frame so that
-        renderer.save();
-        renderer.clipPath(cuspA.get());
-        renderer.transform(m);
-        renderer.drawPath(cuspB.get(), paint.get());
+      REQUIRE(clipAID != emptyClipID);
+      CHECK(renderContext->getClipContentBounds(clipAID) == clipAContentBounds);
+    }
+    else
+    {
+      // Without any overlap, A will not have even been added into the
+      // clip stack.
+      REQUIRE(clipAID == emptyClipID);
+    }
+    // clipA is not transformed.
 
-        auto clipAContentBounds = cuspA->getBounds().roundOut();
-        const auto clipBContentBounds =
-            m.mapBoundingBox(cuspB->getBounds()).roundOut();
+    renderer.clipPath(cuspC.get());
+    renderer.drawPath(cuspB.get(), paint.get());
+    uint32_t clipCID = renderContext->getClipContentID();
+    REQUIRE(clipCID != 0);
+    auto clipCContentBounds = m.mapBoundingBox(cuspC->getBounds().roundOut())
+                                  .roundOut();
 
-        uint32_t clipAID = renderContext->getClipContentID();
-        if (clipAContentBounds.overlaps(clipBContentBounds))
-        {
-            REQUIRE(clipAID != emptyClipID);
-            CHECK(renderContext->getClipContentBounds(clipAID) ==
-                  clipAContentBounds);
-        }
-        else
-        {
-            // Without any overlap, A will not have even been added into the
-            // clip stack.
-            REQUIRE(clipAID == emptyClipID);
-        }
-        // clipA is not transformed.
+    const auto clipsOverlap = clipAContentBounds.intersect(clipBContentBounds)
+                                  .overlaps(clipCContentBounds);
+    if (clipsOverlap)
+    {
+      const auto overlapBounds = screenRect.intersect(clipAContentBounds)
+                                     .intersect(clipCContentBounds);
 
-        renderer.clipPath(cuspC.get());
-        renderer.drawPath(cuspB.get(), paint.get());
-        uint32_t clipCID = renderContext->getClipContentID();
-        REQUIRE(clipCID != 0);
-        auto clipCContentBounds =
-            m.mapBoundingBox(cuspC->getBounds().roundOut()).roundOut();
+      REQUIRE(clipCID != clipAID);
+      CHECK(renderContext->getClipContentBounds(clipCID) == clipCContentBounds);
+      CHECK(renderContext->getTightenedClipBounds(clipCID) == overlapBounds);
+    }
+    else
+    {
+      REQUIRE(clipCID == clipAID);
 
-        const auto clipsOverlap =
-            clipAContentBounds.intersect(clipBContentBounds)
-                .overlaps(clipCContentBounds);
-        if (clipsOverlap)
-        {
-            const auto overlapBounds = screenRect.intersect(clipAContentBounds)
-                                           .intersect(clipCContentBounds);
-
-            REQUIRE(clipCID != clipAID);
-            CHECK(renderContext->getClipContentBounds(clipCID) ==
-                  clipCContentBounds);
-            CHECK(renderContext->getTightenedClipBounds(clipCID) ==
-                  overlapBounds);
-        }
-        else
-        {
-            REQUIRE(clipCID == clipAID);
-
-            if (clipAID != emptyClipID)
-            {
-                CHECK(renderContext->getClipContentBounds(clipAID) ==
-                      clipAContentBounds);
-            }
-        }
-
-        // Each nested clip is read only by the one directly below it.
-        auto cusp6 = static_rcp_cast<RiveRenderPath>(
-            renderContext->makeRenderPath(make_cusp({0, 0, 1, 6}),
-                                          FillRule::nonZero));
-        auto cusp7 = static_rcp_cast<RiveRenderPath>(
-            renderContext->makeRenderPath(make_cusp({0, 0, 1, 7}),
-                                          FillRule::nonZero));
-        auto cusp8 = static_rcp_cast<RiveRenderPath>(
-            renderContext->makeRenderPath(make_cusp({0, 0, 1, 8}),
-                                          FillRule::nonZero));
-        auto cusp9 = static_rcp_cast<RiveRenderPath>(
-            renderContext->makeRenderPath(make_cusp({0, 0, 1, 9}),
-                                          FillRule::nonZero));
-
-        renderer.clipPath(cusp9.get());
-        renderer.drawPath(cuspB.get(), paint.get());
-        uint32_t clip9ID = renderContext->getClipContentID();
-
-        renderer.clipPath(cusp8.get());
-        renderer.drawPath(cuspB.get(), paint.get());
-        uint32_t clip8ID = renderContext->getClipContentID();
-
-        renderer.save();
-        renderer.clipPath(cusp7.get());
-        renderer.drawPath(cuspB.get(), paint.get());
-        uint32_t clip7ID = renderContext->getClipContentID();
-
-        renderer.clipPath(cusp6.get());
-        renderer.drawPath(cuspC.get(), paint.get());
-        uint32_t clip6ID = renderContext->getClipContentID();
-
-        auto clip9ContentBounds =
-            m.mapBoundingBox(cusp9->getBounds().roundOut()).roundOut();
-        auto clip8ContentBounds =
-            m.mapBoundingBox(cusp8->getBounds().roundOut()).roundOut();
-        auto clip7ContentBounds =
-            m.mapBoundingBox(cusp7->getBounds().roundOut()).roundOut();
-        auto clip6ContentBounds =
-            m.mapBoundingBox(cusp6->getBounds().roundOut()).roundOut();
-
-        if (clipsOverlap)
-        {
-            // clipA bounds should not have been affected by deeper nested
-            // clips.
-            CHECK(renderContext->getClipContentBounds(clipAID) ==
-                  clipAContentBounds);
-
-            // Each nested clip is read only by the one directly below it. Outer
-            // clips are not read by the draw either.
-            CHECK(renderContext->getClipContentBounds(clipCID) ==
-                  clipCContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip9ID) ==
-                  clip9ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip8ID) ==
-                  clip8ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip7ID) ==
-                  clip7ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip6ID) ==
-                  clip6ContentBounds);
-        }
-        else
-        {
-            CHECK(clip9ID == emptyClipID);
-            CHECK(clip8ID == emptyClipID);
-            CHECK(clip7ID == emptyClipID);
-            CHECK(clip6ID == emptyClipID);
-        }
-
-        // Pop back and do some more reading from clip8.
-        renderer.restore();
-        renderer.drawPath(cuspC.get(), paint.get());
-        uint32_t secondClip8ID = renderContext->getClipContentID();
-
-        // Since clip8 got obliterated and redrawn, this next read shouldn't
-        // affect it.
-        if (clipsOverlap)
-        {
-            CHECK(secondClip8ID != clip8ID);
-            CHECK(renderContext->getClipContentBounds(clip8ID) ==
-                  clip8ContentBounds);
-            // ... But should affect the clip currently in the clip buffer.
-            CHECK(renderContext->getClipContentBounds(secondClip8ID) ==
-                  clip8ContentBounds);
-        }
-        else
-        {
-            CHECK(secondClip8ID == emptyClipID);
-        }
-
-        renderer.clipPath(cuspB.get());
-        renderer.drawPath(cuspC.get(), paint.get());
-        if (clipsOverlap)
-        {
-            CHECK(renderContext->getClipContentBounds(clip8ID) ==
-                  clip8ContentBounds);
-            CHECK(renderContext->getClipContentBounds(secondClip8ID) ==
-                  clip8ContentBounds);
-        }
-
-        uint32_t clipBID = renderContext->getClipContentID();
-        if (clipsOverlap)
-        {
-            CHECK(renderContext->getClipContentBounds(clipBID) ==
-                  clipBContentBounds);
-        }
-        else
-        {
-            CHECK(clipBID == emptyClipID);
-        }
-
-        renderer.restore();
-
-        // Clip content bounds should never change.
-        if (clipsOverlap)
-        {
-            CHECK(renderContext->getClipContentBounds(clipAID) ==
-                  clipAContentBounds);
-            CHECK(renderContext->getClipContentBounds(clipCID) ==
-                  clipCContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip9ID) ==
-                  clip9ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip8ID) ==
-                  clip8ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip7ID) ==
-                  clip7ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clip6ID) ==
-                  clip6ContentBounds);
-            CHECK(renderContext->getClipContentBounds(secondClip8ID) ==
-                  clip8ContentBounds);
-            CHECK(renderContext->getClipContentBounds(clipBID) ==
-                  clipBContentBounds);
-        }
-
-        // If the next iteration doesn't overlap, then track which clipID we
-        // represents the "nothing got added to the clip stack" value.
-        emptyClipID = renderContext->getClipContentID();
+      if (clipAID != emptyClipID)
+      {
+        CHECK(
+            renderContext->getClipContentBounds(clipAID) == clipAContentBounds);
+      }
     }
 
-    renderContext->flush({.renderTarget = renderTarget.get()});
+    // Each nested clip is read only by the one directly below it.
+    auto cusp6 = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+        make_cusp({0, 0, 1, 6}),
+        FillRule::nonZero));
+    auto cusp7 = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+        make_cusp({0, 0, 1, 7}),
+        FillRule::nonZero));
+    auto cusp8 = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+        make_cusp({0, 0, 1, 8}),
+        FillRule::nonZero));
+    auto cusp9 = static_rcp_cast<RiveRenderPath>(renderContext->makeRenderPath(
+        make_cusp({0, 0, 1, 9}),
+        FillRule::nonZero));
+
+    renderer.clipPath(cusp9.get());
+    renderer.drawPath(cuspB.get(), paint.get());
+    uint32_t clip9ID = renderContext->getClipContentID();
+
+    renderer.clipPath(cusp8.get());
+    renderer.drawPath(cuspB.get(), paint.get());
+    uint32_t clip8ID = renderContext->getClipContentID();
+
+    renderer.save();
+    renderer.clipPath(cusp7.get());
+    renderer.drawPath(cuspB.get(), paint.get());
+    uint32_t clip7ID = renderContext->getClipContentID();
+
+    renderer.clipPath(cusp6.get());
+    renderer.drawPath(cuspC.get(), paint.get());
+    uint32_t clip6ID = renderContext->getClipContentID();
+
+    auto clip9ContentBounds = m.mapBoundingBox(cusp9->getBounds().roundOut())
+                                  .roundOut();
+    auto clip8ContentBounds = m.mapBoundingBox(cusp8->getBounds().roundOut())
+                                  .roundOut();
+    auto clip7ContentBounds = m.mapBoundingBox(cusp7->getBounds().roundOut())
+                                  .roundOut();
+    auto clip6ContentBounds = m.mapBoundingBox(cusp6->getBounds().roundOut())
+                                  .roundOut();
+
+    if (clipsOverlap)
+    {
+      // clipA bounds should not have been affected by deeper nested
+      // clips.
+      CHECK(renderContext->getClipContentBounds(clipAID) == clipAContentBounds);
+
+      // Each nested clip is read only by the one directly below it. Outer
+      // clips are not read by the draw either.
+      CHECK(renderContext->getClipContentBounds(clipCID) == clipCContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip9ID) == clip9ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip8ID) == clip8ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip7ID) == clip7ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip6ID) == clip6ContentBounds);
+    }
+    else
+    {
+      CHECK(clip9ID == emptyClipID);
+      CHECK(clip8ID == emptyClipID);
+      CHECK(clip7ID == emptyClipID);
+      CHECK(clip6ID == emptyClipID);
+    }
+
+    // Pop back and do some more reading from clip8.
+    renderer.restore();
+    renderer.drawPath(cuspC.get(), paint.get());
+    uint32_t secondClip8ID = renderContext->getClipContentID();
+
+    // Since clip8 got obliterated and redrawn, this next read shouldn't
+    // affect it.
+    if (clipsOverlap)
+    {
+      CHECK(secondClip8ID != clip8ID);
+      CHECK(renderContext->getClipContentBounds(clip8ID) == clip8ContentBounds);
+      // ... But should affect the clip currently in the clip buffer.
+      CHECK(
+          renderContext->getClipContentBounds(secondClip8ID) ==
+          clip8ContentBounds);
+    }
+    else
+    {
+      CHECK(secondClip8ID == emptyClipID);
+    }
+
+    renderer.clipPath(cuspB.get());
+    renderer.drawPath(cuspC.get(), paint.get());
+    if (clipsOverlap)
+    {
+      CHECK(renderContext->getClipContentBounds(clip8ID) == clip8ContentBounds);
+      CHECK(
+          renderContext->getClipContentBounds(secondClip8ID) ==
+          clip8ContentBounds);
+    }
+
+    uint32_t clipBID = renderContext->getClipContentID();
+    if (clipsOverlap)
+    {
+      CHECK(renderContext->getClipContentBounds(clipBID) == clipBContentBounds);
+    }
+    else
+    {
+      CHECK(clipBID == emptyClipID);
+    }
+
+    renderer.restore();
+
+    // Clip content bounds should never change.
+    if (clipsOverlap)
+    {
+      CHECK(renderContext->getClipContentBounds(clipAID) == clipAContentBounds);
+      CHECK(renderContext->getClipContentBounds(clipCID) == clipCContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip9ID) == clip9ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip8ID) == clip8ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip7ID) == clip7ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clip6ID) == clip6ContentBounds);
+      CHECK(
+          renderContext->getClipContentBounds(secondClip8ID) ==
+          clip8ContentBounds);
+      CHECK(renderContext->getClipContentBounds(clipBID) == clipBContentBounds);
+    }
+
+    // If the next iteration doesn't overlap, then track which clipID we
+    // represents the "nothing got added to the clip stack" value.
+    emptyClipID = renderContext->getClipContentID();
+  }
+
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 static RawPath& make_rect(const AABB& rect)
 {
-    static RawPath path;
-    path.rewind();
-    path.addRect(rect);
-    return path;
+  static RawPath path;
+  path.rewind();
+  path.addRect(rect);
+  return path;
 };
 
 #define CHECK_AABB_NEARLY_EQUAL(AABB, L, T, R, B)                              \
-    {                                                                          \
-        CHECK(AABB.left() == Approx(L));                                       \
-        CHECK(AABB.top() == Approx(T));                                        \
-        CHECK(AABB.right() == Approx(R));                                      \
-        CHECK(AABB.bottom() == Approx(B));                                     \
-    }
+  {                                                                            \
+    CHECK(AABB.left() == Approx(L));                                           \
+    CHECK(AABB.top() == Approx(T));                                            \
+    CHECK(AABB.right() == Approx(R));                                          \
+    CHECK(AABB.bottom() == Approx(B));                                         \
+  }
 
 // Ensures that rectangular clips are handled as "clipRects" where possible,
 // instead of going to the clip buffer.
 TEST_CASE("clip-rects", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
 
-    renderContext->beginFrame(s_frameDescriptor);
+  renderContext->beginFrame(s_frameDescriptor);
 
-    auto rectA = renderContext->makeRenderPath(make_rect({0, 0, 100, 500}),
-                                               FillRule::nonZero);
-    auto rectB = renderContext->makeRenderPath(make_rect({1, -1, 20, 40}),
-                                               FillRule::nonZero);
-    auto rectC = renderContext->makeRenderPath(make_rect({0, 0, 300, 600}),
-                                               FillRule::nonZero);
-    auto ovalA = renderContext->makeRenderPath(make_oval({0, 0, 100, 400}),
-                                               FillRule::nonZero);
-    auto ovalB = renderContext->makeRenderPath(make_oval({0, 0, 200, 500}),
-                                               FillRule::nonZero);
-    auto ovalC = renderContext->makeRenderPath(make_oval({0, 0, 300, 600}),
-                                               FillRule::nonZero);
-    auto drawablePath =
-        renderContext->makeRenderPath(make_oval({-100, -100, 700, 800}),
-                                      FillRule::nonZero);
+  auto rectA = renderContext->makeRenderPath(
+      make_rect({0, 0, 100, 500}),
+      FillRule::nonZero);
+  auto rectB = renderContext->makeRenderPath(
+      make_rect({1, -1, 20, 40}),
+      FillRule::nonZero);
+  auto rectC = renderContext->makeRenderPath(
+      make_rect({0, 0, 300, 600}),
+      FillRule::nonZero);
+  auto ovalA = renderContext->makeRenderPath(
+      make_oval({0, 0, 100, 400}),
+      FillRule::nonZero);
+  auto ovalB = renderContext->makeRenderPath(
+      make_oval({0, 0, 200, 500}),
+      FillRule::nonZero);
+  auto ovalC = renderContext->makeRenderPath(
+      make_oval({0, 0, 300, 600}),
+      FillRule::nonZero);
+  auto drawablePath = renderContext->makeRenderPath(
+      make_oval({-100, -100, 700, 800}),
+      FillRule::nonZero);
 
-    auto paint = renderContext->makeRenderPaint();
-    paint->color(0xffffffff);
+  auto paint = renderContext->makeRenderPaint();
+  paint->color(0xffffffff);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    // A single rect is always handled as a clipRect.
-    renderer.save();
-    renderer.clipPath(rectA.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.restore();
+  // A single rect is always handled as a clipRect.
+  renderer.save();
+  renderer.clipPath(rectA.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.restore();
 
-    renderer.save();
+  renderer.save();
 
-    // The nested rect is always handled as a clipRect, even if it's nested.
-    renderer.clipPath(ovalA.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    uint32_t clipID = renderContext->getClipContentID();
-    CHECK(clipID != 0);
-    CHECK(!renderer.hasClipRect());
-    renderer.clipPath(rectA.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == clipID);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 0, 0, 100, 500);
-    CHECK(renderer.getClipRectMatrix() == Mat2D());
+  // The nested rect is always handled as a clipRect, even if it's nested.
+  renderer.clipPath(ovalA.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  uint32_t clipID = renderContext->getClipContentID();
+  CHECK(clipID != 0);
+  CHECK(!renderer.hasClipRect());
+  renderer.clipPath(rectA.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == clipID);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 0, 0, 100, 500);
+  CHECK(renderer.getClipRectMatrix() == Mat2D());
 
-    // Doubly nested rectangles get combined into a single clipRect.
-    renderer.clipPath(ovalB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == clipID);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1, 0, 20, 40);
-    CHECK(renderer.getClipRectMatrix() == Mat2D());
+  // Doubly nested rectangles get combined into a single clipRect.
+  renderer.clipPath(ovalB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == clipID);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1, 0, 20, 40);
+  CHECK(renderer.getClipRectMatrix() == Mat2D());
 
-    // Nested rectangles don't get combined if their matrices are incompatible.
-    renderer.save();
-    renderer.rotate(1);
-    renderer.clipPath(ovalA.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-    renderer.restore();
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1, 0, 20, 40);
-    CHECK(renderer.getClipRectMatrix() == Mat2D());
+  // Nested rectangles don't get combined if their matrices are incompatible.
+  renderer.save();
+  renderer.rotate(1);
+  renderer.clipPath(ovalA.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+  renderer.restore();
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1, 0, 20, 40);
+  CHECK(renderer.getClipRectMatrix() == Mat2D());
 
-    // Nested rectangles DO get combined if their matrices ARE compatible.
-    renderer.save();
-    renderer.scale(1, 2);
-    renderer.translate(3, 4);
-    renderer.clipPath(ovalC.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != clipID);
-    clipID = renderContext->getClipContentID();
-    renderer.clipPath(rectC.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == clipID);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 3, 8, 20, 40);
-    CHECK(renderer.getClipRectMatrix() == Mat2D());
-    renderer.restore();
+  // Nested rectangles DO get combined if their matrices ARE compatible.
+  renderer.save();
+  renderer.scale(1, 2);
+  renderer.translate(3, 4);
+  renderer.clipPath(ovalC.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != clipID);
+  clipID = renderContext->getClipContentID();
+  renderer.clipPath(rectC.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == clipID);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 3, 8, 20, 40);
+  CHECK(renderer.getClipRectMatrix() == Mat2D());
+  renderer.restore();
 
-    renderer.restore();
+  renderer.restore();
 
-    renderContext->logicalFlush();
+  renderContext->logicalFlush();
 
-    renderer.save();
+  renderer.save();
 
-    // Scaling and transforming within the same baseline space should still
-    // allow for clipRects to be combined.
-    Mat2D m = Mat2D::fromRotation(1) * Mat2D{.3f, .3f, .9f, -.7f, .4f, .2f};
-    renderer.transform(m);
-    renderer.clipPath(rectA.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    CHECK(renderer.hasClipRect());
-    CHECK(renderer.getClipRect() == AABB{0, 0, 100, 500});
-    CHECK(renderer.getClipRectMatrix() == m);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.translate(.9f, -.1f);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1.9f, 0, 20, 39.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
-    renderer.scale(10, 2);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
+  // Scaling and transforming within the same baseline space should still
+  // allow for clipRects to be combined.
+  Mat2D m = Mat2D::fromRotation(1) * Mat2D{.3f, .3f, .9f, -.7f, .4f, .2f};
+  renderer.transform(m);
+  renderer.clipPath(rectA.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderer.hasClipRect());
+  CHECK(renderer.getClipRect() == AABB{0, 0, 100, 500});
+  CHECK(renderer.getClipRectMatrix() == m);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.translate(.9f, -.1f);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 1.9f, 0, 20, 39.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
+  renderer.scale(10, 2);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
 
-    // Even 90 degree rotations work!
-    renderer.rotate(math::PI / 2);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, 10.9f, 39.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.rotate(math::PI);
-    renderer.translate(-10, 0);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, 10.9f, 17.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.rotate(-math::PI / 2);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, -9.1f, 17.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
+  // Even 90 degree rotations work!
+  renderer.rotate(math::PI / 2);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, 10.9f, 39.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.rotate(math::PI);
+  renderer.translate(-10, 0);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, 10.9f, 17.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.rotate(-math::PI / 2);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 1.9f, -9.1f, 17.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
 
-    // And flips!
-    renderer.scale(1, -1);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 17.9f, -9.1f, 17.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
-    renderer.scale(-1, -1);
-    renderer.translate(2, 0);
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    CHECK(renderer.hasClipRect());
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 30.9f, 17.9f, -9.1f, 17.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
+  // And flips!
+  renderer.scale(1, -1);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 10.9f, 17.9f, -9.1f, 17.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
+  renderer.scale(-1, -1);
+  renderer.translate(2, 0);
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderer.hasClipRect());
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 30.9f, 17.9f, -9.1f, 17.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
 
-    // ... but once the matrices become incompatible, we can't intersect with
-    // the clipRect anymore.
-    renderer.transform(Mat2D{1, .1f, 0, 1, 0, 0});
-    renderer.clipPath(rectB.get());
-    renderer.drawPath(drawablePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() != 0);
-    CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 30.9f, 17.9f, -9.1f, 17.9f);
-    CHECK(renderer.getClipRectMatrix() == m);
+  // ... but once the matrices become incompatible, we can't intersect with
+  // the clipRect anymore.
+  renderer.transform(Mat2D{1, .1f, 0, 1, 0, 0});
+  renderer.clipPath(rectB.get());
+  renderer.drawPath(drawablePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() != 0);
+  CHECK_AABB_NEARLY_EQUAL(renderer.getClipRect(), 30.9f, 17.9f, -9.1f, 17.9f);
+  CHECK(renderer.getClipRectMatrix() == m);
 
-    renderer.restore();
+  renderer.restore();
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // This test passes by not triggering assertions within RiveRenderer and
 // RenderContext due to drawing empty paths.
 TEST_CASE("empty-paths", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    renderContext->beginFrame(s_frameDescriptor);
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  renderContext->beginFrame(s_frameDescriptor);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    // Draw an empty path.
-    auto paint = renderContext->makeRenderPaint();
-    auto path = renderContext->makeEmptyRenderPath();
-    renderer.drawPath(path.get(), paint.get());
+  // Draw an empty path.
+  auto paint = renderContext->makeRenderPaint();
+  auto path = renderContext->makeEmptyRenderPath();
+  renderer.drawPath(path.get(), paint.get());
 
-    // Draw another empty path.
-    path = renderContext->makeEmptyRenderPath();
-    path->moveTo(1, 1);
-    path->moveTo(2, 2);
-    path->lineTo(2, 2);
-    renderer.drawPath(path.get(), paint.get());
+  // Draw another empty path.
+  path = renderContext->makeEmptyRenderPath();
+  path->moveTo(1, 1);
+  path->moveTo(2, 2);
+  path->lineTo(2, 2);
+  renderer.drawPath(path.get(), paint.get());
 
-    // Draw a path with tons of vertices that definitely trigger a first-draw
-    // realloc.
-    path = renderContext->makeEmptyRenderPath();
-    auto rand100 = []() {
-        return static_cast<float>(rand()) * 100.f /
-               static_cast<float>(RAND_MAX);
-    };
-    for (size_t i = 0; i < 100000; ++i)
-    {
-        path->cubicTo(rand100(),
-                      rand100(),
-                      rand100(),
-                      rand100(),
-                      rand100(),
-                      rand100());
-    }
-    renderer.drawPath(path.get(), paint.get());
+  // Draw a path with tons of vertices that definitely trigger a first-draw
+  // realloc.
+  path = renderContext->makeEmptyRenderPath();
+  auto rand100 = []() {
+    return static_cast<float>(rand()) * 100.f / static_cast<float>(RAND_MAX);
+  };
+  for (size_t i = 0; i < 100000; ++i)
+  {
+    path->cubicTo(
+        rand100(),
+        rand100(),
+        rand100(),
+        rand100(),
+        rand100(),
+        rand100());
+  }
+  renderer.drawPath(path.get(), paint.get());
 
-    // Draw one more empty path.
-    renderer.drawPath(renderContext->makeEmptyRenderPath().get(), paint.get());
+  // Draw one more empty path.
+  renderer.drawPath(renderContext->makeEmptyRenderPath().get(), paint.get());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // This test passes by not triggering assertions within RiveRenderer and
 // RenderContext due to drawing empty paths composed of nothing but moves.
 TEST_CASE("empty-paths2", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    renderContext->beginFrame(s_frameDescriptor);
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  renderContext->beginFrame(s_frameDescriptor);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    auto paint = renderContext->makeRenderPaint();
+  auto paint = renderContext->makeRenderPaint();
 
-    // Draw path composed of nothing but moves.
-    auto path = renderContext->makeEmptyRenderPath();
-    path->moveTo(0, 0);
-    path->moveTo(1, 2);
-    path->moveTo(3, 4);
-    path->moveTo(5, 6);
-    renderer.drawPath(path.get(), paint.get());
+  // Draw path composed of nothing but moves.
+  auto path = renderContext->makeEmptyRenderPath();
+  path->moveTo(0, 0);
+  path->moveTo(1, 2);
+  path->moveTo(3, 4);
+  path->moveTo(5, 6);
+  renderer.drawPath(path.get(), paint.get());
 
-    // Draw a large path (that triggers the triangulator) composed of nothing
-    // but moves.
-    path = renderContext->makeEmptyRenderPath();
-    path->moveTo(0, 0);
-    path->moveTo(1000, 2000);
-    path->moveTo(3000, 4000);
-    path->moveTo(5000, 6000);
-    path->moveTo(7000, 8000);
-    renderer.drawPath(path.get(), paint.get());
+  // Draw a large path (that triggers the triangulator) composed of nothing
+  // but moves.
+  path = renderContext->makeEmptyRenderPath();
+  path->moveTo(0, 0);
+  path->moveTo(1000, 2000);
+  path->moveTo(3000, 4000);
+  path->moveTo(5000, 6000);
+  path->moveTo(7000, 8000);
+  renderer.drawPath(path.get(), paint.get());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 TEST_CASE("IsAABB", "[RiveRenderer]")
 {
-    AABB rect;
-    for (bool doClose : {true, false})
-    {
-        RawPath path;
-        if (doClose)
-        {
-            path.addRect(AABB{0, 0, 10, 10}, PathDirection::ccw);
-        }
-        else
-        {
-            path.lineTo(10, 0);
-            path.lineTo(10, 10);
-            path.lineTo(0, 10);
-        }
-        CHECK(RiveRenderer::IsAABB(path, &rect));
-        CHECK(rect == AABB{0, 0, 10, 10});
-
-        path.reset();
-        if (doClose)
-        {
-            path.addRect(AABB{1, 2, -1, 5}, PathDirection::cw);
-        }
-        else
-        {
-            path.moveTo(1, 2);
-            path.lineTo(-1, 2);
-            path.lineTo(-1, 5);
-            path.lineTo(1, 5);
-        }
-        CHECK(RiveRenderer::IsAABB(path, &rect));
-        CHECK(rect == AABB{-1, 2, 1, 5});
-
-        path.reset();
-        if (doClose)
-        {
-            path.addRect(AABB{0, 0, 10, 10}, PathDirection::ccw);
-            path.addRect(AABB{1, 2, -1, 5}, PathDirection::ccw);
-        }
-        else
-        {
-            path.lineTo(10, 0);
-            path.lineTo(10, 10);
-            path.lineTo(0, 10);
-            path.lineTo(0, 0);
-            path.lineTo(10, 0);
-        }
-        CHECK(!RiveRenderer::IsAABB(path, &rect));
-    }
-
+  AABB rect;
+  for (bool doClose : {true, false})
+  {
     RawPath path;
-    path.moveTo(1, 0);
-    CHECK(!RiveRenderer::IsAABB(path, &rect));
-    path.lineTo(0, 0);
-    CHECK(!RiveRenderer::IsAABB(path, &rect));
-    path.lineTo(0, 1);
-    CHECK(!RiveRenderer::IsAABB(path, &rect));
-    path.lineTo(1, 1);
+    if (doClose)
+    {
+      path.addRect(AABB{0, 0, 10, 10}, PathDirection::ccw);
+    }
+    else
+    {
+      path.lineTo(10, 0);
+      path.lineTo(10, 10);
+      path.lineTo(0, 10);
+    }
     CHECK(RiveRenderer::IsAABB(path, &rect));
-    path.close();
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
+    CHECK(rect == AABB{0, 0, 10, 10});
 
     path.reset();
-    path.moveTo(0, 0);
-    path.lineTo(1, 0);
-    path.lineTo(1, 1);
-    path.lineTo(0, 1.1f);
-    path.close();
-    CHECK(!RiveRenderer::IsAABB(path, &rect));
+    if (doClose)
+    {
+      path.addRect(AABB{1, 2, -1, 5}, PathDirection::cw);
+    }
+    else
+    {
+      path.moveTo(1, 2);
+      path.lineTo(-1, 2);
+      path.lineTo(-1, 5);
+      path.lineTo(1, 5);
+    }
+    CHECK(RiveRenderer::IsAABB(path, &rect));
+    CHECK(rect == AABB{-1, 2, 1, 5});
 
-    // Accept additional verbs and points after the AABB as long as every point
-    // after is equal to p0.
     path.reset();
-    path.moveTo(0, 0);
-    path.lineTo(1, 0);
-    path.lineTo(1, 1);
-    path.lineTo(0, 1);
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.close();
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.reset();
-    path.moveTo(1, 1);
-    path.lineTo(0, 1);
-    path.lineTo(0, 0);
-    path.lineTo(1, 0);
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.lineTo(1, 1);
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.close();
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.close();
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.cubicTo(1, 1, 1, 1, 1, 1);
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
-    path.quadTo(1, 1, 1, 1);
-    CHECK(RiveRenderer::IsAABB(path, &rect));
-    CHECK(rect == AABB{0, 0, 1, 1});
+    if (doClose)
+    {
+      path.addRect(AABB{0, 0, 10, 10}, PathDirection::ccw);
+      path.addRect(AABB{1, 2, -1, 5}, PathDirection::ccw);
+    }
+    else
+    {
+      path.lineTo(10, 0);
+      path.lineTo(10, 10);
+      path.lineTo(0, 10);
+      path.lineTo(0, 0);
+      path.lineTo(10, 0);
+    }
+    CHECK(!RiveRenderer::IsAABB(path, &rect));
+  }
+
+  RawPath path;
+  path.moveTo(1, 0);
+  CHECK(!RiveRenderer::IsAABB(path, &rect));
+  path.lineTo(0, 0);
+  CHECK(!RiveRenderer::IsAABB(path, &rect));
+  path.lineTo(0, 1);
+  CHECK(!RiveRenderer::IsAABB(path, &rect));
+  path.lineTo(1, 1);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  path.close();
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+
+  path.reset();
+  path.moveTo(0, 0);
+  path.lineTo(1, 0);
+  path.lineTo(1, 1);
+  path.lineTo(0, 1.1f);
+  path.close();
+  CHECK(!RiveRenderer::IsAABB(path, &rect));
+
+  // Accept additional verbs and points after the AABB as long as every point
+  // after is equal to p0.
+  path.reset();
+  path.moveTo(0, 0);
+  path.lineTo(1, 0);
+  path.lineTo(1, 1);
+  path.lineTo(0, 1);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.close();
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.reset();
+  path.moveTo(1, 1);
+  path.lineTo(0, 1);
+  path.lineTo(0, 0);
+  path.lineTo(1, 0);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.lineTo(1, 1);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.close();
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.close();
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.cubicTo(1, 1, 1, 1, 1, 1);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
+  path.quadTo(1, 1, 1, 1);
+  CHECK(RiveRenderer::IsAABB(path, &rect));
+  CHECK(rect == AABB{0, 0, 1, 1});
 }
 
 // Check that paths with NaN vertices don't crash.
 TEST_CASE("nan-render-path", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    RiveRenderer renderer(renderContext.get());
-    auto paint = renderContext->makeRenderPaint();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  RiveRenderer renderer(renderContext.get());
+  auto paint = renderContext->makeRenderPaint();
 
-    auto finitePath = renderContext->makeEmptyRenderPath();
-    finitePath->moveTo(1, 2);
-    finitePath->lineTo(3, 4);
-    finitePath->cubicTo(5, 6, 7, 8, 9, 10);
-    finitePath->cubicTo(11, 12, 13, 14, 15, 16);
-    finitePath->lineTo(17, 18);
+  auto finitePath = renderContext->makeEmptyRenderPath();
+  finitePath->moveTo(1, 2);
+  finitePath->lineTo(3, 4);
+  finitePath->cubicTo(5, 6, 7, 8, 9, 10);
+  finitePath->cubicTo(11, 12, 13, 14, 15, 16);
+  finitePath->lineTo(17, 18);
 
-    auto nan = std::numeric_limits<float>::quiet_NaN();
-    auto nanPath = renderContext->makeEmptyRenderPath();
-    nanPath->moveTo(nan, nan);
-    nanPath->lineTo(nan, nan);
-    nanPath->cubicTo(nan, nan, nan, nan, nan, nan);
-    nanPath->cubicTo(nan, nan, nan, nan, nan, nan);
-    nanPath->lineTo(nan, nan);
+  auto nan = std::numeric_limits<float>::quiet_NaN();
+  auto nanPath = renderContext->makeEmptyRenderPath();
+  nanPath->moveTo(nan, nan);
+  nanPath->lineTo(nan, nan);
+  nanPath->cubicTo(nan, nan, nan, nan, nan, nan);
+  nanPath->cubicTo(nan, nan, nan, nan, nan, nan);
+  nanPath->lineTo(nan, nan);
 
-    renderContext->beginFrame(s_frameDescriptor);
+  renderContext->beginFrame(s_frameDescriptor);
 
-    renderer.drawPath(nanPath.get(), paint.get());
+  renderer.drawPath(nanPath.get(), paint.get());
 
-    renderer.save();
-    renderer.clipPath(nanPath.get());
-    renderer.drawPath(finitePath.get(), paint.get());
-    renderer.restore();
+  renderer.save();
+  renderer.clipPath(nanPath.get());
+  renderer.drawPath(finitePath.get(), paint.get());
+  renderer.restore();
 
-    renderer.save();
-    renderer.transform({nan, nan, nan, nan, nan, nan});
-    renderer.drawPath(finitePath.get(), paint.get());
-    renderer.clipPath(finitePath.get());
-    renderer.drawPath(nanPath.get(), paint.get());
-    renderer.restore();
+  renderer.save();
+  renderer.transform({nan, nan, nan, nan, nan, nan});
+  renderer.drawPath(finitePath.get(), paint.get());
+  renderer.clipPath(finitePath.get());
+  renderer.drawPath(nanPath.get(), paint.get());
+  renderer.restore();
 
-    CHECK(renderContext->getClipContentID() == 0);
+  CHECK(renderContext->getClipContentID() == 0);
 
-    renderer.save();
-    renderer.clipPath(nanPath.get());
-    renderer.drawPath(finitePath.get(), paint.get());
-    // NaN paths cause an immediatedly empty clip stack that just discards
-    // elements.
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.clipPath(finitePath.get());
-    renderer.drawPath(finitePath.get(), paint.get());
-    CHECK(renderContext->getClipContentID() == 0);
-    renderer.restore();
+  renderer.save();
+  renderer.clipPath(nanPath.get());
+  renderer.drawPath(finitePath.get(), paint.get());
+  // NaN paths cause an immediatedly empty clip stack that just discards
+  // elements.
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.clipPath(finitePath.get());
+  renderer.drawPath(finitePath.get(), paint.get());
+  CHECK(renderContext->getClipContentID() == 0);
+  renderer.restore();
 
-    renderer.save();
-    renderer.clipPath(finitePath.get());
-    renderer.drawPath(finitePath.get(), paint.get());
-    // Non-NaN paths update the clip content ID.
-    CHECK(renderContext->getClipContentID() != 0);
-    renderer.restore();
+  renderer.save();
+  renderer.clipPath(finitePath.get());
+  renderer.drawPath(finitePath.get(), paint.get());
+  // Non-NaN paths update the clip content ID.
+  CHECK(renderContext->getClipContentID() != 0);
+  renderer.restore();
 
-    // move(nan, nan), close() found a crash.
-    auto moveNaN = renderContext->makeEmptyRenderPath();
-    moveNaN->moveTo(nan, nan);
-    moveNaN->close();
-    renderer.drawPath(moveNaN.get(), paint.get());
+  // move(nan, nan), close() found a crash.
+  auto moveNaN = renderContext->makeEmptyRenderPath();
+  moveNaN->moveTo(nan, nan);
+  moveNaN->close();
+  renderer.drawPath(moveNaN.get(), paint.get());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // Check that edge cases in stroke thickness don't crash or assert.
 TEST_CASE("stroke-thickness", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
 
-    renderContext->beginFrame(s_frameDescriptor);
+  renderContext->beginFrame(s_frameDescriptor);
 
-    auto path = renderContext->makeEmptyRenderPath();
-    path->lineTo(100, 100);
-    path->lineTo(100, 0);
+  auto path = renderContext->makeEmptyRenderPath();
+  path->lineTo(100, 100);
+  path->lineTo(100, 0);
 
-    auto paint = renderContext->makeRenderPaint();
-    paint->style(RenderPaintStyle::stroke);
+  auto paint = renderContext->makeRenderPaint();
+  paint->style(RenderPaintStyle::stroke);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    // Check a stroke thickness that truncates to 0 when converted to a radius
-    // (i.e., when multiplied by .5).
-    paint->thickness(math::bit_cast<float>(1u));
-    renderer.drawPath(path.get(), paint.get());
+  // Check a stroke thickness that truncates to 0 when converted to a radius
+  // (i.e., when multiplied by .5).
+  paint->thickness(math::bit_cast<float>(1u));
+  renderer.drawPath(path.get(), paint.get());
 
-    // Check NaN stroke thickness.
-    paint->thickness(std::numeric_limits<float>::quiet_NaN());
-    renderer.drawPath(path.get(), paint.get());
+  // Check NaN stroke thickness.
+  paint->thickness(std::numeric_limits<float>::quiet_NaN());
+  renderer.drawPath(path.get(), paint.get());
 
-    // Check infinite stroke thickness.
-    paint->thickness(std::numeric_limits<float>::infinity());
-    renderer.drawPath(path.get(), paint.get());
+  // Check infinite stroke thickness.
+  paint->thickness(std::numeric_limits<float>::infinity());
+  renderer.drawPath(path.get(), paint.get());
 
-    // Check -infinite stroke thickness.
-    paint->thickness(-std::numeric_limits<float>::infinity());
-    renderer.drawPath(path.get(), paint.get());
+  // Check -infinite stroke thickness.
+  paint->thickness(-std::numeric_limits<float>::infinity());
+  renderer.drawPath(path.get(), paint.get());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // When AABB::height() evaluates inf - inf, the result is nan.
 TEST_CASE("nan-testcase", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> nullContext =
-        RenderContextNULL::MakeContext();
-    nullContext->beginFrame({
-        .renderTargetWidth = 2279,
-        .renderTargetHeight = 710,
-    });
+  std::unique_ptr<RenderContext> nullContext = RenderContextNULL::MakeContext();
+  nullContext->beginFrame({
+      .renderTargetWidth = 2279,
+      .renderTargetHeight = 710,
+  });
 
-    auto path = nullContext->makeEmptyRenderPath();
-    path->moveTo(0, std::numeric_limits<float>::infinity());
-    path->lineTo(1, std::numeric_limits<float>::infinity());
+  auto path = nullContext->makeEmptyRenderPath();
+  path->moveTo(0, std::numeric_limits<float>::infinity());
+  path->lineTo(1, std::numeric_limits<float>::infinity());
 
-    auto paint = nullContext->makeRenderPaint();
+  auto paint = nullContext->makeRenderPaint();
 
-    RiveRenderer renderer(nullContext.get());
-    renderer.save();
-    renderer.align(Fit::fill,
-                   Alignment::center,
-                   {144, 77, 885, 168},
-                   {0, 0, 100, 100});
-    renderer.drawPath(path.get(), paint.get());
-    renderer.restore();
+  RiveRenderer renderer(nullContext.get());
+  renderer.save();
+  renderer.align(
+      Fit::fill,
+      Alignment::center,
+      {144, 77, 885, 168},
+      {0, 0, 100, 100});
+  renderer.drawPath(path.get(), paint.get());
+  renderer.restore();
 
-    auto renderTarget =
-        nullContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            2279,
-            710);
-    nullContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = nullContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(2279, 710);
+  nullContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // This path was found by the fuzzer and triggered an assertion.
 TEST_CASE("nan-testcase2", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> nullContext =
-        RenderContextNULL::MakeContext();
-    nullContext->beginFrame({
-        .renderTargetWidth = 2279,
-        .renderTargetHeight = 710,
-    });
+  std::unique_ptr<RenderContext> nullContext = RenderContextNULL::MakeContext();
+  nullContext->beginFrame({
+      .renderTargetWidth = 2279,
+      .renderTargetHeight = 710,
+  });
 
-    auto inf = std::numeric_limits<float>::infinity();
-    auto nan = std::numeric_limits<float>::quiet_NaN();
-    auto path = nullContext->makeEmptyRenderPath();
-    path->lineTo(1, -inf);
-    path->moveTo(nan, -inf);
+  auto inf = std::numeric_limits<float>::infinity();
+  auto nan = std::numeric_limits<float>::quiet_NaN();
+  auto path = nullContext->makeEmptyRenderPath();
+  path->lineTo(1, -inf);
+  path->moveTo(nan, -inf);
 
-    auto paint = nullContext->makeRenderPaint();
+  auto paint = nullContext->makeRenderPaint();
 
-    RiveRenderer renderer(nullContext.get());
-    renderer.save();
-    renderer.align(Fit::fill,
-                   {0.260523f, 0.803141f},
-                   {144.649948f, 77.102341f, 885.225891f, 168.455017f},
-                   {0, 0, 100, 100});
-    renderer.drawPath(path.get(), paint.get());
-    renderer.restore();
+  RiveRenderer renderer(nullContext.get());
+  renderer.save();
+  renderer.align(
+      Fit::fill,
+      {0.260523f, 0.803141f},
+      {144.649948f, 77.102341f, 885.225891f, 168.455017f},
+      {0, 0, 100, 100});
+  renderer.drawPath(path.get(), paint.get());
+  renderer.restore();
 
-    auto renderTarget =
-        nullContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            2279,
-            710);
-    nullContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = nullContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(2279, 710);
+  nullContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // Attempting to create a gradient with invalid stops returns null.
 TEST_CASE("invalid-gradient-stops", "[RiveRenderer]")
 {
-    std::vector<ColorInt> colors(100);
-    std::unique_ptr<RenderContext> nullContext =
-        RenderContextNULL::MakeContext();
-    auto checkGradients = [&](std::vector<float> stops, bool shouldSucceed) {
-        if (stops.size() > colors.size())
-        {
-            return false;
-        }
-        if (static_cast<bool>(nullContext->makeLinearGradient(0,
-                                                              0,
-                                                              0,
-                                                              0,
-                                                              colors.data(),
-                                                              stops.data(),
-                                                              stops.size())) !=
-            shouldSucceed)
-        {
-            return false;
-        }
-        if (static_cast<bool>(nullContext->makeRadialGradient(0,
-                                                              0,
-                                                              0,
-                                                              colors.data(),
-                                                              stops.data(),
-                                                              stops.size())) !=
-            shouldSucceed)
-        {
-            return false;
-        }
-        return true;
-    };
-    CHECK(checkGradients({0, .5, 1}, true));
+  std::vector<ColorInt> colors(100);
+  std::unique_ptr<RenderContext> nullContext = RenderContextNULL::MakeContext();
+  auto checkGradients = [&](std::vector<float> stops, bool shouldSucceed) {
+    if (stops.size() > colors.size())
+    {
+      return false;
+    }
+    if (static_cast<bool>(nullContext->makeLinearGradient(
+            0,
+            0,
+            0,
+            0,
+            colors.data(),
+            stops.data(),
+            stops.size())) != shouldSucceed)
+    {
+      return false;
+    }
+    if (static_cast<bool>(nullContext->makeRadialGradient(
+            0,
+            0,
+            0,
+            colors.data(),
+            stops.data(),
+            stops.size())) != shouldSucceed)
+    {
+      return false;
+    }
+    return true;
+  };
+  CHECK(checkGradients({0, .5, 1}, true));
 
-    auto inf = std::numeric_limits<float>::infinity();
-    auto nan = std::numeric_limits<float>::quiet_NaN();
+  auto inf = std::numeric_limits<float>::infinity();
+  auto nan = std::numeric_limits<float>::quiet_NaN();
 
-    // Empty gradients are invalid.
-    CHECK(checkGradients({0}, true));
-    CHECK(checkGradients({1}, true));
-    CHECK(checkGradients({}, false));
+  // Empty gradients are invalid.
+  CHECK(checkGradients({0}, true));
+  CHECK(checkGradients({1}, true));
+  CHECK(checkGradients({}, false));
 
-    // Gradients outside 0..1 are invalid
-    CHECK(checkGradients({0, .5f, 1.1f}, false));
-    CHECK(checkGradients({0, .5f, inf}, false));
-    CHECK(checkGradients({0, .5f, nan}, false));
-    CHECK(checkGradients({-.1f, .5f, 1}, false));
-    CHECK(checkGradients({-inf, .5f, 1}, false));
-    CHECK(checkGradients({nan, .5f, 1}, false));
+  // Gradients outside 0..1 are invalid
+  CHECK(checkGradients({0, .5f, 1.1f}, false));
+  CHECK(checkGradients({0, .5f, inf}, false));
+  CHECK(checkGradients({0, .5f, nan}, false));
+  CHECK(checkGradients({-.1f, .5f, 1}, false));
+  CHECK(checkGradients({-inf, .5f, 1}, false));
+  CHECK(checkGradients({nan, .5f, 1}, false));
 
-    // Unordered gradients are invalid.
-    CHECK(checkGradients({0, .4F, .5F, 1}, true));
-    CHECK(checkGradients({0, .5F, .4F, 1}, false));
-    CHECK(checkGradients({.4f, 0, .5f, 1}, false));
-    CHECK(checkGradients({0, .4f, 1, .5f}, false));
-    CHECK(checkGradients({nan, .5f, 1}, false));
-    CHECK(checkGradients({0, nan, 1}, false));
-    CHECK(checkGradients({0, .5f, nan}, false));
+  // Unordered gradients are invalid.
+  CHECK(checkGradients({0, .4F, .5F, 1}, true));
+  CHECK(checkGradients({0, .5F, .4F, 1}, false));
+  CHECK(checkGradients({.4f, 0, .5f, 1}, false));
+  CHECK(checkGradients({0, .4f, 1, .5f}, false));
+  CHECK(checkGradients({nan, .5f, 1}, false));
+  CHECK(checkGradients({0, nan, 1}, false));
+  CHECK(checkGradients({0, .5f, nan}, false));
 }
 
 // Drawing round caps with tiny, negative, and non-finite stroke thickness
 // values should not crash.
 TEST_CASE("round-cap-edge-values", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
 
-    renderContext->beginFrame(s_frameDescriptor);
+  renderContext->beginFrame(s_frameDescriptor);
 
-    auto path = renderContext->makeEmptyRenderPath();
-    path->moveTo(25, 25);
-    path->lineTo(75, 75);
+  auto path = renderContext->makeEmptyRenderPath();
+  path->moveTo(25, 25);
+  path->lineTo(75, 75);
 
-    auto emptyPath = renderContext->makeEmptyRenderPath();
-    emptyPath->close();
-    emptyPath->moveTo(50, 50);
-    emptyPath->close();
+  auto emptyPath = renderContext->makeEmptyRenderPath();
+  emptyPath->close();
+  emptyPath->moveTo(50, 50);
+  emptyPath->close();
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    auto drawStrokes = [&](float thickness) {
-        auto stroke = renderContext->makeRenderPaint();
-        stroke->style(RenderPaintStyle::stroke);
-        stroke->thickness(thickness);
-        stroke->cap(StrokeCap::round);
-        stroke->join(StrokeJoin::round);
-        renderer.drawPath(path.get(), stroke.get());
-        renderer.drawPath(emptyPath.get(), stroke.get());
-    };
+  auto drawStrokes = [&](float thickness) {
+    auto stroke = renderContext->makeRenderPaint();
+    stroke->style(RenderPaintStyle::stroke);
+    stroke->thickness(thickness);
+    stroke->cap(StrokeCap::round);
+    stroke->join(StrokeJoin::round);
+    renderer.drawPath(path.get(), stroke.get());
+    renderer.drawPath(emptyPath.get(), stroke.get());
+  };
 
-    for (float thickness = 1; thickness > 0; thickness /= 2)
-    {
-        drawStrokes(thickness);
-        drawStrokes(-thickness);
-    }
-    drawStrokes(math::bit_cast<float>(1u));
-    drawStrokes(std::numeric_limits<float>::infinity());
-    drawStrokes(-std::numeric_limits<float>::infinity());
-    drawStrokes(std::numeric_limits<float>::quiet_NaN());
+  for (float thickness = 1; thickness > 0; thickness /= 2)
+  {
+    drawStrokes(thickness);
+    drawStrokes(-thickness);
+  }
+  drawStrokes(math::bit_cast<float>(1u));
+  drawStrokes(std::numeric_limits<float>::infinity());
+  drawStrokes(-std::numeric_limits<float>::infinity());
+  drawStrokes(std::numeric_limits<float>::quiet_NaN());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            s_frameDescriptor.renderTargetWidth,
-            s_frameDescriptor.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              s_frameDescriptor.renderTargetWidth,
+                              s_frameDescriptor.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 // Infinite draw bounds cast to {min32i, min32i, max32i, max32i}.
@@ -1223,27 +1214,29 @@ TEST_CASE("round-cap-edge-values", "[RiveRenderer]")
 // the intersection board.
 TEST_CASE("infinite-atomic-path", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    auto desc = s_frameDescriptor;
-    desc.disableRasterOrdering = true;
-    renderContext->beginFrame(desc);
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  auto desc = s_frameDescriptor;
+  desc.disableRasterOrdering = true;
+  renderContext->beginFrame(desc);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    auto paint = renderContext->makeRenderPaint();
-    auto path = renderContext->makeEmptyRenderPath();
-    path->moveTo(-std::numeric_limits<float>::infinity(),
-                 -std::numeric_limits<float>::infinity());
-    path->lineTo(std::numeric_limits<float>::infinity(),
-                 std::numeric_limits<float>::infinity());
-    renderer.drawPath(path.get(), paint.get());
+  auto paint = renderContext->makeRenderPaint();
+  auto path = renderContext->makeEmptyRenderPath();
+  path->moveTo(
+      -std::numeric_limits<float>::infinity(),
+      -std::numeric_limits<float>::infinity());
+  path->lineTo(
+      std::numeric_limits<float>::infinity(),
+      std::numeric_limits<float>::infinity());
+  renderer.drawPath(path.get(), paint.get());
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            desc.renderTargetWidth,
-            desc.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              desc.renderTargetWidth,
+                              desc.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
 #define filter(a) rive::ImageSampler::GetFilterOptionFromKey(a)
@@ -1252,115 +1245,118 @@ TEST_CASE("infinite-atomic-path", "[RiveRenderer]")
 
 TEST_CASE("image-sample-option-conversions", "[RiveRenderer]")
 {
-    rive::ImageSampler defaultOptions = rive::ImageSampler::LinearClamp();
-    rive::ImageSampler repeatNearestOptions = {rive::ImageWrap::repeat,
-                                               rive::ImageWrap::repeat,
-                                               rive::ImageFilter::nearest};
+  rive::ImageSampler defaultOptions = rive::ImageSampler::LinearClamp();
+  rive::ImageSampler repeatNearestOptions = {
+      rive::ImageWrap::repeat,
+      rive::ImageWrap::repeat,
+      rive::ImageFilter::nearest};
 
-    auto defaultKey = defaultOptions.asKey();
-    CHECK(defaultKey == 0);
-    auto repeatNearestOptionsKey = repeatNearestOptions.asKey();
-    CHECK(defaultKey != repeatNearestOptionsKey);
-    CHECK(wrapx(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
-    CHECK(wrapy(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
-    CHECK(filter(repeatNearestOptionsKey) == rive::ImageFilter::nearest);
+  auto defaultKey = defaultOptions.asKey();
+  CHECK(defaultKey == 0);
+  auto repeatNearestOptionsKey = repeatNearestOptions.asKey();
+  CHECK(defaultKey != repeatNearestOptionsKey);
+  CHECK(wrapx(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
+  CHECK(wrapy(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
+  CHECK(filter(repeatNearestOptionsKey) == rive::ImageFilter::nearest);
 
-    rive::ImageSampler clampMirrorLinearOptions = {rive::ImageWrap::clamp,
-                                                   rive::ImageWrap::mirror,
-                                                   rive::ImageFilter::bilinear};
+  rive::ImageSampler clampMirrorLinearOptions = {
+      rive::ImageWrap::clamp,
+      rive::ImageWrap::mirror,
+      rive::ImageFilter::bilinear};
 
-    auto clampMirrorLinearOptionsKey = clampMirrorLinearOptions.asKey();
-    CHECK(wrapx(clampMirrorLinearOptionsKey) == rive::ImageWrap::clamp);
-    CHECK(wrapy(clampMirrorLinearOptionsKey) == rive::ImageWrap::mirror);
-    CHECK(filter(clampMirrorLinearOptionsKey) == rive::ImageFilter::bilinear);
-    CHECK(clampMirrorLinearOptions != repeatNearestOptions);
+  auto clampMirrorLinearOptionsKey = clampMirrorLinearOptions.asKey();
+  CHECK(wrapx(clampMirrorLinearOptionsKey) == rive::ImageWrap::clamp);
+  CHECK(wrapy(clampMirrorLinearOptionsKey) == rive::ImageWrap::mirror);
+  CHECK(filter(clampMirrorLinearOptionsKey) == rive::ImageFilter::bilinear);
+  CHECK(clampMirrorLinearOptions != repeatNearestOptions);
 
-    rive::ImageSampler repeatClampMipLinearOptions = {
-        rive::ImageWrap::repeat,
-        rive::ImageWrap::clamp,
-        rive::ImageFilter::bilinear};
+  rive::ImageSampler repeatClampMipLinearOptions = {
+      rive::ImageWrap::repeat,
+      rive::ImageWrap::clamp,
+      rive::ImageFilter::bilinear};
 
-    auto repearClampMipLinearOptionsKey = repeatClampMipLinearOptions.asKey();
-    CHECK(wrapx(repearClampMipLinearOptionsKey) == rive::ImageWrap::repeat);
-    CHECK(wrapy(repearClampMipLinearOptionsKey) == rive::ImageWrap::clamp);
-    CHECK(filter(repearClampMipLinearOptionsKey) ==
-          rive::ImageFilter::bilinear);
+  auto repearClampMipLinearOptionsKey = repeatClampMipLinearOptions.asKey();
+  CHECK(wrapx(repearClampMipLinearOptionsKey) == rive::ImageWrap::repeat);
+  CHECK(wrapy(repearClampMipLinearOptionsKey) == rive::ImageWrap::clamp);
+  CHECK(filter(repearClampMipLinearOptionsKey) == rive::ImageFilter::bilinear);
 
-    rive::ImageSampler clampRepeatMipNearestOptions = {
-        rive::ImageWrap::clamp,
-        rive::ImageWrap::repeat,
-        rive::ImageFilter::bilinear};
+  rive::ImageSampler clampRepeatMipNearestOptions = {
+      rive::ImageWrap::clamp,
+      rive::ImageWrap::repeat,
+      rive::ImageFilter::bilinear};
 
-    auto clampRepeatMipNearestOptionsKey = clampRepeatMipNearestOptions.asKey();
-    CHECK(wrapx(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::clamp);
-    CHECK(wrapy(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::repeat);
-    CHECK(filter(clampRepeatMipNearestOptionsKey) ==
-          rive::ImageFilter::bilinear);
+  auto clampRepeatMipNearestOptionsKey = clampRepeatMipNearestOptions.asKey();
+  CHECK(wrapx(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::clamp);
+  CHECK(wrapy(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::repeat);
+  CHECK(filter(clampRepeatMipNearestOptionsKey) == rive::ImageFilter::bilinear);
 
-    rive::ImageSampler mirrorClampMipNearestOptions = {
-        rive::ImageWrap::mirror,
-        rive::ImageWrap::clamp,
-        rive::ImageFilter::nearest};
+  rive::ImageSampler mirrorClampMipNearestOptions = {
+      rive::ImageWrap::mirror,
+      rive::ImageWrap::clamp,
+      rive::ImageFilter::nearest};
 
-    auto mirrorClampMipNearestOptionsKey = mirrorClampMipNearestOptions.asKey();
-    CHECK(wrapx(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::mirror);
-    CHECK(wrapy(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::clamp);
-    CHECK(filter(mirrorClampMipNearestOptionsKey) ==
-          rive::ImageFilter::nearest);
+  auto mirrorClampMipNearestOptionsKey = mirrorClampMipNearestOptions.asKey();
+  CHECK(wrapx(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::mirror);
+  CHECK(wrapy(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::clamp);
+  CHECK(filter(mirrorClampMipNearestOptionsKey) == rive::ImageFilter::nearest);
 }
 
 // Ensure the renderer gracefully handles a null texture within a
 // RiveRenderImage.
 TEST_CASE("null-render-texture", "[RiveRenderer]")
 {
-    std::unique_ptr<RenderContext> renderContext =
-        RenderContextNULL::MakeContext();
-    auto desc = s_frameDescriptor;
-    desc.disableRasterOrdering = true;
-    renderContext->beginFrame(desc);
+  std::unique_ptr<RenderContext>
+      renderContext = RenderContextNULL::MakeContext();
+  auto desc = s_frameDescriptor;
+  desc.disableRasterOrdering = true;
+  renderContext->beginFrame(desc);
 
-    RiveRenderer renderer(renderContext.get());
+  RiveRenderer renderer(renderContext.get());
 
-    class NullTextureImage : public RiveRenderImage
+  class NullTextureImage : public RiveRenderImage
+  {
+  public:
+    NullTextureImage(int width, int height) : RiveRenderImage(width, height)
     {
-    public:
-        NullTextureImage(int width, int height) : RiveRenderImage(width, height)
-        {
-            // Never call resetTexture() so that our texture is null.
-        }
-    };
-    auto nullTextureImage = make_rcp<NullTextureImage>(100, 100);
-    CHECK(nullTextureImage->getTexture() == nullptr);
+      // Never call resetTexture() so that our texture is null.
+    }
+  };
+  auto nullTextureImage = make_rcp<NullTextureImage>(100, 100);
+  CHECK(nullTextureImage->getTexture() == nullptr);
 
-    renderer.drawImage(nullTextureImage.get(),
-                       ImageSampler::LinearClamp(),
-                       BlendMode::screen,
-                       .5f);
+  renderer.drawImage(
+      nullTextureImage.get(),
+      ImageSampler::LinearClamp(),
+      BlendMode::screen,
+      .5f);
 
-    renderer.drawImageMesh(
-        nullTextureImage.get(),
-        ImageSampler::LinearClamp(),
-        renderContext->makeRenderBuffer(RenderBufferType::vertex,
-                                        RenderBufferFlags::none,
-                                        80),
-        renderContext->makeRenderBuffer(RenderBufferType::vertex,
-                                        RenderBufferFlags::none,
-                                        80),
-        renderContext->makeRenderBuffer(RenderBufferType::index,
-                                        RenderBufferFlags::none,
-                                        100),
-        10,
-        50,
-        BlendMode::colorBurn,
-        .5f);
+  renderer.drawImageMesh(
+      nullTextureImage.get(),
+      ImageSampler::LinearClamp(),
+      renderContext->makeRenderBuffer(
+          RenderBufferType::vertex,
+          RenderBufferFlags::none,
+          80),
+      renderContext->makeRenderBuffer(
+          RenderBufferType::vertex,
+          RenderBufferFlags::none,
+          80),
+      renderContext->makeRenderBuffer(
+          RenderBufferType::index,
+          RenderBufferFlags::none,
+          100),
+      10,
+      50,
+      BlendMode::colorBurn,
+      .5f);
 
-    auto renderTarget =
-        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
-            desc.renderTargetWidth,
-            desc.renderTargetHeight);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+  auto renderTarget = renderContext->static_impl_cast<RenderContextNULL>()
+                          ->makeRenderTarget(
+                              desc.renderTargetWidth,
+                              desc.renderTargetHeight);
+  renderContext->flush({.renderTarget = renderTarget.get()});
 
-    // If we don't crash, the test passed.
-    CHECK(nullTextureImage->getTexture() == nullptr);
+  // If we don't crash, the test passed.
+  CHECK(nullTextureImage->getTexture() == nullptr);
 }
 } // namespace rive::gpu

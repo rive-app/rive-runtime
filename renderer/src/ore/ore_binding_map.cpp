@@ -69,43 +69,43 @@ constexpr uint16_t kGroupWireSize = 9;
 
 inline uint16_t readU16LE(const uint8_t* p)
 {
-    return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
+  return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
 }
 
 inline uint32_t readU32LE(const uint8_t* p)
 {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-           (static_cast<uint32_t>(p[2]) << 16) |
-           (static_cast<uint32_t>(p[3]) << 24);
+  return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+         (static_cast<uint32_t>(p[2]) << 16) |
+         (static_cast<uint32_t>(p[3]) << 24);
 }
 
 inline uint64_t readU64LE(const uint8_t* p)
 {
-    uint64_t v = 0;
-    for (int i = 7; i >= 0; --i)
-        v = (v << 8) | static_cast<uint64_t>(p[i]);
-    return v;
+  uint64_t v = 0;
+  for (int i = 7; i >= 0; --i)
+    v = (v << 8) | static_cast<uint64_t>(p[i]);
+  return v;
 }
 
 #ifdef WITH_RIVE_TOOLS
 inline void writeU16LE(uint8_t* p, uint16_t v)
 {
-    p[0] = static_cast<uint8_t>(v & 0xFF);
-    p[1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+  p[0] = static_cast<uint8_t>(v & 0xFF);
+  p[1] = static_cast<uint8_t>((v >> 8) & 0xFF);
 }
 
 inline void writeU32LE(uint8_t* p, uint32_t v)
 {
-    p[0] = static_cast<uint8_t>(v & 0xFF);
-    p[1] = static_cast<uint8_t>((v >> 8) & 0xFF);
-    p[2] = static_cast<uint8_t>((v >> 16) & 0xFF);
-    p[3] = static_cast<uint8_t>((v >> 24) & 0xFF);
+  p[0] = static_cast<uint8_t>(v & 0xFF);
+  p[1] = static_cast<uint8_t>((v >> 8) & 0xFF);
+  p[2] = static_cast<uint8_t>((v >> 16) & 0xFF);
+  p[3] = static_cast<uint8_t>((v >> 24) & 0xFF);
 }
 
 inline void writeU64LE(uint8_t* p, uint64_t v)
 {
-    for (int i = 0; i < 8; ++i)
-        p[i] = static_cast<uint8_t>((v >> (i * 8)) & 0xFF);
+  for (int i = 0; i < 8; ++i)
+    p[i] = static_cast<uint8_t>((v >> (i * 8)) & 0xFF);
 }
 #endif
 
@@ -115,143 +115,143 @@ inline void writeU64LE(uint8_t* p, uint64_t v)
 // m_entries in canonical order). No sort on the hot path.
 bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
 {
-    if (out == nullptr || data == nullptr)
-        return false;
-    out->m_entries.clear();
-    out->m_groupLayouts.clear();
+  if (out == nullptr || data == nullptr)
+    return false;
+  out->m_entries.clear();
+  out->m_groupLayouts.clear();
 #ifdef WITH_RIVE_TOOLS
-    out->m_finalized = false;
+  out->m_finalized = false;
 #endif
 
-    if (size < kBlobHeaderSize)
-        return false;
+  if (size < kBlobHeaderSize)
+    return false;
 
-    const uint8_t blobVer = data[0];
-    const uint8_t allocVer = data[1];
-    if (blobVer != kBlobVersion)
-        return false; // Never silent-fallback on a malformed blob.
-    if (allocVer != kAllocatorVersion)
-        return false;
+  const uint8_t blobVer = data[0];
+  const uint8_t allocVer = data[1];
+  if (blobVer != kBlobVersion)
+    return false; // Never silent-fallback on a malformed blob.
+  if (allocVer != kAllocatorVersion)
+    return false;
 
-    const uint16_t entrySize = readU16LE(&data[2]);
-    const uint32_t entryCount = readU32LE(&data[4]);
-    const uint16_t groupSize = readU16LE(&data[8]);
-    const uint16_t groupCount = readU16LE(&data[10]);
+  const uint16_t entrySize = readU16LE(&data[2]);
+  const uint32_t entryCount = readU32LE(&data[4]);
+  const uint16_t groupSize = readU16LE(&data[8]);
+  const uint16_t groupCount = readU16LE(&data[10]);
 
-    // Reject writers that emit fewer fields than the reader needs.
-    // Larger entry_size is fine — trailing unknown bytes are skipped.
-    if (entrySize < kLegacyEntryWireSize)
-        return false;
-    if (groupCount != 0 && groupSize < kGroupWireSize)
-        return false;
+  // Reject writers that emit fewer fields than the reader needs.
+  // Larger entry_size is fine — trailing unknown bytes are skipped.
+  if (entrySize < kLegacyEntryWireSize)
+    return false;
+  if (groupCount != 0 && groupSize < kGroupWireSize)
+    return false;
 
-    const size_t entryBytes = static_cast<size_t>(entryCount) * entrySize;
-    const size_t groupBytes = static_cast<size_t>(groupCount) * groupSize;
-    const size_t needed = kBlobHeaderSize + entryBytes + groupBytes;
-    if (size < needed)
-        return false;
+  const size_t entryBytes = static_cast<size_t>(entryCount) * entrySize;
+  const size_t groupBytes = static_cast<size_t>(groupCount) * groupSize;
+  const size_t needed = kBlobHeaderSize + entryBytes + groupBytes;
+  if (size < needed)
+    return false;
 
-    out->m_entries.reserve(entryCount);
-    const uint8_t* p = data + kBlobHeaderSize;
-    for (uint32_t i = 0; i < entryCount; ++i)
-    {
-        Entry e{};
-        e.group = p[0];
-        e.binding = p[1];
-        e.kind = static_cast<ResourceKind>(p[2]);
-        e.stageMask = p[3];
-        e.backendSpace = p[4];
-        e.backendSlot[0] = readU16LE(&p[5]);
-        e.backendSlot[1] = readU16LE(&p[7]);
-        e.backendSlot[2] = readU16LE(&p[9]);
-        e.textureViewDim = static_cast<TextureViewDim>(p[11]);
-        e.textureSampleType = static_cast<TextureSampleType>(p[12]);
-        e.textureMultisampled = (p[13] != 0);
-        if (entrySize >= kEntryWireSize)
-            e.minBindingSize = readU32LE(&p[14]);
-        // bytes [kEntryWireSize..entrySize] are future-version fields — skip.
-        out->m_entries.push_back(e);
-        p += entrySize;
-    }
+  out->m_entries.reserve(entryCount);
+  const uint8_t* p = data + kBlobHeaderSize;
+  for (uint32_t i = 0; i < entryCount; ++i)
+  {
+    Entry e{};
+    e.group = p[0];
+    e.binding = p[1];
+    e.kind = static_cast<ResourceKind>(p[2]);
+    e.stageMask = p[3];
+    e.backendSpace = p[4];
+    e.backendSlot[0] = readU16LE(&p[5]);
+    e.backendSlot[1] = readU16LE(&p[7]);
+    e.backendSlot[2] = readU16LE(&p[9]);
+    e.textureViewDim = static_cast<TextureViewDim>(p[11]);
+    e.textureSampleType = static_cast<TextureSampleType>(p[12]);
+    e.textureMultisampled = (p[13] != 0);
+    if (entrySize >= kEntryWireSize)
+      e.minBindingSize = readU32LE(&p[14]);
+    // bytes [kEntryWireSize..entrySize] are future-version fields — skip.
+    out->m_entries.push_back(e);
+    p += entrySize;
+  }
 
-    out->m_groupLayouts.reserve(groupCount);
-    for (uint16_t i = 0; i < groupCount; ++i)
-    {
-        GroupLayout g{};
-        g.group = p[0];
-        g.layoutId = readU64LE(&p[1]);
-        out->m_groupLayouts.push_back(g);
-        p += groupSize;
-    }
+  out->m_groupLayouts.reserve(groupCount);
+  for (uint16_t i = 0; i < groupCount; ++i)
+  {
+    GroupLayout g{};
+    g.group = p[0];
+    g.layoutId = readU64LE(&p[1]);
+    out->m_groupLayouts.push_back(g);
+    p += groupSize;
+  }
 #ifdef WITH_RIVE_TOOLS
-    // Flip the finalized flag so tooling-build lookups satisfy their assert.
-    // The blob is already sorted by construction; no std::sort call.
-    out->m_finalized = true;
+  // Flip the finalized flag so tooling-build lookups satisfy their assert.
+  // The blob is already sorted by construction; no std::sort call.
+  out->m_finalized = true;
 #endif
-    return true;
+  return true;
 }
 
 void BindingMap::replaceStage(const BindingMap& other, Stage stage)
 {
-    const size_t slotIndex = static_cast<size_t>(stage);
-    const uint8_t stageBit = static_cast<uint8_t>(1u << slotIndex);
+  const size_t slotIndex = static_cast<size_t>(stage);
+  const uint8_t stageBit = static_cast<uint8_t>(1u << slotIndex);
 
-    // Drop what this map said about the stage, then keep only the rows some
-    // other stage still needs.
-    for (Entry& e : m_entries)
+  // Drop what this map said about the stage, then keep only the rows some
+  // other stage still needs.
+  for (Entry& e : m_entries)
+  {
+    e.stageMask &= static_cast<uint8_t>(~stageBit);
+    e.backendSlot[slotIndex] = kAbsent;
+  }
+  m_entries.erase(
+      std::remove_if(
+          m_entries.begin(),
+          m_entries.end(),
+          [](const Entry& e) { return e.stageMask == 0; }),
+      m_entries.end());
+
+  for (size_t i = 0; i < other.size(); ++i)
+  {
+    const Entry& src = other.at(i);
+    if ((src.stageMask & stageBit) == 0)
+      continue;
+    auto it = std::lower_bound(
+        m_entries.begin(),
+        m_entries.end(),
+        std::pair<uint32_t, uint32_t>{src.group, src.binding},
+        [](const Entry& e, const std::pair<uint32_t, uint32_t>& key) {
+          return std::pair<uint32_t, uint32_t>{e.group, e.binding} < key;
+        });
+    if (it != m_entries.end() && it->group == src.group &&
+        it->binding == src.binding)
     {
-        e.stageMask &= static_cast<uint8_t>(~stageBit);
-        e.backendSlot[slotIndex] = kAbsent;
+      it->stageMask |= stageBit;
+      it->backendSlot[slotIndex] = src.backendSlot[slotIndex];
+      // The other stage may have declared a texture without reflecting
+      // its shape, so fill from whichever module knows it.
+      if (it->textureViewDim == TextureViewDim::Undefined)
+        it->textureViewDim = src.textureViewDim;
+      if (it->textureSampleType == TextureSampleType::Undefined)
+        it->textureSampleType = src.textureSampleType;
+      it->textureMultisampled |= src.textureMultisampled;
+      // Both stages name one block, so the larger claim wins.
+      it->minBindingSize = std::max(it->minBindingSize, src.minBindingSize);
+      continue;
     }
-    m_entries.erase(
-        std::remove_if(m_entries.begin(),
-                       m_entries.end(),
-                       [](const Entry& e) { return e.stageMask == 0; }),
-        m_entries.end());
-
-    for (size_t i = 0; i < other.size(); ++i)
+    Entry e = src;
+    e.stageMask = stageBit;
+    for (size_t s = 0; s < 3; ++s)
     {
-        const Entry& src = other.at(i);
-        if ((src.stageMask & stageBit) == 0)
-            continue;
-        auto it = std::lower_bound(
-            m_entries.begin(),
-            m_entries.end(),
-            std::pair<uint32_t, uint32_t>{src.group, src.binding},
-            [](const Entry& e, const std::pair<uint32_t, uint32_t>& key) {
-                return std::pair<uint32_t, uint32_t>{e.group, e.binding} < key;
-            });
-        if (it != m_entries.end() && it->group == src.group &&
-            it->binding == src.binding)
-        {
-            it->stageMask |= stageBit;
-            it->backendSlot[slotIndex] = src.backendSlot[slotIndex];
-            // The other stage may have declared a texture without reflecting
-            // its shape, so fill from whichever module knows it.
-            if (it->textureViewDim == TextureViewDim::Undefined)
-                it->textureViewDim = src.textureViewDim;
-            if (it->textureSampleType == TextureSampleType::Undefined)
-                it->textureSampleType = src.textureSampleType;
-            it->textureMultisampled |= src.textureMultisampled;
-            // Both stages name one block, so the larger claim wins.
-            it->minBindingSize =
-                std::max(it->minBindingSize, src.minBindingSize);
-            continue;
-        }
-        Entry e = src;
-        e.stageMask = stageBit;
-        for (size_t s = 0; s < 3; ++s)
-        {
-            if (s != slotIndex)
-                e.backendSlot[s] = kAbsent;
-        }
-        m_entries.insert(it, e);
+      if (s != slotIndex)
+        e.backendSlot[s] = kAbsent;
     }
+    m_entries.insert(it, e);
+  }
 
-    m_groupLayouts.clear();
+  m_groupLayouts.clear();
 #ifdef WITH_RIVE_TOOLS
-    // Insertion held the sort, so lookups stay legal without a finalize.
-    m_finalized = true;
+  // Insertion held the sort, so lookups stay legal without a finalize.
+  m_finalized = true;
 #endif
 }
 
@@ -259,103 +259,224 @@ void BindingMap::replaceStage(const BindingMap& other, Stage stage)
 
 std::vector<uint8_t> BindingMap::toBlob() const
 {
-    std::vector<uint8_t> blob(kBlobHeaderSize +
-                              m_entries.size() * kEntryWireSize +
-                              m_groupLayouts.size() * kGroupWireSize);
-    blob[0] = kBlobVersion;
-    blob[1] = kAllocatorVersion;
-    writeU16LE(&blob[2], kEntryWireSize);
-    writeU32LE(&blob[4], static_cast<uint32_t>(m_entries.size()));
-    writeU16LE(&blob[8], kGroupWireSize);
-    writeU16LE(&blob[10], static_cast<uint16_t>(m_groupLayouts.size()));
+  std::vector<uint8_t> blob(
+      kBlobHeaderSize + m_entries.size() * kEntryWireSize +
+      m_groupLayouts.size() * kGroupWireSize);
+  blob[0] = kBlobVersion;
+  blob[1] = kAllocatorVersion;
+  writeU16LE(&blob[2], kEntryWireSize);
+  writeU32LE(&blob[4], static_cast<uint32_t>(m_entries.size()));
+  writeU16LE(&blob[8], kGroupWireSize);
+  writeU16LE(&blob[10], static_cast<uint16_t>(m_groupLayouts.size()));
 
-    uint8_t* p = blob.data() + kBlobHeaderSize;
-    for (const Entry& e : m_entries)
-    {
-        p[0] = e.group;
-        p[1] = e.binding;
-        p[2] = static_cast<uint8_t>(e.kind);
-        p[3] = e.stageMask;
-        p[4] = e.backendSpace;
-        writeU16LE(&p[5], e.backendSlot[0]);
-        writeU16LE(&p[7], e.backendSlot[1]);
-        writeU16LE(&p[9], e.backendSlot[2]);
-        p[11] = static_cast<uint8_t>(e.textureViewDim);
-        p[12] = static_cast<uint8_t>(e.textureSampleType);
-        p[13] = e.textureMultisampled ? 1u : 0u;
-        writeU32LE(&p[14], e.minBindingSize);
-        p += kEntryWireSize;
-    }
+  uint8_t* p = blob.data() + kBlobHeaderSize;
+  for (const Entry& e : m_entries)
+  {
+    p[0] = e.group;
+    p[1] = e.binding;
+    p[2] = static_cast<uint8_t>(e.kind);
+    p[3] = e.stageMask;
+    p[4] = e.backendSpace;
+    writeU16LE(&p[5], e.backendSlot[0]);
+    writeU16LE(&p[7], e.backendSlot[1]);
+    writeU16LE(&p[9], e.backendSlot[2]);
+    p[11] = static_cast<uint8_t>(e.textureViewDim);
+    p[12] = static_cast<uint8_t>(e.textureSampleType);
+    p[13] = e.textureMultisampled ? 1u : 0u;
+    writeU32LE(&p[14], e.minBindingSize);
+    p += kEntryWireSize;
+  }
 
-    for (const GroupLayout& g : m_groupLayouts)
-    {
-        p[0] = g.group;
-        writeU64LE(&p[1], g.layoutId);
-        p += kGroupWireSize;
-    }
-    return blob;
+  for (const GroupLayout& g : m_groupLayouts)
+  {
+    p[0] = g.group;
+    writeU64LE(&p[1], g.layoutId);
+    p += kGroupWireSize;
+  }
+  return blob;
 }
 
 void BindingMap::computeLayoutIds()
 {
-    // A serialized field left out of the hash makes two different layouts
-    // collide on one id, and misbind at draw time.
-    static_assert(kEntryWireSize == 18,
-                  "Entry grew, hash the new field below before bumping");
+  // A serialized field left out of the hash makes two different layouts
+  // collide on one id, and misbind at draw time.
+  static_assert(
+      kEntryWireSize == 18,
+      "Entry grew, hash the new field below before bumping");
 
-    assert(m_finalized && "BindingMap::computeLayoutIds before finalize");
-    m_groupLayouts.clear();
+  assert(m_finalized && "BindingMap::computeLayoutIds before finalize");
+  m_groupLayouts.clear();
 
-    // FNV-1a 64, fed little-endian so ids match across baking hosts.
-    constexpr uint64_t kOffsetBasis = 0xcbf29ce484222325ull;
-    constexpr uint64_t kPrime = 0x100000001b3ull;
-    auto mix = [](uint64_t h, uint8_t b) { return (h ^ b) * kPrime; };
-    auto mix16 = [&mix](uint64_t h, uint16_t v) {
-        h = mix(h, static_cast<uint8_t>(v & 0xFF));
-        return mix(h, static_cast<uint8_t>((v >> 8) & 0xFF));
-    };
-    auto mix32 = [&mix16](uint64_t h, uint32_t v) {
-        h = mix16(h, static_cast<uint16_t>(v & 0xFFFF));
-        return mix16(h, static_cast<uint16_t>((v >> 16) & 0xFFFF));
-    };
+  // FNV-1a 64, fed little-endian so ids match across baking hosts.
+  constexpr uint64_t kOffsetBasis = 0xcbf29ce484222325ull;
+  constexpr uint64_t kPrime = 0x100000001b3ull;
+  auto mix = [](uint64_t h, uint8_t b) { return (h ^ b) * kPrime; };
+  auto mix16 = [&mix](uint64_t h, uint16_t v) {
+    h = mix(h, static_cast<uint8_t>(v & 0xFF));
+    return mix(h, static_cast<uint8_t>((v >> 8) & 0xFF));
+  };
+  auto mix32 = [&mix16](uint64_t h, uint32_t v) {
+    h = mix16(h, static_cast<uint16_t>(v & 0xFFFF));
+    return mix16(h, static_cast<uint16_t>((v >> 16) & 0xFFFF));
+  };
 
-    for (size_t i = 0; i < m_entries.size();)
+  for (size_t i = 0; i < m_entries.size();)
+  {
+    const uint8_t group = m_entries[i].group;
+    uint64_t h = mix(kOffsetBasis, group);
+    size_t j = i;
+    for (; j < m_entries.size() && m_entries[j].group == group; ++j)
     {
-        const uint8_t group = m_entries[i].group;
-        uint64_t h = mix(kOffsetBasis, group);
-        size_t j = i;
-        for (; j < m_entries.size() && m_entries[j].group == group; ++j)
-        {
-            const Entry& e = m_entries[j];
-            h = mix(h, e.binding);
-            h = mix(h, static_cast<uint8_t>(e.kind));
-            h = mix(h, e.stageMask);
-            h = mix16(h, e.backendSlot[0]);
-            h = mix16(h, e.backendSlot[1]);
-            h = mix16(h, e.backendSlot[2]);
-            h = mix(h, static_cast<uint8_t>(e.textureViewDim));
-            h = mix(h, static_cast<uint8_t>(e.textureSampleType));
-            h = mix(h, e.textureMultisampled ? 1u : 0u);
-            h = mix32(h, e.minBindingSize);
-        }
-        // 0 is the "no baked id" sentinel, so never hand it out.
-        m_groupLayouts.push_back({group, h == kNoLayoutId ? 1ull : h});
-        i = j;
+      const Entry& e = m_entries[j];
+      h = mix(h, e.binding);
+      h = mix(h, static_cast<uint8_t>(e.kind));
+      h = mix(h, e.stageMask);
+      h = mix16(h, e.backendSlot[0]);
+      h = mix16(h, e.backendSlot[1]);
+      h = mix16(h, e.backendSlot[2]);
+      h = mix(h, static_cast<uint8_t>(e.textureViewDim));
+      h = mix(h, static_cast<uint8_t>(e.textureSampleType));
+      h = mix(h, e.textureMultisampled ? 1u : 0u);
+      h = mix32(h, e.minBindingSize);
     }
+    // 0 is the "no baked id" sentinel, so never hand it out.
+    m_groupLayouts.push_back({group, h == kNoLayoutId ? 1ull : h});
+    i = j;
+  }
 }
 
 void BindingMap::finalize()
 {
-    std::sort(m_entries.begin(),
-              m_entries.end(),
-              [](const Entry& a, const Entry& b) {
-                  if (a.group != b.group)
-                      return a.group < b.group;
-                  return a.binding < b.binding;
-              });
-    m_finalized = true;
+  std::sort(
+      m_entries.begin(),
+      m_entries.end(),
+      [](const Entry& a, const Entry& b) {
+        if (a.group != b.group)
+          return a.group < b.group;
+        return a.binding < b.binding;
+      });
+  m_finalized = true;
 }
 
 #endif // WITH_RIVE_TOOLS
+
+static bool samplerPairsDepthOnly(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* const (&pairSets)[2],
+    uint32_t groupIndex,
+    uint32_t binding)
+{
+  bool paired = false;
+  for (const std::vector<TextureSamplerPair>* pairs : pairSets)
+  {
+    if (pairs == nullptr)
+      continue;
+    for (const TextureSamplerPair& p : *pairs)
+    {
+      if (p.samplerGroup != groupIndex || p.samplerBinding != binding)
+        continue;
+      const BindingMap::Entry* tex = bm.lookupEntry(
+          p.textureGroup,
+          p.textureBinding);
+      // A pair whose texture a narrowed map left out belongs to
+      // another entry point.
+      if (tex == nullptr)
+        continue;
+      if (tex->textureSampleType != TextureSampleType::Depth)
+        return false;
+      paired = true;
+    }
+  }
+  return paired;
+}
+
+std::vector<uint32_t> depthOnlySamplerBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex)
+{
+  const std::vector<TextureSamplerPair>* pairSets[2] = {
+      vertexPairs,
+      fragmentPairs};
+  std::vector<uint32_t> bindings;
+  for (size_t i = 0; i < bm.size(); ++i)
+  {
+    const BindingMap::Entry& e = bm.at(i);
+    if (e.group == groupIndex && e.kind == ResourceKind::Sampler &&
+        samplerPairsDepthOnly(bm, pairSets, groupIndex, e.binding))
+      bindings.push_back(e.binding);
+  }
+  return bindings;
+}
+
+std::vector<uint32_t> unsampledFloatTextureBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex)
+{
+  std::vector<uint32_t> bindings;
+  // No pair source means the pairings are unknown, not absent.
+  if (vertexPairs == nullptr && fragmentPairs == nullptr)
+    return bindings;
+  auto sampled = [&](uint32_t binding) {
+    for (const std::vector<TextureSamplerPair>* pairs :
+         {vertexPairs, fragmentPairs})
+    {
+      if (pairs == nullptr)
+        continue;
+      for (const TextureSamplerPair& p : *pairs)
+      {
+        if (p.textureGroup == groupIndex && p.textureBinding == binding &&
+            bm.lookupEntry(p.samplerGroup, p.samplerBinding) != nullptr)
+          return true;
+      }
+    }
+    return false;
+  };
+  for (size_t i = 0; i < bm.size(); ++i)
+  {
+    const BindingMap::Entry& e = bm.at(i);
+    if (e.group == groupIndex && e.kind == ResourceKind::SampledTexture &&
+        e.textureSampleType == TextureSampleType::Float && !sampled(e.binding))
+      bindings.push_back(e.binding);
+  }
+  return bindings;
+}
+
+std::vector<TextureSamplerPair> filteringSamplerConflicts(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs)
+{
+  const std::vector<TextureSamplerPair>* pairSets[2] = {
+      vertexPairs,
+      fragmentPairs};
+  std::vector<TextureSamplerPair> conflicts;
+  for (const std::vector<TextureSamplerPair>* pairs : pairSets)
+  {
+    if (pairs == nullptr)
+      continue;
+    for (const TextureSamplerPair& p : *pairs)
+    {
+      const BindingMap::Entry* sampler = bm.lookupEntry(
+          p.samplerGroup,
+          p.samplerBinding);
+      const BindingMap::Entry* tex = bm.lookupEntry(
+          p.textureGroup,
+          p.textureBinding);
+      if (sampler == nullptr || tex == nullptr ||
+          sampler->kind != ResourceKind::Sampler ||
+          (tex->textureSampleType != TextureSampleType::Depth &&
+           tex->textureSampleType != TextureSampleType::UnfilterableFloat) ||
+          samplerPairsDepthOnly(bm, pairSets, p.samplerGroup, p.samplerBinding))
+        continue;
+      if (std::find(conflicts.begin(), conflicts.end(), p) == conflicts.end())
+        conflicts.push_back(p);
+    }
+  }
+  return conflicts;
+}
 
 } // namespace rive::ore

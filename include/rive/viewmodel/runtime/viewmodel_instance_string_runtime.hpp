@@ -13,12 +13,12 @@ class ViewModelInstanceStringRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceStringRuntime(ViewModelInstanceString* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    const std::string& value() const;
-    void value(std::string);
-    const DataType dataType() override { return DataType::string; }
+  ViewModelInstanceStringRuntime(ViewModelInstanceString* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  const std::string& value() const;
+  void value(std::string);
+  const DataType dataType() override { return DataType::string; }
 };
 } // namespace rive
 #endif

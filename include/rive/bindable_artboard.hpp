@@ -10,13 +10,17 @@ namespace rive
 class BindableArtboard : public RefCnt<BindableArtboard>
 {
 public:
-    BindableArtboard(rcp<const File> file,
-                     std::unique_ptr<ArtboardInstance> artboard);
-    ArtboardInstance* artboard() { return m_artboard.get(); }
+  BindableArtboard(
+      rcp<const File> file,
+      std::unique_ptr<ArtboardInstance> artboard);
+  ArtboardInstance* artboard() { return m_artboard.get(); }
+  /// The file the artboard comes from; null when the creator did not pin
+  /// one.
+  const File* file() const { return m_file.get(); }
 
 private:
-    rcp<const File> m_file;
-    std::unique_ptr<ArtboardInstance> m_artboard;
+  rcp<const File> m_file;
+  std::unique_ptr<ArtboardInstance> m_artboard;
 };
 } // namespace rive
 

@@ -24,112 +24,133 @@ namespace rive
 template <typename T> class LazyVector
 {
 public:
-    using value_type = T;
-    using const_iterator = typename std::vector<T>::const_iterator;
+  using value_type = T;
+  using const_iterator = typename std::vector<T>::const_iterator;
 
-    LazyVector() = default;
-    ~LazyVector() { delete m_v; }
+  LazyVector() = default;
+  ~LazyVector() { delete m_v; }
 
-    // Deep copy. Preserves the "copying the owner clones its list" semantic
-    // that a plain std::vector member would have provided. An empty source
-    // (m_v == nullptr) copies as an empty wrapper — no allocation. This
-    // keeps Component / Drawable / etc. copyable (Core::clone path).
-    LazyVector(const LazyVector& other) :
-        m_v(other.m_v != nullptr ? new std::vector<T>(*other.m_v) : nullptr)
-    {}
-    LazyVector& operator=(const LazyVector& other)
+  // Deep copy. Preserves the "copying the owner clones its list" semantic
+  // that a plain std::vector member would have provided. An empty source
+  // (m_v == nullptr) copies as an empty wrapper — no allocation. This
+  // keeps Component / Drawable / etc. copyable (Core::clone path).
+  LazyVector(const LazyVector& other)
+      : m_v(other.m_v != nullptr ? new std::vector<T>(*other.m_v) : nullptr)
+  {}
+  LazyVector& operator=(const LazyVector& other)
+  {
+    if (this != &other)
     {
-        if (this != &other)
-        {
-            delete m_v;
-            m_v =
-                other.m_v != nullptr ? new std::vector<T>(*other.m_v) : nullptr;
-        }
-        return *this;
+      delete m_v;
+      m_v = other.m_v != nullptr ? new std::vector<T>(*other.m_v) : nullptr;
     }
+    return *this;
+  }
 
-    LazyVector(LazyVector&& other) noexcept : m_v(other.m_v)
+  LazyVector(LazyVector&& other) noexcept : m_v(other.m_v)
+  {
+    other.m_v = nullptr;
+  }
+  LazyVector& operator=(LazyVector&& other) noexcept
+  {
+    if (this != &other)
     {
-        other.m_v = nullptr;
+      delete m_v;
+      m_v = other.m_v;
+      other.m_v = nullptr;
     }
-    LazyVector& operator=(LazyVector&& other) noexcept
+    return *this;
+  }
+
+  bool empty() const { return m_v == nullptr || m_v->empty(); }
+  std::size_t size() const { return m_v == nullptr ? 0 : m_v->size(); }
+
+  // Append unconditionally. Allows duplicates (use pushUnique to dedup).
+  void push_back(T value)
+  {
+    if (m_v == nullptr)
     {
-        if (this != &other)
-        {
-            delete m_v;
-            m_v = other.m_v;
-            other.m_v = nullptr;
-        }
-        return *this;
+      m_v = new std::vector<T>();
     }
+    m_v->push_back(std::move(value));
+  }
 
-    bool empty() const { return m_v == nullptr || m_v->empty(); }
-    std::size_t size() const { return m_v == nullptr ? 0 : m_v->size(); }
-
-    // Append unconditionally. Allows duplicates (use pushUnique to dedup).
-    void push_back(T value)
+  // Append only if `value` is not already present. Centralizes the
+  // find-then-push idiom used by callers that maintain set semantics.
+  void pushUnique(T value)
+  {
+    if (m_v != nullptr &&
+        std::find(m_v->begin(), m_v->end(), value) != m_v->end())
     {
-        if (m_v == nullptr)
-        {
-            m_v = new std::vector<T>();
-        }
-        m_v->push_back(std::move(value));
+      return;
     }
+    push_back(std::move(value));
+  }
 
-    // Append only if `value` is not already present. Centralizes the
-    // find-then-push idiom used by callers that maintain set semantics.
-    void pushUnique(T value)
+  // Erase every element equal to `value`. No-op when wrapper is empty.
+  // Uses the erase-remove idiom — safe but removes ALL duplicates if any.
+  void eraseAll(const T& value)
+  {
+    if (m_v == nullptr)
     {
-        if (m_v != nullptr &&
-            std::find(m_v->begin(), m_v->end(), value) != m_v->end())
-        {
-            return;
-        }
-        push_back(std::move(value));
+      return;
     }
+    m_v->erase(std::remove(m_v->begin(), m_v->end(), value), m_v->end());
+  }
 
-    // Erase every element equal to `value`. No-op when wrapper is empty.
-    // Uses the erase-remove idiom — safe but removes ALL duplicates if any.
-    void eraseAll(const T& value)
+  // Replace every element equal to `value` in place, so iterators held
+  // across the call stay valid.
+  void replaceAll(const T& value, const T& with)
+  {
+    if (m_v != nullptr)
     {
-        if (m_v == nullptr)
-        {
-            return;
-        }
-        m_v->erase(std::remove(m_v->begin(), m_v->end(), value), m_v->end());
+      std::replace(m_v->begin(), m_v->end(), value, with);
     }
+  }
 
-    void clear()
+  // Erase every element matching `predicate`. No-op when the wrapper is
+  // empty. The erase-remove counterpart to eraseAll for callers that select
+  // by a property of the element rather than by equality.
+  template <typename Predicate> void eraseIf(Predicate predicate)
+  {
+    if (m_v == nullptr)
     {
-        if (m_v != nullptr)
-        {
-            m_v->clear();
-        }
+      return;
     }
+    m_v->erase(std::remove_if(m_v->begin(), m_v->end(), predicate), m_v->end());
+  }
 
-    // Const iteration always works, even on a never-allocated wrapper —
-    // returns iterators into a shared static empty vector when m_v is null.
-    // Inlined null check (no view() indirection) so the compiler can keep
-    // m_v in a register across both begin/end loads in a range-for.
-    const_iterator begin() const
+  void clear()
+  {
+    if (m_v != nullptr)
     {
-        return m_v ? m_v->begin() : emptyView().begin();
+      m_v->clear();
     }
-    const_iterator end() const { return m_v ? m_v->end() : emptyView().end(); }
+  }
 
-    // Returns a stable const reference suitable as the return value of
-    // accessor methods. Always valid — falls back to a shared empty when
-    // the wrapper has no backing storage.
-    const std::vector<T>& view() const { return m_v ? *m_v : emptyView(); }
+  // Const iteration always works, even on a never-allocated wrapper —
+  // returns iterators into a shared static empty vector when m_v is null.
+  // Inlined null check (no view() indirection) so the compiler can keep
+  // m_v in a register across both begin/end loads in a range-for.
+  const_iterator begin() const
+  {
+    return m_v ? m_v->begin() : emptyView().begin();
+  }
+  const_iterator end() const { return m_v ? m_v->end() : emptyView().end(); }
+
+  // Returns a stable const reference suitable as the return value of
+  // accessor methods. Always valid — falls back to a shared empty when
+  // the wrapper has no backing storage.
+  const std::vector<T>& view() const { return m_v ? *m_v : emptyView(); }
 
 private:
-    std::vector<T>* m_v = nullptr;
+  std::vector<T>* m_v = nullptr;
 
-    static const std::vector<T>& emptyView()
-    {
-        static const std::vector<T> EMPTY;
-        return EMPTY;
-    }
+  static const std::vector<T>& emptyView()
+  {
+    static const std::vector<T> EMPTY;
+    return EMPTY;
+  }
 };
 
 } // namespace rive

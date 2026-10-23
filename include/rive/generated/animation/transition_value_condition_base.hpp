@@ -7,66 +7,49 @@ namespace rive
 class TransitionValueConditionBase : public TransitionInputCondition
 {
 protected:
-    typedef TransitionInputCondition Super;
+  typedef TransitionInputCondition Super;
 
 public:
-    static const uint16_t typeKey = 69;
+  static const uint16_t typeKey = 69;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransitionValueConditionBase::typeKey:
-            case TransitionInputConditionBase::typeKey:
-            case TransitionConditionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t opValuePropertyKey = 156;
+  static const uint16_t opValuePropertyKey = 156;
 
 protected:
-    uint8_t m_OpValue = 0;
+  uint8_t m_OpValue = 0;
 
 public:
-    inline uint8_t opValue() const { return m_OpValue; }
-    void opValue(uint8_t value)
+  inline uint8_t opValue() const { return m_OpValue; }
+  void opValue(uint8_t value)
+  {
+    if (m_OpValue == value)
     {
-        if (m_OpValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(opValuePropertyKey, &m_OpValue, &value);
-        m_OpValue = value;
-        RIVE_EDITOR_CHANGED(opValueChanged());
-        notifyPropertyChanged(opValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(opValuePropertyKey, &m_OpValue, &value);
+    m_OpValue = value;
+    notifyPropertyChanged(opValuePropertyKey);
+  }
 
-    void copy(const TransitionValueConditionBase& object)
-    {
-        m_OpValue = object.m_OpValue;
-        TransitionInputCondition::copy(object);
-    }
+  void copy(const TransitionValueConditionBase& object)
+  {
+    m_OpValue = object.m_OpValue;
+    TransitionInputCondition::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case opValuePropertyKey:
-                m_OpValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return TransitionInputCondition::deserialize(propertyKey, reader);
+      case opValuePropertyKey:
+        m_OpValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    return TransitionInputCondition::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void opValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/transition_value_condition_ext.inl"
 #endif

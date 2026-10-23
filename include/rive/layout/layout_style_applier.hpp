@@ -17,27 +17,27 @@ namespace rive
 /// that depend on the parent live here so an applier never has to walk upward.
 struct LayoutSyncContext
 {
-    /// The parent lays its children out on a grid (grid or stack).
-    bool parentIsGrid = false;
-    /// The parent is a stack: every child collapses into the single cell, so
-    /// per-item placement does not apply.
-    bool parentIsStack = false;
-    /// The parent's justify-items, which an item's justify-self inherits.
-    uint32_t containerJustifyItems = 0;
-    /// This item hugs on the inline axis and so cannot stretch.
-    bool inlineHugs = false;
-    /// This item fills on the inline axis. Resolved by the item's owner, since
-    /// a hosted artboard is sized by its host's override rather than by the
-    /// scale type stored on its own style.
-    bool widthFills = false;
-    /// The parent's main axis is a row. True when there is no layout parent,
-    /// matching LayoutComponent::effectiveParentIsRow.
-    bool parentIsRow = true;
-    /// Resolved writing direction — inherited, so not readable off the style.
-    bool isLTR = true;
-    /// Without one, margin percents have nothing to resolve against and are
-    /// treated as points.
-    bool hasLayoutParent = false;
+  /// The parent lays its children out on a grid (grid or stack).
+  bool parentIsGrid = false;
+  /// The parent is a stack: every child collapses into the single cell, so
+  /// per-item placement does not apply.
+  bool parentIsStack = false;
+  /// The parent's justify-items, which an item's justify-self inherits.
+  uint32_t containerJustifyItems = 0;
+  /// This item hugs on the inline axis and so cannot stretch.
+  bool inlineHugs = false;
+  /// This item fills on the inline axis. Resolved by the item's owner, since
+  /// a hosted artboard is sized by its host's override rather than by the
+  /// scale type stored on its own style.
+  bool widthFills = false;
+  /// The parent's main axis is a row. True when there is no layout parent,
+  /// matching LayoutComponent::effectiveParentIsRow.
+  bool parentIsRow = true;
+  /// Resolved writing direction — inherited, so not readable off the style.
+  bool isLTR = true;
+  /// Without one, margin percents have nothing to resolve against and are
+  /// treated as points.
+  bool hasLayoutParent = false;
 };
 
 /// Implemented by any Core object that contributes to a layout item's yoga
@@ -55,29 +55,29 @@ struct LayoutSyncContext
 class LayoutStyleApplier
 {
 public:
-    virtual ~LayoutStyleApplier() {}
+  virtual ~LayoutStyleApplier() {}
 #ifdef WITH_RIVE_LAYOUT
-    /// Sizing and the box model: this item's own width/height/margin/padding.
-    virtual void applyBaseStyle(YGStyle& style,
-                                const LayoutSyncContext& context)
-    {}
-    /// Container-level arrangement imposed on children: tracks, alignment.
-    virtual void applyContainerStyle(YGStyle& style,
-                                     const LayoutSyncContext& context)
-    {}
-    /// How this item sits inside its parent's arrangement.
-    virtual void applyItemStyle(YGStyle& style,
-                                const LayoutSyncContext& context)
-    {}
-    /// Explicit grid placement, applied after applyItemStyle.
-    ///
-    /// Its own phase because the item phase *resets* the grid cell
-    /// (LayoutSizingStyle::applyItemStyle) — sharing a phase would make the
-    /// winner depend on applier registration order, which is sibling order,
-    /// which the file decides.
-    virtual void applyPlacementStyle(YGStyle& style,
-                                     const LayoutSyncContext& context)
-    {}
+  /// Sizing and the box model: this item's own width/height/margin/padding.
+  virtual void applyBaseStyle(YGStyle& style, const LayoutSyncContext& context)
+  {}
+  /// Container-level arrangement imposed on children: tracks, alignment.
+  virtual void applyContainerStyle(
+      YGStyle& style,
+      const LayoutSyncContext& context)
+  {}
+  /// How this item sits inside its parent's arrangement.
+  virtual void applyItemStyle(YGStyle& style, const LayoutSyncContext& context)
+  {}
+  /// Explicit grid placement, applied after applyItemStyle.
+  ///
+  /// Its own phase because the item phase *resets* the grid cell
+  /// (LayoutSizingStyle::applyItemStyle) — sharing a phase would make the
+  /// winner depend on applier registration order, which is sibling order,
+  /// which the file decides.
+  virtual void applyPlacementStyle(
+      YGStyle& style,
+      const LayoutSyncContext& context)
+  {}
 #endif
 };
 } // namespace rive

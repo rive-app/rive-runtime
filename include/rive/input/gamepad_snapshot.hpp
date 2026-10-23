@@ -11,27 +11,27 @@ namespace rive
 /// A single field change in a gamepad "update" wire message or event.
 enum class GamepadInputChangeKind : uint8_t
 {
-    button = 0,
-    axis = 1,
+  button = 0,
+  axis = 1,
 };
 
 struct GamepadInputChange
 {
-    GamepadInputChangeKind kind = GamepadInputChangeKind::button;
-    /// W3C button or axis index (0-based).
-    uint8_t index = 0;
-    /// `GamepadButton.value` (0-1) or axis analog value.
-    float value = 0.f;
+  GamepadInputChangeKind kind = GamepadInputChangeKind::button;
+  /// W3C button or axis index (0-based).
+  uint8_t index = 0;
+  /// `GamepadButton.value` (0-1) or axis analog value.
+  float value = 0.f;
 };
 
 /// How closely the embedder could map hardware to the W3C Standard Gamepad
 /// layout.
 enum class GamepadMappingKind : uint8_t
 {
-    /// Buttons and axes follow https://w3c.github.io/gamepad/#remapping
-    standard = 0,
-    /// Non-standard device or unmapped — semantic filters may be unreliable.
-    unknown = 1,
+  /// Buttons and axes follow https://w3c.github.io/gamepad/#remapping
+  standard = 0,
+  /// Non-standard device or unmapped — semantic filters may be unreliable.
+  unknown = 1,
 };
 
 /// Neutral gamepad snapshot in `ListenerInvocation` and embedder state.
@@ -51,11 +51,11 @@ enum class GamepadMappingKind : uint8_t
 ///   `unknown`, semantic helpers that map names to indices may not apply.
 struct GamepadSnapshot
 {
-    int deviceId = 0;
-    uint64_t buttonMask = 0;
-    std::vector<float> buttonValues;
-    std::vector<float> axes;
-    GamepadMappingKind mapping = GamepadMappingKind::standard;
+  int deviceId = 0;
+  uint64_t buttonMask = 0;
+  std::vector<float> buttonValues;
+  std::vector<float> axes;
+  GamepadMappingKind mapping = GamepadMappingKind::standard;
 };
 
 } // namespace rive

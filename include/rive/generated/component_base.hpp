@@ -16,125 +16,111 @@ namespace rive
 #ifndef WITH_RIVE_EDITOR
 struct ComponentNameSidecar
 {
-    std::string name = "";
+  std::string name = "";
 };
 #endif
 class ComponentBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 10;
+  static const uint16_t typeKey = 10;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t namePropertyKey = 4;
-    static const uint16_t parentIdPropertyKey = 5;
+  static const uint16_t namePropertyKey = 4;
+  static const uint16_t parentIdPropertyKey = 5;
 
 protected:
 #ifdef WITH_RIVE_EDITOR
-    std::string m_Name = "";
+  std::string m_Name = "";
 #endif
-    Id m_ParentId = 0;
+  Id m_ParentId = 0;
 #ifndef WITH_RIVE_EDITOR
-    Sidecar<ComponentNameSidecar> m_name;
+  Sidecar<ComponentNameSidecar> m_name;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR
-    inline const std::string& name() const { return m_Name; }
-    void name(std::string value)
+  inline const std::string& name() const { return m_Name; }
+  void name(std::string value)
+  {
+    if (m_Name == value)
     {
-        if (m_Name == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(namePropertyKey, m_Name, value);
-        m_Name = value;
-        RIVE_EDITOR_CHANGED(nameChanged());
-        notifyPropertyChanged(namePropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(namePropertyKey, m_Name, value);
+    m_Name = value;
+    RIVE_EDITOR_CHANGED(nameChanged());
+    notifyPropertyChanged(namePropertyKey);
+  }
 #else
-    inline const std::string& name() const
+  inline const std::string& name() const
+  {
+    static const std::string defaultValue = "";
+    auto* sidecar = m_name.get();
+    return sidecar != nullptr ? sidecar->name : defaultValue;
+  }
+  void name(std::string value)
+  {
+    if (name() == value)
     {
-        static const std::string defaultValue = "";
-        auto* sidecar = m_name.get();
-        return sidecar != nullptr ? sidecar->name : defaultValue;
+      return;
     }
-    void name(std::string value)
-    {
-        if (name() == value)
-        {
-            return;
-        }
-        m_name.ensureAllocated()->name = value;
-        nameChanged();
-        notifyPropertyChanged(namePropertyKey);
-    }
+    m_name.ensureAllocated()->name = value;
+    nameChanged();
+    notifyPropertyChanged(namePropertyKey);
+  }
 #endif
 
-    inline Id parentId() const { return m_ParentId; }
-    void parentId(Id value)
+  inline Id parentId() const { return m_ParentId; }
+  void parentId(Id value)
+  {
+    if (m_ParentId == value)
     {
-        if (m_ParentId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(parentIdPropertyKey, &m_ParentId, &value);
-        m_ParentId = value;
-        RIVE_EDITOR_CHANGED(parentIdChanged());
-        notifyPropertyChanged(parentIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(parentIdPropertyKey, &m_ParentId, &value);
+    m_ParentId = value;
+    RIVE_EDITOR_CHANGED(parentIdChanged());
+    notifyPropertyChanged(parentIdPropertyKey);
+  }
 
-    void copy(const ComponentBase& object)
-    {
+  void copy(const ComponentBase& object)
+  {
 #ifdef WITH_RIVE_EDITOR
-        m_Name = object.m_Name;
+    m_Name = object.m_Name;
 #endif
-        m_ParentId = object.m_ParentId;
+    m_ParentId = object.m_ParentId;
 #ifndef WITH_RIVE_EDITOR
-        m_name = object.m_name;
+    m_name = object.m_name;
 #endif
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case namePropertyKey:
+      case namePropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_Name = CoreStringType::deserialize(reader);
+        m_Name = CoreStringType::deserialize(reader);
 #else
-                m_name.ensureAllocated()->name =
-                    CoreStringType::deserialize(reader);
+        m_name.ensureAllocated()->name = CoreStringType::deserialize(reader);
 #endif
-                return true;
-            case parentIdPropertyKey:
-                m_ParentId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+        return true;
+      case parentIdPropertyKey:
+        m_ParentId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
-    virtual void nameChanged() {}
-    virtual void parentIdChanged() {}
+  virtual void nameChanged() {}
+  virtual void parentIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/component_ext.inl"
 #endif

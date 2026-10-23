@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionArtboardConditionBase::clone() const
 {
-    auto cloned = new TransitionArtboardCondition();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionArtboardCondition();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -5,12 +5,12 @@
 using namespace rive;
 
 ViewModelInstanceImporter::ViewModelInstanceImporter(
-    ViewModelInstance* viewModelInstance) :
-    m_ViewModelInstance(viewModelInstance)
+    ViewModelInstance* viewModelInstance)
+    : m_ViewModelInstance(viewModelInstance)
 {}
 void ViewModelInstanceImporter::addValue(ViewModelInstanceValue* value)
 {
-    m_ViewModelInstance->addValue(value);
+  m_ViewModelInstance->addValue(value);
 }
 
 StatusCode ViewModelInstanceImporter::resolve() { return StatusCode::Ok; }

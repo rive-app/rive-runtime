@@ -6,32 +6,33 @@ using namespace rive;
 
 std::string DataConverterStringRemoveZeros::removeZeros(std::string value)
 {
-    std::string inputValue = value;
-    if (inputValue.find('.') != std::string::npos)
+  std::string inputValue = value;
+  if (inputValue.find('.') != std::string::npos)
+  {
+    // Remove trailing zeroes
+    inputValue = inputValue.substr(0, inputValue.find_last_not_of('0') + 1);
+    // If the decimal point is now the last character, remove that as
+    // well
+    if (inputValue.find('.') == inputValue.size() - 1)
     {
-        // Remove trailing zeroes
-        inputValue = inputValue.substr(0, inputValue.find_last_not_of('0') + 1);
-        // If the decimal point is now the last character, remove that as
-        // well
-        if (inputValue.find('.') == inputValue.size() - 1)
-        {
-            inputValue = inputValue.substr(0, inputValue.size() - 1);
-        }
+      inputValue = inputValue.substr(0, inputValue.size() - 1);
     }
-    return inputValue;
+  }
+  return inputValue;
 }
 
-DataValue* DataConverterStringRemoveZeros::convert(DataValue* input,
-                                                   DataBind* dataBind)
+DataValue* DataConverterStringRemoveZeros::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    if (input->is<DataValueString>())
-    {
-        auto inputValue = removeZeros(input->as<DataValueString>()->value());
-        m_output.value(inputValue);
-    }
-    else
-    {
-        m_output.value(DataValueString::defaultValue);
-    }
-    return &m_output;
+  if (input->is<DataValueString>())
+  {
+    auto inputValue = removeZeros(input->as<DataValueString>()->value());
+    m_output.value(inputValue);
+  }
+  else
+  {
+    m_output.value(DataValueString::defaultValue);
+  }
+  return &m_output;
 }

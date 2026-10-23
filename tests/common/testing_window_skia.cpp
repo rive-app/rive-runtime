@@ -18,68 +18,70 @@ TestingWindow* TestingWindow::MakeSkia() { return nullptr; }
 
 TestingWindow* TestingWindow::MakeSkia()
 {
-    class TestingWindowSkiaRaster : public TestingWindow
+  class TestingWindowSkiaRaster : public TestingWindow
+  {
+  public:
+    rive::Factory* factory() override { return &m_factory; }
+
+    void resize(int width, int height) override
     {
-    public:
-        rive::Factory* factory() override { return &m_factory; }
+      auto info = SkImageInfo::MakeN32Premul(width, height);
+      m_surface = SkSurface::MakeRaster(info);
+    }
 
-        void resize(int width, int height) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
+    {
+      if (m_surface)
+      {
+        SkCanvas* canvas = m_surface->getCanvas();
+        if (options.doClear)
         {
-            auto info = SkImageInfo::MakeN32Premul(width, height);
-            m_surface = SkSurface::MakeRaster(info);
+          canvas->clear(options.clearColor);
         }
+        return std::make_unique<rive::SkiaRenderer>(canvas);
+      }
+      return nullptr;
+    }
 
-        std::unique_ptr<rive::Renderer> beginFrame(
-            const FrameOptions& options) override
+    void endFrame(std::vector<uint8_t>* pixelData) override
+    {
+      if (!m_surface)
+      {
+        return;
+      }
+      m_surface->getCanvas()->flush();
+      if (pixelData)
+      {
+        auto img = m_surface->makeImageSnapshot();
+        int w = img->width();
+        int h = img->height();
+        pixelData->resize(h * w * 4);
+        SkColorInfo colorInfo(
+            kRGBA_8888_SkColorType,
+            kPremul_SkAlphaType,
+            nullptr);
+        // Read the canvas back upside down to match GL's orientation.
+        for (int y = 0; y < h; ++y)
         {
-            if (m_surface)
-            {
-                SkCanvas* canvas = m_surface->getCanvas();
-                if (options.doClear)
-                {
-                    canvas->clear(options.clearColor);
-                }
-                return std::make_unique<rive::SkiaRenderer>(canvas);
-            }
-            return nullptr;
+          img->readPixels(
+              nullptr,
+              SkPixmap(
+                  SkImageInfo::Make({w, 1}, colorInfo),
+                  pixelData->data() + y * w * 4,
+                  img->width() * 4),
+              0,
+              h - y - 1);
         }
+      }
+    }
 
-        void endFrame(std::vector<uint8_t>* pixelData) override
-        {
-            if (!m_surface)
-            {
-                return;
-            }
-            m_surface->getCanvas()->flush();
-            if (pixelData)
-            {
-                auto img = m_surface->makeImageSnapshot();
-                int w = img->width();
-                int h = img->height();
-                pixelData->resize(h * w * 4);
-                SkColorInfo colorInfo(kRGBA_8888_SkColorType,
-                                      kPremul_SkAlphaType,
-                                      nullptr);
-                // Read the canvas back upside down to match GL's orientation.
-                for (int y = 0; y < h; ++y)
-                {
-                    img->readPixels(
-                        nullptr,
-                        SkPixmap(SkImageInfo::Make({w, 1}, colorInfo),
-                                 pixelData->data() + y * w * 4,
-                                 img->width() * 4),
-                        0,
-                        h - y - 1);
-                }
-            }
-        }
+  private:
+    rive::SkiaFactory m_factory;
+    sk_sp<SkSurface> m_surface;
+  };
 
-    private:
-        rive::SkiaFactory m_factory;
-        sk_sp<SkSurface> m_surface;
-    };
-
-    return new TestingWindowSkiaRaster();
+  return new TestingWindowSkiaRaster();
 }
 
 #endif

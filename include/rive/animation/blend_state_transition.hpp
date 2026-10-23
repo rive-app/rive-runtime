@@ -8,19 +8,19 @@ class BlendAnimation;
 class LayerStateImporter;
 class BlendStateTransition : public BlendStateTransitionBase
 {
-    friend class LayerStateImporter;
+  friend class LayerStateImporter;
 
 private:
-    BlendAnimation* m_ExitBlendAnimation = nullptr;
+  BlendAnimation* m_ExitBlendAnimation = nullptr;
 
 public:
-    BlendAnimation* exitBlendAnimation() const { return m_ExitBlendAnimation; }
+  BlendAnimation* exitBlendAnimation() const { return m_ExitBlendAnimation; }
 
-    const LinearAnimationInstance* exitTimeAnimationInstance(
-        const StateInstance* from) const override;
+  const LinearAnimationInstance* exitTimeAnimationInstance(
+      const StateInstance* from) const override;
 
-    const LinearAnimation* exitTimeAnimation(
-        const LayerState* from) const override;
+  const LinearAnimation* exitTimeAnimation(
+      const LayerState* from) const override;
 };
 
 } // namespace rive

@@ -14,9 +14,9 @@ class StateMachineInstance;
 
 enum class SemanticActionType : uint8_t
 {
-    tap = 0,
-    increase = 1,
-    decrease = 2,
+  tap = 0,
+  increase = 1,
+  decrease = 2,
 };
 
 /// A SemanticListenerGroup manages semantic action listeners attached
@@ -25,24 +25,25 @@ enum class SemanticActionType : uint8_t
 class SemanticListenerGroup : public SemanticListener
 {
 public:
-    SemanticListenerGroup(SemanticData* semanticData,
-                          const StateMachineListener* listener,
-                          StateMachineInstance* stateMachineInstance);
-    ~SemanticListenerGroup() override;
+  SemanticListenerGroup(
+      SemanticData* semanticData,
+      const StateMachineListener* listener,
+      StateMachineInstance* stateMachineInstance);
+  ~SemanticListenerGroup() override;
 
-    const StateMachineListener* listener() const { return m_listener; }
-    SemanticData* semanticData() const { return m_semanticData; }
+  const StateMachineListener* listener() const { return m_listener; }
+  SemanticData* semanticData() const { return m_semanticData; }
 
-    void onSemanticTap() override;
-    void onSemanticIncrease() override;
-    void onSemanticDecrease() override;
+  void onSemanticTap() override;
+  void onSemanticIncrease() override;
+  void onSemanticDecrease() override;
 
 private:
-    void queueIfListening(SemanticActionType actionType);
+  void queueIfListening(SemanticActionType actionType);
 
-    SemanticData* m_semanticData;
-    const StateMachineListener* m_listener;
-    StateMachineInstance* m_stateMachineInstance;
+  SemanticData* m_semanticData;
+  const StateMachineListener* m_listener;
+  StateMachineInstance* m_stateMachineInstance;
 };
 
 } // namespace rive

@@ -10,110 +10,111 @@ GPUResource::~GPUResource() {}
 
 void GPUResource::onRefCntReachedZero() const
 {
-    // GPUResourceManager will hold off on deleting "this" until its safe frame
-    // number has been reached. With no manager (the Metal Ore backend keeps
-    // native objects alive via ARC and command-buffer retention rather than a
-    // manager) there is no deferred reclaim, so delete now instead of leaking.
-    if (m_manager)
-        m_manager->onRenderingResourceReleased(const_cast<GPUResource*>(this));
-    else
-        delete const_cast<GPUResource*>(this);
+  // GPUResourceManager will hold off on deleting "this" until its safe frame
+  // number has been reached. With no manager (the Metal Ore backend keeps
+  // native objects alive via ARC and command-buffer retention rather than a
+  // manager) there is no deferred reclaim, so delete now instead of leaking.
+  if (m_manager)
+    m_manager->onRenderingResourceReleased(const_cast<GPUResource*>(this));
+  else
+    delete const_cast<GPUResource*>(this);
 }
 
 GPUResourceManager::~GPUResourceManager()
 {
-    // Call shutdown() before destroying the resource manager.
-    assert(m_currentFrameNumber == SHUTDOWN_FRAME_NUMBER);
-    assert(m_safeFrameNumber == SHUTDOWN_FRAME_NUMBER);
-    assert(m_resourcePurgatory.empty());
+  // Call shutdown() before destroying the resource manager.
+  assert(m_currentFrameNumber == SHUTDOWN_FRAME_NUMBER);
+  assert(m_safeFrameNumber == SHUTDOWN_FRAME_NUMBER);
+  assert(m_resourcePurgatory.empty());
 }
 
-void GPUResourceManager::advanceFrameNumber(uint64_t nextFrameNumber,
-                                            uint64_t safeFrameNumber)
+void GPUResourceManager::advanceFrameNumber(
+    uint64_t nextFrameNumber,
+    uint64_t safeFrameNumber)
 {
-    assert(nextFrameNumber >= m_currentFrameNumber);
-    assert(safeFrameNumber >= m_safeFrameNumber);
-    assert(safeFrameNumber <= nextFrameNumber);
+  assert(nextFrameNumber >= m_currentFrameNumber);
+  assert(safeFrameNumber >= m_safeFrameNumber);
+  assert(safeFrameNumber <= nextFrameNumber);
 
-    m_currentFrameNumber = nextFrameNumber;
-    m_safeFrameNumber = safeFrameNumber;
-    m_didAdvanceFrameNumber = true;
+  m_currentFrameNumber = nextFrameNumber;
+  m_safeFrameNumber = safeFrameNumber;
+  m_didAdvanceFrameNumber = true;
 
-    // Delete all resources whose safe frame number has been reached.
-    while (!m_resourcePurgatory.empty() &&
-           m_resourcePurgatory.front().lastFrameNumber <= m_safeFrameNumber)
-    {
-        assert(m_resourcePurgatory.front().resource->debugging_refcnt() == 0);
-        m_resourcePurgatory.pop_front();
-    }
+  // Delete all resources whose safe frame number has been reached.
+  while (!m_resourcePurgatory.empty() &&
+         m_resourcePurgatory.front().lastFrameNumber <= m_safeFrameNumber)
+  {
+    assert(m_resourcePurgatory.front().resource->debugging_refcnt() == 0);
+    m_resourcePurgatory.pop_front();
+  }
 }
 
 void GPUResourceManager::onRenderingResourceReleased(GPUResource* resource)
 {
-    assert(resource->manager() == this);
+  assert(resource->manager() == this);
 
-    // Hold the resource in purgatory (rather than freeing it now) only if GPU
-    // work that might reference it could still be in flight:
-    //   * during normal rendering, while frames are unfinished
-    //     (m_currentFrameNumber > m_safeFrameNumber); or
-    //   * before the first frame (!m_didAdvanceFrameNumber), where a one-shot
-    //     upload may have submitted work referencing a just-released staging
-    //     buffer while m_currentFrameNumber == m_safeFrameNumber == 0.
-    // Otherwise -- the GPU has caught up to the current frame during rendering,
-    // or we're in a shutdown cycle (which implies m_didAdvanceFrameNumber) --
-    // delete immediately.
-    if (m_currentFrameNumber > m_safeFrameNumber || !m_didAdvanceFrameNumber)
-    {
-        // Hold this resource until its safe frame number is reached.
-        assert(resource->debugging_refcnt() == 0);
-        assert(m_resourcePurgatory.empty() ||
-               m_currentFrameNumber >=
-                   m_resourcePurgatory.back().lastFrameNumber);
-        m_resourcePurgatory.emplace_back(resource, m_currentFrameNumber);
-    }
-    else
-    {
-        delete resource;
-    }
+  // Hold the resource in purgatory (rather than freeing it now) only if GPU
+  // work that might reference it could still be in flight:
+  //   * during normal rendering, while frames are unfinished
+  //     (m_currentFrameNumber > m_safeFrameNumber); or
+  //   * before the first frame (!m_didAdvanceFrameNumber), where a one-shot
+  //     upload may have submitted work referencing a just-released staging
+  //     buffer while m_currentFrameNumber == m_safeFrameNumber == 0.
+  // Otherwise -- the GPU has caught up to the current frame during rendering,
+  // or we're in a shutdown cycle (which implies m_didAdvanceFrameNumber) --
+  // delete immediately.
+  if (m_currentFrameNumber > m_safeFrameNumber || !m_didAdvanceFrameNumber)
+  {
+    // Hold this resource until its safe frame number is reached.
+    assert(resource->debugging_refcnt() == 0);
+    assert(
+        m_resourcePurgatory.empty() ||
+        m_currentFrameNumber >= m_resourcePurgatory.back().lastFrameNumber);
+    m_resourcePurgatory.emplace_back(resource, m_currentFrameNumber);
+  }
+  else
+  {
+    delete resource;
+  }
 }
 
 void GPUResourceManager::shutdown()
 {
-    advanceFrameNumber(SHUTDOWN_FRAME_NUMBER, SHUTDOWN_FRAME_NUMBER);
+  advanceFrameNumber(SHUTDOWN_FRAME_NUMBER, SHUTDOWN_FRAME_NUMBER);
 }
 
 rcp<GPUResource> GPUResourcePool::acquire()
 {
-    rcp<GPUResource> resource;
-    if (!m_pool.empty() &&
-        m_pool.front().lastFrameNumber <= m_manager->safeFrameNumber())
-    {
-        // Recycle the oldest buffer in the pool.
-        resource = rcp(m_pool.front().resource.release());
-        m_pool.pop_front();
+  rcp<GPUResource> resource;
+  if (!m_pool.empty() &&
+      m_pool.front().lastFrameNumber <= m_manager->safeFrameNumber())
+  {
+    // Recycle the oldest buffer in the pool.
+    resource = rcp(m_pool.front().resource.release());
+    m_pool.pop_front();
 
-        // Trim the pool in case it's grown out of control (meaning it was
-        // advanced multiple times in a single frame).
-        while (m_pool.size() > m_maxPoolCount &&
-               m_pool.front().lastFrameNumber <= m_manager->safeFrameNumber())
-        {
-            m_pool.pop_front();
-        }
+    // Trim the pool in case it's grown out of control (meaning it was
+    // advanced multiple times in a single frame).
+    while (m_pool.size() > m_maxPoolCount &&
+           m_pool.front().lastFrameNumber <= m_manager->safeFrameNumber())
+    {
+      m_pool.pop_front();
     }
-    assert(resource == nullptr || resource->debugging_refcnt() == 1);
-    return resource;
+  }
+  assert(resource == nullptr || resource->debugging_refcnt() == 1);
+  return resource;
 }
 
 void GPUResourcePool::recycle(rcp<GPUResource> resource)
 {
-    if (resource != nullptr)
-    {
-        // Return the current buffer to the pool.
-        assert(resource->debugging_refcnt() == 1);
-        assert(m_pool.empty() || m_manager->currentFrameNumber() >=
-                                     m_pool.back().lastFrameNumber);
-        m_pool.emplace_back(resource.release(),
-                            m_manager->currentFrameNumber());
-    }
+  if (resource != nullptr)
+  {
+    // Return the current buffer to the pool.
+    assert(resource->debugging_refcnt() == 1);
+    assert(
+        m_pool.empty() ||
+        m_manager->currentFrameNumber() >= m_pool.back().lastFrameNumber);
+    m_pool.emplace_back(resource.release(), m_manager->currentFrameNumber());
+  }
 }
 } // namespace rive::gpu

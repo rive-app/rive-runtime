@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedNumberBase::clone() const
 {
-    auto cloned = new NestedNumber();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NestedNumber();
+  cloned->copy(*this);
+  return cloned;
 }

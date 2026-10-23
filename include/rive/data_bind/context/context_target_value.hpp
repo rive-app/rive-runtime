@@ -12,22 +12,22 @@ class DataBind;
 class DataBindContextTargetValue final
 {
 private:
-    DataValue* m_targetValue = nullptr;
-    template <typename T = DataValue, typename U> bool updateValue(U value)
+  DataValue* m_targetValue = nullptr;
+  template <typename T = DataValue, typename U> bool updateValue(U value)
+  {
+    if (m_targetValue->as<T>()->value() != value)
     {
-        if (m_targetValue->as<T>()->value() != value)
-        {
-            m_targetValue->as<T>()->value(value);
-            return true;
-        }
-        return false;
+      m_targetValue->as<T>()->value(value);
+      return true;
     }
+    return false;
+  }
 
 public:
-    ~DataBindContextTargetValue();
-    void initialize(DataBind* dataBind);
-    bool syncTargetValue(DataBind* dataBind);
-    DataValue* dataValue() { return m_targetValue; }
+  ~DataBindContextTargetValue();
+  void initialize(DataBind* dataBind);
+  bool syncTargetValue(DataBind* dataBind);
+  DataValue* dataValue() { return m_targetValue; }
 };
 } // namespace rive
 

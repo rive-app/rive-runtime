@@ -9,84 +9,88 @@ using namespace rive;
 void AudioEvent::play()
 {
 #ifdef WITH_RIVE_AUDIO
-    if (m_fileAsset == nullptr)
-    {
-        return;
-    }
-    auto audioAsset = (AudioAsset*)m_fileAsset.get();
-    if (audioAsset == nullptr)
-    {
-        return;
-    }
-    auto audioSource = audioAsset->audioSource();
-    if (audioSource == nullptr)
-    {
-        return;
-    }
+  if (m_fileAsset == nullptr)
+  {
+    return;
+  }
+  auto audioAsset = (AudioAsset*)m_fileAsset.get();
+  if (audioAsset == nullptr)
+  {
+    return;
+  }
+  auto audioSource = audioAsset->audioSource();
+  if (audioSource == nullptr)
+  {
+    return;
+  }
 
-    auto volume = audioAsset->volume() * artboard()->volume();
-    if (volume <= 0.0f)
-    {
-        return;
-    }
+  auto volume = audioAsset->volume() * artboard()->volume();
+  if (volume <= 0.0f)
+  {
+    return;
+  }
 
-    auto engine =
+  auto engine =
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-        artboard()->audioEngine() != nullptr ? artboard()->audioEngine() :
+      artboard()->audioEngine() != nullptr ? artboard()->audioEngine() :
 #endif
-                                             AudioEngine::RuntimeEngine();
+                                           AudioEngine::RuntimeEngine();
 
-    if (engine == nullptr)
-    {
-        return;
-    }
+  if (engine == nullptr)
+  {
+    return;
+  }
 
-    auto sound =
-        engine->play(audioSource, engine->timeInFrames(), 0, 0, artboard());
+  auto sound = engine->play(
+      audioSource,
+      engine->timeInFrames(),
+      0,
+      0,
+      artboard());
 
-    if (sound != nullptr && volume != 1.0f)
-    {
-        sound->volume(volume);
-    }
+  if (sound != nullptr && volume != 1.0f)
+  {
+    sound->volume(volume);
+  }
 #endif
 }
 
 void AudioEvent::trigger(const CallbackData& value)
 {
-    Super::trigger(value);
-    if (!value.context()->playsAudio())
-    {
-        // Context won't play audio, we'll do it ourselves.
-        play();
-    }
+  Super::trigger(value);
+  if (!value.context()->playsAudio())
+  {
+    // Context won't play audio, we'll do it ourselves.
+    play();
+  }
 }
 
 StatusCode AudioEvent::import(ImportStack& importStack)
 {
-    auto result = registerReferencer(importStack);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
-    return Super::import(importStack);
+  auto result = registerReferencer(importStack);
+  if (result != StatusCode::Ok)
+  {
+    return result;
+  }
+  return Super::import(importStack);
 }
 
 void AudioEvent::setAsset(rcp<FileAsset> asset)
 {
-    if (asset != nullptr && asset->is<AudioAsset>())
-    {
-        FileAssetReferencer::setAsset(asset);
-    }
+  if (asset != nullptr && asset->is<AudioAsset>())
+  {
+    FileAssetReferencer::setAsset(asset);
+  }
 }
 
 Core* AudioEvent::clone() const
 {
-    AudioEvent* twin = AudioEventBase::clone()->as<AudioEvent>();
-    if (m_fileAsset != nullptr)
-    {
-        twin->setAsset(m_fileAsset);
-    }
-    return twin;
+  AudioEvent* twin = AudioEventBase::clone()->as<AudioEvent>();
+  if (m_fileAsset != nullptr)
+  {
+    twin->setAsset(m_fileAsset);
+  }
+  return twin;
 }
 
 uint32_t AudioEvent::assetId() { return AudioEventBase::assetId(); }

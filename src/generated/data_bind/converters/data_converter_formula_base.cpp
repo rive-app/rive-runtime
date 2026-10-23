@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterFormulaBase::clone() const
 {
-    auto cloned = new DataConverterFormula();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterFormula();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -6,20 +6,20 @@
 using namespace rive;
 
 StateMachineListenerImporter::StateMachineListenerImporter(
-    StateMachineListener* listener) :
-    m_StateMachineListener(listener)
+    StateMachineListener* listener)
+    : m_StateMachineListener(listener)
 {}
 
 void StateMachineListenerImporter::addAction(
     std::unique_ptr<ListenerAction> action)
 {
-    m_StateMachineListener->addAction(std::move(action));
+  m_StateMachineListener->addAction(std::move(action));
 }
 
 void StateMachineListenerImporter::addListenerInputType(
     std::unique_ptr<ListenerInputType> listenerInputType)
 {
-    m_StateMachineListener->addListenerInputType(std::move(listenerInputType));
+  m_StateMachineListener->addListenerInputType(std::move(listenerInputType));
 }
 
 StatusCode StateMachineListenerImporter::resolve() { return StatusCode::Ok; }

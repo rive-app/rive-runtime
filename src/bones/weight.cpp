@@ -1,75 +1,83 @@
 #include "rive/bones/weight.hpp"
+#include "rive/bones/cubic_weight.hpp"
 #include "rive/bones/skinnable.hpp"
 #include "rive/container_component.hpp"
+#include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/vertex.hpp"
 
 using namespace rive;
 
+bool Weight::fitsVertex(const Vertex* vertex) const
+{
+  return !vertex->is<CubicVertex>() || is<CubicWeight>();
+}
+
 StatusCode Weight::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 #ifndef WITH_RIVE_EDITOR
-    // Runtime-only path; editor build registers via
-    // `editorParentChanged` (dispatcher Pass 4.5).
-    if (!parent()->is<Vertex>())
-    {
-        return StatusCode::MissingObject;
-    }
+  // Runtime-only path; editor build registers via
+  // `editorParentChanged` (dispatcher Pass 4.5).
+  if (!parent()->is<Vertex>() || !fitsVertex(parent()->as<Vertex>()))
+  {
+    return StatusCode::MissingObject;
+  }
 
-    parent()->as<Vertex>()->weight(this);
+  parent()->as<Vertex>()->weight(this);
 #endif
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 #ifdef WITH_RIVE_EDITOR
 void Weight::bindingChanged()
 {
-    if (parent() == nullptr || parent()->parent() == nullptr)
-    {
-        return;
-    }
-    if (auto skinnable = Skinnable::from(parent()->parent()))
-    {
-        skinnable->bindingChangedForEditor();
-    }
+  if (parent() == nullptr || parent()->parent() == nullptr)
+  {
+    return;
+  }
+  if (auto skinnable = Skinnable::from(parent()->parent()))
+  {
+    skinnable->bindingChangedForEditor();
+  }
 }
 #endif
 
 static int encodedWeightValue(unsigned int index, unsigned int data)
 {
-    return (data >> (index * 8)) & 0xFF;
+  return (data >> (index * 8)) & 0xFF;
 }
 
-Vec2D Weight::deform(Vec2D inPoint,
-                     unsigned int indices,
-                     unsigned int weights,
-                     const Mat2D& world,
-                     const float* boneTransforms)
+Vec2D Weight::deform(
+    Vec2D inPoint,
+    unsigned int indices,
+    unsigned int weights,
+    const Mat2D& world,
+    const float* boneTransforms)
 {
-    float xx = 0, xy = 0, yx = 0, yy = 0, tx = 0, ty = 0;
-    for (int i = 0; i < 4; i++)
+  float xx = 0, xy = 0, yx = 0, yy = 0, tx = 0, ty = 0;
+  for (int i = 0; i < 4; i++)
+  {
+    int weight = encodedWeightValue(i, weights);
+    if (weight == 0)
     {
-        int weight = encodedWeightValue(i, weights);
-        if (weight == 0)
-        {
-            continue;
-        }
-
-        float normalizedWeight = weight / 255.0f;
-        int index = encodedWeightValue(i, indices);
-        int startBoneTransformIndex = index * 6;
-        xx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
-        xy += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
-        yx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
-        yy += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
-        tx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
-        ty += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+      continue;
     }
 
-    return Mat2D(xx, xy, yx, yy, tx, ty) * (world * inPoint);
+    float normalizedWeight = weight / 255.0f;
+    int index = encodedWeightValue(i, indices);
+    int startBoneTransformIndex = index * 6;
+    xx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+    xy += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+    yx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+    yy += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+    tx += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+    ty += boneTransforms[startBoneTransformIndex++] * normalizedWeight;
+  }
+
+  return Mat2D(xx, xy, yx, yy, tx, ty) * (world * inPoint);
 }

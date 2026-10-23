@@ -7,91 +7,72 @@ namespace rive
 class RootBoneBase : public Bone
 {
 protected:
-    typedef Bone Super;
+  typedef Bone Super;
 
 public:
-    static const uint16_t typeKey = 41;
+  static const uint16_t typeKey = 41;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case RootBoneBase::typeKey:
-            case BoneBase::typeKey:
-            case SkeletalComponentBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t xPropertyKey = 90;
-    static const uint16_t yPropertyKey = 91;
+  static const uint16_t xPropertyKey = 90;
+  static const uint16_t yPropertyKey = 91;
 
 protected:
-    float m_X = 0.0f;
-    float m_Y = 0.0f;
+  float m_X = 0.0f;
+  float m_Y = 0.0f;
 
 public:
-    inline float x() const override { return m_X; }
-    void x(float value)
+  inline float x() const override { return m_X; }
+  void x(float value)
+  {
+    if (m_X == value)
     {
-        if (m_X == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
-        m_X = value;
-        RIVE_EDITOR_CHANGED(xChanged());
-        notifyPropertyChanged(xPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
+    m_X = value;
+    RIVE_EDITOR_CHANGED(xChanged());
+    notifyPropertyChanged(xPropertyKey);
+  }
 
-    inline float y() const override { return m_Y; }
-    void y(float value)
+  inline float y() const override { return m_Y; }
+  void y(float value)
+  {
+    if (m_Y == value)
     {
-        if (m_Y == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
-        m_Y = value;
-        RIVE_EDITOR_CHANGED(yChanged());
-        notifyPropertyChanged(yPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
+    m_Y = value;
+    RIVE_EDITOR_CHANGED(yChanged());
+    notifyPropertyChanged(yPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const RootBoneBase& object)
-    {
-        m_X = object.m_X;
-        m_Y = object.m_Y;
-        Bone::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const RootBoneBase& object)
+  {
+    m_X = object.m_X;
+    m_Y = object.m_Y;
+    Bone::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case xPropertyKey:
-                m_X = CoreDoubleType::deserialize(reader);
-                return true;
-            case yPropertyKey:
-                m_Y = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return Bone::deserialize(propertyKey, reader);
+      case xPropertyKey:
+        m_X = CoreDoubleType::deserialize(reader);
+        return true;
+      case yPropertyKey:
+        m_Y = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return Bone::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void xChanged() {}
-    virtual void yChanged() {}
+  virtual void xChanged() {}
+  virtual void yChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/bones/root_bone_ext.inl"
 #endif

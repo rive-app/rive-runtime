@@ -9,20 +9,21 @@ using namespace rive;
 
 StatusCode GamepadInput::import(ImportStack& importStack)
 {
-    auto* litImporter = importStack.latest<ListenerInputTypeGamepadImporter>(
-        ListenerInputTypeGamepadBase::typeKey);
-    if (litImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    litImporter->listenerInputTypeGamepad()->addGamepadInput(this);
+  auto* litImporter = importStack.latest<ListenerInputTypeGamepadImporter>(
+      ListenerInputTypeGamepadBase::typeKey);
+  if (litImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  litImporter->listenerInputTypeGamepad()->addGamepadInput(this);
 
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    artboardImporter->addComponent(this);
-    return Super::import(importStack);
+  // File::readObjects already put this in the artboard's object list (see
+  // UserInput::claimsArtboardSlot), which owns it.
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  return Super::import(importStack);
 }

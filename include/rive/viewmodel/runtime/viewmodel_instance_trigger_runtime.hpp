@@ -13,12 +13,11 @@ class ViewModelInstanceTriggerRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceTriggerRuntime(
-        ViewModelInstanceTrigger* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    void trigger();
-    const DataType dataType() override { return DataType::trigger; }
+  ViewModelInstanceTriggerRuntime(ViewModelInstanceTrigger* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  void trigger();
+  const DataType dataType() override { return DataType::trigger; }
 };
 } // namespace rive
 #endif

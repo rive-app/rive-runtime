@@ -25,7 +25,7 @@ namespace
 
 struct ExpectedBounds
 {
-    float minX, minY, maxX, maxY;
+  float minX, minY, maxX, maxY;
 };
 
 constexpr ExpectedBounds kExpectedSlots[] = {
@@ -34,85 +34,87 @@ constexpr ExpectedBounds kExpectedSlots[] = {
     {0.0f, 150.0f, 122.0f, 209.0f},
     {0.0f, 225.0f, 500.0f, 500.0f},
 };
-constexpr size_t kExpectedSlotCount =
-    sizeof(kExpectedSlots) / sizeof(kExpectedSlots[0]);
+constexpr size_t kExpectedSlotCount = sizeof(kExpectedSlots) /
+                                      sizeof(kExpectedSlots[0]);
 
 } // namespace
 
-TEST_CASE("focus_nodes_list_order.riv: four root buttons in visual order",
-          "[semantics][ordering]")
+TEST_CASE(
+    "focus_nodes_list_order.riv: four root buttons in visual order",
+    "[semantics][ordering]")
 {
-    auto f = loadFixture("assets/semantic/focus_nodes_list_order.riv");
-    REQUIRE(f.sm != nullptr);
-    auto* mgr = f.sm->semanticManager();
-    REQUIRE(mgr != nullptr);
-    auto diff = mgr->drainDiff();
+  auto f = loadFixture("assets/semantic/focus_nodes_list_order.riv");
+  REQUIRE(f.sm != nullptr);
+  auto* mgr = f.sm->semanticManager();
+  REQUIRE(mgr != nullptr);
+  auto diff = mgr->drainDiff();
 
-    REQUIRE(diff.added.size() == kExpectedSlotCount);
+  REQUIRE(diff.added.size() == kExpectedSlotCount);
 
-    // All four are top-level buttons.
-    for (const auto& n : diff.added)
-    {
-        CHECK(n.parentId == -1);
-        CHECK(n.role == static_cast<uint32_t>(SemanticRole::button));
-    }
+  // All four are top-level buttons.
+  for (const auto& n : diff.added)
+  {
+    CHECK(n.parentId == -1);
+    CHECK(n.role == static_cast<uint32_t>(SemanticRole::button));
+  }
 
-    // diff.added is emitted in tree pre-order, so indexing it matches
-    // visual order directly.
-    for (size_t i = 0; i < kExpectedSlotCount; ++i)
-    {
-        const auto& n = diff.added[i];
-        CAPTURE(i, n.id);
-        CHECK(n.siblingIndex == i);
-        CHECK(n.minX == Approx(kExpectedSlots[i].minX));
-        CHECK(n.minY == Approx(kExpectedSlots[i].minY));
-        CHECK(n.maxX == Approx(kExpectedSlots[i].maxX));
-        CHECK(n.maxY == Approx(kExpectedSlots[i].maxY));
-    }
+  // diff.added is emitted in tree pre-order, so indexing it matches
+  // visual order directly.
+  for (size_t i = 0; i < kExpectedSlotCount; ++i)
+  {
+    const auto& n = diff.added[i];
+    CAPTURE(i, n.id);
+    CHECK(n.siblingIndex == i);
+    CHECK(n.minX == Approx(kExpectedSlots[i].minX));
+    CHECK(n.minY == Approx(kExpectedSlots[i].minY));
+    CHECK(n.maxX == Approx(kExpectedSlots[i].maxX));
+    CHECK(n.maxY == Approx(kExpectedSlots[i].maxY));
+  }
 
-    // The root-level childrenUpdated entry must list the ids in the same
-    // order as diff.added, locking in that visual order drove the sort.
-    const SemanticsChildrenUpdate* rootUpdate = nullptr;
-    for (const auto& cu : diff.childrenUpdated)
+  // The root-level childrenUpdated entry must list the ids in the same
+  // order as diff.added, locking in that visual order drove the sort.
+  const SemanticsChildrenUpdate* rootUpdate = nullptr;
+  for (const auto& cu : diff.childrenUpdated)
+  {
+    if (cu.parentId == -1)
     {
-        if (cu.parentId == -1)
-        {
-            rootUpdate = &cu;
-            break;
-        }
+      rootUpdate = &cu;
+      break;
     }
-    REQUIRE(rootUpdate != nullptr);
-    REQUIRE(rootUpdate->childIds.size() == kExpectedSlotCount);
-    for (size_t i = 0; i < kExpectedSlotCount; ++i)
-    {
-        CAPTURE(i);
-        CHECK(rootUpdate->childIds[i] == diff.added[i].id);
-    }
+  }
+  REQUIRE(rootUpdate != nullptr);
+  REQUIRE(rootUpdate->childIds.size() == kExpectedSlotCount);
+  for (size_t i = 0; i < kExpectedSlotCount; ++i)
+  {
+    CAPTURE(i);
+    CHECK(rootUpdate->childIds[i] == diff.added[i].id);
+  }
 }
 
-TEST_CASE("focus_nodes_list_order.riv: bottom button has the smallest id "
-          "but sorts last",
-          "[semantics][ordering]")
+TEST_CASE(
+    "focus_nodes_list_order.riv: bottom button has the smallest id "
+    "but sorts last",
+    "[semantics][ordering]")
 {
-    // Guards that the fixture still encodes the id-vs-visual-order mismatch
-    // that makes the first test meaningful. If this ever breaks because
-    // authoring changed, the sibling-order test above is no longer a
-    // regression check for the visual-ordering code path.
-    auto f = loadFixture("assets/semantic/focus_nodes_list_order.riv");
-    REQUIRE(f.sm != nullptr);
-    auto diff = f.sm->semanticManager()->drainDiff();
+  // Guards that the fixture still encodes the id-vs-visual-order mismatch
+  // that makes the first test meaningful. If this ever breaks because
+  // authoring changed, the sibling-order test above is no longer a
+  // regression check for the visual-ordering code path.
+  auto f = loadFixture("assets/semantic/focus_nodes_list_order.riv");
+  REQUIRE(f.sm != nullptr);
+  auto diff = f.sm->semanticManager()->drainDiff();
 
-    REQUIRE(diff.added.size() == kExpectedSlotCount);
+  REQUIRE(diff.added.size() == kExpectedSlotCount);
 
-    uint32_t minId = diff.added[0].id;
-    size_t minIdSlot = 0;
-    for (size_t i = 1; i < diff.added.size(); ++i)
+  uint32_t minId = diff.added[0].id;
+  size_t minIdSlot = 0;
+  for (size_t i = 1; i < diff.added.size(); ++i)
+  {
+    if (diff.added[i].id < minId)
     {
-        if (diff.added[i].id < minId)
-        {
-            minId = diff.added[i].id;
-            minIdSlot = i;
-        }
+      minId = diff.added[i].id;
+      minIdSlot = i;
     }
-    CHECK(minIdSlot == kExpectedSlotCount - 1);
+  }
+  CHECK(minIdSlot == kExpectedSlotCount - 1);
 }

@@ -11,41 +11,41 @@
 #ifdef WITH_RIVE_EDITOR
 
 #define RIVE_EDITOR_CHANGING(propertyKey, oldValue, newValue)                  \
-    onPropertyChanging(propertyKey, oldValue, newValue)
+  onPropertyChanging(propertyKey, oldValue, newValue)
 #define RIVE_EDITOR_STRING_CHANGING(propertyKey, oldValue, newValue)           \
-    onStringChanging(propertyKey, oldValue, newValue)
+  onStringChanging(propertyKey, oldValue, newValue)
 #define RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING(propertyKey, oldValue, newValue) \
-    onFractionalIndexChanging(propertyKey, oldValue, newValue)
+  onFractionalIndexChanging(propertyKey, oldValue, newValue)
 
 // Coop hydration mutates properties before onAddedDirty wires the object up,
 // so the side effecting callback waits until the object validates.
 #define RIVE_EDITOR_CHANGED(call)                                              \
-    if (hasValidated())                                                        \
-    {                                                                          \
-        call;                                                                  \
-    }                                                                          \
-    (void)0
+  if (hasValidated())                                                          \
+  {                                                                            \
+    call;                                                                      \
+  }                                                                            \
+  (void)0
 
 #define RIVE_EDITOR_COPY(object) copyEditorProperties(object)
 #define RIVE_EDITOR_COPY_VALIDATED(object)                                     \
-    if (object.hasValidated())                                                 \
-    {                                                                          \
-        markValidated();                                                       \
-    }                                                                          \
-    (void)0
+  if (object.hasValidated())                                                   \
+  {                                                                            \
+    markValidated();                                                           \
+  }                                                                            \
+  (void)0
 #define RIVE_EDITOR_DESERIALIZE(propertyKey, reader)                           \
-    if (deserializeEditorProperties(propertyKey, reader))                      \
-    {                                                                          \
-        return true;                                                           \
-    }                                                                          \
-    (void)0
+  if (deserializeEditorProperties(propertyKey, reader))                        \
+  {                                                                            \
+    return true;                                                               \
+  }                                                                            \
+  (void)0
 
 #else
 
 #define RIVE_EDITOR_CHANGING(propertyKey, oldValue, newValue) (void)0
 #define RIVE_EDITOR_STRING_CHANGING(propertyKey, oldValue, newValue) (void)0
 #define RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING(propertyKey, oldValue, newValue) \
-    (void)0
+  (void)0
 #define RIVE_EDITOR_CHANGED(call) call
 #define RIVE_EDITOR_COPY(object) (void)0
 #define RIVE_EDITOR_COPY_VALIDATED(object) (void)0

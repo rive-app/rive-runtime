@@ -15,19 +15,19 @@ class LayoutSizingStyle : public LayoutSizingStyleBase,
 {
 public:
 #ifdef WITH_RIVE_LAYOUT
-    /// A participant is a leaf, so only hidden or flex. LayoutComponentStyle
-    /// overrides to also select grid, which needs its layoutType.
-    virtual YGDisplay display();
+  /// A participant is a leaf, so only hidden or flex. LayoutComponentStyle
+  /// overrides to also select grid, which needs its layoutType.
+  virtual YGDisplay display();
 
-    YGUnit maxWidthUnits();
-    YGUnit maxHeightUnits();
-    YGUnit minWidthUnits();
-    YGUnit minHeightUnits();
+  YGUnit maxWidthUnits();
+  YGUnit maxHeightUnits();
+  YGUnit minWidthUnits();
+  YGUnit minHeightUnits();
 
-    void applyBaseStyle(YGStyle& style,
-                        const LayoutSyncContext& context) override;
-    void applyItemStyle(YGStyle& style,
-                        const LayoutSyncContext& context) override;
+  void applyBaseStyle(YGStyle& style, const LayoutSyncContext& context)
+      override;
+  void applyItemStyle(YGStyle& style, const LayoutSyncContext& context)
+      override;
 #endif
 };
 } // namespace rive

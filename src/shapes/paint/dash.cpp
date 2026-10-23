@@ -7,42 +7,42 @@ Dash::Dash() {}
 
 Dash::Dash(float value, bool percentage)
 {
-    length(value);
-    lengthIsPercentage(percentage);
+  length(value);
+  lengthIsPercentage(percentage);
 }
 
 float Dash::normalizedLength(float contourLength, bool wraps) const
 {
-    float p = length();
-    if (wraps)
+  float p = length();
+  if (wraps)
+  {
+    float right = lengthIsPercentage() ? 1.0f : contourLength;
+    p = fmodf(length(), right);
+    if (p < 0.0f)
     {
-        float right = lengthIsPercentage() ? 1.0f : contourLength;
-        p = fmodf(length(), right);
-        if (p < 0.0f)
-        {
-            p += right;
-        }
+      p += right;
     }
-    return lengthIsPercentage() ? p * contourLength : p;
+  }
+  return lengthIsPercentage() ? p * contourLength : p;
 }
 
 StatusCode Dash::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<DashPath>())
-    {
-        return StatusCode::InvalidObject;
-    }
+  if (!parent()->is<DashPath>())
+  {
+    return StatusCode::InvalidObject;
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void Dash::lengthChanged()
 {
-    if (parent() == nullptr || !parent()->is<DashPath>())
-    {
-        return;
-    }
-    parent()->as<DashPath>()->invalidateDash();
+  if (parent() == nullptr || !parent()->is<DashPath>())
+  {
+    return;
+  }
+  parent()->as<DashPath>()->invalidateDash();
 }
 
 void Dash::lengthIsPercentageChanged() { lengthChanged(); }

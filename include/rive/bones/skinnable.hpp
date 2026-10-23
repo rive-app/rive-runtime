@@ -10,41 +10,41 @@ class Component;
 
 class Skinnable
 {
-    friend class Skin;
+  friend class Skin;
 
 private:
-    Skin* m_Skin = nullptr;
+  Skin* m_Skin = nullptr;
 
 protected:
-    void skin(Skin* skin);
+  void skin(Skin* skin);
 
 public:
-    virtual ~Skinnable() {}
+  virtual ~Skinnable() {}
 
-    Skin* skin() const { return m_Skin; }
-    virtual void markSkinDirty() = 0;
+  Skin* skin() const { return m_Skin; }
+  virtual void markSkinDirty() = 0;
 
 #ifdef WITH_RIVE_EDITOR
-    /// Weights, tendons or the skin itself changed, unlike markSkinDirty
-    /// which also fires for every bone move.
-    virtual void bindingChangedForEditor() {}
-    /// Skin::editorParentChanged calls these on parent transitions.
-    void setSkinForEditor(Skin* s)
+  /// Weights, tendons or the skin itself changed, unlike markSkinDirty
+  /// which also fires for every bone move.
+  virtual void bindingChangedForEditor() {}
+  /// Skin::editorParentChanged calls these on parent transitions.
+  void setSkinForEditor(Skin* s)
+  {
+    m_Skin = s;
+    bindingChangedForEditor();
+  }
+  void clearSkinIfForEditor(Skin* expected)
+  {
+    if (m_Skin == expected)
     {
-        m_Skin = s;
-        bindingChangedForEditor();
+      m_Skin = nullptr;
+      bindingChangedForEditor();
     }
-    void clearSkinIfForEditor(Skin* expected)
-    {
-        if (m_Skin == expected)
-        {
-            m_Skin = nullptr;
-            bindingChangedForEditor();
-        }
-    }
+  }
 #endif
 
-    static Skinnable* from(Component* component);
+  static Skinnable* from(Component* component);
 };
 } // namespace rive
 

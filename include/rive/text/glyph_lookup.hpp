@@ -11,38 +11,38 @@ namespace rive
 class GlyphLookup
 {
 public:
-    void compute(Span<const Unichar> text, const SimpleArray<Paragraph>& shape);
+  void compute(Span<const Unichar> text, const SimpleArray<Paragraph>& shape);
 
 private:
-    std::vector<uint32_t> m_glyphIndices;
+  std::vector<uint32_t> m_glyphIndices;
 
 public:
-    uint32_t count(uint32_t index) const;
-    uint32_t glyphStart(uint32_t index) const;
-    bool isGlyphBoundary(uint32_t index) const;
-    size_t size() const { return m_glyphIndices.size(); }
+  uint32_t count(uint32_t index) const;
+  uint32_t glyphStart(uint32_t index) const;
+  bool isGlyphBoundary(uint32_t index) const;
+  size_t size() const { return m_glyphIndices.size(); }
 
-    // Returns the glyph index from the computed shape given the codePointIndex
-    // in the original text.
-    uint32_t operator[](uint32_t codePointIndex) const
-    {
-        assert(codePointIndex >= 0 &&
-               codePointIndex < (uint32_t)m_glyphIndices.size());
-        return m_glyphIndices[codePointIndex];
-    }
+  // Returns the glyph index from the computed shape given the codePointIndex
+  // in the original text.
+  uint32_t operator[](uint32_t codePointIndex) const
+  {
+    assert(
+        codePointIndex >= 0 &&
+        codePointIndex < (uint32_t)m_glyphIndices.size());
+    return m_glyphIndices[codePointIndex];
+  }
 
-    uint32_t lastCodePointIndex() const
-    {
-        return m_glyphIndices.size() == 0
-                   ? 0
-                   : (uint32_t)(m_glyphIndices.size() - 1);
-    }
+  uint32_t lastCodePointIndex() const
+  {
+    return m_glyphIndices.size() == 0 ? 0
+                                      : (uint32_t)(m_glyphIndices.size() - 1);
+  }
 
-    bool empty() const { return m_glyphIndices.empty(); }
-    void clear() { m_glyphIndices.clear(); }
+  bool empty() const { return m_glyphIndices.empty(); }
+  void clear() { m_glyphIndices.clear(); }
 
-    // How far this codePoint index is within the glyph.
-    float advanceFactor(int32_t codePointIndex, bool inv) const;
+  // How far this codePoint index is within the glyph.
+  float advanceFactor(int32_t codePointIndex, bool inv) const;
 };
 } // namespace rive
 

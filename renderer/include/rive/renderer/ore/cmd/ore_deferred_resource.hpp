@@ -31,92 +31,94 @@ namespace rive::ore::cmd
 // Pointer keyed handles for resources this recorder did not create: real
 // backend objects a frame binds, deduped so repeated binds cost one ref.
 // Deferred objects are never in here, they answer for themselves.
-using PtrHandleMap =
-    std::unordered_map<rive::gpu::GPUResource*, ResourceHandle>;
+using PtrHandleMap = std::
+    unordered_map<rive::gpu::GPUResource*, ResourceHandle>;
 
 // Common mixin. The DeferredOreContext owns the stream and allocator and
 // outlives every resource, so the back pointers stay valid.
 class DeferredResource
 {
 public:
-    DeferredResource(ResourceHandle handle,
-                     uint32_t generation,
-                     OreCommandBuffer* stream,
-                     rive::IdAllocator<ResourceHandle>* allocator) :
-        m_clientHandle(handle),
-        m_generation(generation),
-        m_stream(stream),
-        m_allocator(allocator)
-    {}
-    // Asking the live object is what makes a lookup immune to address
-    // recycling: an address only names this handle for as long as this object
-    // occupies it.
-    ResourceHandle clientHandle() const { return m_clientHandle; }
-    uint32_t generation() const { return m_generation; }
+  DeferredResource(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator)
+      : m_clientHandle(handle)
+      , m_generation(generation)
+      , m_stream(stream)
+      , m_allocator(allocator)
+  {}
+  // Asking the live object is what makes a lookup immune to address
+  // recycling: an address only names this handle for as long as this object
+  // occupies it.
+  ResourceHandle clientHandle() const { return m_clientHandle; }
+  uint32_t generation() const { return m_generation; }
 
-    // A handle resolves against the table this resource's stream feeds, so a
-    // reader that writes a different stream must not use it.
-    bool recordsInto(const OreCommandBuffer* stream) const
-    {
-        return m_stream != nullptr && m_stream == stream;
-    }
+  // A handle resolves against the table this resource's stream feeds, so a
+  // reader that writes a different stream must not use it.
+  bool recordsInto(const OreCommandBuffer* stream) const
+  {
+    return m_stream != nullptr && m_stream == stream;
+  }
 
 protected:
-    ~DeferredResource()
+  ~DeferredResource()
+  {
+    // Destructors run on any thread, possibly after the owning context
+    // died, so stragglers no-op and live destroys queue for the drain.
+    std::lock_guard<std::mutex> lock(rive::cmd::recorderRegistryMutex());
+    if (m_stream != nullptr)
     {
-        // Destructors run on any thread, possibly after the owning context
-        // died, so stragglers no-op and live destroys queue for the drain.
-        std::lock_guard<std::mutex> lock(rive::cmd::recorderRegistryMutex());
-        if (m_stream != nullptr)
-        {
-            if (rive::cmd::liveRecorders().count(m_stream) == 0)
-            {
-                return; // the context died first, nothing to record into
-            }
-            m_stream->queueDestroy({m_clientHandle, m_generation, m_allocator});
-            return;
-        }
-        if (m_allocator != nullptr &&
-            rive::cmd::liveRecorders().count(m_allocator) == 0)
-        {
-            return;
-        }
-        if (m_allocator != nullptr)
-        {
-            m_allocator->release(m_clientHandle, m_generation);
-        }
+      if (rive::cmd::liveRecorders().count(m_stream) == 0)
+      {
+        return; // the context died first, nothing to record into
+      }
+      m_stream->queueDestroy({m_clientHandle, m_generation, m_allocator});
+      return;
     }
-    OreCommandBuffer* stream() const { return m_stream; }
+    if (m_allocator != nullptr &&
+        rive::cmd::liveRecorders().count(m_allocator) == 0)
+    {
+      return;
+    }
+    if (m_allocator != nullptr)
+    {
+      m_allocator->release(m_clientHandle, m_generation);
+    }
+  }
+  OreCommandBuffer* stream() const { return m_stream; }
 
 private:
-    ResourceHandle m_clientHandle;
-    uint32_t m_generation;
-    OreCommandBuffer* m_stream;
-    rive::IdAllocator<ResourceHandle>* m_allocator;
+  ResourceHandle m_clientHandle;
+  uint32_t m_generation;
+  OreCommandBuffer* m_stream;
+  rive::IdAllocator<ResourceHandle>* m_allocator;
 };
 
 class DeferredBuffer : public LITE_RTTI_OVERRIDE(Buffer, DeferredBuffer),
                        public DeferredResource
 {
 public:
-    DeferredBuffer(ResourceHandle handle,
-                   uint32_t generation,
-                   OreCommandBuffer* stream,
-                   rive::IdAllocator<ResourceHandle>* allocator,
-                   uint32_t size,
-                   BufferUsage usage) :
-        LITE_RTTI_OVERRIDE(Buffer, DeferredBuffer)(size, usage),
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredBuffer(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      uint32_t size,
+      BufferUsage usage)
+      : LITE_RTTI_OVERRIDE(Buffer, DeferredBuffer)(size, usage)
+      , DeferredResource(handle, generation, stream, allocator)
+  {}
 
-    // Recorded, replayed on the real buffer before the passes.
-    void update(const void* data, uint32_t size, uint32_t offset) override
+  // Recorded, replayed on the real buffer before the passes.
+  void update(const void* data, uint32_t size, uint32_t offset) override
+  {
+    if (stream() != nullptr)
     {
-        if (stream() != nullptr)
-        {
-            recordBufferUpdate(*stream(), clientHandle(), data, size, offset);
-        }
+      recordBufferUpdate(*stream(), clientHandle(), data, size, offset);
     }
+  }
 };
 
 // The remaining types carry the descriptor so record time validation works
@@ -126,23 +128,24 @@ class DeferredTexture : public LITE_RTTI_OVERRIDE(Texture, DeferredTexture),
                         public DeferredResource
 {
 public:
-    DeferredTexture(ResourceHandle handle,
-                    uint32_t generation,
-                    OreCommandBuffer* stream,
-                    rive::IdAllocator<ResourceHandle>* allocator,
-                    const TextureDesc& desc) :
-        LITE_RTTI_OVERRIDE(Texture, DeferredTexture)(desc),
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredTexture(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      const TextureDesc& desc)
+      : LITE_RTTI_OVERRIDE(Texture, DeferredTexture)(desc)
+      , DeferredResource(handle, generation, stream, allocator)
+  {}
 
-    // Recorded, replayed on the real texture before the passes.
-    void uploadImpl(const TextureDataDesc& data) override
+  // Recorded, replayed on the real texture before the passes.
+  void uploadImpl(const TextureDataDesc& data) override
+  {
+    if (stream() != nullptr)
     {
-        if (stream() != nullptr)
-        {
-            recordTextureUpload(*stream(), clientHandle(), data);
-        }
+      recordTextureUpload(*stream(), clientHandle(), data);
     }
+  }
 };
 
 class DeferredTextureView
@@ -150,31 +153,34 @@ class DeferredTextureView
       public DeferredResource
 {
 public:
-    DeferredTextureView(ResourceHandle handle,
-                        uint32_t generation,
-                        OreCommandBuffer* stream,
-                        rive::IdAllocator<ResourceHandle>* allocator,
-                        rcp<Texture> texture,
-                        const TextureViewDesc& desc) :
-        LITE_RTTI_OVERRIDE(TextureView, DeferredTextureView)(std::move(texture),
-                                                             desc),
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredTextureView(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      rcp<Texture> texture,
+      const TextureViewDesc& desc)
+      : LITE_RTTI_OVERRIDE(TextureView, DeferredTextureView)(
+            std::move(texture),
+            desc)
+      , DeferredResource(handle, generation, stream, allocator)
+  {}
 
-    // Stands in for the host render target, wrapped anew each frame.
-    bool hostTarget = false;
+  // Stands in for the host render target, wrapped anew each frame.
+  bool hostTarget = false;
 };
 
 class DeferredSampler : public LITE_RTTI_OVERRIDE(Sampler, DeferredSampler),
                         public DeferredResource
 {
 public:
-    DeferredSampler(ResourceHandle handle,
-                    uint32_t generation,
-                    OreCommandBuffer* stream,
-                    rive::IdAllocator<ResourceHandle>* allocator) :
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredSampler(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator)
+      : DeferredResource(handle, generation, stream, allocator)
+  {}
 };
 
 class DeferredShaderModule
@@ -182,12 +188,13 @@ class DeferredShaderModule
       public DeferredResource
 {
 public:
-    DeferredShaderModule(ResourceHandle handle,
-                         uint32_t generation,
-                         OreCommandBuffer* stream,
-                         rive::IdAllocator<ResourceHandle>* allocator) :
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredShaderModule(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator)
+      : DeferredResource(handle, generation, stream, allocator)
+  {}
 };
 
 class DeferredBindGroupLayout
@@ -195,32 +202,34 @@ class DeferredBindGroupLayout
       public DeferredResource
 {
 public:
-    DeferredBindGroupLayout(ResourceHandle handle,
-                            uint32_t generation,
-                            OreCommandBuffer* stream,
-                            rive::IdAllocator<ResourceHandle>* allocator,
-                            const BindGroupLayoutDesc& desc) :
-        DeferredResource(handle, generation, stream, allocator)
-    {
-        // Recording-side callers query groupIndex()/hasDynamicOffset() before
-        // replay, so the layout keeps its descriptor like every backend.
-        m_groupIndex = desc.groupIndex;
-        m_entries.assign(desc.entries, desc.entries + desc.entryCount);
-    }
+  DeferredBindGroupLayout(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      const BindGroupLayoutDesc& desc)
+      : DeferredResource(handle, generation, stream, allocator)
+  {
+    // Recording-side callers query groupIndex()/hasDynamicOffset() before
+    // replay, so the layout keeps its descriptor like every backend.
+    m_groupIndex = desc.groupIndex;
+    m_entries.assign(desc.entries, desc.entries + desc.entryCount);
+  }
 };
 
 class DeferredPipeline : public LITE_RTTI_OVERRIDE(Pipeline, DeferredPipeline),
                          public DeferredResource
 {
 public:
-    DeferredPipeline(ResourceHandle handle,
-                     uint32_t generation,
-                     OreCommandBuffer* stream,
-                     rive::IdAllocator<ResourceHandle>* allocator,
-                     const PipelineDesc& desc) :
-        LITE_RTTI_OVERRIDE(Pipeline, DeferredPipeline)(desc),
-        DeferredResource(handle, generation, stream, allocator)
-    {}
+  DeferredPipeline(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      const PipelineDesc& desc)
+      : LITE_RTTI_OVERRIDE(Pipeline, DeferredPipeline)(desc)
+      , DeferredResource(handle, generation, stream, allocator)
+  {}
 };
 
 class DeferredBindGroup
@@ -228,25 +237,27 @@ class DeferredBindGroup
       public DeferredResource
 {
 public:
-    DeferredBindGroup(ResourceHandle handle,
-                      uint32_t generation,
-                      OreCommandBuffer* stream,
-                      rive::IdAllocator<ResourceHandle>* allocator,
-                      const BindGroupDesc& desc) :
-        DeferredResource(handle, generation, stream, allocator)
+  DeferredBindGroup(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      const BindGroupDesc& desc)
+      : DeferredResource(handle, generation, stream, allocator)
+  {
+    // setBindGroup validates dynamic offset counts at record time, so
+    // mirror the backends' bookkeeping.
+    m_layoutRef = ref_rcp(desc.layout);
+    for (uint32_t i = 0; i < desc.uboCount; ++i)
     {
-        // setBindGroup validates dynamic offset counts at record time, so
-        // mirror the backends' bookkeeping.
-        m_layoutRef = ref_rcp(desc.layout);
-        for (uint32_t i = 0; i < desc.uboCount; ++i)
-        {
-            if (m_layoutRef != nullptr &&
-                m_layoutRef->hasDynamicOffset(desc.ubos[i].slot))
-            {
-                m_dynamicOffsetCount++;
-            }
-        }
+      if (m_layoutRef != nullptr &&
+          m_layoutRef->hasDynamicOffset(desc.ubos[i].slot))
+      {
+        m_dynamicOffsetCount++;
+      }
     }
+    recordDynamicRanges(desc);
+  }
 };
 
 } // namespace rive::ore::cmd

@@ -12,119 +12,121 @@ namespace rive
 template <typename T, uint32_t MAX_CAPACITY> class StackVector
 {
 public:
-    void clear() { m_size = 0; }
+  void clear() { m_size = 0; }
 
-    const T& operator[](uint32_t index) const
+  const T& operator[](uint32_t index) const
+  {
+    assert(index < m_size);
+    return m_data[index];
+  }
+
+  T& operator[](uint32_t index)
+  {
+    assert(index < m_size);
+    return m_data[index];
+  }
+
+  const T& front() const
+  {
+    assert(m_size > 0);
+    return m_data[0];
+  }
+
+  T& front()
+  {
+    assert(m_size > 0);
+    return m_data[0];
+  }
+
+  const T& back() const
+  {
+    assert(m_size > 0);
+    return m_data[m_size - 1];
+  }
+
+  T& back()
+  {
+    assert(m_size > 0);
+    return m_data[m_size - 1];
+  }
+
+  T& push_back(const T& ele)
+  {
+    T* ret = push(1);
+    *ret = ele;
+    return *ret;
+  }
+
+  T* push_back_n(uint32_t numEles, const T* srcData)
+  {
+    T* dst = push(numEles);
+    if (srcData != nullptr)
     {
-        assert(index < m_size);
-        return m_data[index];
+      memcpy(dst, srcData, numEles * sizeof(T));
     }
+    return dst;
+  }
 
-    T& operator[](uint32_t index)
+  T* push_back_n(uint32_t numEles, const T& repeat)
+  {
+    T* dst = push(numEles);
+    for (uint32_t i = 0; i < numEles; ++i)
     {
-        assert(index < m_size);
-        return m_data[index];
+      dst[i] = repeat;
     }
+    return dst;
+  }
 
-    const T& front() const
-    {
-        assert(m_size > 0);
-        return m_data[0];
-    }
+  // Insert 'ele' at 'index', shifting subsequent elements up. 'index' may
+  // equal size() (equivalent to push_back). Returns a reference to the newly
+  // inserted element.
+  T& insert(uint32_t index, const T& ele)
+  {
+    assert(index <= m_size);
+    push(1);
+    memmove(
+        &m_data[index + 1],
+        &m_data[index],
+        (m_size - 1 - index) * sizeof(T));
+    m_data[index] = ele;
+    return m_data[index];
+  }
 
-    T& front()
-    {
-        assert(m_size > 0);
-        return m_data[0];
-    }
+  const T* data() const { return m_data; }
+  T* data() { return m_data; }
 
-    const T& back() const
-    {
-        assert(m_size > 0);
-        return m_data[m_size - 1];
-    }
+  const T* dataOrNull() const { return m_size != 0 ? m_data : nullptr; }
+  T* dataOrNull() { return m_size != 0 ? m_data : nullptr; }
 
-    T& back()
-    {
-        assert(m_size > 0);
-        return m_data[m_size - 1];
-    }
+  uint32_t size() const { return m_size; }
+  bool empty() const { return m_size == 0; }
 
-    T& push_back(const T& ele)
-    {
-        T* ret = push(1);
-        *ret = ele;
-        return *ret;
-    }
+  T* begin() { return m_data; }
+  T* end() { return m_data + m_size; }
 
-    T* push_back_n(uint32_t numEles, const T* srcData)
-    {
-        T* dst = push(numEles);
-        if (srcData != nullptr)
-        {
-            memcpy(dst, srcData, numEles * sizeof(T));
-        }
-        return dst;
-    }
-
-    T* push_back_n(uint32_t numEles, const T& repeat)
-    {
-        T* dst = push(numEles);
-        for (uint32_t i = 0; i < numEles; ++i)
-        {
-            dst[i] = repeat;
-        }
-        return dst;
-    }
-
-    // Insert 'ele' at 'index', shifting subsequent elements up. 'index' may
-    // equal size() (equivalent to push_back). Returns a reference to the newly
-    // inserted element.
-    T& insert(uint32_t index, const T& ele)
-    {
-        assert(index <= m_size);
-        push(1);
-        memmove(&m_data[index + 1],
-                &m_data[index],
-                (m_size - 1 - index) * sizeof(T));
-        m_data[index] = ele;
-        return m_data[index];
-    }
-
-    const T* data() const { return m_data; }
-    T* data() { return m_data; }
-
-    const T* dataOrNull() const { return m_size != 0 ? m_data : nullptr; }
-    T* dataOrNull() { return m_size != 0 ? m_data : nullptr; }
-
-    uint32_t size() const { return m_size; }
-    bool empty() const { return m_size == 0; }
-
-    T* begin() { return m_data; }
-    T* end() { return m_data + m_size; }
-
-    const T* begin() const { return m_data; }
-    const T* end() const { return m_data + m_size; }
+  const T* begin() const { return m_data; }
+  const T* end() const { return m_data + m_size; }
 
 private:
-    uint32_t m_size = 0;
-    T m_data[MAX_CAPACITY];
+  uint32_t m_size = 0;
+  T m_data[MAX_CAPACITY];
 
-    bool hasRoomFor(size_t itemCount)
-    {
-        return m_size + itemCount <= MAX_CAPACITY;
-    }
+  bool hasRoomFor(size_t itemCount)
+  {
+    return m_size + itemCount <= MAX_CAPACITY;
+  }
 
-    T* push(size_t count)
-    {
-        assert(hasRoomFor(count));
-        T* ret = &m_data[m_size];
-        m_size += count;
-        return ret;
-    }
+  T* push(size_t count)
+  {
+    assert(hasRoomFor(count));
+    T* ret = &m_data[m_size];
+    m_size += count;
+    return ret;
+  }
 
-    // Currently only supports POD types.
-    static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
-                  "StackVector only supports trivial types.");
+  // Currently only supports POD types.
+  static_assert(
+      std::is_trivial<T>() && std::is_standard_layout<T>(),
+      "StackVector only supports trivial types.");
 };
 } // namespace rive

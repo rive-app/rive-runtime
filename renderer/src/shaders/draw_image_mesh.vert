@@ -13,9 +13,10 @@ ATTR_BLOCK_END
 
 ATTR_BLOCK_BEGIN(ImageDrawAttrs)
 ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
-ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-     float4,
-     @a_imageDrawClipRectInverseMatrix);
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX, float4, @a_imageDrawClipRectInverseMatrix);
+// clang-format on
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
 ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
@@ -43,93 +44,94 @@ VARYING_BLOCK_END
 VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
-IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
-                       PositionAttr,
-                       position,
-                       UVAttr,
-                       uv,
-                       ImageDrawAttrs,
-                       imageDrawAttrs,
-                       _vertexID)
+IMAGE_MESH_VERTEX_MAIN(
+    @drawVertexMain,
+    PositionAttr,
+    position,
+    UVAttr,
+    uv,
+    ImageDrawAttrs,
+    imageDrawAttrs,
+    _vertexID)
 {
-    ATTR_UNPACK(_vertexID, position, @a_position, float2);
-    ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawViewMatrix, float4);
-    ATTR_UNPACK(_instanceID,
-                imageDrawAttrs,
-                @a_imageDrawClipRectInverseMatrix,
-                float4);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawModulatedColor, uint);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageMeshUVTransform, float4);
+  ATTR_UNPACK(_vertexID, position, @a_position, float2);
+  ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawViewMatrix, float4);
+  ATTR_UNPACK(
+      _instanceID,
+      imageDrawAttrs,
+      @a_imageDrawClipRectInverseMatrix,
+      float4);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawModulatedColor, uint);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
+  ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageMeshUVTransform, float4);
 
-    VARYING_INIT(v_imageTexCoord, float2);
-#ifdef @ENABLE_CLIPPING
-    VARYING_INIT(v_clipID, half);
-#endif
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
-    VARYING_INIT(v_clipRect, float4);
-#endif
-    VARYING_INIT(v_imageModulatedColor, half4);
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_INIT(v_imageBlendMode, ushort);
-#endif
+  VARYING_INIT(v_imageTexCoord, float2);
+  #ifdef @ENABLE_CLIPPING
+  VARYING_INIT(v_clipID, half);
+  #endif
+  #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
+  VARYING_INIT(v_clipRect, float4);
+  #endif
+  VARYING_INIT(v_imageModulatedColor, half4);
+  #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_INIT(v_imageBlendMode, ushort);
+  #endif
 
-    float2 vertexPosition =
-        MUL(make_float2x2(@a_imageDrawViewMatrix), @a_position) +
-        @a_imageDrawTranslates.xy;
-    v_imageTexCoord =
-        @a_texCoord * @a_imageMeshUVTransform.zw + @a_imageMeshUVTransform.xy;
-#ifdef @ENABLE_CLIPPING
-    if (@ENABLE_CLIPPING)
-    {
-        v_clipID =
-            id_bits_to_f16(@a_imageDrawClipID, uniforms.pathIDGranularity);
-    }
-#endif
-#ifdef @ENABLE_CLIP_RECT
-    if (@ENABLE_CLIP_RECT)
-    {
-#ifndef @RENDER_MODE_DEPTH_STENCIL
-        v_clipRect = find_clip_rect_coverage_distances(
-            make_float2x2(@a_imageDrawClipRectInverseMatrix),
-            @a_imageDrawTranslates.zw,
-            vertexPosition CLIP_CONTEXT_UNPACK);
-#else
-        set_clip_rect_plane_distances(
-            make_float2x2(@a_imageDrawClipRectInverseMatrix),
-            @a_imageDrawTranslates.zw,
-            vertexPosition CLIP_CONTEXT_UNPACK);
-#endif
-    }
-#endif // ENABLE_CLIP_RECT
-    float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-#ifdef @POST_INVERT_Y
-    pos.y = -pos.y;
-#endif
-#ifdef @RENDER_MODE_DEPTH_STENCIL
-    pos.z = packNormalizedDepth(@a_imageDrawZIndex, 0xffu);
-#endif
+  float2 vertexPosition = MUL(make_float2x2(@a_imageDrawViewMatrix),
+                              @a_position) +
+                          @a_imageDrawTranslates.xy;
+  v_imageTexCoord = @a_texCoord * @a_imageMeshUVTransform.zw +
+                    @a_imageMeshUVTransform.xy;
+  #ifdef @ENABLE_CLIPPING
+  if (@ENABLE_CLIPPING)
+  {
+    v_clipID = id_bits_to_f16(@a_imageDrawClipID, uniforms.pathIDGranularity);
+  }
+  #endif
+  #ifdef @ENABLE_CLIP_RECT
+  if (@ENABLE_CLIP_RECT)
+  {
+    #ifndef @RENDER_MODE_DEPTH_STENCIL
+    v_clipRect = find_clip_rect_coverage_distances(
+        make_float2x2(@a_imageDrawClipRectInverseMatrix),
+        @a_imageDrawTranslates.zw,
+        vertexPosition CLIP_CONTEXT_UNPACK);
+    #else
+    set_clip_rect_plane_distances(
+        make_float2x2(@a_imageDrawClipRectInverseMatrix),
+        @a_imageDrawTranslates.zw,
+        vertexPosition CLIP_CONTEXT_UNPACK);
+    #endif
+  }
+  #endif // ENABLE_CLIP_RECT
+  float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+  #ifdef @POST_INVERT_Y
+  pos.y = -pos.y;
+  #endif
+  #ifdef @RENDER_MODE_DEPTH_STENCIL
+  pos.z = packNormalizedDepth(@a_imageDrawZIndex, 0xffu);
+  #endif
 
-    v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);
-#ifdef @ENABLE_ADVANCED_BLEND
-    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawBlendMode);
-#endif
+  v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);
+  #ifdef @ENABLE_ADVANCED_BLEND
+  v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawBlendMode);
+  #endif
 
-    VARYING_PACK(v_imageTexCoord);
-#ifdef @ENABLE_CLIPPING
-    VARYING_PACK(v_clipID);
-#endif
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
-    VARYING_PACK(v_clipRect);
-#endif
-    VARYING_PACK(v_imageModulatedColor);
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_PACK(v_imageBlendMode);
-#endif
-    EMIT_VERTEX(pos);
+  VARYING_PACK(v_imageTexCoord);
+  #ifdef @ENABLE_CLIPPING
+  VARYING_PACK(v_clipID);
+  #endif
+  #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
+  VARYING_PACK(v_clipRect);
+  #endif
+  VARYING_PACK(v_imageModulatedColor);
+  #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_PACK(v_imageBlendMode);
+  #endif
+  EMIT_VERTEX(pos);
 }
 #endif

@@ -18,118 +18,126 @@ using namespace rive;
 
 void ViewModelInstanceViewModel::propertyValueChanged()
 {
-    addDirt(ComponentDirt::Bindings);
+  addDirt(ComponentDirt::Bindings);
 #ifdef WITH_RIVE_TOOLS
-    if (m_changedCallback != nullptr)
-    {
-        m_changedCallback(this);
-    }
+  if (m_changedCallback != nullptr)
+  {
+    m_changedCallback(this);
+  }
 #endif
-    onValueChanged();
+  onValueChanged();
 }
 
 void ViewModelInstanceViewModel::setRoot(rcp<ViewModelInstance> value)
 {
-    Super::setRoot(value);
-    if (m_referenceViewModelInstance)
-    {
-        m_referenceViewModelInstance->setRoot(value);
-    }
-}
-
-void ViewModelInstanceViewModel::advanced()
-{
-    if (m_referenceViewModelInstance != nullptr)
-    {
-        m_referenceViewModelInstance->advanced();
-    }
+  Super::setRoot(value);
+  if (m_referenceViewModelInstance)
+  {
+    m_referenceViewModelInstance->setRoot(value);
+  }
 }
 
 StatusCode ViewModelInstanceViewModel::import(ImportStack& importStack)
 {
-    auto status = Super::import(importStack);
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter != nullptr)
-    {
-
-        auto backboardImporter =
-            importStack.latest<BackboardImporter>(Backboard::typeKey);
-        if (backboardImporter == nullptr)
-        {
-            return StatusCode::MissingObject;
-        }
-        auto file = backboardImporter->file();
-        // Look for the referenced view model instance of this property
-        // In order to find it we need to go through some steps:
-        // - find the view model instance this property belongs to (O(1))
-        // - find the view model from which its an instance of (O(1))
-        // - find the view model property from which this is an instance of
-        // (O(1))
-        // - find the view model the property is referencing to (O(1))
-        // - find the specific instance this instance value is pointing to
-        // (O(1))
-        if (file)
-        {
-            auto viewModelInstanceImporter =
-                importStack.latest<ViewModelInstanceImporter>(
-                    ViewModelInstance::typeKey);
-            auto viewModelInstance =
-                viewModelInstanceImporter->viewModelInstance();
-            if (viewModelInstance)
-            {
-                auto viewModel =
-                    file->viewModel(viewModelInstance->viewModelId());
-                if (viewModel)
-                {
-                    auto viewModelProperty =
-                        viewModel->property(viewModelPropertyId());
-                    if (viewModelProperty != nullptr &&
-                        viewModelProperty->is<ViewModelPropertyViewModel>())
-                    {
-                        auto viewModelPropertyViewModel =
-                            viewModelProperty->as<ViewModelPropertyViewModel>();
-                        auto referencedViewModel = file->viewModel(
-                            viewModelPropertyViewModel->viewModelReferenceId());
-                        if (referencedViewModel)
-                        {
-                            auto instance =
-                                referencedViewModel->instance(propertyValue());
-                            if (instance)
-                            {
-                                referenceViewModelInstance(ref_rcp(instance));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
+  auto status = Super::import(importStack);
+  if (status != StatusCode::Ok)
+  {
+    // Super fails without a ViewModelInstanceImporter, which the lookup
+    // below dereferences.
     return status;
+  }
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter != nullptr)
+  {
+
+    auto backboardImporter = importStack.latest<BackboardImporter>(
+        Backboard::typeKey);
+    if (backboardImporter == nullptr)
+    {
+      return StatusCode::MissingObject;
+    }
+    auto file = backboardImporter->file();
+    // Look for the referenced view model instance of this property
+    // In order to find it we need to go through some steps:
+    // - find the view model instance this property belongs to (O(1))
+    // - find the view model from which its an instance of (O(1))
+    // - find the view model property from which this is an instance of
+    // (O(1))
+    // - find the view model the property is referencing to (O(1))
+    // - find the specific instance this instance value is pointing to
+    // (O(1))
+    if (file)
+    {
+      auto viewModelInstanceImporter = importStack
+                                           .latest<ViewModelInstanceImporter>(
+                                               ViewModelInstance::typeKey);
+      auto viewModelInstance = viewModelInstanceImporter->viewModelInstance();
+      if (viewModelInstance)
+      {
+        auto viewModel = file->viewModel(viewModelInstance->viewModelId());
+        if (viewModel)
+        {
+          auto viewModelProperty = viewModel->property(viewModelPropertyId());
+          if (viewModelProperty != nullptr &&
+              viewModelProperty->is<ViewModelPropertyViewModel>())
+          {
+            auto viewModelPropertyViewModel = viewModelProperty->as<
+                ViewModelPropertyViewModel>();
+            auto referencedViewModel = file->viewModel(
+                viewModelPropertyViewModel->viewModelReferenceId());
+            if (referencedViewModel)
+            {
+              auto instance = referencedViewModel->instance(propertyValue());
+              if (instance)
+              {
+                referenceViewModelInstance(ref_rcp(instance));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return status;
 }
 
 void ViewModelInstanceViewModel::updateViewModel(ViewModelInstance* value)
 {
-    // replaceViewModelByProperty notifies this property's value-dependents.
+  // replaceViewModelByProperty notifies this property's value-dependents.
+  if (m_viewModelInstance != nullptr)
+  {
     m_viewModelInstance->replaceViewModelByProperty(this, ref_rcp(value));
+  }
 }
 
 void ViewModelInstanceViewModel::applyValue(DataValueViewModel* dataValue)
 {
-    updateViewModel(dataValue->value());
+  updateViewModel(dataValue->value());
 }
 
 Core* ViewModelInstanceViewModel::clone() const
 {
-    ViewModelInstanceViewModel* cloned = ViewModelInstanceViewModelBase::clone()
-                                             ->as<ViewModelInstanceViewModel>();
-    if (m_referenceViewModelInstance)
-    {
-        auto clonedInstance = m_referenceViewModelInstance->clone();
-        cloned->referenceViewModelInstance(
-            rcp<ViewModelInstance>(clonedInstance->as<ViewModelInstance>()));
-        cloned->viewModelInstance(m_viewModelInstance);
-    }
-    return cloned;
+  ViewModelInstanceViewModel* cloned = ViewModelInstanceViewModelBase::clone()
+                                           ->as<ViewModelInstanceViewModel>();
+  if (m_referenceViewModelInstance)
+  {
+    auto clonedInstance = m_referenceViewModelInstance->clone();
+    cloned->referenceViewModelInstance(
+        rcp<ViewModelInstance>(clonedInstance->as<ViewModelInstance>()));
+    cloned->viewModelInstance(m_viewModelInstance);
+  }
+  return cloned;
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstanceViewModel::editorPrepareForDestruction()
+{
+  if (m_referenceViewModelInstance && m_parentViewModelInstance)
+    m_referenceViewModelInstance->removeParent(m_parentViewModelInstance);
+  m_parentViewModelInstance = nullptr;
+  m_referenceViewModelInstance = nullptr;
+  ViewModelInstanceValue::editorPrepareForDestruction();
+}
+
+#endif

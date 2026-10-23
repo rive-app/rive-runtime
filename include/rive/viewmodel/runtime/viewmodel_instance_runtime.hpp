@@ -30,83 +30,82 @@ class ViewModelInstanceRuntime : public RefCnt<ViewModelInstanceRuntime>
 {
 
 public:
-    ViewModelInstanceRuntime(rcp<ViewModelInstance> instance);
-    ~ViewModelInstanceRuntime();
+  ViewModelInstanceRuntime(rcp<ViewModelInstance> instance);
+  ~ViewModelInstanceRuntime();
 
-    const std::string& name() const;
-    const std::string& viewModelName() const;
-    size_t propertyCount() const;
-    ViewModelInstanceNumberRuntime* propertyNumber(
-        const std::string& path) const;
-    ViewModelInstanceStringRuntime* propertyString(
-        const std::string& path) const;
-    ViewModelInstanceBooleanRuntime* propertyBoolean(
-        const std::string& path) const;
-    ViewModelInstanceColorRuntime* propertyColor(const std::string& path) const;
-    ViewModelInstanceEnumRuntime* propertyEnum(const std::string& path) const;
-    ViewModelInstanceTriggerRuntime* propertyTrigger(
-        const std::string& path) const;
-    ViewModelInstanceListRuntime* propertyList(const std::string& path) const;
-    ViewModelInstanceListIndexRuntime* propertyListIndex(
-        const std::string& path) const;
-    rcp<ViewModelInstanceRuntime> propertyViewModel(
-        const std::string& path) const;
-    ViewModelInstanceAssetImageRuntime* propertyImage(
-        const std::string& path) const;
-    ViewModelInstanceAssetFontRuntime* propertyFont(
-        const std::string& path) const;
-    ViewModelInstanceAssetBlobRuntime* propertyBlob(
-        const std::string& path) const;
-    ViewModelInstanceArtboardRuntime* propertyArtboard(
-        const std::string& path) const;
-    bool replaceViewModel(const std::string& path,
-                          ViewModelInstanceRuntime* value) const;
-    bool replaceViewModelByName(const std::string& name,
-                                ViewModelInstanceRuntime* value) const;
-    ViewModelInstanceValueRuntime* property(const std::string& path) const;
-    rcp<ViewModelInstance> instance() { return m_viewModelInstance; };
-    std::vector<PropertyData> properties() const;
+  const std::string& name() const;
+  const std::string& viewModelName() const;
+  size_t propertyCount() const;
+  ViewModelInstanceNumberRuntime* propertyNumber(const std::string& path) const;
+  ViewModelInstanceStringRuntime* propertyString(const std::string& path) const;
+  ViewModelInstanceBooleanRuntime* propertyBoolean(
+      const std::string& path) const;
+  ViewModelInstanceColorRuntime* propertyColor(const std::string& path) const;
+  ViewModelInstanceEnumRuntime* propertyEnum(const std::string& path) const;
+  ViewModelInstanceTriggerRuntime* propertyTrigger(
+      const std::string& path) const;
+  ViewModelInstanceListRuntime* propertyList(const std::string& path) const;
+  ViewModelInstanceListIndexRuntime* propertyListIndex(
+      const std::string& path) const;
+  rcp<ViewModelInstanceRuntime> propertyViewModel(
+      const std::string& path) const;
+  ViewModelInstanceAssetImageRuntime* propertyImage(
+      const std::string& path) const;
+  ViewModelInstanceAssetFontRuntime* propertyFont(
+      const std::string& path) const;
+  ViewModelInstanceAssetBlobRuntime* propertyBlob(
+      const std::string& path) const;
+  ViewModelInstanceArtboardRuntime* propertyArtboard(
+      const std::string& path) const;
+  bool replaceViewModel(
+      const std::string& path,
+      ViewModelInstanceRuntime* value) const;
+  bool replaceViewModelByName(
+      const std::string& name,
+      ViewModelInstanceRuntime* value) const;
+  ViewModelInstanceValueRuntime* property(const std::string& path) const;
+  rcp<ViewModelInstance> instance() { return m_viewModelInstance; };
+  std::vector<PropertyData> properties() const;
 
 private:
-    rcp<ViewModelInstance> m_viewModelInstance = nullptr;
-    std::string getPropertyNameFromPath(const std::string& path) const;
-    const ViewModelInstanceRuntime* viewModelInstanceFromFullPath(
-        const std::string& path) const;
+  rcp<ViewModelInstance> m_viewModelInstance = nullptr;
+  std::string getPropertyNameFromPath(const std::string& path) const;
+  const ViewModelInstanceRuntime* viewModelInstanceFromFullPath(
+      const std::string& path) const;
 
-    mutable std::unordered_map<std::string, ViewModelInstanceValueRuntime*>
-        m_properties;
-    mutable std::unordered_map<std::string, rcp<ViewModelInstanceRuntime>>
-        m_viewModelInstances;
-    rcp<ViewModelInstance> viewModelInstanceProperty(
-        const std::string& name) const;
-    rcp<ViewModelInstanceRuntime> instanceRuntime(
-        const std::string& name) const;
-    ViewModelInstanceRuntime* viewModelInstanceAtPath(
-        const std::string& path) const;
-    template <typename T = ViewModelInstanceValue,
-              typename U = ViewModelInstanceValueRuntime>
-    U* getPropertyInstance(const std::string name) const
+  mutable std::unordered_map<std::string, ViewModelInstanceValueRuntime*>
+      m_properties;
+  mutable std::unordered_map<std::string, rcp<ViewModelInstanceRuntime>>
+      m_viewModelInstances;
+  rcp<ViewModelInstance> viewModelInstanceProperty(
+      const std::string& name) const;
+  rcp<ViewModelInstanceRuntime> instanceRuntime(const std::string& name) const;
+  ViewModelInstanceRuntime* viewModelInstanceAtPath(
+      const std::string& path) const;
+  template <
+      typename T = ViewModelInstanceValue,
+      typename U = ViewModelInstanceValueRuntime>
+  U* getPropertyInstance(const std::string name) const
+  {
+    auto itr = m_properties.find(name);
+    if (itr != m_properties.end())
     {
-        auto itr = m_properties.find(name);
-        if (itr != m_properties.end())
-        {
-            if (itr->second->viewModelInstanceValue() &&
-                itr->second->viewModelInstanceValue()->is<T>())
-            {
-                return static_cast<U*>(itr->second);
-            }
-            return nullptr;
-        }
-        auto viewModelInstanceValue = m_viewModelInstance->propertyValue(name);
-        if (viewModelInstanceValue != nullptr &&
-            viewModelInstanceValue->is<T>())
-        {
-            auto runtimeInstance = new U(viewModelInstanceValue->as<T>());
-            m_properties[name] = runtimeInstance;
-            return runtimeInstance;
-        }
-        return nullptr;
-    };
+      if (itr->second->viewModelInstanceValue() &&
+          itr->second->viewModelInstanceValue()->is<T>())
+      {
+        return static_cast<U*>(itr->second);
+      }
+      return nullptr;
+    }
+    auto viewModelInstanceValue = m_viewModelInstance->propertyValue(name);
+    if (viewModelInstanceValue != nullptr && viewModelInstanceValue->is<T>())
+    {
+      auto runtimeInstance = new U(viewModelInstanceValue->as<T>());
+      m_properties[name] = runtimeInstance;
+      return runtimeInstance;
+    }
+    return nullptr;
+  };
 };
 } // namespace rive
 #endif

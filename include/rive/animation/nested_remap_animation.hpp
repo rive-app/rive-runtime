@@ -7,9 +7,9 @@ namespace rive
 class NestedRemapAnimation : public NestedRemapAnimationBase
 {
 public:
-    void timeChanged() override;
-    bool advance(float elapsedSeconds, bool newFrame) override;
-    void initializeAnimation(ArtboardInstance*) override;
+  void timeChanged() override;
+  bool advance(float elapsedSeconds, bool newFrame) override;
+  void initializeAnimation(ArtboardInstance*) override;
 };
 } // namespace rive
 

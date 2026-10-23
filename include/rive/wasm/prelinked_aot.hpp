@@ -18,22 +18,23 @@ namespace rive
 
 struct PrelinkedAotModule
 {
-    // FNV-1a 64 of the wasm module bytes, matching WasmScriptingVM's key.
-    uint64_t moduleKey;
-    // The full .aot container; metadata sections are read from here.
-    const uint8_t* aot;
-    size_t aotSize;
-    // The linked, executable copy of the container's text payload.
-    const uint8_t* text;
-    size_t textSize;
-    // Byte length of the wasm module the key was computed from; checked at
-    // lookup so a hash collision cannot select the wrong module's code.
-    size_t wasmSize;
+  // FNV-1a 64 of the wasm module bytes, matching WasmScriptingVM's key.
+  uint64_t moduleKey;
+  // The full .aot container; metadata sections are read from here.
+  const uint8_t* aot;
+  size_t aotSize;
+  // The linked, executable copy of the container's text payload.
+  const uint8_t* text;
+  size_t textSize;
+  // Byte length of the wasm module the key was computed from; checked at
+  // lookup so a hash collision cannot select the wrong module's code.
+  size_t wasmSize;
 };
 
 void registerPrelinkedAotModule(const PrelinkedAotModule& module);
-const PrelinkedAotModule* findPrelinkedAotModule(uint64_t moduleKey,
-                                                 size_t wasmSize);
+const PrelinkedAotModule* findPrelinkedAotModule(
+    uint64_t moduleKey,
+    size_t wasmSize);
 
 } // namespace rive
 

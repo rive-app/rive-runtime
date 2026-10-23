@@ -17,41 +17,42 @@ class Factory;
 class RelativeLocalAssetLoader : public FileAssetLoader
 {
 private:
-    std::string m_Path;
+  std::string m_Path;
 
 public:
-    RelativeLocalAssetLoader(std::string filename)
-    {
-        std::size_t finalSlash = filename.rfind('/');
+  RelativeLocalAssetLoader(std::string filename)
+  {
+    std::size_t finalSlash = filename.rfind('/');
 
-        if (finalSlash != std::string::npos)
-        {
-            m_Path = filename.substr(0, finalSlash + 1);
-        }
+    if (finalSlash != std::string::npos)
+    {
+      m_Path = filename.substr(0, finalSlash + 1);
+    }
+  }
+
+  bool loadContents(
+      FileAsset& asset,
+      Span<const uint8_t> inBandBytes,
+      rive::Factory* factory) override
+  {
+    std::string filename = m_Path + asset.uniqueFilename();
+    FILE* fp = fopen(filename.c_str(), "rb");
+    if (fp == nullptr)
+    {
+      fprintf(stderr, "Failed to find file at %s\n", filename.c_str());
+      return false;
     }
 
-    bool loadContents(FileAsset& asset,
-                      Span<const uint8_t> inBandBytes,
-                      rive::Factory* factory) override
+    fseek(fp, 0, SEEK_END);
+    const size_t length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    SimpleArray<uint8_t> bytes(length);
+    if (fread(bytes.data(), 1, length, fp) == length)
     {
-        std::string filename = m_Path + asset.uniqueFilename();
-        FILE* fp = fopen(filename.c_str(), "rb");
-        if (fp == nullptr)
-        {
-            fprintf(stderr, "Failed to find file at %s\n", filename.c_str());
-            return false;
-        }
-
-        fseek(fp, 0, SEEK_END);
-        const size_t length = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        SimpleArray<uint8_t> bytes(length);
-        if (fread(bytes.data(), 1, length, fp) == length)
-        {
-            asset.decode(bytes, factory);
-        }
-        return true;
+      asset.decode(bytes, factory);
     }
+    return true;
+  }
 };
 } // namespace rive
 #endif

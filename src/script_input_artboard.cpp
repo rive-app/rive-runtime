@@ -9,131 +9,133 @@ using namespace rive;
 
 ScriptInputArtboard::~ScriptInputArtboard()
 {
-    auto obj = scriptedObject();
-    if (obj != nullptr)
-    {
-        obj->removeProperty(this);
-    }
-    m_referencedArtboard = nullptr;
+  auto obj = scriptedObject();
+  if (obj != nullptr)
+  {
+    obj->removeProperty(this);
+  }
+  m_referencedArtboard = nullptr;
 }
 
 StatusCode ScriptInputArtboard::import(ImportStack& importStack)
 {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    auto importer =
-        importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
-    if (importer == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    importer->addInput(this);
+  auto backboardImporter = importStack.latest<BackboardImporter>(
+      Backboard::typeKey);
+  if (backboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  auto importer = ScriptInput::ownerImporter(importStack, this);
+  if (importer == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  importer->addInput(this);
 
-    auto obj = scriptedObject();
-    if (obj && obj->component() != nullptr)
+  auto obj = scriptedObject();
+  if (obj && obj->component() != nullptr)
+  {
+    // If the ScriptedObject is a Component, this input is an artboard
+    // child (File::readObjects gave it a slot, see takesArtboardSlot), so
+    // import it as a Component, otherwise, return Ok
+    StatusCode code = Super::import(importStack);
+    if (code != StatusCode::Ok)
     {
-        // If the ScriptedObject is a Component, we need the ArtboardImporter
-        // to add it as a Component, otherwise, return Ok
-        StatusCode code = Super::import(importStack);
-        if (code != StatusCode::Ok)
-        {
-            return code;
-        }
+      return code;
     }
-    // Registered last, and only once this object is certain to survive.
-    backboardImporter->addArtboardReferencer(this);
-    return StatusCode::Ok;
+  }
+  // Registered last, and only once this object is certain to survive.
+  backboardImporter->addArtboardReferencer(this);
+  return StatusCode::Ok;
 }
 
 void ScriptInputArtboard::initScriptedValue()
 {
-    ScriptInput::initScriptedValue();
-    syncReferencedArtboard();
+  ScriptInput::initScriptedValue();
+  syncReferencedArtboard();
 }
 
 bool ScriptInputArtboard::validateForColdScriptInit() { return true; }
 
 bool ScriptInputArtboard::validateHydrationPrerequisites()
 {
-    return m_referencedArtboard != nullptr;
+  return m_referencedArtboard != nullptr;
 }
 
 bool ScriptInputArtboard::hydrateScriptInput()
 {
-    initScriptedValue();
-    return m_referencedArtboard != nullptr;
+  initScriptedValue();
+  return m_referencedArtboard != nullptr;
 }
 
 void ScriptInputArtboard::syncReferencedArtboard()
 {
 
-    if (m_referencedArtboard == nullptr)
-    {
-        return;
-    }
-    auto obj = scriptedObject();
-    if (obj)
-    {
-        obj->setArtboardInput(name(), m_referencedArtboard);
-    }
+  if (m_referencedArtboard == nullptr)
+  {
+    return;
+  }
+  auto obj = scriptedObject();
+  if (obj)
+  {
+    obj->setArtboardInput(name(), m_referencedArtboard);
+  }
 }
 
 StatusCode ScriptInputArtboard::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    auto p = parent();
-    if (p != nullptr)
+  auto p = parent();
+  if (p != nullptr)
+  {
+    auto scriptedObj = ScriptedObject::from(p);
+    if (scriptedObj != nullptr)
     {
-        auto scriptedObj = ScriptedObject::from(p);
-        if (scriptedObj != nullptr)
-        {
-            scriptedObj->addProperty(this);
-        }
+      scriptedObj->addProperty(this);
     }
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 Core* ScriptInputArtboard::clone() const
 {
-    ScriptInputArtboard* twin =
-        ScriptInputArtboardBase::clone()->as<ScriptInputArtboard>();
-    if (m_referencedArtboard != nullptr)
-    {
-        twin->referencedArtboard(m_referencedArtboard);
-        twin->file(m_file);
-    }
-    return twin;
+  ScriptInputArtboard* twin = ScriptInputArtboardBase::clone()
+                                  ->as<ScriptInputArtboard>();
+  if (m_referencedArtboard != nullptr)
+  {
+    twin->referencedArtboard(m_referencedArtboard);
+    twin->file(m_file);
+  }
+  return twin;
 }
 
 void ScriptInputArtboard::artboardIdChanged()
 {
-    if (m_file)
-    {
-        m_referencedArtboard = m_file->artboard(artboardId());
-        syncReferencedArtboard();
-    }
+  if (m_file)
+  {
+    m_referencedArtboard = m_file->artboard(artboardId());
+    syncReferencedArtboard();
+  }
 }
 
 void ScriptInputArtboard::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
-    auto referencedArtboard =
-        findArtboard(viewModelInstanceArtboard, artboard(), m_file);
-    if (referencedArtboard)
-    {
-        m_referencedArtboard = referencedArtboard;
-        syncReferencedArtboard();
-    }
+  auto referencedArtboard = findArtboard(
+      viewModelInstanceArtboard,
+      artboard(),
+      m_file);
+  if (referencedArtboard)
+  {
+    m_referencedArtboard = referencedArtboard;
+    syncReferencedArtboard();
+  }
 }
 
 int ScriptInputArtboard::referencedArtboardId() { return artboardId(); }

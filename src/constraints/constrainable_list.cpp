@@ -7,18 +7,20 @@ using namespace rive;
 
 ConstrainableList* ConstrainableList::from(Component* component)
 {
-    switch (component->coreType())
-    {
-        case ArtboardComponentListBase::typeKey:
-            return component->as<ArtboardComponentList>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case ArtboardComponentListBase::typeKey:
+      return component->as<ArtboardComponentList>();
+  }
+  return nullptr;
 }
 
 void ConstrainableList::addListConstraint(ListConstraint* constraint)
 {
-    assert(std::find(m_listConstraints.begin(),
-                     m_listConstraints.end(),
-                     constraint) == m_listConstraints.end());
-    m_listConstraints.push_back(constraint);
+  assert(
+      std::find(
+          m_listConstraints.begin(),
+          m_listConstraints.end(),
+          constraint) == m_listConstraints.end());
+  m_listConstraints.push_back(constraint);
 }

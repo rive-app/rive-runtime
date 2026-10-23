@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CustomPropertyGroupBase::clone() const
 {
-    auto cloned = new CustomPropertyGroup();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new CustomPropertyGroup();
+  cloned->copy(*this);
+  return cloned;
 }

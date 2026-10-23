@@ -28,335 +28,332 @@ namespace rive::gpu
 {
 BackgroundShaderCompiler::~BackgroundShaderCompiler()
 {
-    if (m_compilerThread.joinable())
+  if (m_compilerThread.joinable())
+  {
     {
-        {
-            std::lock_guard lock(m_mutex);
-            m_shouldQuit = true;
-        }
-
-        m_workAddedCondition.notify_all();
-        m_compilerThread.join();
+      std::lock_guard lock(m_mutex);
+      m_shouldQuit = true;
     }
+
+    m_workAddedCondition.notify_all();
+    m_compilerThread.join();
+  }
 }
 
 void BackgroundShaderCompiler::pushJob(const BackgroundCompileJob& job)
 {
+  {
+    std::lock_guard lock(m_mutex);
+    if (!m_compilerThread.joinable())
     {
-        std::lock_guard lock(m_mutex);
-        if (!m_compilerThread.joinable())
-        {
-            m_compilerThread =
-                std::thread(&BackgroundShaderCompiler::threadMain, this);
-        }
-        m_pendingJobs.push(std::move(job));
+      m_compilerThread = std::thread(
+          &BackgroundShaderCompiler::threadMain, this);
     }
-    m_workAddedCondition.notify_all();
+    m_pendingJobs.push(std::move(job));
+  }
+  m_workAddedCondition.notify_all();
 }
 
-bool BackgroundShaderCompiler::popFinishedJob(BackgroundCompileJob* job,
-                                              bool wait)
+bool BackgroundShaderCompiler::popFinishedJob(
+    BackgroundCompileJob* job, bool wait)
 {
-    std::unique_lock lock(m_mutex);
-    while (m_finishedJobs.empty())
+  std::unique_lock lock(m_mutex);
+  while (m_finishedJobs.empty())
+  {
+    if (!wait)
     {
-        if (!wait)
-        {
-            return false;
-        }
-        m_workFinishedCondition.wait(lock);
+      return false;
     }
-    *job = std::move(m_finishedJobs.back());
-    m_finishedJobs.pop_back();
-    return true;
+    m_workFinishedCondition.wait(lock);
+  }
+  *job = std::move(m_finishedJobs.back());
+  m_finishedJobs.pop_back();
+  return true;
 }
 
 void BackgroundShaderCompiler::threadMain()
 {
-    BackgroundCompileJob job;
-    std::unique_lock lock(m_mutex);
-    for (;;)
+  BackgroundCompileJob job;
+  std::unique_lock lock(m_mutex);
+  for (;;)
+  {
+    while (m_pendingJobs.empty() && !m_shouldQuit)
     {
-        while (m_pendingJobs.empty() && !m_shouldQuit)
-        {
-            m_workAddedCondition.wait(lock);
-        }
+      m_workAddedCondition.wait(lock);
+    }
 
-        if (m_shouldQuit)
-        {
-            return;
-        }
+    if (m_shouldQuit)
+    {
+      return;
+    }
 
-        job = std::move(m_pendingJobs.front());
-        m_pendingJobs.pop();
+    job = std::move(m_pendingJobs.front());
+    m_pendingJobs.pop();
 
-        lock.unlock();
+    lock.unlock();
 
-        gpu::DrawType drawType = job.drawType;
-        gpu::ShaderFeatures shaderFeatures = job.shaderFeatures;
-        gpu::InterlockMode interlockMode = job.interlockMode;
-        gpu::ShaderMiscFlags shaderMiscFlags = job.shaderMiscFlags;
+    gpu::DrawType drawType = job.drawType;
+    gpu::ShaderFeatures shaderFeatures = job.shaderFeatures;
+    gpu::InterlockMode interlockMode = job.interlockMode;
+    gpu::ShaderMiscFlags shaderMiscFlags = job.shaderMiscFlags;
 
-        auto defines = [[NSMutableDictionary alloc] init];
-        defines[@GLSL_VERTEX] = @"";
-        defines[@GLSL_FRAGMENT] = @"";
-        for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
-        {
-            const auto feature = ShaderFeatures(1 << i);
-            if (enums::is_flag_set(shaderFeatures, feature))
-            {
-                const char* macro = gpu::GetShaderFeatureGLSLName(feature);
-                defines[[NSString stringWithUTF8String:macro]] = @"1";
-            }
-        }
-        if (interlockMode == gpu::InterlockMode::atomics)
-        {
-            // Atomic mode uses device buffers instead of framebuffer fetches.
-            defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
-            if (m_metalFeatures.atomicBarrierType ==
-                AtomicBarrierType::rasterOrderGroup)
-            {
-                defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
-            }
-            if (enums::is_flag_set(
-                    shaderMiscFlags,
-                    gpu::ShaderMiscFlags::fixedFunctionColorOutput))
-            {
-                defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
-            }
-        }
-        if (enums::is_flag_set(shaderMiscFlags,
-                               gpu::ShaderMiscFlags::clockwiseFill))
-        {
-            defines[@GLSL_CLOCKWISE_FILL] = @"1";
-        }
+    auto defines = [[NSMutableDictionary alloc] init];
+    defines[@GLSL_VERTEX] = @"";
+    defines[@GLSL_FRAGMENT] = @"";
+    for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
+    {
+      const auto feature = ShaderFeatures(1 << i);
+      if (enums::is_flag_set(shaderFeatures, feature))
+      {
+        const char* macro = gpu::GetShaderFeatureGLSLName(feature);
+        defines[[NSString stringWithUTF8String:macro]] = @"1";
+      }
+    }
+    if (interlockMode == gpu::InterlockMode::atomics)
+    {
+      // Atomic mode uses device buffers instead of framebuffer fetches.
+      defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
+      if (m_metalFeatures.atomicBarrierType ==
+          AtomicBarrierType::rasterOrderGroup)
+      {
+        defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
+      }
+      if (enums::is_flag_set(
+              shaderMiscFlags, gpu::ShaderMiscFlags::fixedFunctionColorOutput))
+      {
+        defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
+      }
+    }
+    if (enums::is_flag_set(
+            shaderMiscFlags, gpu::ShaderMiscFlags::clockwiseFill))
+    {
+      defines[@GLSL_CLOCKWISE_FILL] = @"1";
+    }
 
-        auto source =
-            [[NSMutableString alloc] initWithCString:gpu::glsl::metal
-                                            encoding:NSUTF8StringEncoding];
-        [source appendFormat:@"%s\n%s\n%s\n",
-                             gpu::glsl::constants,
-                             gpu::glsl::flush_uniforms,
-                             gpu::glsl::common];
-        if (enums::is_flag_set(shaderFeatures,
-                               ShaderFeatures::ENABLE_ADVANCED_BLEND))
-        {
-            [source appendFormat:@"%s\n", gpu::glsl::advanced_blend];
-        }
+    auto source = [[NSMutableString alloc]
+        initWithCString:gpu::glsl::metal
+               encoding:NSUTF8StringEncoding];
+    [source appendFormat:@"%s\n%s\n%s\n",
+                         gpu::glsl::constants,
+                         gpu::glsl::flush_uniforms,
+                         gpu::glsl::common];
+    if (enums::is_flag_set(
+            shaderFeatures, ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    {
+      [source appendFormat:@"%s\n", gpu::glsl::advanced_blend];
+    }
 
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-                // Add baseInstance to the instanceID for path draws.
-                defines[@GLSL_ENABLE_INSTANCE_INDEX] = @"";
-                defines[@GLSL_DRAW_PATH] = @"";
-                break;
-            case DrawType::interiorTriangulation:
-                defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
-                break;
-            case DrawType::featherAtlasBlit:
-                defines[@GLSL_FEATHER_ATLAS_BLIT] = @"1";
-                break;
-            case DrawType::imageRect:
+    switch (drawType)
+    {
+      case DrawType::midpointFanPatches:
+      case DrawType::midpointFanCenterAAPatches:
+      case DrawType::outerCurvePatches:
+        // Add baseInstance to the instanceID for path draws.
+        defines[@GLSL_ENABLE_INSTANCE_INDEX] = @"";
+        defines[@GLSL_DRAW_PATH] = @"";
+        break;
+      case DrawType::interiorTriangulation:
+        defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
+        break;
+      case DrawType::featherAtlasBlit:
+        defines[@GLSL_FEATHER_ATLAS_BLIT] = @"1";
+        break;
+      case DrawType::imageRect:
 #ifdef RIVE_IOS
-                RIVE_UNREACHABLE();
+        RIVE_UNREACHABLE();
 #else
-                assert(interlockMode == InterlockMode::atomics);
-                defines[@GLSL_DRAW_IMAGE] = @"";
-                defines[@GLSL_DRAW_IMAGE_RECT] = @"";
+        assert(interlockMode == InterlockMode::atomics);
+        defines[@GLSL_DRAW_IMAGE] = @"";
+        defines[@GLSL_DRAW_IMAGE_RECT] = @"";
 #endif
-                break;
-            case DrawType::imageMesh:
-                defines[@GLSL_DRAW_IMAGE] = @"";
-                defines[@GLSL_DRAW_IMAGE_MESH] = @"";
-                break;
-            case DrawType::renderPassInitialize:
+        break;
+      case DrawType::imageMesh:
+        defines[@GLSL_DRAW_IMAGE] = @"";
+        defines[@GLSL_DRAW_IMAGE_MESH] = @"";
+        break;
+      case DrawType::renderPassInitialize:
 #ifdef RIVE_IOS
-                RIVE_UNREACHABLE();
+        RIVE_UNREACHABLE();
 #else
-                assert(interlockMode == InterlockMode::atomics);
-                defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
-                defines[@GLSL_INITIALIZE_PLS] = @"";
-                if (enums::is_flag_set(shaderMiscFlags,
-                                       gpu::ShaderMiscFlags::storeColorClear))
-                {
-                    // Define this as "true" instead of an empty string because
-                    // it's a specialization constant in some backends and gets
-                    // branched on at runtime.
-                    defines[@GLSL_STORE_COLOR_CLEAR] = @"true";
-                }
-                // Metal copies the render target directly to the storage buffer
-                // instead of seeding it with the shader.
-                assert(!enums::is_flag_set(
-                    shaderMiscFlags,
-                    gpu::ShaderMiscFlags::loadColorFromDstTexture));
-                if (enums::is_flag_set(
-                        shaderMiscFlags,
-                        gpu::ShaderMiscFlags::swizzleColorBGRAToRGBA))
-                {
-                    defines[@GLSL_SWIZZLE_COLOR_BGRA_TO_RGBA] = @"";
-                }
-#endif
-                break;
-            case DrawType::renderPassResolve:
-#ifdef RIVE_IOS
-                RIVE_UNREACHABLE();
-#else
-                assert(interlockMode == InterlockMode::atomics);
-                defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
-                defines[@GLSL_RESOLVE_PLS] = @"";
-                if (enums::is_flag_set(
-                        shaderMiscFlags,
-                        gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
-                {
-                    defines[@GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER] = @"";
-                }
-#endif
-                break;
-            case DrawType::depthStrokes:
-            case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilDynamicMidpointFans:
-            case DrawType::stencilDynamicOuterCubics:
-            case DrawType::stencilMidpointFans:
-            case DrawType::stencilMidpointFanReset:
-            case DrawType::stencilMidpointFanWinding:
-            case DrawType::stencilMidpointFanCover:
-            case DrawType::stencilOuterCubicBorrowedCoverage:
-            case DrawType::stencilOuterCubicReset:
-            case DrawType::stencilOuterCubicWinding:
-            case DrawType::stencilOuterCubicCover:
-            case DrawType::stencilOuterCubics:
-            case DrawType::clipReset:
-                RIVE_UNREACHABLE();
+        assert(interlockMode == InterlockMode::atomics);
+        defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
+        defines[@GLSL_INITIALIZE_PLS] = @"";
+        if (enums::is_flag_set(
+                shaderMiscFlags, gpu::ShaderMiscFlags::storeColorClear))
+        {
+          // Define this as "true" instead of an empty string because
+          // it's a specialization constant in some backends and gets
+          // branched on at runtime.
+          defines[@GLSL_STORE_COLOR_CLEAR] = @"true";
         }
+        // Metal copies the render target directly to the storage buffer
+        // instead of seeding it with the shader.
+        assert(!enums::is_flag_set(
+            shaderMiscFlags, gpu::ShaderMiscFlags::loadColorFromDstTexture));
+        if (enums::is_flag_set(
+                shaderMiscFlags, gpu::ShaderMiscFlags::swizzleColorBGRAToRGBA))
+        {
+          defines[@GLSL_SWIZZLE_COLOR_BGRA_TO_RGBA] = @"";
+        }
+#endif
+        break;
+      case DrawType::renderPassResolve:
+#ifdef RIVE_IOS
+        RIVE_UNREACHABLE();
+#else
+        assert(interlockMode == InterlockMode::atomics);
+        defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
+        defines[@GLSL_RESOLVE_PLS] = @"";
+        if (enums::is_flag_set(
+                shaderMiscFlags,
+                gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
+        {
+          defines[@GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER] = @"";
+        }
+#endif
+        break;
+      case DrawType::stencilMidpointFanBorrowedCoverage:
+      case DrawType::stencilDynamicMidpointFans:
+      case DrawType::stencilDynamicOuterCubics:
+      case DrawType::stencilMidpointFans:
+      case DrawType::stencilMidpointFanReset:
+      case DrawType::stencilMidpointFanWinding:
+      case DrawType::stencilMidpointFanCover:
+      case DrawType::stencilOuterCubicBorrowedCoverage:
+      case DrawType::stencilOuterCubicReset:
+      case DrawType::stencilOuterCubicWinding:
+      case DrawType::stencilOuterCubicCover:
+      case DrawType::stencilOuterCubics:
+      case DrawType::clipReset:
+      case DrawType::depthStrokes:
+      case DrawType::depthAAStrokes:
+      case DrawType::depthAAOuterHairline:
+        RIVE_UNREACHABLE();
+    }
 
 #ifndef RIVE_IOS
-        if (interlockMode == gpu::InterlockMode::atomics)
-        {
-            [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
-            [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
-            [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
-        }
-        else
-#endif
-        {
-            assert(interlockMode == gpu::InterlockMode::rasterOrdering);
-            switch (drawType)
-            {
-                case DrawType::midpointFanPatches:
-                case DrawType::midpointFanCenterAAPatches:
-                case DrawType::outerCurvePatches:
-                case DrawType::interiorTriangulation:
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
-                    [source appendFormat:@"%s\n",
-                                         gpu::glsl::gradient_packing_common];
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
-                    [source
-                        appendFormat:@"%s\n",
-                                     gpu::glsl::draw_raster_order_path_frag];
-                    break;
-                case DrawType::featherAtlasBlit:
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
-                    [source appendFormat:@"%s\n",
-                                         gpu::glsl::gradient_packing_common];
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
-                    break;
-                case DrawType::imageMesh:
-                    [source
-                        appendFormat:@"%s\n", gpu::glsl::draw_image_mesh_vert];
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
-                    break;
-                case DrawType::imageRect:
-                case DrawType::depthStrokes:
-                case DrawType::stencilMidpointFanBorrowedCoverage:
-                case DrawType::stencilDynamicMidpointFans:
-                case DrawType::stencilDynamicOuterCubics:
-                case DrawType::stencilMidpointFans:
-                case DrawType::stencilMidpointFanReset:
-                case DrawType::stencilMidpointFanWinding:
-                case DrawType::stencilMidpointFanCover:
-                case DrawType::stencilOuterCubicBorrowedCoverage:
-                case DrawType::stencilOuterCubicReset:
-                case DrawType::stencilOuterCubicWinding:
-                case DrawType::stencilOuterCubicCover:
-                case DrawType::stencilOuterCubics:
-                case DrawType::clipReset:
-                case DrawType::renderPassInitialize:
-                case DrawType::renderPassResolve:
-                    RIVE_UNREACHABLE();
-            }
-        }
-
-        NSError* err = nil;
-        MTLCompileOptions* compileOptions = [MTLCompileOptions new];
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
-        compileOptions.languageVersion =
-            MTLLanguageVersion2_2; // On ios, we need version 2.2+
-#else
-        compileOptions.languageVersion =
-            MTLLanguageVersion2_3; // On mac, we need version 2.3+
-#endif
-        compileOptions.fastMathEnabled = YES;
-        if (@available(iOS 14, *))
-        {
-            compileOptions.preserveInvariance = YES;
-        }
-        compileOptions.preprocessorMacros = defines;
-#ifdef WITH_RIVE_TOOLS
-        if (job.synthesizedFailureType ==
-            SynthesizedFailureType::shaderCompilation)
-        {
-            assert(job.compiledLibrary == nil);
-        }
-        else
-#endif
-        {
-            job.compiledLibrary = [m_gpu newLibraryWithSource:source
-                                                      options:compileOptions
-                                                        error:&err];
-        }
-
-        lock.lock();
-
-        if (err != nil || job.compiledLibrary == nil)
-        {
-#ifdef WITH_RIVE_TOOLS
-            if (job.synthesizedFailureType ==
-                SynthesizedFailureType::shaderCompilation)
-            {
-                NSLog(@"RIVE: Synthesizing shader compilation failure...");
-            }
-            else
-#endif
-            {
-                // The compile job failed, most likely to external environmental
-                // factors. Give up on this shader and let the render context
-                // fall back on an uber shader instead.
-                int lineNumber = 1;
-                std::stringstream stream(source.UTF8String);
-                std::string lineStr;
-                while (std::getline(stream, lineStr, '\n'))
-                {
-                    NSLog(@"RIVE: %4i| %s", lineNumber++, lineStr.c_str());
-                }
-                NSLog(@"RIVE: Shader compilation error: %@",
-                      err != nil ? err.localizedDescription : @"<nil>");
-            }
-
-            NSLog(@"RIVE: Failed to compile shader.");
-            assert(false
-#ifdef WITH_RIVE_TOOLS
-                   || job.synthesizedFailureType ==
-                          SynthesizedFailureType::shaderCompilation
-#endif
-            );
-        }
-
-        m_finishedJobs.push_back(std::move(job));
-        m_workFinishedCondition.notify_all();
+    if (interlockMode == gpu::InterlockMode::atomics)
+    {
+      [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+      [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
+      [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
     }
+    else
+#endif
+    {
+      assert(interlockMode == gpu::InterlockMode::rasterOrdering);
+      switch (drawType)
+      {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+          [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_raster_order_path_frag];
+          break;
+        case DrawType::featherAtlasBlit:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+          [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
+          break;
+        case DrawType::imageMesh:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_image_mesh_vert];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
+          break;
+        case DrawType::imageRect:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
+          RIVE_UNREACHABLE();
+      }
+    }
+
+    NSError* err = nil;
+    MTLCompileOptions* compileOptions = [MTLCompileOptions new];
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+    compileOptions.languageVersion = MTLLanguageVersion2_2; // On ios, we need
+                                                            // version 2.2+
+#else
+    compileOptions.languageVersion = MTLLanguageVersion2_3; // On mac, we need
+                                                            // version 2.3+
+#endif
+    compileOptions.fastMathEnabled = YES;
+    if (@available(iOS 14, *))
+    {
+      compileOptions.preserveInvariance = YES;
+    }
+    compileOptions.preprocessorMacros = defines;
+#ifdef WITH_RIVE_TOOLS
+    if (job.synthesizedFailureType == SynthesizedFailureType::shaderCompilation)
+    {
+      assert(job.compiledLibrary == nil);
+    }
+    else
+#endif
+    {
+      job.compiledLibrary = [m_gpu newLibraryWithSource:source
+                                                options:compileOptions
+                                                  error:&err];
+    }
+
+    lock.lock();
+
+    if (err != nil || job.compiledLibrary == nil)
+    {
+#ifdef WITH_RIVE_TOOLS
+      if (job.synthesizedFailureType ==
+          SynthesizedFailureType::shaderCompilation)
+      {
+        NSLog(@"RIVE: Synthesizing shader compilation failure...");
+      }
+      else
+#endif
+      {
+        // The compile job failed, most likely to external environmental
+        // factors. Give up on this shader and let the render context
+        // fall back on an uber shader instead.
+        int lineNumber = 1;
+        std::stringstream stream(source.UTF8String);
+        std::string lineStr;
+        while (std::getline(stream, lineStr, '\n'))
+        {
+          NSLog(@"RIVE: %4i| %s", lineNumber++, lineStr.c_str());
+        }
+        NSLog(
+            @"RIVE: Shader compilation error: %@",
+            err != nil ? err.localizedDescription : @"<nil>");
+      }
+
+      NSLog(@"RIVE: Failed to compile shader.");
+      assert(
+          false
+#ifdef WITH_RIVE_TOOLS
+          || job.synthesizedFailureType ==
+                 SynthesizedFailureType::shaderCompilation
+#endif
+      );
+    }
+
+    m_finishedJobs.push_back(std::move(job));
+    m_workFinishedCondition.notify_all();
+  }
 }
 } // namespace rive::gpu

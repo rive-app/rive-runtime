@@ -15,17 +15,17 @@ class ViewModelInstanceSymbolListIndex
     : public ViewModelInstanceSymbolListIndexBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelSymbolListIndexChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelSymbolListIndexChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelSymbolListIndexChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelSymbolListIndexChanged m_changedCallback = nullptr;
 #endif
-    void applyValue(DataValueInteger*);
+  void applyValue(DataValueInteger*);
 };
 } // namespace rive
 

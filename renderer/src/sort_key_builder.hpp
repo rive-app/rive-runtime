@@ -21,13 +21,13 @@ namespace rive::gpu
 // order is set at SortKeyBuilder construction time.
 enum class SortEntry
 {
-    blendMode,
-    drawContents,
-    drawGroup,
-    drawType,
-    scissorID,
-    subpassIndex,
-    textureHash,
+  blendMode,
+  drawContents,
+  drawGroup,
+  drawType,
+  scissorID,
+  subpassIndex,
+  textureHash,
 };
 constexpr uint32_t SORT_ENTRY_COUNT = 7;
 
@@ -40,9 +40,9 @@ inline void FailConstexpr(const char* message)
 {
 // the unit tests declare this macro so we can catch test failures more cleanly.
 #ifdef TESTING_ASSERT
-    TESTING_ASSERT(false, message);
+  TESTING_ASSERT(false, message);
 #else
-    assert(false && message);
+  assert(false && message);
 #endif
 }
 } // namespace internal
@@ -51,18 +51,18 @@ inline void FailConstexpr(const char* message)
 // condition is false (regardless of whether asserts are enabled or not)
 // This will work like an assert at runtime.
 #define RIVE_CONSTEXPR_CHECK(v, message)                                       \
-    do                                                                         \
+  do                                                                           \
+  {                                                                            \
+    if (!(v))                                                                  \
     {                                                                          \
-        if (!(v))                                                              \
-        {                                                                      \
-            internal::FailConstexpr(message);                                  \
-        }                                                                      \
-    } while (false)
+      internal::FailConstexpr(message);                                        \
+    }                                                                          \
+  } while (false)
 
 enum class ValidateKeyEntry : bool
 {
-    no,
-    yes,
+  no,
+  yes,
 };
 
 // Helper class to build the draw sort key for the render context. It is
@@ -72,145 +72,147 @@ enum class ValidateKeyEntry : bool
 class SortKeyBuilder
 {
 public:
-    struct Initializer
+  struct Initializer
+  {
+    SortEntry entry;
+    uint32_t bitCount;
+  };
+
+  struct Value
+  {
+    // Allow constructing a Value with any type (that can cast to uint64_t)
+    template <typename T>
+    constexpr Value(
+        SortEntry e,
+        T v,
+        ValidateKeyEntry vk = ValidateKeyEntry::yes)
+        : entry(e)
+        , value(uint64_t(v))
+        , validate(vk)
+    {}
+
+    SortEntry entry;
+    uint64_t value;
+    ValidateKeyEntry validate;
+  };
+
+  constexpr SortKeyBuilder(const std::initializer_list<Initializer>& init)
+  {
+    std::array<bool, SORT_ENTRY_COUNT> isSpecified{};
+    uint32_t currentBitCount = 0;
+
+    // These are in priority order so iterate from last to first (the lowest
+    // priority bits are shifted the least)
+    for (auto iter = rbegin(init); iter != rend(init); ++iter)
     {
-        SortEntry entry;
-        uint32_t bitCount;
-    };
+      auto& e = *iter;
+      auto i = int(e.entry);
+      RIVE_CONSTEXPR_CHECK(!isSpecified[i], "SortEntry specified twice");
+      isSpecified[i] = true;
 
-    struct Value
-    {
-        // Allow constructing a Value with any type (that can cast to uint64_t)
-        template <typename T>
-        constexpr Value(SortEntry e,
-                        T v,
-                        ValidateKeyEntry vk = ValidateKeyEntry::yes) :
-            entry(e), value(uint64_t(v)), validate(vk)
-        {}
+      if (e.bitCount != 0)
+      {
+        m_elements[i].mask = ((1ull << e.bitCount) - 1) << currentBitCount;
+        m_elements[i].shift = currentBitCount;
+      }
 
-        SortEntry entry;
-        uint64_t value;
-        ValidateKeyEntry validate;
-    };
-
-    constexpr SortKeyBuilder(const std::initializer_list<Initializer>& init)
-    {
-        std::array<bool, SORT_ENTRY_COUNT> isSpecified{};
-        uint32_t currentBitCount = 0;
-
-        // These are in priority order so iterate from last to first (the lowest
-        // priority bits are shifted the least)
-        for (auto iter = rbegin(init); iter != rend(init); ++iter)
-        {
-            auto& e = *iter;
-            auto i = int(e.entry);
-            RIVE_CONSTEXPR_CHECK(!isSpecified[i], "SortEntry specified twice");
-            isSpecified[i] = true;
-
-            if (e.bitCount != 0)
-            {
-                m_elements[i].mask = ((1ull << e.bitCount) - 1)
-                                     << currentBitCount;
-                m_elements[i].shift = currentBitCount;
-            }
-
-            currentBitCount += e.bitCount;
-            RIVE_CONSTEXPR_CHECK(e.bitCount <= 63,
-                                 "More than 63 bits were specified");
-            RIVE_CONSTEXPR_CHECK(currentBitCount <= 63,
-                                 "More than 63 bits were specified");
-        }
-
-        for (auto b : isSpecified)
-        {
-            RIVE_CONSTEXPR_CHECK(b, "Missing SortEntry");
-        }
-
-        RIVE_CONSTEXPR_CHECK(currentBitCount > 0, "No bits specified");
+      currentBitCount += e.bitCount;
+      RIVE_CONSTEXPR_CHECK(
+          e.bitCount <= 63,
+          "More than 63 bits were specified");
+      RIVE_CONSTEXPR_CHECK(
+          currentBitCount <= 63,
+          "More than 63 bits were specified");
     }
 
-    // Build a key, but don't require every element to be specified.
-    constexpr uint64_t buildPartialKey(
-        const std::initializer_list<Value>& values) const
+    for (auto b : isSpecified)
     {
-        RIVE_CONSTEXPR_CHECK(values.size() > 0,
-                             "No values specified to add to key");
-        uint64_t key = 0;
-        for (const auto& value : values)
-        {
-            const auto m = mask(value.entry);
-            const auto s = shift(value.entry);
-            RIVE_CONSTEXPR_CHECK((key & m) == 0,
-                                 "Same value added multiple times");
-            key |= (value.value << s) & m;
+      RIVE_CONSTEXPR_CHECK(b, "Missing SortEntry");
+    }
+
+    RIVE_CONSTEXPR_CHECK(currentBitCount > 0, "No bits specified");
+  }
+
+  // Build a key, but don't require every element to be specified.
+  constexpr uint64_t buildPartialKey(
+      const std::initializer_list<Value>& values) const
+  {
+    RIVE_CONSTEXPR_CHECK(
+        values.size() > 0,
+        "No values specified to add to key");
+    uint64_t key = 0;
+    for (const auto& value : values)
+    {
+      const auto m = mask(value.entry);
+      const auto s = shift(value.entry);
+      RIVE_CONSTEXPR_CHECK((key & m) == 0, "Same value added multiple times");
+      key |= (value.value << s) & m;
 
 #if RIVE_ENABLE_SORT_KEY_VALIDATION
-            if (value.validate == ValidateKeyEntry::yes && m != 0)
-            {
-                auto extracted = (key & m) >> s;
-                RIVE_CONSTEXPR_CHECK(extracted == value.value,
-                                     "Not enough bits to store given value");
-            }
+      if (value.validate == ValidateKeyEntry::yes && m != 0)
+      {
+        auto extracted = (key & m) >> s;
+        RIVE_CONSTEXPR_CHECK(
+            extracted == value.value,
+            "Not enough bits to store given value");
+      }
 #endif
-        }
-
-        return key;
     }
 
-    // Build a key, requiring every member of SortEntry to be specified once.
-    constexpr uint64_t buildKey(
-        const std::initializer_list<Value>& values) const
-    {
+    return key;
+  }
+
+  // Build a key, requiring every member of SortEntry to be specified once.
+  constexpr uint64_t buildKey(const std::initializer_list<Value>& values) const
+  {
 #if RIVE_ENABLE_SORT_KEY_VALIDATION
-        std::array<bool, SORT_ENTRY_COUNT> isSpecified{};
-        for (auto& v : values)
-        {
-            RIVE_CONSTEXPR_CHECK(!isSpecified[int(v.entry)],
-                                 "SortEntry specified multiple times");
-            isSpecified[int(v.entry)] = true;
-        }
+    std::array<bool, SORT_ENTRY_COUNT> isSpecified{};
+    for (auto& v : values)
+    {
+      RIVE_CONSTEXPR_CHECK(
+          !isSpecified[int(v.entry)],
+          "SortEntry specified multiple times");
+      isSpecified[int(v.entry)] = true;
+    }
 
-        for (auto b : isSpecified)
-        {
-            RIVE_CONSTEXPR_CHECK(b, "Missing SortEntry while building key");
-        }
+    for (auto b : isSpecified)
+    {
+      RIVE_CONSTEXPR_CHECK(b, "Missing SortEntry while building key");
+    }
 #endif
-        return buildPartialKey(values);
-    }
+    return buildPartialKey(values);
+  }
 
-    // Pull the given value out of a key
-    template <typename T = uint64_t>
-    T extract(SortEntry entry, uint64_t key) const
+  // Pull the given value out of a key
+  template <typename T = uint64_t>
+  T extract(SortEntry entry, uint64_t key) const
+  {
+    if constexpr (std::is_enum_v<T>)
     {
-        if constexpr (std::is_enum_v<T>)
-        {
-            return T(extract<std::underlying_type_t<T>>(entry, key));
-        }
-        else
-        {
-            return math::lossless_numeric_cast<T>((key & mask(entry)) >>
-                                                  shift(entry));
-        }
+      return T(extract<std::underlying_type_t<T>>(entry, key));
     }
+    else
+    {
+      return math::lossless_numeric_cast<T>(
+          (key & mask(entry)) >> shift(entry));
+    }
+  }
 
-    constexpr uint64_t mask(SortEntry e) const
-    {
-        return m_elements[int(e)].mask;
-    }
+  constexpr uint64_t mask(SortEntry e) const { return m_elements[int(e)].mask; }
 
-    constexpr uint64_t shift(SortEntry e) const
-    {
-        return m_elements[int(e)].shift;
-    }
+  constexpr uint64_t shift(SortEntry e) const
+  {
+    return m_elements[int(e)].shift;
+  }
 
 private:
-    struct Element
-    {
-        uint64_t mask;
-        uint32_t shift;
-    };
+  struct Element
+  {
+    uint64_t mask;
+    uint32_t shift;
+  };
 
-    std::array<Element, SORT_ENTRY_COUNT> m_elements{};
+  std::array<Element, SORT_ENTRY_COUNT> m_elements{};
 };
 
 #undef RIVE_KEY_ENTRIES

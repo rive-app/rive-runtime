@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextStyleAxisBase::clone() const
 {
-    auto cloned = new TextStyleAxis();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextStyleAxis();
+  cloned->copy(*this);
+  return cloned;
 }

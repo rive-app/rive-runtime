@@ -8,11 +8,11 @@ namespace rive::gpu
 {
 enum class ShaderCompilationMode
 {
-    allowAsynchronous,
-    alwaysSynchronous,
-    onlyUbershaders,
+  allowAsynchronous,
+  alwaysSynchronous,
+  onlyUbershaders,
 
-    // The default mode is to allow asynchronous compilation where available.
-    standard = allowAsynchronous,
+  // The default mode is to allow asynchronous compilation where available.
+  standard = allowAsynchronous,
 };
 } // namespace rive::gpu

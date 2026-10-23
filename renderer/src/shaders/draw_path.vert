@@ -6,21 +6,22 @@
 // different defines in the Metal library.
 #undef COVERAGE_TYPE
 #ifdef @ENABLE_FEATHER
-#define COVERAGE_TYPE float4
+  #define COVERAGE_TYPE float4
 #else
-#define COVERAGE_TYPE half2
+  #define COVERAGE_TYPE half2
 #endif
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
+  #if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
 ATTR(0, packed_float3, @a_triangleVertex);
-#else
-ATTR(0,
-     float4,
-     @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+  #else
+// Unreal compiler breaks if these declarations are multi line.
+// clang-format off
+ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+// clang-format on
 ATTR(1, float4, @a_mirroredVertexData);
-#endif
+  #endif
 ATTR_BLOCK_END
 #endif
 
@@ -30,20 +31,20 @@ NO_PERSPECTIVE VARYING(0, float4, v_paint);
 #ifdef @FEATHER_ATLAS_BLIT
 NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
 #elif !defined(@RENDER_MODE_DEPTH_STENCIL)
-#ifdef @DRAW_INTERIOR_TRIANGLES
+  #ifdef @DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
-#else
+  #else
 NO_PERSPECTIVE VARYING(2, COVERAGE_TYPE, v_coverages);
-#endif //@DRAW_INTERIOR_TRIANGLES
+  #endif //@DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(3, half, v_pathID);
-#endif // !@RENDER_MODE_DEPTH_STENCIL
+#endif   // !@RENDER_MODE_DEPTH_STENCIL
 
 #ifdef @ENABLE_CLIPPING
-#ifdef @FEATHER_ATLAS_BLIT
+  #ifdef @FEATHER_ATLAS_BLIT
 @OPTIONALLY_FLAT VARYING(4, half, v_clipID); // [clipID, outerClipID]
-#else
+  #else
 @OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
-#endif
+  #endif
 #endif // @ENABLE_CLIPPING
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
@@ -65,301 +66,300 @@ VARYING_BLOCK_END
 
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
-    ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
-#else
-    ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
-    ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
-#endif
+  #if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
+  ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
+  #else
+  ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
+  ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
+  #endif
 
-    VARYING_INIT(v_paint, float4);
-#if defined(@ENABLE_MODULATED_IMAGE)
-    VARYING_INIT(v_image, float3);
-#endif
+  VARYING_INIT(v_paint, float4);
+  #if defined(@ENABLE_MODULATED_IMAGE)
+  VARYING_INIT(v_image, float3);
+  #endif
 
-#ifdef @FEATHER_ATLAS_BLIT
-    VARYING_INIT(v_atlasCoord, float2);
-#elif !defined(@RENDER_MODE_DEPTH_STENCIL)
-#ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_INIT(v_windingWeight, half);
-#else
-    VARYING_INIT(v_coverages, COVERAGE_TYPE);
-#endif //@DRAW_INTERIOR_TRIANGLES
-    VARYING_INIT(v_pathID, half);
-#endif // !@RENDER_MODE_DEPTH_STENCIL
+  #ifdef @FEATHER_ATLAS_BLIT
+  VARYING_INIT(v_atlasCoord, float2);
+  #elif !defined(@RENDER_MODE_DEPTH_STENCIL)
+    #ifdef @DRAW_INTERIOR_TRIANGLES
+  VARYING_INIT(v_windingWeight, half);
+    #else
+  VARYING_INIT(v_coverages, COVERAGE_TYPE);
+    #endif //@DRAW_INTERIOR_TRIANGLES
+  VARYING_INIT(v_pathID, half);
+  #endif   // !@RENDER_MODE_DEPTH_STENCIL
 
-#ifdef @ENABLE_CLIPPING
-#ifdef @FEATHER_ATLAS_BLIT
-    VARYING_INIT(v_clipID, half);
-#else
-    VARYING_INIT(v_clipIDs, half2);
-#endif
-#endif // @ENABLE_CLIPPING
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
-    VARYING_INIT(v_clipRect, float4);
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_INIT(v_blendMode, half);
-#endif
-#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
-    VARYING_INIT(v_coveragePlacement, uint2);
-    VARYING_INIT(v_coverageCoord, float2);
-#endif
+  #ifdef @ENABLE_CLIPPING
+    #ifdef @FEATHER_ATLAS_BLIT
+  VARYING_INIT(v_clipID, half);
+    #else
+  VARYING_INIT(v_clipIDs, half2);
+    #endif
+  #endif // @ENABLE_CLIPPING
+  #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
+  VARYING_INIT(v_clipRect, float4);
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_INIT(v_blendMode, half);
+  #endif
+  #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+  VARYING_INIT(v_coveragePlacement, uint2);
+  VARYING_INIT(v_coverageCoord, float2);
+  #endif
 
-    bool shouldDiscardVertex = false;
-    uint pathID;
-    float2 vertexPosition;
-#ifdef @RENDER_MODE_DEPTH_STENCIL
-    ushort pathZIndex;
-#endif
+  bool shouldDiscardVertex = false;
+  uint pathID;
+  float2 vertexPosition;
+  #ifdef @RENDER_MODE_DEPTH_STENCIL
+  ushort pathZIndex;
+  #endif
 
-#ifdef @FEATHER_ATLAS_BLIT
-    vertexPosition =
-        unpack_atlas_coverage_vertex(@a_triangleVertex,
-                                     pathID,
-#ifdef @RENDER_MODE_DEPTH_STENCIL
-                                     pathZIndex,
-#endif
-                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
-#elif defined(@DRAW_INTERIOR_TRIANGLES)
-    vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
-                                                     pathID
-#ifdef @RENDER_MODE_DEPTH_STENCIL
-                                                     ,
-                                                     pathZIndex
-#else
-                                                     ,
-                                                     v_windingWeight
-#endif
-                                                         VERTEX_CONTEXT_UNPACK);
-#else // !@DRAW_INTERIOR_TRIANGLES
-    float4 coverages;
-    shouldDiscardVertex =
-        !unpack_tessellated_path_vertex(@a_patchVertexData,
-                                        @a_mirroredVertexData,
-                                        _instanceID,
-                                        pathID,
-                                        vertexPosition
-#ifndef @RENDER_MODE_DEPTH_STENCIL
-                                        ,
-                                        coverages
-#else
-                                        ,
-                                        pathZIndex
-#endif
-                                            VERTEX_CONTEXT_UNPACK);
-#ifndef @RENDER_MODE_DEPTH_STENCIL
-#ifdef @ENABLE_FEATHER
-    v_coverages = coverages;
-#else
-    v_coverages.xy = cast_float2_to_half2(coverages.xy);
-#endif
-#endif
-#endif // !DRAW_INTERIOR_TRIANGLES
+  #ifdef @FEATHER_ATLAS_BLIT
+  vertexPosition = unpack_atlas_coverage_vertex(
+      @a_triangleVertex,
+      pathID,
+    #ifdef @RENDER_MODE_DEPTH_STENCIL
+      pathZIndex,
+    #endif
+      v_atlasCoord VERTEX_CONTEXT_UNPACK);
+  #elif defined(@DRAW_INTERIOR_TRIANGLES)
+  vertexPosition = unpack_interior_triangle_vertex(
+      @a_triangleVertex,
+      pathID
+    #ifdef @RENDER_MODE_DEPTH_STENCIL
+      ,
+      pathZIndex
+    #else
+      ,
+      v_windingWeight
+    #endif
+          VERTEX_CONTEXT_UNPACK);
+  #else // !@DRAW_INTERIOR_TRIANGLES
+  float4 coverages;
+  shouldDiscardVertex = !unpack_tessellated_path_vertex(
+      @a_patchVertexData,
+      @a_mirroredVertexData,
+      _instanceID,
+      pathID,
+      vertexPosition
+    #ifndef @RENDER_MODE_DEPTH_STENCIL
+      ,
+      coverages
+    #else
+      ,
+      pathZIndex
+    #endif
+          VERTEX_CONTEXT_UNPACK);
+    #ifndef @RENDER_MODE_DEPTH_STENCIL
+      #ifdef @ENABLE_FEATHER
+  v_coverages = coverages;
+      #else
+  v_coverages.xy = cast_float2_to_half2(coverages.xy);
+      #endif
+    #endif
+  #endif // !DRAW_INTERIOR_TRIANGLES
 
-    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
+  uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
-#if !defined(@FEATHER_ATLAS_BLIT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
-    // Encode the integral pathID as a "half" that we know the hardware will see
-    // as a unique value in the fragment shader.
-    v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
+  #if !defined(@FEATHER_ATLAS_BLIT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
+  // Encode the integral pathID as a "half" that we know the hardware will see
+  // as a unique value in the fragment shader.
+  v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
 
-    // Indicate even-odd fill rule by making pathID negative.
-    if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
-        v_pathID = -v_pathID;
-#endif // !@FEATHER_ATLAS_BLIT && !@RENDER_MODE_DEPTH_STENCIL
+  // Indicate even-odd fill rule by making pathID negative.
+  if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
+    v_pathID = -v_pathID;
+  #endif // !@FEATHER_ATLAS_BLIT && !@RENDER_MODE_DEPTH_STENCIL
 
-    uint paintType = paintData.x & 0xfu;
-#ifdef @ENABLE_CLIPPING
-    if (@ENABLE_CLIPPING)
+  uint paintType = paintData.x & 0xfu;
+  #ifdef @ENABLE_CLIPPING
+  if (@ENABLE_CLIPPING)
+  {
+    uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y
+                                                           : paintData.x) >>
+                      16;
+    half clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
+    // Negative clipID means to update the clip buffer instead of the color
+    // buffer.
+    if (paintType == CLIP_UPDATE_PAINT_TYPE)
+      clipID = -clipID;
+    #ifdef @FEATHER_ATLAS_BLIT
+    v_clipID = clipID;
+    #else
+    v_clipIDs.x = clipID;
+    #endif
+  }
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
+  if (@ENABLE_ADVANCED_BLEND)
+  {
+    v_blendMode = float((paintData.x >> 4) & 0xfu);
+  }
+  #endif
+
+  // Paint matrices operate on the fragment shader's "_fragCoord", which
+  // counts from memory row 0. A bottom up target needs it flipped into Rive
+  // pixel space.
+  float2 fragCoord = vertexPosition;
+  #ifdef @ENABLE_RENDER_TARGET_BOTTOM_UP
+  if (uniforms.renderTargetBottomUp != 0u)
+  {
+    fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
+  }
+  #endif
+
+  #ifdef @ENABLE_CLIP_RECT
+  if (@ENABLE_CLIP_RECT)
+  {
+    // clipRectInverseMatrix transforms from pixel coordinates to a space
+    // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
+    float2x2 clipRectInverseMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
+    float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
+    #ifndef @RENDER_MODE_DEPTH_STENCIL
+    v_clipRect = find_clip_rect_coverage_distances(
+        clipRectInverseMatrix,
+        clipRectInverseTranslate.xy,
+        fragCoord);
+    #else  // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
+    set_clip_rect_plane_distances(
+        clipRectInverseMatrix,
+        clipRectInverseTranslate.xy,
+        fragCoord CLIP_CONTEXT_UNPACK);
+    #endif // @RENDER_MODE_DEPTH_STENCIL
+  }
+  #endif // ENABLE_CLIP_RECT
+
+  // Unpack the paint once we have a position.
+  if (paintType == SOLID_COLOR_PAINT_TYPE)
+  {
+    v_paint = float4(unpackUnorm4x8(paintData.y));
+  }
+  #if defined(@ENABLE_CLIPPING) && !defined(@FEATHER_ATLAS_BLIT)
+  else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
+  {
+    half outerClipID = id_bits_to_f16(
+        paintData.x >> 16,
+        uniforms.pathIDGranularity);
+    v_clipIDs.y = outerClipID;
+  }
+  #endif
+  else
+  {
+    float2x2 paintMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
+    float4 paintTranslate = STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
+
+    float additivenessComplement = uintBitsToFloat(paintData.y);
+    v_paint = packGradientData(
+        fragCoord,
+        paintMatrix,
+        paintTranslate.xy,
+        paintTranslate.zw,
+        paintType,
+        additivenessComplement,
+        1.0); // coverage
+  }
+
+  #if defined(@ENABLE_MODULATED_IMAGE)
+  if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
+  {
+    float2x2 imageMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
+    float4 paintTranslateAndLOD = STORAGE_BUFFER_LOAD4(
+        @paintAuxBuffer,
+        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
+    float2 imageCoord = MUL(imageMatrix, fragCoord) + paintTranslateAndLOD.xy;
+
+    // Add 1 to the LOD because a z value of 0 means "we don't have an
+    // image"
+    float imageZ = 1. + paintTranslateAndLOD.z;
+    if ((paintData.x & PAINT_FLAG_LAYER_MASK) != 0u)
     {
-        uint clipIDBits =
-            (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >>
-            16;
-        half clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
-        // Negative clipID means to update the clip buffer instead of the color
-        // buffer.
-        if (paintType == CLIP_UPDATE_PAINT_TYPE)
-            clipID = -clipID;
-#ifdef @FEATHER_ATLAS_BLIT
-        v_clipID = clipID;
-#else
-        v_clipIDs.x = clipID;
-#endif
+      // A layer-mask apply. The sampled texel is coverage, not color, so
+      // the fragment shader has to treat it differently -- and there is
+      // no varying to spare for a per-draw flag. Signal it by making z
+      // negative and packing the mode into it, the same sentinel idiom
+      // this shader already uses twice (a negative paint.a means
+      // "gradient", a zero image.z means "no image"). The mask is always
+      // sampled 1:1 with the target, so LOD 0 is exact and there is
+      // nothing lost by giving up the LOD field here.
+      uint mode = (paintData.x & PAINT_LAYER_MASK_MODE_MASK) >>
+                  PAINT_LAYER_MASK_MODE_SHIFT;
+      imageZ = -(1. + float(mode));
     }
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    if (@ENABLE_ADVANCED_BLEND)
-    {
-        v_blendMode = float((paintData.x >> 4) & 0xfu);
-    }
-#endif
+    v_image = float3(imageCoord.x, imageCoord.y, imageZ);
+  }
+  else
+  {
+    v_image = float3(0.0, 0.0, 0.0);
+  }
+  #endif
 
-    // Paint matrices operate on the fragment shader's "_fragCoord", which
-    // counts from memory row 0. A bottom up target needs it flipped into Rive
-    // pixel space.
-    float2 fragCoord = vertexPosition;
-#ifdef @ENABLE_RENDER_TARGET_BOTTOM_UP
-    if (uniforms.renderTargetBottomUp != 0u)
-    {
-        fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
-    }
-#endif
+  float4 pos;
+  if (!shouldDiscardVertex)
+  {
+    pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+  #ifdef @POST_INVERT_Y
+    pos.y = -pos.y;
+  #endif
+  #ifdef @RENDER_MODE_DEPTH_STENCIL
+    pos.z = packNormalizedDepth(pathZIndex, 0xffu);
+  #elif defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
+    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
+    v_coveragePlacement = coverageData.xy;
+    v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
+  #endif
+  }
+  else
+  {
+    pos = float4(
+        uniforms.vertexDiscardValue,
+        uniforms.vertexDiscardValue,
+        uniforms.vertexDiscardValue,
+        uniforms.vertexDiscardValue);
+  }
 
-#ifdef @ENABLE_CLIP_RECT
-    if (@ENABLE_CLIP_RECT)
-    {
-        // clipRectInverseMatrix transforms from pixel coordinates to a space
-        // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
-        float2x2 clipRectInverseMatrix = make_float2x2(
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
-        float4 clipRectInverseTranslate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
-#ifndef @RENDER_MODE_DEPTH_STENCIL
-        v_clipRect =
-            find_clip_rect_coverage_distances(clipRectInverseMatrix,
-                                              clipRectInverseTranslate.xy,
-                                              fragCoord);
-#else  // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
-        set_clip_rect_plane_distances(clipRectInverseMatrix,
-                                      clipRectInverseTranslate.xy,
-                                      fragCoord CLIP_CONTEXT_UNPACK);
-#endif // @RENDER_MODE_DEPTH_STENCIL
-    }
-#endif // ENABLE_CLIP_RECT
+  VARYING_PACK(v_paint);
+  #if defined(@ENABLE_MODULATED_IMAGE)
+  VARYING_PACK(v_image);
+  #endif
+  #ifdef @FEATHER_ATLAS_BLIT
+  VARYING_PACK(v_atlasCoord);
+  #elif !defined(@RENDER_MODE_DEPTH_STENCIL)
+    #ifdef @DRAW_INTERIOR_TRIANGLES
+  VARYING_PACK(v_windingWeight);
+    #else
+  VARYING_PACK(v_coverages);
+    #endif //@DRAW_INTERIOR_TRIANGLES
+  VARYING_PACK(v_pathID);
+  #endif   // !@RENDER_MODE_DEPTH_STENCIL
 
-    // Unpack the paint once we have a position.
-    if (paintType == SOLID_COLOR_PAINT_TYPE)
-    {
-        v_paint = float4(unpackUnorm4x8(paintData.y));
-    }
-#if defined(@ENABLE_CLIPPING) && !defined(@FEATHER_ATLAS_BLIT)
-    else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
-    {
-        half outerClipID =
-            id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
-        v_clipIDs.y = outerClipID;
-    }
-#endif
-    else
-    {
-        float2x2 paintMatrix = make_float2x2(
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
-        float4 paintTranslate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
-
-        // paintData.y (gradient texture row + 1) in the integer part
-        // additiveness in range 0/256 to 255/256 in the fraction.
-        v_paint = packGradientData(fragCoord,
-                                   paintMatrix,
-                                   paintTranslate.xy,
-                                   float(paintType),
-                                   paintTranslate.zw,
-                                   uintBitsToFloat(paintData.y));
-
-        // Make this negative to signal to the fragment shader that it's a
-        // gradient
-        v_paint.a = -v_paint.a;
-    }
-
-#if defined(@ENABLE_MODULATED_IMAGE)
-    if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
-    {
-        float2x2 imageMatrix = make_float2x2(
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
-        float4 paintTranslateAndLOD =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
-                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
-        float2 imageCoord =
-            MUL(imageMatrix, fragCoord) + paintTranslateAndLOD.xy;
-
-        // Add 1 to the LOD because a z value of 0 means "we don't have an
-        // image"
-        float imageZ = 1. + paintTranslateAndLOD.z;
-        if ((paintData.x & PAINT_FLAG_LAYER_MASK) != 0u)
-        {
-            // A layer-mask apply. The sampled texel is coverage, not color, so
-            // the fragment shader has to treat it differently -- and there is
-            // no varying to spare for a per-draw flag. Signal it by making z
-            // negative and packing the mode into it, the same sentinel idiom
-            // this shader already uses twice (a negative paint.a means
-            // "gradient", a zero image.z means "no image"). The mask is always
-            // sampled 1:1 with the target, so LOD 0 is exact and there is
-            // nothing lost by giving up the LOD field here.
-            uint mode = (paintData.x & PAINT_LAYER_MASK_MODE_MASK) >>
-                        PAINT_LAYER_MASK_MODE_SHIFT;
-            imageZ = -(1. + float(mode));
-        }
-        v_image = float3(imageCoord.x, imageCoord.y, imageZ);
-    }
-    else
-    {
-        v_image = float3(0.0, 0.0, 0.0);
-    }
-#endif
-
-    float4 pos;
-    if (!shouldDiscardVertex)
-    {
-        pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-#ifdef @POST_INVERT_Y
-        pos.y = -pos.y;
-#endif
-#ifdef @RENDER_MODE_DEPTH_STENCIL
-        pos.z = packNormalizedDepth(pathZIndex, 0xffu);
-#elif defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
-        uint4 coverageData =
-            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
-        v_coveragePlacement = coverageData.xy;
-        v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
-#endif
-    }
-    else
-    {
-        pos = float4(uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue);
-    }
-
-    VARYING_PACK(v_paint);
-#if defined(@ENABLE_MODULATED_IMAGE)
-    VARYING_PACK(v_image);
-#endif
-#ifdef @FEATHER_ATLAS_BLIT
-    VARYING_PACK(v_atlasCoord);
-#elif !defined(@RENDER_MODE_DEPTH_STENCIL)
-#ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_PACK(v_windingWeight);
-#else
-    VARYING_PACK(v_coverages);
-#endif //@DRAW_INTERIOR_TRIANGLES
-    VARYING_PACK(v_pathID);
-#endif // !@RENDER_MODE_DEPTH_STENCIL
-
-#ifdef @ENABLE_CLIPPING
-#ifdef @FEATHER_ATLAS_BLIT
-    VARYING_PACK(v_clipID);
-#else
-    VARYING_PACK(v_clipIDs);
-#endif
-#endif // @ENABLE_CLIPPING
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
-    VARYING_PACK(v_clipRect);
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_PACK(v_blendMode);
-#endif
-#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
-    VARYING_PACK(v_coveragePlacement);
-    VARYING_PACK(v_coverageCoord);
-#endif
-    EMIT_VERTEX(pos);
+  #ifdef @ENABLE_CLIPPING
+    #ifdef @FEATHER_ATLAS_BLIT
+  VARYING_PACK(v_clipID);
+    #else
+  VARYING_PACK(v_clipIDs);
+    #endif
+  #endif // @ENABLE_CLIPPING
+  #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
+  VARYING_PACK(v_clipRect);
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_PACK(v_blendMode);
+  #endif
+  #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+  VARYING_PACK(v_coveragePlacement);
+  VARYING_PACK(v_coverageCoord);
+  #endif
+  EMIT_VERTEX(pos);
 }
 #endif
 
@@ -370,150 +370,129 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 
 // Add a function here for fragments to unpack the paint since we're the ones
 // who packed it in the vertex shader.
-// The multiplier a layer mask applies to whatever is already in the target.
-// `maskPremul` is the mask's premultiplied texel.
-INLINE half layer_mask_factor(half4 maskPremul, uint mode)
-{
-    // Rec.601, matching lum_from_rgb in advanced_blend.glsl, so a luminance
-    // mask agrees with Rive's own luminosity blending (and with the editor,
-    // which must use the same constant or preview drifts from playback).
-    half luma = dot(maskPremul.rgb, make_half3(.30, .59, .11));
-    if (mode == LAYER_MASK_MODE_ALPHA)
-        return maskPremul.a;
-    if (mode == LAYER_MASK_MODE_INVERTED_ALPHA)
-        return 1. - maskPremul.a;
-    if (mode == LAYER_MASK_MODE_LUMINANCE)
-        return luma;
-    return 1. - luma; // LAYER_MASK_MODE_INVERTED_LUMINANCE
-}
-
 INLINE half4 find_paint_color(
-#ifdef @ENABLE_MODULATED_IMAGE
+  #ifdef @ENABLE_MODULATED_IMAGE
     float3 image,
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
     ushort blendMode,
-#endif
+  #endif
     float4 paint FRAGMENT_CONTEXT_DECL)
 {
-#ifdef @ENABLE_ADVANCED_BLEND
-    bool paintHasAdvancedBlend =
-        @ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER;
-#else
-    const bool paintHasAdvancedBlend = false;
-#endif
-    half4 color;
-    if (paint.a >= .0) // Is the paint a solid color?
-    {
-        // The CPU sent 'paint' unmultiplied for advanced-blend draws and
-        // premultiplied otherwise, matching paintHasAdvancedBlend.
-        color = cast_float4_to_half4(paint);
-    }
-    else // Paint is a gradient (linear or radial)?
-    {
-        // Flip this back to positive (it was only negative to signal that this
-        // is a gradient)
-        paint.a = -paint.a;
-        // paint.a stores (gradient texture row + 1) in the integer part and
-        // additiveness, in range 0/256 to 255/256 in the fraction.
-        half additiveness = cast_float_to_half(fract(paint.a) * (256. / 255.));
-        paint.a = floor(paint.a) * uniforms.gradTextureYScale +
-                  uniforms.gradTextureYBias;
-        float2 gradientTexCoord = getGradientCoord(paint);
-        color =
-            TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradientTexCoord, .0);
+  #ifdef @ENABLE_ADVANCED_BLEND
+  bool paintHasAdvancedBlend = @ENABLE_ADVANCED_BLEND &&
+                               blendMode != BLEND_SRC_OVER;
+  #else
+  const bool paintHasAdvancedBlend = false;
+  #endif
+  half4 color;
+  if (paint.a >= .0) // Is the paint a solid color?
+  {
+    // The CPU sent 'paint' unmultiplied for advanced-blend draws and
+    // premultiplied otherwise, matching paintHasAdvancedBlend.
+    color = cast_float4_to_half4(paint);
+  }
+  else // Paint is a gradient (linear or radial)?
+  {
+    float2 gradientTexCoord = getGradientUV(
+        paint,
+        uniforms.gradTextureYScale,
+        uniforms.gradTextureYBias);
+    color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradientTexCoord, .0);
 
-        // Gradients are always unmultiplied so we don't lose color data while
-        // doing the hardware filter.
-        if (!paintHasAdvancedBlend)
-        {
-            color.rgb *= color.a;
-            color.a *= additiveness;
-        }
-    }
-
-#if defined(@ENABLE_MODULATED_IMAGE)
-    if (@ENABLE_MODULATED_IMAGE && image.z < 0.0)
+    // Gradients are always unmultiplied so we don't lose color data while
+    // doing the hardware filter.
+    if (!paintHasAdvancedBlend)
     {
-        // Layer mask: the texel *is* the coverage. Return it premultiplied and
-        // unmodulated -- the blend step derives the factor from it and never
-        // composites it as color. Luminance is taken on the premultiplied value
-        // on purpose: luma(rgb/a)*a == dot(rgb, coeffs) identically, with no
-        // divide and no 0/0 at a == 0.
-        return TEXTURE_SAMPLE_DYNAMIC_LOD(@imageTexture,
-                                          imageSampler,
-                                          image.rg,
-                                          make_half(.0));
+      half additivenessComplement = getGradientAdditivenessComplement(paint);
+      color.rgb *= color.a;
+      color.a *= additivenessComplement;
     }
-    if (@ENABLE_MODULATED_IMAGE && image.z > 0.0)
-    {
-        half lod = image.z - 1.;
-        half4 imageColor = TEXTURE_SAMPLE_DYNAMIC_LOD(@imageTexture,
-                                                      imageSampler,
-                                                      image.rg,
-                                                      lod);
+  }
 
-        // Images are always premultiplied so the (transparent) background color
-        // doesn't bleed into the edges during the hardware filter; unmultiply
-        // to match this draw's convention if needed.
-        if (paintHasAdvancedBlend)
-            imageColor = make_half4(unmultiply_rgb(imageColor), imageColor.a);
+  #if defined(@ENABLE_MODULATED_IMAGE)
+  if (@ENABLE_MODULATED_IMAGE && image.z < 0.0)
+  {
+    // Layer mask: the texel *is* the coverage. Return it premultiplied and
+    // unmodulated -- the blend step derives the factor from it and never
+    // composites it as color. Luminance is taken on the premultiplied value
+    // on purpose: luma(rgb/a)*a == dot(rgb, coeffs) identically, with no
+    // divide and no 0/0 at a == 0.
+    return TEXTURE_SAMPLE_DYNAMIC_LOD(
+        @imageTexture,
+        imageSampler,
+        image.rg,
+        make_half(.0));
+  }
+  if (@ENABLE_MODULATED_IMAGE && image.z > 0.0)
+  {
+    half lod = image.z - 1.;
+    half4 imageColor = TEXTURE_SAMPLE_DYNAMIC_LOD(
+        @imageTexture,
+        imageSampler,
+        image.rg,
+        lod);
 
-        color *= imageColor;
-    }
-#endif
-    return color;
+    // Images are always premultiplied so the (transparent) background color
+    // doesn't bleed into the edges during the hardware filter; unmultiply
+    // to match this draw's convention if needed.
+    if (paintHasAdvancedBlend)
+      imageColor = make_half4(unmultiply_rgb(imageColor), imageColor.a);
+
+    color *= imageColor;
+  }
+  #endif
+  return color;
 }
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) && !defined(@FEATHER_ATLAS_BLIT)
+  #if !defined(@DRAW_INTERIOR_TRIANGLES) && !defined(@FEATHER_ATLAS_BLIT)
 
 // Add functions here for fragments to unpack and evaluate coverage since we're
 // the ones who packed the coverage components in the vertex shader.
 INLINE half find_stroke_coverage(COVERAGE_TYPE coverages TEXTURE_CONTEXT_DECL)
 {
-#ifdef @ENABLE_FEATHER
-    if (@ENABLE_FEATHER && is_feathered_stroke(coverages))
-        return eval_feathered_stroke(coverages TEXTURE_CONTEXT_FORWARD);
-    else
-#endif // @ENABLE_FEATHER
-        return min(coverages.x, coverages.y);
+    #ifdef @ENABLE_FEATHER
+  if (@ENABLE_FEATHER && is_feathered_stroke(coverages))
+    return eval_feathered_stroke(coverages TEXTURE_CONTEXT_FORWARD);
+  else
+    #endif // @ENABLE_FEATHER
+    return min(coverages.x, coverages.y);
 }
 
 INLINE half find_fill_coverage(COVERAGE_TYPE coverages TEXTURE_CONTEXT_DECL)
 {
-#if defined(@ENABLE_FEATHER)
-    if (@ENABLE_FEATHER && is_feathered_fill(coverages))
-        return eval_feathered_fill(coverages TEXTURE_CONTEXT_FORWARD);
-    else
-#endif // @ENABLE_FEATHER
-        return coverages.x;
+    #if defined(@ENABLE_FEATHER)
+  if (@ENABLE_FEATHER && is_feathered_fill(coverages))
+    return eval_feathered_fill(coverages TEXTURE_CONTEXT_FORWARD);
+  else
+    #endif // @ENABLE_FEATHER
+    return coverages.x;
 }
 
 INLINE half find_frag_coverage(COVERAGE_TYPE coverages TEXTURE_CONTEXT_DECL)
 {
-    if (is_stroke(coverages))
-        return find_stroke_coverage(coverages TEXTURE_CONTEXT_FORWARD);
-    else // Fill. (Back-face culling handles the sign of coverages.x.)
-        return find_fill_coverage(coverages TEXTURE_CONTEXT_FORWARD);
+  if (is_stroke(coverages))
+    return find_stroke_coverage(coverages TEXTURE_CONTEXT_FORWARD);
+  else // Fill. (Back-face culling handles the sign of coverages.x.)
+    return find_fill_coverage(coverages TEXTURE_CONTEXT_FORWARD);
 }
 
-INLINE half apply_frag_coverage(half initialCoverage,
-                                COVERAGE_TYPE coverages TEXTURE_CONTEXT_DECL)
+INLINE half apply_frag_coverage(
+    half initialCoverage,
+    COVERAGE_TYPE coverages TEXTURE_CONTEXT_DECL)
 {
-    if (is_stroke(coverages))
-    {
-        half fragCoverage =
-            find_stroke_coverage(coverages TEXTURE_CONTEXT_FORWARD);
-        return max(fragCoverage, initialCoverage);
-    }
-    else // Fill. (Back-face culling handles the sign of coverages.x.)
-    {
-        half fragCoverage =
-            find_fill_coverage(coverages TEXTURE_CONTEXT_FORWARD);
-        return initialCoverage + fragCoverage;
-    }
+  if (is_stroke(coverages))
+  {
+    half fragCoverage = find_stroke_coverage(coverages TEXTURE_CONTEXT_FORWARD);
+    return max(fragCoverage, initialCoverage);
+  }
+  else // Fill. (Back-face culling handles the sign of coverages.x.)
+  {
+    half fragCoverage = find_fill_coverage(coverages TEXTURE_CONTEXT_FORWARD);
+    return initialCoverage + fragCoverage;
+  }
 }
 
-#endif // !@DRAW_INTERIOR_TRIANGLES && !@FEATHER_ATLAS_BLIT
+  #endif // !@DRAW_INTERIOR_TRIANGLES && !@FEATHER_ATLAS_BLIT
 
 #endif // @FRAGMENT

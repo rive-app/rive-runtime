@@ -16,9 +16,9 @@ using namespace rive;
 #define OUT(T) T&
 #ifndef RIVE_GLSL_CROSS_WANT_CONSTRUCTORS
 #define make_float4(x, y, z, w)                                                \
-    float4 { x, y, z, w }
+  float4 { x, y, z, w }
 #define make_float2(x, y)                                                      \
-    float2 { x, y }
+  float2 { x, y }
 #endif
 
 using math::PI;
@@ -57,15 +57,15 @@ inline float fract(float x) { return x - std::floor(x); }
 inline float sign(float x) { return x > 0.f ? 1.f : (x < 0.f ? -1.f : 0.f); }
 inline float uintBitsToFloat(uint u)
 {
-    float f;
-    memcpy(&f, &u, sizeof(f));
-    return f;
+  float f;
+  memcpy(&f, &u, sizeof(f));
+  return f;
 }
 inline uint floatBitsToUint(float f)
 {
-    uint u;
-    memcpy(&u, &f, sizeof(u));
-    return u;
+  uint u;
+  memcpy(&u, &f, sizeof(u));
+  return u;
 }
 // Declared, not defined: shaders that merely mention it still compile, and one
 // that actually calls it gets a link error instead of a wrong answer.
@@ -75,38 +75,38 @@ using half2x3 = std::array<half3, 2>;
 inline half2x3 make_half2x3(half3 c0, half3 c1) { return {c0, c1}; }
 inline half3 MUL(half2x3 m, half2 v)
 {
-    half3 ret;
-    for (int i = 0; i < 3; ++i)
-    {
-        ret[i] = m[0][i] * v[0] + m[1][i] * v[1];
-    }
-    return ret;
+  half3 ret;
+  for (int i = 0; i < 3; ++i)
+  {
+    ret[i] = m[0][i] * v[0] + m[1][i] * v[1];
+  }
+  return ret;
 }
 
 using half4x4 = std::array<half4, 4>;
 inline half4x4 make_half4x4(half4 c0, half4 c1, half4 c2, half4 c3)
 {
-    return {c0, c1, c2, c3};
+  return {c0, c1, c2, c3};
 }
 
 using half3x3 = std::array<half3, 3>;
 inline half3x3 make_half3x3(half3 c0, half3 c1, half3 c2)
 {
-    return {c0, c1, c2};
+  return {c0, c1, c2};
 }
 inline half3 MUL(half3x3 m, half3 v)
 {
-    half3 ret;
-    for (int i = 0; i < 3; ++i)
-    {
-        ret[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2];
-    }
-    return ret;
+  half3 ret;
+  for (int i = 0; i < 3; ++i)
+  {
+    ret[i] = m[0][i] * v[0] + m[1][i] * v[1] + m[2][i] * v[2];
+  }
+  return ret;
 }
 
 inline float clamp(float x, float lo, float hi)
 {
-    return std::clamp(x, lo, hi);
+  return std::clamp(x, lo, hi);
 }
 inline float min(float x, float y) { return std::min(x, y); }
 inline float max(float x, float y) { return std::max(x, y); }
@@ -116,49 +116,50 @@ template <int N> float length(vec<N> x) { return std::sqrt(dot(x, x)); }
 template <int N> vec<N> normalize(vec<N> x) { return x / length(x); }
 template <int N> vec<N> sign(vec<N> x)
 {
-    return simd::if_then_else(x < 0,
-                              vec<N>(-1),
-                              simd::if_then_else(x > 0, vec<N>(1), vec<N>(0)));
+  return simd::if_then_else(
+      x < 0,
+      vec<N>(-1),
+      simd::if_then_else(x > 0, vec<N>(1), vec<N>(0)));
 }
 template <int N> vec<N> mix(vec<N> a, vec<N> b, ivec<N> t)
 {
-    return simd::if_then_else(t, b, a);
+  return simd::if_then_else(t, b, a);
 }
 
 template <typename T, int N>
 ivec<N> equal(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x == y;
+  return x == y;
 }
 
 template <typename T, int N>
 ivec<N> notEqual(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x != y;
+  return x != y;
 }
 
 template <typename T, int N>
 ivec<N> lessThanEqual(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x <= y;
+  return x <= y;
 }
 
 template <typename T, int N>
 ivec<N> lessThan(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x < y;
+  return x < y;
 }
 
 template <typename T, int N>
 ivec<N> greaterThanEqual(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x >= y;
+  return x >= y;
 }
 
 template <typename T, int N>
 ivec<N> greaterThan(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
-    return x > y;
+  return x > y;
 }
 
 // Scaffolding for shaders that use GLSL constructor syntax -- float2(x, x) --
@@ -171,8 +172,8 @@ ivec<N> greaterThan(simd::gvec<T, N> x, simd::gvec<T, N> y)
 // Only the fields the shaders' vertex helpers read.
 struct GlslCrossUniforms
 {
-    float renderTargetInverseViewportX;
-    float renderTargetInverseViewportY;
+  float renderTargetInverseViewportX;
+  float renderTargetInverseViewportY;
 };
 
 // These macros are function-like on purpose: they expand where a shader calls
@@ -193,26 +194,24 @@ struct GlslCrossUniforms
 // make_float2() and friends, and these arities have to join that same overload
 // set rather than be hidden by it.
 #define RIVE_GLSL_CROSS_CONSTRUCTORS                                           \
-    [[maybe_unused]] static GlslCrossUniforms uniforms;                        \
-    inline float2 make_float2(float x, float y) { return float2{x, y}; }       \
-    inline float4 make_float4(float x, float y, float z, float w)              \
-    {                                                                          \
-        return float4{x, y, z, w};                                             \
-    }                                                                          \
-    inline bool2 make_bool2(bool a, bool b)                                    \
-    {                                                                          \
-        return bool2{a ? -1 : 0, b ? -1 : 0};                                  \
-    }                                                                          \
-    inline float2x2 make_float2x2(float2 a, float2 b)                          \
-    {                                                                          \
-        return float2x2{a, b};                                                 \
-    }                                                                          \
-    template <typename T> inline float4 make_float4_from(T v)                  \
-    {                                                                          \
-        return float4{static_cast<float>(v.x),                                 \
-                      static_cast<float>(v.y),                                 \
-                      static_cast<float>(v.z),                                 \
-                      static_cast<float>(v.w)};                                \
-    }
+  [[maybe_unused]] static GlslCrossUniforms uniforms;                          \
+  inline float2 make_float2(float x, float y) { return float2{x, y}; }         \
+  inline float4 make_float4(float x, float y, float z, float w)                \
+  {                                                                            \
+    return float4{x, y, z, w};                                                 \
+  }                                                                            \
+  inline bool2 make_bool2(bool a, bool b)                                      \
+  {                                                                            \
+    return bool2{a ? -1 : 0, b ? -1 : 0};                                      \
+  }                                                                            \
+  inline float2x2 make_float2x2(float2 a, float2 b) { return float2x2{a, b}; } \
+  template <typename T> inline float4 make_float4_from(T v)                    \
+  {                                                                            \
+    return float4{                                                             \
+        static_cast<float>(v.x),                                               \
+        static_cast<float>(v.y),                                               \
+        static_cast<float>(v.z),                                               \
+        static_cast<float>(v.w)};                                              \
+  }
 
 #endif // RIVE_GLSL_CROSS_WANT_CONSTRUCTORS

@@ -1,7 +1,8 @@
 dofile('rive_build_config.lua')
-defines({ 'WITH_RIVE_TOOLS' })
 
-WITH_RIVE_TOOLS = true
+-- Including this file automatically enables Rive tools. The other way to
+-- enable them is to pass the --with_rive_tools option to premake.
+_OPTIONS['with_rive_tools'] = ''
 
 -- Several of the scripts below assign RIVE_RUNTIME_DIR and RIVE_PLS_DIR
 -- themselves, so ours would not survive the dofiles. Keep a private copy to
@@ -9,7 +10,6 @@ WITH_RIVE_TOOLS = true
 RIVE_RUNTIME_DOFILE_DIR = path.getabsolute('..')
 
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/premake5_v2.lua')
-dofile(RIVE_RUNTIME_DOFILE_DIR .. '/cg_renderer/premake5.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_libpng_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_glfw_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/decoders/premake5_v2.lua')
@@ -57,7 +57,6 @@ function rive_tools_project(name, project_kind)
         dependson({
             'tools_common',
             'rive_pls_renderer',
-            'rive_cg_renderer',
             'rive_decoders',
             'rive',
             'libpng',
@@ -104,7 +103,6 @@ function rive_tools_project(name, project_kind)
         RIVE_PLS_DIR .. '/shader_hotload',
         RIVE_PLS_DIR .. '/src',
         RIVE_RUNTIME_DIR .. '/include',
-        RIVE_RUNTIME_DIR .. '/cg_renderer/include',
         RIVE_RUNTIME_DIR .. '/decoders/include',
         'unit_tests',
         '%{cfg.targetdir}/include/libpng',
@@ -154,8 +152,8 @@ function rive_tools_project(name, project_kind)
             links({ 'luau_vm' })
         end
     end
-    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
-    then
+    -- Unset on the web, where script modules run on the browser's engine.
+    if wamr then
         -- librive.a's WasmScriptingVM needs the WAMR runtime.
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
         do
@@ -166,7 +164,7 @@ function rive_tools_project(name, project_kind)
         do
             links({ 'ntdll', 'userenv', 'ws2_32', 'bcrypt' })
         end
-        -- Ladder and transplant tests speak the public wamr API directly.
+        -- Ladder tests speak the public wamr API directly.
         filter({ 'options:with_rive_scripting' })
         do
             includedirs({ wamr .. '/core/iwasm/include' })
@@ -269,7 +267,6 @@ function rive_tools_project(name, project_kind)
         links({
             'tools_common',
             'rive_pls_renderer',
-            'rive_cg_renderer',
             'rive_decoders',
             'rive',
             'libpng',
@@ -431,6 +428,20 @@ function rive_tools_project(name, project_kind)
             '-sINITIAL_HEAP=134217728',
             '-lwebsocket.js',
         })
+    end
+
+    -- Script modules run on the browser's wasm engine through the page's
+    -- script runner.
+    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    then
+        filter({ 'system:emscripten', 'options:with_rive_scripting' })
+        do
+            linkoptions({
+                '--pre-js '
+                    .. RIVE_RUNTIME_DIR
+                    .. '/src/wasm/web/rive_scripting_pre.js',
+            })
+        end
     end
 
     filter({

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextStylePaintBase::clone() const
 {
-    auto cloned = new TextStylePaint();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextStylePaint();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -10,23 +10,23 @@ namespace rive
 class DataValueAssetBlob : public DataValueInteger
 {
 public:
-    DataValueAssetBlob(uint32_t value) : DataValueInteger(value) {};
-    DataValueAssetBlob() : DataValueInteger(-1) {};
-    static const DataType typeKey = DataType::assetBlob;
-    bool isTypeOf(DataType typeKey) const override
-    {
-        return typeKey == DataType::assetBlob || typeKey == DataType::integer;
-    };
-    constexpr static uint32_t defaultValue = -1;
-    rcp<BlobAsset> fileAsset() { return m_fileAsset; }
-    void blobValue(BlobAsset* blob)
-    {
-        m_fileAsset = blob == nullptr ? nullptr : ref_rcp(blob);
-    }
-    BlobAsset* blobValue() { return m_fileAsset.get(); }
+  DataValueAssetBlob(uint32_t value) : DataValueInteger(value) {};
+  DataValueAssetBlob() : DataValueInteger(-1) {};
+  static const DataType typeKey = DataType::assetBlob;
+  bool isTypeOf(DataType typeKey) const override
+  {
+    return typeKey == DataType::assetBlob || typeKey == DataType::integer;
+  };
+  constexpr static uint32_t defaultValue = -1;
+  rcp<BlobAsset> fileAsset() { return m_fileAsset; }
+  void blobValue(BlobAsset* blob)
+  {
+    m_fileAsset = blob == nullptr ? nullptr : ref_rcp(blob);
+  }
+  BlobAsset* blobValue() { return m_fileAsset.get(); }
 
 private:
-    rcp<BlobAsset> m_fileAsset = nullptr;
+  rcp<BlobAsset> m_fileAsset = nullptr;
 };
 } // namespace rive
 #endif

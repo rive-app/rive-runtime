@@ -7,110 +7,123 @@ using namespace rive;
 
 void RotationConstraint::constrain(TransformComponent* component)
 {
-    auto* tgt = target();
-    if (tgt != nullptr && tgt->isCollapsed())
+  auto* tgt = target();
+  if (tgt != nullptr && tgt->isCollapsed())
+  {
+    return;
+  }
+  const Mat2D& transformA = component->worldTransform();
+  Mat2D transformB;
+  m_ComponentsA = transformA.decompose();
+  if (tgt == nullptr)
+  {
+    transformB = transformA;
+    m_ComponentsB = m_ComponentsA;
+  }
+  else
+  {
+    transformB = tgt->worldTransform();
+    if (sourceSpace() == TransformSpace::local)
     {
+      Mat2D inverse;
+
+      if (!getParentWorld(*tgt).invert(&inverse))
+      {
         return;
+      }
+      transformB = inverse * transformB;
     }
-    const Mat2D& transformA = component->worldTransform();
-    Mat2D transformB;
-    m_ComponentsA = transformA.decompose();
-    if (tgt == nullptr)
+
+    m_ComponentsB = transformB.decompose();
+
+    if (!doesCopy())
     {
-        transformB = transformA;
-        m_ComponentsB = m_ComponentsA;
+      m_ComponentsB.rotation(
+          destSpace() == TransformSpace::local ? 0.0f
+                                               : m_ComponentsA.rotation());
     }
     else
     {
-        transformB = tgt->worldTransform();
-        if (sourceSpace() == TransformSpace::local)
-        {
-            Mat2D inverse;
-
-            if (!getParentWorld(*tgt).invert(&inverse))
-            {
-                return;
-            }
-            transformB = inverse * transformB;
-        }
-
-        m_ComponentsB = transformB.decompose();
-
-        if (!doesCopy())
-        {
-            m_ComponentsB.rotation(destSpace() == TransformSpace::local
-                                       ? 0.0f
-                                       : m_ComponentsA.rotation());
-        }
-        else
-        {
-            m_ComponentsB.rotation(m_ComponentsB.rotation() * copyFactor());
-            if (offset())
-            {
-                m_ComponentsB.rotation(m_ComponentsB.rotation() +
-                                       component->rotation());
-            }
-        }
-
-        if (destSpace() == TransformSpace::local)
-        {
-            // Destination space is in parent transform coordinates. Recompose
-            // the parent local transform and get it in world, then decompose
-            // the world for interpolation.
-
-            transformB = Mat2D::compose(m_ComponentsB);
-            transformB = getParentWorld(*component) * transformB;
-            m_ComponentsB = transformB.decompose();
-        }
+      m_ComponentsB.rotation(m_ComponentsB.rotation() * copyFactor());
+      if (offset())
+      {
+        m_ComponentsB.rotation(
+            m_ComponentsB.rotation() + component->rotation());
+      }
     }
-    bool clampLocal = minMaxSpace() == TransformSpace::local;
-    if (clampLocal)
+
+    if (destSpace() == TransformSpace::local)
     {
-        // Apply min max in local space, so transform to local coordinates
-        // first.
-        transformB = Mat2D::compose(m_ComponentsB);
-        Mat2D inverse;
-        if (!getParentWorld(*component).invert(&inverse))
-        {
-            return;
-        }
-        m_ComponentsB = (inverse * transformB).decompose();
-    }
-    if (max() && m_ComponentsB.rotation() > maxValue())
-    {
-        m_ComponentsB.rotation(maxValue());
-    }
-    if (min() && m_ComponentsB.rotation() < minValue())
-    {
-        m_ComponentsB.rotation(minValue());
-    }
-    if (clampLocal)
-    {
-        // Transform back to world.
-        transformB = Mat2D::compose(m_ComponentsB);
-        transformB = getParentWorld(*component) * transformB;
-        m_ComponentsB = transformB.decompose();
-    }
+      // Destination space is in parent transform coordinates. Recompose
+      // the parent local transform and get it in world, then decompose
+      // the world for interpolation.
 
-    float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
-    float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
-    float diff = angleB - angleA;
-
-    if (diff > math::PI)
-    {
-        diff -= math::PI * 2;
+      transformB = Mat2D::compose(m_ComponentsB);
+      transformB = getParentWorld(*component) * transformB;
+      m_ComponentsB = transformB.decompose();
     }
-    else if (diff < -math::PI)
+  }
+  bool clampLocal = minMaxSpace() == TransformSpace::local;
+  if (clampLocal)
+  {
+    // Apply min max in local space, so transform to local coordinates
+    // first.
+    transformB = Mat2D::compose(m_ComponentsB);
+    Mat2D inverse;
+    if (!getParentWorld(*component).invert(&inverse))
     {
-        diff += math::PI * 2;
+      return;
     }
+    m_ComponentsB = (inverse * transformB).decompose();
+  }
+  if (min() || max())
+  {
+    // Decomposed angles wrap at half a turn, so compare them within the
+    // turn centered on the limits instead.
+    float center = min() && max() ? (minValue() + maxValue()) * 0.5f
+                   : max()        ? maxValue()
+                                  : minValue();
+    float rotation = m_ComponentsB.rotation() - center;
+    rotation -= math::PI * 2 *
+                std::floor((rotation + math::PI) / (math::PI * 2));
+    rotation += center;
+    if (max() && rotation > maxValue())
+    {
+      rotation = maxValue();
+    }
+    if (min() && rotation < minValue())
+    {
+      rotation = minValue();
+    }
+    m_ComponentsB.rotation(rotation);
+  }
+  if (clampLocal)
+  {
+    // Transform back to world.
+    transformB = Mat2D::compose(m_ComponentsB);
+    transformB = getParentWorld(*component) * transformB;
+    m_ComponentsB = transformB.decompose();
+  }
 
-    m_ComponentsB.rotation(m_ComponentsA.rotation() + diff * strength());
-    m_ComponentsB.x(m_ComponentsA.x());
-    m_ComponentsB.y(m_ComponentsA.y());
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX());
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY());
-    m_ComponentsB.skew(m_ComponentsA.skew());
+  float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
+  float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
+  float diff = angleB - angleA;
 
-    composeKeepingAnchor(component, m_ComponentsB);
+  if (diff > math::PI)
+  {
+    diff -= math::PI * 2;
+  }
+  else if (diff < -math::PI)
+  {
+    diff += math::PI * 2;
+  }
+
+  m_ComponentsB.rotation(m_ComponentsA.rotation() + diff * strength());
+  m_ComponentsB.x(m_ComponentsA.x());
+  m_ComponentsB.y(m_ComponentsA.y());
+  m_ComponentsB.scaleX(m_ComponentsA.scaleX());
+  m_ComponentsB.scaleY(m_ComponentsA.scaleY());
+  m_ComponentsB.skew(m_ComponentsA.skew());
+
+  composeKeepingAnchor(component, m_ComponentsB);
 }

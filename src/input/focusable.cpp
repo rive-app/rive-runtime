@@ -7,23 +7,23 @@ using namespace rive;
 
 bool Focusable::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
 {
-    return false;
+  return false;
 }
 
 Focusable* Focusable::from(Core* object)
 {
-    if (object == nullptr)
-    {
-        return nullptr;
-    }
-
-    if (object->is<TextInput>())
-    {
-        return object->as<TextInput>();
-    }
-    if (object->is<NestedArtboard>())
-    {
-        return object->as<NestedArtboard>();
-    }
+  if (object == nullptr)
+  {
     return nullptr;
+  }
+
+  if (object->is<TextInput>())
+  {
+    return object->as<TextInput>();
+  }
+  if (object->is<NestedArtboard>())
+  {
+    return object->as<NestedArtboard>();
+  }
+  return nullptr;
 }

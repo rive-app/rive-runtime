@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterStringPadBase::clone() const
 {
-    auto cloned = new DataConverterStringPad();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterStringPad();
+  cloned->copy(*this);
+  return cloned;
 }

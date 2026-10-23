@@ -16,67 +16,64 @@ class CommandPath;
 
 class ShapePaintContainer
 {
-    friend class ShapePaint;
+  friend class ShapePaint;
 
 protected:
-    // Need this to access our artboard. We are treated as a mixin, either
-    // as a Shape or Artboard, so both of those will override this.
-    virtual Artboard* getArtboard() = 0;
+  // Need this to access our artboard. We are treated as a mixin, either
+  // as a Shape or Artboard, so both of those will override this.
+  virtual Artboard* getArtboard() = 0;
 
-    PathFlags m_pathFlags = PathFlags::none;
-    std::vector<ShapePaint*> m_ShapePaints;
-    void addPaint(ShapePaint* paint);
+  PathFlags m_pathFlags = PathFlags::none;
+  std::vector<ShapePaint*> m_ShapePaints;
+  void addPaint(ShapePaint* paint);
 
 public:
-    static ShapePaintContainer* from(Component* component);
+  static ShapePaintContainer* from(Component* component);
 
 #ifdef WITH_RIVE_EDITOR
-    // Editor-only removal companion to `addPaint` — fired from
-    // `ShapePaint::editorParentChanged` when the paint is reparented
-    // away (or about to be freed) so the container's typed list
-    // doesn't dangle. Runtime build assumes immutable hierarchy and
-    // never reaches this. Body in `component_parent_editor.cpp`.
-    void removePaintForEditor(ShapePaint* paint);
+  // Editor-only removal companion to `addPaint` — fired from
+  // `ShapePaint::editorParentChanged` when the paint is reparented
+  // away (or about to be freed) so the container's typed list
+  // doesn't dangle. Runtime build assumes immutable hierarchy and
+  // never reaches this. Body in `component_parent_editor.cpp`.
+  void removePaintForEditor(ShapePaint* paint);
 
-    // Editor-only re-sort of `m_ShapePaints` by sibling
-    // `FractionalIndex`. Runtime build never reorders ShapePaints
-    // after hydration; editor builds need this hook so the
-    // inspector's drag-reorder actually changes the rendered draw
-    // order (the runtime renders by walking `m_ShapePaints` in
-    // vector order). Mirrors `Path::sortVerticesForEditor`.
-    void sortShapePaintsForEditor();
+  // Editor-only re-sort of `m_ShapePaints` by sibling
+  // `FractionalIndex`. Runtime build never reorders ShapePaints
+  // after hydration; editor builds need this hook so the
+  // inspector's drag-reorder actually changes the rendered draw
+  // order (the runtime renders by walking `m_ShapePaints` in
+  // vector order). Mirrors `Path::sortVerticesForEditor`.
+  void sortShapePaintsForEditor();
 
-    // Editor-only read-only view of `m_ShapePaints` for diagnostics
-    // (dispatcher debug, inspector introspection). The runtime
-    // build uses `TESTING`-gated `shapePaints()` for the same.
-    const std::vector<ShapePaint*>& shapePaintsForEditor() const
-    {
-        return m_ShapePaints;
-    }
+  // Editor-only read-only view of `m_ShapePaints` for diagnostics
+  // (dispatcher debug, inspector introspection). The runtime
+  // build uses `TESTING`-gated `shapePaints()` for the same.
+  const std::vector<ShapePaint*>& shapePaintsForEditor() const
+  {
+    return m_ShapePaints;
+  }
 #endif
 
-    /// The component that's responsible for path building, helpful for adding
-    /// dependencies after the paths are built.
-    virtual Component* pathBuilder() = 0;
+  /// The component that's responsible for path building, helpful for adding
+  /// dependencies after the paths are built.
+  virtual Component* pathBuilder() = 0;
 
-    virtual ~ShapePaintContainer() {}
+  virtual ~ShapePaintContainer() {}
 
-    PathFlags pathFlags() const;
+  PathFlags pathFlags() const;
 
-    void invalidateStrokeEffects();
+  void invalidateStrokeEffects();
 
-    void propagateOpacity(float opacity);
+  void propagateOpacity(float opacity);
 
-    virtual const Mat2D& shapeWorldTransform() const = 0;
+  virtual const Mat2D& shapeWorldTransform() const = 0;
 
-    const std::vector<ShapePaint*>& shapePaints() const
-    {
-        return m_ShapePaints;
-    }
+  const std::vector<ShapePaint*>& shapePaints() const { return m_ShapePaints; }
 
-    virtual ShapePaintPath* worldPath() { return nullptr; }
-    virtual ShapePaintPath* localPath() { return nullptr; }
-    virtual ShapePaintPath* localClockwisePath() { return nullptr; }
+  virtual ShapePaintPath* worldPath() { return nullptr; }
+  virtual ShapePaintPath* localPath() { return nullptr; }
+  virtual ShapePaintPath* localClockwisePath() { return nullptr; }
 };
 } // namespace rive
 

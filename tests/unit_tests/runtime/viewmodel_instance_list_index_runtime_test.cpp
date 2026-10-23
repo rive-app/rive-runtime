@@ -10,19 +10,19 @@ using namespace rive;
 // and reads through to its value. It is a read-only view (no setter).
 TEST_CASE("list index runtime reports type and reads value", "[data binding]")
 {
-    // Own the initial reference here; the runtime takes its own ref on
-    // construction and releases it on destruction. Reverse-order destruction
-    // (runtime before `index`) then drops the refcount to zero without leaking.
-    auto index = make_rcp<ViewModelInstanceSymbolListIndex>();
-    index->propertyValue(3);
+  // Own the initial reference here; the runtime takes its own ref on
+  // construction and releases it on destruction. Reverse-order destruction
+  // (runtime before `index`) then drops the refcount to zero without leaking.
+  auto index = make_rcp<ViewModelInstanceSymbolListIndex>();
+  index->propertyValue(3);
 
-    ViewModelInstanceListIndexRuntime runtime(index.get());
+  ViewModelInstanceListIndexRuntime runtime(index.get());
 
-    CHECK(runtime.dataType() == DataType::symbolListIndex);
-    CHECK(runtime.value() == 3);
+  CHECK(runtime.dataType() == DataType::symbolListIndex);
+  CHECK(runtime.value() == 3);
 
-    index->propertyValue(7);
-    CHECK(runtime.value() == 7);
+  index->propertyValue(7);
+  CHECK(runtime.value() == 7);
 }
 
 // Changing the underlying value dirties the wrapper so
@@ -30,27 +30,27 @@ TEST_CASE("list index runtime reports type and reads value", "[data binding]")
 // runtimes.
 TEST_CASE("list index runtime reports value changes", "[data binding]")
 {
-    auto index = make_rcp<ViewModelInstanceSymbolListIndex>();
-    ViewModelInstanceListIndexRuntime runtime(index.get());
+  auto index = make_rcp<ViewModelInstanceSymbolListIndex>();
+  ViewModelInstanceListIndexRuntime runtime(index.get());
 
-    // No change yet.
-    CHECK_FALSE(runtime.hasChanged());
-    CHECK_FALSE(runtime.flushChanges());
+  // No change yet.
+  CHECK_FALSE(runtime.hasChanged());
+  CHECK_FALSE(runtime.flushChanges());
 
-    // A new value marks the wrapper dirty.
-    index->propertyValue(1);
-    CHECK(runtime.hasChanged());
+  // A new value marks the wrapper dirty.
+  index->propertyValue(1);
+  CHECK(runtime.hasChanged());
 
-    // flushChanges consumes the change and clears the flag.
-    CHECK(runtime.flushChanges());
-    CHECK_FALSE(runtime.hasChanged());
-    CHECK_FALSE(runtime.flushChanges());
+  // flushChanges consumes the change and clears the flag.
+  CHECK(runtime.flushChanges());
+  CHECK_FALSE(runtime.hasChanged());
+  CHECK_FALSE(runtime.flushChanges());
 
-    // Setting the same value is a no-op and does not report a change.
-    index->propertyValue(1);
-    CHECK_FALSE(runtime.hasChanged());
+  // Setting the same value is a no-op and does not report a change.
+  index->propertyValue(1);
+  CHECK_FALSE(runtime.hasChanged());
 
-    // A different value reports again.
-    index->propertyValue(2);
-    CHECK(runtime.hasChanged());
+  // A different value reports again.
+  index->propertyValue(2);
+  CHECK(runtime.hasChanged());
 }

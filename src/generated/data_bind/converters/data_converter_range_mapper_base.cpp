@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterRangeMapperBase::clone() const
 {
-    auto cloned = new DataConverterRangeMapper();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterRangeMapper();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -8,99 +8,102 @@ using namespace rive;
 
 void ForegroundLayoutDrawable::buildDependencies()
 {
-    Super::buildDependencies();
-    // Set the blend mode on all the shape paints. If we ever animate this
-    // property, we'll need to update it in the update cycle/mark dirty when the
-    // blend mode changes.
-    auto parentLayout = (parent()->as<LayoutComponent>());
-    if (parentLayout != nullptr)
+  Super::buildDependencies();
+  // Set the blend mode on all the shape paints. If we ever animate this
+  // property, we'll need to update it in the update cycle/mark dirty when the
+  // blend mode changes.
+  auto parentLayout = (parent()->as<LayoutComponent>());
+  if (parentLayout != nullptr)
+  {
+    parentLayout->registerForegroundDrawable();
+    for (auto paint : m_ShapePaints)
     {
-        parentLayout->registerForegroundDrawable();
-        for (auto paint : m_ShapePaints)
-        {
-            paint->blendMode(parentLayout->blendMode(),
-                             parentLayout->additiveAmount());
-        }
+      paint->blendMode(
+          parentLayout->blendMode(),
+          parentLayout->additiveAmount());
     }
+  }
 }
 
 void ForegroundLayoutDrawable::update(ComponentDirt value)
 {
-    Super::update(value);
-    auto parentLayout = (parent()->as<LayoutComponent>());
-    if (parentLayout != nullptr)
+  Super::update(value);
+  auto parentLayout = (parent()->as<LayoutComponent>());
+  if (parentLayout != nullptr)
+  {
+    if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        if (hasDirt(value, ComponentDirt::RenderOpacity))
-        {
-            propagateOpacity(parentLayout->childOpacity());
-        }
-        if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
-        {
-            invalidateStrokeEffects();
-        }
+      propagateOpacity(parentLayout->childOpacity());
     }
+    if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
+    {
+      invalidateStrokeEffects();
+    }
+  }
 }
 
 void ForegroundLayoutDrawable::draw(Renderer* renderer)
 {
-    auto parentLayoutComponent = (parent()->as<LayoutComponent>());
+  auto parentLayoutComponent = (parent()->as<LayoutComponent>());
 
-    for (auto shapePaint : m_ShapePaints)
+  for (auto shapePaint : m_ShapePaints)
+  {
+    // Our paints blend against the layout we draw over, and its
+    // additiveAmount animates, so re-read it rather than relying on the
+    // one-shot sync in buildDependencies().
+    shapePaint->blendMode(
+        parentLayoutComponent->blendMode(),
+        parentLayoutComponent->additiveAmount());
+    if (!shapePaint->shouldDraw())
     {
-        // Our paints blend against the layout we draw over, and its
-        // additiveAmount animates, so re-read it rather than relying on the
-        // one-shot sync in buildDependencies().
-        shapePaint->blendMode(parentLayoutComponent->blendMode(),
-                              parentLayoutComponent->additiveAmount());
-        if (!shapePaint->shouldDraw())
-        {
-            continue;
-        }
-        auto shapePaintPath = shapePaint->pickPath(parentLayoutComponent);
-        if (shapePaintPath == nullptr)
-        {
-            continue;
-        }
-        shapePaint->draw(renderer,
-                         shapePaintPath,
-                         parentLayoutComponent->worldTransform());
+      continue;
     }
+    auto shapePaintPath = shapePaint->pickPath(parentLayoutComponent);
+    if (shapePaintPath == nullptr)
+    {
+      continue;
+    }
+    shapePaint->draw(
+        renderer,
+        shapePaintPath,
+        parentLayoutComponent->worldTransform());
+  }
 }
 
 Core* ForegroundLayoutDrawable::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
-    return nullptr;
+  return nullptr;
 }
 
 Component* ForegroundLayoutDrawable::pathBuilder() { return parent(); }
 
 ShapePaintPath* ForegroundLayoutDrawable::worldPath()
 {
-    return parent()->as<LayoutComponent>()->worldPath();
+  return parent()->as<LayoutComponent>()->worldPath();
 }
 
 ShapePaintPath* ForegroundLayoutDrawable::localPath()
 {
-    return parent()->as<LayoutComponent>()->localPath();
+  return parent()->as<LayoutComponent>()->localPath();
 }
 
 ShapePaintPath* ForegroundLayoutDrawable::localClockwisePath()
 {
-    return parent()->as<LayoutComponent>()->localClockwisePath();
+  return parent()->as<LayoutComponent>()->localClockwisePath();
 }
 
 BoundsFidelity ForegroundLayoutDrawable::paintedWorldBounds(AABB* out)
 {
-    // It has no box of its own: it paints the parent layout's outline, at the
-    // layout's transform, with its own paints.
-    ContainerComponent* container = parent();
-    if (container == nullptr || !container->is<LayoutComponent>())
-    {
-        return BoundsFidelity::none;
-    }
-    return paintedBoundsFromLocal(
-        container->as<LayoutComponent>()->localBounds(),
-        worldTransform(),
-        this,
-        out);
+  // It has no box of its own: it paints the parent layout's outline, at the
+  // layout's transform, with its own paints.
+  ContainerComponent* container = parent();
+  if (container == nullptr || !container->is<LayoutComponent>())
+  {
+    return BoundsFidelity::none;
+  }
+  return paintedBoundsFromLocal(
+      container->as<LayoutComponent>()->localBounds(),
+      worldTransform(),
+      this,
+      out);
 }

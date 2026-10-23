@@ -9,22 +9,26 @@ namespace rive
 class ScriptInputBoolean : public ScriptInputBooleanBase, public ScriptInput
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ~ScriptInputBoolean();
-    void initScriptedValue() override
+  ~ScriptInputBoolean();
+  void initScriptedValue() override
+  {
+    ScriptInput::initScriptedValue();
+    auto obj = scriptedObject();
+    if (obj)
     {
-        ScriptInput::initScriptedValue();
-        auto obj = scriptedObject();
-        if (obj)
-        {
-            obj->setBooleanInput(name(), propertyValue());
-        }
+      obj->setBooleanInput(name(), propertyValue());
     }
-    bool validateForScriptInit() override { return true; }
-    StatusCode import(ImportStack& importStack) override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  }
+  bool validateForScriptInit() override { return true; }
+  StatusCode import(ImportStack& importStack) override;
+  bool claimsArtboardSlot(ImportStack& importStack) const override
+  {
+    return ScriptInput::takesArtboardSlot(this);
+  }
+  StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

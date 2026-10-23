@@ -13,15 +13,15 @@ class ViewModelInstanceAssetBlobRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceAssetBlobRuntime(
-        ViewModelInstanceAssetBlob* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    void value(BlobAsset* blob);
-    const DataType dataType() override { return DataType::assetBlob; }
+  ViewModelInstanceAssetBlobRuntime(
+      ViewModelInstanceAssetBlob* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  void value(BlobAsset* blob);
+  const DataType dataType() override { return DataType::assetBlob; }
 
 #ifdef TESTING
-    BlobAsset* testing_value();
+  BlobAsset* testing_value();
 #endif
 };
 } // namespace rive

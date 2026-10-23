@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextModifierRangeBase::clone() const
 {
-    auto cloned = new TextModifierRange();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextModifierRange();
+  cloned->copy(*this);
+  return cloned;
 }

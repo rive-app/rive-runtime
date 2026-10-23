@@ -14,30 +14,31 @@ namespace rive
 class RiveRenderBuffer : public RenderBuffer
 {
 protected:
-    RiveRenderBuffer(RenderBufferType type,
-                     RenderBufferFlags flags,
-                     size_t sizeInBytes) :
-        RenderBuffer(type, flags, sizeInBytes)
-    {}
+  RiveRenderBuffer(
+      RenderBufferType type,
+      RenderBufferFlags flags,
+      size_t sizeInBytes)
+      : RenderBuffer(type, flags, sizeInBytes)
+  {}
 
-    // Returns the index of the buffer to map and update, prior to rendering.
-    int backBufferIdx() const { return m_backBufferIdx; }
+  // Returns the index of the buffer to map and update, prior to rendering.
+  int backBufferIdx() const { return m_backBufferIdx; }
 
-    // Returns the index of the buffer to submit with rendering commands.
-    // Automatically advances the buffer ring if the RenderBuffer is dirty.
-    int frontBufferIdx()
+  // Returns the index of the buffer to submit with rendering commands.
+  // Automatically advances the buffer ring if the RenderBuffer is dirty.
+  int frontBufferIdx()
+  {
+    if (checkAndResetDirty())
     {
-        if (checkAndResetDirty())
-        {
-            // The update buffer is dirty. Advance the buffer ring.
-            m_frontBufferIdx = m_backBufferIdx;
-            m_backBufferIdx = (m_backBufferIdx + 1) % gpu::kBufferRingSize;
-        }
-        return m_frontBufferIdx;
+      // The update buffer is dirty. Advance the buffer ring.
+      m_frontBufferIdx = m_backBufferIdx;
+      m_backBufferIdx = (m_backBufferIdx + 1) % gpu::kBufferRingSize;
     }
+    return m_frontBufferIdx;
+  }
 
 private:
-    int m_backBufferIdx = 0;
-    int m_frontBufferIdx = -1;
+  int m_backBufferIdx = 0;
+  int m_frontBufferIdx = -1;
 };
 } // namespace rive

@@ -10,29 +10,39 @@ class TransitionPropertyViewModelComparator
     : public TransitionPropertyViewModelComparatorBase
 {
 public:
-    ~TransitionPropertyViewModelComparator();
-    StatusCode import(ImportStack& importStack) override;
-    template <typename T = BindableProperty, typename U>
-    U value(const StateMachineInstance* stateMachineInstance)
+  ~TransitionPropertyViewModelComparator();
+  StatusCode import(ImportStack& importStack) override;
+  template <typename T = BindableProperty, typename U>
+  U value(const StateMachineInstance* stateMachineInstance)
+  {
+    if (m_bindableProperty != nullptr && m_bindableProperty->is<T>())
     {
-        if (m_bindableProperty != nullptr && m_bindableProperty->is<T>())
-        {
-            auto bindableInstance =
-                stateMachineInstance->bindablePropertyInstance(
-                    m_bindableProperty);
-            if (bindableInstance != nullptr)
-            {
-                return bindableInstance->as<T>()->propertyValue();
-            }
-        }
-        return T::defaultValue;
-    };
-    void useInLayer(const StateMachineInstance* stateMachineInstance,
-                    StateMachineLayerInstance* layerInstance) const override;
-    BindableProperty* bindableProperty() { return m_bindableProperty; }
+      auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+          m_bindableProperty);
+      if (bindableInstance != nullptr)
+      {
+        return bindableInstance->as<T>()->propertyValue();
+      }
+    }
+    return T::defaultValue;
+  };
+  void useInLayer(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
+  BindableProperty* bindableProperty() { return m_bindableProperty; }
+#ifdef WITH_RIVE_EDITOR
+  void setBindablePropertyForEditor(BindableProperty* value)
+  {
+    m_editorBindable = true;
+    m_bindableProperty = value;
+  }
+#endif
 
 protected:
-    BindableProperty* m_bindableProperty = nullptr;
+  BindableProperty* m_bindableProperty = nullptr;
+#ifdef WITH_RIVE_EDITOR
+  bool m_editorBindable = false;
+#endif
 };
 } // namespace rive
 

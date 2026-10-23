@@ -13,149 +13,153 @@ namespace rive
 {
 TEST_CASE("find_transformed_area", "[gpu]")
 {
-    AABB unitSquare{0, 0, 1, 1};
-    CHECK(gpu::find_transformed_area(unitSquare, Mat2D()) == 1);
-    CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(2, 2)) == 4);
-    CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(2, 1)) == 2);
-    CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(0, 1)) == 0);
-    CHECK(gpu::find_transformed_area(unitSquare,
-                                     Mat2D::fromRotation(math::PI / 4)) ==
-          Approx(1.f));
-    CHECK(gpu::find_transformed_area(
-              unitSquare,
-              Mat2D::fromRotation(math::PI / 8).scale({2, 2})) == Approx(4.f));
-    CHECK(gpu::find_transformed_area(
-              unitSquare,
-              Mat2D::fromRotation(math::PI / 16).scale({2, 1})) == Approx(2.f));
-    CHECK(
-        gpu::find_transformed_area(unitSquare, {1, .87f, 8, 8 * .87f, 0, 0}) ==
-        Approx(0.f).margin(math::EPSILON));
+  AABB unitSquare{0, 0, 1, 1};
+  CHECK(gpu::find_transformed_area(unitSquare, Mat2D()) == 1);
+  CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(2, 2)) == 4);
+  CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(2, 1)) == 2);
+  CHECK(gpu::find_transformed_area(unitSquare, Mat2D::fromScale(0, 1)) == 0);
+  CHECK(
+      gpu::find_transformed_area(
+          unitSquare,
+          Mat2D::fromRotation(math::PI / 4)) == Approx(1.f));
+  CHECK(
+      gpu::find_transformed_area(
+          unitSquare,
+          Mat2D::fromRotation(math::PI / 8).scale({2, 2})) == Approx(4.f));
+  CHECK(
+      gpu::find_transformed_area(
+          unitSquare,
+          Mat2D::fromRotation(math::PI / 16).scale({2, 1})) == Approx(2.f));
+  CHECK(
+      gpu::find_transformed_area(unitSquare, {1, .87f, 8, 8 * .87f, 0, 0}) ==
+      Approx(0.f).margin(math::EPSILON));
 }
 
 TEST_CASE("gaussian_integral_table", "[gpu]")
 {
-    float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
-    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
-    {
-        float4 f32s = gpu::cast_f16_to_f32(
-            simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
-        simd::store(gaussianTable + i, f32s);
-    };
+  float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
+  for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
+  {
+    float4 f32s = gpu::cast_f16_to_f32(
+        simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
+    simd::store(gaussianTable + i, f32s);
+  };
 
-    CHECK(gaussianTable[0] == 0.0f);
-    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1.0f);
-    if (gpu::GAUSSIAN_TABLE_SIZE & 1)
-    {
-        CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
-    }
-    else
-    {
-        CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] <= .5f);
-        CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] >= .5f);
-        CHECK((gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
-               gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2]) /
-                  2 ==
-              Approx(.5f).margin(1e-3f));
-    }
-    for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
-    {
-        CHECK(gaussianTable[i - 1] <= gaussianTable[i]);
-    }
-    for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2; ++i)
-    {
-        CHECK(gaussianTable[i] +
-                  gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
-              Approx(1).margin(1e-3f));
-    }
+  CHECK(gaussianTable[0] == 0.0f);
+  CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1.0f);
+  if (gpu::GAUSSIAN_TABLE_SIZE & 1)
+  {
+    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
+  }
+  else
+  {
+    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] <= .5f);
+    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] >= .5f);
+    CHECK(
+        (gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
+         gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2]) /
+            2 ==
+        Approx(.5f).margin(1e-3f));
+  }
+  for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
+  {
+    CHECK(gaussianTable[i - 1] <= gaussianTable[i]);
+  }
+  for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2; ++i)
+  {
+    CHECK(
+        gaussianTable[i] + gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
+        Approx(1).margin(1e-3f));
+  }
 }
 
 // Looks up the value of "x" in the given function table, with linear filtering.
 static float function_table_lookup(float x, const float* table, float tableSize)
 {
-    x = fminf(fmaxf(0, x), 1);
-    float sampleRegionLeft = x * tableSize - .5f;
-    int rightIdx = static_cast<int>(fminf(sampleRegionLeft + 1, tableSize - 1));
-    int leftIdx = std::max(rightIdx - 1, 0);
-    float t = fminf(fmaxf(0, sampleRegionLeft - leftIdx), 1);
-    return lerp(table[leftIdx], table[rightIdx], t);
+  x = fminf(fmaxf(0, x), 1);
+  float sampleRegionLeft = x * tableSize - .5f;
+  int rightIdx = static_cast<int>(fminf(sampleRegionLeft + 1, tableSize - 1));
+  int leftIdx = std::max(rightIdx - 1, 0);
+  float t = fminf(fmaxf(0, sampleRegionLeft - leftIdx), 1);
+  return lerp(table[leftIdx], table[rightIdx], t);
 }
 
 TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
 {
-    float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
-    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
-    {
-        float4 f32s = gpu::cast_f16_to_f32(
-            simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
-        simd::store(gaussianTable + i, f32s);
-    };
-    auto gaussianIntegral = [&gaussianTable](float x) {
-        return function_table_lookup(x,
-                                     gaussianTable,
-                                     std::size(gaussianTable));
-    };
+  float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
+  for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
+  {
+    float4 f32s = gpu::cast_f16_to_f32(
+        simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
+    simd::store(gaussianTable + i, f32s);
+  };
+  auto gaussianIntegral = [&gaussianTable](float x) {
+    return function_table_lookup(x, gaussianTable, std::size(gaussianTable));
+  };
 
-    float inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
-    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
-    {
-        float4 f32s = gpu::cast_f16_to_f32(simd::load<uint16_t, 4>(
-            gpu::g_inverseGaussianIntegralTableF16 + i));
-        simd::store(inverseGaussianTable + i, f32s);
-    };
-    auto inverseGaussianIntegral = [&inverseGaussianTable](float y) {
-        return function_table_lookup(y,
-                                     inverseGaussianTable,
-                                     std::size(inverseGaussianTable));
-    };
+  float inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
+  for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
+  {
+    float4 f32s = gpu::cast_f16_to_f32(
+        simd::load<uint16_t, 4>(gpu::g_inverseGaussianIntegralTableF16 + i));
+    simd::store(inverseGaussianTable + i, f32s);
+  };
+  auto inverseGaussianIntegral = [&inverseGaussianTable](float y) {
+    return function_table_lookup(
+        y,
+        inverseGaussianTable,
+        std::size(inverseGaussianTable));
+  };
 
-    CHECK(inverseGaussianTable[0] == 0);
-    CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1);
-    if (gpu::GAUSSIAN_TABLE_SIZE & 1)
-    {
-        CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
-    }
-    else
-    {
-        CHECK((inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
-               inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2]) /
-                  2 ==
-              Approx(.5f).margin(1e-4f));
-    }
-    for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
-    {
-        CHECK(inverseGaussianTable[i - 1] <= inverseGaussianTable[i]);
-    }
-    for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2 - 4; ++i)
-    {
-        CHECK(inverseGaussianTable[i] +
-                  inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
-              Approx(1).margin(i > 100 ? 5e-4f
-                               : i > 4 ? 1e-3f
-                                       : 1e-2f));
-    }
+  CHECK(inverseGaussianTable[0] == 0);
+  CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1);
+  if (gpu::GAUSSIAN_TABLE_SIZE & 1)
+  {
+    CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
+  }
+  else
+  {
+    CHECK(
+        (inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
+         inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2]) /
+            2 ==
+        Approx(.5f).margin(1e-4f));
+  }
+  for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
+  {
+    CHECK(inverseGaussianTable[i - 1] <= inverseGaussianTable[i]);
+  }
+  for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2 - 4; ++i)
+  {
+    CHECK(
+        inverseGaussianTable[i] +
+            inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
+        Approx(1).margin(
+            i > 100 ? 5e-4f
+            : i > 4 ? 1e-3f
+                    : 1e-2f));
+  }
 
-    // Check that the inverse table is actually an inverse of the gaussian
-    // integral.
-    float M = 21;
-    for (float x = 0; x <= 1; x += 1.f / (gpu::GAUSSIAN_TABLE_SIZE * M))
-    {
-        float y = gaussianIntegral(x);
-        // The inverse table loses precision at the inner and outer cells.
-        float margin = x > .125f && x < .875f ? 1.f / 512
-                       : x > .04f && x < .96f ? 1.f / 256
-                       : x > .02f && x < .98f ? 1.f / 128
-                                              : 1.f / 90;
-        CHECK(inverseGaussianIntegral(y) == Approx(x).margin(margin));
-    }
+  // Check that the inverse table is actually an inverse of the gaussian
+  // integral.
+  float M = 21;
+  for (float x = 0; x <= 1; x += 1.f / (gpu::GAUSSIAN_TABLE_SIZE * M))
+  {
+    float y = gaussianIntegral(x);
+    // The inverse table loses precision at the inner and outer cells.
+    float margin = x > .125f && x < .875f ? 1.f / 512
+                   : x > .04f && x < .96f ? 1.f / 256
+                   : x > .02f && x < .98f ? 1.f / 128
+                                          : 1.f / 90;
+    CHECK(inverseGaussianIntegral(y) == Approx(x).margin(margin));
+  }
 
-    // Check inverse_gaussian_integral edge cases.
-    CHECK(inverseGaussianIntegral(-1) == 0);
-    CHECK(inverseGaussianIntegral(2) == 1);
-    CHECK(inverseGaussianIntegral(-std::numeric_limits<float>::infinity()) ==
-          0);
-    CHECK(inverseGaussianIntegral(std::numeric_limits<float>::infinity()) == 1);
-    CHECK(inverseGaussianIntegral(std::numeric_limits<float>::quiet_NaN()) ==
-          0);
+  // Check inverse_gaussian_integral edge cases.
+  CHECK(inverseGaussianIntegral(-1) == 0);
+  CHECK(inverseGaussianIntegral(2) == 1);
+  CHECK(inverseGaussianIntegral(-std::numeric_limits<float>::infinity()) == 0);
+  CHECK(inverseGaussianIntegral(std::numeric_limits<float>::infinity()) == 1);
+  CHECK(inverseGaussianIntegral(std::numeric_limits<float>::quiet_NaN()) == 0);
 }
 // ForEachUbershaderPermutation() has to enumerate every DrawType a backend can
 // actually bind. The dynamic-state DrawTypes were missing from msaa's
@@ -163,45 +167,46 @@ TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
 // the async path had nothing to fall back to.
 TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
 {
-    auto enumerateDrawTypes = [](bool supportsPipelineDynamicState) {
-        gpu::PlatformFeatures platformFeatures;
-        platformFeatures.supportsPipelineDynamicState =
-            supportsPipelineDynamicState;
-        std::set<gpu::DrawType> drawTypes;
-        gpu::ForEachUbershaderPermutation(gpu::InterlockMode::depthStencil,
-                                          platformFeatures,
-                                          [&drawTypes](gpu::DrawType drawType,
-                                                       gpu::ShaderFeatures,
-                                                       gpu::ShaderMiscFlags) {
-                                              drawTypes.insert(drawType);
-                                              return true; // Keep iterating.
-                                          });
-        return drawTypes;
-    };
+  auto enumerateDrawTypes = [](bool supportsPipelineDynamicState) {
+    gpu::PlatformFeatures platformFeatures;
+    platformFeatures
+        .supportsPipelineDynamicState = supportsPipelineDynamicState;
+    std::set<gpu::DrawType> drawTypes;
+    gpu::ForEachUbershaderPermutation(
+        gpu::InterlockMode::depthStencil,
+        platformFeatures,
+        [&drawTypes](
+            gpu::DrawType drawType,
+            gpu::ShaderFeatures,
+            gpu::ShaderMiscFlags) {
+          drawTypes.insert(drawType);
+          return true; // Keep iterating.
+        });
+    return drawTypes;
+  };
 
-    const std::set<gpu::DrawType> withDynamicState = enumerateDrawTypes(true);
-    CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicMidpointFans) ==
-          1);
-    CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) ==
-          1);
+  const std::set<gpu::DrawType> withDynamicState = enumerateDrawTypes(true);
+  CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicMidpointFans) == 1);
+  CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) == 1);
 
-    // Backends that can't switch depth/stencil/cull/color-write without
-    // rebinding a pipeline never bind these, so they don't precompile them.
-    const std::set<gpu::DrawType> withoutDynamicState =
-        enumerateDrawTypes(false);
-    CHECK(withoutDynamicState.count(
-              gpu::DrawType::stencilDynamicMidpointFans) == 0);
-    CHECK(withoutDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) ==
-          0);
+  // Backends that can't switch depth/stencil/cull/color-write without
+  // rebinding a pipeline never bind these, so they don't precompile them.
+  const std::set<gpu::DrawType> withoutDynamicState = enumerateDrawTypes(false);
+  CHECK(
+      withoutDynamicState.count(gpu::DrawType::stencilDynamicMidpointFans) ==
+      0);
+  CHECK(
+      withoutDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) == 0);
 
-    // The passes they collapse are enumerated either way.
-    for (auto drawType : {gpu::DrawType::stencilMidpointFanBorrowedCoverage,
-                          gpu::DrawType::stencilMidpointFans,
-                          gpu::DrawType::stencilMidpointFanReset})
-    {
-        CHECK(withDynamicState.count(drawType) == 1);
-        CHECK(withoutDynamicState.count(drawType) == 1);
-    }
+  // The passes they collapse are enumerated either way.
+  for (auto drawType :
+       {gpu::DrawType::stencilMidpointFanBorrowedCoverage,
+        gpu::DrawType::stencilMidpointFans,
+        gpu::DrawType::stencilMidpointFanReset})
+  {
+    CHECK(withDynamicState.count(drawType) == 1);
+    CHECK(withoutDynamicState.count(drawType) == 1);
+  }
 }
 
 // ShaderUniqueKey() packs shaderMiscFlags densely, using only the bits that are
@@ -210,73 +215,75 @@ TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
 // different flags for each, and two different shaders land on one key.
 TEST_CASE("shader_unique_keys_do_not_collide", "[gpu]")
 {
-    gpu::PlatformFeatures platformFeatures;
-    platformFeatures.supportsPipelineDynamicState = true;
+  gpu::PlatformFeatures platformFeatures;
+  platformFeatures.supportsPipelineDynamicState = true;
 
-    for (auto interlockMode : {gpu::InterlockMode::rasterOrdering,
-                               gpu::InterlockMode::atomics,
-                               gpu::InterlockMode::clockwise,
-                               gpu::InterlockMode::clockwiseAtomic,
-                               gpu::InterlockMode::depthStencil})
-    {
-        // Two draws may share a key only if they compile to the same shader,
-        // which requires identical shaderMiscFlags.
-        std::map<uint32_t, gpu::ShaderMiscFlags> keyToMiscFlags;
-        gpu::ForEachUbershaderPermutation(
-            interlockMode,
-            platformFeatures,
-            [&](gpu::DrawType drawType,
-                gpu::ShaderFeatures shaderFeatures,
-                gpu::ShaderMiscFlags shaderMiscFlags) {
-                uint32_t key = gpu::ShaderUniqueKey(drawType,
-                                                    shaderFeatures,
-                                                    interlockMode,
-                                                    shaderMiscFlags);
-                auto [it, inserted] =
-                    keyToMiscFlags.insert({key, shaderMiscFlags});
-                if (!inserted)
-                {
-                    INFO("interlockMode "
-                         << static_cast<uint32_t>(interlockMode)
-                         << ", drawType " << static_cast<uint32_t>(drawType)
-                         << ", key " << key);
-                    CHECK(it->second == shaderMiscFlags);
-                }
-                return true; // Keep iterating.
-            });
-    }
+  for (auto interlockMode :
+       {gpu::InterlockMode::rasterOrdering,
+        gpu::InterlockMode::atomics,
+        gpu::InterlockMode::clockwise,
+        gpu::InterlockMode::clockwiseAtomic,
+        gpu::InterlockMode::depthStencil})
+  {
+    // Two draws may share a key only if they compile to the same shader,
+    // which requires identical shaderMiscFlags.
+    std::map<uint32_t, gpu::ShaderMiscFlags> keyToMiscFlags;
+    gpu::ForEachUbershaderPermutation(
+        interlockMode,
+        platformFeatures,
+        [&](gpu::DrawType drawType,
+            gpu::ShaderFeatures shaderFeatures,
+            gpu::ShaderMiscFlags shaderMiscFlags) {
+          uint32_t key = gpu::ShaderUniqueKey(
+              drawType,
+              shaderFeatures,
+              interlockMode,
+              shaderMiscFlags);
+          auto [it, inserted] = keyToMiscFlags.insert({key, shaderMiscFlags});
+          if (!inserted)
+          {
+            INFO(
+                "interlockMode "
+                << static_cast<uint32_t>(interlockMode) << ", drawType "
+                << static_cast<uint32_t>(drawType) << ", key " << key);
+            CHECK(it->second == shaderMiscFlags);
+          }
+          return true; // Keep iterating.
+        });
+  }
 }
 
 TEST_CASE("layer_mask_mode_stays_out_of_the_clip_id", "[gpu]")
 {
-    auto params = [](LayerMaskMode mode) {
-        gpu::PaintData data;
-        data.set(gpu::DrawContents::none,
-                 gpu::PaintType::solidColor,
-                 gpu::SimplePaintValue{},
-                 gpu::GradTextureLayout{},
-                 /*clipID=*/2,
-                 /*hasClipRect=*/false,
-                 /*hasImage=*/true,
-                 BlendMode::srcOver,
-                 /*solidUnmultiplied=*/false,
-                 /*additiveness=*/0.f,
-                 /*isLayerMask=*/true,
-                 mode);
-        uint32_t out;
-        memcpy(&out, &data, sizeof(out));
-        return out;
-    };
+  auto params = [](LayerMaskMode mode) {
+    gpu::PaintData data;
+    data.set(
+        gpu::DrawContents::none,
+        gpu::PaintType::solidColor,
+        gpu::SimplePaintValue{},
+        /*clipID=*/2,
+        /*hasClipRect=*/false,
+        /*hasImage=*/true,
+        BlendMode::srcOver,
+        /*solidUnmultiplied=*/false,
+        /*additiveness=*/0.f,
+        /*isLayerMask=*/true,
+        mode);
+    uint32_t out;
+    memcpy(&out, &data, sizeof(out));
+    return out;
+  };
 
-    uint32_t valid = params(LayerMaskMode::invertedLuminance);
-    CHECK((valid >> 16) == 2);
-    CHECK(((valid & PAINT_LAYER_MASK_MODE_MASK) >>
-           PAINT_LAYER_MASK_MODE_SHIFT) == LAYER_MASK_MODE_INVERTED_LUMINANCE);
+  uint32_t valid = params(LayerMaskMode::invertedLuminance);
+  CHECK((valid >> 16) == 2);
+  CHECK(
+      ((valid & PAINT_LAYER_MASK_MODE_MASK) >> PAINT_LAYER_MASK_MODE_SHIFT) ==
+      LAYER_MASK_MODE_INVERTED_LUMINANCE);
 
-    // A number bound to the mode can carry any value. 8 used to land on the
-    // low bit of the clipID.
-    uint32_t outOfRange = params(static_cast<LayerMaskMode>(8));
-    CHECK((outOfRange >> 16) == 2);
+  // A number bound to the mode can carry any value. 8 used to land on the
+  // low bit of the clipID.
+  uint32_t outOfRange = params(static_cast<LayerMaskMode>(8));
+  CHECK((outOfRange >> 16) == 2);
 }
 
 } // namespace rive

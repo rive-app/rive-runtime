@@ -13,245 +13,246 @@ PLS_BLOCK_END
 
 PLS_MAIN(@drawFragmentMain)
 {
-    VARYING_UNPACK(v_paint, float4);
-#ifdef @ENABLE_MODULATED_IMAGE
-    VARYING_UNPACK(v_image, float3);
-#endif
+  VARYING_UNPACK(v_paint, float4);
+  #ifdef @ENABLE_MODULATED_IMAGE
+  VARYING_UNPACK(v_image, float3);
+  #endif
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_UNPACK(v_windingWeight, half);
-#else
-    VARYING_UNPACK(v_coverages, COVERAGE_TYPE);
-#endif //@DRAW_INTERIOR_TRIANGLES
-    VARYING_UNPACK(v_pathID, half);
+  #ifdef @DRAW_INTERIOR_TRIANGLES
+  VARYING_UNPACK(v_windingWeight, half);
+  #else
+  VARYING_UNPACK(v_coverages, COVERAGE_TYPE);
+  #endif //@DRAW_INTERIOR_TRIANGLES
+  VARYING_UNPACK(v_pathID, half);
 
-#ifdef @ENABLE_CLIPPING
-    VARYING_UNPACK(v_clipIDs, half2);
-#endif
-#ifdef @ENABLE_CLIP_RECT
-    VARYING_UNPACK(v_clipRect, float4);
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-    VARYING_UNPACK(v_blendMode, half);
-#endif
+  #ifdef @ENABLE_CLIPPING
+  VARYING_UNPACK(v_clipIDs, half2);
+  #endif
+  #ifdef @ENABLE_CLIP_RECT
+  VARYING_UNPACK(v_clipRect, float4);
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
+  VARYING_UNPACK(v_blendMode, half);
+  #endif
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES)
-    // Interior triangles don't overlap, so don't need raster ordering.
-    PLS_INTERLOCK_BEGIN;
-#endif
+  #if !defined(@DRAW_INTERIOR_TRIANGLES)
+  // Interior triangles don't overlap, so don't need raster ordering.
+  PLS_INTERLOCK_BEGIN;
+  #endif
 
-    half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
-    half coverageBufferID = coverageData.g;
-    half coverageCount =
-        coverageBufferID == v_pathID ? coverageData.r : make_half(.0);
+  half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
+  half coverageBufferID = coverageData.g;
+  half coverageCount = coverageBufferID == v_pathID ? coverageData.r
+                                                    : make_half(.0);
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
-    coverageCount += v_windingWeight;
-    // Preserve the coverage buffer even though we don't use it, so it doesn't
-    // get overwritten in a way that would corrupt a future draw (e.g., by
-    // accidentally writing the next path's id with a bogus coverage.)
-    PLS_PRESERVE_UI(coverageCountBuffer);
-#else
-    coverageCount =
-        apply_frag_coverage(coverageCount, v_coverages TEXTURE_CONTEXT_FORWARD);
-    // Save the updated coverage.
-    PLS_STOREUI(coverageCountBuffer,
-                packHalf2x16(make_half2(coverageCount, v_pathID)));
-#endif // !@DRAW_INTERIOR_TRIANGLES
+  #ifdef @DRAW_INTERIOR_TRIANGLES
+  coverageCount += v_windingWeight;
+  // Preserve the coverage buffer even though we don't use it, so it doesn't
+  // get overwritten in a way that would corrupt a future draw (e.g., by
+  // accidentally writing the next path's id with a bogus coverage.)
+  PLS_PRESERVE_UI(coverageCountBuffer);
+  #else
+  coverageCount = apply_frag_coverage(
+      coverageCount,
+      v_coverages TEXTURE_CONTEXT_FORWARD);
+  // Save the updated coverage.
+  PLS_STOREUI(
+      coverageCountBuffer,
+      packHalf2x16(make_half2(coverageCount, v_pathID)));
+  #endif // !@DRAW_INTERIOR_TRIANGLES
 
-    // Convert coverageCount to coverage.
-    half coverage;
-#ifdef @CLOCKWISE_FILL
-    if (@CLOCKWISE_FILL)
+  // Convert coverageCount to coverage.
+  half coverage;
+  #ifdef @CLOCKWISE_FILL
+  if (@CLOCKWISE_FILL)
+  {
+    coverage = safe_clamp_for_mali(coverageCount, make_half(.0), make_half(1.));
+  }
+  else
+  #endif // CLOCKWISE_FILL
+  {
+    coverage = abs(coverageCount);
+  #ifdef @ENABLE_EVEN_ODD
+    if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
     {
-        coverage =
-            safe_clamp_for_mali(coverageCount, make_half(.0), make_half(1.));
+      coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
+    }
+  #endif
+    // This also caps stroke coverage, which can be >1.
+    coverage = min(coverage, make_half(1.));
+  }
+
+  #ifdef @ENABLE_CLIPPING
+  if (@ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
+  {
+    half clipID = -v_clipIDs.x;
+    #ifdef @ENABLE_NESTED_CLIPPING
+    if (@ENABLE_NESTED_CLIPPING)
+    {
+      half outerClipID = v_clipIDs.y;
+      if (outerClipID != .0)
+      {
+        // This is a nested clip. Intersect coverage with the enclosing
+        // clip (outerClipID).
+        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+        half clipContentID = clipData.g;
+        half outerClipCoverage;
+        if (clipContentID != clipID)
+        {
+          // First hit: either clipBuffer contains outerClipCoverage,
+          // or this pixel is not inside the outer clip and
+          // outerClipCoverage is zero.
+          outerClipCoverage = clipContentID == outerClipID ? clipData.r : .0;
+      #ifndef @DRAW_INTERIOR_TRIANGLES
+          // Stash outerClipCoverage before overwriting clipBuffer, in
+          // case we hit this pixel again and need it. (Not necessary
+          // when drawing interior triangles because they always go
+          // last and don't overlap.)
+          PLS_STORE4F(
+              scratchColorBuffer,
+              make_half4(outerClipCoverage, .0, .0, .0));
+      #endif
+        }
+        else
+        {
+          // Subsequent hit: outerClipCoverage is stashed in
+          // scratchColorBuffer.
+          outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
+      #ifndef @DRAW_INTERIOR_TRIANGLES
+          // Since interior triangles are always last, there's no need
+          // to preserve this value.
+          PLS_PRESERVE_4F(scratchColorBuffer);
+      #endif
+        }
+        coverage = min(coverage, outerClipCoverage);
+      }
+    }
+    #endif // @ENABLE_NESTED_CLIPPING
+    PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)));
+    PLS_PRESERVE_4F(colorBuffer);
+  }
+  else   // Render to the main framebuffer.
+  #endif // @ENABLE_CLIPPING
+  {
+  #ifdef @ENABLE_CLIPPING
+    if (@ENABLE_CLIPPING)
+    {
+      // Apply the clip.
+      half clipID = v_clipIDs.x;
+      if (clipID != .0)
+      {
+        // Clip IDs are not necessarily drawn in monotonically
+        // increasing order, so always check exact equality of the
+        // clipID.
+        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+        half clipContentID = clipData.g;
+        coverage = (clipContentID == clipID) ? min(clipData.r, coverage)
+                                             : make_half(.0);
+      }
+    }
+  #endif
+  #ifdef @ENABLE_CLIP_RECT
+    if (@ENABLE_CLIP_RECT)
+    {
+      half clipRectCoverage = min_component(cast_float4_to_half4(v_clipRect));
+      coverage = clamp(clipRectCoverage, make_half(.0), coverage);
+    }
+  #endif // ENABLE_CLIP_RECT
+
+    half4 color = find_paint_color(
+  #ifdef @ENABLE_MODULATED_IMAGE
+        v_image,
+  #endif
+  #ifdef @ENABLE_ADVANCED_BLEND
+        cast_half_to_ushort(v_blendMode),
+  #endif
+        v_paint FRAGMENT_CONTEXT_UNPACK);
+
+    half4 dstColorPremul;
+    if (coverageBufferID != v_pathID)
+    {
+      // This is the first fragment from pathID to touch this pixel.
+      dstColorPremul = PLS_LOAD4F(colorBuffer);
+  #ifndef @DRAW_INTERIOR_TRIANGLES
+      // We don't need to store coverage when drawing interior triangles
+      // because they always go last and don't overlap, so every fragment
+      // is the final one in the path.
+      PLS_STORE4F(scratchColorBuffer, dstColorPremul);
+  #endif
     }
     else
-#endif // CLOCKWISE_FILL
     {
-        coverage = abs(coverageCount);
-#ifdef @ENABLE_EVEN_ODD
-        if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
-        {
-            coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
-        }
-#endif
-        // This also caps stroke coverage, which can be >1.
-        coverage = min(coverage, make_half(1.));
+      dstColorPremul = PLS_LOAD4F(scratchColorBuffer);
+  #ifndef @DRAW_INTERIOR_TRIANGLES
+      // Since interior triangles are always last, there's no need to
+      // preserve this value.
+      PLS_PRESERVE_4F(scratchColorBuffer);
+  #endif
     }
 
-#ifdef @ENABLE_CLIPPING
-    if (@ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
+    bool isLayerMask = false;
+  #ifdef @ENABLE_MODULATED_IMAGE
+    isLayerMask = @ENABLE_MODULATED_IMAGE && v_image.z < .0;
+  #endif
+    if (isLayerMask)
     {
-        half clipID = -v_clipIDs.x;
-#ifdef @ENABLE_NESTED_CLIPPING
-        if (@ENABLE_NESTED_CLIPPING)
-        {
-            half outerClipID = v_clipIDs.y;
-            if (outerClipID != .0)
-            {
-                // This is a nested clip. Intersect coverage with the enclosing
-                // clip (outerClipID).
-                half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-                half clipContentID = clipData.g;
-                half outerClipCoverage;
-                if (clipContentID != clipID)
-                {
-                    // First hit: either clipBuffer contains outerClipCoverage,
-                    // or this pixel is not inside the outer clip and
-                    // outerClipCoverage is zero.
-                    outerClipCoverage =
-                        clipContentID == outerClipID ? clipData.r : .0;
-#ifndef @DRAW_INTERIOR_TRIANGLES
-                    // Stash outerClipCoverage before overwriting clipBuffer, in
-                    // case we hit this pixel again and need it. (Not necessary
-                    // when drawing interior triangles because they always go
-                    // last and don't overlap.)
-                    PLS_STORE4F(scratchColorBuffer,
-                                make_half4(outerClipCoverage, .0, .0, .0));
-#endif
-                }
-                else
-                {
-                    // Subsequent hit: outerClipCoverage is stashed in
-                    // scratchColorBuffer.
-                    outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
-#ifndef @DRAW_INTERIOR_TRIANGLES
-                    // Since interior triangles are always last, there's no need
-                    // to preserve this value.
-                    PLS_PRESERVE_4F(scratchColorBuffer);
-#endif
-                }
-                coverage = min(coverage, outerClipCoverage);
-            }
-        }
-#endif // @ENABLE_NESTED_CLIPPING
-        PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)));
-        PLS_PRESERVE_4F(colorBuffer);
+  #ifdef @ENABLE_MODULATED_IMAGE
+      // Layer mask: scale what is already here instead of compositing
+      // over it. `color` is the mask's premultiplied texel (see
+      // find_paint_color), and all four channels scale together, which is
+      // exactly "change this layer's opacity, per pixel".
+      //
+      // No dither: dithering is for quantizing a *new* color, and this
+      // only attenuates one that is already quantized. Hardware blending
+      // is off in rasterOrdering (the color plane is stored directly), so
+      // this really is the final value.
+      uint maskMode = uint(-v_image.z - 1.);
+      half f = layer_mask_factor(color, maskMode);
+      // coverage lerps the factor in across the quad's antialiased edge;
+      // it is 1 everywhere inside, which is where the mask applies.
+      color = dstColorPremul * mix(make_half(1.), f, coverage);
+      PLS_STORE4F(colorBuffer, color);
+      PLS_PRESERVE_UI(clipBuffer);
+  #endif
     }
-    else // Render to the main framebuffer.
-#endif   // @ENABLE_CLIPPING
+    else
     {
-#ifdef @ENABLE_CLIPPING
-        if (@ENABLE_CLIPPING)
-        {
-            // Apply the clip.
-            half clipID = v_clipIDs.x;
-            if (clipID != .0)
-            {
-                // Clip IDs are not necessarily drawn in monotonically
-                // increasing order, so always check exact equality of the
-                // clipID.
-                half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-                half clipContentID = clipData.g;
-                coverage = (clipContentID == clipID) ? min(clipData.r, coverage)
-                                                     : make_half(.0);
-            }
-        }
-#endif
-#ifdef @ENABLE_CLIP_RECT
-        if (@ENABLE_CLIP_RECT)
-        {
-            half clipRectCoverage =
-                min_component(cast_float4_to_half4(v_clipRect));
-            coverage = clamp(clipRectCoverage, make_half(.0), coverage);
-        }
-#endif // ENABLE_CLIP_RECT
-
-        half4 color = find_paint_color(
-#ifdef @ENABLE_MODULATED_IMAGE
-            v_image,
-#endif
-#ifdef @ENABLE_ADVANCED_BLEND
-            cast_half_to_ushort(v_blendMode),
-#endif
-            v_paint FRAGMENT_CONTEXT_UNPACK);
-
-        half4 dstColorPremul;
-        if (coverageBufferID != v_pathID)
-        {
-            // This is the first fragment from pathID to touch this pixel.
-            dstColorPremul = PLS_LOAD4F(colorBuffer);
-#ifndef @DRAW_INTERIOR_TRIANGLES
-            // We don't need to store coverage when drawing interior triangles
-            // because they always go last and don't overlap, so every fragment
-            // is the final one in the path.
-            PLS_STORE4F(scratchColorBuffer, dstColorPremul);
-#endif
-        }
-        else
-        {
-            dstColorPremul = PLS_LOAD4F(scratchColorBuffer);
-#ifndef @DRAW_INTERIOR_TRIANGLES
-            // Since interior triangles are always last, there's no need to
-            // preserve this value.
-            PLS_PRESERVE_4F(scratchColorBuffer);
-#endif
-        }
-
-        bool isLayerMask = false;
-#ifdef @ENABLE_MODULATED_IMAGE
-        isLayerMask = @ENABLE_MODULATED_IMAGE && v_image.z < .0;
-#endif
-        if (isLayerMask)
-        {
-#ifdef @ENABLE_MODULATED_IMAGE
-            // Layer mask: scale what is already here instead of compositing
-            // over it. `color` is the mask's premultiplied texel (see
-            // find_paint_color), and all four channels scale together, which is
-            // exactly "change this layer's opacity, per pixel".
-            //
-            // No dither: dithering is for quantizing a *new* color, and this
-            // only attenuates one that is already quantized. Hardware blending
-            // is off in rasterOrdering (the color plane is stored directly), so
-            // this really is the final value.
-            uint maskMode = uint(-v_image.z - 1.);
-            half f = layer_mask_factor(color, maskMode);
-            // coverage lerps the factor in across the quad's antialiased edge;
-            // it is 1 everywhere inside, which is where the mask applies.
-            color = dstColorPremul * mix(make_half(1.), f, coverage);
-            PLS_STORE4F(colorBuffer, color);
-            PLS_PRESERVE_UI(clipBuffer);
-#endif
-        }
-        else
-        {
-            // Blend with the framebuffer color.
-#ifdef @ENABLE_ADVANCED_BLEND
-            if (@ENABLE_ADVANCED_BLEND &&
-                v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
-            {
-                color.rgb =
-                    advanced_color_blend(color.rgb,
-                                         dstColorPremul,
-                                         cast_half_to_ushort(v_blendMode)) *
+      // Blend with the framebuffer color.
+  #ifdef @ENABLE_ADVANCED_BLEND
+      if (@ENABLE_ADVANCED_BLEND &&
+          v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+      {
+        color.rgb = advanced_color_blend(
+                        color.rgb,
+                        dstColorPremul,
+                        cast_half_to_ushort(v_blendMode)) *
                     color.a;
-            }
-#endif
-            color *= coverage;
+      }
+  #endif
+      color *= coverage;
 
-            // Save paint alpha before destructively updating it with the
-            // dstColor.
-            half paintAlpha = color.a;
-            color += dstColorPremul * (1. - paintAlpha);
-            color.rgb = add_dither_if_alpha_nonzero(color.rgb,
-                                                    paintAlpha,
-                                                    _fragCoord.xy,
-                                                    uniforms.ditherScale,
-                                                    uniforms.ditherBias);
+      // Save paint alpha before destructively updating it with the
+      // dstColor.
+      half paintAlpha = color.a;
+      color += dstColorPremul * (1. - paintAlpha);
+      color.rgb = add_dither_if_alpha_nonzero(
+          color.rgb,
+          paintAlpha,
+          _fragCoord.xy,
+          uniforms.ditherScale,
+          uniforms.ditherBias);
 
-            PLS_STORE4F(colorBuffer, color);
-            PLS_PRESERVE_UI(clipBuffer);
-        }
+      PLS_STORE4F(colorBuffer, color);
+      PLS_PRESERVE_UI(clipBuffer);
     }
+  }
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES)
-    // Interior triangles don't overlap, so don't need raster ordering.
-    PLS_INTERLOCK_END;
-#endif
+  #if !defined(@DRAW_INTERIOR_TRIANGLES)
+  // Interior triangles don't overlap, so don't need raster ordering.
+  PLS_INTERLOCK_END;
+  #endif
 
-    EMIT_PLS;
+  EMIT_PLS;
 }
 
 #endif // FRAGMENT

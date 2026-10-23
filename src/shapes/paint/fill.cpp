@@ -5,42 +5,41 @@ using namespace rive;
 
 PathFlags Fill::pathFlags() const
 {
-    return (FillRule)fillRule() == FillRule::clockwise
-               ? PathFlags::localClockwise
-               : PathFlags::local;
+  return (FillRule)fillRule() == FillRule::clockwise ? PathFlags::localClockwise
+                                                     : PathFlags::local;
 }
 
 RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
 {
-    auto renderPaint = Super::initRenderPaint(mutator);
-    renderPaint->style(RenderPaintStyle::fill);
-    return renderPaint;
+  auto renderPaint = Super::initRenderPaint(mutator);
+  renderPaint->style(RenderPaintStyle::fill);
+  return renderPaint;
 }
 
 void Fill::applyTo(RenderPaint* renderPaint, float opacityModifier)
 {
-    renderPaint->style(RenderPaintStyle::fill);
-    renderPaint->shader(nullptr);
-    m_PaintMutator->applyTo(renderPaint, opacityModifier);
+  renderPaint->style(RenderPaintStyle::fill);
+  renderPaint->shader(nullptr);
+  m_PaintMutator->applyTo(renderPaint, opacityModifier);
 }
 
 ShapePaintPath* Fill::pickPath(ShapePaintContainer* shape) const
 {
-    if ((FillRule)fillRule() == FillRule::clockwise)
-    {
-        return shape->localClockwisePath();
-    }
-    return shape->localPath();
+  if ((FillRule)fillRule() == FillRule::clockwise)
+  {
+    return shape->localClockwisePath();
+  }
+  return shape->localPath();
 }
 
 void Fill::buildDependencies()
 {
-    if (effects()->size() > 0)
+  if (effects()->size() > 0)
+  {
+    auto container = ShapePaintContainer::from(parent());
+    if (container != nullptr)
     {
-        auto container = ShapePaintContainer::from(parent());
-        if (container != nullptr)
-        {
-            container->pathBuilder()->addDependent(this);
-        }
+      container->pathBuilder()->addDependent(this);
     }
+  }
 }

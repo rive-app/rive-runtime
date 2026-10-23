@@ -27,258 +27,255 @@
 
 TEST_CASE("Stateful Component ViewModelInstance", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/component_stateful_vm_instance.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/component_stateful_vm_instance.riv",
+      &silver);
 
-    auto artboard = file->artboardNamed("ParentArtboard");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("ParentArtboard");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  auto heightProperty = vmi->propertyValue("h");
+  REQUIRE(heightProperty != nullptr);
+  REQUIRE(heightProperty->is<rive::ViewModelInstanceNumber>());
+  heightProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200);
+
+  int frames = 30;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
+  heightProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(50);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+  }
 
-    auto heightProperty = vmi->propertyValue("h");
-    REQUIRE(heightProperty != nullptr);
-    REQUIRE(heightProperty->is<rive::ViewModelInstanceNumber>());
-    heightProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200);
-
-    int frames = 30;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-    heightProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(50);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("component_stateful_vm_instance"));
+  CHECK(silver.matches("component_stateful_vm_instance"));
 }
 
 TEST_CASE("Stateful Component ViewModelInstance multi", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/component_stateful_vm_instance_2.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/component_stateful_vm_instance_2.riv",
+      &silver);
 
-    auto artboard = file->artboardNamed("Artboard");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Artboard");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  auto labelProperty = vmi->propertyValue("label");
+  REQUIRE(labelProperty != nullptr);
+  REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+
+  int frames = 30;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
+  labelProperty->as<rive::ViewModelInstanceString>()->propertyValue("Override");
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+  }
 
-    auto labelProperty = vmi->propertyValue("label");
-    REQUIRE(labelProperty != nullptr);
-    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
-
-    int frames = 30;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "Override");
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("component_stateful_vm_instance_2"));
+  CHECK(silver.matches("component_stateful_vm_instance_2"));
 }
 
 TEST_CASE("Stateful Component multi-property independence", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_multi_property.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_multi_property.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    // Sanity: all parent props exist with expected types.
-    auto btn1Count = vmi->propertyValue("btn1Count");
-    auto btn1Tint = vmi->propertyValue("btn1Tint");
-    auto btn1Label = vmi->propertyValue("btn1Label");
-    auto btn1Clip = vmi->propertyValue("btn1Clip");
-    auto btn1Display = vmi->propertyValue("btn1Display");
-    auto btn2Count = vmi->propertyValue("btn2Count");
-    auto btn2Tint = vmi->propertyValue("btn2Tint");
-    auto btn2Label = vmi->propertyValue("btn2Label");
-    auto btn2Clip = vmi->propertyValue("btn2Clip");
-    auto btn2Display = vmi->propertyValue("btn2Display");
-    REQUIRE(btn1Count != nullptr);
-    REQUIRE(btn1Count->is<rive::ViewModelInstanceNumber>());
-    REQUIRE(btn1Tint != nullptr);
-    REQUIRE(btn1Tint->is<rive::ViewModelInstanceColor>());
-    REQUIRE(btn1Label != nullptr);
-    REQUIRE(btn1Label->is<rive::ViewModelInstanceString>());
-    REQUIRE(btn1Clip != nullptr);
-    REQUIRE(btn1Clip->is<rive::ViewModelInstanceBoolean>());
-    REQUIRE(btn1Display != nullptr);
-    REQUIRE(btn1Display->is<rive::ViewModelInstanceEnum>());
-    REQUIRE(btn2Count != nullptr);
-    REQUIRE(btn2Count->is<rive::ViewModelInstanceNumber>());
-    REQUIRE(btn2Tint != nullptr);
-    REQUIRE(btn2Tint->is<rive::ViewModelInstanceColor>());
-    REQUIRE(btn2Label != nullptr);
-    REQUIRE(btn2Label->is<rive::ViewModelInstanceString>());
-    REQUIRE(btn2Clip != nullptr);
-    REQUIRE(btn2Clip->is<rive::ViewModelInstanceBoolean>());
-    REQUIRE(btn2Display != nullptr);
-    REQUIRE(btn2Display->is<rive::ViewModelInstanceEnum>());
+  // Sanity: all parent props exist with expected types.
+  auto btn1Count = vmi->propertyValue("btn1Count");
+  auto btn1Tint = vmi->propertyValue("btn1Tint");
+  auto btn1Label = vmi->propertyValue("btn1Label");
+  auto btn1Clip = vmi->propertyValue("btn1Clip");
+  auto btn1Display = vmi->propertyValue("btn1Display");
+  auto btn2Count = vmi->propertyValue("btn2Count");
+  auto btn2Tint = vmi->propertyValue("btn2Tint");
+  auto btn2Label = vmi->propertyValue("btn2Label");
+  auto btn2Clip = vmi->propertyValue("btn2Clip");
+  auto btn2Display = vmi->propertyValue("btn2Display");
+  REQUIRE(btn1Count != nullptr);
+  REQUIRE(btn1Count->is<rive::ViewModelInstanceNumber>());
+  REQUIRE(btn1Tint != nullptr);
+  REQUIRE(btn1Tint->is<rive::ViewModelInstanceColor>());
+  REQUIRE(btn1Label != nullptr);
+  REQUIRE(btn1Label->is<rive::ViewModelInstanceString>());
+  REQUIRE(btn1Clip != nullptr);
+  REQUIRE(btn1Clip->is<rive::ViewModelInstanceBoolean>());
+  REQUIRE(btn1Display != nullptr);
+  REQUIRE(btn1Display->is<rive::ViewModelInstanceEnum>());
+  REQUIRE(btn2Count != nullptr);
+  REQUIRE(btn2Count->is<rive::ViewModelInstanceNumber>());
+  REQUIRE(btn2Tint != nullptr);
+  REQUIRE(btn2Tint->is<rive::ViewModelInstanceColor>());
+  REQUIRE(btn2Label != nullptr);
+  REQUIRE(btn2Label->is<rive::ViewModelInstanceString>());
+  REQUIRE(btn2Clip != nullptr);
+  REQUIRE(btn2Clip->is<rive::ViewModelInstanceBoolean>());
+  REQUIRE(btn2Display != nullptr);
+  REQUIRE(btn2Display->is<rive::ViewModelInstanceEnum>());
 
-    auto runFrames = [&](int frames) {
-        for (int i = 0; i < frames; i++)
-        {
-            silver.addFrame();
-            stateMachine->advanceAndApply(0.016f);
-            artboard->draw(renderer.get());
-        }
-    };
+  auto runFrames = [&](int frames) {
+    for (int i = 0; i < frames; i++)
+    {
+      silver.addFrame();
+      stateMachine->advanceAndApply(0.016f);
+      artboard->draw(renderer.get());
+    }
+  };
 
-    // Drive btn1 properties one by one — btn2 should remain unchanged
-    // throughout. Each segment isolates a single property type so the
-    // snapshot makes the binding visible per-type.
-    btn1Count->as<rive::ViewModelInstanceNumber>()->propertyValue(180);
-    runFrames(5);
+  // Drive btn1 properties one by one — btn2 should remain unchanged
+  // throughout. Each segment isolates a single property type so the
+  // snapshot makes the binding visible per-type.
+  btn1Count->as<rive::ViewModelInstanceNumber>()->propertyValue(180);
+  runFrames(5);
 
-    btn1Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFFFF3344);
-    runFrames(5);
+  btn1Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFFFF3344);
+  runFrames(5);
 
-    btn1Label->as<rive::ViewModelInstanceString>()->propertyValue("One");
-    runFrames(5);
+  btn1Label->as<rive::ViewModelInstanceString>()->propertyValue("One");
+  runFrames(5);
 
-    btn1Clip->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
-    runFrames(5);
+  btn1Clip->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
+  runFrames(5);
 
-    btn1Display->as<rive::ViewModelInstanceEnum>()->value(1);
-    runFrames(5);
+  btn1Display->as<rive::ViewModelInstanceEnum>()->value(1);
+  runFrames(5);
 
-    // Now drive btn2 — btn1 should keep its modified values from above.
-    btn2Count->as<rive::ViewModelInstanceNumber>()->propertyValue(60);
-    runFrames(5);
+  // Now drive btn2 — btn1 should keep its modified values from above.
+  btn2Count->as<rive::ViewModelInstanceNumber>()->propertyValue(60);
+  runFrames(5);
 
-    btn2Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFF33AAFF);
-    runFrames(5);
+  btn2Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFF33AAFF);
+  runFrames(5);
 
-    btn2Label->as<rive::ViewModelInstanceString>()->propertyValue("Two");
-    runFrames(5);
+  btn2Label->as<rive::ViewModelInstanceString>()->propertyValue("Two");
+  runFrames(5);
 
-    btn2Clip->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
-    runFrames(5);
+  btn2Clip->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
+  runFrames(5);
 
-    btn2Display->as<rive::ViewModelInstanceEnum>()->value(1);
-    runFrames(5);
+  btn2Display->as<rive::ViewModelInstanceEnum>()->value(1);
+  runFrames(5);
 
-    CHECK(silver.matches("stateful_multi_property"));
+  CHECK(silver.matches("stateful_multi_property"));
 }
 
 TEST_CASE("Stateful Component nested in stateful", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_nested.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_nested.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto btn1Label = vmi->propertyValue("btn1Label");
-    auto btn2Label = vmi->propertyValue("btn2Label");
-    auto btn1Tint = vmi->propertyValue("btn1Tint");
-    auto btn2Tint = vmi->propertyValue("btn2Tint");
-    REQUIRE(btn1Label != nullptr);
-    REQUIRE(btn1Label->is<rive::ViewModelInstanceString>());
-    REQUIRE(btn2Label != nullptr);
-    REQUIRE(btn2Label->is<rive::ViewModelInstanceString>());
-    REQUIRE(btn1Tint != nullptr);
-    REQUIRE(btn1Tint->is<rive::ViewModelInstanceColor>());
-    REQUIRE(btn2Tint != nullptr);
-    REQUIRE(btn2Tint->is<rive::ViewModelInstanceColor>());
+  auto btn1Label = vmi->propertyValue("btn1Label");
+  auto btn2Label = vmi->propertyValue("btn2Label");
+  auto btn1Tint = vmi->propertyValue("btn1Tint");
+  auto btn2Tint = vmi->propertyValue("btn2Tint");
+  REQUIRE(btn1Label != nullptr);
+  REQUIRE(btn1Label->is<rive::ViewModelInstanceString>());
+  REQUIRE(btn2Label != nullptr);
+  REQUIRE(btn2Label->is<rive::ViewModelInstanceString>());
+  REQUIRE(btn1Tint != nullptr);
+  REQUIRE(btn1Tint->is<rive::ViewModelInstanceColor>());
+  REQUIRE(btn2Tint != nullptr);
+  REQUIRE(btn2Tint->is<rive::ViewModelInstanceColor>());
 
-    auto runFrames = [&](int frames) {
-        for (int i = 0; i < frames; i++)
-        {
-            silver.addFrame();
-            stateMachine->advanceAndApply(0.016f);
-            artboard->draw(renderer.get());
-        }
-    };
+  auto runFrames = [&](int frames) {
+    for (int i = 0; i < frames; i++)
+    {
+      silver.addFrame();
+      stateMachine->advanceAndApply(0.016f);
+      artboard->draw(renderer.get());
+    }
+  };
 
-    // Drive each property in isolation. Each segment exercises a single
-    // input on the outer Main VM that is wired down through MultiButton's
-    // stateful boundary into one of its two inner Button instances.
-    btn1Label->as<rive::ViewModelInstanceString>()->propertyValue("One");
-    runFrames(5);
+  // Drive each property in isolation. Each segment exercises a single
+  // input on the outer Main VM that is wired down through MultiButton's
+  // stateful boundary into one of its two inner Button instances.
+  btn1Label->as<rive::ViewModelInstanceString>()->propertyValue("One");
+  runFrames(5);
 
-    btn1Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFFFF3344);
-    runFrames(5);
+  btn1Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFFFF3344);
+  runFrames(5);
 
-    btn2Label->as<rive::ViewModelInstanceString>()->propertyValue("Two");
-    runFrames(5);
+  btn2Label->as<rive::ViewModelInstanceString>()->propertyValue("Two");
+  runFrames(5);
 
-    btn2Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFF33AAFF);
-    runFrames(5);
+  btn2Tint->as<rive::ViewModelInstanceColor>()->propertyValue(0xFF33AAFF);
+  runFrames(5);
 
-    CHECK(silver.matches("stateful_nested"));
+  CHECK(silver.matches("stateful_nested"));
 }
 /*
 // Disable this test for now. Initially we decided not to create stateful
@@ -378,13 +375,8 @@ TEST_CASE("Stateful Component list with input/output bridge binds", "[silver]")
     auto clicked1 = getClickedBool(button1);
     auto clicked2 = getClickedBool(button2);
 
-    // To observe trigger fires on the original VMs we attach a delegate.
-    // Reading `propertyValue()` post-frame doesn't work for triggers
-    // because `ViewModelInstanceTrigger::advanced()` resets the value
-    // back to 0 every frame — that's their normal "fired this frame"
-    // semantic. The delegate's `valueChanged` is invoked in
-    // `propertyValueChanged()`, before the reset, so it captures real
-    // fires.
+    // To observe trigger fires on the original VMs we attach a delegate,
+    // whose `valueChanged` runs on every fire.
     struct FireCounter : public rive::ViewModelInstanceValueDelegate
     {
         int count = 0;
@@ -478,163 +470,162 @@ TEST_CASE("Stateful Component list with input/output bridge binds", "[silver]")
     CHECK(silver.matches("stateful_list_props"));
 }
 */
-TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
-          "property",
-          "[silver]")
+TEST_CASE(
+    "Stateful Component dynamic artboard swap via VMI artboard "
+    "property",
+    "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_artboard_swap.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_artboard_swap.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto buttonArtboardProp = vmi->propertyValue("buttonArtboard");
-    REQUIRE(buttonArtboardProp != nullptr);
-    REQUIRE(buttonArtboardProp->is<rive::ViewModelInstanceArtboard>());
-    auto vmiArtboard =
-        buttonArtboardProp->as<rive::ViewModelInstanceArtboard>();
+  auto buttonArtboardProp = vmi->propertyValue("buttonArtboard");
+  REQUIRE(buttonArtboardProp != nullptr);
+  REQUIRE(buttonArtboardProp->is<rive::ViewModelInstanceArtboard>());
+  auto vmiArtboard = buttonArtboardProp->as<rive::ViewModelInstanceArtboard>();
 
-    auto buttonSource = file->bindableArtboardNamed("Button");
-    auto strokedButtonSource = file->bindableArtboardNamed("StrokedButton");
-    REQUIRE(buttonSource != nullptr);
-    REQUIRE(strokedButtonSource != nullptr);
+  auto buttonSource = file->bindableArtboardNamed("Button");
+  auto strokedButtonSource = file->bindableArtboardNamed("StrokedButton");
+  REQUIRE(buttonSource != nullptr);
+  REQUIRE(strokedButtonSource != nullptr);
 
-    auto runFrames = [&](int frames) {
-        for (int i = 0; i < frames; i++)
-        {
-            silver.addFrame();
-            stateMachine->advanceAndApply(0.016f);
-            artboard->draw(renderer.get());
-        }
-    };
+  auto runFrames = [&](int frames) {
+    for (int i = 0; i < frames; i++)
+    {
+      silver.addFrame();
+      stateMachine->advanceAndApply(0.016f);
+      artboard->draw(renderer.get());
+    }
+  };
 
-    // Helper: navigate to the swap-target NestedArtboard's currently-bound
-    // stateful VMI so we can verify it was created fresh after each swap.
-    auto findSwappedNestedArtboard = [&]() -> rive::NestedArtboard* {
-        for (auto na : artboard->nestedArtboards())
-        {
-            // The swap-target NA is the one whose source is driven by
-            // `buttonArtboard`; the easiest way to recognize it is that
-            // its current source artboard matches one of the variants.
-            auto* src = na->sourceArtboard();
-            if (src != nullptr &&
-                (src->name() == "Button" || src->name() == "StrokedButton"))
-            {
-                return na;
-            }
-        }
-        return nullptr;
-    };
+  // Helper: navigate to the swap-target NestedArtboard's currently-bound
+  // stateful VMI so we can verify it was created fresh after each swap.
+  auto findSwappedNestedArtboard = [&]() -> rive::NestedArtboard* {
+    for (auto na : artboard->nestedArtboards())
+    {
+      // The swap-target NA is the one whose source is driven by
+      // `buttonArtboard`; the easiest way to recognize it is that
+      // its current source artboard matches one of the variants.
+      auto* src = na->sourceArtboard();
+      if (src != nullptr &&
+          (src->name() == "Button" || src->name() == "StrokedButton"))
+      {
+        return na;
+      }
+    }
+    return nullptr;
+  };
 
-    // Initial: buttonArtboard is null, so nothing is rendered in the
-    // swap target. Capture the empty baseline.
-    runFrames(2);
-    REQUIRE(findSwappedNestedArtboard() == nullptr);
+  // Initial: buttonArtboard is null, so nothing is rendered in the
+  // swap target. Capture the empty baseline.
+  runFrames(2);
+  REQUIRE(findSwappedNestedArtboard() == nullptr);
 
-    // Swap to Button.
-    vmiArtboard->asset(buttonSource);
-    runFrames(5);
+  // Swap to Button.
+  vmiArtboard->asset(buttonSource);
+  runFrames(5);
 
-    auto naAfterButton = findSwappedNestedArtboard();
-    REQUIRE(naAfterButton != nullptr);
-    REQUIRE(naAfterButton->sourceArtboard() != nullptr);
-    CHECK(naAfterButton->sourceArtboard()->name() == "Button");
+  auto naAfterButton = findSwappedNestedArtboard();
+  REQUIRE(naAfterButton != nullptr);
+  REQUIRE(naAfterButton->sourceArtboard() != nullptr);
+  CHECK(naAfterButton->sourceArtboard()->name() == "Button");
 
-    // Swap to StrokedButton — exercises updateArtboard's dispose+rebuild
-    // path. The stateful artboard should change types entirely; the
-    // previous Button stateful VMI should be torn down.
-    vmiArtboard->asset(strokedButtonSource);
-    runFrames(5);
+  // Swap to StrokedButton — exercises updateArtboard's dispose+rebuild
+  // path. The stateful artboard should change types entirely; the
+  // previous Button stateful VMI should be torn down.
+  vmiArtboard->asset(strokedButtonSource);
+  runFrames(5);
 
-    auto naAfterStroked = findSwappedNestedArtboard();
-    REQUIRE(naAfterStroked != nullptr);
-    REQUIRE(naAfterStroked->sourceArtboard() != nullptr);
-    CHECK(naAfterStroked->sourceArtboard()->name() == "StrokedButton");
+  auto naAfterStroked = findSwappedNestedArtboard();
+  REQUIRE(naAfterStroked != nullptr);
+  REQUIRE(naAfterStroked->sourceArtboard() != nullptr);
+  CHECK(naAfterStroked->sourceArtboard()->name() == "StrokedButton");
 
-    // Sanity: the StrokedButton instance has its VM-specific
-    // `strokeWidth` property visible, but Button's VM does not.
-    auto strokedAbInst = naAfterStroked->artboardInstance();
-    REQUIRE(strokedAbInst != nullptr);
-    auto strokedCtx = strokedAbInst->dataContext();
-    REQUIRE(strokedCtx != nullptr);
-    auto strokedVmi = strokedCtx->mainViewModelInstance();
-    REQUIRE(strokedVmi != nullptr);
-    auto strokeWidthProp = strokedVmi->propertyValue("strokeWidth");
-    REQUIRE(strokeWidthProp != nullptr);
-    REQUIRE(strokeWidthProp->is<rive::ViewModelInstanceNumber>());
-    // Drive strokeWidth so the silver actually shows the stroke and we
-    // can visually verify the StrokedButton variant rendered.
-    strokeWidthProp->as<rive::ViewModelInstanceNumber>()->propertyValue(8);
-    runFrames(5);
+  // Sanity: the StrokedButton instance has its VM-specific
+  // `strokeWidth` property visible, but Button's VM does not.
+  auto strokedAbInst = naAfterStroked->artboardInstance();
+  REQUIRE(strokedAbInst != nullptr);
+  auto strokedCtx = strokedAbInst->dataContext();
+  REQUIRE(strokedCtx != nullptr);
+  auto strokedVmi = strokedCtx->mainViewModelInstance();
+  REQUIRE(strokedVmi != nullptr);
+  auto strokeWidthProp = strokedVmi->propertyValue("strokeWidth");
+  REQUIRE(strokeWidthProp != nullptr);
+  REQUIRE(strokeWidthProp->is<rive::ViewModelInstanceNumber>());
+  // Drive strokeWidth so the silver actually shows the stroke and we
+  // can visually verify the StrokedButton variant rendered.
+  strokeWidthProp->as<rive::ViewModelInstanceNumber>()->propertyValue(8);
+  runFrames(5);
 
-    // Swap back to Button — the previous StrokedButton stateful VMI
-    // (with strokeWidth) must be cleaned up; we should land back on a
-    // ButtonVM-shaped instance.
-    vmiArtboard->asset(buttonSource);
-    runFrames(5);
+  // Swap back to Button — the previous StrokedButton stateful VMI
+  // (with strokeWidth) must be cleaned up; we should land back on a
+  // ButtonVM-shaped instance.
+  vmiArtboard->asset(buttonSource);
+  runFrames(5);
 
-    auto naAfterButton2 = findSwappedNestedArtboard();
-    REQUIRE(naAfterButton2 != nullptr);
-    REQUIRE(naAfterButton2->sourceArtboard() != nullptr);
-    CHECK(naAfterButton2->sourceArtboard()->name() == "Button");
+  auto naAfterButton2 = findSwappedNestedArtboard();
+  REQUIRE(naAfterButton2 != nullptr);
+  REQUIRE(naAfterButton2->sourceArtboard() != nullptr);
+  CHECK(naAfterButton2->sourceArtboard()->name() == "Button");
 
-    auto buttonAbInst = naAfterButton2->artboardInstance();
-    REQUIRE(buttonAbInst != nullptr);
-    auto buttonCtx = buttonAbInst->dataContext();
-    REQUIRE(buttonCtx != nullptr);
-    auto buttonVmi = buttonCtx->mainViewModelInstance();
-    REQUIRE(buttonVmi != nullptr);
-    // Button's VM has count/tint/label/clipped/clicked/click but
-    // does NOT have strokeWidth.
-    CHECK(buttonVmi->propertyValue("count") != nullptr);
-    CHECK(buttonVmi->propertyValue("strokeWidth") == nullptr);
+  auto buttonAbInst = naAfterButton2->artboardInstance();
+  REQUIRE(buttonAbInst != nullptr);
+  auto buttonCtx = buttonAbInst->dataContext();
+  REQUIRE(buttonCtx != nullptr);
+  auto buttonVmi = buttonCtx->mainViewModelInstance();
+  REQUIRE(buttonVmi != nullptr);
+  // Button's VM has count/tint/label/clipped/clicked/click but
+  // does NOT have strokeWidth.
+  CHECK(buttonVmi->propertyValue("count") != nullptr);
+  CHECK(buttonVmi->propertyValue("strokeWidth") == nullptr);
 
-    // Swap back to null — the swap target should disappear again.
-    // asset(nullptr) calls propertyValue(-1) internally, which together
-    // satisfy the cleared-state condition in NestedArtboard::updateArtboard.
-    vmiArtboard->asset(nullptr);
-    runFrames(5);
-    CHECK(findSwappedNestedArtboard() == nullptr);
+  // Swap back to null — the swap target should disappear again.
+  // asset(nullptr) calls propertyValue(-1) internally, which together
+  // satisfy the cleared-state condition in NestedArtboard::updateArtboard.
+  vmiArtboard->asset(nullptr);
+  runFrames(5);
+  CHECK(findSwappedNestedArtboard() == nullptr);
 
-    // Swap back to Button after the null-clear. Verifies that the
-    // cleared-state path actually drops the cached stateful VMI — if it
-    // didn't, this swap would land on a VMI that was held over from the
-    // previous variant's lifetime instead of a freshly created one. We
-    // can't easily assert ptr-inequality without holding refs, so we
-    // settle for asserting the new VMI is valid and shaped like
-    // ButtonVM.
-    vmiArtboard->asset(buttonSource);
-    runFrames(5);
-    auto naAfterClear = findSwappedNestedArtboard();
-    REQUIRE(naAfterClear != nullptr);
-    REQUIRE(naAfterClear->sourceArtboard() != nullptr);
-    CHECK(naAfterClear->sourceArtboard()->name() == "Button");
-    auto buttonAbInst3 = naAfterClear->artboardInstance();
-    REQUIRE(buttonAbInst3 != nullptr);
-    auto buttonCtx3 = buttonAbInst3->dataContext();
-    REQUIRE(buttonCtx3 != nullptr);
-    auto buttonVmi3 = buttonCtx3->mainViewModelInstance();
-    REQUIRE(buttonVmi3 != nullptr);
-    CHECK(buttonVmi3->propertyValue("count") != nullptr);
-    CHECK(buttonVmi3->propertyValue("strokeWidth") == nullptr);
+  // Swap back to Button after the null-clear. Verifies that the
+  // cleared-state path actually drops the cached stateful VMI — if it
+  // didn't, this swap would land on a VMI that was held over from the
+  // previous variant's lifetime instead of a freshly created one. We
+  // can't easily assert ptr-inequality without holding refs, so we
+  // settle for asserting the new VMI is valid and shaped like
+  // ButtonVM.
+  vmiArtboard->asset(buttonSource);
+  runFrames(5);
+  auto naAfterClear = findSwappedNestedArtboard();
+  REQUIRE(naAfterClear != nullptr);
+  REQUIRE(naAfterClear->sourceArtboard() != nullptr);
+  CHECK(naAfterClear->sourceArtboard()->name() == "Button");
+  auto buttonAbInst3 = naAfterClear->artboardInstance();
+  REQUIRE(buttonAbInst3 != nullptr);
+  auto buttonCtx3 = buttonAbInst3->dataContext();
+  REQUIRE(buttonCtx3 != nullptr);
+  auto buttonVmi3 = buttonCtx3->mainViewModelInstance();
+  REQUIRE(buttonVmi3 != nullptr);
+  CHECK(buttonVmi3->propertyValue("count") != nullptr);
+  CHECK(buttonVmi3->propertyValue("strokeWidth") == nullptr);
 
-    CHECK(silver.matches("stateful_artboard_swap"));
+  CHECK(silver.matches("stateful_artboard_swap"));
 }
 
 // Regression test for the stateful-vs-bound VMI lifecycle on a NestedArtboard:
@@ -649,306 +640,305 @@ TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
 // VMI — the supported way for users to change inner state — rather than by
 // mutating the stateful child's properties directly.
 // This locks in the contract of the m_activeViewModelInstance refactor.
-TEST_CASE("Stateful nested artboard borrows stateful child on matching VM and "
-          "preserves it across different-VM swap",
-          "[silver]")
+TEST_CASE(
+    "Stateful nested artboard borrows stateful child on matching VM and "
+    "preserves it across different-VM swap",
+    "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_source_switch.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_source_switch.riv", &silver);
 
-    auto artboard = file->artboardNamed("ParentArtboard");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("ParentArtboard");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    // Resolve the parent VMI's artboard-typed property that drives the
-    // nested artboard's source.
-    auto sourceProp = vmi->propertyValue("sourceArtboard");
-    REQUIRE(sourceProp != nullptr);
-    REQUIRE(sourceProp->is<rive::ViewModelInstanceArtboard>());
-    auto vmiSourceArtboard = sourceProp->as<rive::ViewModelInstanceArtboard>();
+  // Resolve the parent VMI's artboard-typed property that drives the
+  // nested artboard's source.
+  auto sourceProp = vmi->propertyValue("sourceArtboard");
+  REQUIRE(sourceProp != nullptr);
+  REQUIRE(sourceProp->is<rive::ViewModelInstanceArtboard>());
+  auto vmiSourceArtboard = sourceProp->as<rive::ViewModelInstanceArtboard>();
 
-    // Resolve `labelInput` on the parent VMI. Bound (via input binding) to the
-    // label property of whichever artboard is currently active inside the
-    // stateful nested artboard. Driving the inner label through this property
-    // is the supported user flow; this test does NOT mutate the stateful
-    // child's properties directly.
-    auto labelInputProp = vmi->propertyValue("labelInput");
-    REQUIRE(labelInputProp != nullptr);
-    REQUIRE(labelInputProp->is<rive::ViewModelInstanceString>());
-    auto labelInput = labelInputProp->as<rive::ViewModelInstanceString>();
+  // Resolve `labelInput` on the parent VMI. Bound (via input binding) to the
+  // label property of whichever artboard is currently active inside the
+  // stateful nested artboard. Driving the inner label through this property
+  // is the supported user flow; this test does NOT mutate the stateful
+  // child's properties directly.
+  auto labelInputProp = vmi->propertyValue("labelInput");
+  REQUIRE(labelInputProp != nullptr);
+  REQUIRE(labelInputProp->is<rive::ViewModelInstanceString>());
+  auto labelInput = labelInputProp->as<rive::ViewModelInstanceString>();
 
-    auto matchingSource = file->bindableArtboardNamed("MatchingArtboardA");
-    auto differentSource = file->bindableArtboardNamed("DifferentArtboardB");
-    REQUIRE(matchingSource != nullptr);
-    REQUIRE(differentSource != nullptr);
+  auto matchingSource = file->bindableArtboardNamed("MatchingArtboardA");
+  auto differentSource = file->bindableArtboardNamed("DifferentArtboardB");
+  REQUIRE(matchingSource != nullptr);
+  REQUIRE(differentSource != nullptr);
 
-    // The stateful nested artboard is the only NestedArtboard with
-    // isStateful() true in this asset.
-    rive::NestedArtboard* statefulNested = nullptr;
-    for (auto na : artboard->nestedArtboards())
+  // The stateful nested artboard is the only NestedArtboard with
+  // isStateful() true in this asset.
+  rive::NestedArtboard* statefulNested = nullptr;
+  for (auto na : artboard->nestedArtboards())
+  {
+    if (na->isStateful())
     {
-        if (na->isStateful())
-        {
-            statefulNested = na;
-            break;
-        }
+      statefulNested = na;
+      break;
     }
-    REQUIRE(statefulNested != nullptr);
+  }
+  REQUIRE(statefulNested != nullptr);
 
-    // Walk children() for the stateful child VMI (mirrors what
-    // NestedArtboard::findStatefulChildVmi does internally).
-    auto findStatefulChild =
-        [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
-        for (auto child : na->children())
-        {
-            if (child->is<rive::ViewModelInstance>())
-            {
-                return child->as<rive::ViewModelInstance>();
-            }
-        }
-        return nullptr;
-    };
+  // Walk children() for the stateful child VMI (mirrors what
+  // NestedArtboard::findStatefulChildVmi does internally).
+  auto findStatefulChild =
+      [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
+    for (auto child : na->children())
+    {
+      if (child->is<rive::ViewModelInstance>())
+      {
+        return child->as<rive::ViewModelInstance>();
+      }
+    }
+    return nullptr;
+  };
 
-    // The VMI currently bound to the nested artboard's inner instance —
-    // i.e., what NestedArtboard's active VMI was passed through to the
-    // inner artboard's data context.
-    auto currentlyBoundVmi =
-        [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
-        auto* inst = na->artboardInstance();
-        if (inst == nullptr)
-        {
-            return nullptr;
-        }
-        auto ctx = inst->dataContext();
-        if (ctx == nullptr)
-        {
-            return nullptr;
-        }
-        return ctx->mainViewModelInstance().get();
-    };
+  // The VMI currently bound to the nested artboard's inner instance —
+  // i.e., what NestedArtboard's active VMI was passed through to the
+  // inner artboard's data context.
+  auto currentlyBoundVmi =
+      [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
+    auto* inst = na->artboardInstance();
+    if (inst == nullptr)
+    {
+      return nullptr;
+    }
+    auto ctx = inst->dataContext();
+    if (ctx == nullptr)
+    {
+      return nullptr;
+    }
+    return ctx->mainViewModelInstance().get();
+  };
 
-    auto runFrames = [&](int n) {
-        for (int i = 0; i < n; i++)
-        {
-            silver.addFrame();
-            stateMachine->advanceAndApply(0.016f);
-            artboard->draw(renderer.get());
-        }
-    };
+  auto runFrames = [&](int n) {
+    for (int i = 0; i < n; i++)
+    {
+      silver.addFrame();
+      stateMachine->advanceAndApply(0.016f);
+      artboard->draw(renderer.get());
+    }
+  };
 
-    // === Step 1: initial state, no source bound from the parent VMI yet ===
-    // The stateful child VMI exists and is the active binding (borrowed).
-    auto* statefulChild = findStatefulChild(statefulNested);
-    REQUIRE(statefulChild != nullptr);
-    const auto initialStatefulVmId = statefulChild->viewModelId();
-    runFrames(5);
+  // === Step 1: initial state, no source bound from the parent VMI yet ===
+  // The stateful child VMI exists and is the active binding (borrowed).
+  auto* statefulChild = findStatefulChild(statefulNested);
+  REQUIRE(statefulChild != nullptr);
+  const auto initialStatefulVmId = statefulChild->viewModelId();
+  runFrames(5);
 
-    // === Step 2: bind source = MatchingArtboardA (same VM) ===
-    // We expect the active VMI to remain the stateful child (borrowed),
-    // not a freshly-created bound VMI.
-    vmiSourceArtboard->asset(matchingSource);
-    runFrames(5);
+  // === Step 2: bind source = MatchingArtboardA (same VM) ===
+  // We expect the active VMI to remain the stateful child (borrowed),
+  // not a freshly-created bound VMI.
+  vmiSourceArtboard->asset(matchingSource);
+  runFrames(5);
 
-    auto* boundAfterMatching = currentlyBoundVmi(statefulNested);
-    REQUIRE(boundAfterMatching != nullptr);
-    CHECK(boundAfterMatching == statefulChild);
+  auto* boundAfterMatching = currentlyBoundVmi(statefulNested);
+  REQUIRE(boundAfterMatching != nullptr);
+  CHECK(boundAfterMatching == statefulChild);
 
-    // Drive the inner label via the supported input-binding path. The
-    // stateful child receives this through its `label` input.
-    labelInput->propertyValue("Matching A");
-    runFrames(10);
+  // Drive the inner label via the supported input-binding path. The
+  // stateful child receives this through its `label` input.
+  labelInput->propertyValue("Matching A");
+  runFrames(10);
 
-    // === Step 3: bind source = DifferentArtboardB (different VM) ===
-    // We expect a NEW owned bound VMI to be created. The stateful child
-    // must NOT be destroyed by the switch and must NOT be the active VMI.
-    vmiSourceArtboard->asset(differentSource);
-    runFrames(5);
+  // === Step 3: bind source = DifferentArtboardB (different VM) ===
+  // We expect a NEW owned bound VMI to be created. The stateful child
+  // must NOT be destroyed by the switch and must NOT be the active VMI.
+  vmiSourceArtboard->asset(differentSource);
+  runFrames(5);
 
-    auto* boundAfterDifferent = currentlyBoundVmi(statefulNested);
-    REQUIRE(boundAfterDifferent != nullptr);
-    CHECK(boundAfterDifferent != statefulChild);
-    CHECK(boundAfterDifferent->viewModelId() != statefulChild->viewModelId());
+  auto* boundAfterDifferent = currentlyBoundVmi(statefulNested);
+  REQUIRE(boundAfterDifferent != nullptr);
+  CHECK(boundAfterDifferent != statefulChild);
+  CHECK(boundAfterDifferent->viewModelId() != statefulChild->viewModelId());
 
-    // The stateful child is still present in children() (preserved by
-    // the parent Artboard's m_Objects ownership).
-    CHECK(findStatefulChild(statefulNested) == statefulChild);
-    CHECK(statefulChild->viewModelId() == initialStatefulVmId);
+  // The stateful child is still present in children() (preserved by
+  // the parent Artboard's m_Objects ownership).
+  CHECK(findStatefulChild(statefulNested) == statefulChild);
+  CHECK(statefulChild->viewModelId() == initialStatefulVmId);
 
-    // Drive the inner label again — now it should flow into the
-    // dynamically-created bound VMI for DifferentArtboardB.
-    labelInput->propertyValue("Different B");
-    runFrames(10);
+  // Drive the inner label again — now it should flow into the
+  // dynamically-created bound VMI for DifferentArtboardB.
+  labelInput->propertyValue("Different B");
+  runFrames(10);
 
-    // === Step 4: bind source back to MatchingArtboardA ===
-    // The active VMI must be the stateful child again (pointer identity).
-    vmiSourceArtboard->asset(matchingSource);
-    runFrames(5);
+  // === Step 4: bind source back to MatchingArtboardA ===
+  // The active VMI must be the stateful child again (pointer identity).
+  vmiSourceArtboard->asset(matchingSource);
+  runFrames(5);
 
-    auto* boundAfterSwitchBack = currentlyBoundVmi(statefulNested);
-    REQUIRE(boundAfterSwitchBack != nullptr);
-    CHECK(boundAfterSwitchBack == statefulChild);
+  auto* boundAfterSwitchBack = currentlyBoundVmi(statefulNested);
+  REQUIRE(boundAfterSwitchBack != nullptr);
+  CHECK(boundAfterSwitchBack == statefulChild);
 
-    // One more input-driven label change to confirm the input keeps
-    // flowing into the reused stateful child after the round trip.
-    labelInput->propertyValue("Matching A Again");
-    runFrames(10);
+  // One more input-driven label change to confirm the input keeps
+  // flowing into the reused stateful child after the round trip.
+  labelInput->propertyValue("Matching A Again");
+  runFrames(10);
 
-    CHECK(silver.matches("stateful_source_switch"));
+  CHECK(silver.matches("stateful_source_switch"));
 }
 
-TEST_CASE("Stateful Component list bridge binds clean up on item remove",
-          "[silver]")
+TEST_CASE(
+    "Stateful Component list bridge binds clean up on item remove",
+    "[silver]")
 {
-    // Reuses stateful_list_props.riv. Verifies that adding and then
-    // removing list items doesn't leak bridge binds or crash, and that
-    // surviving items still propagate clicks correctly.
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_list_props.riv", &silver);
+  // Reuses stateful_list_props.riv. Verifies that adding and then
+  // removing list items doesn't leak bridge binds or crash, and that
+  // surviving items still propagate clicks correctly.
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_list_props.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    REQUIRE(vmi != nullptr);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  REQUIRE(vmi != nullptr);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto buttonsList =
-        vmi->propertyValue("buttons")->as<rive::ViewModelInstanceList>();
-    REQUIRE(buttonsList != nullptr);
+  auto buttonsList = vmi->propertyValue("buttons")
+                         ->as<rive::ViewModelInstanceList>();
+  REQUIRE(buttonsList != nullptr);
 
-    auto makeAndAdd = [&](const std::string& label, uint32_t tint) {
-        auto inst = file->createViewModelInstance("ButtonVM");
-        REQUIRE(inst != nullptr);
-        inst->propertyValue("label")
-            ->as<rive::ViewModelInstanceString>()
-            ->propertyValue(label);
-        inst->propertyValue("tint")
-            ->as<rive::ViewModelInstanceColor>()
-            ->propertyValue(tint);
-        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        item->viewModelInstance(inst);
-        buttonsList->addItem(item);
-        return inst;
-    };
+  auto makeAndAdd = [&](const std::string& label, uint32_t tint) {
+    auto inst = file->createViewModelInstance("ButtonVM");
+    REQUIRE(inst != nullptr);
+    inst->propertyValue("label")
+        ->as<rive::ViewModelInstanceString>()
+        ->propertyValue(label);
+    inst->propertyValue("tint")
+        ->as<rive::ViewModelInstanceColor>()
+        ->propertyValue(tint);
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(inst);
+    buttonsList->addItem(item);
+    return inst;
+  };
 
-    auto runFrames = [&](int frames) {
-        for (int i = 0; i < frames; i++)
-        {
-            silver.addFrame();
-            stateMachine->advanceAndApply(0.016f);
-            artboard->draw(renderer.get());
-        }
-    };
-
-    auto buttonA = makeAndAdd("Alpha", 0xFFFF3344);
-    auto buttonB = makeAndAdd("Beta", 0xFF33AAFF);
-    auto buttonC = makeAndAdd("Gamma", 0xFF44CC55);
-    runFrames(3);
-
-    // Remove the middle item — Beta. Bridge binds for Beta must be torn
-    // down; Alpha and Gamma must keep working.
-    REQUIRE(buttonsList->listItems().size() == 3);
-    buttonsList->removeItem(1);
-    runFrames(5);
-    REQUIRE(buttonsList->listItems().size() == 2);
-
-    // Click survivor at the position now occupied by what was Gamma
-    // (originally index 2, now index 1 → y ≈ 73).
-    auto clickedC =
-        buttonC->propertyValue("clicked")->as<rive::ViewModelInstanceBoolean>();
-    auto clickedB =
-        buttonB->propertyValue("clicked")->as<rive::ViewModelInstanceBoolean>();
-    CHECK(clickedC->propertyValue() == false);
-    stateMachine->pointerDown(rive::Vec2D(50.0f, 73.0f));
-    stateMachine->pointerUp(rive::Vec2D(50.0f, 73.0f));
-    stateMachine->advanceAndApply(0.016f);
-    CHECK(clickedC->propertyValue() == true);
-    // Removed item's clicked must not flip — its bridge bind is gone.
-    CHECK(clickedB->propertyValue() == false);
-    runFrames(3);
-
-    // Re-add Beta at the end.
+  auto runFrames = [&](int frames) {
+    for (int i = 0; i < frames; i++)
     {
-        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        item->viewModelInstance(buttonB);
-        buttonsList->addItem(item);
+      silver.addFrame();
+      stateMachine->advanceAndApply(0.016f);
+      artboard->draw(renderer.get());
     }
-    runFrames(5);
-    REQUIRE(buttonsList->listItems().size() == 3);
+  };
 
-    // Beta now lives at index 2 → y ≈ 118. Click should bridge-bind to
-    // its `clicked` again.
-    stateMachine->pointerDown(rive::Vec2D(50.0f, 118.0f));
-    stateMachine->pointerUp(rive::Vec2D(50.0f, 118.0f));
-    stateMachine->advanceAndApply(0.016f);
-    CHECK(clickedB->propertyValue() == true);
-    runFrames(3);
+  auto buttonA = makeAndAdd("Alpha", 0xFFFF3344);
+  auto buttonB = makeAndAdd("Beta", 0xFF33AAFF);
+  auto buttonC = makeAndAdd("Gamma", 0xFF44CC55);
+  runFrames(3);
 
-    // Remove all items — must not crash, no leftover binds.
-    while (buttonsList->listItems().size() > 0)
-    {
-        buttonsList->removeItem(0);
-    }
-    runFrames(5);
-    REQUIRE(buttonsList->listItems().size() == 0);
+  // Remove the middle item — Beta. Bridge binds for Beta must be torn
+  // down; Alpha and Gamma must keep working.
+  REQUIRE(buttonsList->listItems().size() == 3);
+  buttonsList->removeItem(1);
+  runFrames(5);
+  REQUIRE(buttonsList->listItems().size() == 2);
 
-    CHECK(silver.matches("stateful_list_props_lifecycle"));
+  // Click survivor at the position now occupied by what was Gamma
+  // (originally index 2, now index 1 → y ≈ 73).
+  auto clickedC = buttonC->propertyValue("clicked")
+                      ->as<rive::ViewModelInstanceBoolean>();
+  auto clickedB = buttonB->propertyValue("clicked")
+                      ->as<rive::ViewModelInstanceBoolean>();
+  CHECK(clickedC->propertyValue() == false);
+  stateMachine->pointerDown(rive::Vec2D(50.0f, 73.0f));
+  stateMachine->pointerUp(rive::Vec2D(50.0f, 73.0f));
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(clickedC->propertyValue() == true);
+  // Removed item's clicked must not flip — its bridge bind is gone.
+  CHECK(clickedB->propertyValue() == false);
+  runFrames(3);
+
+  // Re-add Beta at the end.
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(buttonB);
+    buttonsList->addItem(item);
+  }
+  runFrames(5);
+  REQUIRE(buttonsList->listItems().size() == 3);
+
+  // Beta now lives at index 2 → y ≈ 118. Click should bridge-bind to
+  // its `clicked` again.
+  stateMachine->pointerDown(rive::Vec2D(50.0f, 118.0f));
+  stateMachine->pointerUp(rive::Vec2D(50.0f, 118.0f));
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(clickedB->propertyValue() == true);
+  runFrames(3);
+
+  // Remove all items — must not crash, no leftover binds.
+  while (buttonsList->listItems().size() > 0)
+  {
+    buttonsList->removeItem(0);
+  }
+  runFrames(5);
+  REQUIRE(buttonsList->listItems().size() == 0);
+
+  CHECK(silver.matches("stateful_list_props_lifecycle"));
 }
 
 TEST_CASE("Stateful Component Keyed Triggers", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/stateful_keyed_trigger.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/stateful_keyed_trigger.riv", &silver);
 
-    auto artboard = file->artboardNamed("Artboard");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardNamed("Artboard");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
-
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-    CHECK(silver.matches("stateful_keyed_trigger"));
+  }
+  CHECK(silver.matches("stateful_keyed_trigger"));
 }

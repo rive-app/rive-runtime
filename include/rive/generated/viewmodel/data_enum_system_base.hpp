@@ -7,66 +7,50 @@ namespace rive
 class DataEnumSystemBase : public DataEnum
 {
 protected:
-    typedef DataEnum Super;
+  typedef DataEnum Super;
 
 public:
-    static const uint16_t typeKey = 512;
+  static const uint16_t typeKey = 512;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataEnumSystemBase::typeKey:
-            case DataEnumBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t enumTypePropertyKey = 709;
+  static const uint16_t enumTypePropertyKey = 709;
 
 protected:
-    uint32_t m_EnumType = 0;
+  uint32_t m_EnumType = 0;
 
 public:
-    inline uint32_t enumType() const { return m_EnumType; }
-    void enumType(uint32_t value)
+  inline uint32_t enumType() const { return m_EnumType; }
+  void enumType(uint32_t value)
+  {
+    if (m_EnumType == value)
     {
-        if (m_EnumType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(enumTypePropertyKey, &m_EnumType, &value);
-        m_EnumType = value;
-        RIVE_EDITOR_CHANGED(enumTypeChanged());
-        notifyPropertyChanged(enumTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(enumTypePropertyKey, &m_EnumType, &value);
+    m_EnumType = value;
+    notifyPropertyChanged(enumTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataEnumSystemBase& object)
-    {
-        m_EnumType = object.m_EnumType;
-        DataEnum::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataEnumSystemBase& object)
+  {
+    m_EnumType = object.m_EnumType;
+    DataEnum::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case enumTypePropertyKey:
-                m_EnumType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return DataEnum::deserialize(propertyKey, reader);
+      case enumTypePropertyKey:
+        m_EnumType = CoreUintType::deserialize(reader);
+        return true;
     }
+    return DataEnum::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void enumTypeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/data_enum_system_ext.inl"
 #endif

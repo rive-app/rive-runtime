@@ -7,7 +7,7 @@ namespace rive
 class BindablePropertyColor : public BindablePropertyColorBase
 {
 public:
-    constexpr static int defaultValue = 0;
+  constexpr static int defaultValue = 0;
 };
 } // namespace rive
 

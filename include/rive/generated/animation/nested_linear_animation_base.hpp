@@ -7,67 +7,49 @@ namespace rive
 class NestedLinearAnimationBase : public NestedAnimation
 {
 protected:
-    typedef NestedAnimation Super;
+  typedef NestedAnimation Super;
 
 public:
-    static const uint16_t typeKey = 97;
+  static const uint16_t typeKey = 97;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NestedLinearAnimationBase::typeKey:
-            case NestedAnimationBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t mixPropertyKey = 200;
+  static const uint16_t mixPropertyKey = 200;
 
 protected:
-    float m_Mix = 1.0f;
+  float m_Mix = 1.0f;
 
 public:
-    inline float mix() const { return m_Mix; }
-    void mix(float value)
+  inline float mix() const { return m_Mix; }
+  void mix(float value)
+  {
+    if (m_Mix == value)
     {
-        if (m_Mix == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(mixPropertyKey, &m_Mix, &value);
-        m_Mix = value;
-        RIVE_EDITOR_CHANGED(mixChanged());
-        notifyPropertyChanged(mixPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(mixPropertyKey, &m_Mix, &value);
+    m_Mix = value;
+    notifyPropertyChanged(mixPropertyKey);
+  }
 
-    void copy(const NestedLinearAnimationBase& object)
-    {
-        m_Mix = object.m_Mix;
-        NestedAnimation::copy(object);
-    }
+  void copy(const NestedLinearAnimationBase& object)
+  {
+    m_Mix = object.m_Mix;
+    NestedAnimation::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case mixPropertyKey:
-                m_Mix = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return NestedAnimation::deserialize(propertyKey, reader);
+      case mixPropertyKey:
+        m_Mix = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return NestedAnimation::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void mixChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/nested_linear_animation_ext.inl"
 #endif

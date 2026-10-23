@@ -12,38 +12,37 @@ using namespace rive;
 
 StatusCode ListenerInputChange::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  // First validate if this input change applies to a nested input
+  auto nested = artboardImporter->artboard()->resolve(nestedInputId());
+  auto nestedInput = nested != nullptr ? nested->as<NestedInput>() : nullptr;
+  if (nestedInput != nullptr)
+  {
+    if (!validateNestedInputType(nestedInput))
     {
-        return StatusCode::MissingObject;
+      return StatusCode::InvalidObject;
     }
-    // First validate if this input change applies to a nested input
-    auto nested = artboardImporter->artboard()->resolve(nestedInputId());
-    auto nestedInput = nested != nullptr ? nested->as<NestedInput>() : nullptr;
-    if (nestedInput != nullptr)
+  }
+  // Only if it doesn't apply to a nested input, check against an input
+  else
+  {
+    auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
+    if (!validateInputType(input))
     {
-        if (!validateNestedInputType(nestedInput))
-        {
-            return StatusCode::InvalidObject;
-        }
+      return StatusCode::InvalidObject;
     }
-    // Only if it doesn't apply to a nested input, check against an input
-    else
-    {
-        auto input =
-            stateMachineImporter->stateMachine()->input((size_t)inputId());
-        if (!validateInputType(input))
-        {
-            return StatusCode::InvalidObject;
-        }
-    }
-    return Super::import(importStack);
+  }
+  return Super::import(importStack);
 }

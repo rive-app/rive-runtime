@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerAlignTargetBase::clone() const
 {
-    auto cloned = new ListenerAlignTarget();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerAlignTarget();
+  cloned->copy(*this);
+  return cloned;
 }

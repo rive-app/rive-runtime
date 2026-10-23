@@ -8,28 +8,28 @@ using namespace rive;
 
 StatusCode TransformComponent::onAddedClean(CoreContext* context)
 {
-    m_ParentTransformComponent =
-        parent() != nullptr && parent()->is<WorldTransformComponent>()
-            ? parent()->as<WorldTransformComponent>()
-            : nullptr;
-    return StatusCode::Ok;
+  m_ParentTransformComponent = parent() != nullptr &&
+                                       parent()->is<WorldTransformComponent>()
+                                   ? parent()->as<WorldTransformComponent>()
+                                   : nullptr;
+  return StatusCode::Ok;
 }
 
 bool TransformComponent::collapse(bool value)
 {
-    if (!Super::collapse(value))
+  if (!Super::collapse(value))
+  {
+    return false;
+  }
+  for (auto d : dependents())
+  {
+    if (d->is<TransformComponent>())
     {
-        return false;
+      auto dependent = d->as<TransformComponent>();
+      dependent->markDirtyIfConstrained();
     }
-    for (auto d : dependents())
-    {
-        if (d->is<TransformComponent>())
-        {
-            auto dependent = d->as<TransformComponent>();
-            dependent->markDirtyIfConstrained();
-        }
-    }
-    return true;
+  }
+  return true;
 }
 
 // If the component has any constraints applied we mark it as dirty
@@ -37,84 +37,84 @@ bool TransformComponent::collapse(bool value)
 // status.
 void TransformComponent::markDirtyIfConstrained()
 {
-    if (!m_Constraints.empty())
-    {
-        addDirt(ComponentDirt::WorldTransform, true);
-    }
+  if (!m_Constraints.empty())
+  {
+    addDirt(ComponentDirt::WorldTransform, true);
+  }
 }
 
 void TransformComponent::buildDependencies()
 {
-    if (parent() != nullptr)
-    {
-        parent()->addDependent(this);
-    }
+  if (parent() != nullptr)
+  {
+    parent()->addDependent(this);
+  }
 }
 
 void TransformComponent::markTransformDirty()
 {
-    if (!addDirt(ComponentDirt::Transform))
-    {
-        return;
-    }
-    markWorldTransformDirty();
+  if (!addDirt(ComponentDirt::Transform))
+  {
+    return;
+  }
+  markWorldTransformDirty();
 }
 
 void TransformComponent::updateTransform()
 {
-    m_Transform = Mat2D::fromRotation(rotation());
-    m_Transform[4] = x();
-    m_Transform[5] = y();
-    m_Transform.scaleByValues(scaleX(), scaleY());
+  m_Transform = Mat2D::fromRotation(rotation());
+  m_Transform[4] = x();
+  m_Transform[5] = y();
+  m_Transform.scaleByValues(scaleX(), scaleY());
 }
 
 AABB TransformComponent::localBounds() const { return AABB(); }
 
 void TransformComponent::composeWorldTransform()
 {
-    if (m_ParentTransformComponent != nullptr)
-    {
-        m_WorldTransform =
-            m_ParentTransformComponent->m_WorldTransform * m_Transform;
-    }
-    else
-    {
-        m_WorldTransform = m_Transform;
-    }
+  if (m_ParentTransformComponent != nullptr)
+  {
+    m_WorldTransform = m_ParentTransformComponent->m_WorldTransform *
+                       m_Transform;
+  }
+  else
+  {
+    m_WorldTransform = m_Transform;
+  }
 }
 
 void TransformComponent::updateWorldTransform()
 {
-    composeWorldTransform();
-    updateConstraints();
+  composeWorldTransform();
+  updateConstraints();
 }
 
 void TransformComponent::updateConstraints()
 {
-    for (auto* constraint : m_Constraints)
-    {
-        constraint->constrain(this);
-    }
+  for (auto* constraint : m_Constraints)
+  {
+    constraint->constrain(this);
+  }
 }
 
 void TransformComponent::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Transform))
+  if (hasDirt(value, ComponentDirt::Transform))
+  {
+    updateTransform();
+  }
+  if (hasDirt(value, ComponentDirt::WorldTransform))
+  {
+    updateWorldTransform();
+  }
+  if (hasDirt(value, ComponentDirt::RenderOpacity))
+  {
+    m_RenderOpacity = opacity();
+    if (m_ParentTransformComponent != nullptr)
     {
-        updateTransform();
+      m_RenderOpacity *= m_ParentTransformComponent->childOpacity();
     }
-    if (hasDirt(value, ComponentDirt::WorldTransform))
-    {
-        updateWorldTransform();
-    }
-    if (hasDirt(value, ComponentDirt::RenderOpacity))
-    {
-        m_RenderOpacity = opacity();
-        if (m_ParentTransformComponent != nullptr)
-        {
-            m_RenderOpacity *= m_ParentTransformComponent->childOpacity();
-        }
-    }
+  }
 }
 
 const Mat2D& TransformComponent::transform() const { return m_Transform; }
@@ -127,5 +127,5 @@ void TransformComponent::scaleYChanged() { markTransformDirty(); }
 
 void TransformComponent::addConstraint(Constraint* constraint)
 {
-    m_Constraints.push_back(constraint);
+  m_Constraints.push_back(constraint);
 }

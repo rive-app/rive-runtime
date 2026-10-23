@@ -13,263 +13,303 @@ class Factory;
 
 enum class CursorBoundary : uint8_t
 {
-    character,
-    word,
-    subWord,
-    line
+  character,
+  word,
+  subWord,
+  line
 };
 
 class RawTextInput
 {
 public:
 #ifdef TESTING
-    uint32_t measureCount = 0;
+  uint32_t measureCount = 0;
+  // Shapes run to check maxLines.
+  uint32_t limitShapeCount = 0;
 #endif
-    RawTextInput();
+  RawTextInput();
 
-    void draw(Factory* factory,
-              Renderer* renderer,
-              const Mat2D& worldTransform,
-              RenderPaint* textPaint,
-              RenderPaint* selectionPaint,
-              RenderPaint* cursorPaint);
+  void draw(
+      Factory* factory,
+      Renderer* renderer,
+      const Mat2D& worldTransform,
+      RenderPaint* textPaint,
+      RenderPaint* selectionPaint,
+      RenderPaint* cursorPaint);
 
-    float fontSize() const { return m_textRun.size; }
-    void fontSize(float value);
+  float fontSize() const { return m_textRun.size; }
+  void fontSize(float value);
 
-    float maxWidth() const { return m_maxWidth; }
-    void maxWidth(float value);
+  float maxWidth() const { return m_maxWidth; }
+  void maxWidth(float value);
 
-    float maxHeight() const { return m_maxHeight; }
-    void maxHeight(float value);
+  float maxHeight() const { return m_maxHeight; }
+  void maxHeight(float value);
 
-    TextSizing sizing() const { return m_sizing; }
-    void sizing(TextSizing value);
+  TextSizing sizing() const { return m_sizing; }
+  void sizing(TextSizing value);
 
-    TextOverflow overflow() const { return m_overflow; }
-    void overflow(TextOverflow value);
+  TextOverflow overflow() const { return m_overflow; }
+  void overflow(TextOverflow value);
 
-    TextAlign align() const { return m_align; }
-    void align(TextAlign value);
+  TextAlign align() const { return m_align; }
+  void align(TextAlign value);
 
-    /// The width lines are aligned within when it's wider than the text
-    /// itself. Text wider than this aligns within its own width, which
-    /// effectively left aligns it (and leaves horizontal scrolling intact).
-    float alignWidth() const { return m_alignWidth; }
-    void alignWidth(float value);
+  /// The width lines are aligned within when it's wider than the text
+  /// itself. Text wider than this aligns within its own width, which
+  /// effectively left aligns it (and leaves horizontal scrolling intact).
+  float alignWidth() const { return m_alignWidth; }
+  void alignWidth(float value);
 
-    VerticalTextAlign verticalAlign() const { return m_verticalAlign; }
-    void verticalAlign(VerticalTextAlign value);
+  VerticalTextAlign verticalAlign() const { return m_verticalAlign; }
+  void verticalAlign(VerticalTextAlign value);
 
-    /// The height the text block is aligned within, the vertical counterpart
-    /// to alignWidth: text taller than this stays at the top, leaving
-    /// vertical scrolling intact.
-    float alignHeight() const { return m_alignHeight; }
-    void alignHeight(float value);
+  /// The height the text block is aligned within, the vertical counterpart
+  /// to alignWidth: text taller than this stays at the top, leaving
+  /// vertical scrolling intact.
+  float alignHeight() const { return m_alignHeight; }
+  void alignHeight(float value);
 
-    rcp<Font> font() const { return m_textRun.font; }
-    void font(rcp<Font> value);
+  rcp<Font> font() const { return m_textRun.font; }
+  void font(rcp<Font> value);
 
-    float paragraphSpacing() const { return m_paragraphSpacing; }
-    void paragraphSpacing(float value);
+  float paragraphSpacing() const { return m_paragraphSpacing; }
+  void paragraphSpacing(float value);
 
-    float selectionCornerRadius() const { return m_selectionCornerRadius; }
-    void selectionCornerRadius(float value);
+  float selectionCornerRadius() const { return m_selectionCornerRadius; }
+  void selectionCornerRadius(float value);
 
-    bool separateSelectionText() const;
-    void separateSelectionText(bool value);
+  bool separateSelectionText() const;
+  void separateSelectionText(bool value);
 
-    // When obscured, every code point displays as a bullet while the real
-    // text stays intact for editing.
-    bool obscured() const;
-    void obscured(bool value);
+  // When obscured, every code point displays as a bullet while the real
+  // text stays intact for editing.
+  bool obscured() const;
+  void obscured(bool value);
 
-    enum class Flags : uint8_t
-    {
-        none = 0,
-        shapeDirty = 1 << 0,
-        selectionDirty = 1 << 1,
-        separateSelectionText = 1 << 2,
-        measureDirty = 1 << 3,
-        obscured = 1 << 4
-    };
+  // Most code points insert() lets the text grow to, 0 for no limit. Only
+  // edits are held to it: text set from outside and undo/redo are kept as
+  // they are, even when they exceed it.
+  uint32_t maxCharacters() const { return m_maxCharacters; }
+  void maxCharacters(uint32_t value) { m_maxCharacters = value; }
 
-    Flags update(Factory* factory);
+  // Most displayed (wrapped) lines insert() lets the text grow to, 0 for no
+  // limit. Held to edits only, like maxCharacters.
+  uint32_t maxLines() const { return m_maxLines; }
+  void maxLines(uint32_t value) { m_maxLines = value; }
 
-    ShapePaintPath* textPath() { return &m_textPath; }
-    ShapePaintPath* selectedTextPath() { return &m_selectedTextPath; }
-    ShapePaintPath* cursorPath() { return &m_cursorPath; }
-    ShapePaintPath* selectionPath() { return &m_selectionPath; }
-    rcp<RenderPath> clipRenderPath() { return m_clipRenderPath; }
+  // Whether the layout hugs the text's width, so the field grows with its
+  // text up to the width measure() was last offered: maxLines then wraps
+  // there. Otherwise it wraps at maxWidth, where the text displays.
+  bool hugsWidth() const;
+  void hugsWidth(bool value);
 
-    /// Returns the bounds of the text object (helpful for aligning multiple
-    /// text objects/procredurally drawn shapes).
-    AABB bounds() const;
-    CursorVisualPosition cursorVisualPosition(CursorPosition position)
-    {
-        return position.visualPosition(m_shape);
-    }
+  enum class Flags : uint8_t
+  {
+    none = 0,
+    shapeDirty = 1 << 0,
+    selectionDirty = 1 << 1,
+    separateSelectionText = 1 << 2,
+    measureDirty = 1 << 3,
+    obscured = 1 << 4,
+    // measure() has run, so the layout's width is known.
+    measured = 1 << 5,
+    hugsWidth = 1 << 6
+  };
 
-    CursorVisualPosition cursorVisualPosition() const
-    {
-        return m_cursorVisualPosition;
-    }
+  Flags update(Factory* factory);
 
-    void insert(const std::string& text);
-    void insert(Unichar codePoint);
-    void erase();
-    void backspace(int32_t direction);
+  ShapePaintPath* textPath() { return &m_textPath; }
+  ShapePaintPath* selectedTextPath() { return &m_selectedTextPath; }
+  ShapePaintPath* cursorPath() { return &m_cursorPath; }
+  ShapePaintPath* selectionPath() { return &m_selectionPath; }
+  rcp<RenderPath> clipRenderPath() { return m_clipRenderPath; }
 
-    void cursorLeft(CursorBoundary boundary = CursorBoundary::character,
-                    bool select = false);
-    void cursorRight(CursorBoundary boundary = CursorBoundary::character,
-                     bool select = false);
-    void cursorUp(bool select = false);
-    void cursorDown(bool select = false);
+  /// Returns the bounds of the text object (helpful for aligning multiple
+  /// text objects/procredurally drawn shapes).
+  AABB bounds() const;
+  CursorVisualPosition cursorVisualPosition(CursorPosition position)
+  {
+    return position.visualPosition(m_shape);
+  }
 
-    void moveCursorTo(Vec2D translation, bool select = false);
-    const FullyShapedText& shape() const { return m_shape; }
-    const Cursor cursor() const { return m_cursor; }
-    void cursor(Cursor value);
+  CursorVisualPosition cursorVisualPosition() const
+  {
+    return m_cursorVisualPosition;
+  }
 
-    // Selects the word at the cursor.
-    void selectWord();
+  // Replace the selection with text, truncated to what fits within
+  // maxCharacters and maxLines. Returns false, changing nothing, when none
+  // of it fits.
+  bool insert(const std::string& text);
+  bool insert(Unichar codePoint);
+  void erase();
+  void backspace(int32_t direction);
 
-    // Selects the entire text.
-    void selectAll();
+  void cursorLeft(
+      CursorBoundary boundary = CursorBoundary::character,
+      bool select = false);
+  void cursorRight(
+      CursorBoundary boundary = CursorBoundary::character,
+      bool select = false);
+  void cursorUp(bool select = false);
+  void cursorDown(bool select = false);
 
-    // Selects the visual line at the cursor.
-    void selectLine();
+  void moveCursorTo(Vec2D translation, bool select = false);
+  const FullyShapedText& shape() const { return m_shape; }
+  const Cursor cursor() const { return m_cursor; }
+  void cursor(Cursor value);
 
-    // Collapses the selection to the cursor's end position.
-    void clearSelection();
+  // Selects the word at the cursor.
+  void selectWord();
 
-    std::string text() const;
-    // The text within the cursor's selection range (empty when the selection
-    // is collapsed).
-    std::string selectedText() const;
-    void text(std::string value);
-    void textPreserveCursor(std::string value);
-    // Length of the input text.
-    size_t length() const;
+  // Selects the entire text.
+  void selectAll();
 
-    // Returns true if the input is empty.
-    bool empty() const;
+  // Selects the visual line at the cursor.
+  void selectLine();
 
-    void undo();
-    void redo();
+  // Collapses the selection to the cursor's end position.
+  void clearSelection();
 
-    AABB measure(float maxWidth, float maxHeight);
+  std::string text() const;
+  // The text within the cursor's selection range (empty when the selection
+  // is collapsed).
+  std::string selectedText() const;
+  void text(std::string value);
+  void textPreserveCursor(std::string value);
+  // Length of the input text.
+  size_t length() const;
 
-    enum class Delineator : uint8_t
-    {
-        unknown = 0,
-        lowercase = 1 << 0,
-        uppercase = 1 << 1,
-        symbol = 1 << 2,
-        underscore = 1 << 3,
-        whitespace = 1 << 4,
-        word = lowercase | uppercase | underscore,
-        any =
-            lowercase | uppercase | symbol | underscore | whitespace | lowercase
+  // Returns true if the input is empty.
+  bool empty() const;
 
-    };
+  void undo();
+  void redo();
+
+  AABB measure(float maxWidth, float maxHeight);
+
+  enum class Delineator : uint8_t
+  {
+    unknown = 0,
+    lowercase = 1 << 0,
+    uppercase = 1 << 1,
+    symbol = 1 << 2,
+    underscore = 1 << 3,
+    whitespace = 1 << 4,
+    word = lowercase | uppercase | underscore,
+    any = lowercase | uppercase | symbol | underscore | whitespace | lowercase
+
+  };
 
 private:
-    void captureJournalEntry(Cursor cursor);
-    void cursorHorizontal(int32_t offset, CursorBoundary boundary, bool select);
-    static Delineator classify(Unichar codepoint);
-    Delineator classify(CursorPosition position) const;
+  void captureJournalEntry(Cursor cursor);
+  void cursorHorizontal(int32_t offset, CursorBoundary boundary, bool select);
+  static Delineator classify(Unichar codepoint);
+  Delineator classify(CursorPosition position) const;
 
-    // Hunt for a delineator bit maks from position in direction. Returns what
-    // was actually found. The position will be updated to the location where
-    // the Delineator was found.
-    Delineator find(uint8_t delineatorMask,
-                    CursorPosition& position,
-                    int32_t direction) const;
+  // Hunt for a delineator bit maks from position in direction. Returns what
+  // was actually found. The position will be updated to the location where
+  // the Delineator was found.
+  Delineator find(
+      uint8_t delineatorMask,
+      CursorPosition& position,
+      int32_t direction) const;
 
-    CursorPosition findPosition(uint8_t delineatorMask,
-                                const CursorPosition& position,
-                                int32_t direction) const;
+  CursorPosition findPosition(
+      uint8_t delineatorMask,
+      const CursorPosition& position,
+      int32_t direction) const;
 
-    const OrderedLine* orderedLine(CursorPosition position) const;
+  const OrderedLine* orderedLine(CursorPosition position) const;
 
-    void ensureShape();
-    std::vector<Unichar>& shapeableText();
-    void buildTextPaths(Factory* factory);
-    void computeVisualPositionFromCursor();
-    void setTextPrivate(std::string value);
-    bool flagged(Flags mask) const;
-    bool unflag(Flags mask);
-    void flag(Flags mask);
+  bool insertCodePoints(Span<const Unichar> codePoints);
+  size_t fittingCount(Span<const Unichar> codePoints);
+  uint32_t lineCountWith(
+      Span<const Unichar> codePoints,
+      size_t count,
+      bool withRestOfParagraph);
+  void ensureShape();
+  std::vector<Unichar>& shapeableText();
+  void buildTextPaths(Factory* factory);
+  void computeVisualPositionFromCursor();
+  void setTextPrivate(std::string value);
+  bool flagged(Flags mask) const;
+  bool unflag(Flags mask);
+  void flag(Flags mask);
 
-    Cursor m_cursor;
-    TextRun m_textRun;
-    ShapePaintPath m_textPath;
-    ShapePaintPath m_selectedTextPath;
-    ShapePaintPath m_cursorPath;
-    TextSelectionPath m_selectionPath;
-    std::vector<Unichar> m_text;
-    std::vector<Unichar> m_obscuredText;
+  Cursor m_cursor;
+  TextRun m_textRun;
+  ShapePaintPath m_textPath;
+  ShapePaintPath m_selectedTextPath;
+  ShapePaintPath m_cursorPath;
+  TextSelectionPath m_selectionPath;
+  std::vector<Unichar> m_text;
+  std::vector<Unichar> m_obscuredText;
 
-    FullyShapedText m_shape;
-    std::unique_ptr<FullyShapedText> m_measuringShape;
-    float m_lastMeasureMaxWidth = 0.0f;
-    float m_lastMeasureMaxHeight = 0.0f;
+  FullyShapedText m_shape;
+  std::unique_ptr<FullyShapedText> m_measuringShape;
+  float m_lastMeasureMaxWidth = 0.0f;
+  float m_lastMeasureMaxHeight = 0.0f;
 
-    Flags m_flags = Flags::none;
+  Flags m_flags = Flags::none;
 
-    float m_paragraphSpacing = 0.0f;
-    TextOrigin m_origin = TextOrigin::top;
-    TextSizing m_sizing = TextSizing::autoWidth;
-    TextOverflow m_overflow = TextOverflow::visible;
-    TextAlign m_align = TextAlign::left;
-    TextWrap m_wrap = TextWrap::wrap;
-    float m_maxWidth = 0.0f;
-    float m_maxHeight = 0.0f;
-    float m_alignWidth = 0.0f;
-    VerticalTextAlign m_verticalAlign = VerticalTextAlign::top;
-    float m_alignHeight = 0.0f;
-    rcp<RenderPath> m_clipRenderPath;
-    float m_idealCursorX = -1.0f;
+  float m_paragraphSpacing = 0.0f;
+  TextOrigin m_origin = TextOrigin::top;
+  TextSizing m_sizing = TextSizing::autoWidth;
+  TextOverflow m_overflow = TextOverflow::visible;
+  TextAlign m_align = TextAlign::left;
+  TextWrap m_wrap = TextWrap::wrap;
+  float m_maxWidth = 0.0f;
+  float m_maxHeight = 0.0f;
+  float m_alignWidth = 0.0f;
+  VerticalTextAlign m_verticalAlign = VerticalTextAlign::top;
+  float m_alignHeight = 0.0f;
+  rcp<RenderPath> m_clipRenderPath;
+  float m_idealCursorX = -1.0f;
 
-    CursorVisualPosition m_cursorVisualPosition;
-    std::vector<AABB> m_selectionRects;
+  CursorVisualPosition m_cursorVisualPosition;
+  std::vector<AABB> m_selectionRects;
 
-    float m_selectionCornerRadius = 5.0f;
+  float m_selectionCornerRadius = 5.0f;
+  uint32_t m_maxCharacters = 0;
 
-    struct JournalEntry
-    {
-        Cursor cursorFrom;
-        Cursor cursorTo;
-        std::string text;
-    };
-    std::vector<JournalEntry> m_journal;
-    uint32_t m_journalIndex = 0;
+  struct JournalEntry
+  {
+    Cursor cursorFrom;
+    Cursor cursorTo;
+    std::string text;
+  };
+  std::vector<JournalEntry> m_journal;
+  uint32_t m_journalIndex = 0;
+  uint32_t m_maxLines = 0;
 };
 
 // Helper for performing bitwise and with Delineator.
-inline uint8_t operator&(const RawTextInput::Delineator& delineator,
-                         const uint8_t mask)
+inline uint8_t operator&(
+    const RawTextInput::Delineator& delineator,
+    const uint8_t mask)
 {
-    return (uint8_t)delineator & mask;
+  return (uint8_t)delineator & mask;
 }
 
 inline uint8_t operator~(const RawTextInput::Delineator& delineator)
 {
-    return ~(uint8_t)delineator;
+  return ~(uint8_t)delineator;
 }
 
-inline RawTextInput::Delineator operator|(const RawTextInput::Delineator& a,
-                                          const RawTextInput::Delineator& b)
+inline RawTextInput::Delineator operator|(
+    const RawTextInput::Delineator& a,
+    const RawTextInput::Delineator& b)
 {
-    return (RawTextInput::Delineator)((uint8_t)a | (uint8_t)b);
+  return (RawTextInput::Delineator)((uint8_t)a | (uint8_t)b);
 }
 
-inline RawTextInput::Delineator operator&(const RawTextInput::Delineator& a,
-                                          const RawTextInput::Delineator& b)
+inline RawTextInput::Delineator operator&(
+    const RawTextInput::Delineator& a,
+    const RawTextInput::Delineator& b)
 {
-    return (RawTextInput::Delineator)((uint8_t)a & (uint8_t)b);
+  return (RawTextInput::Delineator)((uint8_t)a & (uint8_t)b);
 }
 } // namespace rive
 

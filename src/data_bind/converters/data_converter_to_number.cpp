@@ -16,62 +16,62 @@ using namespace rive;
 // with the output of cpp
 DataValue* DataConverterToNumber::convertString(DataValueString* input)
 {
-    auto value = input->value();
-    errno = 0; // Clear errno before the call
-    float v = std::atof(value.c_str());
-    if (errno == 0)
-    {
-        m_output.value(v);
-    }
-    return &m_output;
+  auto value = input->value();
+  errno = 0; // Clear errno before the call
+  float v = std::atof(value.c_str());
+  if (errno == 0)
+  {
+    m_output.value(v);
+  }
+  return &m_output;
 }
 
 DataValue* DataConverterToNumber::convertColor(DataValueColor* input)
 {
-    auto colorValue = input->value();
-    m_output.value(static_cast<float>(colorValue));
-    return &m_output;
+  auto colorValue = input->value();
+  m_output.value(static_cast<float>(colorValue));
+  return &m_output;
 }
 
 DataValue* DataConverterToNumber::convertEnum(DataValueEnum* input)
 {
-    auto index = input->as<DataValueEnum>()->value();
-    m_output.value(float(index));
-    return &m_output;
+  auto index = input->as<DataValueEnum>()->value();
+  m_output.value(float(index));
+  return &m_output;
 }
 
 DataValue* DataConverterToNumber::convert(DataValue* input, DataBind* dataBind)
 {
-    if (input->is<DataValueString>())
-    {
-        return convertString(input->as<DataValueString>());
-    }
-    else if (input->is<DataValueEnum>())
-    {
-        return convertEnum(input->as<DataValueEnum>());
-    }
-    else if (input->is<DataValueNumber>())
-    {
-        m_output.value(input->as<DataValueNumber>()->value());
-    }
-    else if (input->is<DataValueColor>())
-    {
-        return convertColor(input->as<DataValueColor>());
-    }
-    else if (input->is<DataValueBoolean>())
-    {
+  if (input->is<DataValueString>())
+  {
+    return convertString(input->as<DataValueString>());
+  }
+  else if (input->is<DataValueEnum>())
+  {
+    return convertEnum(input->as<DataValueEnum>());
+  }
+  else if (input->is<DataValueNumber>())
+  {
+    m_output.value(input->as<DataValueNumber>()->value());
+  }
+  else if (input->is<DataValueColor>())
+  {
+    return convertColor(input->as<DataValueColor>());
+  }
+  else if (input->is<DataValueBoolean>())
+  {
 
-        auto value = input->as<DataValueBoolean>()->value();
-        m_output.value(value ? 1.0f : 0.0f);
-    }
-    else if (input->is<DataValueSymbolListIndex>())
-    {
-        auto value = input->as<DataValueSymbolListIndex>()->value();
-        m_output.value(float(value));
-    }
-    else
-    {
-        m_output.value(DataValueNumber::defaultValue);
-    }
-    return &m_output;
+    auto value = input->as<DataValueBoolean>()->value();
+    m_output.value(value ? 1.0f : 0.0f);
+  }
+  else if (input->is<DataValueSymbolListIndex>())
+  {
+    auto value = input->as<DataValueSymbolListIndex>()->value();
+    m_output.value(float(value));
+  }
+  else
+  {
+    m_output.value(DataValueNumber::defaultValue);
+  }
+  return &m_output;
 }

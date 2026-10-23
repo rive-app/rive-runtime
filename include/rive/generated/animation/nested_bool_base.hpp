@@ -7,57 +7,41 @@ namespace rive
 class NestedBoolBase : public NestedInput
 {
 protected:
-    typedef NestedInput Super;
+  typedef NestedInput Super;
 
 public:
-    static const uint16_t typeKey = 123;
+  static const uint16_t typeKey = 123;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NestedBoolBase::typeKey:
-            case NestedInputBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t nestedValuePropertyKey = 238;
+  static const uint16_t nestedValuePropertyKey = 238;
 
 protected:
-    bool m_NestedValue = false;
+  bool m_NestedValue = false;
 
 public:
-    virtual bool nestedValue() const { return m_NestedValue; }
-    virtual void nestedValue(bool value) = 0;
+  virtual bool nestedValue() const { return m_NestedValue; }
+  virtual void nestedValue(bool value) = 0;
 
-    Core* clone() const override;
-    void copy(const NestedBoolBase& object)
-    {
-        m_NestedValue = object.m_NestedValue;
-        NestedInput::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const NestedBoolBase& object)
+  {
+    m_NestedValue = object.m_NestedValue;
+    NestedInput::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case nestedValuePropertyKey:
-                m_NestedValue = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return NestedInput::deserialize(propertyKey, reader);
+      case nestedValuePropertyKey:
+        m_NestedValue = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return NestedInput::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void nestedValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/nested_bool_ext.inl"
 #endif

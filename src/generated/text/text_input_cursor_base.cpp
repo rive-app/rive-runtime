@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextInputCursorBase::clone() const
 {
-    auto cloned = new TextInputCursor();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextInputCursor();
+  cloned->copy(*this);
+  return cloned;
 }

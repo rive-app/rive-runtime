@@ -27,6 +27,7 @@ defines({
     'WITH_RIVE_AUDIO_TOOLS',
     'WITH_RIVE_LAYOUT',
     'WITH_RIVE_SCRIPTING',
+    'WITH_RIVE_SCRIPTNET',
     'YOGA_EXPORT=',
     'RIVE_NO_CORETEXT',
 })
@@ -35,6 +36,13 @@ if _OPTIONS['toolset'] == 'msc' then
     defines({
         'MA_NO_MP3', -- miniaudio's mp3 decoder + fp:strict causes C2099
     })
+end
+-- Every line break dictionary, so their tests run, compressed so they cover
+-- rebuilding the tries too. Set here rather than on the command line so
+-- existing out directories keep their premake arguments.
+for _, language in ipairs({ 'thai', 'lao', 'khmer', 'burmese', 'compressed' }) do
+    -- Empty, like a bare command line flag, so 'options:' filters match.
+    _OPTIONS['with_rive_text_dict_' .. language] = ''
 end
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
@@ -105,6 +113,11 @@ do
         '../../../texture_compressor/src/write_ktx2.cpp',
     })
 
+    -- The entry split is plain C++; test it where the renderer leaves it out.
+    if not (_OPTIONS['with_vulkan'] and _OPTIONS['with_rive_canvas']) then
+        files({ '../../renderer/src/ore/vulkan/ore_spirv_entry_split.cpp' })
+    end
+
     -- These exercise the Luau backend directly; the wasm backend's coverage
     -- is the two-runner differential in rive-cli until wasm twins land.
     if _OPTIONS['scripting_vm'] == 'wasm' then
@@ -144,12 +157,14 @@ do
         files({
             'renderer/ore_buffer_race_test.mm',
             'renderer/ore_layout_intern_test.mm',
+            'renderer/ore_layout_native_slots_test.mm',
             'renderer/ore_scratch_pass_objects_test.mm',
             'renderer/ore_split_stage_test.mm',
         })
         removefiles({
             'renderer/ore_buffer_race_test.cpp',
             'renderer/ore_layout_intern_test.cpp',
+            'renderer/ore_layout_native_slots_test.cpp',
             'renderer/ore_scratch_pass_objects_test.cpp',
             'renderer/ore_split_stage_test.cpp',
         })

@@ -4,9 +4,9 @@ namespace rive
 {
 enum class ViewModelType : int
 {
-    standard = 0,
-    textInput = 1,
-    global = 2,
+  standard = 0,
+  textInput = 1,
+  global = 2,
 };
 }
 #endif

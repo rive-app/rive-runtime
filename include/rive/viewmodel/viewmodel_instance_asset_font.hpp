@@ -11,17 +11,17 @@ namespace rive
 class ViewModelInstanceAssetFont : public ViewModelInstanceAssetFontBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ViewModelInstanceAssetFont();
-    void value(Font* font);
-    rcp<FontAsset> asset() { return m_fontAsset; }
-    Core* clone() const override;
-    void applyValue(DataValueInteger*);
+  ViewModelInstanceAssetFont();
+  void value(Font* font);
+  rcp<FontAsset> asset() { return m_fontAsset; }
+  Core* clone() const override;
+  void applyValue(DataValueInteger*);
 
 private:
-    rcp<FontAsset> m_fontAsset = nullptr;
+  rcp<FontAsset> m_fontAsset = nullptr;
 };
 } // namespace rive
 

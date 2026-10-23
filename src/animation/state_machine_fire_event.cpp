@@ -14,10 +14,10 @@ using namespace rive;
 void StateMachineFireEvent::perform(
     StateMachineInstance* stateMachineInstance) const
 {
-    auto coreEvent = stateMachineInstance->artboard()->resolve(eventId());
-    if (coreEvent == nullptr || !coreEvent->is<Event>())
-    {
-        return;
-    }
-    stateMachineInstance->reportEvent(coreEvent->as<Event>());
+  auto coreEvent = stateMachineInstance->artboard()->resolve(eventId());
+  if (coreEvent == nullptr || !coreEvent->is<Event>())
+  {
+    return;
+  }
+  stateMachineInstance->reportEvent(coreEvent->as<Event>());
 }

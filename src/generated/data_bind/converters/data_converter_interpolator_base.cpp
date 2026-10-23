@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterInterpolatorBase::clone() const
 {
-    auto cloned = new DataConverterInterpolator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterInterpolator();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -8,66 +8,49 @@ namespace rive
 class TextTargetModifierBase : public TextModifier
 {
 protected:
-    typedef TextModifier Super;
+  typedef TextModifier Super;
 
 public:
-    static const uint16_t typeKey = 546;
+  static const uint16_t typeKey = 546;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextTargetModifierBase::typeKey:
-            case TextModifierBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t targetIdPropertyKey = 778;
+  static const uint16_t targetIdPropertyKey = 778;
 
 protected:
-    Id m_TargetId = kEmptyId;
+  Id m_TargetId = kEmptyId;
 
 public:
-    inline Id targetId() const { return m_TargetId; }
-    void targetId(Id value)
+  inline Id targetId() const { return m_TargetId; }
+  void targetId(Id value)
+  {
+    if (m_TargetId == value)
     {
-        if (m_TargetId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
-        m_TargetId = value;
-        RIVE_EDITOR_CHANGED(targetIdChanged());
-        notifyPropertyChanged(targetIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
+    m_TargetId = value;
+    notifyPropertyChanged(targetIdPropertyKey);
+  }
 
-    void copy(const TextTargetModifierBase& object)
-    {
-        m_TargetId = object.m_TargetId;
-        TextModifier::copy(object);
-    }
+  void copy(const TextTargetModifierBase& object)
+  {
+    m_TargetId = object.m_TargetId;
+    TextModifier::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case targetIdPropertyKey:
-                m_TargetId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return TextModifier::deserialize(propertyKey, reader);
+      case targetIdPropertyKey:
+        m_TargetId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return TextModifier::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void targetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_target_modifier_ext.inl"
 #endif

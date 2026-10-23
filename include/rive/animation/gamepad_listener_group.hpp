@@ -14,22 +14,23 @@ class StateMachineInstance;
 class GamepadListenerGroup : public GamepadListener
 {
 public:
-    GamepadListenerGroup(FocusData* focusData,
-                         const StateMachineListener* listener,
-                         StateMachineInstance* stateMachineInstance);
-    ~GamepadListenerGroup() override;
+  GamepadListenerGroup(
+      FocusData* focusData,
+      const StateMachineListener* listener,
+      StateMachineInstance* stateMachineInstance);
+  ~GamepadListenerGroup() override;
 
-    const StateMachineListener* listener() const { return m_listener; }
-    FocusData* focusData() const { return m_focusData; }
+  const StateMachineListener* listener() const { return m_listener; }
+  FocusData* focusData() const { return m_focusData; }
 
-    bool gamepadDispatch(
-        const ListenerInvocation& invocation,
-        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
+  bool gamepadDispatch(
+      const ListenerInvocation& invocation,
+      ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
 
 private:
-    FocusData* m_focusData;
-    const StateMachineListener* m_listener;
-    StateMachineInstance* m_stateMachineInstance;
+  FocusData* m_focusData;
+  const StateMachineListener* m_listener;
+  StateMachineInstance* m_stateMachineInstance;
 };
 
 } // namespace rive

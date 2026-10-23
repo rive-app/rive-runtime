@@ -14,20 +14,20 @@ class ScriptedObject;
 class StateMachineImporter : public ImportStackObject
 {
 private:
-    StateMachine* m_StateMachine;
+  StateMachine* m_StateMachine;
 
 public:
-    StateMachineImporter(StateMachine* machine);
-    const StateMachine* stateMachine() const { return m_StateMachine; }
+  StateMachineImporter(StateMachine* machine);
+  const StateMachine* stateMachine() const { return m_StateMachine; }
 
-    void addLayer(std::unique_ptr<StateMachineLayer>);
-    void addInput(std::unique_ptr<StateMachineInput>);
-    void addListener(std::unique_ptr<StateMachineListener>);
-    void addDataBind(std::unique_ptr<DataBind>);
-    void addScriptedObject(ScriptedObject* object);
+  void addLayer(std::unique_ptr<StateMachineLayer>);
+  void addInput(std::unique_ptr<StateMachineInput>);
+  void addListener(std::unique_ptr<StateMachineListener>);
+  void addDataBind(std::unique_ptr<DataBind>);
+  void addScriptedObject(ScriptedObject* object);
 
-    StatusCode resolve() override;
-    bool readNullObject() override;
+  StatusCode resolve() override;
+  bool readNullObject() override;
 };
 } // namespace rive
 #endif

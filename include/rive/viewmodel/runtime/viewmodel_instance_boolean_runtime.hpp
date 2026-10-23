@@ -13,13 +13,12 @@ class ViewModelInstanceBooleanRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceBooleanRuntime(
-        ViewModelInstanceBoolean* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    bool value() const;
-    void value(bool);
-    const DataType dataType() override { return DataType::boolean; }
+  ViewModelInstanceBooleanRuntime(ViewModelInstanceBoolean* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  bool value() const;
+  void value(bool);
+  const DataType dataType() override { return DataType::boolean; }
 };
 } // namespace rive
 #endif

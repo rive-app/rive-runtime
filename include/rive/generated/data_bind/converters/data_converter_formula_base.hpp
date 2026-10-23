@@ -7,68 +7,53 @@ namespace rive
 class DataConverterFormulaBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 536;
+  static const uint16_t typeKey = 536;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataConverterFormulaBase::typeKey:
-            case DataConverterBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t randomModeValuePropertyKey = 887;
+  static const uint16_t randomModeValuePropertyKey = 887;
 
 protected:
-    uint32_t m_RandomModeValue = 0;
+  uint32_t m_RandomModeValue = 0;
 
 public:
-    inline uint32_t randomModeValue() const { return m_RandomModeValue; }
-    void randomModeValue(uint32_t value)
+  inline uint32_t randomModeValue() const { return m_RandomModeValue; }
+  void randomModeValue(uint32_t value)
+  {
+    if (m_RandomModeValue == value)
     {
-        if (m_RandomModeValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(randomModeValuePropertyKey,
-                             &m_RandomModeValue,
-                             &value);
-        m_RandomModeValue = value;
-        RIVE_EDITOR_CHANGED(randomModeValueChanged());
-        notifyPropertyChanged(randomModeValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        randomModeValuePropertyKey,
+        &m_RandomModeValue,
+        &value);
+    m_RandomModeValue = value;
+    notifyPropertyChanged(randomModeValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataConverterFormulaBase& object)
-    {
-        m_RandomModeValue = object.m_RandomModeValue;
-        DataConverter::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataConverterFormulaBase& object)
+  {
+    m_RandomModeValue = object.m_RandomModeValue;
+    DataConverter::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case randomModeValuePropertyKey:
-                m_RandomModeValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return DataConverter::deserialize(propertyKey, reader);
+      case randomModeValuePropertyKey:
+        m_RandomModeValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    return DataConverter::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void randomModeValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/data_converter_formula_ext.inl"
 #endif

@@ -25,9 +25,9 @@ namespace rive
 // defaults to keep the original "pass blocks through verbatim" behavior.
 struct Ktx2HwSupport
 {
-    bool bc = true;
-    bool astc = true;
-    bool etc2 = true;
+  bool bc = true;
+  bool astc = true;
+  bool etc2 = true;
 };
 
 // Result of parsing a KTX2 container. Block data is held in a contiguous
@@ -41,15 +41,15 @@ struct Ktx2HwSupport
 // packed RGBA8 pixels.
 struct Ktx2DecodeResult
 {
-    GPUTextureFormat format;
-    uint32_t pixelWidth;     // logical mip 0 width
-    uint32_t pixelHeight;    // logical mip 0 height
-    uint32_t levelCount;     // number of mip levels stored (>=1)
-    uint8_t blockWidth = 4;  // compressed block footprint width (1 for rgba32)
-    uint8_t blockHeight = 4; // compressed block footprint height (1 for rgba32)
-    bool srgb = false;       // sRGB colour space (BC7_SRGB / ASTC_SRGB)
-    std::vector<uint8_t> blocks;
-    bool softwareDecoded = false;
+  GPUTextureFormat format;
+  uint32_t pixelWidth;     // logical mip 0 width
+  uint32_t pixelHeight;    // logical mip 0 height
+  uint32_t levelCount;     // number of mip levels stored (>=1)
+  uint8_t blockWidth = 4;  // compressed block footprint width (1 for rgba32)
+  uint8_t blockHeight = 4; // compressed block footprint height (1 for rgba32)
+  bool srgb = false;       // sRGB colour space (BC7_SRGB / ASTC_SRGB)
+  std::vector<uint8_t> blocks;
+  bool softwareDecoded = false;
 };
 
 // Parses a KTX2 container. Returns true on success and fills `out`. Returns
@@ -63,10 +63,11 @@ struct Ktx2DecodeResult
 //
 // `hwSupport` is consulted after parsing to decide whether to fall back to
 // CPU decompression. Pass all-true to skip the fallback path entirely.
-bool DecodeKtx2(const uint8_t* bytes,
-                size_t byteCount,
-                Ktx2DecodeResult& out,
-                const Ktx2HwSupport& hwSupport = {});
+bool DecodeKtx2(
+    const uint8_t* bytes,
+    size_t byteCount,
+    Ktx2DecodeResult& out,
+    const Ktx2HwSupport& hwSupport = {});
 
 } // namespace rive
 

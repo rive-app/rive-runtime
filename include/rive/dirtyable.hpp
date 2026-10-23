@@ -10,7 +10,7 @@ class Dirtyable
 {
 
 public:
-    virtual void addDirt(ComponentDirt value, bool recurse) = 0;
+  virtual void addDirt(ComponentDirt value, bool recurse) = 0;
 };
 } // namespace rive
 #endif

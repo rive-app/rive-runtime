@@ -2,7 +2,24 @@
 # Builds the distributable wamrc: static against a trimmed LLVM (AArch64 +
 # X86 backends only), no dylib dependencies, shippable beside the editor.
 # Usage: build_wamrc_dist.sh <work_dir> [wamr_source_dir]
+# On Windows run it from Git Bash inside an x64 MSVC developer environment.
 set -e
+
+WINDOWS=
+case "$(uname -s)" in
+MINGW* | MSYS*) WINDOWS=1 ;;
+esac
+# Windows has no system zlib, and the CRT links statically so wamrc.exe ships
+# alone. wamr-compiler predates CMP0091, which the runtime library needs.
+ZLIB=ON
+PLATFORM_FLAGS=()
+if [[ -n $WINDOWS ]]; then
+    ZLIB=OFF
+    PLATFORM_FLAGS=(
+        -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+    )
+fi
 
 WORK="${1:?work dir required}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -30,7 +47,7 @@ cmake -S llvm/llvm -B llvm-build -G Ninja \
     -DLLVM_ENABLE_LIBEDIT=OFF \
     -DLLVM_ENABLE_TERMINFO=OFF \
     -DLLVM_ENABLE_ZSTD=OFF \
-    -DLLVM_ENABLE_ZLIB=ON \
+    -DLLVM_ENABLE_ZLIB=$ZLIB \
     -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_DOCS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF \
@@ -39,14 +56,29 @@ cmake -S llvm/llvm -B llvm-build -G Ninja \
     -DLLVM_APPEND_VC_REV=OFF \
     -DLLVM_TOOL_LTO_BUILD=OFF \
     -DLLVM_TOOL_REMARKS_SHLIB_BUILD=OFF \
-    -DLLVM_OPTIMIZED_TABLEGEN=ON
+    -DLLVM_OPTIMIZED_TABLEGEN=ON \
+    "${PLATFORM_FLAGS[@]}"
 cmake --build llvm-build
 
 cmake -S "$WAMR_SRC/wamr-compiler" -B wamrc-build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 \
-    -DLLVM_DIR="$PWD/llvm-build/lib/cmake/llvm"
+    -DLLVM_DIR="$PWD/llvm-build/lib/cmake/llvm" \
+    "${PLATFORM_FLAGS[@]}"
 cmake --build wamrc-build
+
+if [[ -n $WINDOWS ]]; then
+    cp wamrc-build/wamrc.exe wamrc.exe
+    # The dist contract: only system DLLs, no CRT redistributable or LLVM.
+    if dumpbin -nologo -dependents wamrc.exe |
+        grep -iE "vcruntime|msvcp|api-ms-win-crt|llvm|zlib"; then
+        echo "wamrc.exe links non-system DLLs" >&2
+        exit 1
+    fi
+    ./wamrc.exe --version
+    ls -la wamrc.exe | awk '{print "dist wamrc size:", $5, "bytes"}'
+    exit 0
+fi
 
 strip -x wamrc-build/wamrc -o wamrc
 # The dist contract: no non-system dylibs, or it cannot ship in a bundle.

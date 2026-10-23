@@ -7,8 +7,8 @@ namespace rive
 class TextInputSelection : public TextInputSelectionBase
 {
 public:
-    Core* hitTest(HitInfo*, const Mat2D&) override;
-    ShapePaintPath* localClockwisePath() override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
+  ShapePaintPath* localClockwisePath() override;
 };
 } // namespace rive
 

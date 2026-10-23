@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* AudioAssetBase::clone() const
 {
-    auto cloned = new AudioAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new AudioAsset();
+  cloned->copy(*this);
+  return cloned;
 }

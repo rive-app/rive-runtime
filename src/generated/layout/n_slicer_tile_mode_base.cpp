@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NSlicerTileModeBase::clone() const
 {
-    auto cloned = new NSlicerTileMode();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NSlicerTileMode();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -6,15 +6,15 @@ using namespace rive;
 
 void ViewModelInstanceAssetFontRuntime::value(Font* font)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceAssetFont>()->value(font);
+  m_viewModelInstanceValue->as<ViewModelInstanceAssetFont>()->value(font);
 }
 
 #ifdef TESTING
 Font* ViewModelInstanceAssetFontRuntime::testing_value()
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceAssetFont>()
-        ->asset()
-        ->font()
-        .get();
+  return m_viewModelInstanceValue->as<ViewModelInstanceAssetFont>()
+      ->asset()
+      ->font()
+      .get();
 }
 #endif

@@ -25,46 +25,51 @@ class ViewModelInstance;
 class BackboardImporter : public ImportStackObject
 {
 private:
-    Backboard* m_Backboard;
-    std::unordered_map<int, Artboard*> m_ArtboardLookup;
-    std::vector<ArtboardReferencer*> m_ArtboardsReferencers;
-    std::vector<rcp<FileAsset>> m_FileAssets;
-    std::vector<FileAssetReferencer*> m_FileAssetReferencers;
-    std::vector<DataConverter*> m_DataConverters;
-    std::vector<DataBind*> m_DataConverterReferencers;
-    std::vector<DataConverterGroupItem*> m_DataConverterGroupItemReferencers;
-    std::vector<KeyFrameInterpolator*> m_interpolators;
-    std::vector<ScrollPhysics*> m_physics;
-    int m_NextArtboardId;
-    File* m_file = nullptr;
+  Backboard* m_Backboard;
+  std::unordered_map<int, Artboard*> m_ArtboardLookup;
+  std::vector<ArtboardReferencer*> m_ArtboardsReferencers;
+  std::vector<rcp<FileAsset>> m_FileAssets;
+  std::vector<FileAssetReferencer*> m_FileAssetReferencers;
+  std::vector<DataConverter*> m_DataConverters;
+  std::vector<DataBind*> m_DataConverterReferencers;
+  std::vector<DataConverterGroupItem*> m_DataConverterGroupItemReferencers;
+  std::vector<KeyFrameInterpolator*> m_interpolators;
+  std::vector<ScrollPhysics*> m_physics;
+  int m_NextArtboardId;
+  File* m_file = nullptr;
 
 public:
-    BackboardImporter(Backboard* backboard);
-    void addArtboard(Artboard* artboard);
-    void addMissingArtboard();
-    void addArtboardReferencer(ArtboardReferencer* artboard);
-    void addFileAsset(rcp<FileAsset> asset);
-    void addFileAssetReferencer(FileAssetReferencer* referencer);
-    void addDataConverterReferencer(DataBind* referencer);
-    void addDataConverter(DataConverter* converter);
-    void addDataConverterGroupItemReferencer(
-        DataConverterGroupItem* referencer);
-    void addInterpolator(KeyFrameInterpolator* interpolator);
+  BackboardImporter(Backboard* backboard);
+  void addArtboard(Artboard* artboard);
+  void addMissingArtboard();
+  void addArtboardReferencer(ArtboardReferencer* artboard);
+  void addFileAsset(rcp<FileAsset> asset);
+  void addFileAssetReferencer(FileAssetReferencer* referencer);
+  void addDataConverterReferencer(DataBind* referencer);
+  void addDataConverter(DataConverter* converter);
+  // The most recently imported file level converter, used by objects that
+  // are written right after the converter they belong to.
+  DataConverter* lastDataConverter() const
+  {
+    return m_DataConverters.empty() ? nullptr : m_DataConverters.back();
+  }
+  void addDataConverterGroupItemReferencer(DataConverterGroupItem* referencer);
+  void addInterpolator(KeyFrameInterpolator* interpolator);
 
-    /// Adds an interpolator that is already live in the file, for a partial
-    /// import that only needs to resolve against it. Unlike [addInterpolator]
-    /// it does not initialize: the object is in use and re-initializing it
-    /// would reset state the rest of the file is depending on.
-    void seedInterpolator(KeyFrameInterpolator* interpolator);
-    void addPhysics(ScrollPhysics* physics);
-    void addViewModelInstance(ViewModelInstance* instance);
-    std::vector<ScrollPhysics*> physics() { return m_physics; }
-    std::vector<rcp<FileAsset>>* assets() { return &m_FileAssets; }
-    void file(File* value);
-    File* file() { return m_file; };
+  /// Adds an interpolator that is already live in the file, for a partial
+  /// import that only needs to resolve against it. Unlike [addInterpolator]
+  /// it does not initialize: the object is in use and re-initializing it
+  /// would reset state the rest of the file is depending on.
+  void seedInterpolator(KeyFrameInterpolator* interpolator);
+  void addPhysics(ScrollPhysics* physics);
+  void addViewModelInstance(ViewModelInstance* instance);
+  std::vector<ScrollPhysics*> physics() { return m_physics; }
+  std::vector<rcp<FileAsset>>* assets() { return &m_FileAssets; }
+  void file(File* value);
+  File* file() { return m_file; };
 
-    StatusCode resolve() override;
-    const Backboard* backboard() const { return m_Backboard; }
+  StatusCode resolve() override;
+  const Backboard* backboard() const { return m_Backboard; }
 };
 } // namespace rive
 #endif

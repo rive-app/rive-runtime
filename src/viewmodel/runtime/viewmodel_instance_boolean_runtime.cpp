@@ -6,12 +6,11 @@ using namespace rive;
 
 bool ViewModelInstanceBooleanRuntime::value() const
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceBoolean>()
-        ->propertyValue();
+  return m_viewModelInstanceValue->as<ViewModelInstanceBoolean>()
+      ->propertyValue();
 }
 
 void ViewModelInstanceBooleanRuntime::value(bool val)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceBoolean>()->propertyValue(
-        val);
+  m_viewModelInstanceValue->as<ViewModelInstanceBoolean>()->propertyValue(val);
 }

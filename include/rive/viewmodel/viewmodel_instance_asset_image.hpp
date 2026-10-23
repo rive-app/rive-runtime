@@ -11,17 +11,17 @@ namespace rive
 class ViewModelInstanceAssetImage : public ViewModelInstanceAssetImageBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ViewModelInstanceAssetImage();
-    void value(RenderImage* image);
-    rcp<ImageAsset> asset() { return m_imageAsset; }
-    Core* clone() const override;
-    void applyValue(DataValueInteger*);
+  ViewModelInstanceAssetImage();
+  void value(RenderImage* image);
+  rcp<ImageAsset> asset() { return m_imageAsset; }
+  Core* clone() const override;
+  void applyValue(DataValueInteger*);
 
 private:
-    rcp<ImageAsset> m_imageAsset = nullptr;
+  rcp<ImageAsset> m_imageAsset = nullptr;
 };
 } // namespace rive
 

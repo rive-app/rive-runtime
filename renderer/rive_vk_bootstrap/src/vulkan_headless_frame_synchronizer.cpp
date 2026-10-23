@@ -12,23 +12,25 @@
 namespace rive_vkb
 {
 std::unique_ptr<VulkanHeadlessFrameSynchronizer>
-VulkanHeadlessFrameSynchronizer::Create(VulkanInstance& instance,
-                                        VulkanDevice& device,
-                                        rive::rcp<rive::gpu::VulkanContext> vk,
-                                        const Options& opts)
+VulkanHeadlessFrameSynchronizer::Create(
+    VulkanInstance& instance,
+    VulkanDevice& device,
+    rive::rcp<rive::gpu::VulkanContext> vk,
+    const Options& opts)
 {
-    bool success = true;
+  bool success = true;
 
-    // Private constructor, can't use make_unique
-    auto outSynchronizer = std::unique_ptr<VulkanHeadlessFrameSynchronizer>{
-        new VulkanHeadlessFrameSynchronizer(instance,
-                                            device,
-                                            std::move(vk),
-                                            opts,
-                                            &success)};
+  // Private constructor, can't use make_unique
+  auto outSynchronizer = std::unique_ptr<VulkanHeadlessFrameSynchronizer>{
+      new VulkanHeadlessFrameSynchronizer(
+          instance,
+          device,
+          std::move(vk),
+          opts,
+          &success)};
 
-    CONFIRM_OR_RETURN_VALUE(success, nullptr);
-    return outSynchronizer;
+  CONFIRM_OR_RETURN_VALUE(success, nullptr);
+  return outSynchronizer;
 }
 
 VulkanHeadlessFrameSynchronizer::VulkanHeadlessFrameSynchronizer(
@@ -36,106 +38,109 @@ VulkanHeadlessFrameSynchronizer::VulkanHeadlessFrameSynchronizer(
     VulkanDevice& device,
     rive::rcp<rive::gpu::VulkanContext>&& vk,
     const Options& opts,
-    bool* successOut) :
-    Super(instance,
+    bool* successOut)
+    : Super(
+          instance,
           device,
           std::move(vk),
           {
               .initialFrameNumber = opts.initialFrameNumber,
               .externalGPUSynchronization = false,
           },
-          successOut),
-    m_imageFormat(opts.imageFormat),
-    m_imageUsageFlags(opts.imageUsageFlags),
-    m_width(opts.width),
-    m_height(opts.height),
-    m_image(context()->makeImage(
-        {
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = m_imageFormat,
-            .extent = {m_width, m_height, 1},
-            .usage = m_imageUsageFlags,
-        },
-        "Vulkan Headless Frame Synchronizer Image")),
-    m_imageView(
-        context()->makeImageView(m_image,
-                                 "Vulkan Headless Frame Synchronizer Image"))
+          successOut)
+    , m_imageFormat(opts.imageFormat)
+    , m_imageUsageFlags(opts.imageUsageFlags)
+    , m_width(opts.width)
+    , m_height(opts.height)
+    , m_image(context()->makeImage(
+          {
+              .imageType = VK_IMAGE_TYPE_2D,
+              .format = m_imageFormat,
+              .extent = {m_width, m_height, 1},
+              .usage = m_imageUsageFlags,
+          },
+          "Vulkan Headless Frame Synchronizer Image"))
+    , m_imageView(context()->makeImageView(
+          m_image,
+          "Vulkan Headless Frame Synchronizer Image"))
 {
-    assert(opts.width > 0 && opts.height > 0 &&
-           "Offscreen frame dimensions must be set");
+  assert(
+      opts.width > 0 && opts.height > 0 &&
+      "Offscreen frame dimensions must be set");
 
-    // the super class sets this value when it constructs, so check it before
-    // re-setting it to false and continuing.
-    if (!*successOut)
-    {
-        return;
-    }
+  // the super class sets this value when it constructs, so check it before
+  // re-setting it to false and continuing.
+  if (!*successOut)
+  {
+    return;
+  }
 
-    *successOut = false;
+  *successOut = false;
 
-    // Load all of the functions we care about
+  // Load all of the functions we care about
 #define LOAD(name) LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, name, instance);
-    RIVE_VK_OFFSCREEN_FRAME_INSTANCE_COMMANDS(LOAD);
+  RIVE_VK_OFFSCREEN_FRAME_INSTANCE_COMMANDS(LOAD);
 #undef LOAD
 
-    *successOut = true;
+  *successOut = true;
 }
 
 VulkanHeadlessFrameSynchronizer::~VulkanHeadlessFrameSynchronizer()
 {
-    // Guard against partial construction: if the base constructor failed (e.g.
-    // an OOM creating a fence), this destructor still runs even though the
-    // derived device function pointers were never loaded. Calling the null
-    // m_vkDeviceWaitIdle here would segfault and crash the whole process.
-    if (m_vkDeviceWaitIdle != nullptr)
-    {
-        // Don't do anything until everything is flushed through.
-        m_vkDeviceWaitIdle(vkDevice());
-    }
+  // Guard against partial construction: if the base constructor failed (e.g.
+  // an OOM creating a fence), this destructor still runs even though the
+  // derived device function pointers were never loaded. Calling the null
+  // m_vkDeviceWaitIdle here would segfault and crash the whole process.
+  if (m_vkDeviceWaitIdle != nullptr)
+  {
+    // Don't do anything until everything is flushed through.
+    m_vkDeviceWaitIdle(vkDevice());
+  }
 }
 
 bool VulkanHeadlessFrameSynchronizer::isFrameStarted() const
 {
-    return m_isInFrame;
+  return m_isInFrame;
 }
 
 VkResult VulkanHeadlessFrameSynchronizer::beginFrame()
 {
-    assert(!isFrameStarted());
+  assert(!isFrameStarted());
 
-    VK_RETURN_RESULT_ON_ERROR(Super::waitForFenceAndBeginFrame());
-    m_isInFrame = true;
+  VK_RETURN_RESULT_ON_ERROR(Super::waitForFenceAndBeginFrame());
+  m_isInFrame = true;
 
-    return VK_SUCCESS;
+  return VK_SUCCESS;
 }
 
 void VulkanHeadlessFrameSynchronizer::queueImageCopy(
     rive::gpu::vkutil::ImageAccess* inOutLastAccess,
     rive::IAABB optPixelReadBounds)
 {
-    if (optPixelReadBounds.empty())
-    {
-        // Empty bounds means we want to just copy the entire texture
-        optPixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
-    }
+  if (optPixelReadBounds.empty())
+  {
+    // Empty bounds means we want to just copy the entire texture
+    optPixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
+  }
 
-    Super::queueImageCopy(*m_image,
-                          m_imageFormat,
-                          inOutLastAccess,
-                          optPixelReadBounds);
+  Super::queueImageCopy(
+      *m_image,
+      m_imageFormat,
+      inOutLastAccess,
+      optPixelReadBounds);
 }
 
 VkResult VulkanHeadlessFrameSynchronizer::endFrame(
     const rive::gpu::vkutil::ImageAccess& lastAccess)
 {
-    assert(isFrameStarted());
+  assert(isFrameStarted());
 
-    m_isInFrame = false;
-    m_lastImageAccess = lastAccess;
+  m_isInFrame = false;
+  m_lastImageAccess = lastAccess;
 
-    VK_RETURN_RESULT_ON_ERROR(Super::endFrame());
+  VK_RETURN_RESULT_ON_ERROR(Super::endFrame());
 
-    return VK_SUCCESS;
+  return VK_SUCCESS;
 }
 
 } // namespace rive_vkb

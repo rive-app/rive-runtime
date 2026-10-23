@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BindablePropertyTriggerBase::clone() const
 {
-    auto cloned = new BindablePropertyTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new BindablePropertyTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

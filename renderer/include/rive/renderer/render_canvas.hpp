@@ -17,11 +17,11 @@ namespace rive::gpu
 class RenderCanvasImage : public RiveRenderImage
 {
 public:
-    RenderCanvasImage(uint32_t width, uint32_t height) :
-        RiveRenderImage(width, height)
-    {}
+  RenderCanvasImage(uint32_t width, uint32_t height)
+      : RiveRenderImage(width, height)
+  {}
 
-    using RiveRenderImage::resetTexture;
+  using RiveRenderImage::resetTexture;
 };
 
 // A GPU texture that can be used as both a render target (for rendering into)
@@ -35,46 +35,43 @@ public:
 class RenderCanvas : public RefCnt<RenderCanvas>
 {
 public:
-    RenderCanvas(uint32_t width, uint32_t height) :
-        RenderCanvas(make_rcp<RenderCanvasImage>(width, height), width, height)
-    {}
-    // A deferred canvas hands its backing to the replay thread on the way out.
-    virtual ~RenderCanvas() = default;
+  RenderCanvas(uint32_t width, uint32_t height)
+      : RenderCanvas(make_rcp<RenderCanvasImage>(width, height), width, height)
+  {}
+  // A deferred canvas hands its backing to the replay thread on the way out.
+  virtual ~RenderCanvas() = default;
 
-    uint32_t width() const { return m_width; }
-    uint32_t height() const { return m_height; }
+  uint32_t width() const { return m_width; }
+  uint32_t height() const { return m_height; }
 
-    bool isBacked() const { return m_renderTarget != nullptr; }
+  bool isBacked() const { return m_renderTarget != nullptr; }
 
-    void setBacking(rcp<Texture> texture, rcp<RenderTarget> renderTarget)
-    {
-        assert(!isBacked());
-        m_renderImage->resetTexture(std::move(texture));
-        m_renderTarget = std::move(renderTarget);
-    }
+  void setBacking(rcp<Texture> texture, rcp<RenderTarget> renderTarget)
+  {
+    assert(!isBacked());
+    m_renderImage->resetTexture(std::move(texture));
+    m_renderTarget = std::move(renderTarget);
+  }
 
-    // Use as a RenderImage for compositing into Rive draws.
-    RiveRenderImage* renderImage() { return m_renderImage.get(); }
+  // Use as a RenderImage for compositing into Rive draws.
+  RiveRenderImage* renderImage() { return m_renderImage.get(); }
 
-    // Use as a RenderTarget for rendering into this texture.
-    RenderTarget* renderTarget() { return m_renderTarget.get(); }
+  // Use as a RenderTarget for rendering into this texture.
+  RenderTarget* renderTarget() { return m_renderTarget.get(); }
 
 protected:
-    RenderCanvas(rcp<RenderCanvasImage> image,
-                 uint32_t width,
-                 uint32_t height) :
-        m_renderImage(std::move(image)), m_width(width), m_height(height)
-    {}
-    rcp<RenderTarget> releaseRenderTarget()
-    {
-        return std::move(m_renderTarget);
-    }
+  RenderCanvas(rcp<RenderCanvasImage> image, uint32_t width, uint32_t height)
+      : m_renderImage(std::move(image))
+      , m_width(width)
+      , m_height(height)
+  {}
+  rcp<RenderTarget> releaseRenderTarget() { return std::move(m_renderTarget); }
 
 private:
-    rcp<RenderCanvasImage> m_renderImage;
-    rcp<RenderTarget> m_renderTarget;
-    uint32_t m_width;
-    uint32_t m_height;
+  rcp<RenderCanvasImage> m_renderImage;
+  rcp<RenderTarget> m_renderTarget;
+  uint32_t m_width;
+  uint32_t m_height;
 };
 
 } // namespace rive::gpu

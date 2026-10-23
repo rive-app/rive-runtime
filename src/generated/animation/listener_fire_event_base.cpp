@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerFireEventBase::clone() const
 {
-    auto cloned = new ListenerFireEvent();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerFireEvent();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptInputStringBase::clone() const
 {
-    auto cloned = new ScriptInputString();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptInputString();
+  cloned->copy(*this);
+  return cloned;
 }

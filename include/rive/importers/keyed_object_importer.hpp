@@ -11,11 +11,11 @@ class KeyedProperty;
 class KeyedObjectImporter : public ImportStackObject
 {
 private:
-    KeyedObject* m_KeyedObject;
+  KeyedObject* m_KeyedObject;
 
 public:
-    KeyedObjectImporter(KeyedObject* keyedObject);
-    void addKeyedProperty(std::unique_ptr<KeyedProperty>);
+  KeyedObjectImporter(KeyedObject* keyedObject);
+  void addKeyedProperty(std::unique_ptr<KeyedProperty>);
 };
 } // namespace rive
 #endif

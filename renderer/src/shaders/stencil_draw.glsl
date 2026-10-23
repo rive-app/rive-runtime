@@ -2,6 +2,9 @@
  * Copyright 2024 Rive
  */
 
+VARYING_BLOCK_BEGIN
+VARYING_BLOCK_END
+
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, packed_float3, @a_triangleVertex);
@@ -15,11 +18,11 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 
 VERTEX_MAIN(@stencilVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-    ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, packed_float3);
-    float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(@a_triangleVertex.xy);
-    uint zIndex = floatBitsToUint(@a_triangleVertex.z) & 0xffffu;
-    pos.z = packNormalizedDepth(zIndex, 0xffu);
-    EMIT_VERTEX(pos);
+  ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, packed_float3);
+  float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(@a_triangleVertex.xy);
+  uint zIndex = floatBitsToUint(@a_triangleVertex.z) & 0xffffu;
+  pos.z = packNormalizedDepth(zIndex, 0xffu);
+  EMIT_VERTEX(pos);
 }
 #endif
 

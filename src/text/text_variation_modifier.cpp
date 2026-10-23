@@ -10,15 +10,15 @@ float TextVariationModifier::modify(
     float fontSize,
     float strength) const
 {
-    auto itr = variations.find(axisTag());
+  auto itr = variations.find(axisTag());
 
-    float fromValue =
-        itr != variations.end() ? itr->second : font->getAxisValue(axisTag());
-    variations[axisTag()] = fromValue * (1 - strength) + axisValue() * strength;
-    return fontSize;
+  float fromValue = itr != variations.end() ? itr->second
+                                            : font->getAxisValue(axisTag());
+  variations[axisTag()] = fromValue * (1 - strength) + axisValue() * strength;
+  return fontSize;
 }
 
 void TextVariationModifier::axisValueChanged()
 {
-    parent()->as<TextModifierGroup>()->shapeModifierChanged();
+  parent()->as<TextModifierGroup>()->shapeModifierChanged();
 }

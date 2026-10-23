@@ -8,31 +8,31 @@ class ViewModelInstance;
 class BindablePropertyViewModel : public BindablePropertyViewModelBase
 {
 public:
-    constexpr static uint32_t defaultValue = -1;
+  constexpr static uint32_t defaultValue = -1;
 
-    void viewModelInstanceValue(ViewModelInstance* value)
-    {
-        m_viewModelInstance = value;
-    }
+  void viewModelInstanceValue(ViewModelInstance* value)
+  {
+    m_viewModelInstance = value;
+  }
 
-    ViewModelInstance* viewModelInstanceValue() const
-    {
-        return m_viewModelInstance;
-    }
+  ViewModelInstance* viewModelInstanceValue() const
+  {
+    return m_viewModelInstance;
+  }
 
-    // Backward-compatible aliases.
-    void viewModelInstance(ViewModelInstance* value)
-    {
-        viewModelInstanceValue(value);
-    }
+  // Backward-compatible aliases.
+  void viewModelInstance(ViewModelInstance* value)
+  {
+    viewModelInstanceValue(value);
+  }
 
-    ViewModelInstance* viewModelInstance() const
-    {
-        return viewModelInstanceValue();
-    }
+  ViewModelInstance* viewModelInstance() const
+  {
+    return viewModelInstanceValue();
+  }
 
 private:
-    ViewModelInstance* m_viewModelInstance = nullptr;
+  ViewModelInstance* m_viewModelInstance = nullptr;
 };
 } // namespace rive
 

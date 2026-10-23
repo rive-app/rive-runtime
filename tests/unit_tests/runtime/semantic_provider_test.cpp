@@ -30,80 +30,85 @@ using rive::semantic_test::advance;
 // Null-input safety.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("SemanticProvider::canInferSemantics(nullptr) returns false",
-          "[semantics][provider]")
+TEST_CASE(
+    "SemanticProvider::canInferSemantics(nullptr) returns false",
+    "[semantics][provider]")
 {
-    CHECK_FALSE(SemanticProvider::canInferSemantics(nullptr));
+  CHECK_FALSE(SemanticProvider::canInferSemantics(nullptr));
 }
 
-TEST_CASE("SemanticProvider::resolveSemanticData(nullptr) returns default",
-          "[semantics][provider]")
+TEST_CASE(
+    "SemanticProvider::resolveSemanticData(nullptr) returns default",
+    "[semantics][provider]")
 {
-    auto out = SemanticProvider::resolveSemanticData(nullptr);
-    CHECK_FALSE(out.hasSemantics);
-    CHECK(out.role == 0);
-    CHECK(out.label.empty());
+  auto out = SemanticProvider::resolveSemanticData(nullptr);
+  CHECK_FALSE(out.hasSemantics);
+  CHECK(out.role == 0);
+  CHECK(out.label.empty());
 }
 
-TEST_CASE("SemanticProvider::semanticBounds(nullptr) returns empty",
-          "[semantics][provider]")
+TEST_CASE(
+    "SemanticProvider::semanticBounds(nullptr) returns empty",
+    "[semantics][provider]")
 {
-    const auto bounds = SemanticProvider::semanticBounds(nullptr);
-    CHECK(bounds.isEmptyOrNaN());
+  const auto bounds = SemanticProvider::semanticBounds(nullptr);
+  CHECK(bounds.isEmptyOrNaN());
 }
 
 // ---------------------------------------------------------------------------
 // Inference: Text component resolves to role=text with concatenated runs.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("canInferSemantics(Text) returns true for any Text component",
-          "[semantics][provider]")
+TEST_CASE(
+    "canInferSemantics(Text) returns true for any Text component",
+    "[semantics][provider]")
 {
-    auto file = ReadRiveFile("assets/semantic/simpsons.riv");
-    auto artboard = file->artboardDefault();
+  auto file = ReadRiveFile("assets/semantic/simpsons.riv");
+  auto artboard = file->artboardDefault();
 
-    // Advance so text lays out and runs are populated.
-    auto sm = artboard->stateMachineAt(0);
-    advance(sm.get());
+  // Advance so text lays out and runs are populated.
+  auto sm = artboard->stateMachineAt(0);
+  advance(sm.get());
 
-    bool sawText = false;
-    for (auto* text : artboard->objects<Text>())
-    {
-        REQUIRE(text != nullptr);
-        CHECK(SemanticProvider::canInferSemantics(text));
-        sawText = true;
-    }
-    // Simpsons fixture has labelled tabs — must contain at least one Text.
-    CHECK(sawText);
+  bool sawText = false;
+  for (auto* text : artboard->objects<Text>())
+  {
+    REQUIRE(text != nullptr);
+    CHECK(SemanticProvider::canInferSemantics(text));
+    sawText = true;
+  }
+  // Simpsons fixture has labelled tabs — must contain at least one Text.
+  CHECK(sawText);
 }
 
-TEST_CASE("resolveSemanticData on a Node hosting a SemanticData child uses the "
-          "explicit role/label",
-          "[semantics][provider]")
+TEST_CASE(
+    "resolveSemanticData on a Node hosting a SemanticData child uses the "
+    "explicit role/label",
+    "[semantics][provider]")
 {
-    // Use simpsons.riv, which has SDs on tab-role Nodes. Walk every SD's
-    // parent Node; resolving that Node must produce the SD's authored
-    // role and label (no inference fallback).
-    auto file = ReadRiveFile("assets/semantic/simpsons.riv");
-    auto artboard = file->artboardDefault();
-    auto sm = artboard->stateMachineAt(0);
-    advance(sm.get());
+  // Use simpsons.riv, which has SDs on tab-role Nodes. Walk every SD's
+  // parent Node; resolving that Node must produce the SD's authored
+  // role and label (no inference fallback).
+  auto file = ReadRiveFile("assets/semantic/simpsons.riv");
+  auto artboard = file->artboardDefault();
+  auto sm = artboard->stateMachineAt(0);
+  advance(sm.get());
 
-    int checked = 0;
-    for (auto* sd : artboard->objects<SemanticData>())
+  int checked = 0;
+  for (auto* sd : artboard->objects<SemanticData>())
+  {
+    auto* host = sd->parent();
+    if (host == nullptr)
     {
-        auto* host = sd->parent();
-        if (host == nullptr)
-        {
-            continue;
-        }
-        auto resolved = SemanticProvider::resolveSemanticData(host);
-        CHECK(resolved.hasSemantics);
-        CHECK(resolved.role == sd->role());
-        CHECK(resolved.label == sd->label());
-        checked++;
+      continue;
     }
-    CHECK(checked > 0);
+    auto resolved = SemanticProvider::resolveSemanticData(host);
+    CHECK(resolved.hasSemantics);
+    CHECK(resolved.role == sd->role());
+    CHECK(resolved.label == sd->label());
+    checked++;
+  }
+  CHECK(checked > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,27 +119,27 @@ TEST_CASE(
     "semanticBounds on a laid-out drawable Node produces non-empty bounds",
     "[semantics][provider]")
 {
-    auto file = ReadRiveFile("assets/semantic/simpsons.riv");
-    auto artboard = file->artboardDefault();
-    auto sm = artboard->stateMachineAt(0);
-    advance(sm.get());
+  auto file = ReadRiveFile("assets/semantic/simpsons.riv");
+  auto artboard = file->artboardDefault();
+  auto sm = artboard->stateMachineAt(0);
+  advance(sm.get());
 
-    // Any Node that hosts a SemanticData child in this artboard is drawable-
-    // backed (it's a real button/tab). Verify semanticBounds is non-empty.
-    int checked = 0;
-    for (auto* sd : artboard->objects<SemanticData>())
+  // Any Node that hosts a SemanticData child in this artboard is drawable-
+  // backed (it's a real button/tab). Verify semanticBounds is non-empty.
+  int checked = 0;
+  for (auto* sd : artboard->objects<SemanticData>())
+  {
+    auto* host = sd->parent();
+    if (host == nullptr)
     {
-        auto* host = sd->parent();
-        if (host == nullptr)
-        {
-            continue;
-        }
-        const auto bounds = SemanticProvider::semanticBounds(host);
-        CAPTURE(sd->label());
-        CHECK_FALSE(bounds.isEmptyOrNaN());
-        CHECK(bounds.width() > 0.0f);
-        CHECK(bounds.height() > 0.0f);
-        checked++;
+      continue;
     }
-    CHECK(checked > 0);
+    const auto bounds = SemanticProvider::semanticBounds(host);
+    CAPTURE(sd->label());
+    CHECK_FALSE(bounds.isEmptyOrNaN());
+    CHECK(bounds.width() > 0.0f);
+    CHECK(bounds.height() > 0.0f);
+    checked++;
+  }
+  CHECK(checked > 0);
 }

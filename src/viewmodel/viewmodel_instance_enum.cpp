@@ -10,40 +10,40 @@ using namespace rive;
 
 void ViewModelInstanceEnum::propertyValueChanged()
 {
-    addDirt(ComponentDirt::Bindings);
+  addDirt(ComponentDirt::Bindings);
 #ifdef WITH_RIVE_TOOLS
-    if (m_changedCallback != nullptr)
-    {
-        m_changedCallback(this, propertyValue());
-    }
+  if (m_changedCallback != nullptr)
+  {
+    m_changedCallback(this, propertyValue());
+  }
 #endif
-    onValueChanged();
+  onValueChanged();
 }
 
 bool ViewModelInstanceEnum::value(std::string name)
 {
-    auto enumProperty = viewModelProperty()->as<ViewModelPropertyEnum>();
-    int index = enumProperty->valueIndex(name);
-    if (index != -1)
-    {
-        propertyValue(index);
-        return true;
-    }
-    return false;
+  auto enumProperty = viewModelProperty()->as<ViewModelPropertyEnum>();
+  int index = enumProperty->valueIndex(name);
+  if (index != -1)
+  {
+    propertyValue(index);
+    return true;
+  }
+  return false;
 }
 
 bool ViewModelInstanceEnum::value(uint32_t index)
 {
-    auto enumProperty = viewModelProperty()->as<ViewModelPropertyEnum>();
-    if (enumProperty->valueIndex(index) != -1)
-    {
-        propertyValue(index);
-        return true;
-    }
-    return false;
+  auto enumProperty = viewModelProperty()->as<ViewModelPropertyEnum>();
+  if (enumProperty->valueIndex(index) != -1)
+  {
+    propertyValue(index);
+    return true;
+  }
+  return false;
 }
 
 void ViewModelInstanceEnum::applyValue(DataValueInteger* dataValue)
 {
-    propertyValue(dataValue->value());
+  propertyValue(dataValue->value());
 }

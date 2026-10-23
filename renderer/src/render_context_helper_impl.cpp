@@ -16,171 +16,171 @@ namespace rive::gpu
 
 void RenderContextHelperImpl::resizeFlushUniformBuffer(size_t sizeInBytes)
 {
-    m_flushUniformBuffer = makeUniformBufferRing(sizeInBytes);
+  m_flushUniformBuffer = makeUniformBufferRing(sizeInBytes);
 }
 
 void RenderContextHelperImpl::resizePathBuffer(
     size_t sizeInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-    m_pathBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+  m_pathBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
 void RenderContextHelperImpl::resizePaintBuffer(
     size_t sizeInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-    m_paintBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+  m_paintBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
 void RenderContextHelperImpl::resizePaintAuxBuffer(
     size_t sizeInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-    m_paintAuxBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+  m_paintAuxBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
 void RenderContextHelperImpl::resizeContourBuffer(
     size_t sizeInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-    m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+  m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
 void RenderContextHelperImpl::resizeGradSpanBuffer(size_t sizeInBytes)
 {
-    m_gradSpanBuffer = makeVertexBufferRing(sizeInBytes);
+  m_gradSpanBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void RenderContextHelperImpl::resizeTessVertexSpanBuffer(size_t sizeInBytes)
 {
-    m_tessSpanBuffer = makeVertexBufferRing(sizeInBytes);
+  m_tessSpanBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void RenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
 {
-    m_triangleBuffer = makeVertexBufferRing(sizeInBytes);
+  m_triangleBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void RenderContextHelperImpl::resizeImageRectInstanceBuffer(size_t sizeInBytes)
 {
-    m_imageRectInstanceBuffer = makeVertexBufferRing(sizeInBytes);
+  m_imageRectInstanceBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void RenderContextHelperImpl::resizeImageMeshInstanceBuffer(size_t sizeInBytes)
 {
-    m_imageMeshInstanceBuffer = makeVertexBufferRing(sizeInBytes);
+  m_imageMeshInstanceBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
 {
-    return m_flushUniformBuffer->mapBuffer(mapSizeInBytes);
+  return m_flushUniformBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapPathBuffer(size_t mapSizeInBytes)
 {
-    return m_pathBuffer->mapBuffer(mapSizeInBytes);
+  return m_pathBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapPaintBuffer(size_t mapSizeInBytes)
 {
-    return m_paintBuffer->mapBuffer(mapSizeInBytes);
+  return m_paintBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapPaintAuxBuffer(size_t mapSizeInBytes)
 {
-    return m_paintAuxBuffer->mapBuffer(mapSizeInBytes);
+  return m_paintAuxBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapContourBuffer(size_t mapSizeInBytes)
 {
-    return m_contourBuffer->mapBuffer(mapSizeInBytes);
+  return m_contourBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapGradSpanBuffer(size_t mapSizeInBytes)
 {
-    return m_gradSpanBuffer->mapBuffer(mapSizeInBytes);
+  return m_gradSpanBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapTessVertexSpanBuffer(size_t mapSizeInBytes)
 {
-    return m_tessSpanBuffer->mapBuffer(mapSizeInBytes);
+  return m_tessSpanBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
 {
-    return m_triangleBuffer->mapBuffer(mapSizeInBytes);
+  return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapImageRectInstanceBuffer(size_t mapSizeInBytes)
 {
-    return m_imageRectInstanceBuffer->mapBuffer(mapSizeInBytes);
+  return m_imageRectInstanceBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapImageMeshInstanceBuffer(size_t mapSizeInBytes)
 {
-    return m_imageMeshInstanceBuffer->mapBuffer(mapSizeInBytes);
+  return m_imageMeshInstanceBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void RenderContextHelperImpl::unmapFlushUniformBuffer(size_t mapSizeInBytes)
 {
-    assert(m_flushUniformBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_flushUniformBuffer->unmapAndSubmitBuffer();
+  assert(m_flushUniformBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_flushUniformBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapPathBuffer(size_t mapSizeInBytes)
 {
-    assert(m_pathBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_pathBuffer->unmapAndSubmitBuffer();
+  assert(m_pathBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_pathBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapPaintBuffer(size_t mapSizeInBytes)
 {
-    assert(m_paintBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_paintBuffer->unmapAndSubmitBuffer();
+  assert(m_paintBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_paintBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapPaintAuxBuffer(size_t mapSizeInBytes)
 {
-    assert(m_paintAuxBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_paintAuxBuffer->unmapAndSubmitBuffer();
+  assert(m_paintAuxBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_paintAuxBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapContourBuffer(size_t mapSizeInBytes)
 {
-    assert(m_contourBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_contourBuffer->unmapAndSubmitBuffer();
+  assert(m_contourBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_contourBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapGradSpanBuffer(size_t mapSizeInBytes)
 {
-    assert(m_gradSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_gradSpanBuffer->unmapAndSubmitBuffer();
+  assert(m_gradSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_gradSpanBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapTessVertexSpanBuffer(size_t mapSizeInBytes)
 {
-    assert(m_tessSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_tessSpanBuffer->unmapAndSubmitBuffer();
+  assert(m_tessSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_tessSpanBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapTriangleVertexBuffer(size_t mapSizeInBytes)
 {
-    assert(m_triangleBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_triangleBuffer->unmapAndSubmitBuffer();
+  assert(m_triangleBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_triangleBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapImageRectInstanceBuffer(
     size_t mapSizeInBytes)
 {
-    assert(m_imageRectInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_imageRectInstanceBuffer->unmapAndSubmitBuffer();
+  assert(m_imageRectInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_imageRectInstanceBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapImageMeshInstanceBuffer(
     size_t mapSizeInBytes)
 {
-    assert(m_imageMeshInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_imageMeshInstanceBuffer->unmapAndSubmitBuffer();
+  assert(m_imageMeshInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_imageMeshInstanceBuffer->unmapAndSubmitBuffer();
 }
 } // namespace rive::gpu

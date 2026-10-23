@@ -20,201 +20,207 @@ namespace rive::ore::cmd
 class RenderPassRecording : public RenderPass
 {
 public:
-    // Mirrors a backend beginRenderPass so the validators see attachments.
-    RenderPassRecording(Context* context,
-                        OreCommandBuffer* cmd,
-                        const RenderPassDesc& desc) :
-        RenderPass(context), m_cmd(cmd)
-    {
-        populateAttachmentMetadata(desc);
+  // Mirrors a backend beginRenderPass so the validators see attachments.
+  RenderPassRecording(
+      Context* context,
+      OreCommandBuffer* cmd,
+      const RenderPassDesc& desc)
+      : RenderPass(context)
+      , m_cmd(cmd)
+  {
+    populateAttachmentMetadata(desc);
 
-        BeginRenderPassCmd begin{};
-        begin.colorCount = desc.colorCount;
-        for (uint32_t i = 0; i < desc.colorCount && i < 4; ++i)
-        {
-            const ColorAttachment& src = desc.colorAttachments[i];
-            ColorAttachmentPOD& dst = begin.colors[i];
-            dst.view = idOf(src.view);
-            dst.resolveTarget = idOf(src.resolveTarget);
-            dst.loadOp = src.loadOp;
-            dst.storeOp = src.storeOp;
-            dst.clearR = src.clearColor.r;
-            dst.clearG = src.clearColor.g;
-            dst.clearB = src.clearColor.b;
-            dst.clearA = src.clearColor.a;
-        }
-        const DepthStencilAttachment& ds = desc.depthStencil;
-        begin.depthStencil.view = idOf(ds.view);
-        begin.depthStencil.depthLoadOp = ds.depthLoadOp;
-        begin.depthStencil.depthStoreOp = ds.depthStoreOp;
-        begin.depthStencil.depthClearValue = ds.depthClearValue;
-        begin.depthStencil.stencilLoadOp = ds.stencilLoadOp;
-        begin.depthStencil.stencilStoreOp = ds.stencilStoreOp;
-        begin.depthStencil.stencilClearValue = ds.stencilClearValue;
-        if (m_context != nullptr)
-        {
-            m_context->beginOpenRenderPass(this, *m_cmd);
-        }
-        m_cmd->append(CommandType::beginRenderPass, begin);
+    BeginRenderPassCmd begin{};
+    begin.label = m_cmd->appendStringRef(desc.label);
+    begin.colorCount = desc.colorCount;
+    for (uint32_t i = 0; i < desc.colorCount && i < 4; ++i)
+    {
+      const ColorAttachment& src = desc.colorAttachments[i];
+      ColorAttachmentPOD& dst = begin.colors[i];
+      dst.view = idOf(src.view);
+      dst.resolveTarget = idOf(src.resolveTarget);
+      dst.loadOp = src.loadOp;
+      dst.storeOp = src.storeOp;
+      dst.clearR = src.clearColor.r;
+      dst.clearG = src.clearColor.g;
+      dst.clearB = src.clearColor.b;
+      dst.clearA = src.clearColor.a;
+    }
+    const DepthStencilAttachment& ds = desc.depthStencil;
+    begin.depthStencil.view = idOf(ds.view);
+    begin.depthStencil.depthLoadOp = ds.depthLoadOp;
+    begin.depthStencil.depthStoreOp = ds.depthStoreOp;
+    begin.depthStencil.depthClearValue = ds.depthClearValue;
+    begin.depthStencil.stencilLoadOp = ds.stencilLoadOp;
+    begin.depthStencil.stencilStoreOp = ds.stencilStoreOp;
+    begin.depthStencil.stencilClearValue = ds.stencilClearValue;
+    if (m_context != nullptr)
+    {
+      m_context->beginOpenRenderPass(this, *m_cmd);
+    }
+    m_cmd->append(CommandType::beginRenderPass, begin);
+  }
+
+  // A begin with no finish would corrupt the stream at replay.
+  ~RenderPassRecording() override
+  {
+    if (!m_finished)
+    {
+      finish();
+    }
+  }
+
+  void setPipeline(Pipeline* pipeline) override
+  {
+    if (!checkPipelineCompat(pipeline))
+    {
+      return;
+    }
+    m_cmd->append(CommandType::setPipeline, SetPipelineCmd{idOf(pipeline)});
+  }
+
+  void setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset = 0)
+      override
+  {
+    m_cmd->append(
+        CommandType::setVertexBuffer,
+        SetVertexBufferCmd{slot, idOf(buffer), offset});
+  }
+
+  void setIndexBuffer(Buffer* buffer, IndexFormat format, uint32_t offset = 0)
+      override
+  {
+    SetIndexBufferCmd c{};
+    c.buffer = idOf(buffer);
+    c.format = format;
+    c.offset = offset;
+    m_cmd->append(CommandType::setIndexBuffer, c);
+  }
+
+  void setBindGroup(
+      uint32_t groupIndex,
+      BindGroup* bg,
+      const uint32_t* dynamicOffsets = nullptr,
+      uint32_t dynamicOffsetCount = 0) override
+  {
+    // Hold a strong reference so GC cannot free the group before replay.
+    if (groupIndex < kMaxBindGroups)
+    {
+      m_boundGroups[groupIndex] = ref_rcp(bg);
     }
 
-    // A begin with no finish would corrupt the stream at replay.
-    ~RenderPassRecording() override
-    {
-        if (!m_finished)
-        {
-            finish();
-        }
-    }
+    SetBindGroupCmd c{};
+    c.groupIndex = groupIndex;
+    c.bindGroup = idOf(bg);
+    c.dynamicOffsetCount = dynamicOffsetCount;
+    c.dynamicOffsetStart = dynamicOffsetCount > 0
+                               ? m_cmd->appendBlob(
+                                     dynamicOffsets,
+                                     dynamicOffsetCount * sizeof(uint32_t))
+                               : 0;
+    m_cmd->append(CommandType::setBindGroup, c);
+  }
 
-    void setPipeline(Pipeline* pipeline) override
-    {
-        if (!checkPipelineCompat(pipeline))
-        {
-            return;
-        }
-        m_cmd->append(CommandType::setPipeline, SetPipelineCmd{idOf(pipeline)});
-    }
+  void setViewport(
+      float x,
+      float y,
+      float width,
+      float height,
+      float minDepth = 0.0f,
+      float maxDepth = 1.0f) override
+  {
+    m_cmd->append(
+        CommandType::setViewport,
+        SetViewportCmd{x, y, width, height, minDepth, maxDepth});
+  }
 
-    void setVertexBuffer(uint32_t slot,
-                         Buffer* buffer,
-                         uint32_t offset = 0) override
-    {
-        m_cmd->append(CommandType::setVertexBuffer,
-                      SetVertexBufferCmd{slot, idOf(buffer), offset});
-    }
+  void setScissorRect(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+      override
+  {
+    m_cmd->append(
+        CommandType::setScissorRect,
+        SetScissorRectCmd{x, y, width, height});
+  }
 
-    void setIndexBuffer(Buffer* buffer,
-                        IndexFormat format,
-                        uint32_t offset = 0) override
-    {
-        SetIndexBufferCmd c{};
-        c.buffer = idOf(buffer);
-        c.format = format;
-        c.offset = offset;
-        m_cmd->append(CommandType::setIndexBuffer, c);
-    }
+  void setStencilReference(uint32_t ref) override
+  {
+    m_cmd->append(
+        CommandType::setStencilReference,
+        SetStencilReferenceCmd{ref});
+  }
 
-    void setBindGroup(uint32_t groupIndex,
-                      BindGroup* bg,
-                      const uint32_t* dynamicOffsets = nullptr,
-                      uint32_t dynamicOffsetCount = 0) override
-    {
-        // Hold a strong reference so GC cannot free the group before replay.
-        if (groupIndex < kMaxBindGroups)
-        {
-            m_boundGroups[groupIndex] = ref_rcp(bg);
-        }
+  void setBlendColor(float r, float g, float b, float a) override
+  {
+    m_cmd->append(CommandType::setBlendColor, SetBlendColorCmd{r, g, b, a});
+  }
 
-        SetBindGroupCmd c{};
-        c.groupIndex = groupIndex;
-        c.bindGroup = idOf(bg);
-        c.dynamicOffsetCount = dynamicOffsetCount;
-        c.dynamicOffsetStart =
-            dynamicOffsetCount > 0
-                ? m_cmd->appendBlob(dynamicOffsets,
-                                    dynamicOffsetCount * sizeof(uint32_t))
-                : 0;
-        m_cmd->append(CommandType::setBindGroup, c);
-    }
+  void draw(
+      uint32_t vertexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstVertex = 0,
+      uint32_t firstInstance = 0) override
+  {
+    m_cmd->append(
+        CommandType::draw,
+        DrawCmd{vertexCount, instanceCount, firstVertex, firstInstance});
+  }
 
-    void setViewport(float x,
-                     float y,
-                     float width,
-                     float height,
-                     float minDepth = 0.0f,
-                     float maxDepth = 1.0f) override
-    {
-        m_cmd->append(CommandType::setViewport,
-                      SetViewportCmd{x, y, width, height, minDepth, maxDepth});
-    }
+  void drawIndexed(
+      uint32_t indexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstIndex = 0,
+      int32_t baseVertex = 0,
+      uint32_t firstInstance = 0) override
+  {
+    m_cmd->append(
+        CommandType::drawIndexed,
+        DrawIndexedCmd{
+            indexCount,
+            instanceCount,
+            firstIndex,
+            baseVertex,
+            firstInstance});
+  }
 
-    void setScissorRect(uint32_t x,
-                        uint32_t y,
-                        uint32_t width,
-                        uint32_t height) override
+  void finish() override
+  {
+    if (m_finished)
     {
-        m_cmd->append(CommandType::setScissorRect,
-                      SetScissorRectCmd{x, y, width, height});
+      return;
     }
-
-    void setStencilReference(uint32_t ref) override
+    if (m_context != nullptr)
     {
-        m_cmd->append(CommandType::setStencilReference,
-                      SetStencilReferenceCmd{ref});
+      m_context->finishNestedRenderPasses(this);
     }
-
-    void setBlendColor(float r, float g, float b, float a) override
+    m_cmd->appendOpcode(CommandType::finish);
+    m_finished = true;
+    for (uint32_t i = 0; i < kMaxBindGroups; ++i)
     {
-        m_cmd->append(CommandType::setBlendColor, SetBlendColorCmd{r, g, b, a});
+      m_boundGroups[i] = nullptr;
     }
-
-    void draw(uint32_t vertexCount,
-              uint32_t instanceCount = 1,
-              uint32_t firstVertex = 0,
-              uint32_t firstInstance = 0) override
+    if (m_context != nullptr)
     {
-        m_cmd->append(
-            CommandType::draw,
-            DrawCmd{vertexCount, instanceCount, firstVertex, firstInstance});
+      m_context->finishOpenRenderPass(this);
     }
-
-    void drawIndexed(uint32_t indexCount,
-                     uint32_t instanceCount = 1,
-                     uint32_t firstIndex = 0,
-                     int32_t baseVertex = 0,
-                     uint32_t firstInstance = 0) override
-    {
-        m_cmd->append(CommandType::drawIndexed,
-                      DrawIndexedCmd{indexCount,
-                                     instanceCount,
-                                     firstIndex,
-                                     baseVertex,
-                                     firstInstance});
-    }
-
-    void finish() override
-    {
-        if (m_finished)
-        {
-            return;
-        }
-        if (m_context != nullptr)
-        {
-            m_context->finishNestedRenderPasses(this);
-        }
-        m_cmd->appendOpcode(CommandType::finish);
-        m_finished = true;
-        for (uint32_t i = 0; i < kMaxBindGroups; ++i)
-        {
-            m_boundGroups[i] = nullptr;
-        }
-        if (m_context != nullptr)
-        {
-            m_context->finishOpenRenderPass(this);
-        }
-    }
+  }
 
 private:
-    // A deferred object self reports its creation id; a real resource falls
-    // back to the buffer's keep alive capture.
-    template <typename DeferredT, typename T> ResourceHandle idOfAs(T* r)
+  // A deferred object self reports its creation id; a real resource falls
+  // back to the buffer's keep alive capture.
+  template <typename DeferredT, typename T> ResourceHandle idOfAs(T* r)
+  {
+    if (auto* d = lite_rtti_cast<DeferredT*>(r))
     {
-        if (auto* d = lite_rtti_cast<DeferredT*>(r))
-        {
-            return d->clientHandle();
-        }
-        return m_cmd->capture(r);
+      return d->clientHandle();
     }
-    ResourceHandle idOf(Buffer* b) { return idOfAs<DeferredBuffer>(b); }
-    ResourceHandle idOf(Pipeline* p) { return idOfAs<DeferredPipeline>(p); }
-    ResourceHandle idOf(TextureView* v)
-    {
-        return idOfAs<DeferredTextureView>(v);
-    }
-    ResourceHandle idOf(BindGroup* g) { return idOfAs<DeferredBindGroup>(g); }
+    return m_cmd->capture(r);
+  }
+  ResourceHandle idOf(Buffer* b) { return idOfAs<DeferredBuffer>(b); }
+  ResourceHandle idOf(Pipeline* p) { return idOfAs<DeferredPipeline>(p); }
+  ResourceHandle idOf(TextureView* v) { return idOfAs<DeferredTextureView>(v); }
+  ResourceHandle idOf(BindGroup* g) { return idOfAs<DeferredBindGroup>(g); }
 
-    OreCommandBuffer* m_cmd;
+  OreCommandBuffer* m_cmd;
 };
 
 } // namespace rive::ore::cmd

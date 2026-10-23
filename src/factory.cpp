@@ -14,26 +14,35 @@ using namespace rive;
 
 rcp<RenderPath> Factory::makeRenderPath(const AABB& r)
 {
-    RawPath rawPath;
-    rawPath.addRect(r);
-    return makeRenderPath(rawPath, FillRule::nonZero);
+  RawPath rawPath;
+  rawPath.addRect(r);
+  return makeRenderPath(rawPath, FillRule::nonZero);
 }
 
 rcp<Font> Factory::decodeFont(Span<const uint8_t> span)
 {
 #ifdef WITH_RIVE_TEXT
-    return HBFont::Decode(span);
+  return HBFont::Decode(span);
 #else
-    return nullptr;
+  return nullptr;
+#endif
+}
+
+rcp<Font> Factory::decodeFont(std::vector<uint8_t>&& bytes)
+{
+#ifdef WITH_RIVE_TEXT
+  return HBFont::Decode(std::move(bytes));
+#else
+  return nullptr;
 #endif
 }
 
 rcp<AudioSource> Factory::decodeAudio(Span<const uint8_t> span)
 {
 #ifdef WITH_RIVE_AUDIO
-    return AudioSource::MakeAudioSource(
-        SimpleArray<uint8_t>(span.data(), span.size()));
+  return AudioSource::MakeAudioSource(
+      SimpleArray<uint8_t>(span.data(), span.size()));
 #else
-    return nullptr;
+  return nullptr;
 #endif
 }

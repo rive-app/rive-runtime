@@ -7,67 +7,52 @@ namespace rive
 class KeyFrameDoubleBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef InterpolatingKeyFrame Super;
+  typedef InterpolatingKeyFrame Super;
 
 public:
-    static const uint16_t typeKey = 30;
+  static const uint16_t typeKey = 30;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case KeyFrameDoubleBase::typeKey:
-            case InterpolatingKeyFrameBase::typeKey:
-            case KeyFrameBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t valuePropertyKey = 70;
+  static const uint16_t valuePropertyKey = 70;
 
 protected:
-    float m_Value = 0.0f;
+  float m_Value = 0.0f;
 
 public:
-    inline float value() const { return m_Value; }
-    void value(float value)
+  inline float value() const { return m_Value; }
+  void value(float value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyFrameDoubleBase& object)
-    {
-        m_Value = object.m_Value;
-        InterpolatingKeyFrame::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyFrameDoubleBase& object)
+  {
+    m_Value = object.m_Value;
+    InterpolatingKeyFrame::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/keyframe_double_ext.inl"
 #endif

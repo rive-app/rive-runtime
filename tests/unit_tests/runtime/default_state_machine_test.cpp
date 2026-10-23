@@ -12,21 +12,21 @@
 
 TEST_CASE("default state machine is detected at load", "[file]")
 {
-    auto file = ReadRiveFile("assets/entry.riv");
+  auto file = ReadRiveFile("assets/entry.riv");
 
-    auto abi = file->artboardAt(0);
-    auto index = abi->defaultStateMachineIndex();
+  auto abi = file->artboardAt(0);
+  auto index = abi->defaultStateMachineIndex();
 
-    REQUIRE(index >= 0);
-    REQUIRE(abi->stateMachineNameAt(index) == "State Machine 1");
+  REQUIRE(index >= 0);
+  REQUIRE(abi->stateMachineNameAt(index) == "State Machine 1");
 
-    auto smi = abi->defaultStateMachine();
+  auto smi = abi->defaultStateMachine();
 
-    REQUIRE(smi != nullptr);
-    REQUIRE(smi->name() == "State Machine 1");
+  REQUIRE(smi != nullptr);
+  REQUIRE(smi->name() == "State Machine 1");
 
-    // default scene is the same as the default statemachine (when we have one)
-    auto scene = abi->defaultScene();
-    REQUIRE(scene != nullptr);
-    REQUIRE(scene->name() == smi->name());
+  // default scene is the same as the default statemachine (when we have one)
+  auto scene = abi->defaultScene();
+  REQUIRE(scene != nullptr);
+  REQUIRE(scene->name() == smi->name());
 }

@@ -21,10 +21,10 @@ namespace
 class PointerTypeScriptedDrawable : public ScriptedDrawable
 {
 public:
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        return true;
-    }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    return true;
+  }
 };
 
 constexpr const char* pointerTypeScript =
@@ -84,76 +84,81 @@ end
 
 std::string readString(lua_State* L, const char* getter)
 {
-    lua_getglobal(L, getter);
-    REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    std::string value = lua_tostring(L, -1);
-    lua_pop(L, 1);
-    return value;
+  lua_getglobal(L, getter);
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  std::string value = lua_tostring(L, -1);
+  lua_pop(L, 1);
+  return value;
 }
 
 float readNumber(lua_State* L, const char* getter)
 {
-    lua_getglobal(L, getter);
-    REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    float value = (float)lua_tonumber(L, -1);
-    lua_pop(L, 1);
-    return value;
+  lua_getglobal(L, getter);
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  float value = (float)lua_tonumber(L, -1);
+  lua_pop(L, 1);
+  return value;
 }
 } // namespace
 
-TEST_CASE("scripted drawable pointer events report their type and timestamp",
-          "[scripting]")
+TEST_CASE(
+    "scripted drawable pointer events report their type and timestamp",
+    "[scripting]")
 {
-    ScriptingTest vm(pointerTypeScript);
-    lua_State* L = vm.state();
+  ScriptingTest vm(pointerTypeScript);
+  lua_State* L = vm.state();
 
-    PointerTypeScriptedDrawable drawable;
-    // wantsPointerDown | wantsPointerMove | wantsPointerUp | wantsPointerExit
-    drawable.implementedMethods((1 << 3) | (1 << 4) | (1 << 5) | (1 << 6));
-    drawable.setAsset(make_rcp<ScriptAsset>());
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  PointerTypeScriptedDrawable drawable;
+  // wantsPointerDown | wantsPointerMove | wantsPointerUp | wantsPointerExit
+  drawable.implementedMethods((1 << 3) | (1 << 4) | (1 << 5) | (1 << 6));
+  drawable.setAsset(make_rcp<ScriptAsset>());
+  REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
-    HitScriptedDrawable hit(&drawable, nullptr);
+  HitScriptedDrawable hit(&drawable, nullptr);
 
-    hit.processEvent(Vec2D(1.0f, 1.0f),
-                     ListenerType::down,
-                     true,
-                     1.5f,
-                     0,
-                     PointerButton::primary);
-    CHECK(readString(L, "getLastHandler") == "pointerDown");
-    CHECK(readString(L, "getLastType") == "pointerDown");
-    CHECK(readNumber(L, "getLastTimeStamp") == 1.5f);
+  hit.processEvent(
+      Vec2D(1.0f, 1.0f),
+      ListenerType::down,
+      true,
+      1.5f,
+      0,
+      PointerButton::primary);
+  CHECK(readString(L, "getLastHandler") == "pointerDown");
+  CHECK(readString(L, "getLastType") == "pointerDown");
+  CHECK(readNumber(L, "getLastTimeStamp") == 1.5f);
 
-    hit.processEvent(Vec2D(2.0f, 1.0f),
-                     ListenerType::move,
-                     true,
-                     2.25f,
-                     0,
-                     PointerButton::primary);
-    CHECK(readString(L, "getLastHandler") == "pointerMove");
-    CHECK(readString(L, "getLastType") == "pointerMove");
-    CHECK(readNumber(L, "getLastTimeStamp") == 2.25f);
+  hit.processEvent(
+      Vec2D(2.0f, 1.0f),
+      ListenerType::move,
+      true,
+      2.25f,
+      0,
+      PointerButton::primary);
+  CHECK(readString(L, "getLastHandler") == "pointerMove");
+  CHECK(readString(L, "getLastType") == "pointerMove");
+  CHECK(readNumber(L, "getLastTimeStamp") == 2.25f);
 
-    hit.processEvent(Vec2D(2.0f, 1.0f),
-                     ListenerType::up,
-                     true,
-                     3.0f,
-                     0,
-                     PointerButton::primary);
-    CHECK(readString(L, "getLastHandler") == "pointerUp");
-    CHECK(readString(L, "getLastType") == "pointerUp");
-    CHECK(readNumber(L, "getLastTimeStamp") == 3.0f);
+  hit.processEvent(
+      Vec2D(2.0f, 1.0f),
+      ListenerType::up,
+      true,
+      3.0f,
+      0,
+      PointerButton::primary);
+  CHECK(readString(L, "getLastHandler") == "pointerUp");
+  CHECK(readString(L, "getLastType") == "pointerUp");
+  CHECK(readNumber(L, "getLastTimeStamp") == 3.0f);
 
-    // An occluded target is dispatched to pointerExit whatever the incoming
-    // event was, and the type follows the handler.
-    hit.processEvent(Vec2D(2.0f, 1.0f),
-                     ListenerType::move,
-                     false,
-                     4.0f,
-                     0,
-                     PointerButton::primary);
-    CHECK(readString(L, "getLastHandler") == "pointerExit");
-    CHECK(readString(L, "getLastType") == "pointerExit");
-    CHECK(readNumber(L, "getLastTimeStamp") == 4.0f);
+  // An occluded target is dispatched to pointerExit whatever the incoming
+  // event was, and the type follows the handler.
+  hit.processEvent(
+      Vec2D(2.0f, 1.0f),
+      ListenerType::move,
+      false,
+      4.0f,
+      0,
+      PointerButton::primary);
+  CHECK(readString(L, "getLastHandler") == "pointerExit");
+  CHECK(readString(L, "getLastType") == "pointerExit");
+  CHECK(readNumber(L, "getLastTimeStamp") == 4.0f);
 }

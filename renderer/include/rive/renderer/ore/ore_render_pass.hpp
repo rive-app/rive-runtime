@@ -22,132 +22,170 @@ class Context;
 class RenderPass
 {
 public:
-    virtual void setPipeline(Pipeline* pipeline) = 0;
+  virtual void setPipeline(Pipeline* pipeline) = 0;
 
-    virtual void setVertexBuffer(uint32_t slot,
-                                 Buffer* buffer,
-                                 uint32_t offset = 0) = 0;
-    virtual void setIndexBuffer(Buffer* buffer,
-                                IndexFormat format,
-                                uint32_t offset = 0) = 0;
+  virtual void setVertexBuffer(
+      uint32_t slot,
+      Buffer* buffer,
+      uint32_t offset = 0) = 0;
+  virtual void setIndexBuffer(
+      Buffer* buffer,
+      IndexFormat format,
+      uint32_t offset = 0) = 0;
 
-    // Bind a pre-created BindGroup, optionally overriding dynamic UBO offsets.
-    virtual void setBindGroup(uint32_t groupIndex,
-                              BindGroup* bg,
-                              const uint32_t* dynamicOffsets = nullptr,
-                              uint32_t dynamicOffsetCount = 0) = 0;
+  // Bind a pre-created BindGroup, optionally overriding dynamic UBO offsets.
+  virtual void setBindGroup(
+      uint32_t groupIndex,
+      BindGroup* bg,
+      const uint32_t* dynamicOffsets = nullptr,
+      uint32_t dynamicOffsetCount = 0) = 0;
 
-    virtual void setViewport(float x,
-                             float y,
-                             float width,
-                             float height,
-                             float minDepth = 0.0f,
-                             float maxDepth = 1.0f) = 0;
-    virtual void setScissorRect(uint32_t x,
-                                uint32_t y,
-                                uint32_t width,
-                                uint32_t height) = 0;
+  virtual void setViewport(
+      float x,
+      float y,
+      float width,
+      float height,
+      float minDepth = 0.0f,
+      float maxDepth = 1.0f) = 0;
+  virtual void setScissorRect(
+      uint32_t x,
+      uint32_t y,
+      uint32_t width,
+      uint32_t height) = 0;
 
-    virtual void setStencilReference(uint32_t ref) = 0;
-    virtual void setBlendColor(float r, float g, float b, float a) = 0;
+  virtual void setStencilReference(uint32_t ref) = 0;
+  virtual void setBlendColor(float r, float g, float b, float a) = 0;
 
-    virtual void draw(uint32_t vertexCount,
-                      uint32_t instanceCount = 1,
-                      uint32_t firstVertex = 0,
-                      uint32_t firstInstance = 0) = 0;
+  virtual void draw(
+      uint32_t vertexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstVertex = 0,
+      uint32_t firstInstance = 0) = 0;
 
-    virtual void drawIndexed(uint32_t indexCount,
-                             uint32_t instanceCount = 1,
-                             uint32_t firstIndex = 0,
-                             int32_t baseVertex = 0,
-                             uint32_t firstInstance = 0) = 0;
+  virtual void drawIndexed(
+      uint32_t indexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstIndex = 0,
+      int32_t baseVertex = 0,
+      uint32_t firstInstance = 0) = 0;
 
-    virtual void finish() = 0;
-    bool isFinished() const { return m_finished; }
+  virtual void finish() = 0;
+  bool isFinished() const { return m_finished; }
 
-    virtual ~RenderPass() = default;
+  virtual ~RenderPass() = default;
 
-    RenderPass(const RenderPass&) = delete;
-    RenderPass& operator=(const RenderPass&) = delete;
+  RenderPass(const RenderPass&) = delete;
+  RenderPass& operator=(const RenderPass&) = delete;
 
-    // Populate attachment metadata from the descriptor. Called by every
-    // backend's beginRenderPass() immediately after constructing the
-    // RenderPass; defined inline because it only reads cross-backend
-    // texture/view accessors that are uniform across backends.
-    inline void populateAttachmentMetadata(const RenderPassDesc& desc);
-    virtual void validate() const {};
+  // Populate attachment metadata from the descriptor. Called by every
+  // backend's beginRenderPass() immediately after constructing the
+  // RenderPass; defined inline because it only reads cross-backend
+  // texture/view accessors that are uniform across backends.
+  inline void populateAttachmentMetadata(const RenderPassDesc& desc);
+  virtual void validate() const {};
 
 protected:
-    friend class Context;
+  friend class Context;
 
-    RenderPass() = default;
-    RenderPass(Context* context) : m_context(context) {}
+  RenderPass() = default;
+  RenderPass(Context* context) : m_context(context) {}
 
-    bool m_finished = false;
+  bool m_finished = false;
 
-    // Attachment metadata — populated by beginRenderPass() from the
-    // RenderPassDesc via populateAttachmentMetadata(). Used by setPipeline()
-    // for format/sampleCount validation.
-    TextureFormat m_colorFormats[4] = {};
-    uint32_t m_colorCount = 0;
-    TextureFormat m_depthFormat = {};
-    bool m_hasDepth = false;
-    uint32_t m_sampleCount = 1;
+  // Attachment metadata — populated by beginRenderPass() from the
+  // RenderPassDesc via populateAttachmentMetadata(). Used by setPipeline()
+  // for format/sampleCount validation.
+  TextureFormat m_colorFormats[4] = {};
+  uint32_t m_colorCount = 0;
+  TextureFormat m_depthFormat = {};
+  bool m_hasDepth = false;
+  uint32_t m_sampleCount = 1;
 
-    // Cross-backend back-pointer used by the pipeline-compat validator to
-    // route errors through Context::setLastError(). Weak ref.
-    Context* m_context = nullptr;
+  // Cross-backend back-pointer used by the pipeline-compat validator to
+  // route errors through Context::setLastError(). Weak ref.
+  Context* m_context = nullptr;
 
-    // Lifecycle: strong refs to bound BindGroups prevent GC from freeing
-    // them between setBindGroup() and finish(). Released in finish().
-    rcp<BindGroup> m_boundGroups[kMaxBindGroups];
+  // Lifecycle: strong refs to bound BindGroups prevent GC from freeing
+  // them between setBindGroup() and finish(). Released in finish().
+  rcp<BindGroup> m_boundGroups[kMaxBindGroups];
 
-    // Vertex buffers may bind before the pipeline whose layout they need, so
-    // the backends that read that layout at bind time keep the slots here
-    // and apply the dirty ones at the next draw.
-    struct VertexBufferSlot
+  // Groups apply at the draw, against the pipeline's slots, so binds made
+  // before a pipeline or moved by a new one wait here.
+  uint32_t m_groupOffsets[kMaxBindGroups][kMaxDynamicOffsets] = {};
+  uint32_t m_groupOffsetCounts[kMaxBindGroups] = {};
+  uint8_t m_unappliedGroups = 0;
+  static_assert(kMaxBindGroups <= 8, "the unapplied mask is one byte");
+
+  inline void storeBindGroup(
+      uint32_t groupIndex,
+      BindGroup* group,
+      const uint32_t* offsets,
+      uint32_t offsetCount);
+
+  // Bound groups `next` numbers differently from `previous`.
+  inline uint8_t movedGroups(const Pipeline* previous, const Pipeline* next)
+      const;
+
+  template <typename Apply> void flushBindGroups(Apply&& apply)
+  {
+    for (uint32_t g = 0; m_unappliedGroups != 0; ++g)
     {
-        rcp<Buffer> buffer;
-        uint32_t offset = 0;
-    };
-    VertexBufferSlot m_vertexBufferSlots[kMaxVertexBufferSlots];
-    static_assert(kMaxVertexBufferSlots <= 8, "the dirty mask is one byte");
-    uint8_t m_dirtyVertexSlots = 0;
-    static constexpr uint8_t kAllVertexSlotsDirty = 0xff;
-
-    void setVertexBufferSlot(uint32_t slot, Buffer* buffer, uint32_t offset)
-    {
-        if (slot >= kMaxVertexBufferSlots)
-            return;
-        m_vertexBufferSlots[slot] = {ref_rcp(buffer), offset};
-        m_dirtyVertexSlots |= static_cast<uint8_t>(1u << slot);
+      if (m_unappliedGroups & (1u << g))
+      {
+        m_unappliedGroups &= static_cast<uint8_t>(~(1u << g));
+        if (m_boundGroups[g] != nullptr)
+          apply(g);
+      }
     }
+  }
 
-    template <typename Apply> void flushVertexBufferSlots(Apply&& apply)
+  // Vertex buffers may bind before the pipeline whose layout they need, so
+  // the backends that read that layout at bind time keep the slots here
+  // and apply the dirty ones at the next draw.
+  struct VertexBufferSlot
+  {
+    rcp<Buffer> buffer;
+    uint32_t offset = 0;
+  };
+  VertexBufferSlot m_vertexBufferSlots[kMaxVertexBufferSlots];
+  static_assert(kMaxVertexBufferSlots <= 8, "the dirty mask is one byte");
+  uint8_t m_dirtyVertexSlots = 0;
+  static constexpr uint8_t kAllVertexSlotsDirty = 0xff;
+
+  void setVertexBufferSlot(uint32_t slot, Buffer* buffer, uint32_t offset)
+  {
+    if (slot >= kMaxVertexBufferSlots)
+      return;
+    m_vertexBufferSlots[slot] = {ref_rcp(buffer), offset};
+    m_dirtyVertexSlots |= static_cast<uint8_t>(1u << slot);
+  }
+
+  template <typename Apply> void flushVertexBufferSlots(Apply&& apply)
+  {
+    for (uint32_t slot = 0; m_dirtyVertexSlots != 0; ++slot)
     {
-        for (uint32_t slot = 0; m_dirtyVertexSlots != 0; ++slot)
-        {
-            if (m_dirtyVertexSlots & (1u << slot))
-            {
-                m_dirtyVertexSlots &= static_cast<uint8_t>(~(1u << slot));
-                apply(slot);
-            }
-        }
+      if (m_dirtyVertexSlots & (1u << slot))
+      {
+        m_dirtyVertexSlots &= static_cast<uint8_t>(~(1u << slot));
+        apply(slot);
+      }
     }
+  }
 
-    // Every backend's finish() drops the strong refs the pass held.
-    void releaseBoundResources()
-    {
-        for (auto& bg : m_boundGroups)
-            bg.reset();
-        for (auto& slot : m_vertexBufferSlots)
-            slot.buffer.reset();
-        m_dirtyVertexSlots = 0;
-    }
+  // Every backend's finish() drops the strong refs the pass held.
+  void releaseBoundResources()
+  {
+    for (auto& bg : m_boundGroups)
+      bg.reset();
+    m_unappliedGroups = 0;
+    for (auto& slot : m_vertexBufferSlots)
+      slot.buffer.reset();
+    m_dirtyVertexSlots = 0;
+  }
 
-    // WebGPU-spec pipeline/attachment compatibility check, invoked from
-    // every backend's setPipeline().
-    inline bool checkPipelineCompat(const Pipeline* pipeline) const;
+  // WebGPU-spec pipeline/attachment compatibility check, invoked from
+  // every backend's setPipeline().
+  inline bool checkPipelineCompat(const Pipeline* pipeline) const;
 };
 
 } // namespace rive::ore

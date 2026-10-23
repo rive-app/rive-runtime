@@ -25,42 +25,42 @@ namespace rive
 /// with checkStateOf() and switch on SemanticCheckState.
 enum class SemanticState : uint32_t
 {
-    None = 0,
+  None = 0,
 
-    // Trait-gated states (only meaningful when trait is active)
-    Expanded = SemanticDataBase::isExpandedBitmask, // requires Expandable
-    Selected = SemanticDataBase::isSelectedBitmask, // requires Selectable
-    // Checked is deliberately absent: it is a field, not a flag. See
-    // SemanticCheckState / checkStateOf() below.
-    Toggled = SemanticDataBase::isToggledBitmask,   // requires Toggleable
-    Required = SemanticDataBase::isRequiredBitmask, // requires Requirable
-    Disabled = SemanticDataBase::isDisabledBitmask, // requires Enablable
-    Focused = SemanticDataBase::isFocusedBitmask,   // requires Focusable
+  // Trait-gated states (only meaningful when trait is active)
+  Expanded = SemanticDataBase::isExpandedBitmask, // requires Expandable
+  Selected = SemanticDataBase::isSelectedBitmask, // requires Selectable
+  // Checked is deliberately absent: it is a field, not a flag. See
+  // SemanticCheckState / checkStateOf() below.
+  Toggled = SemanticDataBase::isToggledBitmask,   // requires Toggleable
+  Required = SemanticDataBase::isRequiredBitmask, // requires Requirable
+  Disabled = SemanticDataBase::isDisabledBitmask, // requires Enablable
+  Focused = SemanticDataBase::isFocusedBitmask,   // requires Focusable
 
-    // Non-trait states (binary, always applicable or role-implied)
-    Hidden = SemanticDataBase::isHiddenBitmask,
-    LiveRegion = SemanticDataBase::isLiveRegionBitmask,
-    ReadOnly = SemanticDataBase::isReadOnlyBitmask,
-    Modal = SemanticDataBase::isModalBitmask,
-    Obscured = SemanticDataBase::isObscuredBitmask,
-    Multiline = SemanticDataBase::isMultilineBitmask,
+  // Non-trait states (binary, always applicable or role-implied)
+  Hidden = SemanticDataBase::isHiddenBitmask,
+  LiveRegion = SemanticDataBase::isLiveRegionBitmask,
+  ReadOnly = SemanticDataBase::isReadOnlyBitmask,
+  Modal = SemanticDataBase::isModalBitmask,
+  Obscured = SemanticDataBase::isObscuredBitmask,
+  Multiline = SemanticDataBase::isMultilineBitmask,
 };
 
 constexpr SemanticState operator|(SemanticState a, SemanticState b)
 {
-    return static_cast<SemanticState>(static_cast<uint32_t>(a) |
-                                      static_cast<uint32_t>(b));
+  return static_cast<SemanticState>(
+      static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
 
 constexpr SemanticState operator&(SemanticState a, SemanticState b)
 {
-    return static_cast<SemanticState>(static_cast<uint32_t>(a) &
-                                      static_cast<uint32_t>(b));
+  return static_cast<SemanticState>(
+      static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
 }
 
 constexpr bool hasSemanticState(uint32_t flags, SemanticState flag)
 {
-    return (flags & static_cast<uint32_t>(flag)) != 0;
+  return (flags & static_cast<uint32_t>(flag)) != 0;
 }
 
 /// The tri-state of a checkable node. Occupies two bits of stateFlags at
@@ -68,9 +68,9 @@ constexpr bool hasSemanticState(uint32_t flags, SemanticState flag)
 /// tested as a flag. Only meaningful when the Checkable trait is set.
 enum class SemanticCheckState : uint8_t
 {
-    Unchecked = 0,
-    Checked = 1,
-    Mixed = 2,
+  Unchecked = 0,
+  Checked = 1,
+  Mixed = 2,
 };
 
 /// Decodes the check field out of [flags]. The field is two bits so it can
@@ -78,10 +78,10 @@ enum class SemanticCheckState : uint8_t
 /// rather than falling through to an unnamed state.
 constexpr SemanticCheckState checkStateOf(uint32_t flags)
 {
-    const uint32_t value = (flags & SemanticDataBase::isCheckedFieldMask) >>
-                           SemanticDataBase::isCheckedBitOffset;
-    return value >= 2 ? SemanticCheckState::Mixed
-                      : static_cast<SemanticCheckState>(value);
+  const uint32_t value = (flags & SemanticDataBase::isCheckedFieldMask) >>
+                         SemanticDataBase::isCheckedBitOffset;
+  return value >= 2 ? SemanticCheckState::Mixed
+                    : static_cast<SemanticCheckState>(value);
 }
 } // namespace rive
 

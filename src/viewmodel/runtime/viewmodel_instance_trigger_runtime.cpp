@@ -6,5 +6,5 @@ using namespace rive;
 
 void ViewModelInstanceTriggerRuntime::trigger()
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()->trigger();
+  return m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()->trigger();
 }

@@ -9,57 +9,55 @@ using namespace rive;
 
 BlendAnimationDirect::~BlendAnimationDirect()
 {
-    if (m_bindableProperty != nullptr)
-    {
-        delete m_bindableProperty;
-        m_bindableProperty = nullptr;
-    }
+  if (m_bindableProperty != nullptr)
+  {
+    delete m_bindableProperty;
+    m_bindableProperty = nullptr;
+  }
 }
 
 StatusCode BlendAnimationDirect::onAddedDirty(CoreContext* context)
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 StatusCode BlendAnimationDirect::onAddedClean(CoreContext* context)
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 StatusCode BlendAnimationDirect::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    // Make sure the inputId doesn't overflow the input buffer.
-    if (blendSource() == static_cast<int>(DirectBlendSource::inputId))
+  // Make sure the inputId doesn't overflow the input buffer.
+  if (blendSource() == static_cast<int>(DirectBlendSource::inputId))
+  {
+    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
     {
-        if ((size_t)inputId() >=
-            stateMachineImporter->stateMachine()->inputCount())
-        {
-            return StatusCode::InvalidObject;
-        }
-        auto input =
-            stateMachineImporter->stateMachine()->input((size_t)inputId());
-        if (input == nullptr || !input->is<StateMachineNumber>())
-        {
-            return StatusCode::InvalidObject;
-        }
+      return StatusCode::InvalidObject;
     }
-    else if (blendSource() == static_cast<int>(DirectBlendSource::dataBindId))
+    auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
+    if (input == nullptr || !input->is<StateMachineNumber>())
     {
-        auto bindablePropertyImporter =
-            importStack.latest<BindablePropertyImporter>(
-                BindablePropertyBase::typeKey);
-        if (bindablePropertyImporter == nullptr)
-        {
-            return StatusCode::MissingObject;
-        }
-        m_bindableProperty = bindablePropertyImporter->bindableProperty();
+      return StatusCode::InvalidObject;
     }
-    return Super::import(importStack);
+  }
+  else if (blendSource() == static_cast<int>(DirectBlendSource::dataBindId))
+  {
+    auto bindablePropertyImporter = importStack
+                                        .latest<BindablePropertyImporter>(
+                                            BindablePropertyBase::typeKey);
+    if (bindablePropertyImporter == nullptr)
+    {
+      return StatusCode::MissingObject;
+    }
+    m_bindableProperty = bindablePropertyImporter->bindableProperty();
+  }
+  return Super::import(importStack);
 }

@@ -7,8 +7,8 @@ namespace rive
 class BlendAnimation1D : public BlendAnimation1DBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

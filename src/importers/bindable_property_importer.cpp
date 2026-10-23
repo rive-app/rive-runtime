@@ -5,6 +5,6 @@
 using namespace rive;
 
 BindablePropertyImporter::BindablePropertyImporter(
-    BindableProperty* bindableProperty) :
-    m_bindableProperty(bindableProperty)
+    BindableProperty* bindableProperty)
+    : m_bindableProperty(bindableProperty)
 {}

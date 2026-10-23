@@ -32,471 +32,477 @@ constexpr static uint32_t REQUEST_TYPE_APPLICATION_CRASH = 7;
 
 static void check_early_exit()
 {
-    if (TestHarness::Instance().initialized())
-    {
-        // The tool should have called shutdown() before exit.
-        TestHarness::Instance().onApplicationCrash("Early exit.");
-    }
+  if (TestHarness::Instance().initialized())
+  {
+    // The tool should have called shutdown() before exit.
+    TestHarness::Instance().onApplicationCrash("Early exit.");
+  }
 }
 
 static void signal_wraper(const char* msg)
 {
-    TestHarness::Instance().onApplicationCrash(msg);
+  TestHarness::Instance().onApplicationCrash(msg);
 }
 
 TestHarness& TestHarness::Instance()
 {
-    static TestHarness* instance = new TestHarness();
-    return *instance;
+  static TestHarness* instance = new TestHarness();
+  return *instance;
 }
 
 TestHarness::TestHarness()
 {
-    stacktrace::replace_signal_handlers(signal_wraper, check_early_exit);
+  stacktrace::replace_signal_handlers(signal_wraper, check_early_exit);
 }
 
-void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,
-                       size_t pngThreadCount)
+void TestHarness::init(
+    std::unique_ptr<TCPClient> tcpClient,
+    size_t pngThreadCount)
 {
-    assert(!m_initialized);
-    m_initialized = true;
+  assert(!m_initialized);
+  m_initialized = true;
 
-    m_primaryTCPClient = std::move(tcpClient);
+  m_primaryTCPClient = std::move(tcpClient);
 
-    initStdioThread();
+  initStdioThread();
 
-    // We don't compile with emscripten pthreads.
+  // We don't compile with emscripten pthreads.
 #ifndef __EMSCRIPTEN__
-    for (size_t i = 0; i < pngThreadCount; ++i)
-    {
-        m_encodeThreads.emplace_back(EncodePNGThread, this);
-    }
+  for (size_t i = 0; i < pngThreadCount; ++i)
+  {
+    m_encodeThreads.emplace_back(EncodePNGThread, this);
+  }
 #endif
 }
 
 void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
 {
-    assert(!m_initialized);
-    m_initialized = true;
-    m_outputDir = outputDir;
+  assert(!m_initialized);
+  m_initialized = true;
+  m_outputDir = outputDir;
 #ifndef RIVE_REMOTE_ONLY
-    std::filesystem::create_directories(m_outputDir);
+  std::filesystem::create_directories(m_outputDir);
 #endif
 
 #ifdef RIVE_ANDROID
-    // Still pipe stdout and sterr to the android logs.
-    initStdioThread();
+  // Still pipe stdout and sterr to the android logs.
+  initStdioThread();
 #endif
 
-    for (size_t i = 0; i < pngThreadCount; ++i)
-    {
-        m_encodeThreads.emplace_back(EncodePNGThread, this);
-    }
+  for (size_t i = 0; i < pngThreadCount; ++i)
+  {
+    m_encodeThreads.emplace_back(EncodePNGThread, this);
+  }
 }
 
 void TestHarness::initStdioThread()
 {
 #if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
 #ifndef _WIN32
-    // Make stdout & stderr line buffered. (This is not supported on Windows.)
-    setvbuf(stdout, NULL, _IOLBF, 0);
-    setvbuf(stderr, NULL, _IOLBF, 0);
+  // Make stdout & stderr line buffered. (This is not supported on Windows.)
+  setvbuf(stdout, NULL, _IOLBF, 0);
+  setvbuf(stderr, NULL, _IOLBF, 0);
 #endif
-    // Pipe stdout and sterr back to the server.
-    m_savedStdout = dup(1);
-    m_savedStderr = dup(2);
-    pipe(m_stdioPipe.data());
-    dup2(m_stdioPipe[1], 1);
-    dup2(m_stdioPipe[1], 2);
-    m_stdioThread = std::thread(MonitorStdIOThread, this);
+  // Pipe stdout and sterr back to the server.
+  m_savedStdout = dup(1);
+  m_savedStderr = dup(2);
+  pipe(m_stdioPipe.data());
+  dup2(m_stdioPipe[1], 1);
+  dup2(m_stdioPipe[1], 2);
+  m_stdioThread = std::thread(MonitorStdIOThread, this);
 #endif
 }
 
 void TestHarness::monitorStdIOThread()
 {
 #if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
-    assert(m_initialized);
+  assert(m_initialized);
 
-    std::unique_ptr<TCPClient> threadTCPClient;
-    if (m_primaryTCPClient != nullptr)
-    {
-        threadTCPClient = m_primaryTCPClient->clone();
-    }
+  std::unique_ptr<TCPClient> threadTCPClient;
+  if (m_primaryTCPClient != nullptr)
+  {
+    threadTCPClient = m_primaryTCPClient->clone();
+  }
 
-    char buff[1024];
-    size_t readSize;
-    while ((readSize = read(m_stdioPipe[0], buff, std::size(buff) - 1)) > 0)
-    {
-        buff[readSize] = '\0';
-        if (threadTCPClient != nullptr)
-        {
-            threadTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
-            threadTCPClient->sendString(buff);
-        }
-        else if (FILE* f = nullptr/*
-                     fopen((m_outputDir / "rive_log.png").string().c_str(),
-                           "a")*/)
-        {
-            // Sometimes it can help to also save a log file (e.g., when
-            // ANDROID_LOG_DEBUG gets lost on browserstack).
-            // DANGER: Writing this file may also cause failures, so turn the
-            // if() back on with caution.
-            fwrite(buff, 1, strlen(buff), f);
-            fclose(f);
-        }
-#ifdef RIVE_ANDROID
-        __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tests", buff);
-#endif
-    }
-
+  char buff[1024];
+  size_t readSize;
+  while ((readSize = read(m_stdioPipe[0], buff, std::size(buff) - 1)) > 0)
+  {
+    buff[readSize] = '\0';
     if (threadTCPClient != nullptr)
     {
-        threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
-        threadTCPClient->send4(false /* Don't shutdown the server yet */);
+      threadTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
+      threadTCPClient->sendString(buff);
     }
+    else if (FILE* f = nullptr/*
+                     fopen((m_outputDir / "rive_log.png").string().c_str(),
+                           "a")*/)
+    {
+      // Sometimes it can help to also save a log file (e.g., when
+      // ANDROID_LOG_DEBUG gets lost on browserstack).
+      // DANGER: Writing this file may also cause failures, so turn the
+      // if() back on with caution.
+      fwrite(buff, 1, strlen(buff), f);
+      fclose(f);
+    }
+#ifdef RIVE_ANDROID
+    __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tests", buff);
+#endif
+  }
+
+  if (threadTCPClient != nullptr)
+  {
+    threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
+    threadTCPClient->send4(false /* Don't shutdown the server yet */);
+  }
 #endif
 }
 
 void send_png_data_chunk(png_structp png, png_bytep data, png_size_t length)
 {
-    auto tcpClient = reinterpret_cast<TCPClient*>(png_get_io_ptr(png));
-    tcpClient->send4(rive::math::lossless_numeric_cast<uint32_t>(length));
-    tcpClient->sendall(data, length);
+  auto tcpClient = reinterpret_cast<TCPClient*>(png_get_io_ptr(png));
+  tcpClient->send4(rive::math::lossless_numeric_cast<uint32_t>(length));
+  tcpClient->sendall(data, length);
 }
 
 void flush_png_data(png_structp png) {}
 
-static void save_png_impl(ImageSaveArgs args,
-                          const std::filesystem::path& outputDir,
-                          PNGCompression pngCompression,
-                          TCPClient* tcpClient)
+static void save_png_impl(
+    ImageSaveArgs args,
+    const std::filesystem::path& outputDir,
+    PNGCompression pngCompression,
+    TCPClient* tcpClient)
 {
-    assert(args.width > 0);
-    assert(args.height > 0);
-    std::string pngName = args.name + ".png";
+  assert(args.width > 0);
+  assert(args.height > 0);
+  std::string pngName = args.name + ".png";
 
-    if (tcpClient == nullptr)
-    {
-        // We aren't connect to a test harness. Just save a file.
-        auto destination = outputDir;
-        destination /= pngName;
-        destination.make_preferred();
-        WritePNGFile(args.pixels.data(),
-                     args.width,
-                     args.height,
-                     true,
-                     destination.generic_string().c_str(),
-                     pngCompression);
-        return;
-    }
+  if (tcpClient == nullptr)
+  {
+    // We aren't connect to a test harness. Just save a file.
+    auto destination = outputDir;
+    destination /= pngName;
+    destination.make_preferred();
+    WritePNGFile(
+        args.pixels.data(),
+        args.width,
+        args.height,
+        true,
+        destination.generic_string().c_str(),
+        pngCompression);
+    return;
+  }
 
-    tcpClient->send4(REQUEST_TYPE_IMAGE_UPLOAD);
-    tcpClient->sendString(pngName);
+  tcpClient->send4(REQUEST_TYPE_IMAGE_UPLOAD);
+  tcpClient->sendString(pngName);
 
-    auto png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (!png)
-    {
-        fprintf(stderr, "TestHarness: png_create_write_struct failed\n");
-        abort();
-    }
+  auto png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  if (!png)
+  {
+    fprintf(stderr, "TestHarness: png_create_write_struct failed\n");
+    abort();
+  }
 
-    // RLE with SUB gets best performance with our content.
-    png_set_compression_level(png, 6);
-    png_set_compression_strategy(png, Z_RLE);
-    png_set_compression_strategy(png, Z_RLE);
-    png_set_filter(png, 0, PNG_FILTER_SUB);
+  // RLE with SUB gets best performance with our content.
+  png_set_compression_level(png, 6);
+  png_set_compression_strategy(png, Z_RLE);
+  png_set_compression_strategy(png, Z_RLE);
+  png_set_filter(png, 0, PNG_FILTER_SUB);
 
-    auto info = png_create_info_struct(png);
-    if (!info)
-    {
-        fprintf(stderr, "TestHarness: png_create_info_struct failed\n");
-        abort();
-    }
+  auto info = png_create_info_struct(png);
+  if (!info)
+  {
+    fprintf(stderr, "TestHarness: png_create_info_struct failed\n");
+    abort();
+  }
 
-    if (setjmp(png_jmpbuf(png)))
-    {
-        fprintf(stderr, "TestHarness: Error during init_io\n");
-        abort();
-    }
+  if (setjmp(png_jmpbuf(png)))
+  {
+    fprintf(stderr, "TestHarness: Error during init_io\n");
+    abort();
+  }
 
-    png_set_write_fn(png, tcpClient, &send_png_data_chunk, &flush_png_data);
+  png_set_write_fn(png, tcpClient, &send_png_data_chunk, &flush_png_data);
 
-    // Write header.
-    if (setjmp(png_jmpbuf(png)))
-    {
-        fprintf(stderr, "TestHarness: Error during writing header\n");
-        abort();
-    }
+  // Write header.
+  if (setjmp(png_jmpbuf(png)))
+  {
+    fprintf(stderr, "TestHarness: Error during writing header\n");
+    abort();
+  }
 
-    png_set_IHDR(png,
-                 info,
-                 args.width,
-                 args.height,
-                 8,
-                 PNG_COLOR_TYPE_RGB_ALPHA,
-                 PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_BASE,
-                 PNG_FILTER_TYPE_BASE);
+  png_set_IHDR(
+      png,
+      info,
+      args.width,
+      args.height,
+      8,
+      PNG_COLOR_TYPE_RGB_ALPHA,
+      PNG_INTERLACE_NONE,
+      PNG_COMPRESSION_TYPE_BASE,
+      PNG_FILTER_TYPE_BASE);
 
-    png_write_info(png, info);
+  png_write_info(png, info);
 
-    // Write bytes.
-    if (setjmp(png_jmpbuf(png)))
-    {
-        fprintf(stderr, "TestHarness: Error during writing bytes\n");
-        abort();
-    }
+  // Write bytes.
+  if (setjmp(png_jmpbuf(png)))
+  {
+    fprintf(stderr, "TestHarness: Error during writing bytes\n");
+    abort();
+  }
 
-    std::vector<uint8_t*> rows(args.height);
-    for (uint32_t y = 0; y < args.height; ++y)
-    {
-        rows[y] = args.pixels.data() + (args.height - 1 - y) * args.width * 4;
-    }
-    png_write_image(png, rows.data());
+  std::vector<uint8_t*> rows(args.height);
+  for (uint32_t y = 0; y < args.height; ++y)
+  {
+    rows[y] = args.pixels.data() + (args.height - 1 - y) * args.width * 4;
+  }
+  png_write_image(png, rows.data());
 
-    // End write.
-    if (setjmp(png_jmpbuf(png)))
-    {
-        fprintf(stderr, "TestHarness: Error during end of write");
-        abort();
-    }
+  // End write.
+  if (setjmp(png_jmpbuf(png)))
+  {
+    fprintf(stderr, "TestHarness: Error during end of write");
+    abort();
+  }
 
-    png_write_end(png, NULL);
-    png_destroy_write_struct(&png, &info);
+  png_write_end(png, NULL);
+  png_destroy_write_struct(&png, &info);
 
-    tcpClient->sendHandshake();
-    tcpClient->recvHandshake();
+  tcpClient->sendHandshake();
+  tcpClient->recvHandshake();
 }
 
 void TestHarness::savePNG(ImageSaveArgs args)
 {
-    assert(m_initialized);
-    if (!m_encodeThreads.empty())
-    {
-        m_encodeQueue.push(std::move(args));
-    }
-    else
-    {
-        save_png_impl(std::move(args),
-                      m_outputDir,
-                      m_pngCompression,
-                      m_primaryTCPClient.get());
-    }
+  assert(m_initialized);
+  if (!m_encodeThreads.empty())
+  {
+    m_encodeQueue.push(std::move(args));
+  }
+  else
+  {
+    save_png_impl(
+        std::move(args),
+        m_outputDir,
+        m_pngCompression,
+        m_primaryTCPClient.get());
+  }
 }
 
 void TestHarness::encodePNGThread()
 {
-    assert(m_initialized);
+  assert(m_initialized);
 
-    std::unique_ptr<TCPClient> threadTCPClient;
-    if (m_primaryTCPClient != nullptr)
-    {
-        threadTCPClient = m_primaryTCPClient->clone();
-    }
+  std::unique_ptr<TCPClient> threadTCPClient;
+  if (m_primaryTCPClient != nullptr)
+  {
+    threadTCPClient = m_primaryTCPClient->clone();
+  }
 
-    for (;;)
+  for (;;)
+  {
+    ImageSaveArgs args;
+    m_encodeQueue.pop(args);
+    if (args.quit)
     {
-        ImageSaveArgs args;
-        m_encodeQueue.pop(args);
-        if (args.quit)
-        {
-            break;
-        }
-        save_png_impl(std::move(args),
-                      m_outputDir,
-                      m_pngCompression,
-                      threadTCPClient.get());
+      break;
     }
+    save_png_impl(
+        std::move(args),
+        m_outputDir,
+        m_pngCompression,
+        threadTCPClient.get());
+  }
 
-    if (threadTCPClient != nullptr)
-    {
-        threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
-        threadTCPClient->send4(false /* Don't shutdown the server yet */);
-    }
+  if (threadTCPClient != nullptr)
+  {
+    threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
+    threadTCPClient->send4(false /* Don't shutdown the server yet */);
+  }
 }
 
 bool TestHarness::claimGMTest(const std::string& name)
 {
-    if (m_primaryTCPClient != nullptr)
-    {
-        m_primaryTCPClient->send4(REQUEST_TYPE_CLAIM_GM_TEST);
-        m_primaryTCPClient->sendString(name);
-        return m_primaryTCPClient->recv4();
-    }
-    return true;
+  if (m_primaryTCPClient != nullptr)
+  {
+    m_primaryTCPClient->send4(REQUEST_TYPE_CLAIM_GM_TEST);
+    m_primaryTCPClient->sendString(name);
+    return m_primaryTCPClient->recv4();
+  }
+  return true;
 }
 
 bool TestHarness::fetchRivFile(std::string& name, std::vector<uint8_t>& bytes)
 {
-    if (m_primaryTCPClient == nullptr)
-    {
-        return false;
-    }
-    m_primaryTCPClient->send4(REQUEST_TYPE_FETCH_RIV_FILE);
-    uint32_t nameLength = m_primaryTCPClient->recv4();
-    if (nameLength == TCPClient::SHUTDOWN_TOKEN)
-    {
-        return false;
-    }
-    name.resize(nameLength);
-    m_primaryTCPClient->recvall(name.data(), nameLength);
-    uint32_t fileSize = m_primaryTCPClient->recv4();
-    bytes.resize(fileSize);
-    m_primaryTCPClient->recvall(bytes.data(), fileSize);
-    return true;
+  if (m_primaryTCPClient == nullptr)
+  {
+    return false;
+  }
+  m_primaryTCPClient->send4(REQUEST_TYPE_FETCH_RIV_FILE);
+  uint32_t nameLength = m_primaryTCPClient->recv4();
+  if (nameLength == TCPClient::SHUTDOWN_TOKEN)
+  {
+    return false;
+  }
+  name.resize(nameLength);
+  m_primaryTCPClient->recvall(name.data(), nameLength);
+  uint32_t fileSize = m_primaryTCPClient->recv4();
+  bytes.resize(fileSize);
+  m_primaryTCPClient->recvall(bytes.data(), fileSize);
+  return true;
 }
 
 void TestHarness::printMessageOnServer(const char* msg)
 {
-    if (m_primaryTCPClient != nullptr)
-    {
-        m_primaryTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
-        m_primaryTCPClient->sendString(msg);
-    }
+  if (m_primaryTCPClient != nullptr)
+  {
+    m_primaryTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
+    m_primaryTCPClient->sendString(msg);
+  }
 }
 
 void TestHarness::inputPumpThread()
 {
-    assert(m_initialized);
+  assert(m_initialized);
 
-    if (m_primaryTCPClient == nullptr)
+  if (m_primaryTCPClient == nullptr)
+  {
+    return;
+  }
+
+  std::unique_ptr<TCPClient> threadTCPClient = m_primaryTCPClient->clone();
+
+  for (std::vector<char> keys; m_initialized;)
+  {
+    threadTCPClient->send4(REQUEST_TYPE_GET_INPUT);
+    uint32_t len = threadTCPClient->recv4();
+    if (len == TCPClient::SHUTDOWN_TOKEN)
     {
-        return;
+      return;
     }
-
-    std::unique_ptr<TCPClient> threadTCPClient = m_primaryTCPClient->clone();
-
-    for (std::vector<char> keys; m_initialized;)
+    keys.resize(len);
+    threadTCPClient->recvall(keys.data(), len);
+    for (char key : keys)
     {
-        threadTCPClient->send4(REQUEST_TYPE_GET_INPUT);
-        uint32_t len = threadTCPClient->recv4();
-        if (len == TCPClient::SHUTDOWN_TOKEN)
-        {
-            return;
-        }
-        keys.resize(len);
-        threadTCPClient->recvall(keys.data(), len);
-        for (char key : keys)
-        {
-            m_inputQueue.push(char(key));
-        }
+      m_inputQueue.push(char(key));
     }
+  }
 
-    threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
-    threadTCPClient->send4(false /* Don't shutdown the server yet */);
+  threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
+  threadTCPClient->send4(false /* Don't shutdown the server yet */);
 }
 
 bool TestHarness::peekChar(char& key)
 {
 #ifdef __EMSCRIPTEN__
-    // We don't compile with emscripten pthreads.
-    return false;
+  // We don't compile with emscripten pthreads.
+  return false;
 #endif
-    if (m_primaryTCPClient == nullptr)
-    {
-        return false;
-    }
-    if (!m_inputPumpThread.joinable())
-    {
-        m_inputPumpThread = std::thread(InputPumpThread, this);
-    }
-    return m_inputQueue.try_pop(key);
+  if (m_primaryTCPClient == nullptr)
+  {
+    return false;
+  }
+  if (!m_inputPumpThread.joinable())
+  {
+    m_inputPumpThread = std::thread(InputPumpThread, this);
+  }
+  return m_inputQueue.try_pop(key);
 }
 
 void TestHarness::shutdown()
 {
-    if (!m_initialized)
-    {
-        return;
-    }
+  if (!m_initialized)
+  {
+    return;
+  }
 
-    for (std::thread& thread RIVE_MAYBE_UNUSED : m_encodeThreads)
-    {
-        m_encodeQueue.push({.quit = true});
-    }
-    for (std::thread& thread : m_encodeThreads)
-    {
-        thread.join();
-    }
-    m_encodeThreads.clear();
+  for (std::thread& thread RIVE_MAYBE_UNUSED : m_encodeThreads)
+  {
+    m_encodeQueue.push({.quit = true});
+  }
+  for (std::thread& thread : m_encodeThreads)
+  {
+    thread.join();
+  }
+  m_encodeThreads.clear();
 
-    shutdownStdioThread();
-    shutdownInputPumpThread();
+  shutdownStdioThread();
+  shutdownInputPumpThread();
 
-    if (m_primaryTCPClient != nullptr)
-    {
-        m_primaryTCPClient->send4(REQUEST_TYPE_DISCONNECT);
-        m_primaryTCPClient->send4(true /* Shutdown the server */);
-        m_primaryTCPClient = nullptr;
-    }
+  if (m_primaryTCPClient != nullptr)
+  {
+    m_primaryTCPClient->send4(REQUEST_TYPE_DISCONNECT);
+    m_primaryTCPClient->send4(true /* Shutdown the server */);
+    m_primaryTCPClient = nullptr;
+  }
 
-    m_initialized = false;
+  m_initialized = false;
 }
 
 void TestHarness::shutdownStdioThread()
 {
 #if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
-    if (m_savedStdout != 0 || m_savedStderr != 0)
-    {
-        // Restore stdout and stderr.
-        dup2(m_savedStdout, 1);
-        dup2(m_savedStderr, 2);
-        close(m_savedStdout);
-        close(m_savedStderr);
-        m_savedStdout = m_savedStderr = 0;
+  if (m_savedStdout != 0 || m_savedStderr != 0)
+  {
+    // Restore stdout and stderr.
+    dup2(m_savedStdout, 1);
+    dup2(m_savedStderr, 2);
+    close(m_savedStdout);
+    close(m_savedStderr);
+    m_savedStdout = m_savedStderr = 0;
 
-        // Shutdown the stdio-monitoring thread and pipe.
-        close(m_stdioPipe[1]);
-        m_stdioThread.join();
-        close(m_stdioPipe[0]);
-        m_stdioPipe = {0, 0};
-    }
+    // Shutdown the stdio-monitoring thread and pipe.
+    close(m_stdioPipe[1]);
+    m_stdioThread.join();
+    close(m_stdioPipe[0]);
+    m_stdioPipe = {0, 0};
+  }
 #endif
 }
 
 void TestHarness::shutdownInputPumpThread()
 {
-    if (m_inputPumpThread.joinable())
-    {
-        m_primaryTCPClient->send4(REQUEST_TYPE_CANCEL_INPUT);
-        m_inputPumpThread.join();
-    }
+  if (m_inputPumpThread.joinable())
+  {
+    m_primaryTCPClient->send4(REQUEST_TYPE_CANCEL_INPUT);
+    m_inputPumpThread.join();
+  }
 }
 
-void rive_tests::report_fatal_error(const char* serverAddress,
-                                    const char* message)
+void rive_tests::report_fatal_error(
+    const char* serverAddress,
+    const char* message)
 {
-    fprintf(stderr, "%s\n", message);
-    fflush(stderr);
-    if (serverAddress == nullptr || serverAddress[0] == '\0')
-    {
-        return;
-    }
-    if (std::unique_ptr<TCPClient> tcpClient =
-            TCPClient::Connect(serverAddress))
-    {
-        tcpClient->send4(REQUEST_TYPE_APPLICATION_CRASH);
-        tcpClient->sendString(message);
-    }
+  fprintf(stderr, "%s\n", message);
+  fflush(stderr);
+  if (serverAddress == nullptr || serverAddress[0] == '\0')
+  {
+    return;
+  }
+  if (std::unique_ptr<TCPClient> tcpClient = TCPClient::Connect(serverAddress))
+  {
+    tcpClient->send4(REQUEST_TYPE_APPLICATION_CRASH);
+    tcpClient->sendString(message);
+  }
 }
 
 void TestHarness::onApplicationCrash(const char* message)
 {
-    if (m_primaryTCPClient != nullptr)
-    {
-        // Buy monitorStdIOThread() some time to finish pumping any messages
-        // related to this abort.
+  if (m_primaryTCPClient != nullptr)
+  {
+    // Buy monitorStdIOThread() some time to finish pumping any messages
+    // related to this abort.
 
-        // std::this_thread::sleep_for causes weird link issues in unreal. just
-        // use sleep instead
+    // std::this_thread::sleep_for causes weird link issues in unreal. just
+    // use sleep instead
 #if defined(RIVE_UNREAL) && defined(_WIN32)
-        Sleep(100);
+    Sleep(100);
 #else
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-        shutdownStdioThread();
-        shutdownInputPumpThread();
-        m_primaryTCPClient->send4(REQUEST_TYPE_APPLICATION_CRASH);
-        m_primaryTCPClient->sendString(message);
-    }
+    shutdownStdioThread();
+    shutdownInputPumpThread();
+    m_primaryTCPClient->send4(REQUEST_TYPE_APPLICATION_CRASH);
+    m_primaryTCPClient->sendString(message);
+  }
 }

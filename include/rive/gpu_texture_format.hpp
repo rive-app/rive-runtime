@@ -11,13 +11,13 @@ namespace rive
 // consumes them) can include it without cross-layer dependencies.
 enum class GPUTextureFormat : uint8_t
 {
-    rgba32,
-    bc1,
-    bc2,
-    bc3,
-    bc7,
-    astc,
-    etc2,
+  rgba32,
+  bc1,
+  bc2,
+  bc3,
+  bc7,
+  astc,
+  etc2,
 };
 
 } // namespace rive

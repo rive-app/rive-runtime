@@ -6,23 +6,27 @@ using namespace rive;
 
 ScriptedTransitionCondition::~ScriptedTransitionCondition()
 {
-    disposeScriptInputs();
+  disposeScriptInputs();
 }
 
 void ScriptedTransitionCondition::disposeScriptInputs()
 {
-    auto props = m_customProperties;
-    ScriptedObject::disposeScriptInputs();
-    for (auto prop : props)
+  auto props = m_customProperties;
+  ScriptedObject::disposeScriptInputs();
+  for (auto prop : props)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
     {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr)
-        {
-            // ScriptedDataConverters need to delete their own inputs
-            // because they are not components
-            delete scriptInput;
-        }
+#ifdef WITH_RIVE_EDITOR
+      if (prop->editorArena() != nullptr)
+        continue;
+#endif
+      // ScriptedDataConverters need to delete their own inputs
+      // because they are not components
+      delete scriptInput;
     }
+  }
 }
 
 // Note: evaluateStateful is the actual instance of the
@@ -33,17 +37,17 @@ bool ScriptedTransitionCondition::evaluateStateful(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    bool result = false;
+  bool result = false;
 #ifdef WITH_RIVE_SCRIPTING
-    if (m_vm != nullptr && m_vm->valid())
-    {
-        result = m_vm->callBooleanMethod(
-            const_cast<ScriptedTransitionCondition*>(this),
-            m_self,
-            "evaluate");
-    }
+  if (m_vm != nullptr && m_vm->valid())
+  {
+    result = m_vm->callBooleanMethod(
+        const_cast<ScriptedTransitionCondition*>(this),
+        m_self,
+        "evaluate");
+  }
 #endif
-    return result;
+  return result;
 }
 
 bool ScriptedTransitionCondition::evaluate(
@@ -51,61 +55,70 @@ bool ScriptedTransitionCondition::evaluate(
     StateMachineLayerInstance* layerInstance) const
 {
 #ifdef WITH_RIVE_SCRIPTING
-    auto scriptedObject = stateMachineInstance->scriptedObject(this);
-    if (scriptedObject != nullptr)
-    {
-        auto statefulListenerAction =
-            static_cast<ScriptedTransitionCondition*>(scriptedObject);
-        return statefulListenerAction->evaluateStateful(stateMachineInstance,
-                                                        layerInstance);
-    }
+  auto scriptedObject = stateMachineInstance->scriptedObject(this);
+  if (scriptedObject != nullptr)
+  {
+    auto statefulListenerAction = static_cast<ScriptedTransitionCondition*>(
+        scriptedObject);
+    return statefulListenerAction->evaluateStateful(
+        stateMachineInstance,
+        layerInstance);
+  }
 #endif
-    return false;
+  return false;
 }
 
 StatusCode ScriptedTransitionCondition::import(ImportStack& importStack)
 {
-    auto result = registerReferencer(importStack);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    stateMachineImporter->addScriptedObject(this);
-    return Super::import(importStack);
+  auto result = registerReferencer(importStack);
+  if (result != StatusCode::Ok)
+  {
+    return result;
+  }
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  stateMachineImporter->addScriptedObject(this);
+  return Super::import(importStack);
 }
 
 Core* ScriptedTransitionCondition::clone() const
 {
-    ScriptedTransitionCondition* twin = ScriptedTransitionConditionBase::clone()
-                                            ->as<ScriptedTransitionCondition>();
-    if (m_fileAsset != nullptr)
-    {
-        twin->setAsset(m_fileAsset);
-    }
-    return twin;
+  ScriptedTransitionCondition* twin = ScriptedTransitionConditionBase::clone()
+                                          ->as<ScriptedTransitionCondition>();
+  if (m_fileAsset != nullptr)
+  {
+    twin->setAsset(m_fileAsset);
+  }
+  return twin;
 }
 
 ScriptedObject* ScriptedTransitionCondition::cloneScriptedObject(
     DataBindContainer* dataBindContainer) const
 {
-    auto clonedScriptedObject = clone()->as<ScriptedTransitionCondition>();
-    cloneProperties(clonedScriptedObject, dataBindContainer);
-    clonedScriptedObject->reinit();
-    return clonedScriptedObject;
+  auto clonedScriptedObject = clone()->as<ScriptedTransitionCondition>();
+  cloneProperties(clonedScriptedObject, dataBindContainer);
+  clonedScriptedObject->reinit();
+  return clonedScriptedObject;
 }
 
 void ScriptedTransitionCondition::addProperty(CustomProperty* prop)
 {
-    auto scriptInput = ScriptInput::from(prop);
-    if (scriptInput != nullptr)
-    {
-        scriptInput->scriptedObject(this);
-    }
-    CustomPropertyContainer::addProperty(prop);
+  auto scriptInput = ScriptInput::from(prop);
+  if (scriptInput != nullptr)
+  {
+    scriptInput->scriptedObject(this);
+  }
+  CustomPropertyContainer::addProperty(prop);
 }
+#ifdef WITH_RIVE_EDITOR
+void ScriptedTransitionCondition::editorPrepareForDestruction()
+{
+  scriptDispose();
+  dataContext(nullptr);
+}
+
+#endif

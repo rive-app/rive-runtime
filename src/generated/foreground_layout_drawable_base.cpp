@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ForegroundLayoutDrawableBase::clone() const
 {
-    auto cloned = new ForegroundLayoutDrawable();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ForegroundLayoutDrawable();
+  cloned->copy(*this);
+  return cloned;
 }

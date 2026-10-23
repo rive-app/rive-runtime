@@ -1,5 +1,6 @@
 #include "rive/text/text_input.hpp"
 #include "rive/text/text_style.hpp"
+#include "rive/text/text_input_cursor.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/artboard.hpp"
@@ -21,41 +22,83 @@ void TextInput::draw(Renderer* renderer) {}
 
 Core* TextInput::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
-bool TextInput::hitTestPoint(const Vec2D& position,
-                             bool skipOnUnclipped,
-                             bool isPrimaryHit)
+LayoutComponent* TextInput::fieldViewport() const
 {
-    // TextInput must check its own bounds before delegating to parent.
-    // Unlike layouts, we always check bounds regardless of clip state.
+  if (m_scrollConstraint == nullptr || !m_scrollConstraint->hasLayoutParent())
+  {
+    return nullptr;
+  }
+  auto content = m_scrollConstraint->content();
+  if (content->parent() == nullptr || !content->parent()->is<LayoutComponent>())
+  {
+    return nullptr;
+  }
+  return m_scrollConstraint->viewport();
+}
+
+bool TextInput::hitTestPoint(
+    const Vec2D& position,
+    bool skipOnUnclipped,
+    bool isPrimaryHit)
+{
+  // TextInput must check its own bounds before delegating to parent.
+  // Unlike layouts, we always check bounds regardless of clip state.
+  //
+  // The whole field takes presses, as a platform text field does, and the
+  // drag places the caret at the nearest position: a press past the end of
+  // the text lands at the end. Inside a scroll viewport the field is the
+  // viewport, since the content hugs the text and its slot would miss.
+  LayoutComponent* viewport = fieldViewport();
+  if (viewport != nullptr)
+  {
+    Mat2D inverseViewport;
+    if (!viewport->worldTransform().invert(&inverseViewport))
+    {
+      return false;
+    }
+    if (!viewport->localBounds().contains(inverseViewport * position))
+    {
+      return false;
+    }
+  }
+  else
+  {
     Mat2D inverseWorld;
     if (!worldTransform().invert(&inverseWorld))
     {
-        return false;
+      return false;
     }
 
     Vec2D localPosition = inverseWorld * position;
-    if (!localBounds().contains(localPosition))
+    AABB bounds = localBounds();
+    if (!std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
     {
-        return false;
+      AABB::expandTo(bounds, Vec2D(0.0f, 0.0f));
+      AABB::expandTo(bounds, Vec2D(m_layoutWidth, m_layoutHeight));
     }
+    if (!bounds.contains(localPosition))
+    {
+      return false;
+    }
+  }
 
-    // Bounds check passed, now check parent hierarchy
-    return Drawable::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
+  // Bounds check passed, now check parent hierarchy
+  return Drawable::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
 }
 
 void TextInput::textChanged()
 {
-    m_sourceText = m_Text;
+  m_sourceText = m_Text;
 #ifdef WITH_RIVE_TEXT
-    syncDisplayedTextFromSource(false);
+  syncDisplayedTextFromSource(false);
 #endif
-    markShapeDirty();
+  markShapeDirty();
 }
 void TextInput::selectionRadiusChanged()
 {
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.selectionCornerRadius(selectionRadius());
-    markShapeDirty();
+  m_rawTextInput.selectionCornerRadius(selectionRadius());
+  markShapeDirty();
 #endif
 }
 
@@ -64,91 +107,105 @@ void TextInput::multilineChanged() { updateMultiline(true); }
 void TextInput::obscuredChanged()
 {
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.obscured(obscured());
+  m_rawTextInput.obscured(obscured());
 #endif
 #ifdef WITH_RIVE_LAYOUT
-    markLayoutNodeDirty();
+  markLayoutNodeDirty();
 #endif
-    markShapeDirty();
+  markShapeDirty();
+}
+
+// The limits only hold back later edits, so nothing displayed changes.
+void TextInput::maxCharactersChanged()
+{
+#ifdef WITH_RIVE_TEXT
+  m_rawTextInput.maxCharacters(maxCharacters());
+#endif
+}
+
+void TextInput::maxLinesChanged()
+{
+#ifdef WITH_RIVE_TEXT
+  m_rawTextInput.maxLines(maxLines());
+#endif
 }
 
 void TextInput::alignValueChanged()
 {
-    updateAlignment();
-    markShapeDirty();
+  updateAlignment();
+  markShapeDirty();
 }
 
 void TextInput::verticalAlignValueChanged()
 {
-    updateAlignment();
-    markShapeDirty();
+  updateAlignment();
+  markShapeDirty();
 }
 
 void TextInput::markShapeDirty()
 {
-    restartCursorBlink();
-    addDirt(ComponentDirt::TextShape);
+  restartCursorBlink();
+  addDirt(ComponentDirt::TextShape);
 #ifdef WITH_RIVE_LAYOUT
-    // We always size intrinsically, so any reshape can change our measure.
-    markLayoutNodeDirty();
+  // We always size intrinsically, so any reshape can change our measure.
+  markLayoutNodeDirty();
 #endif
 }
 
 bool TextInput::updateAlignment()
 {
 #ifdef WITH_RIVE_TEXT
-    // Unlike Text, we don't resolve left/right against the layout direction:
-    // TextInput is a Drawable, not a LayoutComponent, so it has no direction to
-    // inherit.
-    TextAlign align = (TextAlign)alignValue();
+  // Unlike Text, we don't resolve left/right against the layout direction:
+  // TextInput is a Drawable, not a LayoutComponent, so it has no direction to
+  // inherit.
+  TextAlign align = (TextAlign)alignValue();
 
-    VerticalTextAlign verticalAlign = (VerticalTextAlign)verticalAlignValue();
+  VerticalTextAlign verticalAlign = (VerticalTextAlign)verticalAlignValue();
 
-    // We hug our text on both axes -- single line is as wide as its text,
-    // multiline is as wide as its widest wrapped line -- so m_layoutWidth is
-    // the text's own size and never the field's. The field is the viewport's
-    // content box: its padding is space the text can't occupy, so aligning
-    // against the padded width would push the text into the padding.
-    //
-    // Deliberately not ScrollConstraint::viewportWidth/Height, which measure
-    // from the content's origin to the viewport's far edge for the scrolling
-    // axis and leave the trailing padding for the scroll math to subtract.
-    float width = m_layoutWidth;
-    float height = m_layoutHeight;
-    if (m_scrollConstraint != nullptr)
+  // We hug our text on both axes -- single line is as wide as its text,
+  // multiline is as wide as its widest wrapped line -- so m_layoutWidth is
+  // the text's own size and never the field's. The field is the viewport's
+  // content box: its padding is space the text can't occupy, so aligning
+  // against the padded width would push the text into the padding.
+  //
+  // Deliberately not ScrollConstraint::viewportWidth/Height, which measure
+  // from the content's origin to the viewport's far edge for the scrolling
+  // axis and leave the trailing padding for the scroll math to subtract.
+  float width = m_layoutWidth;
+  float height = m_layoutHeight;
+  if (m_scrollConstraint != nullptr)
+  {
+    LayoutComponent* viewport = m_scrollConstraint->viewport();
+    if (viewport != nullptr)
     {
-        LayoutComponent* viewport = m_scrollConstraint->viewport();
-        if (viewport != nullptr)
-        {
-            width = viewport->layoutWidth() - viewport->paddingLeft() -
-                    viewport->paddingRight();
-            height = viewport->layoutHeight() - viewport->paddingTop() -
-                     viewport->paddingBottom();
-        }
+      width = viewport->layoutWidth() - viewport->paddingLeft() -
+              viewport->paddingRight();
+      height = viewport->layoutHeight() - viewport->paddingTop() -
+               viewport->paddingBottom();
     }
-    if (std::isnan(width) || width < 0.0f)
-    {
-        width = 0.0f;
-    }
-    if (std::isnan(height) || height < 0.0f)
-    {
-        height = 0.0f;
-    }
+  }
+  if (std::isnan(width) || width < 0.0f)
+  {
+    width = 0.0f;
+  }
+  if (std::isnan(height) || height < 0.0f)
+  {
+    height = 0.0f;
+  }
 
-    if (m_rawTextInput.align() == align &&
-        m_rawTextInput.alignWidth() == width &&
-        m_rawTextInput.verticalAlign() == verticalAlign &&
-        m_rawTextInput.alignHeight() == height)
-    {
-        return false;
-    }
-    m_rawTextInput.align(align);
-    m_rawTextInput.alignWidth(width);
-    m_rawTextInput.verticalAlign(verticalAlign);
-    m_rawTextInput.alignHeight(height);
-    return true;
-#else
+  if (m_rawTextInput.align() == align && m_rawTextInput.alignWidth() == width &&
+      m_rawTextInput.verticalAlign() == verticalAlign &&
+      m_rawTextInput.alignHeight() == height)
+  {
     return false;
+  }
+  m_rawTextInput.align(align);
+  m_rawTextInput.alignWidth(width);
+  m_rawTextInput.verticalAlign(verticalAlign);
+  m_rawTextInput.alignHeight(height);
+  return true;
+#else
+  return false;
 #endif
 }
 
@@ -157,306 +214,336 @@ static constexpr float kCursorBlinkSeconds = 0.5f;
 
 void TextInput::markPaintDirty()
 {
-    // Both dirty marks are triggered by the interactions that move the caret or
-    // change the text, so keep it solid while the user is working in the field.
-    restartCursorBlink();
-    addDirt(ComponentDirt::Paint);
+  // Both dirty marks are triggered by the interactions that move the caret or
+  // change the text, so keep it solid while the user is working in the field.
+  restartCursorBlink();
+  addDirt(ComponentDirt::Paint);
 }
 
 void TextInput::restartCursorBlink()
 {
-    m_cursorBlinkSeconds = 0.0f;
-    m_cursorBlinkVisible = true;
+  m_cursorBlinkSeconds = 0.0f;
+  m_cursorBlinkVisible = true;
 }
 
 bool TextInput::advanceCursorBlink(float elapsedSeconds)
 {
-    if (!m_focused)
+  if (!m_focused)
+  {
+    restartCursorBlink();
+    return false;
+  }
+  m_cursorBlinkSeconds += elapsedSeconds;
+  if (m_cursorBlinkSeconds >= kCursorBlinkSeconds)
+  {
+    // A long advance (a dropped or suspended frame) can span several
+    // phases, and only an odd number of them leaves the caret flipped.
+    float phases = std::floor(m_cursorBlinkSeconds / kCursorBlinkSeconds);
+    m_cursorBlinkSeconds = std::fmod(m_cursorBlinkSeconds, kCursorBlinkSeconds);
+    if (std::fmod(phases, 2.0f) != 0.0f)
     {
-        restartCursorBlink();
-        return false;
-    }
-    m_cursorBlinkSeconds += elapsedSeconds;
-    if (m_cursorBlinkSeconds >= kCursorBlinkSeconds)
-    {
-        // A long advance (a dropped or suspended frame) can span several
-        // phases, and only an odd number of them leaves the caret flipped.
-        float phases = std::floor(m_cursorBlinkSeconds / kCursorBlinkSeconds);
-        m_cursorBlinkSeconds =
-            std::fmod(m_cursorBlinkSeconds, kCursorBlinkSeconds);
-        if (std::fmod(phases, 2.0f) != 0.0f)
+      bool wasVisible = isCursorVisible();
+      m_cursorBlinkVisible = !m_cursorBlinkVisible;
+      // The cursor drawable reads isCursorVisible() when it draws, so
+      // nothing else marks the toggle. Without dirt, a host that skips
+      // frames while Artboard::didChange() is false would never show it.
+      // Dirty the cursor rather than markPaintDirty(), which would
+      // restart the blink and re-scroll a scrolled field to the caret.
+      // A selection hides the caret, so its toggles change nothing.
+      if (isCursorVisible() != wasVisible)
+      {
+        for (auto cursor : children<TextInputCursor>())
         {
-            m_cursorBlinkVisible = !m_cursorBlinkVisible;
+          cursor->addDirt(ComponentDirt::Paint);
         }
+      }
     }
-    // Keep advancing while focused so the caret keeps toggling. The cursor
-    // drawable reads isCursorVisible() when it builds its path, so no dirt is
-    // needed for the toggle itself.
-    return true;
+  }
+  // Keep advancing while focused so the caret keeps toggling.
+  return true;
+}
+
+bool TextInput::isCursorVisible() const
+{
+#ifdef WITH_RIVE_TEXT
+  if (!m_rawTextInput.cursor().isCollapsed())
+  {
+    return false;
+  }
+#endif
+  return m_focused && m_cursorBlinkVisible;
 }
 
 AABB TextInput::localBounds() const
 {
 #ifdef WITH_RIVE_TEXT
-    return m_rawTextInput.bounds();
+  return m_rawTextInput.bounds();
 #else
-    return AABB();
+  return AABB();
 #endif
 }
 
 StatusCode TextInput::onAddedClean(CoreContext* context)
 {
-    Super::onAddedClean(context);
+  Super::onAddedClean(context);
 
-    m_textStyle = children<TextStyle>().first();
-    m_sourceText = m_Text;
+  m_textStyle = children<TextStyle>().first();
+  m_sourceText = m_Text;
 
 #ifdef WITH_RIVE_TEXT
-    if (m_textStyle != nullptr && m_textStyle->font() != nullptr)
-    {
-        m_rawTextInput.font(m_textStyle->font());
-        m_rawTextInput.fontSize(m_textStyle->fontSize());
-    }
-    m_rawTextInput.obscured(obscured());
-    syncDisplayedTextFromSource(false);
+  if (m_textStyle != nullptr && m_textStyle->font() != nullptr)
+  {
+    m_rawTextInput.font(m_textStyle->font());
+    m_rawTextInput.fontSize(m_textStyle->fontSize());
+  }
+  m_rawTextInput.obscured(obscured());
+  m_rawTextInput.maxCharacters(maxCharacters());
+  m_rawTextInput.maxLines(maxLines());
+  syncDisplayedTextFromSource(false);
 #endif
 
-    if (parent() != nullptr)
+  if (parent() != nullptr)
+  {
+    auto parentParent = parent()->parent();
+    if (parentParent != nullptr && parentParent->is<TransformComponent>())
     {
-        auto parentParent = parent()->parent();
-        if (parentParent != nullptr && parentParent->is<TransformComponent>())
+      for (Constraint* constraint :
+           parentParent->as<TransformComponent>()->constraints())
+      {
+        if (constraint->is<ScrollConstraint>())
         {
-            for (Constraint* constraint :
-                 parentParent->as<TransformComponent>()->constraints())
-            {
-                if (constraint->is<ScrollConstraint>())
-                {
-                    m_scrollConstraint = constraint->as<ScrollConstraint>();
-                    break;
-                }
-            }
+          m_scrollConstraint = constraint->as<ScrollConstraint>();
+          break;
         }
+      }
     }
-    updateMultiline();
-    updateAlignment();
-    return m_textStyle == nullptr ? StatusCode::MissingObject : StatusCode::Ok;
+  }
+  updateMultiline();
+  updateAlignment();
+  return m_textStyle == nullptr ? StatusCode::MissingObject : StatusCode::Ok;
 }
 
 void TextInput::update(ComponentDirt value)
 {
-    Super::update(value);
+  Super::update(value);
 #ifdef WITH_RIVE_TEXT
-    if (m_textStyle != nullptr &&
-        hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
+  if (m_textStyle != nullptr &&
+      hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
+  {
+    Factory* factory = artboard()->factory();
+    m_rawTextInput.font(m_textStyle->font());
+    m_rawTextInput.fontSize(m_textStyle->fontSize());
+    // Layout has settled by now, so this is where the alignment width is
+    // known. The setters no-op when nothing changed.
+    updateAlignment();
+    RawTextInput::Flags changed = m_rawTextInput.update(factory);
+    if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))
     {
-        Factory* factory = artboard()->factory();
-        m_rawTextInput.font(m_textStyle->font());
-        m_rawTextInput.fontSize(m_textStyle->fontSize());
-        // Layout has settled by now, so this is where the alignment width is
-        // known. The setters no-op when nothing changed.
-        updateAlignment();
-        RawTextInput::Flags changed = m_rawTextInput.update(factory);
-        if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))
-        {
-            m_worldBounds =
-                worldTransform().mapBoundingBox(m_rawTextInput.bounds());
+      m_worldBounds = worldTransform().mapBoundingBox(m_rawTextInput.bounds());
 
 #ifdef WITH_RIVE_LAYOUT
-            markLayoutNodeDirty();
+      markLayoutNodeDirty();
 #endif
-        }
-        if (enums::is_flag_set(changed, RawTextInput::Flags::selectionDirty))
-        {
-            for (auto child : children<TextInputDrawable>())
-            {
-                child->invalidateStrokeEffects();
-            }
-        }
-        // Skip scroll adjustment during drag - edge scrolling handles it.
-        if (m_scrollX == 0.0f && m_scrollY == 0.0f &&
-            m_scrollConstraint != nullptr && !m_isDragging)
-        {
-            CursorVisualPosition cursorPosition =
-                m_rawTextInput.cursorVisualPosition();
-            float viewportWidth = m_scrollConstraint->viewportWidth();
-            float viewportHeight = m_scrollConstraint->viewportHeight();
-            const float cursorWidth = 1.0f;
-            bool useHorizontalScroll =
-                !multiline() && m_scrollConstraint->constrainsHorizontal();
-            bool useVerticalScroll =
-                multiline() && m_scrollConstraint->constrainsVertical();
-
-            float viewportX =
-                cursorPosition.x() + m_scrollConstraint->scrollOffsetX();
-            float viewportTop =
-                cursorPosition.top() + m_scrollConstraint->scrollOffsetY();
-            float viewportBottom =
-                cursorPosition.bottom() + m_scrollConstraint->scrollOffsetY();
-
-            if (useHorizontalScroll && viewportX < 0.0f)
-            {
-                m_scrollConstraint->stopPhysics();
-
-                float scrollOffset =
-                    m_scrollConstraint->scrollOffsetX() - viewportX;
-                m_scrollConstraint->scrollOffsetX(scrollOffset);
-            }
-            else if (useHorizontalScroll &&
-                     viewportX > viewportWidth - cursorWidth)
-            {
-                m_scrollConstraint->stopPhysics();
-
-                float scrollOffset = m_scrollConstraint->scrollOffsetX() -
-                                     (viewportX - viewportWidth + cursorWidth);
-                m_scrollConstraint->scrollOffsetX(scrollOffset);
-            }
-
-            if (useVerticalScroll && viewportTop < 0.0f)
-            {
-                m_scrollConstraint->stopPhysics();
-                float scrollOffset =
-                    m_scrollConstraint->scrollOffsetY() - viewportTop;
-                m_scrollConstraint->scrollOffsetY(scrollOffset);
-            }
-            else if (useVerticalScroll && viewportBottom > viewportHeight)
-            {
-                m_scrollConstraint->stopPhysics();
-                float scrollOffset = m_scrollConstraint->scrollOffsetY() -
-                                     (viewportBottom - viewportHeight);
-                m_scrollConstraint->scrollOffsetY(scrollOffset);
-            }
-        }
     }
+    if (enums::is_flag_set(changed, RawTextInput::Flags::selectionDirty))
+    {
+      for (auto child : children<TextInputDrawable>())
+      {
+        child->invalidateStrokeEffects();
+      }
+    }
+    // Skip scroll adjustment during drag - edge scrolling handles it.
+    if (m_scrollX == 0.0f && m_scrollY == 0.0f &&
+        m_scrollConstraint != nullptr && !m_isDragging)
+    {
+      CursorVisualPosition cursorPosition = m_rawTextInput
+                                                .cursorVisualPosition();
+      float viewportWidth = m_scrollConstraint->viewportWidth();
+      float viewportHeight = m_scrollConstraint->viewportHeight();
+      const float cursorWidth = 1.0f;
+      bool useHorizontalScroll = !multiline() &&
+                                 m_scrollConstraint->constrainsHorizontal();
+      bool useVerticalScroll = multiline() &&
+                               m_scrollConstraint->constrainsVertical();
+
+      float viewportX = cursorPosition.x() +
+                        m_scrollConstraint->scrollOffsetX();
+      float viewportTop = cursorPosition.top() +
+                          m_scrollConstraint->scrollOffsetY();
+      float viewportBottom = cursorPosition.bottom() +
+                             m_scrollConstraint->scrollOffsetY();
+
+      if (useHorizontalScroll && viewportX < 0.0f)
+      {
+        m_scrollConstraint->stopPhysics();
+
+        float scrollOffset = m_scrollConstraint->scrollOffsetX() - viewportX;
+        m_scrollConstraint->scrollOffsetX(scrollOffset);
+      }
+      else if (useHorizontalScroll && viewportX > viewportWidth - cursorWidth)
+      {
+        m_scrollConstraint->stopPhysics();
+
+        float scrollOffset = m_scrollConstraint->scrollOffsetX() -
+                             (viewportX - viewportWidth + cursorWidth);
+        m_scrollConstraint->scrollOffsetX(scrollOffset);
+      }
+
+      if (useVerticalScroll && viewportTop < 0.0f)
+      {
+        m_scrollConstraint->stopPhysics();
+        float scrollOffset = m_scrollConstraint->scrollOffsetY() - viewportTop;
+        m_scrollConstraint->scrollOffsetY(scrollOffset);
+      }
+      else if (useVerticalScroll && viewportBottom > viewportHeight)
+      {
+        m_scrollConstraint->stopPhysics();
+        float scrollOffset = m_scrollConstraint->scrollOffsetY() -
+                             (viewportBottom - viewportHeight);
+        m_scrollConstraint->scrollOffsetY(scrollOffset);
+      }
+    }
+  }
 #endif
 }
 
-Vec2D TextInput::measureLayout(float width,
-                               LayoutMeasureMode widthMode,
-                               float height,
-                               LayoutMeasureMode heightMode)
+Vec2D TextInput::measureLayout(
+    float width,
+    LayoutMeasureMode widthMode,
+    float height,
+    LayoutMeasureMode heightMode)
 {
 #ifdef WITH_RIVE_TEXT
-    AABB bounds =
-        m_rawTextInput.measure(widthMode == LayoutMeasureMode::undefined
-                                   ? std::numeric_limits<float>::max()
-                                   : width,
-                               heightMode == LayoutMeasureMode::undefined
-                                   ? std::numeric_limits<float>::max()
-                                   : height);
-    return bounds.size();
+  AABB bounds = m_rawTextInput.measure(
+      widthMode == LayoutMeasureMode::undefined
+          ? std::numeric_limits<float>::max()
+          : width,
+      heightMode == LayoutMeasureMode::undefined
+          ? std::numeric_limits<float>::max()
+          : height);
+  return bounds.size();
 #else
-    return Vec2D();
+  return Vec2D();
 #endif
 }
 
-void TextInput::controlSize(Vec2D size,
-                            LayoutScaleType widthScaleType,
-                            LayoutScaleType heightScaleType,
-                            LayoutDirection direction)
+void TextInput::controlSize(
+    Vec2D size,
+    LayoutScaleType widthScaleType,
+    LayoutScaleType heightScaleType,
+    LayoutDirection direction)
 {
-    m_layoutWidth = size.x;
-    m_layoutHeight = size.y;
-    updateMultiline();
+  m_layoutWidth = size.x;
+  m_layoutHeight = size.y;
+#ifdef WITH_RIVE_TEXT
+  // A legacy file encodes a hugging layout as fixed scales, so ask the layout
+  // sizing us rather than going by the scale type alone.
+  LayoutComponent* layout = contentSizingLayout(parent());
+  m_rawTextInput.hugsWidth(
+      widthScaleType == LayoutScaleType::hug ||
+      (layout != nullptr && layout->hugsContentWidth()));
+#endif
+  updateMultiline();
 }
 
 std::string TextInput::strippedLineBreaks(const std::string& text)
 {
-    std::string stripped;
-    stripped.reserve(text.size());
-    bool inLineBreak = false;
-    for (char c : text)
+  std::string stripped;
+  stripped.reserve(text.size());
+  bool inLineBreak = false;
+  for (char c : text)
+  {
+    if (c == '\n' || c == '\r')
     {
-        if (c == '\n' || c == '\r')
-        {
-            if (!inLineBreak)
-            {
-                stripped.push_back(' ');
-                inLineBreak = true;
-            }
-        }
-        else
-        {
-            stripped.push_back(c);
-            inLineBreak = false;
-        }
+      if (!inLineBreak)
+      {
+        stripped.push_back(' ');
+        inLineBreak = true;
+      }
     }
-    return stripped;
+    else
+    {
+      stripped.push_back(c);
+      inLineBreak = false;
+    }
+  }
+  return stripped;
 }
 
 std::string TextInput::displayedText() const
 {
-    return multiline() ? m_sourceText : strippedLineBreaks(m_sourceText);
+  return multiline() ? m_sourceText : strippedLineBreaks(m_sourceText);
 }
 
 void TextInput::syncDisplayedTextFromSource(bool preserveCursor)
 {
 #ifdef WITH_RIVE_TEXT
-    std::string nextDisplayText = displayedText();
-    if (m_rawTextInput.text() == nextDisplayText)
-    {
-        return;
-    }
-    if (preserveCursor)
-    {
-        m_rawTextInput.textPreserveCursor(nextDisplayText);
-    }
-    else
-    {
-        m_rawTextInput.text(nextDisplayText);
-    }
+  std::string nextDisplayText = displayedText();
+  if (m_rawTextInput.text() == nextDisplayText)
+  {
+    return;
+  }
+  if (preserveCursor)
+  {
+    m_rawTextInput.textPreserveCursor(nextDisplayText);
+  }
+  else
+  {
+    m_rawTextInput.text(nextDisplayText);
+  }
 #endif
 }
 
 void TextInput::syncSourceTextFromRaw()
 {
 #ifdef WITH_RIVE_TEXT
-    std::string rawText = m_rawTextInput.text();
-    if (!multiline())
+  std::string rawText = m_rawTextInput.text();
+  if (!multiline())
+  {
+    std::string singleLineText = strippedLineBreaks(rawText);
+    if (singleLineText != rawText)
     {
-        std::string singleLineText = strippedLineBreaks(rawText);
-        if (singleLineText != rawText)
-        {
-            m_rawTextInput.textPreserveCursor(singleLineText);
-            rawText = std::move(singleLineText);
-        }
+      m_rawTextInput.textPreserveCursor(singleLineText);
+      rawText = std::move(singleLineText);
     }
-    m_sourceText = std::move(rawText);
-    text(m_sourceText);
+  }
+  m_sourceText = std::move(rawText);
+  text(m_sourceText);
 #endif
 }
 
 #ifdef WITH_RIVE_TEXT
 static CursorBoundary cursorBoundary(KeyModifiers modifiers)
 {
-    if ((modifiers & KeyModifiers::meta) != KeyModifiers::none)
+  if ((modifiers & KeyModifiers::meta) != KeyModifiers::none)
+  {
+    return CursorBoundary::line;
+  }
+  if ((modifiers & KeyModifiers::alt) != KeyModifiers::none)
+  {
+    if ((modifiers & KeyModifiers::ctrl) != KeyModifiers::none)
     {
-        return CursorBoundary::line;
+      return CursorBoundary::subWord;
     }
-    if ((modifiers & KeyModifiers::alt) != KeyModifiers::none)
-    {
-        if ((modifiers & KeyModifiers::ctrl) != KeyModifiers::none)
-        {
-            return CursorBoundary::subWord;
-        }
-        return CursorBoundary::word;
-    }
-    return CursorBoundary::character;
+    return CursorBoundary::word;
+  }
+  return CursorBoundary::character;
 }
 
 #if defined(__EMSCRIPTEN__)
 EM_JS(bool, isWindowsBrowser, (), {
-    return Boolean(navigator.platform.indexOf('Win') > -1);
+  return Boolean(navigator.platform.indexOf('Win') > -1);
 });
 #endif
 
 static KeyModifiers systemModifier()
 {
 #if defined(__EMSCRIPTEN__)
-    return isWindowsBrowser() ? KeyModifiers::ctrl : KeyModifiers::meta;
+  return isWindowsBrowser() ? KeyModifiers::ctrl : KeyModifiers::meta;
 #elif defined(RIVE_WINDOWS)
-    return KeyModifiers::ctrl;
+  return KeyModifiers::ctrl;
 #else
-    return KeyModifiers::meta;
+  return KeyModifiers::meta;
 #endif
 }
 
@@ -465,510 +552,531 @@ static KeyModifiers systemModifier()
 void TextInput::updateMultiline(bool syncDisplayedText)
 {
 #ifdef WITH_RIVE_TEXT
-    if (multiline())
-    {
-        m_rawTextInput.maxWidth(m_layoutWidth);
-        m_rawTextInput.sizing(TextSizing::autoHeight);
-    }
-    else
-    {
-        m_rawTextInput.maxWidth(0);
-        m_rawTextInput.sizing(TextSizing::autoWidth);
-    }
+  if (multiline())
+  {
+    m_rawTextInput.maxWidth(m_layoutWidth);
+    m_rawTextInput.sizing(TextSizing::autoHeight);
+  }
+  else
+  {
+    m_rawTextInput.maxWidth(0);
+    m_rawTextInput.sizing(TextSizing::autoWidth);
+  }
 
-    if (m_scrollConstraint != nullptr)
+  if (m_scrollConstraint != nullptr)
+  {
+    if (multiline() && m_scrollConstraint->scrollOffsetX() != 0.0f)
     {
-        if (multiline() && m_scrollConstraint->scrollOffsetX() != 0.0f)
-        {
-            m_scrollConstraint->stopPhysics();
-            m_scrollConstraint->scrollOffsetX(0.0f);
-        }
-        else if (!multiline() && m_scrollConstraint->scrollOffsetY() != 0.0f)
-        {
-            m_scrollConstraint->stopPhysics();
-            m_scrollConstraint->scrollOffsetY(0.0f);
-        }
+      m_scrollConstraint->stopPhysics();
+      m_scrollConstraint->scrollOffsetX(0.0f);
     }
+    else if (!multiline() && m_scrollConstraint->scrollOffsetY() != 0.0f)
+    {
+      m_scrollConstraint->stopPhysics();
+      m_scrollConstraint->scrollOffsetY(0.0f);
+    }
+  }
 
-    if (syncDisplayedText)
-    {
-        syncDisplayedTextFromSource(true);
-    }
+  if (syncDisplayedText)
+  {
+    syncDisplayedTextFromSource(true);
+  }
 
 #ifdef WITH_RIVE_LAYOUT
-    markLayoutNodeDirty();
+  markLayoutNodeDirty();
 #endif
-    addDirt(ComponentDirt::TextShape);
+  addDirt(ComponentDirt::TextShape);
 #endif
 }
 
-bool TextInput::keyInput(Key value,
-                         KeyModifiers modifiers,
-                         bool isPressed,
-                         bool isRepeat)
+bool TextInput::keyInput(
+    Key value,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
 {
 #ifdef WITH_RIVE_TEXT
-    if (isPressed)
+  if (isPressed)
+  {
+    switch (value)
     {
-        switch (value)
-        {
-            case Key::z:
+      case Key::z:
 
-                if ((modifiers & (systemModifier() | KeyModifiers::shift)) ==
-                    (systemModifier() | KeyModifiers::shift))
-                {
-                    m_rawTextInput.redo();
-                    syncSourceTextFromRaw();
-                    markShapeDirty();
-                    return true;
-                }
-                else if ((modifiers & systemModifier()) != KeyModifiers::none)
-                {
-                    m_rawTextInput.undo();
-                    syncSourceTextFromRaw();
-                    markShapeDirty();
-                    return true;
-                }
-                break;
-            case Key::a:
-                if ((modifiers & systemModifier()) != KeyModifiers::none)
-                {
-                    m_rawTextInput.selectAll();
-                    markPaintDirty();
-                    return true;
-                }
-                break;
-            case Key::home:
-                m_rawTextInput.cursorLeft(CursorBoundary::line,
-                                          (modifiers & KeyModifiers::shift) !=
-                                              KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::end:
-                m_rawTextInput.cursorRight(CursorBoundary::line,
-                                           (modifiers & KeyModifiers::shift) !=
-                                               KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::backspace:
-                m_rawTextInput.backspace(-1);
-                syncSourceTextFromRaw();
-                markShapeDirty();
-                return true;
-            case Key::deleteKey:
-                m_rawTextInput.backspace(1);
-                syncSourceTextFromRaw();
-                markShapeDirty();
-                return true;
-            case Key::left:
-                m_rawTextInput.cursorLeft(cursorBoundary(modifiers),
-                                          (modifiers & KeyModifiers::shift) !=
-                                              KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::right:
-                m_rawTextInput.cursorRight(cursorBoundary(modifiers),
-                                           (modifiers & KeyModifiers::shift) !=
-                                               KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::up:
-                m_rawTextInput.cursorUp((modifiers & KeyModifiers::shift) !=
-                                        KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::down:
-                m_rawTextInput.cursorDown((modifiers & KeyModifiers::shift) !=
-                                          KeyModifiers::none);
-                markPaintDirty();
-                return true;
-            case Key::enter:
-                if (!multiline())
-                {
-                    return false;
-                }
-                m_rawTextInput.insert("\n");
-                syncSourceTextFromRaw();
-                markPaintDirty();
-                return true;
-            default:
-                return false;
+        if ((modifiers & (systemModifier() | KeyModifiers::shift)) ==
+            (systemModifier() | KeyModifiers::shift))
+        {
+          m_rawTextInput.redo();
+          syncSourceTextFromRaw();
+          markShapeDirty();
+          return true;
         }
+        else if ((modifiers & systemModifier()) != KeyModifiers::none)
+        {
+          m_rawTextInput.undo();
+          syncSourceTextFromRaw();
+          markShapeDirty();
+          return true;
+        }
+        break;
+      case Key::a:
+        if ((modifiers & systemModifier()) != KeyModifiers::none)
+        {
+          m_rawTextInput.selectAll();
+          markPaintDirty();
+          return true;
+        }
+        break;
+      case Key::home:
+        m_rawTextInput.cursorLeft(
+            CursorBoundary::line,
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::end:
+        m_rawTextInput.cursorRight(
+            CursorBoundary::line,
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::backspace:
+        m_rawTextInput.backspace(-1);
+        syncSourceTextFromRaw();
+        markShapeDirty();
+        return true;
+      case Key::deleteKey:
+        m_rawTextInput.backspace(1);
+        syncSourceTextFromRaw();
+        markShapeDirty();
+        return true;
+      case Key::left:
+        m_rawTextInput.cursorLeft(
+            cursorBoundary(modifiers),
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::right:
+        m_rawTextInput.cursorRight(
+            cursorBoundary(modifiers),
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::up:
+        m_rawTextInput.cursorUp(
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::down:
+        m_rawTextInput.cursorDown(
+            (modifiers & KeyModifiers::shift) != KeyModifiers::none);
+        markPaintDirty();
+        return true;
+      case Key::enter:
+        if (!multiline())
+        {
+          return false;
+        }
+        // Handled even when the limits refuse it, which leaves the source
+        // text alone.
+        if (m_rawTextInput.insert("\n"))
+        {
+          syncSourceTextFromRaw();
+          markPaintDirty();
+        }
+        return true;
+      default:
+        return false;
     }
+  }
 #endif
-    return false;
+  return false;
 }
 
 bool TextInput::textInput(const std::string& value)
 {
 #ifdef WITH_RIVE_TEXT
-    std::string textToInsert = multiline() ? value : strippedLineBreaks(value);
-    if (textToInsert.empty())
-    {
-        return true;
-    }
-    m_rawTextInput.insert(textToInsert);
+  std::string textToInsert = multiline() ? value : strippedLineBreaks(value);
+  if (textToInsert.empty())
+  {
+    return true;
+  }
+  // A refused insert changes nothing, so the source text stays as it is:
+  // syncing it from the display would turn a single line input's line
+  // breaks into the spaces it shows them as.
+  if (m_rawTextInput.insert(textToInsert))
+  {
     syncSourceTextFromRaw();
     markShapeDirty();
+  }
 #endif
-    return true;
+  return true;
 }
 
 bool TextInput::selectedText(std::string& outText) const
 {
 #ifdef WITH_RIVE_TEXT
-    // An obscured input stops the lookup with nothing, so an ancestor's
-    // selection can't stand in for the hidden text.
-    if (obscured())
-    {
-        outText.clear();
-        return true;
-    }
-    outText = m_rawTextInput.selectedText();
-    return !outText.empty();
+  // An obscured input stops the lookup with nothing, so an ancestor's
+  // selection can't stand in for the hidden text.
+  if (obscured())
+  {
+    outText.clear();
+    return true;
+  }
+  outText = m_rawTextInput.selectedText();
+  return !outText.empty();
 #else
-    return false;
+  return false;
 #endif
 }
 
 bool TextInput::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
 {
-    return false;
+  return false;
 }
 
 void TextInput::focused()
 {
-    m_focused = true;
+  m_focused = true;
 #ifdef WITH_RIVE_TEXT
-    // Keyboard focus selects the text browser style, pointer focus keeps the
-    // caret the press placed.
-    if (selectAllOnFocus() || focusedByTraversal())
-    {
-        m_rawTextInput.selectAll();
-    }
+  // Keyboard focus selects the text browser style, pointer focus keeps the
+  // caret the press placed.
+  if (selectAllOnFocus() || focusedByTraversal())
+  {
+    m_rawTextInput.selectAll();
+  }
 #endif
-    markPaintDirty();
+  markPaintDirty();
 }
 
 bool TextInput::focusedByTraversal()
 {
-    FocusData* focusData = firstChild<FocusData>();
-    if (focusData == nullptr)
-    {
-        return false;
-    }
-    FocusManager* manager = focusData->focusNode()->manager();
-    return manager != nullptr && manager->isTraversing();
+  FocusData* focusData = firstChild<FocusData>();
+  if (focusData == nullptr)
+  {
+    return false;
+  }
+  FocusManager* manager = focusData->focusNode()->manager();
+  return manager != nullptr && manager->isTraversing();
 }
 
 void TextInput::blurred()
 {
-    m_focused = false;
+  m_focused = false;
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.clearSelection();
+  m_rawTextInput.clearSelection();
 #endif
-    markPaintDirty();
+  markPaintDirty();
 }
 
 bool TextInput::worldPosition(Vec2D& outPosition)
 {
-    // TextInput is a TransformComponent, so we can access worldTransform
-    // directly
-    Vec2D localPos = worldTranslation();
+  // TextInput is a TransformComponent, so we can access worldTransform
+  // directly
+  Vec2D localPos = worldTranslation();
 
-    // Transform to root artboard space (handles nested artboards)
-    auto* ab = artboard();
-    if (ab)
-    {
-        outPosition = ab->rootTransform(localPos);
-    }
-    else
-    {
-        outPosition = localPos;
-    }
-    return true;
+  // Transform to root artboard space (handles nested artboards)
+  auto* ab = artboard();
+  if (ab)
+  {
+    outPosition = ab->rootTransform(localPos);
+  }
+  else
+  {
+    outPosition = localPos;
+  }
+  return true;
 }
 
 bool TextInput::worldBounds(AABB& outBounds)
 {
-    // m_worldBounds is computed in update() via
-    // worldTransform().mapBoundingBox()
-    if (m_worldBounds.isEmptyOrNaN())
-    {
-        return false;
-    }
+  // m_worldBounds is computed in update() via
+  // worldTransform().mapBoundingBox()
+  if (m_worldBounds.isEmptyOrNaN())
+  {
+    return false;
+  }
 
-    // Transform to root artboard space (handles nested artboards)
-    auto* ab = artboard();
-    if (ab)
-    {
-        Vec2D minPt = ab->rootTransform(m_worldBounds.min());
-        Vec2D maxPt = ab->rootTransform(m_worldBounds.max());
-        outBounds = AABB(minPt, maxPt);
-    }
-    else
-    {
-        outBounds = m_worldBounds;
-    }
-    return true;
+  // Transform to root artboard space (handles nested artboards)
+  auto* ab = artboard();
+  if (ab)
+  {
+    Vec2D minPt = ab->rootTransform(m_worldBounds.min());
+    Vec2D maxPt = ab->rootTransform(m_worldBounds.max());
+    outBounds = AABB(minPt, maxPt);
+  }
+  else
+  {
+    outBounds = m_worldBounds;
+  }
+  return true;
+}
+
+bool TextInput::hitTestFocusable(const Vec2D& rootPosition)
+{
+  auto* ab = artboard();
+  Vec2D local;
+  if (ab == nullptr || !ab->rootToLocal(rootPosition, &local))
+  {
+    return false;
+  }
+  return hitTestPoint(local, true, true);
 }
 
 float TextInput::edgeScrollSpeedForDistance(float distanceFromEdge) const
 {
-    static constexpr float kEdgeScrollBaseSpeed = 45.0f;
-    static constexpr float kEdgeScrollMaxSpeed = 400.0f;
-    static constexpr float kEdgeScrollSpeedRamp = 4.0f;
-    float speed =
-        kEdgeScrollBaseSpeed + distanceFromEdge * kEdgeScrollSpeedRamp;
-    return std::max(kEdgeScrollBaseSpeed, std::min(kEdgeScrollMaxSpeed, speed));
+  static constexpr float kEdgeScrollBaseSpeed = 45.0f;
+  static constexpr float kEdgeScrollMaxSpeed = 400.0f;
+  static constexpr float kEdgeScrollSpeedRamp = 4.0f;
+  float speed = kEdgeScrollBaseSpeed + distanceFromEdge * kEdgeScrollSpeedRamp;
+  return std::max(kEdgeScrollBaseSpeed, std::min(kEdgeScrollMaxSpeed, speed));
 }
 
 float TextInput::edgeActivationDistance(float position, float edgeStart) const
 {
-    return position >= edgeStart ? 0.0f : edgeStart - position;
+  return position >= edgeStart ? 0.0f : edgeStart - position;
 }
 
-bool TextInput::worldToLocalWithViewport(Vec2D worldPosition,
-                                         Vec2D& outLocal,
-                                         bool enableAutoScroll)
+bool TextInput::worldToLocalWithViewport(
+    Vec2D worldPosition,
+    Vec2D& outLocal,
+    bool enableAutoScroll)
 {
-    m_scrollX = 0.0f;
-    m_scrollY = 0.0f;
+  m_scrollX = 0.0f;
+  m_scrollY = 0.0f;
 
-    // Get the inverse of the world transform to convert to local coordinates
-    Mat2D inverseWorld;
-    if (!worldTransform().invert(&inverseWorld))
+  // Get the inverse of the world transform to convert to local coordinates
+  Mat2D inverseWorld;
+  if (!worldTransform().invert(&inverseWorld))
+  {
+    return false;
+  }
+
+  Vec2D localPos = inverseWorld * worldPosition;
+
+  // If we have a scroll constraint, handle viewport clamping and edge
+  // detection.
+  if (m_scrollConstraint != nullptr)
+  {
+    float viewportWidth = m_scrollConstraint->viewportWidth();
+    float viewportHeight = m_scrollConstraint->viewportHeight();
+    float scrollOffsetX = m_scrollConstraint->scrollOffsetX();
+    float scrollOffsetY = m_scrollConstraint->scrollOffsetY();
+    const float edgeThreshold = 20.0f;
+    bool useHorizontalScroll = !multiline() &&
+                               m_scrollConstraint->constrainsHorizontal();
+    bool useVerticalScroll = multiline() &&
+                             m_scrollConstraint->constrainsVertical();
+
+    if (useHorizontalScroll)
     {
-        return false;
+      // Convert to viewport-relative coordinates.
+      float viewportX = localPos.x + scrollOffsetX;
+      float leftDistance = edgeActivationDistance(viewportX, edgeThreshold);
+      float rightDistance = edgeActivationDistance(
+          viewportWidth - viewportX,
+          edgeThreshold);
+
+      // Edge detection for auto-scrolling.
+      if (enableAutoScroll && leftDistance > 0.0f)
+      {
+        m_scrollX = edgeScrollSpeedForDistance(leftDistance);
+        if (viewportX < 0.0f)
+        {
+          localPos.x = -scrollOffsetX;
+        }
+      }
+      else if (enableAutoScroll && rightDistance > 0.0f)
+      {
+        m_scrollX = -edgeScrollSpeedForDistance(rightDistance);
+        if (viewportX > viewportWidth)
+        {
+          localPos.x = viewportWidth - scrollOffsetX;
+        }
+      }
     }
 
-    Vec2D localPos = inverseWorld * worldPosition;
-
-    // If we have a scroll constraint, handle viewport clamping and edge
-    // detection.
-    if (m_scrollConstraint != nullptr)
+    if (useVerticalScroll)
     {
-        float viewportWidth = m_scrollConstraint->viewportWidth();
-        float viewportHeight = m_scrollConstraint->viewportHeight();
-        float scrollOffsetX = m_scrollConstraint->scrollOffsetX();
-        float scrollOffsetY = m_scrollConstraint->scrollOffsetY();
-        const float edgeThreshold = 20.0f;
-        bool useHorizontalScroll =
-            !multiline() && m_scrollConstraint->constrainsHorizontal();
-        bool useVerticalScroll =
-            multiline() && m_scrollConstraint->constrainsVertical();
+      // Convert to viewport-relative coordinates.
+      float viewportY = localPos.y + scrollOffsetY;
+      float topDistance = edgeActivationDistance(viewportY, edgeThreshold);
+      float bottomDistance = edgeActivationDistance(
+          viewportHeight - viewportY,
+          edgeThreshold);
 
-        if (useHorizontalScroll)
+      // Edge detection for auto-scrolling.
+      if (enableAutoScroll && topDistance > 0.0f)
+      {
+        m_scrollY = edgeScrollSpeedForDistance(topDistance);
+        if (viewportY < 0.0f)
         {
-            // Convert to viewport-relative coordinates.
-            float viewportX = localPos.x + scrollOffsetX;
-            float leftDistance =
-                edgeActivationDistance(viewportX, edgeThreshold);
-            float rightDistance =
-                edgeActivationDistance(viewportWidth - viewportX,
-                                       edgeThreshold);
-
-            // Edge detection for auto-scrolling.
-            if (enableAutoScroll && leftDistance > 0.0f)
-            {
-                m_scrollX = edgeScrollSpeedForDistance(leftDistance);
-                if (viewportX < 0.0f)
-                {
-                    localPos.x = -scrollOffsetX;
-                }
-            }
-            else if (enableAutoScroll && rightDistance > 0.0f)
-            {
-                m_scrollX = -edgeScrollSpeedForDistance(rightDistance);
-                if (viewportX > viewportWidth)
-                {
-                    localPos.x = viewportWidth - scrollOffsetX;
-                }
-            }
+          localPos.y = -scrollOffsetY;
         }
-
-        if (useVerticalScroll)
+      }
+      else if (enableAutoScroll && bottomDistance > 0.0f)
+      {
+        m_scrollY = -edgeScrollSpeedForDistance(bottomDistance);
+        if (viewportY > viewportHeight)
         {
-            // Convert to viewport-relative coordinates.
-            float viewportY = localPos.y + scrollOffsetY;
-            float topDistance =
-                edgeActivationDistance(viewportY, edgeThreshold);
-            float bottomDistance =
-                edgeActivationDistance(viewportHeight - viewportY,
-                                       edgeThreshold);
-
-            // Edge detection for auto-scrolling.
-            if (enableAutoScroll && topDistance > 0.0f)
-            {
-                m_scrollY = edgeScrollSpeedForDistance(topDistance);
-                if (viewportY < 0.0f)
-                {
-                    localPos.y = -scrollOffsetY;
-                }
-            }
-            else if (enableAutoScroll && bottomDistance > 0.0f)
-            {
-                m_scrollY = -edgeScrollSpeedForDistance(bottomDistance);
-                if (viewportY > viewportHeight)
-                {
-                    localPos.y = viewportHeight - scrollOffsetY;
-                }
-            }
+          localPos.y = viewportHeight - scrollOffsetY;
         }
+      }
     }
+  }
 
-    outLocal = localPos;
-    return true;
+  outLocal = localPos;
+  return true;
 }
 
 void TextInput::startDrag(Vec2D worldPosition)
 {
 #ifdef WITH_RIVE_TEXT
-    m_isDragging = true;
-    m_lastDragWorldPosition = worldPosition;
+  m_isDragging = true;
+  m_lastDragWorldPosition = worldPosition;
 
-    Vec2D localPos;
-    if (!worldToLocalWithViewport(worldPosition, localPos, false))
-    {
-        return;
-    }
+  Vec2D localPos;
+  if (!worldToLocalWithViewport(worldPosition, localPos, false))
+  {
+    return;
+  }
 
-    m_rawTextInput.moveCursorTo(localPos, false);
-    markPaintDirty();
-    // Note: Focus is handled by TextInputListenerGroup which can cross
-    // artboard boundaries to find the appropriate FocusData.
+  m_rawTextInput.moveCursorTo(localPos, false);
+  markPaintDirty();
+  // Note: Focus is handled by TextInputListenerGroup which can cross
+  // artboard boundaries to find the appropriate FocusData.
 #endif
 }
 
 void TextInput::drag(Vec2D worldPosition)
 {
 #ifdef WITH_RIVE_TEXT
-    m_lastDragWorldPosition = worldPosition;
+  m_lastDragWorldPosition = worldPosition;
 
-    Vec2D localPos;
-    if (!worldToLocalWithViewport(worldPosition, localPos, true))
-    {
-        return;
-    }
+  Vec2D localPos;
+  if (!worldToLocalWithViewport(worldPosition, localPos, true))
+  {
+    return;
+  }
 
-    m_rawTextInput.moveCursorTo(localPos, true);
-    markPaintDirty();
+  m_rawTextInput.moveCursorTo(localPos, true);
+  markPaintDirty();
 #endif
 }
 
 void TextInput::endDrag(Vec2D worldPosition)
 {
-    m_isDragging = false;
-    m_lastDragWorldPosition = Vec2D(NAN, NAN);
-    m_scrollX = 0.0f;
-    m_scrollY = 0.0f;
+  m_isDragging = false;
+  m_lastDragWorldPosition = Vec2D(NAN, NAN);
+  m_scrollX = 0.0f;
+  m_scrollY = 0.0f;
 }
 
 void TextInput::selectWord()
 {
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.selectWord();
-    markPaintDirty();
+  m_rawTextInput.selectWord();
+  markPaintDirty();
 #endif
 }
 
 void TextInput::selectLine()
 {
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.selectLine();
-    markPaintDirty();
+  m_rawTextInput.selectLine();
+  markPaintDirty();
 #endif
 }
 
 bool TextInput::advanceDrag(float elapsedSeconds)
 {
 #ifdef WITH_RIVE_TEXT
-    if (!m_isDragging)
-    {
-        m_scrollX = 0.0f;
-        m_scrollY = 0.0f;
-        return false;
-    }
-
-    if ((m_scrollX == 0.0f && m_scrollY == 0.0f) ||
-        m_scrollConstraint == nullptr)
-    {
-        return false;
-    }
-
-    m_scrollConstraint->stopPhysics();
-    if (m_scrollX != 0.0f)
-    {
-        float scrollDeltaX = m_scrollX * elapsedSeconds;
-        float newScrollOffsetX =
-            m_scrollConstraint->scrollOffsetX() + scrollDeltaX;
-        if (!m_scrollConstraint->infinite())
-        {
-            newScrollOffsetX = std::max(m_scrollConstraint->maxOffsetX(),
-                                        std::min(0.0f, newScrollOffsetX));
-        }
-        m_scrollConstraint->scrollOffsetX(newScrollOffsetX);
-    }
-    if (m_scrollY != 0.0f)
-    {
-        float scrollDeltaY = m_scrollY * elapsedSeconds;
-        float newScrollOffsetY =
-            m_scrollConstraint->scrollOffsetY() + scrollDeltaY;
-        if (!m_scrollConstraint->infinite())
-        {
-            newScrollOffsetY = std::max(m_scrollConstraint->maxOffsetY(),
-                                        std::min(0.0f, newScrollOffsetY));
-        }
-        m_scrollConstraint->scrollOffsetY(newScrollOffsetY);
-    }
-
-    // Keep selection/caret in sync while edge-scrolling even if pointer isn't
-    // moving.
-    if (std::isfinite(m_lastDragWorldPosition.x) &&
-        std::isfinite(m_lastDragWorldPosition.y))
-    {
-        Vec2D localPos;
-        if (worldToLocalWithViewport(m_lastDragWorldPosition, localPos, true))
-        {
-            m_rawTextInput.moveCursorTo(localPos, true);
-            markPaintDirty();
-        }
-    }
-
-    // Continue scrolling while still dragging
-    return m_isDragging;
-#else
+  if (!m_isDragging)
+  {
+    m_scrollX = 0.0f;
+    m_scrollY = 0.0f;
     return false;
+  }
+
+  if ((m_scrollX == 0.0f && m_scrollY == 0.0f) || m_scrollConstraint == nullptr)
+  {
+    return false;
+  }
+
+  m_scrollConstraint->stopPhysics();
+  if (m_scrollX != 0.0f)
+  {
+    float scrollDeltaX = m_scrollX * elapsedSeconds;
+    float newScrollOffsetX = m_scrollConstraint->scrollOffsetX() + scrollDeltaX;
+    if (!m_scrollConstraint->loopsX())
+    {
+      newScrollOffsetX = std::max(
+          m_scrollConstraint->maxOffsetX(),
+          std::min(0.0f, newScrollOffsetX));
+    }
+    m_scrollConstraint->scrollOffsetX(newScrollOffsetX);
+  }
+  if (m_scrollY != 0.0f)
+  {
+    float scrollDeltaY = m_scrollY * elapsedSeconds;
+    float newScrollOffsetY = m_scrollConstraint->scrollOffsetY() + scrollDeltaY;
+    if (!m_scrollConstraint->loopsY())
+    {
+      newScrollOffsetY = std::max(
+          m_scrollConstraint->maxOffsetY(),
+          std::min(0.0f, newScrollOffsetY));
+    }
+    m_scrollConstraint->scrollOffsetY(newScrollOffsetY);
+  }
+
+  // Keep selection/caret in sync while edge-scrolling even if pointer isn't
+  // moving.
+  if (std::isfinite(m_lastDragWorldPosition.x) &&
+      std::isfinite(m_lastDragWorldPosition.y))
+  {
+    Vec2D localPos;
+    if (worldToLocalWithViewport(m_lastDragWorldPosition, localPos, true))
+    {
+      m_rawTextInput.moveCursorTo(localPos, true);
+      markPaintDirty();
+    }
+  }
+
+  // Continue scrolling while still dragging
+  return m_isDragging;
+#else
+  return false;
 #endif
 }
 
 bool TextInput::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    // The field can be resized without the TextInput itself being resized (a
-    // single line input is sized by its text, not its viewport), so pick up a
-    // changed alignment width here.
-    if (updateAlignment())
-    {
-        addDirt(ComponentDirt::TextShape);
-    }
-    bool keepGoing = advanceDrag(elapsedSeconds);
-    if ((flags & AdvanceFlags::Animate) == AdvanceFlags::Animate &&
-        advanceCursorBlink(elapsedSeconds))
-    {
-        keepGoing = true;
-    }
-    return keepGoing;
+  // The field can be resized without the TextInput itself being resized (a
+  // single line input is sized by its text, not its viewport), so pick up a
+  // changed alignment width here.
+  if (updateAlignment())
+  {
+    addDirt(ComponentDirt::TextShape);
+  }
+  bool keepGoing = advanceDrag(elapsedSeconds);
+  if ((flags & AdvanceFlags::Animate) == AdvanceFlags::Animate &&
+      advanceCursorBlink(elapsedSeconds))
+  {
+    keepGoing = true;
+  }
+  return keepGoing;
 }
 
 BoundsFidelity TextInput::paintedWorldBounds(AABB* out)
 {
-    const BoundsFidelity fidelity =
-        paintedBoundsFromLocal(localBounds(), worldTransform(), nullptr, out);
-    if (fidelity == BoundsFidelity::none)
-    {
-        return fidelity;
-    }
-    // Never better than approximate: see the note on the declaration. The ink
-    // can reach past the layout box, so an exact claim here would crop glyphs.
-    return BoundsFidelity::approximate;
+  const BoundsFidelity fidelity = paintedBoundsFromLocal(
+      localBounds(),
+      worldTransform(),
+      nullptr,
+      out);
+  if (fidelity == BoundsFidelity::none)
+  {
+    return fidelity;
+  }
+  // Never better than approximate: see the note on the declaration. The ink
+  // can reach past the layout box, so an exact claim here would crop glyphs.
+  return BoundsFidelity::approximate;
 }

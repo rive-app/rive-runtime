@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterSystemNormalizerBase::clone() const
 {
-    auto cloned = new DataConverterSystemNormalizer();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterSystemNormalizer();
+  cloned->copy(*this);
+  return cloned;
 }

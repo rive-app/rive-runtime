@@ -21,49 +21,54 @@ namespace
 class LoggingScriptingContext : public CPPRuntimeScriptingContext
 {
 public:
-    LoggingScriptingContext(Factory* factory, ScriptingLogSink sink) :
-        CPPRuntimeScriptingContext(factory), m_sink(std::move(sink))
-    {}
+  LoggingScriptingContext(Factory* factory, ScriptingLogSink sink)
+      : CPPRuntimeScriptingContext(factory)
+      , m_sink(std::move(sink))
+  {}
 
-    void printBeginLine(lua_State*) override { m_line.clear(); }
+  void printBeginLine(lua_State*) override { m_line.clear(); }
 
-    void print(Span<const char> data) override
+  void print(Span<const char> data) override
+  {
+    m_line.append(data.data(), data.size());
+  }
+
+  // print() is redirected into m_line, so the base's stdout separator would
+  // land somewhere this line never sees.
+  void printSeparator() override { print(Span<const char>("\t", 1)); }
+
+  void printEndLine() override
+  {
+    m_sink(ScriptingLogLevel::info, m_line.c_str(), m_line.size());
+    m_line.clear();
+  }
+
+  void printError(lua_State* state) override
+  {
+    const char* error = lua_tostring(state, -1);
+    if (error != nullptr)
     {
-        m_line.append(data.data(), data.size());
+      m_sink(ScriptingLogLevel::error, error, std::strlen(error));
     }
-
-    void printEndLine() override
-    {
-        m_sink(ScriptingLogLevel::info, m_line.c_str(), m_line.size());
-        m_line.clear();
-    }
-
-    void printError(lua_State* state) override
-    {
-        const char* error = lua_tostring(state, -1);
-        if (error != nullptr)
-        {
-            m_sink(ScriptingLogLevel::error, error, std::strlen(error));
-        }
-    }
+  }
 
 private:
-    ScriptingLogSink m_sink;
-    std::string m_line;
+  ScriptingLogSink m_sink;
+  std::string m_line;
 };
 } // namespace
 
 ScriptingContextFactory makeLoggingScriptingContextFactory(
     ScriptingLogSink sink)
 {
-    if (!sink)
-    {
-        return nullptr;
-    }
-    return [sink = std::move(sink)](
-               Factory* factory) -> std::unique_ptr<ScriptingContext> {
-        return std::make_unique<LoggingScriptingContext>(factory, sink);
-    };
+  if (!sink)
+  {
+    return nullptr;
+  }
+  return [sink = std::move(sink)](
+             Factory* factory) -> std::unique_ptr<ScriptingContext> {
+    return std::make_unique<LoggingScriptingContext>(factory, sink);
+  };
 }
 } // namespace rive
 
@@ -73,7 +78,7 @@ namespace rive
 {
 ScriptingContextFactory makeLoggingScriptingContextFactory(ScriptingLogSink)
 {
-    return nullptr;
+  return nullptr;
 }
 } // namespace rive
 

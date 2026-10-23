@@ -6,30 +6,14 @@ namespace rive
 class ScriptInputNumberBase : public CustomPropertyNumber
 {
 protected:
-    typedef CustomPropertyNumber Super;
+  typedef CustomPropertyNumber Super;
 
 public:
-    static const uint16_t typeKey = 611;
+  static const uint16_t typeKey = 611;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScriptInputNumberBase::typeKey:
-            case CustomPropertyNumberBase::typeKey:
-            case CustomPropertyBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

@@ -12,11 +12,11 @@ namespace rive
 class ScriptedEffectPath : public EffectPath
 {
 public:
-    void invalidateEffect() override;
-    ShapePaintPath* path() override { return &m_path; }
+  void invalidateEffect() override;
+  ShapePaintPath* path() override { return &m_path; }
 
 private:
-    ShapePaintPath m_path;
+  ShapePaintPath m_path;
 };
 class ScriptedPathEffect : public ScriptedPathEffectBase,
                            public ScriptedObject,
@@ -25,44 +25,46 @@ class ScriptedPathEffect : public ScriptedPathEffectBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    void didHydrateScriptInputs() override;
+  void didHydrateScriptInputs() override;
 #endif
-    void addProperty(CustomProperty* prop) override;
-    StatusCode onAddedClean(CoreContext* context) override;
-    StatusCode onAddedDirty(CoreContext* context) override;
-    uint32_t assetId() override { return scriptAssetId(); }
-    bool advanceComponent(float elapsedSeconds,
-                          AdvanceFlags flags = AdvanceFlags::Animate |
-                                               AdvanceFlags::NewFrame) override;
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
-    void buildDependencies() override;
-    void update(ComponentDirt value) override;
-    rcp<DataContext> dataContext() override
+  void addProperty(CustomProperty* prop) override;
+  StatusCode onAddedClean(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  uint32_t assetId() override { return scriptAssetId(); }
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
+  void buildDependencies() override;
+  void update(ComponentDirt value) override;
+  rcp<DataContext> dataContext() override
+  {
+    if (artboard() != nullptr)
     {
-        if (artboard() != nullptr)
-        {
-            return artboard()->dataContext();
-        }
-        return nullptr;
+      return artboard()->dataContext();
     }
-    ScriptProtocol scriptProtocol() override
-    {
-        return ScriptProtocol::pathEffect;
-    }
-    void updateEffect(PathProvider* pathProvider,
-                      const ShapePaintPath* source,
-                      const ShapePaint* shapePaint) override;
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
-    void markNeedsUpdate() override;
-    Component* component() override { return this; }
-    EffectsContainer* parentPaint() override;
+    return nullptr;
+  }
+  ScriptProtocol scriptProtocol() override
+  {
+    return ScriptProtocol::pathEffect;
+  }
+  void updateEffect(
+      PathProvider* pathProvider,
+      const ShapePaintPath* source,
+      const ShapePaint* shapePaint) override;
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
+  void markNeedsUpdate() override;
+  Component* component() override { return this; }
+  EffectsContainer* parentPaint() override;
 
 protected:
-    virtual EffectPath* createEffectPath() override;
+  virtual EffectPath* createEffectPath() override;
 
 private:
-    bool m_isAdvanceActive = true;
+  bool m_isAdvanceActive = true;
 };
 } // namespace rive
 

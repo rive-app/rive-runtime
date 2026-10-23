@@ -1,10 +1,15 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/async/work_pool.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_context.hpp"
+#endif
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/net.hpp"
 #endif
 #include "lualib.h"
 #include <stdio.h>
@@ -29,6 +34,10 @@ int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
 int luaopen_rive_audio(lua_State* L);
+#ifdef WITH_RIVE_SCRIPTNET
+int luaopen_rive_scriptnet(lua_State* L);
+int luaopen_rive_file(lua_State* L);
+#endif
 extern "C" int luaopen_rive_buffer_ext(lua_State* L);
 
 static const luaL_Reg lualibs[] = {
@@ -51,6 +60,10 @@ static const luaL_Reg lualibs[] = {
     {"dataContext", luaopen_rive_data_context},
     {"audio", luaopen_rive_audio},
     {"promise", luaopen_rive_promise},
+#ifdef WITH_RIVE_SCRIPTNET
+    {"scriptnet", luaopen_rive_scriptnet},
+    {"riveFile", luaopen_rive_file},
+#endif
     {NULL, NULL},
 };
 
@@ -58,528 +71,542 @@ namespace rive
 {
 int luaopen_rive(lua_State* L)
 {
-    lua_callbacks(L)->useratom =
-        [](lua_State*, const char* s, size_t l) -> int16_t {
-        return rive_lua_findAtom(s, l);
-    };
+  lua_callbacks(L)->useratom =
+      [](lua_State*, const char* s, size_t l) -> int16_t {
+    return rive_lua_findAtom(s, l);
+  };
 
-    const luaL_Reg* lib = lualibs;
-    for (; lib->func; lib++)
-    {
-        lua_pushcfunction(L, lib->func, NULL);
-        lua_pushstring(L, lib->name);
-        lua_call(L, 1, 0);
-    }
+  const luaL_Reg* lib = lualibs;
+  for (; lib->func; lib++)
+  {
+    lua_pushcfunction(L, lib->func, NULL);
+    lua_pushstring(L, lib->name);
+    lua_call(L, 1, 0);
+  }
 
-    // Extend the buffer library with SIMD-accelerated functions
-    // (readf16, writef16, stridedcopy, convert).
-    luaopen_rive_buffer_ext(L);
+  // Extend the buffer library with SIMD-accelerated functions
+  // (readf16, writef16, stridedcopy, convert).
+  luaopen_rive_buffer_ext(L);
 
-    return 0;
+  return 0;
 }
 
 int rive_luaErrorHandler(lua_State* L)
 {
-    ScriptingContext* context =
-        static_cast<ScriptingContext*>(lua_getthreaddata(L));
-    context->printError(L);
+  ScriptingContext* context = static_cast<ScriptingContext*>(
+      lua_getthreaddata(L));
+  context->printError(L);
 
-    // Optionally, you can push a new value onto the stack to be returned by
-    // lua_pcall For example, push a specific error code or a more detailed
-    // message
-    const char* error = lua_tostring(L, -1);
-    lua_pushstring(L, error);
-    return 1; // Number of return values
-    // return 0;
+  // Optionally, you can push a new value onto the stack to be returned by
+  // lua_pcall For example, push a specific error code or a more detailed
+  // message
+  const char* error = lua_tostring(L, -1);
+  lua_pushstring(L, error);
+  return 1; // Number of return values
+            // return 0;
 }
 
 int rive_lua_pcall(lua_State* state, int nargs, int nresults)
 {
-    ScriptingContext* context =
-        static_cast<ScriptingContext*>(lua_getthreaddata(state));
+  ScriptingContext* context = static_cast<ScriptingContext*>(
+      lua_getthreaddata(state));
+  // Bounds what a setter's error leaves behind to this call.
+  RIVE_WRITE_SOURCE(luau, state);
 
 #ifdef RIVE_ORE
-    ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
+  ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
 #endif
-    int ret = context->pCall(state, nargs, nresults);
+  int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
-    rive_lua_exitScriptCallGpuScope(state, gpuScope);
+  rive_lua_exitScriptCallGpuScope(state, gpuScope);
 #endif
-    return ret;
+  return ret;
 }
 
-int rive_lua_pcall_with_context(lua_State* state,
-                                ScriptedObject* scriptedObject,
-                                int nargs,
-                                int nresults)
+int rive_lua_pcall_with_context(
+    lua_State* state,
+    ScriptedObject* scriptedObject,
+    int nargs,
+    int nresults)
 {
-    ScriptingContext* context =
-        static_cast<ScriptingContext*>(lua_getthreaddata(state));
-    ScopedScriptedObjectContext scope(context, scriptedObject);
+  ScriptingContext* context = static_cast<ScriptingContext*>(
+      lua_getthreaddata(state));
+  ScopedScriptedObjectContext scope(context, scriptedObject);
+  RIVE_WRITE_SOURCE(luau, state);
 #ifdef RIVE_ORE
-    ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
+  ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
 #endif
-    int ret = context->pCall(state, nargs, nresults);
+  int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
-    rive_lua_exitScriptCallGpuScope(state, gpuScope);
+  rive_lua_exitScriptCallGpuScope(state, gpuScope);
 #endif
-    return ret;
+  return ret;
 }
 
 int rive_lua_pushRef(lua_State* state, int ref)
 {
-    lua_checkstack(state, 1);
-    return lua_rawgeti(state, luaRegistryIndex, ref);
+  lua_checkstack(state, 1);
+  return lua_rawgeti(state, luaRegistryIndex, ref);
 }
 
 void rive_lua_pop(lua_State* state, int count)
 {
-    lua_settop(state, -count - 1);
+  lua_settop(state, -count - 1);
 }
 
 static void* l_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
 {
-    (void)ud;
-    (void)osize;
-    if (nsize == 0)
-    {
-        free(ptr);
-        // delete[] (uint8_t*)ptr;
-        return NULL;
-    }
-    else
-    {
-        // auto nptr = new uint8_t[nsize];
-        // memcpy(nptr, ptr, std::min(nsize, osize));
-        // delete[] (uint8_t*)ptr;
-        // return nptr;
-        return realloc(ptr, nsize);
-    }
+  (void)ud;
+  (void)osize;
+  if (nsize == 0)
+  {
+    free(ptr);
+    // delete[] (uint8_t*)ptr;
+    return NULL;
+  }
+  else
+  {
+    // auto nptr = new uint8_t[nsize];
+    // memcpy(nptr, ptr, std::min(nsize, osize));
+    // delete[] (uint8_t*)ptr;
+    // return nptr;
+    return realloc(ptr, nsize);
+  }
 }
 
 static const char* registeredCacheTableKey = "_MODULES";
 
 static int checkRegisteredModules(lua_State* L, const char* path)
 {
-    luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
-    lua_getfield(L, -1, path);
-    if (lua_isnil(L, -1))
-    {
-        lua_pop(L, 2);
-        return 0;
-    }
+  luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+  lua_getfield(L, -1, path);
+  if (lua_isnil(L, -1))
+  {
+    lua_pop(L, 2);
+    return 0;
+  }
 
-    lua_remove(L, -2);
-    return 1;
+  lua_remove(L, -2);
+  return 1;
 }
 
 static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
 {
-    // Discard extra arguments, we only use path
-    lua_settop(L, 1);
-    const char* path = luaL_checkstring(L, 1);
+  // Discard extra arguments, we only use path
+  lua_settop(L, 1);
+  const char* path = luaL_checkstring(L, 1);
 
-    ScriptingContext* context =
-        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  ScriptingContext* context = static_cast<ScriptingContext*>(
+      lua_getthreaddata(L));
 
-    if (checkRegisteredModules(L, path) == 1)
-    {
-        return 1;
-    }
+  if (checkRegisteredModules(L, path) == 1)
+  {
+    return 1;
+  }
 
-    // Record missing dependency if we're registering a module
-    if (requirerChunkname != nullptr && context != nullptr)
-    {
-        context->recordMissingDependency(requirerChunkname, path);
-    }
+  // Record missing dependency if we're registering a module
+  if (requirerChunkname != nullptr && context != nullptr)
+  {
+    context->recordMissingDependency(requirerChunkname, path);
+  }
 
-    luaL_error(L, "require could not find a script named %s", path);
-    return 0;
+  luaL_error(L, "require could not find a script named %s", path);
+  return 0;
 }
 
 static int lua_require(lua_State* L)
 {
-    lua_Debug ar;
-    int level = 1;
+  lua_Debug ar;
+  int level = 1;
 
-    do
+  do
+  {
+    if (!lua_getinfo(L, level++, "s", &ar))
     {
-        if (!lua_getinfo(L, level++, "s", &ar))
-        {
-            luaL_error(L, "require is not supported in this context");
-        }
-    } while (ar.what[0] == 'C');
+      luaL_error(L, "require is not supported in this context");
+    }
+  } while (ar.what[0] == 'C');
 
-    return lua_requireinternal(L, ar.source);
+  return lua_requireinternal(L, ar.source);
 }
 
 static int luaR_error(lua_State* L)
 {
-    int level = luaL_optinteger(L, 2, 1);
-    lua_settop(L, 1);
-    if (lua_isstring(L, 1) && level > 0)
-    {
-        luaL_where(L, level);
-        lua_pushvalue(L, 1);
-        lua_concat(L, 2);
-    }
-    lua_error(L);
+  int level = luaL_optinteger(L, 2, 1);
+  lua_settop(L, 1);
+  if (lua_isstring(L, 1) && level > 0)
+  {
+    luaL_where(L, level);
+    lua_pushvalue(L, 1);
+    lua_concat(L, 2);
+  }
+  lua_error(L);
 }
 
 static int lua_late(lua_State* L)
 {
-    lua_pushnil(L);
-    return 1;
+  lua_pushnil(L);
+  return 1;
 }
 
 void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 {
-    luaopen_rive(state);
-    lua_setthreaddata(state, context);
+  luaopen_rive(state);
+  lua_setthreaddata(state, context);
 
-    lua_pushcclosurek(state, lua_require, "require", 0, nullptr);
-    lua_setglobal(state, "require");
+  // luaopen_math seeds from the clock; a deterministic run pins it so
+  // math.random draws the same sequence every time.
+  if (File::deterministicMode)
+  {
+    lua_getglobal(state, "math");
+    lua_getfield(state, -1, "randomseed");
+    lua_pushinteger(state, File::deterministicSeed);
+    lua_call(state, 1, 0);
+    lua_pop(state, 1);
+  }
 
-    lua_pushcclosurek(state, luaR_error, "error", 0, nullptr);
-    lua_setglobal(state, "error");
+  lua_pushcclosurek(state, lua_require, "require", 0, nullptr);
+  lua_setglobal(state, "require");
 
-    lua_pushcclosurek(state, lua_late, "late", 0, nullptr);
-    lua_setglobal(state, "late");
+  lua_pushcclosurek(state, luaR_error, "error", 0, nullptr);
+  lua_setglobal(state, "error");
 
-    luaL_sandbox(state);
-    luaL_sandboxthread(state);
+  lua_pushcclosurek(state, lua_late, "late", 0, nullptr);
+  lua_setglobal(state, "late");
+
+  luaL_sandbox(state);
+  luaL_sandboxthread(state);
 }
 
-ScriptingVM::ScriptingVM(std::unique_ptr<ScriptingContext> context) :
-    m_ownedContext(std::move(context))
+ScriptingVM::ScriptingVM(std::unique_ptr<ScriptingContext> context)
+    : m_ownedContext(std::move(context))
 {
-    m_state = lua_newstate(l_alloc, nullptr);
-    init(m_state, m_ownedContext.get());
+  m_state = lua_newstate(l_alloc, nullptr);
+  init(m_state, m_ownedContext.get());
 }
 
 ScriptingVM::~ScriptingVM() { closeLuaState(); }
 
 void ScriptingVM::closeLuaState()
 {
-    if (m_state == nullptr)
-    {
-        return;
-    }
-    // Cancel async tasks before closing Lua state to prevent callbacks
-    // from accessing dead state.
-    if (m_ownedContext)
-        m_ownedContext->shutdownAsyncForState(m_state);
+  if (m_state == nullptr)
+  {
+    return;
+  }
+  // Cancel async tasks before closing Lua state to prevent callbacks
+  // from accessing dead state.
+  if (m_ownedContext)
+    m_ownedContext->shutdownAsyncForState(m_state);
 
-    // Null every registered ScriptedObject's back-pointer before the lua
-    // teardown cascade. Once m_vm is gone, scriptDispose() (called from
-    // cascading destruction inside lua_close) skips its releaseRef /
-    // disposeScriptedContext calls. Those calls would otherwise dereference
-    // Lua userdatas (ScriptedContext, ref tables) that lua_close has already
-    // freed in earlier sweep iterations.
-    detachScriptedObjects();
+  // Null every registered ScriptedObject's back-pointer before the lua
+  // teardown cascade. Once m_vm is gone, scriptDispose() (called from
+  // cascading destruction inside lua_close) skips its releaseRef /
+  // disposeScriptedContext calls. Those calls would otherwise dereference
+  // Lua userdatas (ScriptedContext, ref tables) that lua_close has already
+  // freed in earlier sweep iterations.
+  detachScriptedObjects();
 
-    lua_State* state = m_state;
-    m_state = nullptr;
-    lua_close(state);
+  lua_State* state = m_state;
+  m_state = nullptr;
+  lua_close(state);
 }
 
 void ScriptingVM::replaceContext(std::unique_ptr<ScriptingContext> newContext)
 {
 #ifdef WITH_RIVE_TOOLS
-    if (m_ownedContext != nullptr)
-    {
-        m_ownedContext->disposeOrphanScriptedProperties();
-    }
+  if (m_ownedContext != nullptr)
+  {
+    m_ownedContext->disposeOrphanScriptedProperties();
+  }
 #endif
-    m_ownedContext = std::move(newContext);
-    lua_setthreaddata(m_state, m_ownedContext.get());
+  m_ownedContext = std::move(newContext);
+  lua_setthreaddata(m_state, m_ownedContext.get());
 }
 
 void ScriptingVM::addModule(ModuleDetails* moduleDetails)
 {
-    context()->addModule(moduleDetails);
+  context()->addModule(moduleDetails);
 }
 
 void ScriptingVM::performRegistration()
 {
-    context()->performRegistration(m_state);
+  context()->performRegistration(m_state);
 }
 
 // Loads bytecode into a sandboxed thread without executing it.
 // On success, pushes the module thread (with loaded closure) onto L's stack.
 // Returns true on success.
-bool ScriptingVM::loadModule(lua_State* L,
-                             const char* name,
-                             Span<uint8_t> bytecode)
+bool ScriptingVM::loadModule(
+    lua_State* L,
+    const char* name,
+    Span<uint8_t> bytecode)
 {
-    if (bytecode.empty())
-    {
-        return false;
-    }
-    // module needs to run in a new thread, isolated from the rest
-    // note: we create ML on main thread so that it doesn't inherit environment
-    // of L
-    lua_State* GL = lua_mainthread(L);
-    lua_State* ML = lua_newthread(GL);
-    lua_xmove(GL, L, 1);
-    // new thread needs to have the globals sandboxed
-    luaL_sandboxthread(ML);
-    lua_setthreaddata(ML, lua_getthreaddata(L));
+  if (bytecode.empty())
+  {
+    return false;
+  }
+  // module needs to run in a new thread, isolated from the rest
+  // note: we create ML on main thread so that it doesn't inherit environment
+  // of L
+  lua_State* GL = lua_mainthread(L);
+  lua_State* ML = lua_newthread(GL);
+  lua_xmove(GL, L, 1);
+  // new thread needs to have the globals sandboxed
+  luaL_sandboxthread(ML);
+  lua_setthreaddata(ML, lua_getthreaddata(L));
 
-    int status =
-        luau_load(ML, name, (const char*)bytecode.data(), bytecode.size(), 0);
+  int status = luau_load(
+      ML,
+      name,
+      (const char*)bytecode.data(),
+      bytecode.size(),
+      0);
 
-    if (status != 0)
-    {
-        // luau_load failed — error string is on ML stack
-        lua_xmove(ML, L, 1);
-        ScriptingContext* context =
-            static_cast<ScriptingContext*>(lua_getthreaddata(L));
-        context->printError(L);
-        lua_pop(L, 2); // pop error + thread
-        return false;
-    }
+  if (status != 0)
+  {
+    // luau_load failed — error string is on ML stack
+    lua_xmove(ML, L, 1);
+    ScriptingContext* context = static_cast<ScriptingContext*>(
+        lua_getthreaddata(L));
+    context->printError(L);
+    lua_pop(L, 2); // pop error + thread
+    return false;
+  }
 
-    static_cast<ScriptingContext*>(lua_getthreaddata(L))
-        ->onModuleLoaded(ML, name);
-    // Thread with loaded closure is on top of L's stack.
-    return true;
+  static_cast<ScriptingContext*>(lua_getthreaddata(L))
+      ->onModuleLoaded(ML, name);
+  // Thread with loaded closure is on top of L's stack.
+  return true;
 }
 
 // Executes a previously loaded module thread (on top of L's stack from
 // loadModule). On success, replaces the thread with the module result.
 // If isUtility, also registers the result in the require cache.
 // Returns true on success.
-bool ScriptingVM::executeModule(lua_State* L,
-                                const char* name,
-                                bool isUtility,
-                                const char* chunkname)
+bool ScriptingVM::executeModule(
+    lua_State* L,
+    const char* name,
+    bool isUtility,
+    const char* chunkname)
 {
-    const char* display = chunkname != nullptr ? chunkname : name;
+  const char* display = chunkname != nullptr ? chunkname : name;
 
-    // The module thread should be on top of the stack.
-    lua_State* ML = lua_tothread(L, -1);
-    if (ML == nullptr)
-    {
-        return false;
-    }
+  // The module thread should be on top of the stack.
+  lua_State* ML = lua_tothread(L, -1);
+  if (ML == nullptr)
+  {
+    return false;
+  }
 
-    int status = lua_resume(ML, L, 0);
-    if (status == 0)
+  int status = lua_resume(ML, L, 0);
+  if (status == 0)
+  {
+    if (lua_gettop(ML) == 0)
     {
-        if (lua_gettop(ML) == 0)
-        {
-            lua_pushfstring(ML, "%s:1: module must return a value", display);
-        }
-        else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
-        {
-            lua_pushfstring(ML,
-                            "%s:1: module must return a table or function",
-                            display);
-        }
+      lua_pushfstring(ML, "%s:1: module must return a value", display);
     }
-    else if (status == LUA_YIELD)
+    else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
     {
-        lua_pushfstring(ML, "%s:1: module can not yield", display);
+      lua_pushfstring(
+          ML,
+          "%s:1: module must return a table or function",
+          display);
     }
-    else if (!lua_isstring(ML, -1))
-    {
-        lua_pushfstring(ML,
-                        "%s:1: unknown error while running module",
-                        display);
-    }
-    // A yield is an error for a module too, and its frames are still there.
-    if (status != 0)
-    {
-        static_cast<ScriptingContext*>(lua_getthreaddata(L))->onModuleError(ML);
-    }
+  }
+  else if (status == LUA_YIELD)
+  {
+    lua_pushfstring(ML, "%s:1: module can not yield", display);
+  }
+  else if (!lua_isstring(ML, -1))
+  {
+    lua_pushfstring(ML, "%s:1: unknown error while running module", display);
+  }
+  // A yield is an error for a module too, and its frames are still there.
+  if (status != 0)
+  {
+    static_cast<ScriptingContext*>(lua_getthreaddata(L))->onModuleError(ML);
+  }
 
-    // add ML result to L stack
-    lua_xmove(ML, L, 1);
-    // An error occurred if the top of the stack is a string.
-    if (lua_isstring(L, -1))
-    {
-        ScriptingContext* context =
-            static_cast<ScriptingContext*>(lua_getthreaddata(L));
-        context->printError(L);
-        lua_pop(L, 2); // pop error + thread
-        return false;
-    }
-    // remove ML thread from L stack
-    lua_remove(L, -2);
-    // added one value to L stack: module result
+  // add ML result to L stack
+  lua_xmove(ML, L, 1);
+  // An error occurred if the top of the stack is a string.
+  if (lua_isstring(L, -1))
+  {
+    ScriptingContext* context = static_cast<ScriptingContext*>(
+        lua_getthreaddata(L));
+    context->printError(L);
+    lua_pop(L, 2); // pop error + thread
+    return false;
+  }
+  // remove ML thread from L stack
+  lua_remove(L, -2);
+  // added one value to L stack: module result
 
-    if (isUtility)
-    {
-        // Register into the require cache directly.
-        luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
-        lua_pushstring(L, name);
-        lua_pushvalue(L, -3); // copy module result (below cache table + name)
-        lua_settable(L, -3);  // cache[name] = result
-        lua_pop(L, 1);        // pop cache table
-    }
+  if (isUtility)
+  {
+    // Register into the require cache directly.
+    luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+    lua_pushstring(L, name);
+    lua_pushvalue(L, -3); // copy module result (below cache table + name)
+    lua_settable(L, -3);  // cache[name] = result
+    lua_pop(L, 1);        // pop cache table
+  }
 
-    return true;
+  return true;
 }
 
 static void dump_stack(lua_State* state)
 {
-    int i;
-    int top = lua_gettop(state);
-    for (i = 1; i <= top; i++)
-    { /* repeat for each level */
-        int t = lua_type(state, i);
-        switch (t)
-        {
+  int i;
+  int top = lua_gettop(state);
+  for (i = 1; i <= top; i++)
+  { /* repeat for each level */
+    int t = lua_type(state, i);
+    switch (t)
+    {
 
-            case LUA_TSTRING: /* strings */
-                fprintf(stderr,
-                        "  (%i)[STRING] %s\n",
-                        i,
-                        lua_tostring(state, i));
-                break;
+      case LUA_TSTRING: /* strings */
+        fprintf(stderr, "  (%i)[STRING] %s\n", i, lua_tostring(state, i));
+        break;
 
-            case LUA_TBOOLEAN: /* booleans */
-                fprintf(stderr,
-                        "  (%i)[BOOLEAN] %s\n",
-                        i,
-                        lua_toboolean(state, i) ? "true" : "false");
-                break;
+      case LUA_TBOOLEAN: /* booleans */
+        fprintf(
+            stderr,
+            "  (%i)[BOOLEAN] %s\n",
+            i,
+            lua_toboolean(state, i) ? "true" : "false");
+        break;
 
-            case LUA_TNUMBER: /* numbers */
-                fprintf(stderr,
-                        "  (%i)[NUMBER] %g\n",
-                        i,
-                        lua_tonumber(state, i));
-                break;
+      case LUA_TNUMBER: /* numbers */
+        fprintf(stderr, "  (%i)[NUMBER] %g\n", i, lua_tonumber(state, i));
+        break;
 
-            default: /* other values */
-                fprintf(stderr, "  (%i)[%s]\n", i, lua_typename(state, t));
-                break;
-        }
+      default: /* other values */
+        fprintf(stderr, "  (%i)[%s]\n", i, lua_typename(state, t));
+        break;
     }
-    fprintf(stderr, "\n"); /* end the listing */
+  }
+  fprintf(stderr, "\n"); /* end the listing */
 }
 
 void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 
 void ScriptingContext::addModule(ModuleDetails* moduleDetails)
 {
-    m_modulesToRegister.push_back(moduleDetails);
-    m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
+  m_modulesToRegister.push_back(moduleDetails);
+  m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
 }
 
-bool ScriptingContext::tryRegisterModule(lua_State* state,
-                                         ModuleDetails* moduleDetails)
+bool ScriptingContext::tryRegisterModule(
+    lua_State* state,
+    ModuleDetails* moduleDetails)
 {
 #ifndef WITH_RIVE_TOOLS
-    // In production builds, only allow verified (signed) scripts
-    if (!moduleDetails->verified())
-    {
-        return false;
-    }
-#endif
-    std::string name = moduleDetails->moduleName();
-    bool registerSuccess = false;
-    int functionRef = 0;
-    if (moduleDetails->isProtocolScript())
-    {
-        if (ScriptingVM::registerScript(state,
-                                        name.c_str(),
-                                        moduleDetails->moduleBytecode()))
-        {
-            // registerScript leaves the function on the stack
-            if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
-            {
-                functionRef = lua_ref(state, -1);
-            }
-            lua_pop(state, 1);
-            registerSuccess = true;
-        }
-    }
-    else
-    {
-        if (ScriptingVM::registerModule(state,
-                                        name.c_str(),
-                                        moduleDetails->moduleBytecode()))
-        {
-            registerSuccess = true;
-        }
-    }
-    if (registerSuccess)
-    {
-        moduleDetails->registrationComplete(functionRef);
-        onModuleRegistered(moduleDetails);
-        return true;
-    }
-
+  // In production builds, only allow verified (signed) scripts
+  if (!moduleDetails->verified())
+  {
     return false;
+  }
+#endif
+  std::string name = moduleDetails->moduleName();
+  bool registerSuccess = false;
+  int functionRef = 0;
+  if (moduleDetails->isProtocolScript())
+  {
+    if (ScriptingVM::registerScript(
+            state,
+            name.c_str(),
+            moduleDetails->moduleBytecode()))
+    {
+      // registerScript leaves the function on the stack
+      if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
+      {
+        functionRef = lua_ref(state, -1);
+      }
+      lua_pop(state, 1);
+      registerSuccess = true;
+    }
+  }
+  else
+  {
+    if (ScriptingVM::registerModule(
+            state,
+            name.c_str(),
+            moduleDetails->moduleBytecode()))
+    {
+      registerSuccess = true;
+    }
+  }
+  if (registerSuccess)
+  {
+    moduleDetails->registrationComplete(functionRef);
+    onModuleRegistered(moduleDetails);
+    return true;
+  }
+
+  return false;
 }
 
 void ScriptingContext::performRegistration(lua_State* state)
 {
-    // Loop over all of the modules once. We need do a tryRegister
-    // pass on each module in order to determine if it has any
-    // required dependencies
-    for (ModuleDetails* moduleDetails : m_modulesToRegister)
+  // Loop over all of the modules once. We need do a tryRegister
+  // pass on each module in order to determine if it has any
+  // required dependencies
+  for (ModuleDetails* moduleDetails : m_modulesToRegister)
+  {
+    if (moduleDetails == nullptr)
     {
-        if (moduleDetails == nullptr)
-        {
-            continue;
-        }
-        std::string cacheKey = moduleDetails->moduleName();
-
-        // Skip if already registered
-        if (checkRegisteredModules(state, cacheKey.c_str()) == 1)
-        {
-            lua_pop(state, 1);
-            continue;
-        }
-        tryRegisterModule(state, moduleDetails);
+      continue;
     }
+    std::string cacheKey = moduleDetails->moduleName();
 
-    // One cleanup pass: producers emit modules in dependency order (the
-    // editor and rive-cli both sort), so a single sorted retry suffices.
-    if (!m_pendingModules.empty())
+    // Skip if already registered
+    if (checkRegisteredModules(state, cacheKey.c_str()) == 1)
     {
-        std::vector<ModuleDetails*> pendingModules;
-        for (auto module : m_pendingModules)
-        {
-            pendingModules.push_back(module);
-        }
-        std::vector<ModuleDetails*> sortedModules;
-        std::unordered_set<ModuleDetails*> visitedModules;
-
-        ModuleDetails* module = pendingModules.back();
-        pendingModules.pop_back();
-        sortNextModule(module,
-                       &pendingModules,
-                       &sortedModules,
-                       &visitedModules);
-
-        // Register modules in sorted order
-        for (ModuleDetails* moduleDetails : sortedModules)
-        {
-            // Skip utility modules that already made it into the cache.
-            if (checkRegisteredModules(state,
-                                       moduleDetails->moduleName().c_str()) ==
-                1)
-            {
-                lua_pop(state, 1);
-                continue;
-            }
-            // A known-missing require has not registered yet; re-running
-            // the chunk would repeat its side effects and error.
-            if (!moduleDetails->missingDependencies().empty())
-            {
-                continue;
-            }
-            tryRegisterModule(state, moduleDetails);
-        }
+      lua_pop(state, 1);
+      continue;
     }
+    tryRegisterModule(state, moduleDetails);
+  }
 
-    m_modulesToRegister.clear();
-    m_pendingModules.clear();
+  // One cleanup pass: producers emit modules in dependency order (the
+  // editor and rive-cli both sort), so a single sorted retry suffices.
+  if (!m_pendingModules.empty())
+  {
+    std::vector<ModuleDetails*> pendingModules;
+    for (auto module : m_pendingModules)
+    {
+      pendingModules.push_back(module);
+    }
+    std::vector<ModuleDetails*> sortedModules;
+    std::unordered_set<ModuleDetails*> visitedModules;
+
+    ModuleDetails* module = pendingModules.back();
+    pendingModules.pop_back();
+    sortNextModule(module, &pendingModules, &sortedModules, &visitedModules);
+
+    // Register modules in sorted order
+    for (ModuleDetails* moduleDetails : sortedModules)
+    {
+      // Skip utility modules that already made it into the cache.
+      if (checkRegisteredModules(state, moduleDetails->moduleName().c_str()) ==
+          1)
+      {
+        lua_pop(state, 1);
+        continue;
+      }
+      // A known-missing require has not registered yet; re-running
+      // the chunk would repeat its side effects and error.
+      if (!moduleDetails->missingDependencies().empty())
+      {
+        continue;
+      }
+      tryRegisterModule(state, moduleDetails);
+    }
+  }
+
+  m_modulesToRegister.clear();
+  m_pendingModules.clear();
 }
 
 void ScriptingContext::sortNextModule(
@@ -588,351 +615,356 @@ void ScriptingContext::sortNextModule(
     std::vector<ModuleDetails*>* sortedModules,
     std::unordered_set<ModuleDetails*>* visitedModules)
 {
-    // If already visited, skip
-    if (visitedModules->find(module) != visitedModules->end())
-    {
-        return;
-    }
+  // If already visited, skip
+  if (visitedModules->find(module) != visitedModules->end())
+  {
+    return;
+  }
 
-    auto dependencies = module->missingDependencies();
-    for (const auto& dependencyName : dependencies)
+  auto dependencies = module->missingDependencies();
+  for (const auto& dependencyName : dependencies)
+  {
+    auto lookupIt = m_moduleLookup.find(dependencyName);
+    if (lookupIt != m_moduleLookup.end())
     {
-        auto lookupIt = m_moduleLookup.find(dependencyName);
-        if (lookupIt != m_moduleLookup.end())
-        {
-            ModuleDetails* dependencyModule = lookupIt->second;
-            // Recursively process the dependency
-            sortNextModule(dependencyModule,
-                           pendingModules,
-                           sortedModules,
-                           visitedModules);
-        }
+      ModuleDetails* dependencyModule = lookupIt->second;
+      // Recursively process the dependency
+      sortNextModule(
+          dependencyModule,
+          pendingModules,
+          sortedModules,
+          visitedModules);
     }
+  }
 
-    if (std::find(sortedModules->begin(), sortedModules->end(), module) ==
-        sortedModules->end())
-    {
-        sortedModules->push_back(module);
-    }
-    visitedModules->insert(module);
-    if (!pendingModules->empty())
-    {
-        ModuleDetails* nextModule = pendingModules->back();
-        pendingModules->pop_back();
-        sortNextModule(nextModule,
-                       pendingModules,
-                       sortedModules,
-                       visitedModules);
-    }
+  if (std::find(sortedModules->begin(), sortedModules->end(), module) ==
+      sortedModules->end())
+  {
+    sortedModules->push_back(module);
+  }
+  visitedModules->insert(module);
+  if (!pendingModules->empty())
+  {
+    ModuleDetails* nextModule = pendingModules->back();
+    pendingModules->pop_back();
+    sortNextModule(nextModule, pendingModules, sortedModules, visitedModules);
+  }
 }
 
 void ScriptingContext::recordMissingDependency(
     const std::string& requiringModule,
     const std::string& missingModule)
 {
-    if (requiringModule.empty())
-    {
-        return;
-    }
-    auto it = m_moduleLookup.find(requiringModule);
-    if (it == m_moduleLookup.end())
-    {
-        return;
-    }
-    it->second->addMissingDependency(missingModule);
-    m_pendingModules.insert(it->second);
+  if (requiringModule.empty())
+  {
+    return;
+  }
+  auto it = m_moduleLookup.find(requiringModule);
+  if (it == m_moduleLookup.end())
+  {
+    return;
+  }
+  it->second->addMissingDependency(missingModule);
+  m_pendingModules.insert(it->second);
 }
 
 void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
 {
-    std::string key = moduleDetails->moduleName();
-    for (ModuleDetails* module : m_modulesToRegister)
+  std::string key = moduleDetails->moduleName();
+  for (ModuleDetails* module : m_modulesToRegister)
+  {
+    if (!module->missingDependencies().empty())
     {
-        if (!module->missingDependencies().empty())
-        {
-            module->clearMissingDependency(key);
-        }
+      module->clearMissingDependency(key);
     }
-    auto it = m_pendingModules.find(moduleDetails);
-    if (it != m_pendingModules.end())
-    {
-        m_pendingModules.erase(it);
-    }
+  }
+  auto it = m_pendingModules.find(moduleDetails);
+  if (it != m_pendingModules.end())
+  {
+    m_pendingModules.erase(it);
+  }
 }
 
 #ifdef WITH_RIVE_TOOLS
-void ScriptingContext::registerShaderRstb(std::string name,
-                                          std::vector<uint8_t> bytes)
+void ScriptingContext::registerShaderRstb(
+    std::string name,
+    std::vector<uint8_t> bytes)
 {
-    m_shaderRstbs[std::move(name)] = std::move(bytes);
+  m_shaderRstbs[std::move(name)] = std::move(bytes);
 }
 
 const std::vector<uint8_t>* ScriptingContext::findShaderRstb(
     const std::string& name) const
 {
-    auto it = m_shaderRstbs.find(name);
-    return it != m_shaderRstbs.end() ? &it->second : nullptr;
+  auto it = m_shaderRstbs.find(name);
+  return it != m_shaderRstbs.end() ? &it->second : nullptr;
 }
 
 const std::vector<uint8_t>* ScriptingContext::findShaderRstb(
     const ScopedAssetReference& reference) const
 {
-    const std::vector<uint8_t>* found = nullptr;
-    int bestRank = 0;
-    for (const auto& entry : m_shaderRstbs)
+  const std::vector<uint8_t>* found = nullptr;
+  int bestRank = 0;
+  for (const auto& entry : m_shaderRstbs)
+  {
+    size_t slash = entry.first.rfind('/');
+    std::string shortName = slash == std::string::npos
+                                ? entry.first
+                                : entry.first.substr(slash + 1);
+    int rank = reference.match(entry.first, shortName);
+    if (rank > bestRank)
     {
-        size_t slash = entry.first.rfind('/');
-        std::string shortName = slash == std::string::npos
-                                    ? entry.first
-                                    : entry.first.substr(slash + 1);
-        int rank = reference.match(entry.first, shortName);
-        if (rank > bestRank)
-        {
-            bestRank = rank;
-            found = &entry.second;
-        }
+      bestRank = rank;
+      found = &entry.second;
     }
-    return found;
+  }
+  return found;
 }
 
 void ScriptingContext::setGeneratorRef(uint32_t assetId, int ref)
 {
-    m_assetGeneratorRefs[assetId] = ref;
+  m_assetGeneratorRefs[assetId] = ref;
 }
 
 int ScriptingContext::getGeneratorRef(uint32_t assetId) const
 {
-    auto it = m_assetGeneratorRefs.find(assetId);
-    return it != m_assetGeneratorRefs.end() ? it->second : 0;
+  auto it = m_assetGeneratorRefs.find(assetId);
+  return it != m_assetGeneratorRefs.end() ? it->second : 0;
 }
 
 void ScriptingContext::clearGeneratorRefs() { m_assetGeneratorRefs.clear(); }
 
 bool ScriptingContext::hasGeneratorRef(uint32_t assetId) const
 {
-    return m_assetGeneratorRefs.find(assetId) != m_assetGeneratorRefs.end();
+  return m_assetGeneratorRefs.find(assetId) != m_assetGeneratorRefs.end();
 }
 
 void ScriptingContext::trackOrphanScriptedProperty(ScriptedProperty* property)
 {
-    if (property != nullptr)
-    {
-        m_orphanScriptedProperties.push_back(property);
-    }
+  if (property != nullptr)
+  {
+    trackScriptedProperty(m_orphanScriptedProperties, property);
+  }
 }
 
 void ScriptingContext::untrackOrphanScriptedProperty(ScriptedProperty* property)
 {
-    auto it = std::remove(m_orphanScriptedProperties.begin(),
-                          m_orphanScriptedProperties.end(),
-                          property);
-    m_orphanScriptedProperties.erase(it, m_orphanScriptedProperties.end());
+  untrackScriptedProperty(m_orphanScriptedProperties, property);
 }
 
 void ScriptingContext::disposeOrphanScriptedProperties(bool allTags)
 {
-    // dispose() untracks each property, so iterate a copy and let the
-    // survivors stay on the list.
-    auto orphans = m_orphanScriptedProperties;
-    for (ScriptedProperty* property : orphans)
+  // dispose() untracks each property, so iterate a copy and let the
+  // survivors stay on the list.
+  auto orphans = m_orphanScriptedProperties;
+  for (ScriptedProperty* property : orphans)
+  {
+    if (property == nullptr)
     {
-        if (property == nullptr)
-        {
-            continue;
-        }
-        // A tagged property belongs to a host that disposes it on its own
-        // lifecycle. The editor regenerates its runtime file constantly, and
-        // each regeneration reaches here; sweeping tagged properties would
-        // wipe the wrappers a running script resolved in init.
-        if (!allTags && property->orphanOwnerTag() != 0)
-        {
-            continue;
-        }
-        property->dispose();
+      continue;
     }
+    // A tagged property belongs to a host that disposes it on its own
+    // lifecycle. The editor regenerates its runtime file constantly, and
+    // each regeneration reaches here; sweeping tagged properties would
+    // wipe the wrappers a running script resolved in init.
+    if (!allTags && property->orphanOwnerTag() != 0)
+    {
+      continue;
+    }
+    property->dispose();
+  }
 }
 
 void ScriptingContext::disposeOrphanScriptedProperties(uint32_t tag)
 {
-    if (tag == 0)
+  if (tag == 0)
+  {
+    return;
+  }
+  // dispose() untracks each property, so iterate a copy.
+  auto orphans = m_orphanScriptedProperties;
+  for (ScriptedProperty* property : orphans)
+  {
+    if (property != nullptr && property->orphanOwnerTag() == tag)
     {
-        return;
+      property->dispose();
     }
-    // dispose() untracks each property, so iterate a copy.
-    auto orphans = m_orphanScriptedProperties;
-    for (ScriptedProperty* property : orphans)
-    {
-        if (property != nullptr && property->orphanOwnerTag() == tag)
-        {
-            property->dispose();
-        }
-    }
+  }
 }
 #endif
-
-void ScriptingContext::trackViewModelInstance(rcp<ViewModelInstance> instance)
-{
-    if (instance == nullptr)
-    {
-        return;
-    }
-    auto& tracked = m_trackedViewModelInstances[instance.get()];
-    tracked.instance = instance;
-    tracked.registrations++;
-}
-
-void ScriptingContext::untrackViewModelInstance(ViewModelInstance* instance)
-{
-    if (instance == nullptr)
-    {
-        return;
-    }
-    auto it = m_trackedViewModelInstances.find(instance);
-    if (it != m_trackedViewModelInstances.end() &&
-        --it->second.registrations <= 0)
-    {
-        m_trackedViewModelInstances.erase(it);
-    }
-}
-
-void ScriptingContext::advanceDetachedViewModels()
-{
-    for (auto& entry : m_trackedViewModelInstances)
-    {
-        ViewModelInstance* instance = entry.second.instance.get();
-        // Only advance detached roots. Instances with parents are already
-        // reached through the bound tree or their detached-root ancestor.
-        if (!instance->hasParents())
-        {
-            instance->advanced();
-        }
-    }
-}
 
 // ── WorkPool integration ───────────────────────────────────────────────────
 // getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).
 
+ScriptingContext* ScriptingContext::from(lua_State* L)
+{
+  auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  if (context == nullptr)
+  {
+    context = static_cast<ScriptingContext*>(
+        lua_getthreaddata(lua_mainthread(L)));
+  }
+  return context;
+}
+
+uint64_t ScriptingContext::acquireOwnerId()
+{
+  if (m_ownerId == 0)
+    m_ownerId = WorkPool::nextOwnerId();
+  return m_ownerId;
+}
+
 WorkPool* ScriptingContext::workPool()
 {
-    if (m_ownerId == 0)
-        m_ownerId = WorkPool::nextOwnerId();
-    return getGlobalWorkPool().get();
+  acquireOwnerId();
+  return getGlobalWorkPool().get();
 }
 
 // Forward-declared in lua_image_decode.cpp (WASM only).
 #ifdef __EMSCRIPTEN__
 extern void wasm_cancelPendingDecodes(lua_State* mainThread);
+extern bool wasm_hasPendingDecodes(lua_State* mainThread);
 #endif
 
 void ScriptingContext::shutdownAsync()
 {
-    if (m_ownerId != 0)
-    {
-        auto& pool = getGlobalWorkPoolIfExists();
-        if (pool)
-            pool->cancelAllForOwner(m_ownerId);
-        m_ownerId = 0;
-    }
+  if (m_ownerId != 0)
+  {
+    auto& pool = getGlobalWorkPoolIfExists();
+    if (pool)
+      pool->cancelAllForOwner(m_ownerId);
+#ifdef WITH_RIVE_SCRIPTNET
+    scriptnet::cancelAllForOwner(m_ownerId);
+#endif
+    m_ownerId = 0;
+  }
 }
 
 // Called from ~ScriptingVM before lua_close. On WASM, also cancel
 // browser-native image decodes that bypass WorkPool.
 void ScriptingContext::shutdownAsyncForState(lua_State* mainThread)
 {
-    shutdownAsync();
+  shutdownAsync();
 #ifdef __EMSCRIPTEN__
-    wasm_cancelPendingDecodes(mainThread);
+  wasm_cancelPendingDecodes(mainThread);
 #endif
 }
 
-bool ScriptingVM::registerScript(lua_State* state,
-                                 const char* name,
-                                 Span<uint8_t> bytecode,
-                                 const char* chunkname)
+bool ScriptingContext::hasPendingAsyncWork(lua_State* mainThread) const
 {
-    // Check if already registered - leave module on stack for caller to use
-    if (checkRegisteredModules(state, name) == 1)
-    {
-        return true;
-    }
-
-    if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
-    {
-        return false;
-    }
-
-    if (!executeModule(state, name, false, chunkname))
-    {
-        return false;
-    }
-
+#ifdef __EMSCRIPTEN__
+  if (wasm_hasPendingDecodes(mainThread))
+  {
     return true;
+  }
+#endif
+  // No id yet means this context never started pool or network work.
+  if (m_ownerId == 0)
+  {
+    return false;
+  }
+  auto& pool = getGlobalWorkPoolIfExists();
+  if (pool && pool->hasPendingWorkForOwner(m_ownerId))
+  {
+    return true;
+  }
+#ifdef WITH_RIVE_SCRIPTNET
+  return scriptnet::hasPendingWorkForOwner(m_ownerId);
+#else
+  return false;
+#endif
 }
 
-bool ScriptingVM::registerModule(lua_State* state,
-                                 const char* name,
-                                 Span<uint8_t> bytecode,
-                                 const char* chunkname)
+bool ScriptingVM::registerScript(
+    lua_State* state,
+    const char* name,
+    Span<uint8_t> bytecode,
+    const char* chunkname)
 {
-    // Check if already registered
-    if (checkRegisteredModules(state, name) == 1)
-    {
-        lua_pop(state, 1);
-        return true;
-    }
+  // Check if already registered - leave module on stack for caller to use
+  if (checkRegisteredModules(state, name) == 1)
+  {
+    return true;
+  }
 
-    if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
-    {
-        return false;
-    }
+  if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
+  {
+    return false;
+  }
 
-    if (!executeModule(state, name, true, chunkname))
-    {
-        return false;
-    }
+  if (!executeModule(state, name, false, chunkname))
+  {
+    return false;
+  }
 
-    // executeModule with isUtility=true registers into the require cache
-    // and leaves the module result on the stack. Pop it.
+  return true;
+}
+
+bool ScriptingVM::registerModule(
+    lua_State* state,
+    const char* name,
+    Span<uint8_t> bytecode,
+    const char* chunkname)
+{
+  // Check if already registered
+  if (checkRegisteredModules(state, name) == 1)
+  {
     lua_pop(state, 1);
     return true;
+  }
+
+  if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
+  {
+    return false;
+  }
+
+  if (!executeModule(state, name, true, chunkname))
+  {
+    return false;
+  }
+
+  // executeModule with isUtility=true registers into the require cache
+  // and leaves the module result on the stack. Pop it.
+  lua_pop(state, 1);
+  return true;
 }
 
 void ScriptingVM::unregisterModule(lua_State* state, const char* name)
 {
-    luaL_findtable(state, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
-    lua_pushstring(state, name);
-    lua_pushnil(state);
-    lua_settable(state, -3);
-    lua_pop(state, 1);
+  luaL_findtable(state, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+  lua_pushstring(state, name);
+  lua_pushnil(state);
+  lua_settable(state, -3);
+  lua_pop(state, 1);
 }
 
 void ScriptingVM::unregisterModule(const char* name)
 {
-    return unregisterModule(m_state, name);
+  return unregisterModule(m_state, name);
 }
 
 bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 {
-    return registerModule(m_state, name, bytecode);
+  return registerModule(m_state, name, bytecode);
 }
 
 bool ScriptingVM::registerScript(const char* name, Span<uint8_t> bytecode)
 {
-    return registerScript(m_state, name, bytecode);
+  return registerScript(m_state, name, bytecode);
 }
 
 int CPPRuntimeScriptingContext::pCall(lua_State* state, int nargs, int nresults)
 {
-    // calculate stack position for message handler
-    int hpos = lua_gettop(state) - nargs;
-    lua_pushcfunction(state, rive_luaErrorHandler, "riveErrorHandler");
-    lua_insert(state, hpos);
+  // calculate stack position for message handler
+  int hpos = lua_gettop(state) - nargs;
+  lua_pushcfunction(state, rive_luaErrorHandler, "riveErrorHandler");
+  lua_insert(state, hpos);
 
-    startTimedExecution(state);
-    int ret = lua_pcall(state, nargs, nresults, hpos);
-    endTimedExecution(state);
-    lua_remove(state, hpos);
-    return ret;
+  startTimedExecution(state);
+  int ret = lua_pcall(state, nargs, nresults, hpos);
+  endTimedExecution(state);
+  lua_remove(state, hpos);
+  return ret;
 }
 
 } // namespace rive

@@ -1,0 +1,87 @@
+diff --git a/core/iwasm/common/wasm_memory.c b/core/iwasm/common/wasm_memory.c
+index f78d76e..b955fdc 100644
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1477,6 +1477,28 @@ wasm_munmap_linear_memory(void *mapped_mem, uint64 commit_size, uint64 map_size)
+     os_munmap(mapped_mem, map_size);
+ }
+ 
++/* rive patch: without guard pages every grow copies the whole memory, so map
++   ahead in quarter power of two steps up to the ceiling */
++static uint64
++linear_memory_map_size(uint64 num_bytes_per_page, uint64 pages,
++                       uint64 max_pages)
++{
++    uint64 size = num_bytes_per_page * pages;
++    uint64 max_size = num_bytes_per_page * max_pages;
++    uint64 base = 65536, map_size;
++
++    if (size == 0)
++        return 0;
++    while (base * 2 <= size)
++        base *= 2;
++    map_size = base;
++    while (map_size < size)
++        map_size += base / 4;
++    if (map_size > max_size)
++        map_size = max_size;
++    return map_size < size ? size : map_size;
++}
++
+ static void *
+ wasm_mremap_linear_memory(void *mapped_mem, uint64 old_size, uint64 new_size,
+                           uint64 commit_size)
+@@ -1658,9 +1680,19 @@ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+             }
+         }
+ 
+-        if (!(memory_data_new =
+-                  wasm_mremap_linear_memory(memory_data_old, total_size_old,
+-                                            total_size_new, total_size_new))) {
++        uint64 map_size_old = linear_memory_map_size(
++            num_bytes_per_page, cur_page_count, max_page_count);
++        uint64 map_size_new = linear_memory_map_size(
++            num_bytes_per_page, total_page_count, max_page_count);
++
++        /* rive patch: spare mapped pages are still zero, bounds checks kept
++           the module from writing them */
++        if (memory_data_old && map_size_new <= map_size_old) {
++            memory_data_new = memory_data_old;
++        }
++        else if (!(memory_data_new =
++                       wasm_mremap_linear_memory(memory_data_old, map_size_old,
++                                                 map_size_new, map_size_new))) {
+             ret = false;
+             goto return_func;
+         }
+@@ -1910,8 +1942,9 @@ wasm_deallocate_linear_memory(WASMMemoryInstance *memory_inst)
+     else
+ #endif
+     {
+-        map_size = (uint64)memory_inst->num_bytes_per_page
+-                   * memory_inst->cur_page_count;
++        map_size = linear_memory_map_size(memory_inst->num_bytes_per_page,
++                                          memory_inst->cur_page_count,
++                                          memory_inst->max_page_count);
+     }
+ #else
+     map_size = 8 * (uint64)BH_GB;
+@@ -1952,7 +1985,8 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+     else
+ #endif
+     {
+-        map_size = init_page_count * num_bytes_per_page;
++        map_size = linear_memory_map_size(num_bytes_per_page, init_page_count,
++                                          max_page_count);
+     }
+ #else  /* else of OS_ENABLE_HW_BOUND_CHECK */
+     /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
+@@ -1980,7 +2014,7 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+             return BHT_ERROR;
+         }
+ #else
+-        if (!(*data = wasm_mmap_linear_memory(map_size, *memory_data_size))) {
++        if (!(*data = wasm_mmap_linear_memory(map_size, map_size))) {
+             return BHT_ERROR;
+         }
+ #endif

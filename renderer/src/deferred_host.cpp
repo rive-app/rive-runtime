@@ -15,7 +15,7 @@
 #include <android/log.h>
 // stderr goes nowhere on Android, route diagnostics to logcat.
 #define DEFERRED_WARN(...)                                                     \
-    __android_log_print(ANDROID_LOG_ERROR, "Rive", __VA_ARGS__)
+  __android_log_print(ANDROID_LOG_ERROR, "Rive", __VA_ARGS__)
 #else
 #define DEFERRED_WARN(...) fprintf(stderr, __VA_ARGS__)
 #endif
@@ -27,158 +27,163 @@ rive::Factory* HostFrameSink::factory() { return renderContext(); }
 
 rive::ore::Context* HostFrameSink::oreContext()
 {
-    return m_replayOre ? renderContext()->ore() : nullptr;
+  return m_replayOre ? renderContext()->ore() : nullptr;
 }
 
 rive::Renderer* HostFrameSink::beginScreenFrame(uint64_t target)
 {
-    if (target != m_target && !m_acceptAnyScreenTarget)
+  if (target != m_target && !m_acceptAnyScreenTarget)
+  {
+    // Another texture's segments reached this sink, so the session frame
+    // was taken while that texture was still recording. Drop them loudly
+    // rather than draw them here; the replayer counts them as dropped.
+    static int strays = 0;
+    if (strays < 16)
     {
-        // Another texture's segments reached this sink, so the session frame
-        // was taken while that texture was still recording. Drop them loudly
-        // rather than draw them here; the replayer counts them as dropped.
-        static int strays = 0;
-        if (strays < 16)
-        {
-            strays++;
-            DEFERRED_WARN("rive deferred: frame carried target %llu into the "
-                          "sink for target %llu, dropping its draws\n",
-                          (unsigned long long)target,
-                          (unsigned long long)m_target);
-        }
-        // Native delivery is one host per session frame: hosts must record
-        // sequentially, so a foreign target here means overlapping opens and
-        // its draws would silently blank. Loud in debug; the warning above
-        // is all release gets.
-        assert(false && "deferred hosts must open and close their screen "
-                        "target sequentially, a neighbor's frame reached "
-                        "this sink");
-        return nullptr;
+      strays++;
+      DEFERRED_WARN(
+          "rive deferred: frame carried target %llu into the "
+          "sink for target %llu, dropping its draws\n",
+          (unsigned long long)target,
+          (unsigned long long)m_target);
     }
-    if (m_screen == nullptr)
-    {
-        m_screen = beginScreen(target, m_clear && !m_targetPreserved, m_color);
-    }
-    return m_screen;
+    // Native delivery is one host per session frame: hosts must record
+    // sequentially, so a foreign target here means overlapping opens and
+    // its draws would silently blank. Loud in debug; the warning above
+    // is all release gets.
+    assert(
+        false && "deferred hosts must open and close their screen "
+                 "target sequentially, a neighbor's frame reached "
+                 "this sink");
+    return nullptr;
+  }
+  if (m_screen == nullptr)
+  {
+    m_screen = beginScreen(target, m_clear && !m_targetPreserved, m_color);
+  }
+  return m_screen;
 }
 
 void HostFrameSink::beginOreFrame()
 {
-    if (auto* ore = oreContext())
-    {
-        ore->beginFrame(oreFrame());
-    }
+  if (auto* ore = oreContext())
+  {
+    ore->beginFrame(oreFrame());
+  }
 }
 
 void HostFrameSink::endOreFrame()
 {
-    if (auto* ore = oreContext())
-    {
-        ore->endFrame();
-    }
+  if (auto* ore = oreContext())
+  {
+    ore->endFrame();
+  }
 }
 
 void HostFrameSink::afterOreFrame()
 {
-    renderContext()->impl()->scrubStateAfterOre();
+  renderContext()->impl()->scrubStateAfterOre();
 }
 
 rive::Renderer* HostFrameSink::beginCanvasContent(
     rive::gpu::RenderCanvas* canvas,
     uint32_t clearColor)
 {
-    m_activeCanvas = canvas;
-    auto* rc = renderContext();
-    // A deferred canvas has no texture until the replaying context gives it
-    // one, and this is the first thing that renders into it.
-    rc->impl()->ensureCanvasBacking(canvas);
-    rive::gpu::RenderContext::FrameDescriptor d{};
-    d.renderTargetWidth = canvas->width();
-    d.renderTargetHeight = canvas->height();
-    d.loadAction = rive::gpu::LoadAction::clear;
-    d.clearColor = clearColor;
-    const FrameMode mode = canvasMode(canvas);
-    d.msaaSampleCount = mode.msaaSampleCount;
-    d.disableRasterOrdering = mode.disableRasterOrdering;
-    d.clockwiseFillOverride = mode.clockwiseFillOverride;
-    rc->beginFrame(d);
-    m_canvasRenderer = std::make_unique<rive::RiveRenderer>(rc);
-    return m_canvasRenderer.get();
+  m_activeCanvas = canvas;
+  auto* rc = renderContext();
+  // A deferred canvas has no texture until the replaying context gives it
+  // one, and this is the first thing that renders into it.
+  rc->impl()->ensureCanvasBacking(canvas);
+  rive::gpu::RenderContext::FrameDescriptor d{};
+  d.renderTargetWidth = canvas->width();
+  d.renderTargetHeight = canvas->height();
+  d.loadAction = rive::gpu::LoadAction::clear;
+  d.clearColor = clearColor;
+  const FrameMode mode = canvasMode(canvas);
+  d.msaaSampleCount = mode.msaaSampleCount;
+  d.disableRasterOrdering = mode.disableRasterOrdering;
+  d.clockwiseFillOverride = mode.clockwiseFillOverride;
+  rc->beginFrame(d);
+  m_canvasRenderer = std::make_unique<rive::RiveRenderer>(rc);
+  return m_canvasRenderer.get();
 }
 
 void HostFrameSink::endCanvasContent()
 {
-    if (m_activeCanvas == nullptr)
-    {
-        return;
-    }
-    auto* rc = renderContext();
-    rive::gpu::RenderContext::FlushResources fr{};
-    fr.renderTarget = m_activeCanvas->renderTarget();
-    if (m_useExternalCommandBuffer)
-    {
-        void* cb = rc->impl()->makeCommandBuffer();
-        fr.externalCommandBuffer = cb;
-        rc->flush(fr);
-        rc->impl()->commitCommandBuffer(cb);
-    }
-    else
-    {
-        rc->flush(fr);
-    }
-    m_canvasRenderer.reset();
-    m_activeCanvas = nullptr;
+  if (m_activeCanvas == nullptr)
+  {
+    return;
+  }
+  auto* rc = renderContext();
+  rive::gpu::RenderContext::FlushResources fr = canvasFlushResources();
+  fr.renderTarget = m_activeCanvas->renderTarget();
+  if (fr.externalCommandBuffer == nullptr && m_useExternalCommandBuffer)
+  {
+    void* cb = rc->impl()->makeCommandBuffer();
+    fr.externalCommandBuffer = cb;
+    rc->flush(fr);
+    rc->impl()->commitCommandBuffer(cb);
+  }
+  else
+  {
+    rc->flush(fr);
+  }
+  m_canvasRenderer.reset();
+  m_activeCanvas = nullptr;
 }
 
-void DeferredInlineHost::beginRecord(bool clear,
-                                     uint32_t color,
-                                     const ore::Context::TargetDesc& target)
+void DeferredInlineHost::beginRecord(
+    bool clear,
+    uint32_t color,
+    const ore::Context::TargetDesc& target)
 {
-    m_doClear = clear;
-    m_color = color;
-    m_session->oreContext().setTarget(target);
-    m_session->recordOreReplayMarker();
+  m_doClear = clear;
+  m_color = color;
+  m_session->oreContext().setTarget(target);
+  m_session->recordOreReplayMarker();
 }
 
 bool DeferredInlineHost::replayOre() const
 {
-    return m_session->oreContext().stream().commandBytes().size() != 0;
+  return m_session->oreContext().stream().commandBytes().size() != 0;
 }
 
 static void warnDroppedDraws(uint32_t droppedDraws)
 {
-    if (droppedDraws == 0)
-    {
-        return;
-    }
-    static int drops = 0;
-    if (drops < 16)
-    {
-        drops++;
-        DEFERRED_WARN("rive deferred: %u draws DROPPED this frame (mixed "
-                      "factories or replay bug)\n",
-                      droppedDraws);
-    }
+  if (droppedDraws == 0)
+  {
+    return;
+  }
+  static int drops = 0;
+  if (drops < 16)
+  {
+    drops++;
+    DEFERRED_WARN(
+        "rive deferred: %u draws DROPPED this frame (mixed "
+        "factories or replay bug)\n",
+        droppedDraws);
+  }
 }
 
-bool DeferredInlineHost::replayInline(HostFrameSink& sink,
-                                      const std::function<void()>& present)
+bool DeferredInlineHost::replayInline(
+    HostFrameSink& sink,
+    const std::function<void()>& present)
 {
-    // Nothing recorded, keep showing the last presented frame.
-    if (!m_session->recordedThisFrame())
-    {
-        return false;
-    }
+  // Nothing recorded, keep showing the last presented frame.
+  if (!m_session->recordedThisFrame())
+  {
+    return false;
+  }
 
-    m_replayer.replayFrame(*m_session, sink);
-    m_session->resetFrame();
+  m_replayer.replayFrame(*m_session, sink);
+  m_session->resetFrame();
 
-    if (sink.began())
-    {
-        present();
-    }
-    warnDroppedDraws(m_replayer.droppedDraws());
-    return true;
+  if (sink.began())
+  {
+    present();
+  }
+  warnDroppedDraws(m_replayer.droppedDraws());
+  return true;
 }
 
 } // namespace rive::cmd

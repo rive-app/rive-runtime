@@ -11,104 +11,124 @@ using namespace rive;
 
 ViewModel::~ViewModel()
 {
-    for (auto& property : m_Properties)
-    {
-        delete property;
-    }
+  for (auto& property : m_Properties)
+  {
+    delete property;
+  }
 }
 
 void ViewModel::addProperty(ViewModelProperty* property)
 {
-    m_Properties.push_back(property);
+  m_Properties.push_back(property);
 }
 
 ViewModelProperty* ViewModel::property(size_t index)
 {
-    if (index < m_Properties.size())
-    {
-        return m_Properties[index];
-    }
-    return nullptr;
+  if (index < m_Properties.size())
+  {
+    return m_Properties[index];
+  }
+  return nullptr;
 }
 
 ViewModelProperty* ViewModel::property(const std::string& propName)
 {
-    for (auto property : m_Properties)
+  for (auto property : m_Properties)
+  {
+    if (property->name() == propName)
     {
-        if (property->name() == propName)
-        {
-            return property;
-        }
+      return property;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 ViewModelProperty* ViewModel::property(const SymbolType symbolType)
 {
-    for (auto property : m_Properties)
+  for (auto property : m_Properties)
+  {
+    if (property->symbolTypeValue() == static_cast<int>(symbolType))
     {
-        if (property->symbolTypeValue() == static_cast<int>(symbolType))
-        {
-            return property;
-        }
+      return property;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 void ViewModel::addInstance(ViewModelInstance* value)
 {
-    m_Instances.push_back(value);
-    value->viewModel(this);
+  m_Instances.push_back(value);
+  value->viewModel(this);
 }
 
 ViewModelInstance* ViewModel::defaultInstance()
 {
-    if (m_Instances.size() > 0)
-    {
+  if (m_Instances.size() > 0)
+  {
 
-        return m_Instances[0];
-    }
-    return nullptr;
+    return m_Instances[0];
+  }
+  return nullptr;
 }
 
 ViewModelInstance* ViewModel::instance(size_t index)
 {
-    if (index < m_Instances.size())
-    {
-        return m_Instances[index];
-    }
-    return nullptr;
+  if (index < m_Instances.size())
+  {
+    return m_Instances[index];
+  }
+  return nullptr;
 }
 
 ViewModelInstance* ViewModel::instance(const std::string& name)
 {
-    for (auto instance : m_Instances)
+  for (auto instance : m_Instances)
+  {
+    if (instance->name() == name)
     {
-        if (instance->name() == name)
-        {
-            return instance;
-        }
+      return instance;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 size_t ViewModel::instanceCount() const { return m_Instances.size(); }
 
 rcp<ViewModelInstance> ViewModel::createInstance()
 {
-    if (m_file)
-    {
-        return m_file->createViewModelInstance(this);
-    }
-    return nullptr;
+  if (m_file)
+  {
+    return m_file->createViewModelInstance(this);
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstance> ViewModel::createFromInstance(
     const std::string& instanceName)
 {
-    if (m_file)
-    {
-        return m_file->createViewModelInstance(this->name(), instanceName);
-    }
-    return nullptr;
+  if (m_file)
+  {
+    return m_file->createViewModelInstance(this->name(), instanceName);
+  }
+  return nullptr;
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModel::editorPrepareForDestruction()
+{
+  // Definitions can be externally retained after the arena retires.
+  // Their instance lookup table must not expose freed arena entries.
+  m_Instances.erase(
+      std::remove_if(
+          m_Instances.begin(),
+          m_Instances.end(),
+          [](auto* instance) { return instance->editorArena() != nullptr; }),
+      m_Instances.end());
+  m_Properties.erase(
+      std::remove_if(
+          m_Properties.begin(),
+          m_Properties.end(),
+          [](auto* c) { return c->editorArena() != nullptr; }),
+      m_Properties.end());
+}
+
+#endif

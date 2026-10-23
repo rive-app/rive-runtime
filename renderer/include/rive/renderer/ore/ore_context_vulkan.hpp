@@ -8,7 +8,9 @@
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <functional>
+#include <string>
 #include <utility>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 namespace rive::ore
@@ -19,17 +21,17 @@ class TextureVulkan;
 // is one Ore reports.
 inline Context::TargetDesc targetDescFor(const gpu::RenderTargetVulkan& target)
 {
-    switch (target.framebufferFormat())
-    {
-        case VK_FORMAT_R8G8B8A8_UNORM:
-        case VK_FORMAT_B8G8R8A8_UNORM:
-            return Context::TargetDesc::color8(target.width(),
-                                               target.height(),
-                                               target.framebufferFormat() ==
-                                                   VK_FORMAT_B8G8R8A8_UNORM);
-        default:
-            return {};
-    }
+  switch (target.framebufferFormat())
+  {
+    case VK_FORMAT_R8G8B8A8_UNORM:
+    case VK_FORMAT_B8G8R8A8_UNORM:
+      return Context::TargetDesc::color8(
+          target.width(),
+          target.height(),
+          target.framebufferFormat() == VK_FORMAT_B8G8R8A8_UNORM);
+    default:
+      return {};
+  }
 }
 
 // Refcounted VkDescriptorPool. Dies in one shot when its last ref
@@ -37,20 +39,20 @@ inline Context::TargetDesc targetDescFor(const gpu::RenderTargetVulkan& target)
 class DescriptorPoolGeneration : public RefCnt<DescriptorPoolGeneration>
 {
 public:
-    static constexpr uint32_t kMaxSetsPerGeneration = 256;
+  static constexpr uint32_t kMaxSetsPerGeneration = 256;
 
-    DescriptorPoolGeneration(rcp<rive::gpu::VulkanContext> vk);
-    ~DescriptorPoolGeneration();
+  DescriptorPoolGeneration(rcp<rive::gpu::VulkanContext> vk);
+  ~DescriptorPoolGeneration();
 
-    // Returns VK_NULL_HANDLE if this generation is full.
-    VkDescriptorSet tryAllocate(VkDescriptorSetLayout dsl);
+  // Returns VK_NULL_HANDLE if this generation is full.
+  VkDescriptorSet tryAllocate(VkDescriptorSetLayout dsl);
 
-    bool hasCapacity() const { return m_setsAllocated < kMaxSetsPerGeneration; }
+  bool hasCapacity() const { return m_setsAllocated < kMaxSetsPerGeneration; }
 
 private:
-    rcp<rive::gpu::VulkanContext> m_vk;
-    VkDescriptorPool m_vkPool = VK_NULL_HANDLE;
-    uint32_t m_setsAllocated = 0;
+  rcp<rive::gpu::VulkanContext> m_vk;
+  VkDescriptorPool m_vkPool = VK_NULL_HANDLE;
+  uint32_t m_setsAllocated = 0;
 };
 
 // Key used to cache VkRenderPass objects (one per unique format+load/store
@@ -65,194 +67,226 @@ private:
 // an invalid Vulkan render pass.
 struct VKRenderPassKey
 {
-    TextureFormat colorFormats[4] = {};
-    uint32_t colorCount = 0;
-    LoadOp colorLoadOps[4] = {};
-    StoreOp colorStoreOps[4] = {};
-    bool colorHasResolve[4] = {};
-    TextureFormat depthFormat = TextureFormat::depth24plusStencil8;
-    LoadOp depthLoadOp = LoadOp::dontCare;
-    StoreOp depthStoreOp = StoreOp::discard;
-    bool hasDepth = false;
-    uint32_t sampleCount = 1;
+  TextureFormat colorFormats[4] = {};
+  uint32_t colorCount = 0;
+  LoadOp colorLoadOps[4] = {};
+  StoreOp colorStoreOps[4] = {};
+  bool colorHasResolve[4] = {};
+  TextureFormat depthFormat = TextureFormat::depth24plusStencil8;
+  LoadOp depthLoadOp = LoadOp::dontCare;
+  StoreOp depthStoreOp = StoreOp::discard;
+  bool hasDepth = false;
+  uint32_t sampleCount = 1;
 
-    bool operator==(const VKRenderPassKey& o) const
+  bool operator==(const VKRenderPassKey& o) const
+  {
+    if (colorCount != o.colorCount || hasDepth != o.hasDepth ||
+        sampleCount != o.sampleCount)
+      return false;
+    for (uint32_t i = 0; i < colorCount; ++i)
     {
-        if (colorCount != o.colorCount || hasDepth != o.hasDepth ||
-            sampleCount != o.sampleCount)
-            return false;
-        for (uint32_t i = 0; i < colorCount; ++i)
-        {
-            if (colorFormats[i] != o.colorFormats[i] ||
-                colorLoadOps[i] != o.colorLoadOps[i] ||
-                colorStoreOps[i] != o.colorStoreOps[i] ||
-                colorHasResolve[i] != o.colorHasResolve[i])
-                return false;
-        }
-        if (hasDepth &&
-            (depthFormat != o.depthFormat || depthLoadOp != o.depthLoadOp ||
-             depthStoreOp != o.depthStoreOp))
-            return false;
-        return true;
+      if (colorFormats[i] != o.colorFormats[i] ||
+          colorLoadOps[i] != o.colorLoadOps[i] ||
+          colorStoreOps[i] != o.colorStoreOps[i] ||
+          colorHasResolve[i] != o.colorHasResolve[i])
+        return false;
     }
+    if (hasDepth &&
+        (depthFormat != o.depthFormat || depthLoadOp != o.depthLoadOp ||
+         depthStoreOp != o.depthStoreOp))
+      return false;
+    return true;
+  }
 };
+
+struct SpirvEntryScratch;
 
 class ContextVulkan : public Context
 {
 public:
-    // The caller is responsible for creating all Vulkan objects and the VMA
-    // allocator. Ore does not manage device lifetime.
-    static std::unique_ptr<ContextVulkan> Make(
-        const rcp<rive::gpu::VulkanContext> vk);
+  // The caller is responsible for creating all Vulkan objects and the VMA
+  // allocator. Ore does not manage device lifetime.
+  static std::unique_ptr<ContextVulkan> Make(
+      const rcp<rive::gpu::VulkanContext> vk);
 
-    ~ContextVulkan() override;
+  ~ContextVulkan() override;
 
-    rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
-    rcp<Texture> makeTexture(const TextureDesc& desc) override;
-    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
-    rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
-    rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
-    rcp<BindGroupLayout> makeBindGroupLayout(
-        const BindGroupLayoutDesc& desc) override;
-    rcp<Pipeline> makePipeline(const PipelineDesc& desc,
-                               std::string* outError = nullptr) override;
-    rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
+  rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
+  rcp<Texture> makeTexture(const TextureDesc& desc) override;
+  rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
+  rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
+  rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
+  rcp<BindGroupLayout> makeBindGroupLayout(
+      const BindGroupLayoutDesc& desc) override;
+  rcp<Pipeline> makePipeline(
+      const PipelineDesc& desc,
+      std::string* outError = nullptr) override;
+  rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    std::unique_ptr<RenderPass> beginRenderPass(
-        const RenderPassDesc& desc,
-        std::string* outError = nullptr) override;
+  std::unique_ptr<RenderPass> beginRenderPass(
+      const RenderPassDesc& desc,
+      std::string* outError = nullptr) override;
 
-    void beginFrame(const FrameDescriptor&) override;
-    void endFrame() override;
-    void waitForGPU() override;
+  void beginFrame(const FrameDescriptor&) override;
+  void endFrame() override;
+  void waitForGPU() override;
 
-    rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
-    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget*) override;
-    rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
-                                     uint32_t width,
-                                     uint32_t height) override;
+  rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+  rcp<TextureView> wrapRenderTarget(gpu::RenderTarget*) override;
+  rcp<TextureView> wrapRiveTexture(
+      gpu::Texture* gpuTex,
+      uint32_t width,
+      uint32_t height) override;
 
-    ShaderTarget shaderTarget() const override { return ShaderTarget::spirv; }
+  ShaderTarget shaderTarget() const override { return ShaderTarget::spirv; }
 
-    VkRenderPass getOrCreateRenderPass(const VKRenderPassKey&);
+  VkRenderPass getOrCreateRenderPass(const VKRenderPassKey&);
 
-    // Device-specific VkFormat for ambiguous TextureFormat values (e.g.
-    // depth24plusStencil8 picks D24S8 or D32S8 based on probe). Mirrors Dawn.
-    VkFormat vkFormatFor(TextureFormat fmt) const;
+  // Device-specific VkFormat for ambiguous TextureFormat values (e.g.
+  // depth24plusStencil8 picks D24S8 or D32S8 based on probe). Mirrors Dawn.
+  VkFormat vkFormatFor(TextureFormat fmt) const;
 
-    ContextVulkan(const ContextVulkan&) = delete;
-    ContextVulkan& operator=(const ContextVulkan&) = delete;
+  ContextVulkan(const ContextVulkan&) = delete;
+  ContextVulkan& operator=(const ContextVulkan&) = delete;
 
 private:
-    friend class RenderPassVulkan;
-    friend class BindGroupVulkan;
-    friend class TextureVulkan;
+  friend class RenderPassVulkan;
+  friend class BindGroupVulkan;
+  friend class TextureVulkan;
 
-    ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) :
-        Context(vk), m_vk(vk)
-    {}
+  ContextVulkan(const rcp<rive::gpu::VulkanContext> vk);
 
-    rcp<TextureView> wrapTargetImage(gpu::RenderTarget*,
-                                     uint32_t width,
-                                     uint32_t height,
-                                     VkImageLayout layout);
+  rcp<TextureView> wrapTargetImage(
+      gpu::RenderTarget*,
+      uint32_t width,
+      uint32_t height,
+      VkImageLayout layout);
 
-    const rcp<rive::gpu::VulkanContext> m_vk;
+  const rcp<rive::gpu::VulkanContext> m_vk;
+  // Reused across pipelines, which one context creates on one thread.
+  std::unique_ptr<SpirvEntryScratch> m_spirvScratch;
 
-    VkQueue m_vkQueue = VK_NULL_HANDLE;
-    uint32_t m_vkQueueFamily = 0;
-    // Probed at Make() time. UNDEFINED until then so a stale read fails loudly.
-    VkFormat m_vkDepth24Stencil8Format = VK_FORMAT_UNDEFINED;
-    VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
-    VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
+  VkQueue m_vkQueue = VK_NULL_HANDLE;
+  uint32_t m_vkQueueFamily = 0;
+  // Probed at Make() time. UNDEFINED until then so a stale read fails loudly.
+  VkFormat m_vkDepth24Stencil8Format = VK_FORMAT_UNDEFINED;
+  VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
+  VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
 
-    VkDescriptorPool m_vkDescriptorPool = VK_NULL_HANDLE;
-    VkFence m_vkFrameFence = VK_NULL_HANDLE;
-    // True between BeginCommandBuffer and EndCommandBuffer. Gates the
-    // auto-reopen path; orphan recordings get flushed at next beginFrame.
-    bool m_vkCmdBufRecording = false;
-    // Active generation. makeBindGroup rolls a new one when full.
-    rcp<DescriptorPoolGeneration> m_currentDescriptorPool;
+  VkDescriptorPool m_vkDescriptorPool = VK_NULL_HANDLE;
+  VkFence m_vkFrameFence = VK_NULL_HANDLE;
+  // True between BeginCommandBuffer and EndCommandBuffer. Gates the
+  // auto-reopen path; orphan recordings get flushed at next beginFrame.
+  bool m_vkCmdBufRecording = false;
+  // Active generation. makeBindGroup rolls a new one when full.
+  rcp<DescriptorPoolGeneration> m_currentDescriptorPool;
 
-    // Lazy-created shared empty `VkDescriptorSetLayout`. Substituted for null
-    // entries in `PipelineDesc::bindGroupLayouts[]` so Vulkan's
-    // `VkPipelineLayoutCreateInfo::pSetLayouts` array is fully populated with
-    // valid handles (Vulkan spec VUID-VkPipelineLayoutCreateInfo-
-    // graphicsPipelineLibrary-06753 forbids `VK_NULL_HANDLE` slots without
-    // the graphicsPipelineLibrary feature). Destroyed at Context teardown via
-    // `vkDeferDestroy` if needed.
-    VkDescriptorSetLayout m_vkEmptyDSL = VK_NULL_HANDLE;
-    VkDescriptorSetLayout vkGetOrCreateEmptyDSL();
+  // Lazy-created shared empty `VkDescriptorSetLayout`. Substituted for null
+  // entries in `PipelineDesc::bindGroupLayouts[]` so Vulkan's
+  // `VkPipelineLayoutCreateInfo::pSetLayouts` array is fully populated with
+  // valid handles (Vulkan spec VUID-VkPipelineLayoutCreateInfo-
+  // graphicsPipelineLibrary-06753 forbids `VK_NULL_HANDLE` slots without
+  // the graphicsPipelineLibrary feature). Destroyed at Context teardown via
+  // `vkDeferDestroy` if needed.
+  VkDescriptorSetLayout m_vkEmptyDSL = VK_NULL_HANDLE;
+  VkDescriptorSetLayout vkGetOrCreateEmptyDSL();
 
-    // Allocate a descriptor set from the active generation, rolling a fresh one
-    // on capacity. The returned pool ref keeps the set alive. Used by
-    // makeBindGroup and by BindGroupVulkan when a UBO orphans onto a new
-    // backing and needs a freshly written set.
-    struct DescriptorSetAllocation
-    {
-        VkDescriptorSet set = VK_NULL_HANDLE;
-        rcp<DescriptorPoolGeneration> pool;
-    };
-    DescriptorSetAllocation vkAllocateDescriptorSet(VkDescriptorSetLayout dsl);
-    // Render pass cache — typically <10 entries, keyed on format+load/store
-    // ops.
-    std::vector<std::pair<VKRenderPassKey, VkRenderPass>> m_vkRenderPassCache;
+  // Allocate a descriptor set from the active generation, rolling a fresh one
+  // on capacity. The returned pool ref keeps the set alive. Used by
+  // makeBindGroup and by BindGroupVulkan when a UBO orphans onto a new
+  // backing and needs a freshly written set.
+  struct DescriptorSetAllocation
+  {
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    rcp<DescriptorPoolGeneration> pool;
+  };
+  DescriptorSetAllocation vkAllocateDescriptorSet(VkDescriptorSetLayout dsl);
+  // Render pass cache — typically <10 entries, keyed on format+load/store
+  // ops.
+  std::vector<std::pair<VKRenderPassKey, VkRenderPass>> m_vkRenderPassCache;
 
-    // Pending image-layout transitions to be emitted before the next render
-    // pass / draw.  Recorded in makeBindGroup() (each sampled view needs the
-    // image in SHADER_READ_ONLY_OPTIMAL at draw time) and in any path that
-    // leaves a texture in a non-default layout (initial UNDEFINED creation,
-    // depth/color attachments after a previous pass, etc.).  Flushed at
-    // beginFrame() and at the start of beginRenderPass() via a single
-    // vkCmdPipelineBarrier — barriers inside a render pass are restricted
-    // to declared self-dependencies, so any cross-pass transitions must be
-    // emitted between passes.  Mirrors Dawn's PrepareResourcesForSyncScope
-    // (src/dawn/native/vulkan/CommandBufferVk.cpp:444):  per-subresource
-    // last-known layout is read off the Texture, compared against the
-    // required usage at descriptor-write time, and a transition is queued
-    // only if the layouts differ.  The rcp<Texture> pins the image alive
-    // until the barrier is recorded.
-    struct VkPendingImageTransition
-    {
-        rcp<Texture> texture;
-        VkImageSubresourceRange range;
-        VkImageLayout newLayout;
-    };
-    std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
-    void vkFlushPendingInitialTransitions();
-    // Textures borrowed from Rive, weak; each unregisters on destruction.
-    std::vector<TextureVulkan*> m_vkRiveWrapped;
-    void vkSyncRiveTextures();
-    // Loading a never written subresource reads undefined contents, and
-    // some ICDs then reject every fragment of the pass, so clear instead.
-    // Marks the view's range written either way.
-    static LoadOp firstUseLoadOp(TextureView* view, LoadOp loadOp);
+  // Pending image-layout transitions to be emitted before the next render
+  // pass / draw.  Recorded in makeBindGroup() (each sampled view needs the
+  // image in SHADER_READ_ONLY_OPTIMAL at draw time) and in any path that
+  // leaves a texture in a non-default layout (initial UNDEFINED creation,
+  // depth/color attachments after a previous pass, etc.).  Flushed at
+  // beginFrame() and at the start of beginRenderPass() via a single
+  // vkCmdPipelineBarrier — barriers inside a render pass are restricted
+  // to declared self-dependencies, so any cross-pass transitions must be
+  // emitted between passes.  Mirrors Dawn's PrepareResourcesForSyncScope
+  // (src/dawn/native/vulkan/CommandBufferVk.cpp:444):  per-subresource
+  // last-known layout is read off the Texture, compared against the
+  // required usage at descriptor-write time, and a transition is queued
+  // only if the layouts differ.  The rcp<Texture> pins the image alive
+  // until the barrier is recorded.
+  struct VkPendingImageTransition
+  {
+    rcp<Texture> texture;
+    VkImageSubresourceRange range;
+    VkImageLayout newLayout;
+  };
+  std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
+  void vkFlushPendingInitialTransitions();
+  // Textures borrowed from Rive, weak; each unregisters on destruction.
+  std::vector<TextureVulkan*> m_vkRiveWrapped;
+  void vkSyncRiveTextures();
+  // Loading a never written subresource reads undefined contents, and
+  // some ICDs then reject every fragment of the pass, so clear instead.
+  // Marks the view's range written either way.
+  static LoadOp firstUseLoadOp(TextureView* view, LoadOp loadOp);
 
-    // Queue a transition for `texture` from its current m_vkLayout to
-    // `newLayout` (typically SHADER_READ_ONLY_OPTIMAL for sampled use).
-    // No-op when the texture is already in the target layout.  Safe to
-    // call outside any active render pass; the transition is emitted by
-    // the next vkFlushPendingInitialTransitions(). m_vkLayout is tracked
-    // per image, so a range narrower than the whole image is only for a
-    // pass attachment, which finish() moves back with the same range.
-    void vkQueueTransitionToLayout(Texture* texture,
-                                   const VkImageSubresourceRange& range,
-                                   VkImageLayout newLayout);
+  // Queue a transition for `texture` from its current m_vkLayout to
+  // `newLayout` (typically SHADER_READ_ONLY_OPTIMAL for sampled use).
+  // No-op when the texture is already in the target layout.  Safe to
+  // call outside any active render pass; the transition is emitted by
+  // the next vkFlushPendingInitialTransitions(). m_vkLayout is tracked
+  // per image, so a range narrower than the whole image is only for a
+  // pass attachment, which finish() moves back with the same range.
+  void vkQueueTransitionToLayout(
+      Texture* texture,
+      const VkImageSubresourceRange& range,
+      VkImageLayout newLayout);
 
-    // Deferred texture uploads: upload() can be called with no recording
-    // CB (verify hooks, scripted shader setup). Drained on the host CB
-    // at the next beginFrame / beginRenderPass.
-    struct VkPendingTextureUpload
-    {
-        // Base types so this header doesn't need TextureVulkan / BufferVulkan.
-        rcp<Texture> texture;
-        rcp<Buffer> stagingBuffer;
-        VkBufferImageCopy region;
-        VkImageAspectFlags aspectMask;
-    };
-    std::vector<VkPendingTextureUpload> m_vkPendingTextureUploads;
-    void vkQueuePendingTextureUpload(VkPendingTextureUpload pending);
-    void vkFlushPendingTextureUploads();
+  // Deferred texture uploads: upload() can be called with no recording
+  // CB (verify hooks, scripted shader setup). Drained on the host CB
+  // at the next beginFrame / beginRenderPass.
+  struct VkPendingTextureUpload
+  {
+    // Base types so this header doesn't need TextureVulkan / BufferVulkan.
+    rcp<Texture> texture;
+    rcp<Buffer> stagingBuffer;
+    VkBufferImageCopy region;
+    VkImageAspectFlags aspectMask;
+  };
+  std::vector<VkPendingTextureUpload> m_vkPendingTextureUploads;
+  void vkQueuePendingTextureUpload(VkPendingTextureUpload pending);
+  void vkFlushPendingTextureUploads();
+
+  // Per pass timestamps behind gpuProfiling(). Each frame writes one slot,
+  // read back once the frame is at or below safeFrameNumber; a frame that
+  // finds its slot still pending goes unmeasured rather than stalling.
+  static constexpr uint32_t kVkProfileSlots = 3;
+  static constexpr uint32_t kVkProfilePassesPerSlot = 64;
+  struct VkProfileSlot
+  {
+    uint64_t frameNumber = 0;
+    bool pending = false;
+    std::vector<std::string> labels;
+  };
+  VkQueryPool m_vkProfilePool = VK_NULL_HANDLE;
+  // Latched so a device without timestamps is not retried every frame.
+  bool m_vkProfileUnavailable = false;
+  bool m_vkProfileOverflowWarned = false;
+  uint64_t m_vkTimestampMask = UINT64_MAX;
+  VkProfileSlot m_vkProfileSlots[kVkProfileSlots];
+  // kVkProfileSlots when this frame has no slot.
+  uint32_t m_vkProfileSlot = kVkProfileSlots;
+  bool vkCreateProfilePool();
+  void vkBeginProfileFrame(const FrameDescriptor& desc);
+  void vkResolveProfileSlot(uint32_t index);
+  // Writes the pass's opening timestamp; returns its query index or
+  // UINT32_MAX when the pass goes unmeasured.
+  uint32_t vkBeginProfilePass(const RenderPassDesc& desc);
 };
 
 } // namespace rive::ore

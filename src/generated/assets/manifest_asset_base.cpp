@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ManifestAssetBase::clone() const
 {
-    auto cloned = new ManifestAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ManifestAsset();
+  cloned->copy(*this);
+  return cloned;
 }

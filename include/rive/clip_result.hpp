@@ -4,9 +4,9 @@ namespace rive
 {
 enum class ClipResult : unsigned char
 {
-    noClip = 0,
-    clip = 1,
-    emptyClip = 2
+  noClip = 0,
+  clip = 1,
+  emptyClip = 2
 };
 }
 #endif

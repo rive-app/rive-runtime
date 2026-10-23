@@ -15,55 +15,56 @@ class ScriptedDataConverter : public ScriptedDataConverterBase,
                               public AdvancingComponent
 {
 private:
-    DataValue* m_dataValue = nullptr;
-    template <typename T, typename V> void storeData(V value)
+  DataValue* m_dataValue = nullptr;
+  template <typename T, typename V> void storeData(V value)
+  {
+    if (m_dataValue && !m_dataValue->is<T>())
     {
-        if (m_dataValue && !m_dataValue->is<T>())
-        {
-            delete m_dataValue;
-            m_dataValue = nullptr;
-        }
-        if (!m_dataValue)
-        {
-            m_dataValue = new T();
-        }
-        m_dataValue->as<T>()->value(value);
-    };
-    virtual void disposeScriptInputs() override;
+      delete m_dataValue;
+      m_dataValue = nullptr;
+    }
+    if (!m_dataValue)
+    {
+      m_dataValue = new T();
+    }
+    m_dataValue->as<T>()->value(value);
+  };
+  virtual void disposeScriptInputs() override;
 #ifdef WITH_RIVE_SCRIPTING
-    DataValue* applyConversion(DataValue* value, const std::string& method);
+  DataValue* applyConversion(DataValue* value, const std::string& method);
 #endif
 
 public:
-    ~ScriptedDataConverter();
-#ifdef WITH_RIVE_SCRIPTING
-    void didHydrateScriptInputs() override;
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+#ifdef WITH_RIVE_EDITOR
+  void editorPrepareForDestruction() override;
 #endif
-    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
-    rcp<DataContext> dataContext() override { return dataBindContext(); }
-    DataType outputType() override { return DataType::any; }
-    uint32_t assetId() override { return scriptAssetId(); }
-    bool advanceComponent(float elapsedSeconds,
-                          AdvanceFlags flags = AdvanceFlags::Animate |
-                                               AdvanceFlags::NewFrame) override;
-    bool advance(float elapsedSeconds) override;
-    bool mayAdvance() const override { return true; }
-    StatusCode import(ImportStack& importStack) override;
-    void addProperty(CustomProperty* prop) override;
-    Core* clone() const override;
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        markConverterDirty();
-        return true;
-    }
-    ScriptProtocol scriptProtocol() override
-    {
-        return ScriptProtocol::converter;
-    }
-    Component* component() override { return nullptr; }
-    bool addDataBindFromScriptedObject(DataBind*) override;
+  ~ScriptedDataConverter();
+#ifdef WITH_RIVE_SCRIPTING
+  void didHydrateScriptInputs() override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+#endif
+  void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+  rcp<DataContext> dataContext() override { return dataBindContext(); }
+  DataType outputType() override { return DataType::any; }
+  uint32_t assetId() override { return scriptAssetId(); }
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  bool advance(float elapsedSeconds) override;
+  bool mayAdvance() const override { return true; }
+  StatusCode import(ImportStack& importStack) override;
+  void addProperty(CustomProperty* prop) override;
+  Core* clone() const override;
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    markConverterDirty();
+    return true;
+  }
+  ScriptProtocol scriptProtocol() override { return ScriptProtocol::converter; }
+  Component* component() override { return nullptr; }
+  bool addDataBindFromScriptedObject(DataBind*) override;
 };
 } // namespace rive
 

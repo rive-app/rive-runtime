@@ -10,75 +10,75 @@ using namespace rive;
 
 StateMachineLayer::~StateMachineLayer()
 {
-    for (auto state : m_States)
-    {
-        delete state;
-    }
+  for (auto state : m_States)
+  {
+    delete state;
+  }
 }
 
 StatusCode StateMachineLayer::onAddedDirty(CoreContext* context)
 {
-    StatusCode code;
-    for (auto state : m_States)
+  StatusCode code;
+  for (auto state : m_States)
+  {
+    if ((code = state->onAddedDirty(context)) != StatusCode::Ok)
     {
-        if ((code = state->onAddedDirty(context)) != StatusCode::Ok)
-        {
-            return code;
-        }
-        switch (state->coreType())
-        {
-            case AnyState::typeKey:
-                m_Any = state->as<AnyState>();
-                break;
-            case EntryState::typeKey:
-                m_Entry = state->as<EntryState>();
-                break;
-            case ExitState::typeKey:
-                m_Exit = state->as<ExitState>();
-                break;
-        }
+      return code;
     }
-
-    // Removed m_Exit and m_Any from this validation in order to be able to
-    // support states with no exit or any state in the future once this runtime
-    // has been around for some time
-    if (m_Entry == nullptr)
+    switch (state->coreType())
     {
-        // The layer is corrupt, we must have an entry state.
-        return StatusCode::InvalidObject;
+      case AnyState::typeKey:
+        m_Any = state->as<AnyState>();
+        break;
+      case EntryState::typeKey:
+        m_Entry = state->as<EntryState>();
+        break;
+      case ExitState::typeKey:
+        m_Exit = state->as<ExitState>();
+        break;
     }
+  }
 
-    return StatusCode::Ok;
+  // Removed m_Exit and m_Any from this validation in order to be able to
+  // support states with no exit or any state in the future once this runtime
+  // has been around for some time
+  if (m_Entry == nullptr)
+  {
+    // The layer is corrupt, we must have an entry state.
+    return StatusCode::InvalidObject;
+  }
+
+  return StatusCode::Ok;
 }
 
 StatusCode StateMachineLayer::onAddedClean(CoreContext* context)
 {
-    StatusCode code;
-    for (auto state : m_States)
+  StatusCode code;
+  for (auto state : m_States)
+  {
+    if ((code = state->onAddedClean(context)) != StatusCode::Ok)
     {
-        if ((code = state->onAddedClean(context)) != StatusCode::Ok)
-        {
-            return code;
-        }
+      return code;
     }
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void StateMachineLayer::addState(LayerState* state)
 {
-    m_States.push_back(state);
+  m_States.push_back(state);
 }
 
 StatusCode StateMachineLayer::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    // WOW -- we're handing off ownership of this!
-    stateMachineImporter->addLayer(std::unique_ptr<StateMachineLayer>(this));
-    return Super::import(importStack);
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachineBase::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  // WOW -- we're handing off ownership of this!
+  stateMachineImporter->addLayer(std::unique_ptr<StateMachineLayer>(this));
+  return Super::import(importStack);
 }

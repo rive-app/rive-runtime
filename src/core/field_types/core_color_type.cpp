@@ -5,12 +5,12 @@ using namespace rive;
 
 int CoreColorType::deserialize(BinaryReader& reader)
 {
-    return reader.readUint32();
+  return reader.readUint32();
 }
 
 #if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
 int CoreColorType::deserializeRev(BinaryReader& reader)
 {
-    return (int)reader.readVarUint64();
+  return (int)reader.readVarUint64();
 }
 #endif

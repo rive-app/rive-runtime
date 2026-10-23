@@ -11,56 +11,41 @@ namespace rive
 class StateMachineFireTriggerBase : public StateMachineFireAction
 {
 protected:
-    typedef StateMachineFireAction Super;
+  typedef StateMachineFireAction Super;
 
 public:
-    static const uint16_t typeKey = 614;
+  static const uint16_t typeKey = 614;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case StateMachineFireTriggerBase::typeKey:
-            case StateMachineFireActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t viewModelPathIdsPropertyKey = 871;
+  static const uint16_t viewModelPathIdsPropertyKey = 871;
 
 public:
-    virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;
-    virtual void copyViewModelPathIds(
-        const StateMachineFireTriggerBase& object) = 0;
+  virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;
+  virtual void copyViewModelPathIds(
+      const StateMachineFireTriggerBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const StateMachineFireTriggerBase& object)
-    {
-        copyViewModelPathIds(object);
-        RIVE_EDITOR_COPY(object);
-        StateMachineFireAction::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const StateMachineFireTriggerBase& object)
+  {
+    copyViewModelPathIds(object);
+    RIVE_EDITOR_COPY(object);
+    StateMachineFireAction::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case viewModelPathIdsPropertyKey:
-                decodeViewModelPathIds(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return StateMachineFireAction::deserialize(propertyKey, reader);
+      case viewModelPathIdsPropertyKey:
+        decodeViewModelPathIds(CoreBytesType::deserialize(reader));
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return StateMachineFireAction::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void viewModelPathIdsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/state_machine_fire_trigger_ext.inl"
 #endif

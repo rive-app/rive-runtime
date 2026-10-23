@@ -7,94 +7,95 @@
 using namespace rive;
 
 DataBindContextValueAssetImage::DataBindContextValueAssetImage(
-    DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+    DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
 rcp<ImageAsset> DataBindContextValueAssetImage::fileAsset(DataBind* dataBind)
 {
-    auto file = dataBind->file();
-    auto source = dataBind->source();
-    if (file != nullptr && source != nullptr &&
-        source->is<ViewModelInstanceAssetImage>())
-    {
+  auto file = dataBind->file();
+  auto source = dataBind->source();
+  if (file != nullptr && source != nullptr &&
+      source->is<ViewModelInstanceAssetImage>())
+  {
 
-        auto asset = file->asset(
-            source->as<ViewModelInstanceAssetImage>()->propertyValue());
-        if (asset != nullptr && asset->is<ImageAsset>())
-        {
-            return static_rcp_cast<ImageAsset>(asset);
-        }
+    auto asset = file->asset(
+        source->as<ViewModelInstanceAssetImage>()->propertyValue());
+    if (asset != nullptr && asset->is<ImageAsset>())
+    {
+      return static_rcp_cast<ImageAsset>(asset);
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
-void DataBindContextValueAssetImage::apply(Core* target,
-                                           uint32_t propertyKey,
-                                           bool isMainDirection,
-                                           DataBind* dataBind)
+void DataBindContextValueAssetImage::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    if (target->is<Image>())
+  if (target->is<Image>())
+  {
+    auto asset = fileAsset(dataBind);
+    if (asset != nullptr)
     {
-        auto asset = fileAsset(dataBind);
-        if (asset != nullptr)
-        {
-            target->as<Image>()->setAsset(asset);
-        }
-        else
-        {
-            auto source = dataBind->source();
-            target->as<Image>()->setAsset(
-                source->as<ViewModelInstanceAssetImage>()->asset());
-        }
-    }
-    else if (target->is<PaintImage>())
-    {
-        // A fill/stroke painted with an image binds through its PaintImage
-        // child: same asset-referencer path as Image, so the bound image
-        // modulates the parent paint.
-        auto asset = fileAsset(dataBind);
-        if (asset != nullptr)
-        {
-            target->as<PaintImage>()->setAsset(asset);
-        }
-        else
-        {
-            auto source = dataBind->source();
-            target->as<PaintImage>()->setAsset(
-                source->as<ViewModelInstanceAssetImage>()->asset());
-        }
-    }
-    else if (target->is<BindablePropertyAsset>())
-    {
-        auto source = dataBind->source();
-        target->as<BindablePropertyAsset>()->imageValue(
-            source->as<ViewModelInstanceAssetImage>()->asset()->renderImage());
-        CoreRegistry::setUint(
-            target,
-            propertyKey,
-            source->as<ViewModelInstanceAssetImage>()->propertyValue());
-    }
-    else if (target->is<ViewModelInstanceAssetImage>())
-    {
-        auto source = dataBind->source()->as<ViewModelInstanceAssetImage>();
-        auto sourceValue = source->propertyValue();
-        if (sourceValue == static_cast<uint32_t>(-1))
-        {
-            target->as<ViewModelInstanceAssetImage>()->value(
-                source->asset()->renderImage());
-        }
-        else
-        {
-            CoreRegistry::setUint(target, propertyKey, sourceValue);
-        }
+      target->as<Image>()->setAsset(asset);
     }
     else
     {
-        auto source = dataBind->source();
-        CoreRegistry::setUint(
-            target,
-            propertyKey,
-            source->as<ViewModelInstanceAssetImage>()->propertyValue());
+      auto source = dataBind->source();
+      target->as<Image>()->setAsset(
+          source->as<ViewModelInstanceAssetImage>()->asset());
     }
+  }
+  else if (target->is<PaintImage>())
+  {
+    // A fill/stroke painted with an image binds through its PaintImage
+    // child: same asset-referencer path as Image, so the bound image
+    // modulates the parent paint.
+    auto asset = fileAsset(dataBind);
+    if (asset != nullptr)
+    {
+      target->as<PaintImage>()->setAsset(asset);
+    }
+    else
+    {
+      auto source = dataBind->source();
+      target->as<PaintImage>()->setAsset(
+          source->as<ViewModelInstanceAssetImage>()->asset());
+    }
+  }
+  else if (target->is<BindablePropertyAsset>())
+  {
+    auto source = dataBind->source();
+    target->as<BindablePropertyAsset>()->imageValue(
+        source->as<ViewModelInstanceAssetImage>()->asset()->renderImage());
+    CoreRegistry::setUint(
+        target,
+        propertyKey,
+        source->as<ViewModelInstanceAssetImage>()->propertyValue());
+  }
+  else if (target->is<ViewModelInstanceAssetImage>())
+  {
+    auto source = dataBind->source()->as<ViewModelInstanceAssetImage>();
+    auto sourceValue = source->propertyValue();
+    if (sourceValue == static_cast<uint32_t>(-1))
+    {
+      target->as<ViewModelInstanceAssetImage>()->value(
+          source->asset()->renderImage());
+    }
+    else
+    {
+      CoreRegistry::setUint(target, propertyKey, sourceValue);
+    }
+  }
+  else
+  {
+    auto source = dataBind->source();
+    CoreRegistry::setUint(
+        target,
+        propertyKey,
+        source->as<ViewModelInstanceAssetImage>()->propertyValue());
+  }
 }

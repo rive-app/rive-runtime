@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StateMachineFireTriggerBase::clone() const
 {
-    auto cloned = new StateMachineFireTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new StateMachineFireTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

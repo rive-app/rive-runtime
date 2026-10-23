@@ -13,33 +13,33 @@ namespace rive
 class LayoutNodeStyle : public LayoutNodeStyleBase
 {
 public:
-    void markLayoutNodeDirty()
+  void markLayoutNodeDirty()
+  {
+    if (auto* provider = LayoutNodeProvider::from(parent()))
     {
-        if (auto* provider = LayoutNodeProvider::from(parent()))
-        {
-            provider->markLayoutNodeDirty();
-        }
+      provider->markLayoutNodeDirty();
     }
+  }
 
 protected:
-    void widthChanged() override { markLayoutNodeDirty(); }
-    void heightChanged() override { markLayoutNodeDirty(); }
-    void fractionalWidthChanged() override { markLayoutNodeDirty(); }
-    void fractionalHeightChanged() override { markLayoutNodeDirty(); }
-    void layoutWidthScaleTypeChanged() override { markLayoutNodeDirty(); }
-    void layoutHeightScaleTypeChanged() override { markLayoutNodeDirty(); }
-    void minWidthChanged() override { markLayoutNodeDirty(); }
-    void maxWidthChanged() override { markLayoutNodeDirty(); }
-    void minHeightChanged() override { markLayoutNodeDirty(); }
-    void maxHeightChanged() override { markLayoutNodeDirty(); }
-    void minWidthUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void maxWidthUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void minHeightUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void maxHeightUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void widthUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void heightUnitsValueChanged() override { markLayoutNodeDirty(); }
-    void justifySelfValueChanged() override { markLayoutNodeDirty(); }
-    void displayValueChanged() override { markLayoutNodeDirty(); }
+  void widthChanged() override { markLayoutNodeDirty(); }
+  void heightChanged() override { markLayoutNodeDirty(); }
+  void fractionalWidthChanged() override { markLayoutNodeDirty(); }
+  void fractionalHeightChanged() override { markLayoutNodeDirty(); }
+  void layoutWidthScaleTypeChanged() override { markLayoutNodeDirty(); }
+  void layoutHeightScaleTypeChanged() override { markLayoutNodeDirty(); }
+  void minWidthChanged() override { markLayoutNodeDirty(); }
+  void maxWidthChanged() override { markLayoutNodeDirty(); }
+  void minHeightChanged() override { markLayoutNodeDirty(); }
+  void maxHeightChanged() override { markLayoutNodeDirty(); }
+  void minWidthUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void maxWidthUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void minHeightUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void maxHeightUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void widthUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void heightUnitsValueChanged() override { markLayoutNodeDirty(); }
+  void justifySelfValueChanged() override { markLayoutNodeDirty(); }
+  void displayValueChanged() override { markLayoutNodeDirty(); }
 };
 } // namespace rive
 

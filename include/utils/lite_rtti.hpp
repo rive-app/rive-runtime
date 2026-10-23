@@ -28,10 +28,10 @@ namespace rive
 template <class Root, unsigned int ID> class enable_lite_rtti
 {
 public:
-    unsigned int liteTypeID() const { return m_liteTypeId; }
+  unsigned int liteTypeID() const { return m_liteTypeId; }
 
 protected:
-    unsigned int m_liteTypeId = ID;
+  unsigned int m_liteTypeId = ID;
 };
 
 // Override the lite rtti type ID on subsequent classes of a class hierarchy.
@@ -39,43 +39,43 @@ template <class Base, class Derived, unsigned int ID>
 class lite_rtti_override : public Base
 {
 public:
-    constexpr static uint32_t LITE_RTTI_TYPE_ID = ID;
-    lite_rtti_override() { Base::m_liteTypeId = ID; }
+  constexpr static uint32_t LITE_RTTI_TYPE_ID = ID;
+  lite_rtti_override() { Base::m_liteTypeId = ID; }
 
-    template <typename... Args>
-    lite_rtti_override(Args&&... args) : Base(std::forward<Args>(args)...)
-    {
-        Base::m_liteTypeId = ID;
-    }
+  template <typename... Args>
+  lite_rtti_override(Args&&... args) : Base(std::forward<Args>(args)...)
+  {
+    Base::m_liteTypeId = ID;
+  }
 };
 
 // Like dynamic_cast<>, but can only cast a pointer to its most-derived type.
 template <class U, class T> U lite_rtti_cast(T* t)
 {
-    if (t != nullptr &&
-        t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
-    {
-        return static_cast<U>(t);
-    }
-    return nullptr;
+  if (t != nullptr &&
+      t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
+  {
+    return static_cast<U>(t);
+  }
+  return nullptr;
 }
 
 // Like lite_rtti_cast<>, but asserts that the cast succeeded.
 template <class U, class T> U lite_rtti_cast_or_assert(T* t)
 {
-    U cast = lite_rtti_cast<U>(t);
-    assert(cast != nullptr);
-    return cast;
+  U cast = lite_rtti_cast<U>(t);
+  assert(cast != nullptr);
+  return cast;
 }
 
 template <class U, class T> rcp<U> lite_rtti_rcp_cast(rcp<T> t)
 {
-    if (t != nullptr &&
-        t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
-    {
-        return static_rcp_cast<U>(t);
-    }
-    return nullptr;
+  if (t != nullptr &&
+      t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
+  {
+    return static_rcp_cast<U>(t);
+  }
+  return nullptr;
 }
 
 // Different versions of clang-format disagree on how to formate these.

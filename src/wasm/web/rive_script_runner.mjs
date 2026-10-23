@@ -1,0 +1,662 @@
+// The JS half of the browser scripting lane. Script modules run on the
+// browser's own wasm engine; librive reaches them through the EM_JS calls in
+// browser_scripting_vm.cpp, which forward to the runner installed here.
+//
+// Loading a file is two steps. File::import makes each script VM and
+// registers its module bytes here, without instantiating. The host then
+// awaits prepare(), which compiles and instantiates every registered module
+// asynchronously, and only then asks librive to start the file's scripts.
+// A host that skips prepare() still works where the browser allows
+// synchronous compilation on the calling thread: start() instantiates inline.
+//
+// Hosts link rive_scripting_pre.js, generated from this file, into their
+// emscripten build with --pre-js. It installs the runner by itself, so a
+// host only does:
+//   ... import a file ...
+//   await Module.riveScripting.prepare();
+//   ... start the file's scripts ...
+import {
+    createRiveModuleImports,
+    bindRiveHostCalls,
+    unlinkedImport,
+} from './rive_module_imports.mjs';
+
+// WasmScriptingVM::CallOutcome, then the browser's own host fault.
+const kOk = 0;
+const kMissing = 1;
+const kTrapped = 2;
+const kHostFault = 3;
+const kLiftedStart = '__riveLiftedStart';
+
+// One function returning v128.const zero, then one returning the relaxed
+// swizzle of two: the smallest modules each SIMD flavor needs.
+const kV128Zero = [0xfd, 0x0c, ...new Array(16).fill(0)];
+const kSimdProbe = probeModule([...kV128Zero]);
+const kRelaxedSimdProbe = probeModule([
+    ...kV128Zero,
+    ...kV128Zero,
+    0xfd,
+    0x80,
+    0x02,
+]);
+
+function probeModule(body) {
+    const code = [0, ...body, 0x0b];
+    return new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0,
+        // One type, () -> v128, and one function of it.
+        1, 5, 1, 0x60, 0, 1, 0x7b,
+        3, 2, 1, 0,
+        10, code.length + 2, 1, code.length, ...code,
+    ]);
+}
+
+// Index immediates of the 0xfc ops by sub-opcode: none for the saturating
+// truncations, then memory.init through table.fill.
+const kBulkIndices = [0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1];
+// The ops past the variable accesses that take one LEB.
+const kOneLebOps = [0x0c, 0x0d, 0x10, 0x12, 0x3f, 0x40, 0x41, 0x42, 0xd0, 0xd2];
+
+// The SIMD a module's types and code need: 2 for relaxed, 1 for plain, 0 for
+// none, or -1 when they hold what this walk does not read.
+function simdNeeded(bytes) {
+    let needed = 0;
+    let at = 8;
+    const need = (flavor) => {
+        needed = Math.max(needed, flavor);
+    };
+    const next = () => {
+        const [value, end] = readLeb(bytes, at);
+        at = end;
+        return value;
+    };
+    const memarg = () => {
+        if (next() & 0x40) {
+            next();
+        }
+        next();
+    };
+    // False for a reference type with a heap type, which takes more bytes.
+    const valueType = () => {
+        const type = bytes[at++];
+        if (type === 0x7b) {
+            need(1);
+        }
+        return type !== 0x63 && type !== 0x64;
+    };
+    const instruction = () => {
+        const op = bytes[at++];
+        if (op === 0xfd) {
+            const sub = next();
+            need(sub >= 0x100 && sub <= 0x113 ? 2 : 1);
+            if (sub <= 0x0b || sub === 0x5c || sub === 0x5d) {
+                memarg();
+            } else if (sub === 0x0c || sub === 0x0d) {
+                at += 16;
+            } else if (sub >= 0x15 && sub <= 0x22) {
+                at += 1;
+            } else if (sub >= 0x54 && sub <= 0x5b) {
+                memarg();
+                at += 1;
+            }
+        } else if (op === 0xfc) {
+            const sub = next();
+            if (sub >= kBulkIndices.length) {
+                return false;
+            }
+            for (let i = 0; i < kBulkIndices[sub]; i++) {
+                next();
+            }
+        } else if (op === 0xfe) {
+            // atomic.fence takes a byte, the other atomics a memarg.
+            if (next() === 3) {
+                at += 1;
+            } else {
+                memarg();
+            }
+        } else if (op >= 0x28 && op <= 0x3e) {
+            memarg();
+        } else if (op >= 0x02 && op <= 0x04) {
+            // A block type: one byte, or a type index.
+            if (bytes[at] === 0x7b) {
+                need(1);
+            }
+            next();
+        } else if (op === 0x0e) {
+            for (let labels = next(); labels >= 0 && at < bytes.length; labels--) {
+                next();
+            }
+        } else if (op === 0x1c) {
+            for (let types = next(); types > 0 && at < bytes.length; types--) {
+                if (!valueType()) {
+                    return false;
+                }
+            }
+        } else if (op === 0x11 || op === 0x13) {
+            next();
+            next();
+        } else if (op === 0x43 || op === 0x44) {
+            at += op === 0x43 ? 4 : 8;
+        } else if ((op >= 0x20 && op <= 0x26) || kOneLebOps.includes(op)) {
+            next();
+        } else if (!(op <= 0x01 || op === 0x05 || op === 0x0b || op === 0x0f ||
+                op === 0x1a || op === 0x1b || op === 0xd1 ||
+                (op >= 0x45 && op <= 0xc4))) {
+            return false;
+        }
+        return true;
+    };
+    while (at < bytes.length) {
+        const id = bytes[at];
+        const [size, body] = readLeb(bytes, at + 1);
+        at = body;
+        if (id === 1) {
+            for (let types = next(); types > 0 && at < bytes.length; types--) {
+                // Function types only: params, then results.
+                if (bytes[at++] !== 0x60) {
+                    return -1;
+                }
+                for (let list = 0; list < 2; list++) {
+                    for (let n = next(); n > 0 && at < bytes.length; n--) {
+                        if (!valueType()) {
+                            return -1;
+                        }
+                    }
+                }
+            }
+        } else if (id === 10) {
+            for (let bodies = next(); bodies > 0 && at < bytes.length; bodies--) {
+                const end = Math.min(next() + at, bytes.length);
+                for (let locals = next(); locals > 0 && at < end; locals--) {
+                    next();
+                    if (!valueType()) {
+                        return -1;
+                    }
+                }
+                while (at < end) {
+                    if (!instruction()) {
+                        return -1;
+                    }
+                }
+            }
+        }
+        at = body + size;
+    }
+    return needed;
+}
+
+function readLeb(bytes, at) {
+    let value = 0;
+    let shift = 0;
+    let byte;
+    do {
+        byte = bytes[at++];
+        value |= (byte & 0x7f) << shift;
+        shift += 7;
+    } while (byte & 0x80);
+    return [value >>> 0, at];
+}
+
+function leb(value) {
+    const out = [];
+    do {
+        const byte = value & 0x7f;
+        value >>>= 7;
+        out.push(value ? byte | 0x80 : byte);
+    } while (value);
+    return out;
+}
+
+// rasc runs every script's top level in the module's start function, and a
+// top level can pass memory to the host. The module's memory is an export,
+// which the page cannot reach until start has returned. So the start section
+// is dropped and its function exported, for the runner to call once the
+// instance and its memory exist. Modules without one come back untouched.
+function liftStart(bytes) {
+    const sections = [];
+    let startFunction = -1;
+    for (let at = 8; at < bytes.length; ) {
+        const [size, body] = readLeb(bytes, at + 1);
+        if (bytes[at] === 8) {
+            startFunction = readLeb(bytes, body)[0];
+        } else {
+            sections.push({ id: bytes[at], at, body, end: body + size });
+        }
+        at = body + size;
+    }
+    if (startFunction < 0 || !sections.some((section) => section.id === 7)) {
+        return bytes;
+    }
+    const parts = [bytes.subarray(0, 8)];
+    for (const section of sections) {
+        if (section.id !== 7) {
+            parts.push(bytes.subarray(section.at, section.end));
+            continue;
+        }
+        const [count, first] = readLeb(bytes, section.body);
+        const name = Array.from(kLiftedStart, (c) => c.charCodeAt(0));
+        const entry = [...leb(name.length), ...name, 0, ...leb(startFunction)];
+        const newCount = leb(count + 1);
+        const rest = bytes.subarray(first, section.end);
+        const size = newCount.length + rest.length + entry.length;
+        parts.push(
+            Uint8Array.from([7, ...leb(size), ...newCount]),
+            rest,
+            Uint8Array.from(entry)
+        );
+    }
+    const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+    let at = 0;
+    for (const part of parts) {
+        out.set(part, at);
+        at += part.length;
+    }
+    return out;
+}
+
+// Args by index: spreading a subarray of the heap cost more than the call.
+function callExport(fn, args, at, argc) {
+    switch (argc) {
+        case 0:
+            return fn();
+        case 1:
+            return fn(args[at]);
+        case 2:
+            return fn(args[at], args[at + 1]);
+        case 3:
+            return fn(args[at], args[at + 1], args[at + 2]);
+        case 4:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3]);
+        case 5:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4]);
+        case 6:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5]);
+        case 7:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5], args[at + 6]);
+        case 8:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5], args[at + 6], args[at + 7]);
+        default:
+            return fn(...args.subarray(at, at + argc));
+    }
+}
+
+export function installRiveScripting(Module) {
+    // Primitives over the librive heap and exports, handed over by librive
+    // itself on first use because only code inside it can see them.
+    let host = null;
+    const vms = new Map();
+    // Bridge traffic, tallied only while a page measures it.
+    const counters = {
+        on: false,
+        hostCalls: 0,
+        bytesStaged: 0,
+        bytesCopiedOut: 0,
+        bytesRead: 0,
+        bytesWritten: 0,
+    };
+
+    // Tests stand in for an engine without SIMD with their own validator.
+    const validate =
+        Module['riveScriptingValidate'] ??
+        ((bytes) => WebAssembly.validate(bytes));
+    let features = null;
+    // Why this engine refuses a module, when a SIMD flavor it lacks is the
+    // reason; null otherwise. The probes run once per page.
+    function missingSimd(bytes) {
+        features ??= {
+            simd: validate(kSimdProbe),
+            relaxed: validate(kRelaxedSimdProbe),
+        };
+        if ((features.simd && features.relaxed) || validate(bytes)) {
+            return null;
+        }
+        const needed = simdNeeded(bytes);
+        if (!features.simd && needed > 0) {
+            return "this browser lacks WebAssembly SIMD, so this file's scripts " +
+                'are off; bake with wasmSimd: off to support it';
+        }
+        if (!features.relaxed && needed === 2) {
+            return "this browser lacks WebAssembly relaxed SIMD, so this file's " +
+                'scripts are off; bake with wasmSimd: on to support it';
+        }
+        return null;
+    }
+
+    function importsFor(entry, module) {
+        const imports = createRiveModuleImports(
+            {
+                calls: bindRiveHostCalls(host.hostCall, entry.ctx),
+                heapU8: host.heapU8,
+                stackSave: host.stackSave,
+                stackAlloc: host.stackAlloc,
+                stackRestore: host.stackRestore,
+                malloc: host.malloc,
+                free: host.free,
+                counters,
+            },
+            () => {
+                if (entry.memory === null) {
+                    // Only a start function liftStart could not move.
+                    throw new Error(
+                        'script passed memory to the host while its module ' +
+                            'was still starting'
+                    );
+                }
+                return entry.memory;
+            }
+        );
+        // The browser refuses a module with an import nothing provides.
+        for (const wanted of WebAssembly.Module.imports(module)) {
+            if (wanted['kind'] === 'function') {
+                const space = (imports[wanted['module']] ??= {});
+                space[wanted['name']] ??= unlinkedImport(
+                    wanted['module'],
+                    wanted['name']
+                );
+            }
+        }
+        return imports;
+    }
+
+    // Before instantiating, which may run a start liftStart left in place, as
+    // top levels already pass strings and a refused module must not run.
+    function announceExports(entry, module) {
+        const mark = host.stackSave();
+        for (const { name } of WebAssembly.Module.exports(module)) {
+            if (!name.startsWith('__rive')) {
+                continue;
+            }
+            const capacity = name.length * 3 + 1;
+            const ptr = host.stackAlloc(capacity);
+            host.writeUtf8(name, ptr, capacity);
+            host.exports['_rive_web_vm_module_export'](entry.ctx.vm, ptr);
+        }
+        host.stackRestore(mark);
+        const refusal =
+            host.exports['_rive_web_vm_start_refusal'](entry.ctx.vm);
+        if (refusal !== 0) {
+            throw new Error(host.utf8(refusal));
+        }
+    }
+
+    function adopt(entry, instance) {
+        entry.memory = instance.exports['memory'];
+        entry.bytes = null;
+        // State of the call in progress, which a trap unwinds without
+        // restoring; a global the module cannot write is not state.
+        entry.callState = Object.keys(instance.exports)
+            .filter((name) => name.startsWith('__riveCall'))
+            .map((name) => instance.exports[name])
+            .filter((global) => {
+                if (!(global instanceof WebAssembly.Global)) {
+                    return false;
+                }
+                try {
+                    global.value = global.value;
+                    return true;
+                } catch {
+                    return false;
+                }
+            });
+        // One stack for nested calls, so hot paths allocate nothing.
+        entry.callSaved = [];
+        // A metered module's own fuel bounds its top level, as it does its
+        // calls.
+        const fuelMs = host.exports['_rive_web_vm_start_fuel'](entry.ctx.vm);
+        const arm = instance.exports['__riveFuelArm'];
+        const end = instance.exports['__riveFuelEnd'];
+        const fueled = fuelMs > 0 && arm !== undefined && end !== undefined;
+        const booting = host.exports['_rive_web_vm_booting'];
+        booting(entry.ctx.vm);
+        const mark = host.stackSave();
+        try {
+            if (fueled) arm(fuelMs);
+            instance.exports[kLiftedStart]?.();
+            if (fueled) end();
+        } catch (error) {
+            // A host fault skips the epilogues of the librive frames it unwinds.
+            host.stackRestore(mark);
+            entry.ctx.raised = null;
+            throw error;
+        } finally {
+            booting(0);
+        }
+        entry.instance = instance;
+    }
+
+    async function prepareEntry(entry) {
+        try {
+            const module = await WebAssembly.compile(liftStart(entry.bytes));
+            if (entry.ctx.vm === 0) {
+                return;
+            }
+            announceExports(entry, module);
+            const instance = await WebAssembly.instantiate(
+                module,
+                importsFor(entry, module)
+            );
+            // Released while instantiating.
+            if (entry.ctx.vm === 0) {
+                return;
+            }
+            adopt(entry, instance);
+        } catch (error) {
+            entry.error = String(error?.message ?? error);
+        }
+    }
+
+    const runner = {
+        attach(primitives) {
+            host ??= primitives;
+        },
+
+        register(vm, bytes) {
+            const copy = bytes.slice();
+            vms.set(vm, {
+                ctx: { vm, raised: null, hostFault: false, counters },
+                bytes: copy,
+                instance: null,
+                memory: null,
+                preparing: null,
+                error: missingSimd(copy),
+                names: new Map(),
+            });
+        },
+
+        release(vm) {
+            const entry = vms.get(vm);
+            if (entry) {
+                // A module still instantiating may call imports afterwards.
+                entry.ctx.vm = 0;
+                vms.delete(vm);
+            }
+        },
+
+        prepare() {
+            const pending = [];
+            for (const entry of vms.values()) {
+                if (entry.instance === null && entry.error === null) {
+                    entry.preparing ??= prepareEntry(entry);
+                    pending.push(entry.preparing);
+                }
+            }
+            return Promise.all(pending);
+        },
+
+        // Returns null when the VM has an instance, else the error.
+        start(vm) {
+            const entry = vms.get(vm);
+            if (!entry) {
+                return 'script module was never registered';
+            }
+            if (entry.instance === null && entry.error === null) {
+                if (entry.preparing !== null) {
+                    return 'script module is still being prepared';
+                }
+                try {
+                    const module = new WebAssembly.Module(liftStart(entry.bytes));
+                    announceExports(entry, module);
+                    adopt(
+                        entry,
+                        new WebAssembly.Instance(module, importsFor(entry, module))
+                    );
+                } catch (error) {
+                    entry.error = String(error?.message ?? error);
+                }
+            }
+            return entry.error;
+        },
+
+        preparing(vm) {
+            const entry = vms.get(vm);
+            return entry?.instance === null &&
+                entry.error === null &&
+                entry.preparing !== null
+                ? 1
+                : 0;
+        },
+
+        hasExport(vm, namePtr) {
+            const entry = vms.get(vm);
+            return typeof entry?.instance?.exports[host.utf8(namePtr)] ===
+                'function'
+                ? 1
+                : 0;
+        },
+
+        // Args arrive as doubles: a u32 is exact in one and the engine
+        // converts each to the export's own parameter type.
+        call(vm, namePtr, argc, argv, resultPtr, trapBuffer, trapCapacity) {
+            const entry = vms.get(vm);
+            if (!entry || entry.instance === null) {
+                return kMissing;
+            }
+            // Export names reach librive's call seam as string literals, so
+            // the pointer identifies the name.
+            let fn = entry.names.get(namePtr);
+            if (fn === undefined) {
+                fn = entry.instance.exports[host.utf8(namePtr)] ?? null;
+                entry.names.set(namePtr, fn);
+            }
+            if (typeof fn !== 'function') {
+                return kMissing;
+            }
+            const callState = entry.callState;
+            const saved = entry.callSaved;
+            const base = saved.length;
+            for (let i = 0; i < callState.length; i++) {
+                saved.push(callState[i].value);
+            }
+            try {
+                const result = callExport(fn, host.heapF64(), argv >> 3, argc);
+                host.heapF64()[resultPtr >> 3] =
+                    typeof result === 'number' ? result : 0;
+                return kOk;
+            } catch (error) {
+                entry.ctx.raised = null;
+                host.writeUtf8(
+                    String(error?.message ?? error),
+                    trapBuffer,
+                    trapCapacity
+                );
+                return entry.ctx.hostFault ? kHostFault : kTrapped;
+            } finally {
+                for (let i = 0; i < callState.length; i++) {
+                    callState[i].value = saved[base + i];
+                }
+                saved.length = base;
+            }
+        },
+
+        raise(vm, messagePtr) {
+            const entry = vms.get(vm);
+            if (entry) {
+                entry.ctx.raised = host.utf8(messagePtr);
+            }
+        },
+
+        read(vm, appAddr, dst, size) {
+            const memory = vms.get(vm)?.memory;
+            if (!memory || appAddr + size > memory.buffer.byteLength) {
+                return 0;
+            }
+            host.heapU8().set(new Uint8Array(memory.buffer, appAddr, size), dst);
+            if (counters.on) counters.bytesRead += size;
+            return 1;
+        },
+
+        write(vm, appAddr, src, size) {
+            const memory = vms.get(vm)?.memory;
+            if (!memory || appAddr + size > memory.buffer.byteLength) {
+                return 0;
+            }
+            new Uint8Array(memory.buffer, appAddr, size).set(
+                host.heapU8().subarray(src, src + size)
+            );
+            if (counters.on) counters.bytesWritten += size;
+            return 1;
+        },
+
+        // Length of the zero terminated string at appAddr, or -1.
+        stringLength(vm, appAddr) {
+            const memory = vms.get(vm)?.memory;
+            if (!memory || appAddr >= memory.buffer.byteLength) {
+                return -1;
+            }
+            const end = new Uint8Array(memory.buffer).indexOf(0, appAddr);
+            return end < 0 ? -1 : end - appAddr;
+        },
+
+        pages(vm) {
+            const memory = vms.get(vm)?.memory;
+            // Not >>> 16, which reads a full 4 GiB memory as none.
+            return memory ? memory.buffer.byteLength / 65536 : 0;
+        },
+
+        // File::frameBoundary for every live VM, for hosts that keep no list
+        // of their files. Returns the warnings they raised.
+        frameBoundary() {
+            const warnings = [];
+            for (const vm of vms.keys()) {
+                const text = host.exports['_rive_web_vm_frame_boundary'](vm);
+                if (text !== 0) {
+                    warnings.push(host.utf8(text));
+                }
+            }
+            return warnings;
+        },
+
+        // Starts or stops tallying the bridge traffic, from zero.
+        countHostCalls(on) {
+            counters.on = !!on;
+            counters.hostCalls = 0;
+            counters.bytesStaged = 0;
+            counters.bytesCopiedOut = 0;
+            counters.bytesRead = 0;
+            counters.bytesWritten = 0;
+        },
+
+        // Calls into librive, bytes staged into its heap and copied back, and
+        // bytes librive read and wrote through its memory seam.
+        hostCallCounts() {
+            return {
+                'hostCalls': counters.hostCalls,
+                'bytesStaged': counters.bytesStaged,
+                'bytesCopiedOut': counters.bytesCopiedOut,
+                'bytesRead': counters.bytesRead,
+                'bytesWritten': counters.bytesWritten,
+            };
+        },
+    };
+    // The entries hosts call from outside this script.
+    runner['prepare'] = runner.prepare;
+    runner['frameBoundary'] = runner.frameBoundary;
+    runner['countHostCalls'] = runner.countHostCalls;
+    runner['hostCallCounts'] = runner.hostCallCounts;
+    Module['riveScripting'] = runner;
+    return runner;
+}

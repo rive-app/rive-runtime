@@ -27,89 +27,89 @@
 
 TEST_CASE("File with library artboard loads", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_export_test.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_export_test.riv");
 
-    // Libraries artboards are always exported after host file artboards.
-    // In this file, the first artboard (id=0) is the host file's Artboard,
-    // and the second one came from the library.
-    auto nestedArtboard =
-        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
-    REQUIRE(nestedArtboard != nullptr);
-    REQUIRE(nestedArtboard->name() == "The nested artboard");
-    REQUIRE(nestedArtboard->x() == 1);
-    REQUIRE(nestedArtboard->y() == 2);
-    REQUIRE(nestedArtboard->artboardId() == 1);
+  // Libraries artboards are always exported after host file artboards.
+  // In this file, the first artboard (id=0) is the host file's Artboard,
+  // and the second one came from the library.
+  auto nestedArtboard = file->artboard(0)->find<rive::NestedArtboard>(
+      "The nested artboard");
+  REQUIRE(nestedArtboard != nullptr);
+  REQUIRE(nestedArtboard->name() == "The nested artboard");
+  REQUIRE(nestedArtboard->x() == 1);
+  REQUIRE(nestedArtboard->y() == 2);
+  REQUIRE(nestedArtboard->artboardId() == 1);
 
-    auto artboard = file->artboard(1);
-    REQUIRE(artboard->name() == "Rocket");
-    REQUIRE(artboard->width() == 512);
-    REQUIRE(artboard->height() == 513);
+  auto artboard = file->artboard(1);
+  REQUIRE(artboard->name() == "Rocket");
+  REQUIRE(artboard->width() == 512);
+  REQUIRE(artboard->height() == 513);
 
-    // The library asset is not exported to runtime.
-    auto assets = file->assets();
-    REQUIRE(assets.size() == 0);
+  // The library asset is not exported to runtime.
+  auto assets = file->assets();
+  REQUIRE(assets.size() == 0);
 }
 
 TEST_CASE("File with library animation loads", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_export_animation_test.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_export_animation_test.riv");
 
-    auto nestedArtboard =
-        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
-    REQUIRE(nestedArtboard != nullptr);
-    REQUIRE(nestedArtboard->name() == "The nested artboard");
-    REQUIRE(nestedArtboard->x() == 1);
-    REQUIRE(nestedArtboard->y() == 2);
+  auto nestedArtboard = file->artboard(0)->find<rive::NestedArtboard>(
+      "The nested artboard");
+  REQUIRE(nestedArtboard != nullptr);
+  REQUIRE(nestedArtboard->name() == "The nested artboard");
+  REQUIRE(nestedArtboard->x() == 1);
+  REQUIRE(nestedArtboard->y() == 2);
 
-    REQUIRE(nestedArtboard->artboardId() == 1);
-    REQUIRE(file->artboard(1)->animationCount() == 1);
-    auto simpleAnimation = file->artboard(1)->firstAnimation();
-    REQUIRE(simpleAnimation->name() == "LA Rocket");
+  REQUIRE(nestedArtboard->artboardId() == 1);
+  REQUIRE(file->artboard(1)->animationCount() == 1);
+  auto simpleAnimation = file->artboard(1)->firstAnimation();
+  REQUIRE(simpleAnimation->name() == "LA Rocket");
 
-    auto nestedAnimations = nestedArtboard->nestedAnimations();
-    REQUIRE(nestedAnimations.size() == 1);
-    auto nestedSimpleAnimation = nestedAnimations[0];
-    REQUIRE(nestedSimpleAnimation->name() == "");
+  auto nestedAnimations = nestedArtboard->nestedAnimations();
+  REQUIRE(nestedAnimations.size() == 1);
+  auto nestedSimpleAnimation = nestedAnimations[0];
+  REQUIRE(nestedSimpleAnimation->name() == "");
 
-    REQUIRE(nestedSimpleAnimation->animationId() == 0);
-    REQUIRE(nestedArtboard->nestedAnimations().size() == 1);
+  REQUIRE(nestedSimpleAnimation->animationId() == 0);
+  REQUIRE(nestedArtboard->nestedAnimations().size() == 1);
 
-    // The library asset is not exported to runtime.
-    auto assets = file->assets();
-    REQUIRE(assets.size() == 0);
+  // The library asset is not exported to runtime.
+  auto assets = file->assets();
+  REQUIRE(assets.size() == 0);
 }
 
 TEST_CASE("File with library state machine loads", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_export_state_machine_test.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_export_state_machine_test.riv");
 
-    auto nestedArtboard =
-        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
-    REQUIRE(nestedArtboard != nullptr);
-    REQUIRE(nestedArtboard->name() == "The nested artboard");
-    REQUIRE(nestedArtboard->x() == 1);
-    REQUIRE(nestedArtboard->y() == 2);
+  auto nestedArtboard = file->artboard(0)->find<rive::NestedArtboard>(
+      "The nested artboard");
+  REQUIRE(nestedArtboard != nullptr);
+  REQUIRE(nestedArtboard->name() == "The nested artboard");
+  REQUIRE(nestedArtboard->x() == 1);
+  REQUIRE(nestedArtboard->y() == 2);
 
-    REQUIRE(nestedArtboard->artboardId() == 1);
-    REQUIRE(file->artboard(1)->stateMachineCount() == 1);
-    auto stateMachine = file->artboard(1)->firstStateMachine();
-    REQUIRE(stateMachine->name() == "SM Rocket");
+  REQUIRE(nestedArtboard->artboardId() == 1);
+  REQUIRE(file->artboard(1)->stateMachineCount() == 1);
+  auto stateMachine = file->artboard(1)->firstStateMachine();
+  REQUIRE(stateMachine->name() == "SM Rocket");
 
-    auto nestedAnimations = nestedArtboard->nestedAnimations();
-    REQUIRE(nestedAnimations.size() == 1);
-    auto nestedStateMachine = nestedAnimations[0];
-    REQUIRE(nestedStateMachine->name() == "");
+  auto nestedAnimations = nestedArtboard->nestedAnimations();
+  REQUIRE(nestedAnimations.size() == 1);
+  auto nestedStateMachine = nestedAnimations[0];
+  REQUIRE(nestedStateMachine->name() == "");
 
-    REQUIRE(nestedStateMachine->animationId() == 0);
-    REQUIRE(nestedArtboard->nestedAnimations().size() == 1);
+  REQUIRE(nestedStateMachine->animationId() == 0);
+  REQUIRE(nestedArtboard->nestedAnimations().size() == 1);
 
-    // time to find the library asset somewhere
-    // make sure its loaded?
-    auto assets = file->assets();
-    REQUIRE(assets.size() == 0);
+  // time to find the library asset somewhere
+  // make sure its loaded?
+  auto assets = file->assets();
+  REQUIRE(assets.size() == 0);
 }
 
 // TODO reinstate, but right now we're missing fonts locally, need to get
@@ -151,224 +151,226 @@ TEST_CASE("File with library state machine loads", "[libraries]")
 // we are literally just loading files here.
 TEST_CASE("Library script exports flat under its mangle prefix", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_scope_edge_test.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_scope_edge_test.riv");
 
-    rive::ScriptAsset* script = nullptr;
-    for (auto asset : file->assets())
+  rive::ScriptAsset* script = nullptr;
+  for (auto asset : file->assets())
+  {
+    if (asset->is<rive::ScriptAsset>())
     {
-        if (asset->is<rive::ScriptAsset>())
-        {
-            script = asset->as<rive::ScriptAsset>();
-        }
+      script = asset->as<rive::ScriptAsset>();
     }
+  }
 
-    // Requires statically link to the mangled registration name; edges and
-    // scope props never reach the runtime.
-    REQUIRE(script != nullptr);
-    REQUIRE(script->moduleName() == "FruitsLib@4/FruitModule");
+  // Requires statically link to the mangled registration name; edges and
+  // scope props never reach the runtime.
+  REQUIRE(script != nullptr);
+  REQUIRE(script->moduleName() == "FruitsLib@4/FruitModule");
 
-#ifdef WITH_RIVE_SCRIPTING_LUAU
-    // A file with scripts still makes a VM.
-    REQUIRE(file->scriptingVM() != nullptr);
+  // The script carries no bytecode, which a build with both backends
+  // leaves to a wasm VM.
+#if defined(WITH_RIVE_SCRIPTING_LUAU) && !defined(WITH_RIVE_SCRIPTING_WASM)
+  // A file with scripts still makes a VM.
+  REQUIRE(file->scriptingVM() != nullptr);
 #endif
 }
 
-TEST_CASE("Nested library scripts export flat under distinct prefixes",
-          "[libraries]")
+TEST_CASE(
+    "Nested library scripts export flat under distinct prefixes",
+    "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/nested_library_scope_test.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/nested_library_scope_test.riv");
 
-    rive::ScriptAsset* useb = nullptr;
-    rive::ScriptAsset* mesh = nullptr;
-    for (auto asset : file->assets())
+  rive::ScriptAsset* useb = nullptr;
+  rive::ScriptAsset* mesh = nullptr;
+  for (auto asset : file->assets())
+  {
+    if (asset->is<rive::ScriptAsset>() && asset->name() == "mesh")
     {
-        if (asset->is<rive::ScriptAsset>() && asset->name() == "mesh")
-        {
-            mesh = asset->as<rive::ScriptAsset>();
-        }
-        else if (asset->is<rive::ScriptAsset>() && asset->name() == "useb")
-        {
-            useb = asset->as<rive::ScriptAsset>();
-        }
+      mesh = asset->as<rive::ScriptAsset>();
     }
+    else if (asset->is<rive::ScriptAsset>() && asset->name() == "useb")
+    {
+      useb = asset->as<rive::ScriptAsset>();
+    }
+  }
 
-    // Each library's modules register under their own prefix; no scope
-    // props, no edges, everything resolves flat.
-    REQUIRE(useb != nullptr);
-    REQUIRE(useb->moduleName() == "OuterLib@6/useb");
-    REQUIRE(mesh != nullptr);
-    REQUIRE(mesh->moduleName() == "InnerLib@4/mesh");
+  // Each library's modules register under their own prefix; no scope
+  // props, no edges, everything resolves flat.
+  REQUIRE(useb != nullptr);
+  REQUIRE(useb->moduleName() == "OuterLib@6/useb");
+  REQUIRE(mesh != nullptr);
+  REQUIRE(mesh->moduleName() == "InnerLib@4/mesh");
 
-#ifdef WITH_RIVE_SCRIPTING_LUAU
-    REQUIRE(file->scriptingVM() != nullptr);
+#if defined(WITH_RIVE_SCRIPTING_LUAU) && !defined(WITH_RIVE_SCRIPTING_WASM)
+  REQUIRE(file->scriptingVM() != nullptr);
 #endif
 }
 
 TEST_CASE("File with library including image", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_with_image.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_with_image.riv");
 
-    auto assets = file->assets();
-    REQUIRE(assets.size() == 1);
+  auto assets = file->assets();
+  REQUIRE(assets.size() == 1);
 
-    auto nestedArtboard =
-        file->artboard(0)->find<rive::NestedArtboard>("The instance");
-    REQUIRE(nestedArtboard != nullptr);
+  auto nestedArtboard = file->artboard(0)->find<rive::NestedArtboard>(
+      "The instance");
+  REQUIRE(nestedArtboard != nullptr);
 
-    auto sourceArtboard = nestedArtboard->sourceArtboard();
-    REQUIRE(sourceArtboard != nullptr);
+  auto sourceArtboard = nestedArtboard->sourceArtboard();
+  REQUIRE(sourceArtboard != nullptr);
 
-    auto images = sourceArtboard->find<rive::Image>();
-    REQUIRE(images.size() == 1);
-    REQUIRE(images[0]->assetId() == 0);
-    REQUIRE(images[0]->imageAsset() != nullptr);
+  auto images = sourceArtboard->find<rive::Image>();
+  REQUIRE(images.size() == 1);
+  REQUIRE(images[0]->assetId() == 0);
+  REQUIRE(images[0]->imageAsset() != nullptr);
 }
 
 TEST_CASE("File with multiple libraries including image", "[libraries]")
 {
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/double_library_with_image.riv");
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/double_library_with_image.riv");
 
-    auto assets = file->assets();
-    REQUIRE(assets.size() == 2);
+  auto assets = file->assets();
+  REQUIRE(assets.size() == 2);
 
-    auto nestedArtboard1 =
-        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
-    auto nestedArtboard2 = file->artboard(0)->find<rive::NestedArtboard>(
-        "Another nested artboard");
-    REQUIRE(nestedArtboard1 != nullptr);
-    REQUIRE(nestedArtboard2 != nullptr);
+  auto nestedArtboard1 = file->artboard(0)->find<rive::NestedArtboard>(
+      "The nested artboard");
+  auto nestedArtboard2 = file->artboard(0)->find<rive::NestedArtboard>(
+      "Another nested artboard");
+  REQUIRE(nestedArtboard1 != nullptr);
+  REQUIRE(nestedArtboard2 != nullptr);
 
-    auto sourceArtboard1 = nestedArtboard1->sourceArtboard();
-    REQUIRE(sourceArtboard1 != nullptr);
-    auto images1 = sourceArtboard1->find<rive::Image>();
-    REQUIRE(images1.size() == 1);
-    REQUIRE(images1[0]->imageAsset() != nullptr);
-    REQUIRE(images1[0]->imageAsset()->name() == "MyFirstImageAsset");
+  auto sourceArtboard1 = nestedArtboard1->sourceArtboard();
+  REQUIRE(sourceArtboard1 != nullptr);
+  auto images1 = sourceArtboard1->find<rive::Image>();
+  REQUIRE(images1.size() == 1);
+  REQUIRE(images1[0]->imageAsset() != nullptr);
+  REQUIRE(images1[0]->imageAsset()->name() == "MyFirstImageAsset");
 
-    auto sourceArtboard2 = nestedArtboard2->sourceArtboard();
-    REQUIRE(sourceArtboard2 != nullptr);
-    auto images2 = sourceArtboard2->find<rive::Image>();
-    REQUIRE(images2.size() == 1);
-    REQUIRE(images2[0]->imageAsset() != nullptr);
-    REQUIRE(images2[0]->imageAsset()->name() == "MyOtherImageAsset");
+  auto sourceArtboard2 = nestedArtboard2->sourceArtboard();
+  REQUIRE(sourceArtboard2 != nullptr);
+  auto images2 = sourceArtboard2->find<rive::Image>();
+  REQUIRE(images2.size() == 1);
+  REQUIRE(images2[0]->imageAsset() != nullptr);
+  REQUIRE(images2[0]->imageAsset()->name() == "MyOtherImageAsset");
 }
 
 TEST_CASE("File with DataEnum", "[libraries]")
 {
-    // This test verifies that a .rev file with LibraryComponents can
-    // export a .riv that has valid DataBind's that reference a DataEnum
-    // coming from a library.
+  // This test verifies that a .rev file with LibraryComponents can
+  // export a .riv that has valid DataBind's that reference a DataEnum
+  // coming from a library.
 
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_data_enum_test.riv");
-    auto artboard = file->artboard(0)->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_data_enum_test.riv");
+  auto artboard = file->artboard(0)->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto event = artboard->find<rive::Event>("my_event");
-    REQUIRE(event != nullptr);
+  auto event = artboard->find<rive::Event>("my_event");
+  REQUIRE(event != nullptr);
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    auto customPropertyString =
-        artboard->find<rive::CustomPropertyString>("my_event_property");
-    REQUIRE(customPropertyString != nullptr);
+  auto customPropertyString = artboard->find<rive::CustomPropertyString>(
+      "my_event_property");
+  REQUIRE(customPropertyString != nullptr);
 
-    REQUIRE(customPropertyString->propertyValue() == "red3");
+  REQUIRE(customPropertyString->propertyValue() == "red3");
 }
 
 TEST_CASE("File with ViewModel", "[libraries]")
 {
-    // This test verifies that a .rev file with LibraryComponents can
-    // export a .riv that has valid DataBind's that reference a ViewModel
-    // coming from a library.
+  // This test verifies that a .rev file with LibraryComponents can
+  // export a .riv that has valid DataBind's that reference a ViewModel
+  // coming from a library.
 
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_view_model_test.riv");
-    auto artboard = file->artboard(0)->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_view_model_test.riv");
+  auto artboard = file->artboard(0)->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    // There's only 1 nested artboard.
-    auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
-    REQUIRE(nestedArtboard != nullptr);
+  // There's only 1 nested artboard.
+  auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
+  REQUIRE(nestedArtboard != nullptr);
 
-    auto libArtboard2 = nestedArtboard->artboardInstance();
-    REQUIRE(libArtboard2->name() == "2");
+  auto libArtboard2 = nestedArtboard->artboardInstance();
+  REQUIRE(libArtboard2->name() == "2");
 
-    auto nestedArtboard2 = libArtboard2->find<rive::NestedArtboard>("");
-    auto libArtboard1 = nestedArtboard2->artboardInstance();
-    REQUIRE(libArtboard1->name() == "1");
+  auto nestedArtboard2 = libArtboard2->find<rive::NestedArtboard>("");
+  auto libArtboard1 = nestedArtboard2->artboardInstance();
+  REQUIRE(libArtboard1->name() == "1");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // There are 5 property types tested.
-    // If any of these works, then the ViewModel property must have worked
-    // String property works
-    auto customPropertyString1 =
-        libArtboard1->find<rive::CustomPropertyString>("for_string");
-    REQUIRE(customPropertyString1 != nullptr);
-    REQUIRE(customPropertyString1->propertyValue() == "hello");
+  // There are 5 property types tested.
+  // If any of these works, then the ViewModel property must have worked
+  // String property works
+  auto customPropertyString1 = libArtboard1->find<rive::CustomPropertyString>(
+      "for_string");
+  REQUIRE(customPropertyString1 != nullptr);
+  REQUIRE(customPropertyString1->propertyValue() == "hello");
 
-    // Enum property works
-    auto customPropertyString2 =
-        libArtboard1->find<rive::CustomPropertyString>("for_enum");
-    REQUIRE(customPropertyString2->propertyValue() == "uk");
+  // Enum property works
+  auto customPropertyString2 = libArtboard1->find<rive::CustomPropertyString>(
+      "for_enum");
+  REQUIRE(customPropertyString2->propertyValue() == "uk");
 
-    // Number property works
-    auto rect = libArtboard1->find<rive::Rectangle>("");
-    REQUIRE(rect != nullptr);
-    REQUIRE(rect->width() == 123);
-    REQUIRE(rect->height() == 123);
+  // Number property works
+  auto rect = libArtboard1->find<rive::Rectangle>("");
+  REQUIRE(rect != nullptr);
+  REQUIRE(rect->width() == 123);
+  REQUIRE(rect->height() == 123);
 
-    // Color property works
-    auto rectShape = libArtboard1->find<rive::Shape>("");
-    REQUIRE(rectShape->children()[1]->is<rive::Fill>());
-    rive::Fill* rectFill = rectShape->children()[1]->as<rive::Fill>();
-    REQUIRE(rectFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 10, 15, 66));
+  // Color property works
+  auto rectShape = libArtboard1->find<rive::Shape>("");
+  REQUIRE(rectShape->children()[1]->is<rive::Fill>());
+  rive::Fill* rectFill = rectShape->children()[1]->as<rive::Fill>();
+  REQUIRE(
+      rectFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 10, 15, 66));
 }
 
 TEST_CASE("library_vmtest_1_host", "[libraries]")
 {
-    // This test verifies that a .rev file with LibraryComponents can
-    // export a .riv that has valid DataBind's that reference a ViewModel
-    // and Artboard coming from two different libraries.
+  // This test verifies that a .rev file with LibraryComponents can
+  // export a .riv that has valid DataBind's that reference a ViewModel
+  // and Artboard coming from two different libraries.
 
-    // created by library_import_export_test.dart in rive_core.
-    auto file = ReadRiveFile("assets/library_vmtest_1_host.riv");
-    auto artboard = file->artboard(0)->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  // created by library_import_export_test.dart in rive_core.
+  auto file = ReadRiveFile("assets/library_vmtest_1_host.riv");
+  auto artboard = file->artboard(0)->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    // There's only 1 nested artboard.
-    auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
-    REQUIRE(nestedArtboard != nullptr);
+  // There's only 1 nested artboard.
+  auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
+  REQUIRE(nestedArtboard != nullptr);
 
-    auto lib2Artboard = nestedArtboard->artboardInstance();
-    REQUIRE(lib2Artboard->name() == "lib2artboard");
+  auto lib2Artboard = nestedArtboard->artboardInstance();
+  REQUIRE(lib2Artboard->name() == "lib2artboard");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // Color property works
-    auto paints = lib2Artboard->shapePaints();
-    REQUIRE(paints.size() == 1);
-    auto paint = paints[0];
-    REQUIRE(paint->is<rive::Fill>());
-    rive::Fill* fill = paint->as<rive::Fill>();
-    REQUIRE(fill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 16, 21, 102));
+  // Color property works
+  auto paints = lib2Artboard->shapePaints();
+  REQUIRE(paints.size() == 1);
+  auto paint = paints[0];
+  REQUIRE(paint->is<rive::Fill>());
+  rive::Fill* fill = paint->as<rive::Fill>();
+  REQUIRE(
+      fill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 16, 21, 102));
 }

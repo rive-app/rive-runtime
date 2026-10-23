@@ -12,50 +12,51 @@ namespace rive
 class BinaryReader
 {
 private:
-    Span<const uint8_t> m_Bytes;
-    const uint8_t* m_Position;
-    bool m_Overflowed;
-    bool m_IntRangeError;
+  Span<const uint8_t> m_Bytes;
+  const uint8_t* m_Position;
+  bool m_Overflowed;
+  bool m_IntRangeError;
 
-    void overflow();
-    void intRangeError();
+  void overflow();
+  void intRangeError();
+  size_t readLength();
 
 public:
-    explicit BinaryReader(Span<const uint8_t>);
-    bool didOverflow() const;
-    bool didIntRangeError() const;
-    bool hasError() const { return m_Overflowed || m_IntRangeError; }
-    bool reachedEnd() const;
+  explicit BinaryReader(Span<const uint8_t>);
+  bool didOverflow() const;
+  bool didIntRangeError() const;
+  bool hasError() const { return m_Overflowed || m_IntRangeError; }
+  bool reachedEnd() const;
 
-    size_t lengthInBytes() const;
-    const uint8_t* position() const;
+  size_t lengthInBytes() const;
+  const uint8_t* position() const;
 
-    std::string readString();
-    std::string readString(size_t length);
-    Span<const uint8_t> readBytes();
-    Span<const uint8_t> readBytes(size_t length);
-    float readFloat32();
+  std::string readString();
+  std::string readString(size_t length);
+  Span<const uint8_t> readBytes();
+  Span<const uint8_t> readBytes(size_t length);
+  float readFloat32();
 #if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
-    double readFloat64();
+  double readFloat64();
 #endif
-    uint8_t readByte();
-    uint16_t readUint16();
-    uint32_t readUint32();
-    uint64_t readVarUint64(); // Reads a LEB128 encoded uint64_t
+  uint8_t readByte();
+  uint16_t readUint16();
+  uint32_t readUint32();
+  uint64_t readVarUint64(); // Reads a LEB128 encoded uint64_t
 
-    // This will cast the uint read to the requested size, but if the
-    // raw value was out-of-range, instead returns 0 and sets the IntRangeError.
-    template <typename T> T readVarUintAs()
+  // This will cast the uint read to the requested size, but if the
+  // raw value was out-of-range, instead returns 0 and sets the IntRangeError.
+  template <typename T> T readVarUintAs()
+  {
+    auto value = this->readVarUint64();
+    if (!fitsIn<T>(value))
     {
-        auto value = this->readVarUint64();
-        if (!fitsIn<T>(value))
-        {
-            value = 0;
-            this->intRangeError();
-        }
-        return static_cast<T>(value);
+      value = 0;
+      this->intRangeError();
     }
-    void reset();
+    return static_cast<T>(value);
+  }
+  void reset();
 };
 } // namespace rive
 

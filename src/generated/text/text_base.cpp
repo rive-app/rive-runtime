@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextBase::clone() const
 {
-    auto cloned = new Text();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Text();
+  cloned->copy(*this);
+  return cloned;
 }

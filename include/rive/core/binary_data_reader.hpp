@@ -9,30 +9,30 @@ namespace rive
 class BinaryDataReader
 {
 private:
-    uint8_t* m_Position;
-    uint8_t* m_End;
-    bool m_Overflowed;
-    size_t m_Length;
+  uint8_t* m_Position;
+  uint8_t* m_End;
+  bool m_Overflowed;
+  size_t m_Length;
 
-    void overflow();
+  void overflow();
 
 public:
-    BinaryDataReader(uint8_t* bytes, size_t length);
-    bool didOverflow() const;
-    bool isEOF() const { return m_Position >= m_End; }
-    const uint8_t* position() const { return m_Position; }
+  BinaryDataReader(uint8_t* bytes, size_t length);
+  bool didOverflow() const;
+  bool isEOF() const { return m_Position >= m_End; }
+  const uint8_t* position() const { return m_Position; }
 
-    size_t lengthInBytes() const;
+  size_t lengthInBytes() const;
 
-    uint64_t readVarUint();
-    uint32_t readVarUint32();
-    double readFloat64();
-    float readFloat32();
-    uint8_t readByte();
-    uint32_t readUint32();
-    std::string readString();
-    void complete(uint8_t* bytes, size_t length);
-    void reset(uint8_t* bytes);
+  uint64_t readVarUint();
+  uint32_t readVarUint32();
+  double readFloat64();
+  float readFloat32();
+  uint8_t readByte();
+  uint32_t readUint32();
+  std::string readString();
+  void complete(uint8_t* bytes, size_t length);
+  void reset(uint8_t* bytes);
 };
 } // namespace rive
 

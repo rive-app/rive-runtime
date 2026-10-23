@@ -14,7 +14,7 @@ rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeVulkan(
     uint32_t height,
     bool riveRenderable)
 {
-    return nullptr;
+  return nullptr;
 }
 } // namespace rive_tests
 
@@ -30,116 +30,115 @@ namespace rive_tests
 class OffscreenRenderTargetVulkan : public OffscreenRenderTarget
 {
 public:
-    OffscreenRenderTargetVulkan(rive::rcp<rive::gpu::VulkanContext> vk,
-                                uint32_t width,
-                                uint32_t height,
-                                bool riveRenderable) :
-        m_textureTarget(rive::make_rcp<TextureTarget>(std::move(vk),
-                                                      width,
-                                                      height,
-                                                      riveRenderable))
-    {}
+  OffscreenRenderTargetVulkan(
+      rive::rcp<rive::gpu::VulkanContext> vk,
+      uint32_t width,
+      uint32_t height,
+      bool riveRenderable)
+      : m_textureTarget(rive::make_rcp<TextureTarget>(
+            std::move(vk),
+            width,
+            height,
+            riveRenderable))
+  {}
 
-    rive::RenderImage* asRenderImage() override
-    {
-        return m_textureTarget->renderImage();
-    }
+  rive::RenderImage* asRenderImage() override
+  {
+    return m_textureTarget->renderImage();
+  }
 
-    rive::gpu::RenderTarget* asRenderTarget() override
-    {
-        return m_textureTarget.get();
-    }
+  rive::gpu::RenderTarget* asRenderTarget() override
+  {
+    return m_textureTarget.get();
+  }
 
 private:
-    class TextureTarget : public rive::gpu::RenderTargetVulkan
+  class TextureTarget : public rive::gpu::RenderTargetVulkan
+  {
+  public:
+    TextureTarget(
+        rive::rcp<rive::gpu::VulkanContext> vk,
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable)
+        : RenderTargetVulkan(
+              vk,
+              width,
+              height,
+              // BGRA is not riveRenderable when using storage textures for
+              // PLS (like in clockwise mode) because storage textures have to
+              // be RGBA8. Let's test both formats, but make sure to use RGBA
+              // for the riveRenderable case.
+              // Also don't test BGRA on Qualcomm. Various Adreno 6 devices
+              // can get the RGB order wrong when resolving BGRA multisampled
+              // data.
+              (riveRenderable || vk->physicalDeviceProperties.vendorID ==
+                                     rive::gpu::vkutil::vendors::Qualcomm)
+                  ? VK_FORMAT_R8G8B8A8_UNORM
+                  : VK_FORMAT_B8G8R8A8_UNORM,
+              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                  // Rendering scenarios that use an offscreen color buffer
+                  // sometimes require "transfer" usages for copying the
+                  // contents back and forth from the main render target.
+                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                  VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                  (riveRenderable ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                                        VK_IMAGE_USAGE_STORAGE_BIT
+                                  : VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+        , m_renderImage(
+              rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D(
+                  {
+                      .format = framebufferFormat(),
+                      .extent = {width, height},
+                      .usage = targetUsageFlags(),
+                  },
+                  "OffscreenRenderTargetVulkan::TextureTarget")))
+    {}
+
+    rive::RiveRenderImage* renderImage() const { return m_renderImage.get(); }
+
+    VkImage targetImage() const override { return texture()->vkImage(); }
+    VkImageView targetImageView() const override
     {
-    public:
-        TextureTarget(rive::rcp<rive::gpu::VulkanContext> vk,
-                      uint32_t width,
-                      uint32_t height,
-                      bool riveRenderable) :
-            RenderTargetVulkan(
-                vk,
-                width,
-                height,
-                // BGRA is not riveRenderable when using storage textures for
-                // PLS (like in clockwise mode) because storage textures have to
-                // be RGBA8. Let's test both formats, but make sure to use RGBA
-                // for the riveRenderable case.
-                // Also don't test BGRA on Qualcomm. Various Adreno 6 devices
-                // can get the RGB order wrong when resolving BGRA multisampled
-                // data.
-                (riveRenderable || vk->physicalDeviceProperties.vendorID ==
-                                       rive::gpu::vkutil::vendors::Qualcomm)
-                    ? VK_FORMAT_R8G8B8A8_UNORM
-                    : VK_FORMAT_B8G8R8A8_UNORM,
-                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                    VK_IMAGE_USAGE_SAMPLED_BIT |
-                    // Rendering scenarios that use an offscreen color buffer
-                    // sometimes require "transfer" usages for copying the
-                    // contents back and forth from the main render target.
-                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                    VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                    (riveRenderable ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-                                          VK_IMAGE_USAGE_STORAGE_BIT
-                                    : VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
-            m_renderImage(
-                rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D(
-                    {
-                        .format = framebufferFormat(),
-                        .extent = {width, height},
-                        .usage = targetUsageFlags(),
-                    },
-                    "OffscreenRenderTargetVulkan::TextureTarget")))
-        {}
+      return texture()->vkImageView();
+    }
 
-        rive::RiveRenderImage* renderImage() const
-        {
-            return m_renderImage.get();
-        }
+    void updateLastAccess(const rive::gpu::vkutil::ImageAccess& a) override
+    {
+      texture()->lastAccess() = a;
+    }
 
-        VkImage targetImage() const override { return texture()->vkImage(); }
-        VkImageView targetImageView() const override
-        {
-            return texture()->vkImageView();
-        }
+    VkImage accessTargetImage(
+        VkCommandBuffer commandBuffer,
+        const rive::gpu::vkutil::ImageAccess& dstAccess,
+        rive::gpu::vkutil::ImageAccessAction accessAction =
+            rive::gpu::vkutil::ImageAccessAction::preserveContents) override
+    {
+      texture()->barrier(commandBuffer, dstAccess, accessAction);
+      return texture()->vkImage();
+    }
 
-        void updateLastAccess(const rive::gpu::vkutil::ImageAccess& a) override
-        {
-            texture()->lastAccess() = a;
-        }
+    VkImageView accessTargetImageView(
+        VkCommandBuffer commandBuffer,
+        const rive::gpu::vkutil::ImageAccess& dstAccess,
+        rive::gpu::vkutil::ImageAccessAction accessAction =
+            rive::gpu::vkutil::ImageAccessAction::preserveContents) override
+    {
+      texture()->barrier(commandBuffer, dstAccess, accessAction);
+      return texture()->vkImageView();
+    }
 
-        VkImage accessTargetImage(
-            VkCommandBuffer commandBuffer,
-            const rive::gpu::vkutil::ImageAccess& dstAccess,
-            rive::gpu::vkutil::ImageAccessAction accessAction =
-                rive::gpu::vkutil::ImageAccessAction::preserveContents) override
-        {
-            texture()->barrier(commandBuffer, dstAccess, accessAction);
-            return texture()->vkImage();
-        }
+  private:
+    rive::gpu::vkutil::Texture2D* texture() const
+    {
+      return static_cast<rive::gpu::vkutil::Texture2D*>(
+          m_renderImage->getTexture());
+    }
 
-        VkImageView accessTargetImageView(
-            VkCommandBuffer commandBuffer,
-            const rive::gpu::vkutil::ImageAccess& dstAccess,
-            rive::gpu::vkutil::ImageAccessAction accessAction =
-                rive::gpu::vkutil::ImageAccessAction::preserveContents) override
-        {
-            texture()->barrier(commandBuffer, dstAccess, accessAction);
-            return texture()->vkImageView();
-        }
+    rive::rcp<rive::RiveRenderImage> m_renderImage;
+  };
 
-    private:
-        rive::gpu::vkutil::Texture2D* texture() const
-        {
-            return static_cast<rive::gpu::vkutil::Texture2D*>(
-                m_renderImage->getTexture());
-        }
-
-        rive::rcp<rive::RiveRenderImage> m_renderImage;
-    };
-
-    rive::rcp<TextureTarget> m_textureTarget;
+  rive::rcp<TextureTarget> m_textureTarget;
 };
 
 rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeVulkan(
@@ -148,10 +147,11 @@ rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeVulkan(
     uint32_t height,
     bool riveRenderable)
 {
-    return rive::make_rcp<OffscreenRenderTargetVulkan>(ref_rcp(vk),
-                                                       width,
-                                                       height,
-                                                       riveRenderable);
+  return rive::make_rcp<OffscreenRenderTargetVulkan>(
+      ref_rcp(vk),
+      width,
+      height,
+      riveRenderable);
 }
 }; // namespace rive_tests
 

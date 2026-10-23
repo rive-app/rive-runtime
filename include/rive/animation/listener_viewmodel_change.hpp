@@ -8,19 +8,31 @@ namespace rive
 class ListenerViewModelChange : public ListenerViewModelChangeBase
 {
 public:
-    ~ListenerViewModelChange();
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
-    StatusCode import(ImportStack& importStack) override;
+  ~ListenerViewModelChange();
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
+  StatusCode import(ImportStack& importStack) override;
+#ifdef WITH_RIVE_EDITOR
+  void setBindablePropertyForEditor(BindableProperty* value)
+  {
+    m_editorBindable = true;
+    m_bindableProperty = value;
+  }
+#endif
 
 private:
-    // Writes the value selected by inputValue() from [invocation] into
-    // [bindableInstance]. Returns false when the invocation does not carry
-    // that value or the bindable's type does not match it.
-    bool applyInputValue(BindableProperty* bindableInstance,
-                         const ListenerInvocation& invocation) const;
+  // Writes the value selected by inputValue() from [invocation] into
+  // [bindableInstance]. Returns false when the invocation does not carry
+  // that value or the bindable's type does not match it.
+  bool applyInputValue(
+      BindableProperty* bindableInstance,
+      const ListenerInvocation& invocation) const;
 
-    BindableProperty* m_bindableProperty = nullptr;
+  BindableProperty* m_bindableProperty = nullptr;
+#ifdef WITH_RIVE_EDITOR
+  bool m_editorBindable = false;
+#endif
 };
 } // namespace rive
 

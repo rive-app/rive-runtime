@@ -13,30 +13,27 @@ class TransformComponents;
 class ScrollBarConstraint : public ScrollBarConstraintBase
 {
 private:
-    TransformComponents m_componentsA;
-    TransformComponents m_componentsB;
-    ScrollConstraint* m_scrollConstraint;
+  TransformComponents m_componentsA;
+  TransformComponents m_componentsB;
+  ScrollConstraint* m_scrollConstraint;
 
 public:
-    void constrain(TransformComponent* component) override;
-    std::vector<DraggableProxy*> draggables() override;
-    ScrollConstraint* scrollConstraint() { return m_scrollConstraint; }
-    void scrollConstraint(ScrollConstraint* constraint)
-    {
-        m_scrollConstraint = constraint;
-    }
-    void buildDependencies() override;
-    StatusCode onAddedDirty(CoreContext* context) override;
-    void dragThumb(Vec2D delta, float timeStamp);
-    void hitTrack(Vec2D worldPosition);
-    LayoutComponent* thumb() { return parent()->as<LayoutComponent>(); }
-    LayoutComponent* track()
-    {
-        return parent()->parent()->as<LayoutComponent>();
-    }
-    float computedThumbWidth();
-    float computedThumbHeight();
-    bool validate(CoreContext* context) override;
+  void constrain(TransformComponent* component) override;
+  std::vector<DraggableProxy*> draggables() override;
+  ScrollConstraint* scrollConstraint() { return m_scrollConstraint; }
+  void scrollConstraint(ScrollConstraint* constraint)
+  {
+    m_scrollConstraint = constraint;
+  }
+  void buildDependencies() override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  void dragThumb(Vec2D delta, float timeStamp);
+  void hitTrack(Vec2D worldPosition);
+  LayoutComponent* thumb() { return parent()->as<LayoutComponent>(); }
+  LayoutComponent* track() { return parent()->parent()->as<LayoutComponent>(); }
+  float computedThumbWidth();
+  float computedThumbHeight();
+  bool validate(CoreContext* context) override;
 };
 } // namespace rive
 

@@ -9,19 +9,19 @@
 
 TEST_CASE("transform constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("assets/transform_constraint.riv");
+  auto file = ReadRiveFile("assets/transform_constraint.riv");
 
-    auto artboard = file->artboard();
+  auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::TransformComponent>("Target") != nullptr);
-    auto target = artboard->find<rive::TransformComponent>("Target");
+  REQUIRE(artboard->find<rive::TransformComponent>("Target") != nullptr);
+  auto target = artboard->find<rive::TransformComponent>("Target");
 
-    REQUIRE(artboard->find<rive::TransformComponent>("Rectangle") != nullptr);
-    auto rectangle = artboard->find<rive::TransformComponent>("Rectangle");
+  REQUIRE(artboard->find<rive::TransformComponent>("Rectangle") != nullptr);
+  auto rectangle = artboard->find<rive::TransformComponent>("Rectangle");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // Expect the transform constraint to have placed the shape in the same
-    // exact world transform as the target.
-    REQUIRE(aboutEqual(target->worldTransform(), rectangle->worldTransform()));
+  // Expect the transform constraint to have placed the shape in the same
+  // exact world transform as the target.
+  REQUIRE(aboutEqual(target->worldTransform(), rectangle->worldTransform()));
 }

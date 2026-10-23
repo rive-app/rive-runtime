@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextInputTextBase::clone() const
 {
-    auto cloned = new TextInputText();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextInputText();
+  cloned->copy(*this);
+  return cloned;
 }

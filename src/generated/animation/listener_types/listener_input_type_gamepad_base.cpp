@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerInputTypeGamepadBase::clone() const
 {
-    auto cloned = new ListenerInputTypeGamepad();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerInputTypeGamepad();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedTriggerBase::clone() const
 {
-    auto cloned = new NestedTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NestedTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

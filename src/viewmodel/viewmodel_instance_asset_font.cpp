@@ -10,78 +10,78 @@
 
 using namespace rive;
 
-ViewModelInstanceAssetFont::ViewModelInstanceAssetFont() :
-    m_fontAsset(rcp<FontAsset>(new FontAsset()))
+ViewModelInstanceAssetFont::ViewModelInstanceAssetFont()
+    : m_fontAsset(rcp<FontAsset>(new FontAsset()))
 {}
 
 void ViewModelInstanceAssetFont::propertyValueChanged()
 {
-    addDirt(ComponentDirt::Bindings);
+  addDirt(ComponentDirt::Bindings);
 #ifdef WITH_RIVE_TOOLS
-    if (m_changedCallback != nullptr)
-    {
-        m_changedCallback(this, propertyValue());
-    }
+  if (m_changedCallback != nullptr)
+  {
+    m_changedCallback(this, propertyValue());
+  }
 #endif
-    onValueChanged();
+  onValueChanged();
 }
 
 void ViewModelInstanceAssetFont::value(Font* font)
 {
-    if (m_fontAsset->font().get() == font)
-    {
-        propertyValue(-1);
-        return;
-    }
-#ifdef WITH_RIVE_TOOLS
-    const bool alreadySentinel = (propertyValue() == static_cast<uint32_t>(-1));
-#endif
-    if (font == nullptr)
-    {
-        m_fontAsset->font(nullptr);
-    }
-    else
-    {
-        font->ref();
-        m_fontAsset->font(rcp<Font>(font));
-    }
-#ifdef WITH_RIVE_TOOLS
-    if (!alreadySentinel)
-    {
-        propertyValue(-1);
-    }
-    else if (m_changedCallback != nullptr)
-    {
-        m_changedCallback(this, propertyValue());
-    }
-#else
+  if (m_fontAsset->font().get() == font)
+  {
     propertyValue(-1);
+    return;
+  }
+#ifdef WITH_RIVE_TOOLS
+  const bool alreadySentinel = (propertyValue() == static_cast<uint32_t>(-1));
 #endif
-    addDirt(ComponentDirt::Bindings);
-    onValueChanged();
+  if (font == nullptr)
+  {
+    m_fontAsset->font(nullptr);
+  }
+  else
+  {
+    font->ref();
+    m_fontAsset->font(rcp<Font>(font));
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (!alreadySentinel)
+  {
+    propertyValue(-1);
+  }
+  else if (m_changedCallback != nullptr)
+  {
+    m_changedCallback(this, propertyValue());
+  }
+#else
+  propertyValue(-1);
+#endif
+  addDirt(ComponentDirt::Bindings);
+  onValueChanged();
 }
 
 void ViewModelInstanceAssetFont::applyValue(DataValueInteger* dataValue)
 {
-    if (dataValue && dataValue->is<DataValueAssetFont>())
+  if (dataValue && dataValue->is<DataValueAssetFont>())
+  {
+    auto font = dataValue->as<DataValueAssetFont>()->fontValue();
+    value(font);
+    if (font)
     {
-        auto font = dataValue->as<DataValueAssetFont>()->fontValue();
-        value(font);
-        if (font)
-        {
-            return;
-        }
+      return;
     }
-    propertyValue(dataValue->value());
+  }
+  propertyValue(dataValue->value());
 }
 
 Core* ViewModelInstanceAssetFont::clone() const
 {
-    auto cloned = new ViewModelInstanceAssetFont();
-    cloned->copy(*this);
-    for (const auto& asset : assets())
-    {
-        cloned->addAsset(asset);
-    }
-    return cloned;
+  auto cloned = new ViewModelInstanceAssetFont();
+  cloned->copy(*this);
+  for (const auto& asset : assets())
+  {
+    cloned->addAsset(asset);
+  }
+  return cloned;
 }

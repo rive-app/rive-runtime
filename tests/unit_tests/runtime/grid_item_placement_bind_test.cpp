@@ -21,60 +21,60 @@
 // gridColumnSpan bound to "span".
 TEST_CASE("a bound grid placement drives the layout", "[layoutgrid]")
 {
-    auto file = ReadRiveFile("assets/layout/grid_placement_bound.riv");
-    auto artboard = file->artboard()->instance();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/layout/grid_placement_bound.riv");
+  auto artboard = file->artboard()->instance();
+  REQUIRE(artboard != nullptr);
 
-    auto viewModel = file->viewModelByName("vm");
-    REQUIRE(viewModel != nullptr);
-    auto viewModelInstance = viewModel->createDefaultInstance();
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance->instance());
+  auto viewModel = file->viewModelByName("vm");
+  REQUIRE(viewModel != nullptr);
+  auto viewModelInstance = viewModel->createDefaultInstance();
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance->instance());
 
-    auto column = viewModelInstance->propertyNumber("column");
-    auto span = viewModelInstance->propertyNumber("span");
-    REQUIRE(column != nullptr);
-    REQUIRE(span != nullptr);
+  auto column = viewModelInstance->propertyNumber("column");
+  auto span = viewModelInstance->propertyNumber("span");
+  REQUIRE(column != nullptr);
+  REQUIRE(span != nullptr);
 
-    // The only item carrying explicit placement; names don't survive export.
-    rive::LayoutComponent* cell = nullptr;
-    for (auto layout : artboard->find<rive::LayoutComponent>())
+  // The only item carrying explicit placement; names don't survive export.
+  rive::LayoutComponent* cell = nullptr;
+  for (auto layout : artboard->find<rive::LayoutComponent>())
+  {
+    if (!layout->is<rive::Artboard>() &&
+        rive::GridItemPlacement::from(layout) != nullptr)
     {
-        if (!layout->is<rive::Artboard>() &&
-            rive::GridItemPlacement::from(layout) != nullptr)
-        {
-            cell = layout;
-        }
+      cell = layout;
     }
-    REQUIRE(cell != nullptr);
+  }
+  REQUIRE(cell != nullptr);
 
-    SECTION("a bound span widens the item")
-    {
-        span->value(2.0f);
-        artboard->advance(0.0f);
+  SECTION("a bound span widens the item")
+  {
+    span->value(2.0f);
+    artboard->advance(0.0f);
 
-        // Two 100px columns; a span of 2 covers both.
-        REQUIRE(cell->layoutWidth() == 200.0f);
-    }
+    // Two 100px columns; a span of 2 covers both.
+    REQUIRE(cell->layoutWidth() == 200.0f);
+  }
 
-    SECTION("a bound column places the item")
-    {
-        column->value(2.0f);
-        span->value(1.0f);
-        artboard->advance(0.0f);
+  SECTION("a bound column places the item")
+  {
+    column->value(2.0f);
+    span->value(1.0f);
+    artboard->advance(0.0f);
 
-        REQUIRE(cell->layoutX() == 100.0f);
-        REQUIRE(cell->layoutWidth() == 100.0f);
-    }
+    REQUIRE(cell->layoutX() == 100.0f);
+    REQUIRE(cell->layoutWidth() == 100.0f);
+  }
 
-    SECTION("a negative bound column counts back from the last cell")
-    {
-        // The signed case: -1 is end-relative. Routed through setUint this
-        // clamps to 0 and the item lands in column 1 instead.
-        column->value(-1.0f);
-        span->value(1.0f);
-        artboard->advance(0.0f);
+  SECTION("a negative bound column counts back from the last cell")
+  {
+    // The signed case: -1 is end-relative. Routed through setUint this
+    // clamps to 0 and the item lands in column 1 instead.
+    column->value(-1.0f);
+    span->value(1.0f);
+    artboard->advance(0.0f);
 
-        REQUIRE(cell->layoutX() == 100.0f);
-    }
+    REQUIRE(cell->layoutX() == 100.0f);
+  }
 }

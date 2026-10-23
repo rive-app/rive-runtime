@@ -10,16 +10,17 @@ namespace rive
 class KeyboardListener
 {
 public:
-    virtual ~KeyboardListener() = default;
+  virtual ~KeyboardListener() = default;
 
-    /// Called when the associated FocusData receives key inputs.
-    virtual bool keyInput(Key key,
-                          KeyModifiers modifiers,
-                          bool isPressed,
-                          bool isRepeat) = 0;
+  /// Called when the associated FocusData receives key inputs.
+  virtual bool keyInput(
+      Key key,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat) = 0;
 
-    /// Called when the associated FocusData receives text input.
-    virtual bool textInput(const std::string& text) = 0;
+  /// Called when the associated FocusData receives text input.
+  virtual bool textInput(const std::string& text) = 0;
 };
 
 } // namespace rive

@@ -1,0 +1,127 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/list_item_parent_trigger.riv. Rebuild the .riv
+      from this file with the CLI, from a directory holding this scene.rml and
+      a rive.yaml naming it, then copy build/list_item_parent_trigger.riv into
+      assets/.
+
+          rive . --once
+
+      What it is for: a list whose rows' state machines transition on a
+      trigger of the view model that hosts the list (Root.play), not of their
+      own row view model. A list makes its rows' machines while it advances,
+      so a fire made just before (an app firing a trigger as soon as it binds,
+      before the first frame) has to reach machines that didn't exist yet.
+      Main's own machine also reads `play`; Quiet's reads nothing.
+    -->
+    <!-- Hosts the list. Its own machine also reads `play`, so it tracks view
+         model changes. -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="200" height="200" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="200" height="200" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState animationId="0:15" id="0:20">
+                    <StateTransition stateToId="0:21">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:40-0:41" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="0:16" id="0:21"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="waiting" id="0:15"/>
+        <LinearAnimation duration="1" name="played" id="0:16"/>
+    </Artboard>
+
+    <!-- Hosts the same list, but its machine reads no view model values. -->
+    <Artboard defaultStateMachineId="0:67" viewModelId="0:40" width="200" height="200" styleId="0:65" name="Quiet" id="0:60">
+        <LayoutComponentStyle name="Artboard Style" id="0:65"/>
+        <LayoutComponent width="200" height="200" styleId="0:71" name="List" id="0:70">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:71"/>
+            <ArtboardComponentList name="Rows" id="0:72">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Quiet Machine" id="0:67">
+            <StateMachineLayer name="Layer" id="0:68">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:74"/>
+                </EntryState>
+                <AnimationState animationId="0:73" id="0:74"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:73"/>
+    </Artboard>
+
+    <!-- A row. Its machine leaves `waiting` on the root's `play`, which it
+         reaches through the list's data context. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" width="100" height="40" styleId="0:35" name="Item" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Item Style" id="0:35"/>
+        <StateMachine name="Item Machine" id="0:37">
+            <StateMachineLayer name="Layer" id="0:38">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:33"/>
+                </EntryState>
+                <AnimationState animationId="0:31" id="0:33">
+                    <StateTransition stateToId="0:34">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:40-0:41" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="0:32" id="0:34"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="waiting" id="0:31"/>
+        <LinearAnimation duration="1" name="played" id="0:32"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Item"/>
+
+    <ViewModel defaultInstanceId="0:52" name="Item" id="0:50">
+        <ViewModelPropertyNumber name="n" id="0:51"/>
+        <ViewModelInstance exports="true" name="A" id="0:52">
+            <ViewModelInstanceNumber propertyValue="1" viewModelPropertyId="0:51"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:53">
+            <ViewModelInstanceNumber propertyValue="2" viewModelPropertyId="0:51"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyTrigger name="play" id="0:41"/>
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:41"/>
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:52"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:53"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

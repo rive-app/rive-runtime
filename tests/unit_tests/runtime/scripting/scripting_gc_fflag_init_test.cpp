@@ -12,13 +12,13 @@ namespace
 {
 struct ScopedFFlag
 {
-    Luau::FValue<bool>& flag;
-    const bool saved;
-    ScopedFFlag(Luau::FValue<bool>& f, bool newValue) : flag(f), saved(f.value)
-    {
-        flag.value = newValue;
-    }
-    ~ScopedFFlag() { flag.value = saved; }
+  Luau::FValue<bool>& flag;
+  const bool saved;
+  ScopedFFlag(Luau::FValue<bool>& f, bool newValue) : flag(f), saved(f.value)
+  {
+    flag.value = newValue;
+  }
+  ~ScopedFFlag() { flag.value = saved; }
 };
 } // namespace
 
@@ -31,21 +31,22 @@ struct ScopedFFlag
 // The fix lives in the vendored luau fork at VM/src/lstate.cpp: init is now
 // unconditional. This test exercises the flip-after-newstate sequence; the
 // RAII guard ensures the global flag is restored even if any step throws.
-TEST_CASE("ScriptingVM survives FFlag::LuauDirectFieldGet flip after newstate",
-          "[scripting][gc]")
+TEST_CASE(
+    "ScriptingVM survives FFlag::LuauDirectFieldGet flip after newstate",
+    "[scripting][gc]")
 {
-    ScopedFFlag guard(FFlag::LuauDirectFieldGet, false);
-    ScriptingTest test("return 1", 1, false, {}, false);
+  ScopedFFlag guard(FFlag::LuauDirectFieldGet, false);
+  ScriptingTest test("return 1", 1, false, {}, false);
 
-    FFlag::LuauDirectFieldGet.value = true;
+  FFlag::LuauDirectFieldGet.value = true;
 
-    lua_State* L = test.state();
-    for (int i = 0; i < 64; ++i)
-    {
-        lua_createtable(L, 0, 0);
-        lua_pop(L, 1);
-    }
-    lua_gc(L, LUA_GCCOLLECT, 0);
+  lua_State* L = test.state();
+  for (int i = 0; i < 64; ++i)
+  {
+    lua_createtable(L, 0, 0);
+    lua_pop(L, 1);
+  }
+  lua_gc(L, LUA_GCCOLLECT, 0);
 
-    SUCCEED("no crash in markroot after flag flip");
+  SUCCEED("no crash in markroot after flag flip");
 }

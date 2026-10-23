@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterListToLengthBase::clone() const
 {
-    auto cloned = new DataConverterListToLength();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterListToLength();
+  cloned->copy(*this);
+  return cloned;
 }

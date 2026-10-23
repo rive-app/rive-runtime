@@ -10,40 +10,40 @@ class StateMachineInstance;
 // be used anymore and interface directly with the nested input value.
 void NestedBool::applyValue()
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto boolInput = static_cast<SMIBool*>(inputInstance);
+    if (boolInput != nullptr)
     {
-        auto boolInput = static_cast<SMIBool*>(inputInstance);
-        if (boolInput != nullptr)
-        {
-            boolInput->value(NestedBoolBase::nestedValue());
-        }
+      boolInput->value(NestedBoolBase::nestedValue());
     }
+  }
 }
 
 void NestedBool::nestedValue(bool value)
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto boolInput = static_cast<SMIBool*>(inputInstance);
+    if (boolInput != nullptr && boolInput->value() != value)
     {
-        auto boolInput = static_cast<SMIBool*>(inputInstance);
-        if (boolInput != nullptr && boolInput->value() != value)
-        {
-            boolInput->value(value);
-        }
+      boolInput->value(value);
     }
+  }
 }
 
 bool NestedBool::nestedValue() const
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto boolInput = static_cast<SMIBool*>(inputInstance);
+    if (boolInput != nullptr)
     {
-        auto boolInput = static_cast<SMIBool*>(inputInstance);
-        if (boolInput != nullptr)
-        {
-            return boolInput->value();
-        }
+      return boolInput->value();
     }
-    return false;
+  }
+  return false;
 }

@@ -162,7 +162,7 @@ if not _OPTIONS['with-webgpu'] then
 
         filter({ 'options:with-dawn', 'system:windows' })
         do
-            links({ 'dxguid' })
+            links({ 'dxguid', 'onecore' })
         end
 
         filter({ 'options:with-dawn', 'system:macosx' })

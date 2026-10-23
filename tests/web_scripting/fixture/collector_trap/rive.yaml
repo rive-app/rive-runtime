@@ -1,0 +1,2 @@
+wasmRuntime: frame
+wasmMaxPages: 40

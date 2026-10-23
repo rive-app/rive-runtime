@@ -6,8 +6,9 @@ namespace rive
 class FocusActionTraversal : public FocusActionTraversalBase
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
 };
 } // namespace rive
 

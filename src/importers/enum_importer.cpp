@@ -8,7 +8,7 @@ EnumImporter::EnumImporter(DataEnum* dataEnum) : m_DataEnum(dataEnum) {}
 
 void EnumImporter::addValue(DataEnumValue* value)
 {
-    m_DataEnum->addValue(value);
+  m_DataEnum->addValue(value);
 }
 
 StatusCode EnumImporter::resolve() { return StatusCode::Ok; }

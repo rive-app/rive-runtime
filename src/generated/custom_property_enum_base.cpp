@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CustomPropertyEnumBase::clone() const
 {
-    auto cloned = new CustomPropertyEnum();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new CustomPropertyEnum();
+  cloned->copy(*this);
+  return cloned;
 }

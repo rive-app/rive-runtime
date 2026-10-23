@@ -8,87 +8,70 @@ namespace rive
 class SelectionStyleBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 153;
+  static const uint16_t typeKey = 153;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case SelectionStyleBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t highlightColorPropertyKey = 447;
-    static const uint16_t cornerRadiusPropertyKey = 448;
+  static const uint16_t highlightColorPropertyKey = 447;
+  static const uint16_t cornerRadiusPropertyKey = 448;
 
 protected:
-    int m_HighlightColor = 0x663B82F6;
-    float m_CornerRadius = 0.0f;
+  int m_HighlightColor = 0x663B82F6;
+  float m_CornerRadius = 0.0f;
 
 public:
-    inline int highlightColor() const { return m_HighlightColor; }
-    void highlightColor(int value)
+  inline int highlightColor() const { return m_HighlightColor; }
+  void highlightColor(int value)
+  {
+    if (m_HighlightColor == value)
     {
-        if (m_HighlightColor == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(highlightColorPropertyKey,
-                             &m_HighlightColor,
-                             &value);
-        m_HighlightColor = value;
-        RIVE_EDITOR_CHANGED(highlightColorChanged());
-        notifyPropertyChanged(highlightColorPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(highlightColorPropertyKey, &m_HighlightColor, &value);
+    m_HighlightColor = value;
+    notifyPropertyChanged(highlightColorPropertyKey);
+  }
 
-    inline float cornerRadius() const { return m_CornerRadius; }
-    void cornerRadius(float value)
+  inline float cornerRadius() const { return m_CornerRadius; }
+  void cornerRadius(float value)
+  {
+    if (m_CornerRadius == value)
     {
-        if (m_CornerRadius == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
-        m_CornerRadius = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusChanged());
-        notifyPropertyChanged(cornerRadiusPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
+    m_CornerRadius = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusChanged());
+    notifyPropertyChanged(cornerRadiusPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const SelectionStyleBase& object)
-    {
-        m_HighlightColor = object.m_HighlightColor;
-        m_CornerRadius = object.m_CornerRadius;
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const SelectionStyleBase& object)
+  {
+    m_HighlightColor = object.m_HighlightColor;
+    m_CornerRadius = object.m_CornerRadius;
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case highlightColorPropertyKey:
-                m_HighlightColor = CoreColorType::deserialize(reader);
-                return true;
-            case cornerRadiusPropertyKey:
-                m_CornerRadius = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return false;
+      case highlightColorPropertyKey:
+        m_HighlightColor = CoreColorType::deserialize(reader);
+        return true;
+      case cornerRadiusPropertyKey:
+        m_CornerRadius = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return false;
+  }
 
 protected:
-    virtual void highlightColorChanged() {}
-    virtual void cornerRadiusChanged() {}
+  virtual void cornerRadiusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/selection_style_ext.inl"
 #endif

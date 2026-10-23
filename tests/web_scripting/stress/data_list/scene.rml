@@ -1,0 +1,45 @@
+<Rive version="1" kind="fragment">
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="256" height="256" styleId="0:5" name="Artboard" id="0:2">
+        <Fill name="Background">
+            <SolidColor colorValue="FF000000" name="Color"/>
+        </Fill>
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="256" height="256" styleId="0:11" name="Root Layout" id="0:10">
+            <LayoutComponentStyle layoutWidthScaleType="1" layoutHeightScaleType="1" widthUnitsValue="3" heightUnitsValue="3" name="Layout Style" id="0:11"/>
+            <ScriptedLayout scriptAssetId="0:80" name="Bars" id="0:12"/>
+        </LayoutComponent>
+        <Shape x="12" y="244" name="Total" id="0:20">
+            <Rectangle width="0" height="12" originX="0" originY="0.5" name="Path" id="0:21">
+                <DataBindContext sourcePathIds="0:40-0:46" propertyKey="20"/>
+            </Rectangle>
+            <Fill name="Fill">
+                <SolidColor colorValue="FFFF5D73" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="State Machine 1" id="0:7">
+            <StateMachineLayer name="Layer 1" id="0:8">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <ViewModel defaultInstanceId="0:51" name="Row" id="0:50">
+        <ViewModelPropertyNumber name="value" id="0:52"/>
+        <ViewModelInstance exports="true" name="Instance" id="0:51">
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:52"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:41" name="Feed" id="0:40">
+        <ViewModelPropertyList name="rows" id="0:45"/>
+        <ViewModelPropertyNumber name="total" id="0:46"/>
+        <ViewModelInstance exports="true" name="Instance" id="0:41">
+            <ViewModelInstanceList viewModelPropertyId="0:45"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:46"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ScriptAsset file="main.as" name="main" id="0:80"/>
+</Rive>

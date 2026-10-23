@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ArtboardListMapRuleBase::clone() const
 {
-    auto cloned = new ArtboardListMapRule();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ArtboardListMapRule();
+  cloned->copy(*this);
+  return cloned;
 }

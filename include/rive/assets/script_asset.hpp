@@ -15,20 +15,22 @@ namespace rive
 class Artboard;
 class Component;
 class DataBind;
+class ImportStack;
 class ScriptedObject;
+class ScriptedObjectImporter;
 class ScriptBackend;
 
 enum ScriptProtocol
 {
-    utility,
-    node,
-    layout,
-    converter,
-    pathEffect,
-    listenerAction,
-    transitionCondition,
-    interpolator,
-    transition
+  utility,
+  node,
+  layout,
+  converter,
+  pathEffect,
+  listenerAction,
+  transitionCondition,
+  interpolator,
+  transition
 };
 
 #ifdef WITH_RIVE_SCRIPTING
@@ -38,169 +40,199 @@ class ScriptAssetImporter;
 class ScriptInput
 {
 protected:
-    ScriptedObject* m_scriptedObject = nullptr;
-    DataBind* m_dataBind = nullptr;
-    bool m_ownsDataBind = false;
+  ScriptedObject* m_scriptedObject = nullptr;
+  DataBind* m_dataBind = nullptr;
+  bool m_ownsDataBind = false;
 
 public:
-    virtual ~ScriptInput();
-    virtual void initScriptedValue();
-    virtual bool validateForScriptInit() = 0;
-    /// Inputs that need a DataContext (VM paths, VM-resolved artboards) must
-    /// return true here without requiring binding; resolution runs in
-    /// hydrateScriptInput().
-    virtual bool validateForColdScriptInit();
-    /// Resolve bind-time inputs and push into Lua (called after data bind).
-    virtual bool hydrateScriptInput();
-    /// Non-mutating checks that hydrateScriptInput can succeed for every input;
-    /// hydrateScriptInputs validates all before pushing any.
-    virtual bool validateHydrationPrerequisites();
-    static ScriptInput* from(Core* component);
-    DataBind* dataBind() { return m_dataBind; }
-    void dataBind(DataBind* dataBind, bool ownsDataBind = false)
-    {
-        m_dataBind = dataBind;
-        m_ownsDataBind = ownsDataBind;
-    }
-    ScriptedObject* scriptedObject() { return m_scriptedObject; }
-    void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
+  virtual ~ScriptInput();
+  virtual void initScriptedValue();
+  virtual bool validateForScriptInit() = 0;
+  /// Inputs that need a DataContext (VM paths, VM-resolved artboards) must
+  /// return true here without requiring binding; resolution runs in
+  /// hydrateScriptInput().
+  virtual bool validateForColdScriptInit();
+  /// Resolve bind-time inputs and push into Lua (called after data bind).
+  virtual bool hydrateScriptInput();
+  /// Non-mutating checks that hydrateScriptInput can succeed for every input;
+  /// hydrateScriptInputs validates all before pushing any.
+  virtual bool validateHydrationPrerequisites();
+  static ScriptInput* from(Core* component);
+  DataBind* dataBind() { return m_dataBind; }
+  void dataBind(DataBind* dataBind, bool ownsDataBind = false)
+  {
+    m_dataBind = dataBind;
+    m_ownsDataBind = ownsDataBind;
+  }
+  ScriptedObject* scriptedObject() { return m_scriptedObject; }
+  void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
+  /// Shared ScriptInput*::claimsArtboardSlot. The exporter numbers an input
+  /// as an artboard child only when its owner is a Component, and gives it
+  /// that owner's index as its parent; every other owner's inputs have
+  /// parent 0. So the parent alone answers, even when the owner itself
+  /// could not be read.
+  static bool takesArtboardSlot(const Component* input);
+  /// The open ScriptedObjectImporter if it belongs to input's owner, else
+  /// null.
+  static ScriptedObjectImporter* ownerImporter(
+      ImportStack& importStack,
+      const Component* input);
 };
 
 class OptionalScriptedMethods
 {
-private:
-    static const int m_advancesBit = 1 << 0;
-    static const int m_updatesBit = 1 << 1;
-    static const int m_measuresBit = 1 << 2;
-    static const int m_wantsPointerDownBit = 1 << 3;
-    static const int m_wantsPointerMoveBit = 1 << 4;
-    static const int m_wantsPointerUpBit = 1 << 5;
-    static const int m_wantsPointerExitBit = 1 << 6;
-    static const int m_wantsPointerCancelBit = 1 << 7;
-    static const int m_drawsBit = 1 << 8;
-    static const int m_initsBit = 1 << 9;
-    static const int m_dataConvertsBit = 1 << 10;
-    static const int m_dataReverseConvertsBit = 1 << 11;
-    static const int m_resizesBit = 1 << 12;
-    static const int m_listenerPerforms = 1 << 13;
-    static const int m_listenerPerformsAction = 1 << 14;
-    // Bit 15 was drawCanvas; the callback is gone but the wire bit stays
-    // reserved so older exports keep their layout.
-    static const int m_wantsKeyboardInputBit = 1 << 16;
-    static const int m_wantsTextInputBit = 1 << 17;
-    static const int m_wantsGamepadConnect = 1 << 18;
-    static const int m_wantsGamepadDisconnect = 1 << 19;
-    static const int m_wantsGamepadEvent = 1 << 20;
+protected:
+  static const int m_advancesBit = 1 << 0;
+  static const int m_updatesBit = 1 << 1;
+  static const int m_measuresBit = 1 << 2;
+  static const int m_wantsPointerDownBit = 1 << 3;
+  static const int m_wantsPointerMoveBit = 1 << 4;
+  static const int m_wantsPointerUpBit = 1 << 5;
+  static const int m_wantsPointerExitBit = 1 << 6;
+  static const int m_wantsPointerCancelBit = 1 << 7;
+  static const int m_drawsBit = 1 << 8;
+  static const int m_initsBit = 1 << 9;
+  static const int m_dataConvertsBit = 1 << 10;
+  static const int m_dataReverseConvertsBit = 1 << 11;
+  static const int m_resizesBit = 1 << 12;
+  static const int m_listenerPerforms = 1 << 13;
+  static const int m_listenerPerformsAction = 1 << 14;
+  // Bit 15 was drawCanvas; the callback is gone but the wire bit stays
+  // reserved so older exports keep their layout.
+  static const int m_wantsKeyboardInputBit = 1 << 16;
+  static const int m_wantsTextInputBit = 1 << 17;
+  static const int m_wantsGamepadConnect = 1 << 18;
+  static const int m_wantsGamepadDisconnect = 1 << 19;
+  static const int m_wantsGamepadEvent = 1 << 20;
+  // Outside the legacy all bits default, so scripts exported before it
+  // never take scroll from the views beneath them.
+  static const int m_wantsPointerScrollBit = 1 << 21;
 
-    int m_implementedMethods = 0;
+private:
+  int m_implementedMethods = 0;
 
 public:
-    // Bits 0-20 hold the method flags (see ScriptAsset::serializedImplemented
-    // Methods, which the editor serializes and the runtime reads directly).
-    static const uint32_t methodMask = (1u << 21) - 1;
+  // Bits 0-21 hold the method flags (see ScriptAsset::serializedImplemented
+  // Methods, which the editor serializes and the runtime reads directly).
+  static const uint32_t methodMask = (1u << 22) - 1;
+  // What serializedImplementedMethods reads as when a file doesn't have it.
+  // Fixed at bits 0-20 so new method bits don't change it.
+  static const uint32_t legacyImplementedMethods = (1u << 21) - 1;
 
-    int implementedMethods() { return m_implementedMethods; }
-    void implementedMethods(int implemented)
-    {
-        m_implementedMethods = implemented;
-    }
-    bool listensToPointerEvents()
-    {
-        return (m_implementedMethods &
-                (m_wantsPointerDownBit | m_wantsPointerMoveBit |
-                 m_wantsPointerUpBit | m_wantsPointerExitBit |
-                 m_wantsPointerCancelBit | m_wantsGamepadConnect |
-                 m_wantsGamepadDisconnect | m_wantsGamepadEvent)) != 0;
-    }
-    bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
-    bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
-    bool measures() { return (m_implementedMethods & m_measuresBit) != 0; }
-    bool resizes() { return (m_implementedMethods & m_resizesBit) != 0; }
-    bool performs() const
-    {
-        return (m_implementedMethods & m_listenerPerforms) != 0;
-    }
-    bool performsAction() const
-    {
-        return (m_implementedMethods & m_listenerPerformsAction) != 0;
-    }
-    bool wantsPointerDown()
-    {
-        return (m_implementedMethods & m_wantsPointerDownBit) != 0;
-    }
-    bool wantsPointerMove()
-    {
-        return (m_implementedMethods & m_wantsPointerMoveBit) != 0;
-    }
-    bool wantsPointerUp()
-    {
-        return (m_implementedMethods & m_wantsPointerUpBit) != 0;
-    }
-    bool wantsPointerExit()
-    {
-        return (m_implementedMethods & m_wantsPointerExitBit) != 0;
-    }
-    bool wantsPointerCancel()
-    {
-        return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
-    }
-    bool wantsGamePadConnect()
-    {
-        return (m_implementedMethods & m_wantsGamepadConnect) != 0;
-    }
-    bool wantsGamePadDisconnect()
-    {
-        return (m_implementedMethods & m_wantsGamepadDisconnect) != 0;
-    }
-    bool wantsGamePadEvent()
-    {
-        return (m_implementedMethods & m_wantsGamepadEvent) != 0;
-    }
-    bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
-    bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
-    bool dataConverts()
-    {
-        return (m_implementedMethods & m_dataConvertsBit) != 0;
-    }
-    bool dataReverseConverts()
-    {
-        return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
-    }
-    bool wantsKeyboardInput()
-    {
-        return (m_implementedMethods & m_wantsKeyboardInputBit) != 0;
-    }
-    bool wantsTextInput()
-    {
-        return (m_implementedMethods & m_wantsTextInputBit) != 0;
-    }
+  int implementedMethods() { return m_implementedMethods; }
+  void implementedMethods(int implemented)
+  {
+    m_implementedMethods = implemented;
+  }
+  bool listensToPointerEvents()
+  {
+    return (m_implementedMethods &
+            (m_wantsPointerDownBit | m_wantsPointerMoveBit |
+             m_wantsPointerUpBit | m_wantsPointerExitBit |
+             m_wantsPointerCancelBit | m_wantsPointerScrollBit |
+             m_wantsGamepadConnect | m_wantsGamepadDisconnect |
+             m_wantsGamepadEvent)) != 0;
+  }
+  // Pointer down, move, up or exit.
+  bool wantsAnyPointer()
+  {
+    return (m_implementedMethods &
+            (m_wantsPointerDownBit | m_wantsPointerMoveBit |
+             m_wantsPointerUpBit | m_wantsPointerExitBit)) != 0;
+  }
+  bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
+  bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
+  bool measures() { return (m_implementedMethods & m_measuresBit) != 0; }
+  bool resizes() { return (m_implementedMethods & m_resizesBit) != 0; }
+  bool performs() const
+  {
+    return (m_implementedMethods & m_listenerPerforms) != 0;
+  }
+  bool performsAction() const
+  {
+    return (m_implementedMethods & m_listenerPerformsAction) != 0;
+  }
+  bool wantsPointerDown()
+  {
+    return (m_implementedMethods & m_wantsPointerDownBit) != 0;
+  }
+  bool wantsPointerMove()
+  {
+    return (m_implementedMethods & m_wantsPointerMoveBit) != 0;
+  }
+  bool wantsPointerUp()
+  {
+    return (m_implementedMethods & m_wantsPointerUpBit) != 0;
+  }
+  bool wantsPointerExit()
+  {
+    return (m_implementedMethods & m_wantsPointerExitBit) != 0;
+  }
+  bool wantsPointerCancel()
+  {
+    return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
+  }
+  bool wantsPointerScroll()
+  {
+    return (m_implementedMethods & m_wantsPointerScrollBit) != 0;
+  }
+  bool wantsGamePadConnect()
+  {
+    return (m_implementedMethods & m_wantsGamepadConnect) != 0;
+  }
+  bool wantsGamePadDisconnect()
+  {
+    return (m_implementedMethods & m_wantsGamepadDisconnect) != 0;
+  }
+  bool wantsGamePadEvent()
+  {
+    return (m_implementedMethods & m_wantsGamepadEvent) != 0;
+  }
+  bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
+  bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
+  bool dataConverts()
+  {
+    return (m_implementedMethods & m_dataConvertsBit) != 0;
+  }
+  bool dataReverseConverts()
+  {
+    return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
+  }
+  bool wantsKeyboardInput()
+  {
+    return (m_implementedMethods & m_wantsKeyboardInputBit) != 0;
+  }
+  bool wantsTextInput()
+  {
+    return (m_implementedMethods & m_wantsTextInputBit) != 0;
+  }
 };
 
 class ModuleDetails
 {
 public:
-    virtual ~ModuleDetails() = default;
-    virtual std::string moduleName() = 0;
-    virtual void registrationComplete(int ref) {}
-    virtual Span<uint8_t> moduleBytecode() { return Span<uint8_t>(); }
-    virtual bool isProtocolScript() = 0;
-    virtual bool verified() const { return false; }
-    void addMissingDependency(std::string name) { m_dependencies.insert(name); }
-    void clearMissingDependency(std::string name)
+  virtual ~ModuleDetails() = default;
+  virtual std::string moduleName() = 0;
+  virtual void registrationComplete(int ref) {}
+  virtual Span<uint8_t> moduleBytecode() { return Span<uint8_t>(); }
+  virtual bool isProtocolScript() = 0;
+  virtual bool verified() const { return false; }
+  void addMissingDependency(std::string name) { m_dependencies.insert(name); }
+  void clearMissingDependency(std::string name)
+  {
+    auto it = m_dependencies.find(name);
+    if (it != m_dependencies.end())
     {
-        auto it = m_dependencies.find(name);
-        if (it != m_dependencies.end())
-        {
-            m_dependencies.erase(it);
-        }
+      m_dependencies.erase(it);
     }
-    std::unordered_set<std::string> missingDependencies()
-    {
-        return m_dependencies;
-    }
+  }
+  std::unordered_set<std::string> missingDependencies()
+  {
+    return m_dependencies;
+  }
 
 private:
-    std::unordered_set<std::string> m_dependencies;
+  std::unordered_set<std::string> m_dependencies;
 };
 
 class ScriptAsset : public ScriptAssetBase,
@@ -210,54 +242,58 @@ class ScriptAsset : public ScriptAssetBase,
 
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool verified() const override { return m_verified; }
-    Span<uint8_t> moduleBytecode() override { return m_bytecode; }
+  bool verified() const override { return m_verified; }
+  Span<uint8_t> moduleBytecode() override { return m_bytecode; }
 #endif
 
-    bool initScriptedObject(ScriptedObject* object);
+  bool initScriptedObject(ScriptedObject* object);
 
-    /// Sets the bytecode from data with header format:
-    ///   [flags:1] [signature:64 if signed] [luau_bytecode:N]
-    /// Flags byte: bits 0-6 = version, bit 7 = isSigned
-    /// Returns true if bytecode was set (verification is separate from return).
-    bool bytecode(Span<uint8_t> data);
+  /// Sets the bytecode from data with header format:
+  ///   [flags:1] [signature:64 if signed] [luau_bytecode:N]
+  /// Flags byte: bits 0-6 = version, bit 7 = isSigned
+  /// Returns true if bytecode was set (verification is separate from return).
+  bool bytecode(Span<uint8_t> data);
 
-    /// Bytecode provided via decode should only happen with in-band bytecode.
-    /// The signature will later be verified once file loading completes, so it
-    /// is immediately marked as unverified.
-    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
+  /// Bytecode provided via decode should only happen with in-band bytecode.
+  /// The signature will later be verified once file loading completes, so it
+  /// is immediately marked as unverified.
+  bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
 
-    std::string fileExtension() const override { return "lua"; }
-    void file(File* value) { m_file = value; }
-    File* file() const { return m_file; }
+  std::string fileExtension() const override { return "lua"; }
+  void file(File* value) { m_file = value; }
+  File* file() const { return m_file; }
 #ifdef WITH_RIVE_SCRIPTING
-    /// The file's active script backend: the wasm module VM when the file
-    /// carries one, else the Luau VM.
-    ScriptBackend* backend();
+  /// The file's active script backend: the wasm module VM when the file
+  /// carries one, else the Luau VM.
+  ScriptBackend* backend();
 #ifdef WITH_RIVE_SCRIPTING_WASM
-    /// Set at registration to the VM of the module this script lives in.
-    void wasmBackend(ScriptBackend* value) { m_wasmBackend = value; }
+  /// Set at registration to the VM of the module this script lives in.
+  void wasmBackend(ScriptBackend* value) { m_wasmBackend = value; }
 #endif
-    void registrationComplete(int ref) override;
+  void registrationComplete(int ref) override;
 #endif
-    std::string moduleName() override
-    {
-        return folderPath() == "" ? name() : folderPath() + "/" + name();
-    }
-    bool isProtocolScript() override { return !isModule(); }
+  std::string moduleName() override
+  {
+    return folderPath() == "" ? name() : folderPath() + "/" + name();
+  }
+  bool isProtocolScript() override { return !isModule(); }
 
 private:
-    File* m_file = nullptr;
+  File* m_file = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
-    // Written by the wasm backend only; lives under the umbrella so the
-    // class layout does not depend on the backend defines.
-    [[maybe_unused]] ScriptBackend* m_wasmBackend = nullptr;
-    bool m_scriptRegistered = false;
-    SimpleArray<uint8_t> m_bytecode;
-    bool m_initted = false;
+  // Written by the wasm backend only; lives under the umbrella so the
+  // class layout does not depend on the backend defines.
+  [[maybe_unused]] ScriptBackend* m_wasmBackend = nullptr;
+  bool m_scriptRegistered = false;
+  SimpleArray<uint8_t> m_bytecode;
+  bool m_initted = false;
+  // Legacy file whose pointer bits still need checking against the script
+  bool m_needsPointerCheck = false;
+  // Clears pointer bits for handlers self doesn't define.
+  void checkLegacyPointerHandlers(ScriptBackend* vm, int self);
 #endif
 
-    bool initScriptedObjectWith(ScriptedObject* object);
+  bool initScriptedObjectWith(ScriptedObject* object);
 };
 } // namespace rive
 

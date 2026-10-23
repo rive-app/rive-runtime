@@ -7,52 +7,53 @@ using namespace rive;
 
 TEST_CASE("can call renderer", "[scripting]")
 {
-    ScriptingTest vm(
-        "local storedRenderer:Renderer\n"
-        "function render(renderer:Renderer):()\n"
-        "  storedRenderer = renderer\n" // doing a naughty thing on purpose
-        "  local path:Path = Path.new()\n"
-        "  local paint:Paint = Paint.new()\n"
-        "  renderer:drawPath(path, paint)\n"
-        "end\n"
-        "function afterwards(): ()\n"
-        "  storedRenderer:save()\n" // trying to use the renderer outside of the
-                                    // callback
-        "end");
-    lua_State* L = vm.state();
-    lua_getglobal(L, "render");
-    auto renderer = vm.serializer()->makeRenderer();
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(scriptedRenderer->end());
+  ScriptingTest vm(
+      "local storedRenderer:Renderer\n"
+      "function render(renderer:Renderer):()\n"
+      "  storedRenderer = renderer\n" // doing a naughty thing on purpose
+      "  local path:Path = Path.new()\n"
+      "  local paint:Paint = Paint.new()\n"
+      "  renderer:drawPath(path, paint)\n"
+      "end\n"
+      "function afterwards(): ()\n"
+      "  storedRenderer:save()\n" // trying to use the renderer outside of the
+                                  // callback
+      "end");
+  lua_State* L = vm.state();
+  lua_getglobal(L, "render");
+  auto renderer = vm.serializer()->makeRenderer();
+  auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(scriptedRenderer->end());
 
-    lua_getglobal(L, "afterwards");
-    CHECK(lua_pcall(L, 0, 0, 0) == LUA_ERRRUN);
-    CHECK(lua_tostring(L, -1) ==
-          std::string("test_source:9: Renderer is no longer valid."));
+  lua_getglobal(L, "afterwards");
+  CHECK(lua_pcall(L, 0, 0, 0) == LUA_ERRRUN);
+  CHECK(
+      lua_tostring(L, -1) ==
+      std::string("test_source:9: Renderer is no longer valid."));
 }
 
 TEST_CASE("renderer checks its balanced", "[scripting]")
 {
-    ScriptingTest vm("function render(renderer:Renderer):()\n"
-                     "  local path:Path = Path.new()\n"
-                     "  local paint:Paint = Paint.new()\n"
-                     "  renderer:save()\n"
-                     "  renderer:drawPath(path, paint)\n"
-                     "  renderer:save()\n"
-                     "end\n");
-    lua_State* L = vm.state();
-    lua_getglobal(L, "render");
-    auto renderer = vm.serializer()->makeRenderer();
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(!scriptedRenderer->end());
+  ScriptingTest vm("function render(renderer:Renderer):()\n"
+                   "  local path:Path = Path.new()\n"
+                   "  local paint:Paint = Paint.new()\n"
+                   "  renderer:save()\n"
+                   "  renderer:drawPath(path, paint)\n"
+                   "  renderer:save()\n"
+                   "end\n");
+  lua_State* L = vm.state();
+  lua_getglobal(L, "render");
+  auto renderer = vm.serializer()->makeRenderer();
+  auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(!scriptedRenderer->end());
 }
 
 TEST_CASE("renderer can draw an oval", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
+  ScriptingTest vm(
+      R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
 	local c: number = 0.5519150244935105707435627
 	local unit: { Vector } = {
 		Vector.xy(1, 0),
@@ -93,21 +94,21 @@ function render(renderer: Renderer): ()
 	renderer:drawPath(path, paint)
 end
 )",
-        0);
-    lua_State* L = vm.state();
-    lua_getglobal(L, "render");
-    auto renderer = vm.serializer()->makeRenderer();
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(scriptedRenderer->end());
+      0);
+  lua_State* L = vm.state();
+  lua_getglobal(L, "render");
+  auto renderer = vm.serializer()->makeRenderer();
+  auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(scriptedRenderer->end());
 
-    CHECK(vm.serializer()->matches("scripted_oval"));
+  CHECK(vm.serializer()->matches("scripted_oval"));
 }
 
 TEST_CASE("renderer can draw and animate oval", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
+  ScriptingTest vm(
+      R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
 	local c: number = 0.5519150244935105707435627
 	local unit: { Vector } = {
 		Vector.xy(1, 0),
@@ -158,35 +159,36 @@ function render(renderer: Renderer): ()
      renderer:restore()
 end
 )",
-        0);
-    lua_State* L = vm.state();
+      0);
+  lua_State* L = vm.state();
 
-    float elapsedSeconds = 1.0f / 60.0f;
+  float elapsedSeconds = 1.0f / 60.0f;
 
-    for (int i = 0; i < 1000; i++)
+  for (int i = 0; i < 1000; i++)
+  {
+    auto top = lua_gettop(L);
+    if (i != 0)
     {
-        auto top = lua_gettop(L);
-        if (i != 0)
-        {
-            vm.serializer()->addFrame();
-        }
-        lua_getglobal(L, "advance");
-        lua_pushnumber(L, elapsedSeconds);
-        CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1));
-        lua_pop(L, 1);
-
-        lua_getglobal(L, "render");
-        auto renderer = vm.serializer()->makeRenderer();
-        ScriptedRenderer* scriptedRenderer =
-            lua_newrive<ScriptedRenderer>(L, renderer.get());
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-
-        CHECK(scriptedRenderer->end());
-
-        CHECK(top == lua_gettop(L));
-        lua_gc(L, LUA_GCCOLLECT, 0);
+      vm.serializer()->addFrame();
     }
+    lua_getglobal(L, "advance");
+    lua_pushnumber(L, elapsedSeconds);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
 
-    CHECK(vm.serializer()->matches("scripted_animated_oval"));
+    lua_getglobal(L, "render");
+    auto renderer = vm.serializer()->makeRenderer();
+    ScriptedRenderer* scriptedRenderer = lua_newrive<ScriptedRenderer>(
+        L,
+        renderer.get());
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    CHECK(scriptedRenderer->end());
+
+    CHECK(top == lua_gettop(L));
+    lua_gc(L, LUA_GCCOLLECT, 0);
+  }
+
+  CHECK(vm.serializer()->matches("scripted_animated_oval"));
 }

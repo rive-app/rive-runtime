@@ -10,13 +10,13 @@ class RenderPassMetal;
 class PipelineMetal : public LITE_RTTI_OVERRIDE(Pipeline, PipelineMetal)
 {
 public:
-    PipelineMetal(const PipelineDesc& desc) : lite_rtti_override(desc) {}
-    ~PipelineMetal() override = default; // ARC releases Metal objects
+  PipelineMetal(const PipelineDesc& desc) : lite_rtti_override(desc) {}
+  ~PipelineMetal() override = default; // ARC releases Metal objects
 
 private:
-    friend class ContextMetal;
-    friend class RenderPassMetal;
-    id<MTLRenderPipelineState> m_mtlPipeline = nil;
-    id<MTLDepthStencilState> m_mtlDepthStencil = nil;
+  friend class ContextMetal;
+  friend class RenderPassMetal;
+  id<MTLRenderPipelineState> m_mtlPipeline = nil;
+  id<MTLDepthStencilState> m_mtlDepthStencil = nil;
 };
 } // namespace rive::ore

@@ -9,8 +9,8 @@ namespace rive
 class DataConverterSystemNormalizer : public DataConverterSystemNormalizerBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 };
 } // namespace rive
 

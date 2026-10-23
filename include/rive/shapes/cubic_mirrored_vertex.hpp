@@ -6,10 +6,10 @@ namespace rive
 class CubicMirroredVertex : public CubicMirroredVertexBase
 {
 protected:
-    void computeIn() override;
-    void computeOut() override;
-    void rotationChanged() override;
-    void distanceChanged() override;
+  void computeIn() override;
+  void computeOut() override;
+  void rotationChanged() override;
+  void distanceChanged() override;
 };
 } // namespace rive
 

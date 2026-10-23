@@ -25,6 +25,8 @@
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/text_asset_importer.hpp"
+#include "rive/text/text_style_global.hpp"
+#include "rive/text/text.hpp"
 #include "rive/importers/import_stack.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_LUAU
@@ -83,6 +85,9 @@
 #include "rive/assets/script_module_asset.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
 #include "rive/wasm/wasm_scripting_vm.hpp"
+#ifdef __EMSCRIPTEN__
+#include "rive/wasm/browser_scripting_vm.hpp"
+#endif
 #endif
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -114,6 +119,12 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
+// Bounds on building a view model instance with everything it nests, which a
+// downloaded file controls: deeper than an authored file nests, and more
+// instances than one holds. Past either, nested references stay empty.
+static constexpr size_t kMaxViewModelNesting = 256;
+static constexpr size_t kMaxViewModelInstances = 100000;
+
 #if defined(DEBUG)
 size_t File::debugTotalFileCount = 0;
 #endif
@@ -140,39 +151,99 @@ size_t File::debugTotalFileCount = 0;
 // Import a single Rive runtime object.
 // Used by the file importer.
 #ifdef WITH_RIVE_SCRIPTING_WASM
+// Requires the script's module on vm and binds the result: a protocol
+// script's module result is its generator.
+static bool registerWasmScriptOn(
+    WasmScriptingVM* vm,
+    ScriptAsset* script,
+    const std::string& registryName)
+{
+  int resultRef = 0;
+  bool required = vm->requireModule(registryName, &resultRef);
+  if (!required)
+  {
+    fprintf(
+        stderr,
+        "wasm script module '%s' failed: %s\n",
+        registryName.c_str(),
+        vm->lastError().c_str());
+  }
+  else if (!script->isModule() && resultRef != 0)
+  {
+    script->registrationComplete(resultRef);
+  }
+  script->wasmBackend(vm);
+  return required;
+}
+
 void File::adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm)
 {
-    m_wasmVMs.clear();
-    WasmScriptingVM* raw = vm.get();
-    m_wasmVMs.push_back(std::move(vm));
-    for (auto& asset : m_fileAssets)
+#ifdef __EMSCRIPTEN__
+  // They point at the VMs being replaced.
+  m_deferredScripts.clear();
+#endif
+  m_wasmVMs.clear();
+  vm->viewModels(&m_ViewModels);
+  vm->file(this);
+  WasmScriptingVM* raw = vm.get();
+  m_wasmVMs.push_back(std::move(vm));
+  for (auto& asset : m_fileAssets)
+  {
+    if (asset->is<ScriptAsset>())
     {
-        if (asset->is<ScriptAsset>())
-        {
-            asset->as<ScriptAsset>()->wasmBackend(raw);
-        }
+      auto script = asset->as<ScriptAsset>();
+      script->wasmBackend(raw);
+      // Refs minted by the replaced VM mean nothing to this one.
+      script->generatorFunctionRef(0);
     }
+  }
+}
+
+ScriptAsset* File::scriptAsset(const std::string& moduleName) const
+{
+  for (auto& asset : m_fileAssets)
+  {
+    if (asset->is<ScriptAsset>() &&
+        asset->as<ScriptAsset>()->moduleName() == moduleName)
+    {
+      return asset->as<ScriptAsset>();
+    }
+  }
+  return nullptr;
+}
+
+bool File::registerWasmScript(
+    const std::string& moduleName,
+    const std::string& registryName)
+{
+  WasmScriptingVM* vm = wasmScriptingVM();
+  ScriptAsset* script = scriptAsset(moduleName);
+  if (vm == nullptr || script == nullptr)
+  {
+    return false;
+  }
+  return registerWasmScriptOn(vm, script, registryName);
 }
 
 bool File::applyWasmRegistration(const std::string& moduleName, int ref)
 {
-    for (auto& asset : m_fileAssets)
+  for (auto& asset : m_fileAssets)
+  {
+    if (!asset->is<ScriptAsset>())
     {
-        if (!asset->is<ScriptAsset>())
-        {
-            continue;
-        }
-        auto* script = asset->as<ScriptAsset>();
-        if (script->moduleName() == moduleName)
-        {
-            if (!script->isModule() && ref != 0)
-            {
-                script->registrationComplete(ref);
-            }
-            return true;
-        }
+      continue;
     }
-    return false;
+    auto* script = asset->as<ScriptAsset>();
+    if (script->moduleName() == moduleName)
+    {
+      if (!script->isModule() && ref != 0)
+      {
+        script->registrationComplete(ref);
+      }
+      return true;
+    }
+  }
+  return false;
 }
 #endif
 
@@ -180,228 +251,274 @@ bool File::applyWasmRegistration(const std::string& moduleName, int ref)
 // ToC can type leaves the stream unreadable: nothing after it parses as
 // intended, so `malformed` is set and the caller fails the import instead of
 // treating the rest of the file as a run of unknown objects.
-static Core* readRuntimeObject(BinaryReader& reader,
-                               const RuntimeHeader& header,
-                               bool& malformed)
+static Core* readRuntimeObject(
+    BinaryReader& reader,
+    const RuntimeHeader& header,
+    bool& malformed)
 {
-    auto coreObjectKey = reader.readVarUintAs<int>();
-    auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
-    while (true)
+  auto coreObjectKey = reader.readVarUintAs<int>();
+  auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
+  while (true)
+  {
+    auto propertyKey = reader.readVarUintAs<uint16_t>();
+    if (propertyKey == 0)
     {
-        auto propertyKey = reader.readVarUintAs<uint16_t>();
-        if (propertyKey == 0)
-        {
-            // Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
-            break;
-        }
-
-        if (reader.hasError())
-        {
-            delete object;
-            return nullptr;
-        }
-        if (object == nullptr || !object->deserialize(propertyKey, reader))
-        {
-            // We have an unknown object or property, first see if core knows
-            // the property type.
-            int id = CoreRegistry::propertyFieldId(propertyKey);
-            if (id == -1)
-            {
-                // No, check if it's in toc.
-                id = header.propertyFieldId(propertyKey);
-            }
-
-            if (id == -1)
-            {
-                // Still couldn't find it, give up.
-                fprintf(stderr,
-                        "Unknown property key %d, missing from property ToC.\n",
-                        propertyKey);
-                delete object;
-                malformed = true;
-                return nullptr;
-            }
-
-            switch (id)
-            {
-                case CoreUintType::id:
-                    // Uint64 shares the uint type id; skip the full range so
-                    // an unknown 64 bit value never aborts the read.
-                    reader.readVarUint64();
-                    break;
-                case CoreBoolType::id:
-                    // A bool the registry types but the object does not
-                    // store (a bit of a packed mask, written standalone).
-                    // Skipping nothing here read the value byte as the next
-                    // key and desynchronized everything after it.
-                    CoreBoolType::deserialize(reader);
-                    break;
-                case CoreStringType::id:
-                    CoreStringType::deserialize(reader);
-                    break;
-                case CoreDoubleType::id:
-                    CoreDoubleType::deserialize(reader);
-                    break;
-                case CoreColorType::id:
-                    CoreColorType::deserialize(reader);
-                    break;
-            }
-        }
+      // Terminator. https://media.giphy.com/media/7TtvTUMm9mp20/giphy.gif
+      break;
     }
-    if (object == nullptr)
+
+    if (reader.hasError())
     {
-        // fprintf(stderr,
-        //         "File contains an unknown object with coreType " RIVE_FMT_U64
-        //         ", which " "this runtime doesn't understand.\n",
-        //         coreObjectKey);
+      delete object;
+      return nullptr;
+    }
+    if (object == nullptr || !object->deserialize(propertyKey, reader))
+    {
+      // We have an unknown object or property, first see if core knows
+      // the property type.
+      int id = CoreRegistry::propertyFieldId(propertyKey);
+      if (id == -1)
+      {
+        // No, check if it's in toc.
+        id = header.propertyFieldId(propertyKey);
+      }
+
+      if (id == -1)
+      {
+        // Still couldn't find it, give up.
+        fprintf(
+            stderr,
+            "Unknown property key %d, missing from property ToC.\n",
+            propertyKey);
+        delete object;
+        malformed = true;
         return nullptr;
+      }
+
+      switch (id)
+      {
+        case CoreUintType::id:
+          // Uint64 shares the uint type id; skip the full range so
+          // an unknown 64 bit value never aborts the read.
+          reader.readVarUint64();
+          break;
+        case CoreBoolType::id:
+          // A bool the registry types but the object does not
+          // store (a bit of a packed mask, written standalone).
+          // Skipping nothing here read the value byte as the next
+          // key and desynchronized everything after it.
+          CoreBoolType::deserialize(reader);
+          break;
+        case CoreStringType::id:
+          CoreStringType::deserialize(reader);
+          break;
+        case CoreDoubleType::id:
+          CoreDoubleType::deserialize(reader);
+          break;
+        case CoreColorType::id:
+          CoreColorType::deserialize(reader);
+          break;
+      }
     }
+  }
+  if (object == nullptr)
+  {
+    // fprintf(stderr,
+    //         "File contains an unknown object with coreType " RIVE_FMT_U64
+    //         ", which " "this runtime doesn't understand.\n",
+    //         coreObjectKey);
+    return nullptr;
+  }
 #ifdef WITH_RIVE_EDITOR
-    // The .riv importer is exclusively the runtime path (editor flow
-    // hydrates via coop, never through here), so imported objects are
-    // fully wired by the import stack — mark them validated or the
-    // editor build's hasValidated() gate starves every generated
-    // ${name}Changed() on runtime instances (frozen animation dirt,
-    // silent VMI value callbacks).
-    object->markValidated();
+  // The .riv importer is exclusively the runtime path (editor flow
+  // hydrates via coop, never through here), so imported objects are
+  // fully wired by the import stack — mark them validated or the
+  // editor build's hasValidated() gate starves every generated
+  // ${name}Changed() on runtime instances (frozen animation dirt,
+  // silent VMI value callbacks).
+  object->markValidated();
 #endif
-    return object;
+  return object;
 }
 
 bool File::deterministicMode = false;
+int File::deterministicSeed = 1;
 
-File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
-    m_factory(factory), m_assetLoader(std::move(assetLoader))
+File::File(Factory* factory, rcp<FileAssetLoader> assetLoader)
+    : m_factory(factory)
+    , m_textStyleShares(std::make_unique<TextStyleShareCache>(this))
+    , m_assetLoader(std::move(assetLoader))
 {
 #if defined(DEBUG)
-    debugTotalFileCount++;
+  debugTotalFileCount++;
 #endif
-    assert(factory);
+  assert(factory);
 }
 
 File::~File()
 {
 #if defined(DEBUG)
-    debugTotalFileCount--;
+  debugTotalFileCount--;
 #endif
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    cleanupScriptingVM();
+  cleanupScriptingVM();
 #endif
-    for (auto artboard : m_artboards)
-    {
-        delete artboard;
-    }
-    for (auto& viewModel : m_ViewModels)
-    {
-        viewModel->unref();
-    }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  // Release the wasm VMs before the artboards, as cleanupScriptingVM does
+  // the Luau one. A VM sweeps the host objects behind its live handles when
+  // it goes, and those include artboard instances its scripts were handed
+  // (an Artboard input, instance()): their state machines' listener groups
+  // read this file's StateMachineListener and FocusData definitions on the
+  // way out, so the VMs must not outlive the artboards that own them. The
+  // VM's ScriptBackend detaches its remaining scripted objects, so those in
+  // the artboards deleted below find no VM to call.
+#ifdef __EMSCRIPTEN__
+  m_deferredScripts.clear();
+#endif
+  m_wasmVMs.clear();
+#endif
+  // Shared text style instances reference the artboards and view models
+  // below (and are gone with their last user, before this).
+  m_textStyleShares = nullptr;
+  for (auto artboard : m_artboards)
+  {
+    delete artboard;
+  }
 #ifdef WITH_RIVE_TOOLS
-    m_viewModelInstanceRegistrar = nullptr;
+  for (auto artboard : m_retiredArtboards)
+  {
+    delete artboard;
+  }
 #endif
-    for (auto& enumData : m_Enums)
-    {
-        enumData->unref();
-    }
-    for (auto& dataConverter : m_DataConverters)
-    {
-        delete dataConverter;
-    }
-    for (auto& keyframeInterpolator : m_keyframeInterpolators)
-    {
-        delete keyframeInterpolator;
-    }
-    for (auto& physics : m_scrollPhysics)
-    {
-        delete physics;
-    }
-    delete m_backboard;
+  for (auto& viewModel : m_ViewModels)
+  {
+    // Instances can keep a view model alive past its file; createInstance
+    // must find no file rather than this freed one.
+    viewModel->file(nullptr);
+    viewModel->unref();
+  }
+#ifdef WITH_RIVE_TOOLS
+  m_viewModelInstanceRegistrar = nullptr;
+#endif
+  for (auto& enumData : m_Enums)
+  {
+    enumData->unref();
+  }
+  for (auto& dataConverter : m_DataConverters)
+  {
+    delete dataConverter;
+  }
+  for (auto& keyframeInterpolator : m_keyframeInterpolators)
+  {
+    delete keyframeInterpolator;
+  }
+  for (auto& physics : m_scrollPhysics)
+  {
+    delete physics;
+  }
+  delete m_backboard;
 }
 
-rcp<File> File::import(Span<const uint8_t> bytes,
-                       Factory* factory,
-                       ImportResult* result,
-                       rcp<FileAssetLoader> assetLoader,
-                       ScriptingVM* vm)
+rcp<File> File::import(
+    Span<const uint8_t> bytes,
+    Factory* factory,
+    ImportResult* result,
+    rcp<FileAssetLoader> assetLoader,
+    ScriptingVM* vm,
+    bool requireSignedScripts)
 {
-    if (factory == nullptr)
-    {
-        // Every artboard stores this factory and the first ShapePaint to
-        // initialize calls through it (`ShapePaint::initRenderPaint` ->
-        // `factory->makeRenderPaint()`), so a null factory here does not fault
-        // until deep inside `Artboard::initialize` with no trace of the caller
-        // that supplied it. Fail the import where the mistake was made.
-        fprintf(stderr, "File::import requires a non-null Factory.\n");
-        if (result)
-        {
-            *result = ImportResult::malformed;
-        }
-        return nullptr;
-    }
-    BinaryReader reader(bytes);
-    RuntimeHeader header;
-    if (!RuntimeHeader::read(reader, header))
-    {
-        fprintf(stderr, "Bad header\n");
-        if (result)
-        {
-            *result = ImportResult::malformed;
-        }
-        return nullptr;
-    }
-    if (header.majorVersion() != majorVersion)
-    {
-        fprintf(stderr,
-                "Unsupported version %u.%u expected %u.%u.\n",
-                header.majorVersion(),
-                header.minorVersion(),
-                majorVersion,
-                minorVersion);
-        if (result)
-        {
-            *result = ImportResult::unsupportedVersion;
-        }
-        return nullptr;
-    }
-    auto file = make_rcp<File>(factory, std::move(assetLoader));
-#ifdef WITH_RIVE_SCRIPTING_LUAU
-    if (vm != nullptr)
-    {
-        file->setScriptingVM(ref_rcp(vm));
-    }
-#else
-    (void)vm;
-#endif
-
-    auto readResult = file->read(reader, header);
+  if (factory == nullptr)
+  {
+    // Every artboard stores this factory and the first ShapePaint to
+    // initialize calls through it (`ShapePaint::initRenderPaint` ->
+    // `factory->makeRenderPaint()`), so a null factory here does not fault
+    // until deep inside `Artboard::initialize` with no trace of the caller
+    // that supplied it. Fail the import where the mistake was made.
+    fprintf(stderr, "File::import requires a non-null Factory.\n");
     if (result)
     {
-        *result = readResult;
+      *result = ImportResult::malformed;
     }
-    if (readResult != ImportResult::success)
+    return nullptr;
+  }
+  BinaryReader reader(bytes);
+  RuntimeHeader header;
+  if (!RuntimeHeader::read(reader, header))
+  {
+    fprintf(stderr, "Bad header\n");
+    if (result)
     {
-        file.reset(nullptr);
+      *result = ImportResult::malformed;
     }
-    return file;
+    return nullptr;
+  }
+  if (header.majorVersion() != majorVersion)
+  {
+    fprintf(
+        stderr,
+        "Unsupported version %u.%u expected %u.%u.\n",
+        header.majorVersion(),
+        header.minorVersion(),
+        majorVersion,
+        minorVersion);
+    if (result)
+    {
+      *result = ImportResult::unsupportedVersion;
+    }
+    return nullptr;
+  }
+  auto file = make_rcp<File>(factory, std::move(assetLoader));
+#ifdef WITH_RIVE_SCRIPTING
+  file->m_requireSignedScripts = requireSignedScripts;
+#else
+  (void)requireSignedScripts;
+#endif
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+  if (vm != nullptr)
+  {
+    file->setScriptingVM(ref_rcp(vm));
+  }
+#else
+  (void)vm;
+#endif
+
+  auto readResult = file->read(reader, header);
+  if (result)
+  {
+    *result = readResult;
+  }
+  if (readResult != ImportResult::success)
+  {
+    file.reset(nullptr);
+  }
+  return file;
 }
 
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
 #ifdef WITH_RIVE_TOOLS
-    // Keep the header: re-importing a single artboard later needs its property
-    // table to decode objects.
-    m_header = header;
+  // Keep the header: re-importing a single artboard later needs its property
+  // table to decode objects.
+  m_header = header;
 #endif
-    ImportStack importStack;
-    importStack.version(header.majorVersion(), header.minorVersion());
-    auto result = readObjects(reader, header, importStack, nullptr);
-    if (result != ImportResult::success)
-    {
-        return result;
-    }
-#ifdef WITH_RIVE_SCRIPTING
-    registerScripts();
-#endif
+  ImportStack importStack;
+  importStack.version(header.majorVersion(), header.minorVersion());
+  auto result = readObjects(reader, header, importStack, nullptr);
+  if (result != ImportResult::success)
+  {
     return result;
+  }
+#ifdef WITH_RIVE_SCRIPTING
+  for (const auto& asset : m_fileAssets)
+  {
+    if (asset->is<ShaderAsset>())
+    {
+      asset->as<ShaderAsset>()->finishImport();
+    }
+  }
+  registerScripts();
+#endif
+  return result;
 }
 
 /// Reads objects from [reader] into [importStack] until the stream ends.
@@ -414,778 +531,976 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 /// Resolves [importStack] before returning. That has to happen here rather
 /// than in the caller: importers hold pointers to locals of this function
 /// (inBandContent), and resolve() dereferences them.
-ImportResult File::readObjects(BinaryReader& reader,
-                               const RuntimeHeader& header,
-                               ImportStack& importStack,
-                               Artboard** capturedArtboard)
+ImportResult File::readObjects(
+    BinaryReader& reader,
+    const RuntimeHeader& header,
+    ImportStack& importStack,
+    Artboard** capturedArtboard)
 {
-    const bool wholeFile = capturedArtboard == nullptr;
+  const bool wholeFile = capturedArtboard == nullptr;
 #ifdef WITH_RIVE_SCRIPTING
-    std::vector<InBandContent> inBandContent;
+  std::vector<InBandContent> inBandContent;
 #endif
-    // TODO: @hernan consider moving this to a special importer. It's not that
-    // simple because Core doesn't have a typeKey, so it should be treated as
-    // a special case. In any case, it's not that bad having it here for now.
-    Core* lastBindableObject = nullptr;
-    // Hold the failures instead and free them once the stack has resolved.
-    // Artboard::validateObjects() parks its invalid objects for the same
-    // reason. This vector outlives the resolve() below and is unwound on
-    // every path out, early returns included.
-    std::vector<std::unique_ptr<Core>> discarded;
+  // TODO: @hernan consider moving this to a special importer. It's not that
+  // simple because Core doesn't have a typeKey, so it should be treated as
+  // a special case. In any case, it's not that bad having it here for now.
+  Core* lastBindableObject = nullptr;
+  // Hold the failures instead and free them once the stack has resolved.
+  // Artboard::validateObjects() parks its invalid objects for the same
+  // reason. This vector outlives the resolve() below and is unwound on
+  // every path out, early returns included.
+  std::vector<std::unique_ptr<Core>> discarded;
 #ifdef WITH_RIVE_TOOLS
-    // Start of the object about to be read, so an Artboard's run can be
-    // measured from its own first byte.
-    const uint8_t* const streamStart = reader.position();
+  // Start of the object about to be read, so an Artboard's run can be
+  // measured from its own first byte.
+  const uint8_t* const streamStart = reader.position();
 #endif
-    while (!reader.reachedEnd())
+  while (!reader.reachedEnd())
+  {
+#ifdef WITH_RIVE_TOOLS
+    const size_t objectStart = (size_t)(reader.position() - streamStart);
+#endif
+    bool malformed = false;
+    auto object = readRuntimeObject(reader, header, malformed);
+    if (malformed)
     {
+      return ImportResult::malformed;
+    }
+    if (object == nullptr)
+    {
+      importStack.readNullObject();
+      continue;
+    }
+    if (!object->is<DataBind>())
+    {
+      lastBindableObject = object;
+    }
+    else if (lastBindableObject != nullptr)
+    {
+      object->as<DataBind>()->target(lastBindableObject);
+    }
+    // Ids are indices into the artboard's object list, numbered by the
+    // exporter in stream order. Claim this object's index before import()
+    // can fail, so a failed object still holds its place and every id
+    // after it keeps pointing at the right object.
+    auto slotImporter = importStack.latest<ArtboardImporter>(
+        ArtboardBase::typeKey);
+    size_t slot = 0;
+    if (slotImporter != nullptr && object->claimsArtboardSlot(importStack))
+    {
+      slot = slotImporter->addComponent(object);
+    }
+    else
+    {
+      slotImporter = nullptr;
+    }
+    if (object->import(importStack) == StatusCode::Ok)
+    {
+      switch (object->coreType())
+      {
+        case Backboard::typeKey:
+          m_backboard = object->as<Backboard>();
+          break;
+        case SelectionStyle::typeKey:
+          m_selectionStyles.emplace_back(object->as<SelectionStyle>());
+          break;
+        case Artboard::typeKey:
+        {
+          Artboard* ab = object->as<Artboard>();
+          ab->m_Factory = m_factory;
 #ifdef WITH_RIVE_TOOLS
-        const size_t objectStart = (size_t)(reader.position() - streamStart);
+          // Before any instance exists, so every one is counted.
+          ab->m_instanceCount = make_rcp<ArtboardInstanceCount>();
 #endif
-        bool malformed = false;
-        auto object = readRuntimeObject(reader, header, malformed);
-        if (malformed)
-        {
-            return ImportResult::malformed;
-        }
-        if (object == nullptr)
-        {
-            importStack.readNullObject();
-            continue;
-        }
-        if (!object->is<DataBind>())
-        {
-            lastBindableObject = object;
-        }
-        else if (lastBindableObject != nullptr)
-        {
-            object->as<DataBind>()->target(lastBindableObject);
-        }
-        if (object->import(importStack) == StatusCode::Ok)
-        {
-            switch (object->coreType())
-            {
-                case Backboard::typeKey:
-                    m_backboard = object->as<Backboard>();
-                    break;
-                case SelectionStyle::typeKey:
-                    m_selectionStyles.emplace_back(
-                        object->as<SelectionStyle>());
-                    break;
-                case Artboard::typeKey:
-                {
-                    Artboard* ab = object->as<Artboard>();
-                    ab->m_Factory = m_factory;
-                    if (wholeFile)
-                    {
+          if (wholeFile)
+          {
 #ifdef WITH_RIVE_TOOLS
-                        // This artboard's run starts here and ends where the
-                        // next one starts (closed out below), so ranges stay
-                        // contiguous.
-                        if (!m_artboardByteRanges.empty())
-                        {
-                            m_artboardByteRanges.back().end = objectStart;
-                        }
-                        m_artboardByteRanges.push_back(
-                            {objectStart, objectStart});
+            // This artboard's run starts here and ends where the
+            // next one starts (closed out below), so ranges stay
+            // contiguous.
+            if (!m_artboardByteRanges.empty())
+            {
+              m_artboardByteRanges.back().end = objectStart;
+            }
+            m_artboardByteRanges.push_back({objectStart, objectStart});
 #endif
-                        m_artboards.push_back(ab);
-                    }
-                    else
-                    {
-                        *capturedArtboard = ab;
-                    }
-                }
-                break;
-                case ImageAsset::typeKey:
-                case FontAsset::typeKey:
-                case AudioAsset::typeKey:
-                case BlobAsset::typeKey:
-                case ScriptAsset::typeKey:
-                case ScriptModuleAsset::typeKey:
-                case ShaderAsset::typeKey:
-                {
-                    auto fa = object->as<FileAsset>();
-                    m_fileAssets.push_back(rcp<FileAsset>(fa));
-                    if (object->coreType() == AudioAsset::typeKey)
-                    {
-                        m_hasAudio = true;
-                    }
-                }
-                break;
-                case ViewModel::typeKey:
-                {
-                    auto vmc = object->as<ViewModel>();
-                    m_ViewModels.push_back(vmc);
-                    break;
-                }
-                case DataEnum::typeKey:
-                case DataEnumCustom::typeKey:
-                {
-                    auto de = object->as<DataEnum>();
-                    m_Enums.push_back(de);
-                    break;
-                }
-                case ViewModelPropertyEnumCustom::typeKey:
-                {
-                    auto vme = object->as<ViewModelPropertyEnumCustom>();
-                    if (vme->enumId() < m_Enums.size())
-                    {
-                        vme->dataEnum(m_Enums[vme->enumId()]);
-                    }
-                }
-                break;
-            }
+            m_artboards.push_back(ab);
+          }
+          else
+          {
+            *capturedArtboard = ab;
+          }
         }
-        else
+        break;
+        case ImageAsset::typeKey:
+        case FontAsset::typeKey:
+        case AudioAsset::typeKey:
+        case BlobAsset::typeKey:
+        case ScriptAsset::typeKey:
+        case ScriptModuleAsset::typeKey:
+        case ShaderAsset::typeKey:
         {
-            if (lastBindableObject == object)
-            {
-                lastBindableObject = nullptr;
-            }
-            fprintf(stderr,
-                    "Failed to import object of type %d\n",
-                    object->coreType());
-            discarded.emplace_back(object);
-            continue;
+          auto fa = object->as<FileAsset>();
+          m_fileAssets.push_back(rcp<FileAsset>(fa));
+          if (object->coreType() == AudioAsset::typeKey)
+          {
+            m_hasAudio = true;
+          }
         }
-        std::unique_ptr<ImportStackObject> stackObject = nullptr;
-        auto stackType = object->coreType();
-
-        switch (stackType)
+        break;
+        case ViewModel::typeKey:
         {
-            case Backboard::typeKey:
-                stackObject = std::make_unique<BackboardImporter>(
-                    object->as<Backboard>());
-                static_cast<BackboardImporter*>(stackObject.get())->file(this);
-                break;
-            case Artboard::typeKey:
-                stackObject =
-                    std::make_unique<ArtboardImporter>(object->as<Artboard>());
-                break;
-            case DataEnumCustom::typeKey:
-                stackObject = std::make_unique<EnumImporter>(
-                    object->as<DataEnumCustom>());
-                break;
-            case LinearAnimation::typeKey:
-                stackObject = std::make_unique<LinearAnimationImporter>(
-                    object->as<LinearAnimation>());
-                break;
-            case KeyedObject::typeKey:
-                stackObject = std::make_unique<KeyedObjectImporter>(
-                    object->as<KeyedObject>());
-                break;
-            case KeyedProperty::typeKey:
-            {
-                auto importer = importStack.latest<LinearAnimationImporter>(
-                    LinearAnimation::typeKey);
-                if (importer == nullptr)
-                {
-                    return ImportResult::malformed;
-                }
-                stackObject = std::make_unique<KeyedPropertyImporter>(
-                    importer->animation(),
-                    object->as<KeyedProperty>());
-                break;
-            }
-            case StateMachine::typeKey:
-                stackObject = std::make_unique<StateMachineImporter>(
-                    object->as<StateMachine>());
-                break;
-            case StateMachineLayer::typeKey:
-            {
-                auto artboardImporter =
-                    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-                if (artboardImporter == nullptr)
-                {
-                    return ImportResult::malformed;
-                }
+          auto vmc = object->as<ViewModel>();
+          m_ViewModels.push_back(vmc);
+          break;
+        }
+        case DataEnum::typeKey:
+        case DataEnumCustom::typeKey:
+        {
+          auto de = object->as<DataEnum>();
+          m_Enums.push_back(de);
+          break;
+        }
+        case ViewModelPropertyEnumCustom::typeKey:
+        {
+          auto vme = object->as<ViewModelPropertyEnumCustom>();
+          if (vme->enumId() < m_Enums.size())
+          {
+            vme->dataEnum(m_Enums[vme->enumId()]);
+          }
+        }
+        break;
+      }
+    }
+    else
+    {
+      if (lastBindableObject == object)
+      {
+        lastBindableObject = nullptr;
+      }
+      fprintf(
+          stderr,
+          "Failed to import object of type %d\n",
+          object->coreType());
+      if (slotImporter != nullptr)
+      {
+        // Keep the index, but the artboard must not hold an object
+        // that discarded is about to free.
+        slotImporter->releaseSlot(slot);
+      }
+      discarded.emplace_back(object);
+      continue;
+    }
+    std::unique_ptr<ImportStackObject> stackObject = nullptr;
+    auto stackType = object->coreType();
 
-                stackObject = std::make_unique<StateMachineLayerImporter>(
-                    object->as<StateMachineLayer>(),
-                    artboardImporter->artboard());
+    switch (stackType)
+    {
+      case Backboard::typeKey:
+        stackObject = std::make_unique<BackboardImporter>(
+            object->as<Backboard>());
+        static_cast<BackboardImporter*>(stackObject.get())->file(this);
+        break;
+      case Artboard::typeKey:
+        stackObject = std::make_unique<ArtboardImporter>(
+            object->as<Artboard>());
+        break;
+      case DataEnumCustom::typeKey:
+        stackObject = std::make_unique<EnumImporter>(
+            object->as<DataEnumCustom>());
+        break;
+      case LinearAnimation::typeKey:
+        stackObject = std::make_unique<LinearAnimationImporter>(
+            object->as<LinearAnimation>());
+        break;
+      case KeyedObject::typeKey:
+        stackObject = std::make_unique<KeyedObjectImporter>(
+            object->as<KeyedObject>());
+        break;
+      case KeyedProperty::typeKey:
+      {
+        auto importer = importStack.latest<LinearAnimationImporter>(
+            LinearAnimation::typeKey);
+        if (importer == nullptr)
+        {
+          return ImportResult::malformed;
+        }
+        stackObject = std::make_unique<KeyedPropertyImporter>(
+            importer->animation(),
+            object->as<KeyedProperty>());
+        break;
+      }
+      case StateMachine::typeKey:
+        stackObject = std::make_unique<StateMachineImporter>(
+            object->as<StateMachine>());
+        break;
+      case StateMachineLayer::typeKey:
+      {
+        auto artboardImporter = importStack.latest<ArtboardImporter>(
+            ArtboardBase::typeKey);
+        if (artboardImporter == nullptr)
+        {
+          return ImportResult::malformed;
+        }
 
-                break;
-            }
-            case EntryState::typeKey:
-            case ExitState::typeKey:
-            case AnyState::typeKey:
-            case AnimationState::typeKey:
-            case BlendState1DViewModel::typeKey:
-            case BlendState1DInput::typeKey:
-            case BlendStateDirect::typeKey:
-                stackObject = std::make_unique<LayerStateImporter>(
-                    object->as<LayerState>());
-                stackType = LayerState::typeKey;
-                break;
-            case StateTransition::typeKey:
-            case BlendStateTransition::typeKey:
-                stackObject = std::make_unique<StateTransitionImporter>(
-                    object->as<StateTransition>());
-                stackType = StateTransition::typeKey;
-                break;
-            case StateMachineListener::typeKey:
-            case StateMachineListenerSingle::typeKey:
-                stackObject = std::make_unique<StateMachineListenerImporter>(
-                    object->as<StateMachineListener>());
-                stackType = StateMachineListener::typeKey;
-                break;
-            case ImageAsset::typeKey:
-            case FontAsset::typeKey:
-            case AudioAsset::typeKey:
-            case BlobAsset::typeKey:
-                stackObject =
-                    std::make_unique<FileAssetImporter>(object->as<FileAsset>(),
-                                                        m_assetLoader,
-                                                        m_factory);
-                stackType = FileAsset::typeKey;
-                break;
-            case ListenerInputTypeKeyboardBase::typeKey:
-                stackObject =
-                    std::make_unique<ListenerInputTypeKeyboardImporter>(
-                        object->as<ListenerInputTypeKeyboard>());
-                stackType = ListenerInputTypeKeyboardBase::typeKey;
-                break;
-            case ListenerInputTypeGamepadBase::typeKey:
-                stackObject =
-                    std::make_unique<ListenerInputTypeGamepadImporter>(
-                        object->as<ListenerInputTypeGamepad>());
-                stackType = ListenerInputTypeGamepadBase::typeKey;
-                break;
-            case ListenerInputTypeSemanticBase::typeKey:
-                stackObject =
-                    std::make_unique<ListenerInputTypeSemanticImporter>(
-                        object->as<ListenerInputTypeSemantic>());
-                stackType = ListenerInputTypeSemanticBase::typeKey;
-                break;
+        stackObject = std::make_unique<StateMachineLayerImporter>(
+            object->as<StateMachineLayer>(),
+            artboardImporter->artboard());
+
+        break;
+      }
+      case EntryState::typeKey:
+      case ExitState::typeKey:
+      case AnyState::typeKey:
+      case AnimationState::typeKey:
+      case BlendState1DViewModel::typeKey:
+      case BlendState1DInput::typeKey:
+      case BlendStateDirect::typeKey:
+        stackObject = std::make_unique<LayerStateImporter>(
+            object->as<LayerState>());
+        stackType = LayerState::typeKey;
+        break;
+      case StateTransition::typeKey:
+      case BlendStateTransition::typeKey:
+        stackObject = std::make_unique<StateTransitionImporter>(
+            object->as<StateTransition>());
+        stackType = StateTransition::typeKey;
+        break;
+      case StateMachineListener::typeKey:
+      case StateMachineListenerSingle::typeKey:
+        stackObject = std::make_unique<StateMachineListenerImporter>(
+            object->as<StateMachineListener>());
+        stackType = StateMachineListener::typeKey;
+        break;
+      case ImageAsset::typeKey:
+      case FontAsset::typeKey:
+      case AudioAsset::typeKey:
+      case BlobAsset::typeKey:
+        stackObject = std::make_unique<FileAssetImporter>(
+            object->as<FileAsset>(),
+            m_assetLoader,
+            m_factory);
+        stackType = FileAsset::typeKey;
+        break;
+      case ListenerInputTypeKeyboardBase::typeKey:
+        stackObject = std::make_unique<ListenerInputTypeKeyboardImporter>(
+            object->as<ListenerInputTypeKeyboard>());
+        stackType = ListenerInputTypeKeyboardBase::typeKey;
+        break;
+      case ListenerInputTypeGamepadBase::typeKey:
+        stackObject = std::make_unique<ListenerInputTypeGamepadImporter>(
+            object->as<ListenerInputTypeGamepad>());
+        stackType = ListenerInputTypeGamepadBase::typeKey;
+        break;
+      case ListenerInputTypeSemanticBase::typeKey:
+        stackObject = std::make_unique<ListenerInputTypeSemanticImporter>(
+            object->as<ListenerInputTypeSemantic>());
+        stackType = ListenerInputTypeSemanticBase::typeKey;
+        break;
 #ifdef WITH_RIVE_SCRIPTING
-            case ScriptAsset::typeKey:
-            {
-                auto scriptAsset = object->as<ScriptAsset>();
-                stackObject =
-                    std::make_unique<TextAssetImporter>(scriptAsset,
-                                                        m_assetLoader,
-                                                        m_factory,
-                                                        &inBandContent);
-                stackType = FileAsset::typeKey;
-                scriptAsset->file(this);
-                break;
-            }
-            case ScriptModuleAsset::typeKey:
-            {
-                stackObject = std::make_unique<TextAssetImporter>(
-                    object->as<ScriptModuleAsset>(),
-                    m_assetLoader,
-                    m_factory,
-                    &inBandContent);
-                stackType = FileAsset::typeKey;
-                break;
-            }
-            case ShaderAsset::typeKey:
-            {
-                auto shaderAsset = object->as<ShaderAsset>();
-                stackObject =
-                    std::make_unique<TextAssetImporter>(shaderAsset,
-                                                        m_assetLoader,
-                                                        m_factory,
-                                                        &inBandContent);
-                stackType = FileAsset::typeKey;
-                break;
-            }
+      case ScriptAsset::typeKey:
+      {
+        auto scriptAsset = object->as<ScriptAsset>();
+        stackObject = std::make_unique<TextAssetImporter>(
+            scriptAsset,
+            m_assetLoader,
+            m_factory,
+            &inBandContent);
+        stackType = FileAsset::typeKey;
+        scriptAsset->file(this);
+        break;
+      }
+      case ScriptModuleAsset::typeKey:
+        // The wasm module is trusted, so it joins no signed group.
+        stackObject = std::make_unique<FileAssetImporter>(
+            object->as<ScriptModuleAsset>(),
+            m_assetLoader,
+            m_factory);
+        stackType = FileAsset::typeKey;
+        break;
+      case ShaderAsset::typeKey:
+      {
+        auto shaderAsset = object->as<ShaderAsset>();
+        stackObject = std::make_unique<TextAssetImporter>(
+            shaderAsset,
+            m_assetLoader,
+            m_factory,
+            &inBandContent);
+        stackType = FileAsset::typeKey;
+        shaderAsset->importedWith(m_requireSignedScripts);
+        break;
+      }
 #endif
-            case ManifestAsset::typeKey:
-                stackObject =
-                    std::make_unique<FileAssetImporter>(object->as<FileAsset>(),
-                                                        m_assetLoader,
-                                                        m_factory);
-                stackType = FileAsset::typeKey;
-                m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
-                break;
-            case ViewModel::typeKey:
-            {
-                stackObject = std::make_unique<ViewModelImporter>(
-                    object->as<ViewModel>());
-                stackType = ViewModel::typeKey;
-                object->as<ViewModel>()->file(this);
-                break;
-            }
-            case ViewModelInstance::typeKey:
-                stackObject = std::make_unique<ViewModelInstanceImporter>(
-                    object->as<ViewModelInstance>());
-                stackType = ViewModelInstance::typeKey;
-                break;
-            case ViewModelInstanceList::typeKey:
-                stackObject = std::make_unique<ViewModelInstanceListImporter>(
-                    object->as<ViewModelInstanceList>());
-                stackType = ViewModelInstanceList::typeKey;
-                break;
-            case TransitionViewModelCondition::typeKey:
-            case TransitionArtboardCondition::typeKey:
-            case TransitionFocusCondition::typeKey:
-                stackObject =
-                    std::make_unique<TransitionViewModelConditionImporter>(
-                        object->as<TransitionViewModelCondition>());
-                stackType = TransitionViewModelCondition::typeKey;
-                break;
-            case BindablePropertyNumber::typeKey:
-            case BindablePropertyString::typeKey:
-            case BindablePropertyColor::typeKey:
-            case BindablePropertyEnum::typeKey:
-            case BindablePropertyBoolean::typeKey:
-            case BindablePropertyAsset::typeKey:
-            case BindablePropertyViewModel::typeKey:
-            case BindablePropertyArtboard::typeKey:
-            case BindablePropertyTrigger::typeKey:
-            case BindablePropertyInteger::typeKey:
-            case BindablePropertyList::typeKey:
-                stackObject = std::make_unique<BindablePropertyImporter>(
-                    object->as<BindableProperty>());
-                stackType = BindablePropertyBase::typeKey;
-                break;
-            case DataConverterGroupBase::typeKey:
-                stackObject = std::make_unique<DataConverterGroupImporter>(
-                    object->as<DataConverterGroup>());
-                stackType = DataConverterGroupBase::typeKey;
-                break;
-            case DataConverterFormulaBase::typeKey:
-                stackObject = std::make_unique<DataConverterFormulaImporter>(
-                    object->as<DataConverterFormula>());
-                stackType = DataConverterFormulaBase::typeKey;
-                break;
-            case DataConverterNumberToList::typeKey:
-                object->as<DataConverterNumberToList>()->file(this);
-                break;
-            case ArtboardComponentList::typeKey:
-                object->as<ArtboardComponentList>()->file(this);
-                break;
-            case NestedArtboard::typeKey:
-            case NestedArtboardLayout::typeKey:
-            case NestedArtboardLeaf::typeKey:
-                object->as<NestedArtboard>()->file(this);
-                break;
-            case ScriptedDataConverter::typeKey:
-            case ScriptedDrawable::typeKey:
-            case ScriptedLayout::typeKey:
-            case ScriptedTransition::typeKey:
-            case ScriptedPathEffect::typeKey:
-            case ScriptedListenerAction::typeKey:
-            case ScriptedTransitionCondition::typeKey:
-            case ScriptedInterpolator::typeKey:
-            {
-                auto scriptedObject = ScriptedObject::from(object);
-                if (scriptedObject != nullptr)
-                {
-                    stackObject = std::make_unique<ScriptedObjectImporter>(
-                        scriptedObject);
-                    stackType = ScriptedDrawable::typeKey;
-                }
-                // A ScriptedTransition additionally resolves list-source
-                // artboards from the file.
-                if (object->is<ScriptedTransition>())
-                {
-                    object->as<ScriptedTransition>()->file(this);
-                }
-                break;
-            }
-            case DataBindPathBase::typeKey:
-                stackObject = std::make_unique<DataBindPathImporter>(
-                    object->as<DataBindPath>());
-                stackType = DataBindPathBase::typeKey;
-                break;
-            case ScriptInputArtboard::typeKey:
-                object->as<ScriptInputArtboard>()->file(this);
-                break;
-        }
-        if (importStack.makeLatest(stackType, std::move(stackObject)) !=
-            StatusCode::Ok)
+      case ManifestAsset::typeKey:
+        stackObject = std::make_unique<FileAssetImporter>(
+            object->as<FileAsset>(),
+            m_assetLoader,
+            m_factory);
+        stackType = FileAsset::typeKey;
+        m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
+        break;
+      case ViewModel::typeKey:
+      {
+        stackObject = std::make_unique<ViewModelImporter>(
+            object->as<ViewModel>());
+        stackType = ViewModel::typeKey;
+        object->as<ViewModel>()->file(this);
+        break;
+      }
+      case ViewModelInstance::typeKey:
+        stackObject = std::make_unique<ViewModelInstanceImporter>(
+            object->as<ViewModelInstance>());
+        stackType = ViewModelInstance::typeKey;
+        break;
+      case ViewModelInstanceList::typeKey:
+        stackObject = std::make_unique<ViewModelInstanceListImporter>(
+            object->as<ViewModelInstanceList>());
+        stackType = ViewModelInstanceList::typeKey;
+        break;
+      case TransitionViewModelCondition::typeKey:
+      case TransitionArtboardCondition::typeKey:
+      case TransitionFocusCondition::typeKey:
+        stackObject = std::make_unique<TransitionViewModelConditionImporter>(
+            object->as<TransitionViewModelCondition>());
+        stackType = TransitionViewModelCondition::typeKey;
+        break;
+      case BindablePropertyNumber::typeKey:
+      case BindablePropertyString::typeKey:
+      case BindablePropertyColor::typeKey:
+      case BindablePropertyEnum::typeKey:
+      case BindablePropertyBoolean::typeKey:
+      case BindablePropertyAsset::typeKey:
+      case BindablePropertyViewModel::typeKey:
+      case BindablePropertyArtboard::typeKey:
+      case BindablePropertyTrigger::typeKey:
+      case BindablePropertyInteger::typeKey:
+      case BindablePropertyList::typeKey:
+        stackObject = std::make_unique<BindablePropertyImporter>(
+            object->as<BindableProperty>());
+        stackType = BindablePropertyBase::typeKey;
+        break;
+      case DataConverterGroupBase::typeKey:
+        stackObject = std::make_unique<DataConverterGroupImporter>(
+            object->as<DataConverterGroup>());
+        stackType = DataConverterGroupBase::typeKey;
+        break;
+      case DataConverterFormulaBase::typeKey:
+        stackObject = std::make_unique<DataConverterFormulaImporter>(
+            object->as<DataConverterFormula>());
+        stackType = DataConverterFormulaBase::typeKey;
+        break;
+      case DataConverterNumberToList::typeKey:
+        object->as<DataConverterNumberToList>()->file(this);
+        break;
+      case ArtboardComponentList::typeKey:
+        object->as<ArtboardComponentList>()->file(this);
+        break;
+      case NestedArtboard::typeKey:
+      case NestedArtboardLayout::typeKey:
+      case NestedArtboardLeaf::typeKey:
+        object->as<NestedArtboard>()->file(this);
+        break;
+      case TextStyleGlobalBase::typeKey:
+        object->as<TextStyleGlobal>()->file(this);
+        break;
+      case TextBase::typeKey:
+        // Resolves global text styles its list runs name by index.
+        object->as<Text>()->file(this);
+        break;
+      case ScriptedDataConverter::typeKey:
+      case ScriptedDrawable::typeKey:
+      case ScriptedLayout::typeKey:
+      case ScriptedTransition::typeKey:
+      case ScriptedPathEffect::typeKey:
+      case ScriptedListenerAction::typeKey:
+      case ScriptedTransitionCondition::typeKey:
+      case ScriptedInterpolator::typeKey:
+      {
+        auto scriptedObject = ScriptedObject::from(object);
+        if (scriptedObject != nullptr)
         {
-            // Some previous stack item didn't resolve.
-            return ImportResult::malformed;
+          // A Component owner's inputs are its artboard children
+          // and name its slot as their parent; other owners' name 0.
+          uint32_t inputParentId = scriptedObject->component() != nullptr &&
+                                           slotImporter != nullptr
+                                       ? (uint32_t)slot
+                                       : 0;
+          stackObject = std::make_unique<ScriptedObjectImporter>(
+              scriptedObject,
+              inputParentId);
+          stackType = ScriptedDrawable::typeKey;
         }
-        if (object->is<StateMachineLayerComponent>() &&
-            importStack.makeLatest(
-                StateMachineLayerComponent::typeKey,
-                std::make_unique<StateMachineLayerComponentImporter>(
-                    object->as<StateMachineLayerComponent>())) !=
-                StatusCode::Ok)
+        // A ScriptedTransition additionally resolves list-source
+        // artboards from the file.
+        if (object->is<ScriptedTransition>())
         {
-            return ImportResult::malformed;
+          object->as<ScriptedTransition>()->file(this);
         }
-        // These lists describe the whole file, and the file owns (and deletes)
-        // the first three. A single artboard's run only ever adds objects the
-        // artboard itself owns, so appending them here would double-delete on
-        // teardown and leave m_scriptedInterpolators pointing at an artboard a
-        // later splice has already freed. The file-global entries a partial
-        // read needs to *resolve* against are seeded into the import stack by
-        // the caller instead.
-        if (!wholeFile)
-        {
-            continue;
-        }
-        if (object->is<DataConverter>())
-        {
-            m_DataConverters.push_back(object->as<DataConverter>());
-        }
-        else if (object->is<KeyFrameInterpolator>())
-        {
-            // The file only owns the interpolators that don't belong to a
-            // specific artboard
-            auto artboardImporter =
-                importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-            if (artboardImporter == nullptr)
-            {
-                m_keyframeInterpolators.push_back(
-                    object->as<KeyFrameInterpolator>());
-            }
-            if (object->is<ScriptedInterpolator>())
-            {
-                m_scriptedInterpolators.push_back(
-                    object->as<ScriptedInterpolator>());
-            }
-        }
-        else if (object->is<ScrollPhysics>())
-        {
-            m_scrollPhysics.push_back(object->as<ScrollPhysics>());
-        }
+        break;
+      }
+      case DataBindPathBase::typeKey:
+        stackObject = std::make_unique<DataBindPathImporter>(
+            object->as<DataBindPath>());
+        stackType = DataBindPathBase::typeKey;
+        break;
+      case ScriptInputArtboard::typeKey:
+        object->as<ScriptInputArtboard>()->file(this);
+        break;
     }
+    if (importStack.makeLatest(stackType, std::move(stackObject)) !=
+        StatusCode::Ok)
+    {
+      // Some previous stack item didn't resolve.
+      return ImportResult::malformed;
+    }
+    if (object->is<StateMachineLayerComponent>() &&
+        importStack.makeLatest(
+            StateMachineLayerComponent::typeKey,
+            std::make_unique<StateMachineLayerComponentImporter>(
+                object->as<StateMachineLayerComponent>())) != StatusCode::Ok)
+    {
+      return ImportResult::malformed;
+    }
+    // These lists describe the whole file, and the file owns (and deletes)
+    // the first three. A single artboard's run only ever adds objects the
+    // artboard itself owns, so appending them here would double-delete on
+    // teardown and leave m_scriptedInterpolators pointing at an artboard a
+    // later splice has already freed. The file-global entries a partial
+    // read needs to *resolve* against are seeded into the import stack by
+    // the caller instead.
+    if (!wholeFile)
+    {
+      continue;
+    }
+    if (object->is<DataConverter>())
+    {
+      m_DataConverters.push_back(object->as<DataConverter>());
+    }
+    else if (object->is<KeyFrameInterpolator>())
+    {
+      // The file only owns the interpolators that don't belong to a
+      // specific artboard
+      auto artboardImporter = importStack.latest<ArtboardImporter>(
+          ArtboardBase::typeKey);
+      if (artboardImporter == nullptr)
+      {
+        m_keyframeInterpolators.push_back(object->as<KeyFrameInterpolator>());
+      }
+      if (object->is<ScriptedInterpolator>())
+      {
+        m_scriptedInterpolators.push_back(object->as<ScriptedInterpolator>());
+      }
+    }
+    else if (object->is<ScrollPhysics>())
+    {
+      m_scrollPhysics.push_back(object->as<ScrollPhysics>());
+    }
+  }
 
 #ifdef WITH_RIVE_TOOLS
-    // The last artboard runs to wherever the stream stopped. Measured from
-    // streamStart like every other offset -- lengthInBytes() would include the
-    // header, which these offsets are relative to the end of.
-    if (wholeFile && !m_artboardByteRanges.empty())
-    {
-        m_artboardByteRanges.back().end =
-            (size_t)(reader.position() - streamStart);
-    }
+  // The last artboard runs to wherever the stream stopped. Measured from
+  // streamStart like every other offset -- lengthInBytes() would include the
+  // header, which these offsets are relative to the end of.
+  if (wholeFile && !m_artboardByteRanges.empty())
+  {
+    m_artboardByteRanges.back().end = (size_t)(reader.position() - streamStart);
+  }
 #endif
 
-    auto resolved = importStack.resolve();
-    return !reader.hasError() && resolved == StatusCode::Ok
-               ? ImportResult::success
-               : ImportResult::malformed;
+  auto resolved = importStack.resolve();
+  return !reader.hasError() && resolved == StatusCode::Ok
+             ? ImportResult::success
+             : ImportResult::malformed;
 }
 
 #ifdef WITH_RIVE_TOOLS
 ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
 {
-    if (index >= m_artboards.size() || bytes.size() == 0)
-    {
-        return ImportResult::malformed;
-    }
+  if (index >= m_artboards.size() || bytes.size() == 0)
+  {
+    return ImportResult::malformed;
+  }
 
-    BinaryReader reader(bytes);
-    ImportStack importStack;
-    importStack.version(m_header.majorVersion(), m_header.minorVersion());
+  BinaryReader reader(bytes);
+  ImportStack importStack;
+  importStack.version(m_header.majorVersion(), m_header.minorVersion());
 
-    // The run holds no Backboard, assets or view models of its own, so seed an
-    // importer with the ones this file already has. That is what lets the new
-    // artboard's asset and nested-artboard references resolve.
-    auto backboardImporter = std::make_unique<BackboardImporter>(m_backboard);
-    backboardImporter->file(this);
-    for (auto* existing : m_artboards)
-    {
-        backboardImporter->addArtboard(existing);
-    }
-    for (auto& asset : m_fileAssets)
-    {
-        backboardImporter->addFileAsset(asset);
-    }
-    // The run's DataBinds resolve their converters by index into this list,
-    // its converters resolve their interpolators by index into the next, and a
-    // ScrollConstraint resolves its physics by index into the third. All three
-    // live outside any artboard, so the run carries none of them and an
-    // unseeded importer would silently leave every one of those references
-    // unbound.
-    for (auto* converter : m_DataConverters)
-    {
-        backboardImporter->addDataConverter(converter);
-    }
-    for (auto* interpolator : m_keyframeInterpolators)
-    {
-        backboardImporter->seedInterpolator(interpolator);
-    }
-    for (auto* physics : m_scrollPhysics)
-    {
-        backboardImporter->addPhysics(physics);
-    }
-    if (importStack.makeLatest(Backboard::typeKey,
-                               std::move(backboardImporter)) != StatusCode::Ok)
-    {
-        return ImportResult::malformed;
-    }
+  // The run holds no Backboard, assets or view models of its own, so seed an
+  // importer with the ones this file already has. That is what lets the new
+  // artboard's asset and nested-artboard references resolve.
+  auto backboardImporter = std::make_unique<BackboardImporter>(m_backboard);
+  backboardImporter->file(this);
+  for (auto* existing : m_artboards)
+  {
+    backboardImporter->addArtboard(existing);
+  }
+  for (auto& asset : m_fileAssets)
+  {
+    backboardImporter->addFileAsset(asset);
+  }
+  // The run's DataBinds resolve their converters by index into this list,
+  // its converters resolve their interpolators by index into the next, and a
+  // ScrollConstraint resolves its physics by index into the third. All three
+  // live outside any artboard, so the run carries none of them and an
+  // unseeded importer would silently leave every one of those references
+  // unbound.
+  for (auto* converter : m_DataConverters)
+  {
+    backboardImporter->addDataConverter(converter);
+  }
+  for (auto* interpolator : m_keyframeInterpolators)
+  {
+    backboardImporter->seedInterpolator(interpolator);
+  }
+  for (auto* physics : m_scrollPhysics)
+  {
+    backboardImporter->addPhysics(physics);
+  }
+  if (importStack.makeLatest(
+          Backboard::typeKey,
+          std::move(backboardImporter)) != StatusCode::Ok)
+  {
+    return ImportResult::malformed;
+  }
 
-    Artboard* imported = nullptr;
-    if (readObjects(reader, m_header, importStack, &imported) !=
-            ImportResult::success ||
-        imported == nullptr)
-    {
-        delete imported;
-        return ImportResult::malformed;
-    }
+  Artboard* imported = nullptr;
+  if (readObjects(reader, m_header, importStack, &imported) !=
+          ImportResult::success ||
+      imported == nullptr)
+  {
+    delete imported;
+    return ImportResult::malformed;
+  }
 
-    // addArtboard() stamps whatever the importer's running counter is, and
-    // seeding it with every existing artboard left that counter at
-    // m_artboards.size(). The replacement takes over a slot, not a new one.
-    imported->artboardId((uint16_t)index);
+  // addArtboard() stamps whatever the importer's running counter is, and
+  // seeding it with every existing artboard left that counter at
+  // m_artboards.size(). The replacement takes over a slot, not a new one.
+  imported->artboardId((uint16_t)index);
 
-    // m_scriptedInterpolators is not rebuilt by a partial read (see
-    // readObjects), so swap the outgoing artboard's entries for the
-    // replacement's by hand -- leaving them would point the list at objects
-    // the delete below frees.
-    Artboard* outgoing = m_artboards[index];
-    m_scriptedInterpolators.erase(
-        std::remove_if(m_scriptedInterpolators.begin(),
-                       m_scriptedInterpolators.end(),
-                       [outgoing](ScriptedInterpolator* interpolator) {
-                           for (auto* object : outgoing->objects())
-                           {
-                               if (object == interpolator)
-                               {
-                                   return true;
-                               }
-                           }
-                           return false;
-                       }),
-        m_scriptedInterpolators.end());
-    for (auto* object : imported->objects())
-    {
-        if (object != nullptr && object->is<ScriptedInterpolator>())
-        {
-            m_scriptedInterpolators.push_back(
-                object->as<ScriptedInterpolator>());
-        }
-    }
-
-    delete m_artboards[index];
-    m_artboards[index] = imported;
-
-    // Other artboards hold a resolved pointer to the artboard that was just
-    // deleted (BackboardImporter::resolve stamped it in at import time), so
-    // re-point every referencer of this index at the replacement. Missing one
-    // would leave a dangling pointer rather than a visible failure.
-    for (auto* artboard : m_artboards)
-    {
-        for (auto* object : artboard->objects())
-        {
-            if (object == nullptr)
+  // m_scriptedInterpolators is not rebuilt by a partial read (see
+  // readObjects), so swap the outgoing artboard's entries for the
+  // replacement's by hand -- leaving them would point the list at objects
+  // that are leaving the file, and are freed once nothing uses them.
+  Artboard* outgoing = m_artboards[index];
+  m_scriptedInterpolators.erase(
+      std::remove_if(
+          m_scriptedInterpolators.begin(),
+          m_scriptedInterpolators.end(),
+          [outgoing](ScriptedInterpolator* interpolator) {
+            for (auto* object : outgoing->objects())
             {
-                continue;
+              if (object == interpolator)
+              {
+                return true;
+              }
             }
-            auto* referencer = ArtboardReferencer::from(object);
-            if (referencer != nullptr &&
-                referencer->referencedArtboardId() == (int)index)
-            {
-                referencer->referencedArtboard(imported);
-            }
-        }
+            return false;
+          }),
+      m_scriptedInterpolators.end());
+  for (auto* object : imported->objects())
+  {
+    if (object != nullptr && object->is<ScriptedInterpolator>())
+    {
+      m_scriptedInterpolators.push_back(object->as<ScriptedInterpolator>());
     }
-    return ImportResult::success;
+  }
+
+  // What was known about the outgoing artboard as a text style is stale.
+  m_textStyleShares->forget(outgoing);
+  m_artboards[index] = imported;
+  deleteUnusedRetiredArtboards();
+  // Instances share their source's animations and state machines by
+  // pointer, and the caller can't always release them all first: a script
+  // in an artboard that isn't being replaced may hold instances of this one,
+  // from an Artboard input or copies it made with instance(). Deleting it
+  // now would leave those advancing through freed state machines.
+  if (outgoing->hasLiveInstances())
+  {
+    m_retiredArtboards.push_back(outgoing);
+  }
+  else
+  {
+    delete outgoing;
+  }
+
+  // Other artboards hold a resolved pointer to the artboard that was just
+  // swapped out (BackboardImporter::resolve stamped it in at import time),
+  // so re-point every referencer of this index at the replacement. Missing
+  // one would leave a pointer that dangles once the outgoing artboard is
+  // deleted, rather than a visible failure.
+  for (auto* artboard : m_artboards)
+  {
+    for (auto* object : artboard->objects())
+    {
+      if (object == nullptr)
+      {
+        continue;
+      }
+      auto* referencer = ArtboardReferencer::from(object);
+      if (referencer != nullptr &&
+          referencer->referencedArtboardId() == (int)index)
+      {
+        referencer->referencedArtboard(imported);
+      }
+    }
+  }
+  return ImportResult::success;
+}
+
+void File::deleteUnusedRetiredArtboards()
+{
+  size_t kept = 0;
+  for (auto* artboard : m_retiredArtboards)
+  {
+    if (artboard->hasLiveInstances())
+    {
+      m_retiredArtboards[kept++] = artboard;
+    }
+    else
+    {
+      delete artboard;
+    }
+  }
+  m_retiredArtboards.resize(kept);
 }
 #endif
 
 void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 {
-    m_ViewModelInstances.push_back(rcp<ViewModelInstance>(viewModelInstance));
+  m_ViewModelInstances.push_back(rcp<ViewModelInstance>(viewModelInstance));
+}
+
+void File::displayScale([[maybe_unused]] float scale)
+{
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+  if (m_scriptingVM != nullptr)
+  {
+    m_scriptingVM->displayScale(scale);
+  }
+#endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  for (auto& vm : m_wasmVMs)
+  {
+    vm->displayScale(scale);
+  }
+#endif
 }
 
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_WASM
 const char* File::frameBoundary()
 {
-    const char* warning = nullptr;
-    for (auto& vm : m_wasmVMs)
+  m_frameBoundaryReport.clear();
+  for (auto& vm : m_wasmVMs)
+  {
+    if (const char* notice = vm->frameBoundary())
     {
-        const char* notice = vm->frameBoundary();
-        if (warning == nullptr)
-        {
-            warning = notice;
-        }
+      WasmScriptingVM::joinFrameReport(m_frameBoundaryReport, notice);
     }
-    return warning;
+  }
+  return m_frameBoundaryReport.empty() ? nullptr
+                                       : m_frameBoundaryReport.c_str();
 }
 #endif
 
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#ifdef __EMSCRIPTEN__
+void File::startScripts()
+{
+  for (auto vm = m_wasmVMs.begin(); vm != m_wasmVMs.end();)
+  {
+    auto browserVM = static_cast<BrowserScriptingVM*>(vm->get());
+    switch (browserVM->start())
+    {
+      case BrowserScriptingVM::Start::started:
+        ++vm;
+        break;
+      case BrowserScriptingVM::Start::preparing:
+        fprintf(
+            stderr,
+            "wasm script module is still being prepared, so its "
+            "scripts wait for a later startScripts\n");
+        ++vm;
+        break;
+      case BrowserScriptingVM::Start::failed:
+        // Natively a module that fails to start never joins the file.
+        fprintf(
+            stderr,
+            "wasm script module failed to start: %s\n",
+            browserVM->lastError().c_str());
+        m_deferredScripts.erase(
+            std::remove_if(
+                m_deferredScripts.begin(),
+                m_deferredScripts.end(),
+                [browserVM](const DeferredScript& deferred) {
+                  return deferred.vm == browserVM;
+                }),
+            m_deferredScripts.end());
+        vm = m_wasmVMs.erase(vm);
+        break;
+    }
+  }
+  // A vm still being prepared keeps its scripts for the next call.
+  std::vector<DeferredScript> waiting;
+  for (const DeferredScript& deferred : m_deferredScripts)
+  {
+    if (deferred.vm->valid())
+    {
+      registerWasmScriptOn(
+          deferred.vm,
+          deferred.script,
+          deferred.script->moduleName());
+    }
+    else
+    {
+      waiting.push_back(deferred);
+    }
+  }
+  m_deferredScripts = std::move(waiting);
+}
+#endif
+#endif
+
+bool File::acceptsScript(bool verified, bool requireSignedScripts)
+{
+  if (requireSignedScripts)
+  {
+#ifdef WITH_RIVE_TEST_SIGNATURE
+    // The test key's private half is public, so its signatures prove
+    // nothing about bytes the embedder did not supply.
+    return false;
+#else
+    return verified;
+#endif
+  }
+#ifdef WITH_RIVE_TOOLS
+  // Tools builds run unsigned scripts so files work before export signs
+  // them.
+  return true;
+#else
+  return verified;
+#endif
+}
+
 void File::registerScripts()
 {
-#ifdef WITH_RIVE_SCRIPTING_WASM
-    // A wasm script module supersedes the bytecode path: scripts live inside
-    // the module and ScriptAssets are metadata-only routing records. Assets
-    // arrive grouped, each module followed by its scripts; scripts before the
-    // first module belong to it, which keeps older single-module files
-    // working.
-    auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
-        int resultRef = 0;
-        if (!vm->requireModule(script->moduleName(), &resultRef))
-        {
-            fprintf(stderr,
-                    "wasm script module '%s' failed: %s\n",
-                    script->moduleName().c_str(),
-                    vm->lastError().c_str());
-        }
-        else if (!script->isModule() && resultRef != 0)
-        {
-            // The module's result is the protocol script's generator;
-            // storing the ref lets the standard lazy instantiation flow
-            // run against the wasm backend.
-            script->registrationComplete(resultRef);
-        }
-        script->wasmBackend(vm);
-    };
-    std::vector<ScriptAsset*> pending;
-    WasmScriptingVM* current = nullptr;
+  if (m_requireSignedScripts)
+  {
+    // Registration assigns the generator of every script that runs. The
+    // value the file itself carries could point instantiate() at any ref
+    // in the VM, so it is never trusted.
     for (auto& asset : m_fileAssets)
     {
-        if (asset->is<ScriptModuleAsset>())
-        {
-            auto module = asset->as<ScriptModuleAsset>();
-#ifndef WITH_RIVE_TOOLS
-            if (!module->verified())
-            {
-                continue;
-            }
+      if (asset->is<ScriptAsset>())
+      {
+        asset->as<ScriptAsset>()->generatorFunctionRef(0);
+      }
+    }
+  }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  // A wasm script module supersedes the bytecode path: scripts live inside
+  // the module and ScriptAssets are metadata-only routing records. Assets
+  // arrive grouped, each module followed by its scripts; scripts before the
+  // first module belong to it, which keeps older single-module files
+  // working.
+#ifdef __EMSCRIPTEN__
+  auto registerOn = [this](WasmScriptingVM* vm, ScriptAsset* script) {
+    m_deferredScripts.push_back({vm, script});
+  };
+#else
+  auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
+    registerWasmScriptOn(vm, script, script->moduleName());
+  };
 #endif
-            std::string error;
-            auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
-            if (vm == nullptr)
-            {
-                fprintf(stderr,
-                        "wasm script module failed to start: %s\n",
-                        error.c_str());
-                continue;
-            }
-            vm->viewModels(&m_ViewModels);
-            vm->file(this);
-            current = vm.get();
-            m_wasmVMs.push_back(std::move(vm));
-            for (auto* script : pending)
-            {
-                registerOn(current, script);
-            }
-            pending.clear();
-        }
-        else if (asset->is<ScriptAsset>() && current == nullptr)
-        {
-            pending.push_back(asset->as<ScriptAsset>());
-        }
-        else if (asset->is<ScriptAsset>())
-        {
-            registerOn(current, asset->as<ScriptAsset>());
-        }
-    }
-    // Bytecode-only files can still run on the wasm backend: with
-    // RIVE_WASM_VM naming a stock vm module, every script registers
-    // dynamically instead of arriving baked into a module asset. Dev and
-    // sweep-harness lane; bytecode is interpreted by the module's Luau VM.
-    if (m_wasmVMs.empty() && !pending.empty())
+  std::vector<ScriptAsset*> pending;
+  WasmScriptingVM* current = nullptr;
+  for (auto& asset : m_fileAssets)
+  {
+    if (asset->is<ScriptModuleAsset>())
     {
-        if (const char* vmPath = getenv("RIVE_WASM_VM"))
-        {
-            FILE* vmFile = fopen(vmPath, "rb");
-            if (vmFile != nullptr)
-            {
-                fseek(vmFile, 0, SEEK_END);
-                long size = ftell(vmFile);
-                fseek(vmFile, 0, SEEK_SET);
-                std::vector<uint8_t> vmBytes(size);
-                size_t read = fread(vmBytes.data(), 1, size, vmFile);
-                fclose(vmFile);
-                std::string error;
-                auto vm = WasmScriptingVM::make(
-                    Span<const uint8_t>(vmBytes.data(), read),
-                    m_factory,
-                    error);
-                if (vm == nullptr)
-                {
-                    fprintf(stderr,
-                            "wasm bytecode lane failed to start: %s\n",
-                            error.c_str());
-                }
-                else
-                {
-                    vm->viewModels(&m_ViewModels);
-                    vm->file(this);
-                    current = vm.get();
-                    m_wasmVMs.push_back(std::move(vm));
-                    for (auto* script : pending)
-                    {
-                        current->registerBytecode(script->moduleName(),
-                                                  script->moduleBytecode());
-                    }
-                    for (auto* script : pending)
-                    {
-                        registerOn(current, script);
-                    }
-                }
-            }
-        }
+      auto module = asset->as<ScriptModuleAsset>();
+#ifdef __EMSCRIPTEN__
+      std::unique_ptr<WasmScriptingVM> vm = BrowserScriptingVM::make(
+          module->module(),
+          m_factory);
+      if (vm == nullptr)
+      {
+        continue;
+      }
+#else
+      std::string error;
+      auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
+      if (vm == nullptr)
+      {
+        fprintf(
+            stderr,
+            "wasm script module failed to start: %s\n",
+            error.c_str());
+        continue;
+      }
+#endif
+      vm->viewModels(&m_ViewModels);
+      vm->file(this);
+      current = vm.get();
+      m_wasmVMs.push_back(std::move(vm));
+      for (auto* script : pending)
+      {
+        registerOn(current, script);
+      }
+      pending.clear();
     }
-    if (!m_wasmVMs.empty())
+    else if (asset->is<ScriptAsset>() && current == nullptr)
     {
-        return;
+      pending.push_back(asset->as<ScriptAsset>());
     }
+    else if (asset->is<ScriptAsset>())
+    {
+      registerOn(current, asset->as<ScriptAsset>());
+    }
+  }
+#ifndef __EMSCRIPTEN__
+  // Bytecode-only files can still run on the wasm backend: with
+  // RIVE_WASM_VM naming a stock vm module, every script registers
+  // dynamically instead of arriving baked into a module asset. Dev and
+  // sweep-harness lane; bytecode is interpreted by the module's Luau VM.
+  // It registers bytecode without checking signatures, so a file that
+  // requires signed scripts drops its unsigned ones first.
+  if (m_requireSignedScripts)
+  {
+    pending.erase(
+        std::remove_if(
+            pending.begin(),
+            pending.end(),
+            [this](ScriptAsset* script) {
+              return !acceptsScript(script->verified());
+            }),
+        pending.end());
+  }
+  if (m_wasmVMs.empty() && !pending.empty())
+  {
+    if (const char* vmPath = getenv("RIVE_WASM_VM"))
+    {
+      FILE* vmFile = fopen(vmPath, "rb");
+      if (vmFile != nullptr)
+      {
+        fseek(vmFile, 0, SEEK_END);
+        long size = ftell(vmFile);
+        fseek(vmFile, 0, SEEK_SET);
+        std::vector<uint8_t> vmBytes(size);
+        size_t read = fread(vmBytes.data(), 1, size, vmFile);
+        fclose(vmFile);
+        std::string error;
+        auto vm = WasmScriptingVM::make(
+            Span<const uint8_t>(vmBytes.data(), read),
+            m_factory,
+            error);
+        if (vm == nullptr)
+        {
+          fprintf(
+              stderr,
+              "wasm bytecode lane failed to start: %s\n",
+              error.c_str());
+        }
+        else
+        {
+          vm->viewModels(&m_ViewModels);
+          vm->file(this);
+          current = vm.get();
+          m_wasmVMs.push_back(std::move(vm));
+          for (auto* script : pending)
+          {
+            current->registerBytecode(
+                script->moduleName(),
+                script->moduleBytecode());
+          }
+          for (auto* script : pending)
+          {
+            registerWasmScriptOn(current, script, script->moduleName());
+          }
+        }
+      }
+    }
+  }
+#endif
+  if (!m_wasmVMs.empty())
+  {
+    return;
+  }
 #endif
 
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    // Check if we have any script assets in the file
-    std::vector<ScriptAsset*> scripts;
-    for (auto asset : m_fileAssets)
+  // Check if we have any script assets in the file
+  std::vector<ScriptAsset*> scripts;
+  for (auto asset : m_fileAssets)
+  {
+    if (!asset->is<ScriptAsset>())
     {
-        if (asset->is<ScriptAsset>())
-        {
-            scripts.push_back(asset->as<ScriptAsset>());
-        }
+      continue;
     }
-    // Only make the ScriptingVM if we have any script assets
-    if (!scripts.empty())
+    auto scriptAsset = asset->as<ScriptAsset>();
+    // A file that requires signed scripts builds no VM for unsigned ones:
+    // their scripted objects stay inert, as they are in builds without
+    // WITH_RIVE_TOOLS.
+    if (m_requireSignedScripts && !acceptsScript(scriptAsset->verified()))
     {
-        // If no VM was provided (e.g., from editor), create our own.
-        if (m_scriptingVM == nullptr)
-        {
-            makeScriptingVM();
-        }
-
-        ScriptingVM* vm = m_scriptingVM.get();
-        if (vm != nullptr)
-        {
-            routeScriptingToImportFactory(vm->context());
-            // Set up the Data global (view model constructors) on the active
-            // VM, whether it was created here or supplied externally (e.g. by
-            // the CommandServer). Skip it when the VM's owner builds Data
-            // itself, as the editor does in Dart.
-            if (!vm->context()->initializesDataGlobalExternally())
-            {
-                initializeLuaData(vm->state(), m_ViewModels);
-            }
-            for (auto scriptAsset : scripts)
-            {
-                // At runtime, if the script is verified, add it to be
-                // registered with the VM. At edit time, the script will
-                // have already been registered, so this won't run.
-                // WITH_RIVE_TOOLS allows unverified scripts for testing.
-#ifdef WITH_RIVE_TOOLS
-                vm->addModule(scriptAsset);
-#else
-                if (scriptAsset->verified())
-                {
-                    vm->addModule(scriptAsset);
-                }
+      continue;
+    }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    // The editor decodes a wasm preview ahead of the VM it adopts; its
+    // scripts carry no bytecode and must not start a Luau VM here.
+    if (m_scriptingVM == nullptr && scriptAsset->moduleBytecode().size() == 0)
+    {
+      continue;
+    }
 #endif
-            }
-            // Perform registration - ScriptingContext will handle dependencies
-            // and retries
-            vm->performRegistration();
-        }
-
-        for (auto& interpolator : m_scriptedInterpolators)
-        {
-            auto scriptAsset = interpolator->scriptAsset();
-            if (scriptAsset != nullptr)
-            {
-                scriptAsset->initScriptedObject(interpolator);
-            }
-        }
+    scripts.push_back(scriptAsset);
+  }
+  // Only make the ScriptingVM if we have any script assets
+  if (!scripts.empty())
+  {
+    // If no VM was provided (e.g., from editor), create our own.
+    if (m_scriptingVM == nullptr)
+    {
+      makeScriptingVM();
     }
+
+    ScriptingVM* vm = m_scriptingVM.get();
+    if (vm != nullptr)
+    {
+      routeScriptingToImportFactory(vm->context());
+      // Set up the Data global (view model constructors) on the active
+      // VM, whether it was created here or supplied externally (e.g. by
+      // the CommandServer). Skip it when the VM's owner builds Data
+      // itself, as the editor does in Dart.
+      if (!vm->context()->initializesDataGlobalExternally())
+      {
+        initializeLuaData(vm->state(), m_ViewModels);
+      }
+      for (auto scriptAsset : scripts)
+      {
+        // At runtime, if the script is verified, add it to be
+        // registered with the VM. At edit time, the script will
+        // have already been registered, so this won't run.
+        // WITH_RIVE_TOOLS allows unverified scripts for testing.
+        if (acceptsScript(scriptAsset->verified()))
+        {
+          vm->addModule(scriptAsset);
+        }
+      }
+      // Perform registration - ScriptingContext will handle dependencies
+      // and retries
+      vm->performRegistration();
+    }
+
+    for (auto& interpolator : m_scriptedInterpolators)
+    {
+      auto scriptAsset = interpolator->scriptAsset();
+      if (scriptAsset != nullptr)
+      {
+        scriptAsset->initScriptedObject(interpolator);
+      }
+    }
+  }
 #endif
 }
 
@@ -1198,802 +1513,854 @@ void File::registerScripts()
 // can run script bodies.
 void File::routeScriptingToImportFactory(ScriptingContext* context)
 {
-    if (context == nullptr || m_factory == nullptr)
+  if (context == nullptr || m_factory == nullptr)
+  {
+    return;
+  }
+  // A VM the caller handed in was built before decode chose a recording
+  // session, so its scripts would draw to the driver while the file records.
+  if (context->factory() != m_factory)
+  {
+    context->adoptImportFactory(m_factory);
+  }
+  // The render context has its own late bind flag, and a caller that already
+  // satisfied it outranks the factory's default.
+  if (context->renderContextIsLateBound())
+  {
+    if (Factory* renderContext = m_factory->renderContext())
     {
-        return;
+      context->setRenderContext(renderContext);
     }
-    // A VM the caller handed in was built before decode chose a recording
-    // session, so its scripts would draw to the driver while the file records.
-    if (context->factory() != m_factory)
-    {
-        context->adoptImportFactory(m_factory);
-    }
-    // The render context has its own late bind flag, and a caller that already
-    // satisfied it outranks the factory's default.
-    if (context->renderContextIsLateBound())
-    {
-        if (Factory* renderContext = m_factory->renderContext())
-        {
-            context->setRenderContext(renderContext);
-        }
-    }
+  }
 }
 
 void File::makeScriptingVM()
 {
-    cleanupScriptingVM();
-    auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
-    m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
+  cleanupScriptingVM();
+  auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+  m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
 }
 
 lua_State* File::scriptingState()
 {
-    return m_scriptingVM ? m_scriptingVM->state() : nullptr;
+  return m_scriptingVM ? m_scriptingVM->state() : nullptr;
 }
 
 void File::setScriptingVM(rcp<ScriptingVM> vm)
 {
 #ifdef WITH_RIVE_TOOLS
-    if (m_scriptingVM != nullptr)
+  if (m_scriptingVM != nullptr)
+  {
+    ScriptingContext* context = m_scriptingVM->context();
+    if (context != nullptr)
     {
-        ScriptingContext* context = m_scriptingVM->context();
-        if (context != nullptr)
-        {
-            context->disposeOrphanScriptedProperties();
-        }
+      context->disposeOrphanScriptedProperties();
     }
+  }
 #endif
-    m_scriptingVM = std::move(vm);
+  m_scriptingVM = std::move(vm);
 }
 
 void File::cleanupScriptingVM()
 {
 #ifdef WITH_RIVE_TOOLS
-    if (m_scriptingVM != nullptr)
+  if (m_scriptingVM != nullptr)
+  {
+    ScriptingContext* context = m_scriptingVM->context();
+    if (context != nullptr)
     {
-        ScriptingContext* context = m_scriptingVM->context();
-        if (context != nullptr)
-        {
-            context->disposeOrphanScriptedProperties();
-        }
+      context->disposeOrphanScriptedProperties();
     }
+  }
 #endif
-    // ScriptedObjects only hold a raw ScriptingVM* (see
-    // ScriptingVM::registerScriptedObject), so dropping our rcp here is the
-    // only thing keeping the VM alive from File's side. If Dart still holds
-    // its own rcp<ScriptingVM> (editor flow), the VM and lua_State stay
-    // alive until Dart releases too. ~ScriptingVM handles lua_close.
-    m_scriptingVM = nullptr;
+  // ScriptedObjects only hold a raw ScriptingVM* (see
+  // ScriptingVM::registerScriptedObject), so dropping our rcp here is the
+  // only thing keeping the VM alive from File's side. If Dart still holds
+  // its own rcp<ScriptingVM> (editor flow), the VM and lua_State stay
+  // alive until Dart releases too. ~ScriptingVM handles lua_close.
+  m_scriptingVM = nullptr;
 }
 #endif
 #endif
 
 Artboard* File::artboard(std::string name) const
 {
-    for (const auto& artboard : m_artboards)
+  for (const auto& artboard : m_artboards)
+  {
+    if (artboard->name() == name)
     {
-        if (artboard->name() == name)
-        {
-            return artboard;
-        }
+      return artboard;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 Artboard* File::artboard() const
 {
-    if (m_artboards.empty())
-    {
-        return nullptr;
-    }
-    return m_artboards[0];
+  if (m_artboards.empty())
+  {
+    return nullptr;
+  }
+  return m_artboards[0];
 }
 
 Artboard* File::artboard(size_t index) const
 {
-    if (index >= m_artboards.size())
-    {
-        return nullptr;
-    }
-    return m_artboards[index];
+  if (index >= m_artboards.size())
+  {
+    return nullptr;
+  }
+  return m_artboards[index];
 }
 
 std::string File::artboardNameAt(size_t index) const
 {
-    auto ab = this->artboard(index);
-    return ab ? ab->name() : "";
+  auto ab = this->artboard(index);
+  return ab ? ab->name() : "";
 }
 
 std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
 {
-    if (ab)
-    {
-        auto artboardInstance = ab->instance();
+  if (ab)
+  {
+    auto artboardInstance = ab->instance();
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-        artboardInstance->scriptingVM(m_scriptingVM);
+    artboardInstance->scriptingVM(m_scriptingVM);
 #endif
-        artboardInstance->file(ref_rcp(this));
+    artboardInstance->file(ref_rcp(this));
 
-        // Root instances own the FocusManager for their whole tree; nested
-        // artboards and component-list items adopt it. Established here rather
-        // than by the first state machine so the manager outlives every state
-        // machine built against it, and so the tree is built once instead of
-        // rebuilt per state machine.
-        artboardInstance->buildFocusTree(artboardInstance->ensureFocusManager(),
-                                         nullptr);
+    // Root instances own the FocusManager for their whole tree; nested
+    // artboards and component-list items adopt it. Established here rather
+    // than by the first state machine so the manager outlives every state
+    // machine built against it, and so the tree is built once instead of
+    // rebuilt per state machine.
+    artboardInstance->buildFocusTree(
+        artboardInstance->ensureFocusManager(),
+        nullptr);
 
-        // Global view model instances are no longer auto-created here. Callers
-        // (e.g. the high-level runtime's autoBind, or explicit
-        // setGlobalViewModelInstance) create and bind them on demand.
+    // Global view model instances are no longer auto-created here. Callers
+    // (e.g. the high-level runtime's autoBind, or explicit
+    // setGlobalViewModelInstance) create and bind them on demand.
 
-        return artboardInstance;
-    }
-    return nullptr;
+    return artboardInstance;
+  }
+  return nullptr;
 }
 
-uint32_t File::customPropertyKey(const File* file,
-                                 const char* name,
-                                 size_t length)
+uint32_t File::customPropertyKey(
+    const File* file,
+    const char* name,
+    size_t length)
 {
-    auto manifest = file != nullptr ? file->manifest() : nullptr;
-    return manifest != nullptr ? (uint32_t)manifest->nameId(name, length) : ~0u;
+  auto manifest = file != nullptr ? file->manifest() : nullptr;
+  return manifest != nullptr ? (uint32_t)manifest->nameId(name, length) : ~0u;
 }
 
-void File::attachWatermark(ArtboardInstance* instance,
-                           const Artboard* source) const
+void File::attachWatermark(ArtboardInstance* instance, const Artboard* source)
+    const
 {
-    auto manifestAsset = manifest();
-    // Index 0 is a legal watermark index, so the enabled flag is the only
-    // thing that says whether this file has one.
-    if (manifestAsset == nullptr || !manifestAsset->hasWatermark())
-    {
-        return;
-    }
-    Artboard* watermarkArtboard =
-        this->artboard(manifestAsset->watermarkArtboardIndex());
-    // Never watermark the watermark: artboardAt(watermarkArtboardIndex()) still
-    // hands back a plain instance so tools can inspect it.
-    if (watermarkArtboard == nullptr || watermarkArtboard == source)
-    {
-        return;
-    }
-    auto watermarkInstance = instanceArtboard(watermarkArtboard);
-    if (watermarkInstance == nullptr)
-    {
-        return;
-    }
-    // A settled state machine is how the pre-roll reports it's done, so an
-    // artboard without one can't drive a watermark.
-    auto stateMachine = watermarkInstance->defaultStateMachine();
-    if (stateMachine == nullptr)
-    {
-        stateMachine = watermarkInstance->stateMachineAt(0);
-    }
-    if (stateMachine == nullptr)
-    {
-        return;
-    }
-    instance->watermark(
-        std::make_unique<Watermark>(std::move(watermarkInstance),
-                                    std::move(stateMachine)));
+  auto manifestAsset = manifest();
+  // Index 0 is a legal watermark index, so the enabled flag is the only
+  // thing that says whether this file has one.
+  if (manifestAsset == nullptr || !manifestAsset->hasWatermark())
+  {
+    return;
+  }
+  Artboard* watermarkArtboard = this->artboard(
+      manifestAsset->watermarkArtboardIndex());
+  // Never watermark the watermark: artboardAt(watermarkArtboardIndex()) still
+  // hands back a plain instance so tools can inspect it.
+  if (watermarkArtboard == nullptr || watermarkArtboard == source)
+  {
+    return;
+  }
+  auto watermarkInstance = instanceArtboard(watermarkArtboard);
+  if (watermarkInstance == nullptr)
+  {
+    return;
+  }
+  // A settled state machine is how the pre-roll reports it's done, so an
+  // artboard without one can't drive a watermark.
+  auto stateMachine = watermarkInstance->defaultStateMachine();
+  if (stateMachine == nullptr)
+  {
+    stateMachine = watermarkInstance->stateMachineAt(0);
+  }
+  if (stateMachine == nullptr)
+  {
+    return;
+  }
+  instance->watermark(std::make_unique<Watermark>(
+      std::move(watermarkInstance),
+      std::move(stateMachine)));
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardDefault() const
 {
-    auto ab = this->artboard();
-    auto instance = instanceArtboard(ab);
-    if (instance != nullptr)
-    {
-        attachWatermark(instance.get(), ab);
-    }
-    return instance;
+  auto ab = this->artboard();
+  auto instance = instanceArtboard(ab);
+  if (instance != nullptr)
+  {
+    attachWatermark(instance.get(), ab);
+  }
+  return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
 {
-    auto ab = this->artboard(index);
-    auto instance = instanceArtboard(ab);
-    if (instance != nullptr)
-    {
-        attachWatermark(instance.get(), ab);
-    }
-    return instance;
+  auto ab = this->artboard(index);
+  auto instance = instanceArtboard(ab);
+  if (instance != nullptr)
+  {
+    attachWatermark(instance.get(), ab);
+  }
+  return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
-    auto ab = this->artboard(name);
-    auto instance = instanceArtboard(ab);
-    if (instance != nullptr)
-    {
-        attachWatermark(instance.get(), ab);
-    }
-    return instance;
+  auto ab = this->artboard(name);
+  auto instance = instanceArtboard(ab);
+  if (instance != nullptr)
+  {
+    attachWatermark(instance.get(), ab);
+  }
+  return instance;
 }
 
 rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const
 {
-    // instanceArtboard, not artboardNamed: a bindable artboard is drawn nested
-    // inside a host that already carries the watermark, it must not get its
-    // own.
-    auto ab = instanceArtboard(this->artboard(name));
-    return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
-              : nullptr;
+  // instanceArtboard, not artboardNamed: a bindable artboard is drawn nested
+  // inside a host that already carries the watermark, it must not get its
+  // own.
+  auto ab = instanceArtboard(this->artboard(name));
+  return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
+            : nullptr;
 }
 
 rcp<BindableArtboard> File::bindableArtboardDefault() const
 {
-    auto ab = instanceArtboard(this->artboard());
-    return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
-              : nullptr;
+  auto ab = instanceArtboard(this->artboard());
+  return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
+            : nullptr;
 }
 
 rcp<BindableArtboard> File::internalBindableArtboardFromArtboard(
     Artboard* artboard) const
 {
-    auto ab = artboard ? artboard->instance() : nullptr;
-    return ab ? make_rcp<BindableArtboard>(nullptr, std::move(ab)) : nullptr;
+  auto ab = artboard ? artboard->instance() : nullptr;
+  return ab ? make_rcp<BindableArtboard>(nullptr, std::move(ab)) : nullptr;
 }
 
 void File::completeViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance) const
 {
-    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
-    completeViewModelInstance(viewModelInstance, instancesMap);
+  std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
+  completeViewModelInstance(viewModelInstance, instancesMap);
 }
 
 void File::completeViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-        instancesMap) const
+        instancesMap,
+    size_t depth) const
 {
-    // Every id below is read straight from the file. One past the end of
-    // m_ViewModels -- a reference to a view model that was not exported, or an
-    // index mapping that has gone stale -- would otherwise read the vector out
-    // of bounds and dereference whatever garbage came back, so each lookup goes
-    // through the bounds-checked accessor and a miss skips the value.
-    auto viewModel = this->viewModel(viewModelInstance->viewModelId());
-    if (viewModel == nullptr)
+  // The authored graph comes from the file, so a downloaded one can chain
+  // instances deeper than the stack goes; past the cap they stay empty.
+  bool nest = depth < kMaxViewModelNesting;
+  // Every id below is read straight from the file. One past the end of
+  // m_ViewModels -- a reference to a view model that was not exported, or an
+  // index mapping that has gone stale -- would otherwise read the vector out
+  // of bounds and dereference whatever garbage came back, so each lookup goes
+  // through the bounds-checked accessor and a miss skips the value.
+  auto viewModel = this->viewModel(viewModelInstance->viewModelId());
+  if (viewModel == nullptr)
+  {
+    return;
+  }
+  auto propertyValues = viewModelInstance->propertyValues();
+  for (auto& value : propertyValues)
+  {
+    if (value->is<ViewModelInstanceViewModel>())
     {
-        return;
+      auto property = viewModel->property(value->viewModelPropertyId());
+      if (property != nullptr && property->is<ViewModelPropertyViewModel>())
+      {
+        auto valueViewModel = value->as<ViewModelInstanceViewModel>();
+        auto propertViewModel = property->as<ViewModelPropertyViewModel>();
+        auto viewModelReference = this->viewModel(
+            propertViewModel->viewModelReferenceId());
+        valueViewModel->parentViewModelInstance(viewModelInstance.get());
+        if (viewModelReference != nullptr)
+        {
+          auto viewModelReferenceInstance = viewModelReference->instance(
+              valueViewModel->propertyValue());
+          if (viewModelReferenceInstance != nullptr && nest)
+          {
+            valueViewModel->referenceViewModelInstance(copyViewModelInstance(
+                viewModelReferenceInstance,
+                instancesMap,
+                depth + 1));
+          }
+        }
+      }
     }
-    auto propertyValues = viewModelInstance->propertyValues();
-    for (auto& value : propertyValues)
+    else if (value->is<ViewModelInstanceList>())
     {
-        if (value->is<ViewModelInstanceViewModel>())
+      auto viewModelList = value->as<ViewModelInstanceList>();
+      viewModelList->parentViewModelInstance(viewModelInstance.get());
+      for (auto& listItem : viewModelList->listItems())
+      {
+        auto itemViewModel = this->viewModel(listItem->viewModelId());
+        if (itemViewModel == nullptr)
         {
-            auto property = viewModel->property(value->viewModelPropertyId());
-            if (property != nullptr &&
-                property->is<ViewModelPropertyViewModel>())
-            {
-                auto valueViewModel = value->as<ViewModelInstanceViewModel>();
-                auto propertViewModel =
-                    property->as<ViewModelPropertyViewModel>();
-                auto viewModelReference =
-                    this->viewModel(propertViewModel->viewModelReferenceId());
-                valueViewModel->parentViewModelInstance(
-                    viewModelInstance.get());
-                if (viewModelReference != nullptr)
-                {
-                    auto viewModelReferenceInstance =
-                        viewModelReference->instance(
-                            valueViewModel->propertyValue());
-                    if (viewModelReferenceInstance != nullptr)
-                    {
-                        valueViewModel->referenceViewModelInstance(
-                            copyViewModelInstance(viewModelReferenceInstance,
-                                                  instancesMap));
-                    }
-                }
-            }
+          continue;
         }
-        else if (value->is<ViewModelInstanceList>())
+        auto viewModelListItemInstance = itemViewModel->instance(
+            listItem->viewModelInstanceId());
+        if (viewModelListItemInstance != nullptr && nest)
         {
-            auto viewModelList = value->as<ViewModelInstanceList>();
-            viewModelList->parentViewModelInstance(viewModelInstance.get());
-            for (auto& listItem : viewModelList->listItems())
-            {
-                auto itemViewModel = this->viewModel(listItem->viewModelId());
-                if (itemViewModel == nullptr)
-                {
-                    continue;
-                }
-                auto viewModelListItemInstance =
-                    itemViewModel->instance(listItem->viewModelInstanceId());
-                if (viewModelListItemInstance != nullptr)
-                {
-                    listItem->viewModelInstance(
-                        copyViewModelInstance(viewModelListItemInstance,
-                                              instancesMap));
-                }
-            }
+          listItem->viewModelInstance(copyViewModelInstance(
+              viewModelListItemInstance,
+              instancesMap,
+              depth + 1));
         }
-        value->viewModelProperty(
-            viewModel->property(value->viewModelPropertyId()));
+      }
     }
+    value->viewModelProperty(viewModel->property(value->viewModelPropertyId()));
+  }
 }
 
 void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
 {
-    std::unordered_set<ViewModelInstance*> visited;
-    completeViewModelProperties(viewModelInstance, visited);
+  std::unordered_set<ViewModelInstance*> visited;
+  completeViewModelProperties(viewModelInstance, visited);
 }
 
 void File::completeViewModelProperties(
     ViewModelInstance* viewModelInstance,
-    std::unordered_set<ViewModelInstance*>& visited)
+    std::unordered_set<ViewModelInstance*>& visited,
+    size_t depth)
 {
-    // This walks the file's own instances, so a cycle -- or merely a diamond,
-    // which costs exponential time -- would recurse without end. Visiting each
-    // instance once is enough: the work is idempotent.
-    if (viewModelInstance == nullptr ||
-        !visited.insert(viewModelInstance).second)
+  // This walks the file's own instances, so a cycle -- or merely a diamond,
+  // which costs exponential time -- would recurse without end. Visiting each
+  // instance once is enough: the work is idempotent. A chain deeper than
+  // kMaxViewModelNesting, which only a crafted file holds, is left
+  // unfinished past the cap rather than overflow the stack.
+  if (viewModelInstance == nullptr || depth > kMaxViewModelNesting ||
+      !visited.insert(viewModelInstance).second)
+  {
+    return;
+  }
+  auto viewModel = this->viewModel(viewModelInstance->viewModelId());
+  if (viewModel == nullptr)
+  {
+    return;
+  }
+  auto propertyValues = viewModelInstance->propertyValues();
+  for (auto& value : propertyValues)
+  {
+    if (value->is<ViewModelInstanceViewModel>())
     {
-        return;
-    }
-    auto viewModel = this->viewModel(viewModelInstance->viewModelId());
-    if (viewModel == nullptr)
-    {
-        return;
-    }
-    auto propertyValues = viewModelInstance->propertyValues();
-    for (auto& value : propertyValues)
-    {
-        if (value->is<ViewModelInstanceViewModel>())
+      auto property = viewModel->property(value->viewModelPropertyId());
+      if (property != nullptr && property->is<ViewModelPropertyViewModel>())
+      {
+        auto valueViewModel = value->as<ViewModelInstanceViewModel>();
+        auto propertViewModel = property->as<ViewModelPropertyViewModel>();
+        auto viewModelReference = this->viewModel(
+            propertViewModel->viewModelReferenceId());
+        if (viewModelReference != nullptr)
         {
-            auto property = viewModel->property(value->viewModelPropertyId());
-            if (property != nullptr &&
-                property->is<ViewModelPropertyViewModel>())
-            {
-                auto valueViewModel = value->as<ViewModelInstanceViewModel>();
-                auto propertViewModel =
-                    property->as<ViewModelPropertyViewModel>();
-                auto viewModelReference =
-                    this->viewModel(propertViewModel->viewModelReferenceId());
-                if (viewModelReference != nullptr)
-                {
-                    completeViewModelProperties(
-                        viewModelReference->instance(
-                            valueViewModel->propertyValue()),
-                        visited);
-                }
-            }
+          completeViewModelProperties(
+              viewModelReference->instance(valueViewModel->propertyValue()),
+              visited,
+              depth + 1);
         }
-        else if (value->is<ViewModelInstanceList>())
-        {
-            auto viewModelList = value->as<ViewModelInstanceList>();
-            for (auto& listItem : viewModelList->listItems())
-            {
-                auto itemViewModel = this->viewModel(listItem->viewModelId());
-                if (itemViewModel == nullptr)
-                {
-                    continue;
-                }
-                completeViewModelProperties(
-                    itemViewModel->instance(listItem->viewModelInstanceId()),
-                    visited);
-            }
-        }
-        value->viewModelProperty(
-            viewModel->property(value->viewModelPropertyId()));
+      }
     }
+    else if (value->is<ViewModelInstanceList>())
+    {
+      auto viewModelList = value->as<ViewModelInstanceList>();
+      for (auto& listItem : viewModelList->listItems())
+      {
+        auto itemViewModel = this->viewModel(listItem->viewModelId());
+        if (itemViewModel == nullptr)
+        {
+          continue;
+        }
+        completeViewModelProperties(
+            itemViewModel->instance(listItem->viewModelInstanceId()),
+            visited,
+            depth + 1);
+      }
+    }
+    value->viewModelProperty(viewModel->property(value->viewModelPropertyId()));
+  }
 }
 
 rcp<ViewModelInstance> File::copyViewModelInstance(
     ViewModelInstance* viewModelInstance) const
 {
-    if (viewModelInstance == nullptr)
-    {
-        return nullptr;
-    }
-    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
-    return copyViewModelInstance(viewModelInstance, instancesMap);
+  if (viewModelInstance == nullptr)
+  {
+    return nullptr;
+  }
+  std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
+  return copyViewModelInstance(viewModelInstance, instancesMap);
 }
 
 rcp<ViewModelInstance> File::copyViewModelInstance(
     ViewModelInstance* viewModelInstance,
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-        instancesMap) const
+        instancesMap,
+    size_t depth) const
 {
-    // The map is keyed on the *source* instances, so one copy is shared by
-    // every reference to the same source. The entry has to go in before the
-    // copy is completed, not after: a cycle in the instance graph -- a list
-    // item pointing back at an ancestor, say, which the definitions alone do
-    // not rule out -- re-enters here for an instance still being completed,
-    // and only an up-front entry stops it recursing forever.
-    //
-    // That entry is null while the copy is in progress, so an active back-edge
-    // is dropped rather than wired up. Memoising the copy itself here would
-    // close the loop with a strong reference instead, and nothing in the graph
-    // would ever release it: rcp has no weak form, so a cyclic instance would
-    // be retained for the life of the process. References to an instance that
-    // has already been completed still share its copy, so diamonds -- the
-    // common case this map exists for -- are unaffected.
-    auto itr = instancesMap.find(viewModelInstance);
-    if (itr != instancesMap.end())
-    {
-        return itr->second;
-    }
-    auto copy = rcp<ViewModelInstance>(
-        viewModelInstance->clone()->as<ViewModelInstance>());
-    instancesMap[viewModelInstance] = nullptr;
+  // The map is keyed on the *source* instances, so one copy is shared by
+  // every reference to the same source. The entry has to go in before the
+  // copy is completed, not after: a cycle in the instance graph -- a list
+  // item pointing back at an ancestor, say, which the definitions alone do
+  // not rule out -- re-enters here for an instance still being completed,
+  // and only an up-front entry stops it recursing forever.
+  //
+  // That entry is null while the copy is in progress, so an active back-edge
+  // is dropped rather than wired up. Memoising the copy itself here would
+  // close the loop with a strong reference instead, and nothing in the graph
+  // would ever release it: rcp has no weak form, so a cyclic instance would
+  // be retained for the life of the process. References to an instance that
+  // has already been completed still share its copy, so diamonds -- the
+  // common case this map exists for -- are unaffected.
+  auto itr = instancesMap.find(viewModelInstance);
+  if (itr != instancesMap.end())
+  {
+    return itr->second;
+  }
+  auto copy = rcp<ViewModelInstance>(
+      viewModelInstance->clone()->as<ViewModelInstance>());
+  instancesMap[viewModelInstance] = nullptr;
 #ifdef WITH_RIVE_TOOLS
-    registerViewModelInstance(copy.get(), copy);
+  registerViewModelInstance(copy.get(), copy);
 #endif
-    completeViewModelInstance(copy, instancesMap);
-    instancesMap[viewModelInstance] = copy;
-    return copy;
+  completeViewModelInstance(copy, instancesMap, depth);
+  instancesMap[viewModelInstance] = copy;
+  return copy;
 }
 
 rcp<ViewModelInstance> File::createViewModelInstance(std::string name) const
 {
-    for (auto& viewModel : m_ViewModels)
+  for (auto& viewModel : m_ViewModels)
+  {
+    if (viewModel->is<ViewModel>())
     {
-        if (viewModel->is<ViewModel>())
-        {
-            if (viewModel->name() == name)
-            {
-                return createViewModelInstance(viewModel);
-            }
-        }
+      if (viewModel->name() == name)
+      {
+        return createViewModelInstance(viewModel);
+      }
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstance> File::createViewModelInstance(
     const std::string& name,
     const std::string& instanceName) const
 {
-    for (auto& viewModel : m_ViewModels)
+  for (auto& viewModel : m_ViewModels)
+  {
+    if (viewModel->name() == name)
     {
-        if (viewModel->name() == name)
-        {
-            auto instance = viewModel->instance(instanceName);
-            if (instance != nullptr)
-            {
-                std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
-                    instancesMap;
-                return copyViewModelInstance(instance, instancesMap);
-            }
-        }
+      auto instance = viewModel->instance(instanceName);
+      if (instance != nullptr)
+      {
+        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+            instancesMap;
+        return copyViewModelInstance(instance, instancesMap);
+      }
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
-rcp<ViewModelInstance> File::createViewModelInstance(size_t index,
-                                                     size_t instanceIndex) const
+rcp<ViewModelInstance> File::createViewModelInstance(
+    size_t index,
+    size_t instanceIndex) const
 {
-    if (index < m_ViewModels.size())
+  if (index < m_ViewModels.size())
+  {
+    auto viewModel = m_ViewModels[index];
+    auto instance = viewModel->instance(instanceIndex);
+    if (instance != nullptr)
     {
-        auto viewModel = m_ViewModels[index];
-        auto instance = viewModel->instance(instanceIndex);
-        if (instance != nullptr)
-        {
-            std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
-                instancesMap;
-            return copyViewModelInstance(instance, instancesMap);
-        }
+      std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+          instancesMap;
+      return copyViewModelInstance(instance, instancesMap);
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 uint32_t File::findViewModelId(ViewModel* search) const
 {
-    uint32_t viewModelId = 0;
-    for (auto& viewModel : m_ViewModels)
+  uint32_t viewModelId = 0;
+  for (auto& viewModel : m_ViewModels)
+  {
+    if (viewModel == search)
     {
-        if (viewModel == search)
-        {
-            break;
-        }
-        viewModelId++;
+      break;
     }
-    return viewModelId;
+    viewModelId++;
+  }
+  return viewModelId;
 }
 
 #ifdef WITH_RIVE_TOOLS
 void File::setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar)
 {
-    m_viewModelInstanceRegistrar = registrar;
+  m_viewModelInstanceRegistrar = registrar;
 }
 
-void File::registerViewModelInstance(ViewModelInstance* ptr,
-                                     rcp<ViewModelInstance> ref) const
+void File::registerViewModelInstance(
+    ViewModelInstance* ptr,
+    rcp<ViewModelInstance> ref) const
 {
-    if (ptr != nullptr && m_viewModelInstanceRegistrar != nullptr)
-    {
-        m_viewModelInstanceRegistrar->registerInstance(ptr, std::move(ref));
-    }
+  if (ptr != nullptr && m_viewModelInstanceRegistrar != nullptr)
+  {
+    m_viewModelInstanceRegistrar->registerInstance(ptr, std::move(ref));
+  }
 }
 
 bool File::containsViewModelInstance(ViewModelInstance* ptr) const
 {
-    return m_viewModelInstanceRegistrar != nullptr &&
-           m_viewModelInstanceRegistrar->contains(ptr);
+  return m_viewModelInstanceRegistrar != nullptr &&
+         m_viewModelInstanceRegistrar->contains(ptr);
 }
 
 void File::clearRuntimeViewModelInstances()
 {
-    if (m_viewModelInstanceRegistrar != nullptr)
-    {
-        m_viewModelInstanceRegistrar->clear();
-    }
+  if (m_viewModelInstanceRegistrar != nullptr)
+  {
+    m_viewModelInstanceRegistrar->clear();
+  }
 }
 #endif
 
 rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
 {
-    if (viewModel != nullptr)
-    {
-        uint32_t viewModelId = findViewModelId(viewModel);
+  return createBoundedViewModelInstance(viewModel, kMaxViewModelInstances);
+}
 
-        auto viewModelInstance = new ViewModelInstance();
-        viewModelInstance->viewModelId(viewModelId);
-        viewModelInstance->viewModel(viewModel);
-        auto properties = viewModel->properties();
-        uint32_t propertyId = 0;
-        for (auto& property : properties)
+rcp<ViewModelInstance> File::createBoundedViewModelInstance(
+    ViewModel* viewModel,
+    size_t maxInstances) const
+{
+  std::vector<const ViewModel*> creating;
+  size_t budget = maxInstances;
+  return createViewModelInstance(viewModel, creating, budget);
+}
+
+rcp<ViewModelInstance> File::createViewModelInstance(
+    ViewModel* viewModel,
+    std::vector<const ViewModel*>& creating,
+    size_t& budget) const
+{
+  if (viewModel != nullptr && budget > 0)
+  {
+    budget--;
+    uint32_t viewModelId = findViewModelId(viewModel);
+
+    auto viewModelInstance = new ViewModelInstance();
+    viewModelInstance->viewModelId(viewModelId);
+    viewModelInstance->viewModel(viewModel);
+    auto& properties = viewModel->properties();
+    viewModelInstance->reserveValues(properties.size());
+    uint32_t propertyId = 0;
+    for (auto& property : properties)
+    {
+      ViewModelInstanceValue* viewModelInstanceValue = nullptr;
+      switch (property->coreType())
+      {
+        case ViewModelPropertyStringBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceString();
+          break;
+        case ViewModelPropertyNumberBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceNumber();
+          break;
+        case ViewModelPropertyBooleanBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceBoolean();
+          break;
+        case ViewModelPropertyColorBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceColor();
+          break;
+        case ViewModelPropertyListBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceList();
+          viewModelInstanceValue->as<ViewModelInstanceList>()
+              ->parentViewModelInstance(viewModelInstance);
+          break;
+        case ViewModelPropertyEnumSystemBase::typeKey:
+        case ViewModelPropertyEnumCustomBase::typeKey:
+        case ViewModelPropertyEnumBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceEnum();
+          break;
+        case ViewModelPropertyTriggerBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceTrigger();
+          break;
+        case ViewModelPropertyViewModelBase::typeKey:
         {
-            ViewModelInstanceValue* viewModelInstanceValue = nullptr;
-            switch (property->coreType())
-            {
-                case ViewModelPropertyStringBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceString();
-                    break;
-                case ViewModelPropertyNumberBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceNumber();
-                    break;
-                case ViewModelPropertyBooleanBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceBoolean();
-                    break;
-                case ViewModelPropertyColorBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceColor();
-                    break;
-                case ViewModelPropertyListBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceList();
-                    viewModelInstanceValue->as<ViewModelInstanceList>()
-                        ->parentViewModelInstance(viewModelInstance);
-                    break;
-                case ViewModelPropertyEnumSystemBase::typeKey:
-                case ViewModelPropertyEnumCustomBase::typeKey:
-                case ViewModelPropertyEnumBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceEnum();
-                    break;
-                case ViewModelPropertyTriggerBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceTrigger();
-                    break;
-                case ViewModelPropertyViewModelBase::typeKey:
-                {
-                    viewModelInstanceValue = new ViewModelInstanceViewModel();
-                    auto propertViewModel =
-                        property->as<ViewModelPropertyViewModel>();
-                    auto viewModelReference = this->viewModel(
-                        propertViewModel->viewModelReferenceId());
-                    auto viewModelInstanceViewModel =
-                        viewModelInstanceValue
-                            ->as<ViewModelInstanceViewModel>();
-                    auto referenceViewModelInstance =
-                        createViewModelInstance(viewModelReference);
-                    if (referenceViewModelInstance)
-                    {
-                        viewModelInstanceViewModel->parentViewModelInstance(
-                            viewModelInstance);
-                        viewModelInstanceViewModel->referenceViewModelInstance(
-                            referenceViewModelInstance);
-                    }
-                }
-                break;
-                case ViewModelPropertyAssetImageBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceAssetImage();
-                    break;
-                case ViewModelPropertyAssetFontBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceAssetFont();
-                    break;
-                case ViewModelPropertyAssetBlobBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceAssetBlob();
-                    break;
-                case ViewModelPropertySymbolListIndexBase::typeKey:
-                    viewModelInstanceValue =
-                        new ViewModelInstanceSymbolListIndex();
-                    break;
-                case ViewModelPropertyArtboardBase::typeKey:
-                    viewModelInstanceValue = new ViewModelInstanceArtboard();
-                    break;
-                default:
-                    fprintf(stderr, "Missing view model property type\n");
-                    break;
-            }
-            if (viewModelInstanceValue != nullptr)
-            {
-                viewModelInstanceValue->viewModelProperty(property);
-                viewModelInstanceValue->viewModelPropertyId(propertyId);
-            }
-            viewModelInstance->addValue(viewModelInstanceValue);
-            propertyId++;
+          viewModelInstanceValue = new ViewModelInstanceViewModel();
+          auto propertViewModel = property->as<ViewModelPropertyViewModel>();
+          auto viewModelReference = this->viewModel(
+              propertViewModel->viewModelReferenceId());
+          auto viewModelInstanceViewModel = viewModelInstanceValue->as<
+              ViewModelInstanceViewModel>();
+          // A view model that contains itself, directly or through
+          // others, would recurse until the stack overflows; leave
+          // the nested reference empty instead, as for a chain
+          // deeper than kMaxViewModelNesting.
+          bool cycle = viewModelReference == viewModel ||
+                       std::find(
+                           creating.begin(),
+                           creating.end(),
+                           viewModelReference) != creating.end();
+          bool tooDeep = creating.size() + 1 >= kMaxViewModelNesting;
+          rcp<ViewModelInstance> referenceViewModelInstance;
+          if (!cycle && !tooDeep)
+          {
+            creating.push_back(viewModel);
+            referenceViewModelInstance = createViewModelInstance(
+                viewModelReference,
+                creating,
+                budget);
+            creating.pop_back();
+          }
+          if (referenceViewModelInstance)
+          {
+            viewModelInstanceViewModel->parentViewModelInstance(
+                viewModelInstance);
+            viewModelInstanceViewModel->referenceViewModelInstance(
+                referenceViewModelInstance);
+          }
         }
-#ifdef WITH_RIVE_TOOLS
-        if (viewModelInstance)
-        {
-            auto result = rcp<ViewModelInstance>(viewModelInstance);
-            registerViewModelInstance(viewModelInstance, result);
-            return result;
-        }
+        break;
+        case ViewModelPropertyAssetImageBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceAssetImage();
+          break;
+        case ViewModelPropertyAssetFontBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceAssetFont();
+          break;
+        case ViewModelPropertyAssetBlobBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceAssetBlob();
+          break;
+        case ViewModelPropertySymbolListIndexBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceSymbolListIndex();
+          break;
+        case ViewModelPropertyArtboardBase::typeKey:
+          viewModelInstanceValue = new ViewModelInstanceArtboard();
+          break;
+        default:
+          fprintf(stderr, "Missing view model property type\n");
+          break;
+      }
+      if (viewModelInstanceValue != nullptr)
+      {
+        viewModelInstanceValue->viewModelProperty(property);
+        viewModelInstanceValue->viewModelPropertyId(propertyId);
+        viewModelInstance->appendValue(viewModelInstanceValue);
+      }
+#ifdef WITH_RIVE_EDITOR
+      // Runtime-created values are fully wired here, like imported
+      // values.
+      if (viewModelInstanceValue != nullptr)
+        viewModelInstanceValue->markValidated();
 #endif
-        return rcp<ViewModelInstance>(viewModelInstance);
+      propertyId++;
     }
-    return nullptr;
+#ifdef WITH_RIVE_EDITOR
+    viewModelInstance->markValidated();
+#endif
+#ifdef WITH_RIVE_TOOLS
+    if (viewModelInstance)
+    {
+      auto result = rcp<ViewModelInstance>(viewModelInstance);
+      registerViewModelInstance(viewModelInstance, result);
+      return result;
+    }
+#endif
+    return rcp<ViewModelInstance>(viewModelInstance);
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstance> File::createViewModelInstance(Artboard* artboard) const
 {
-    if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+  if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+  {
+    auto viewModel = m_ViewModels[artboard->viewModelId()];
+    if (viewModel != nullptr)
     {
-        auto viewModel = m_ViewModels[artboard->viewModelId()];
-        if (viewModel != nullptr)
-        {
-            return createViewModelInstance(viewModel);
-        }
+      return createViewModelInstance(viewModel);
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstance> File::createDefaultViewModelInstance(
     Artboard* artboard) const
 {
-    if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+  if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+  {
+    auto viewModel = m_ViewModels[artboard->viewModelId()];
+    if (viewModel != nullptr)
     {
-        auto viewModel = m_ViewModels[artboard->viewModelId()];
-        if (viewModel != nullptr)
-        {
-            return createDefaultViewModelInstance(viewModel);
-        }
+      return createDefaultViewModelInstance(viewModel);
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstance> File::createDefaultViewModelInstance(
     ViewModel* viewModel) const
 {
-    auto viewModelInstance = viewModel->instance(0);
-    if (viewModelInstance != nullptr)
-    {
-        return copyViewModelInstance(viewModelInstance);
-    }
-    return createViewModelInstance(viewModel);
+  auto viewModelInstance = viewModel->instance(0);
+  if (viewModelInstance != nullptr)
+  {
+    return copyViewModelInstance(viewModelInstance);
+  }
+  return createViewModelInstance(viewModel);
 }
 
 ViewModelInstanceListItem* File::viewModelInstanceListItem(
     rcp<ViewModelInstance> viewModelInstance)
 {
-    // Search for an implicit artboard linked to the viewModel.
-    // It will return the first one it finds, but there could be more.
-    // We should decide if we want to be more restrictive and only return
-    // an artboard if one and only one is found.
-    for (auto& artboard : m_artboards)
+  // Search for an implicit artboard linked to the viewModel.
+  // It will return the first one it finds, but there could be more.
+  // We should decide if we want to be more restrictive and only return
+  // an artboard if one and only one is found.
+  for (auto& artboard : m_artboards)
+  {
+    if (artboard->viewModelId() == viewModelInstance->viewModelId())
     {
-        if (artboard->viewModelId() == viewModelInstance->viewModelId())
-        {
-            return viewModelInstanceListItem(viewModelInstance, artboard);
-        }
+      return viewModelInstanceListItem(viewModelInstance, artboard);
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 ViewModelInstanceListItem* File::viewModelInstanceListItem(
     rcp<ViewModelInstance> viewModelInstance,
     Artboard* artboard)
 {
-    auto viewModelInstanceListItem = new ViewModelInstanceListItem();
-    viewModelInstanceListItem->viewModelInstance(viewModelInstance);
-    viewModelInstanceListItem->artboard(artboard);
-    return viewModelInstanceListItem;
+  auto viewModelInstanceListItem = new ViewModelInstanceListItem();
+  viewModelInstanceListItem->viewModelInstance(viewModelInstance);
+  viewModelInstanceListItem->artboard(artboard);
+  return viewModelInstanceListItem;
 }
 
 ViewModel* File::viewModel(std::string name)
 {
-    for (auto& viewModel : m_ViewModels)
+  for (auto& viewModel : m_ViewModels)
+  {
+    if (viewModel->name() == name)
     {
-        if (viewModel->name() == name)
-        {
-            return viewModel;
-        }
+      return viewModel;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 ViewModel* File::viewModel(size_t index) const
 {
-    if (index < m_ViewModels.size())
-    {
-        return m_ViewModels[index];
-    }
-    return nullptr;
+  if (index < m_ViewModels.size())
+  {
+    return m_ViewModels[index];
+  }
+  return nullptr;
 }
 
 uint32_t File::viewModelId(const std::string& name) const
 {
-    for (uint32_t i = 0; i < m_ViewModels.size(); i++)
+  for (uint32_t i = 0; i < m_ViewModels.size(); i++)
+  {
+    auto vm = m_ViewModels[i];
+    if (vm != nullptr && vm->name() == name)
     {
-        auto vm = m_ViewModels[i];
-        if (vm != nullptr && vm->name() == name)
-        {
-            return i;
-        }
+      return i;
     }
-    return static_cast<uint32_t>(m_ViewModels.size());
+  }
+  return static_cast<uint32_t>(m_ViewModels.size());
 }
 
 std::vector<ViewModel*> File::globalViewModels() const
 {
-    std::vector<ViewModel*> viewModels;
-    for (ViewModel* vm : m_ViewModels)
+  std::vector<ViewModel*> viewModels;
+  for (ViewModel* vm : m_ViewModels)
+  {
+    if (vm != nullptr && static_cast<ViewModelType>(vm->viewModelType()) ==
+                             ViewModelType::global)
     {
-        if (vm != nullptr && static_cast<ViewModelType>(vm->viewModelType()) ==
-                                 ViewModelType::global)
-        {
-            viewModels.push_back(vm);
-        }
+      viewModels.push_back(vm);
     }
-    return viewModels;
+  }
+  return viewModels;
 }
 
 std::vector<std::string> File::globalViewModelNames() const
 {
-    std::vector<std::string> names;
-    for (ViewModel* vm : globalViewModels())
-    {
-        names.push_back(vm->name());
-    }
-    return names;
+  std::vector<std::string> names;
+  for (ViewModel* vm : globalViewModels())
+  {
+    names.push_back(vm->name());
+  }
+  return names;
 }
 
 ViewModelRuntime* File::viewModelByIndex(size_t index) const
 {
-    if (index < m_ViewModels.size())
-    {
-        return createViewModelRuntime(m_ViewModels[index]).get();
-    }
-    fprintf(stderr,
-            "Could not find View Model. Index %zu is out of range.\n",
-            index);
-    return nullptr;
+  if (index < m_ViewModels.size())
+  {
+    return createViewModelRuntime(m_ViewModels[index]).get();
+  }
+  fprintf(
+      stderr,
+      "Could not find View Model. Index %zu is out of range.\n",
+      index);
+  return nullptr;
 }
 
 ViewModelRuntime* File::viewModelByName(std::string name) const
 {
-    for (auto& viewModel : m_ViewModels)
+  for (auto& viewModel : m_ViewModels)
+  {
+    if (viewModel->name() == name)
     {
-        if (viewModel->name() == name)
-        {
-            return createViewModelRuntime(viewModel).get();
-        }
+      return createViewModelRuntime(viewModel).get();
     }
-    fprintf(stderr, "Could not find View Model named %s.\n", name.c_str());
-    return nullptr;
+  }
+  fprintf(stderr, "Could not find View Model named %s.\n", name.c_str());
+  return nullptr;
 }
 
 ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
 {
-    if (artboard == nullptr)
-    {
-        return nullptr;
-    }
-    if ((size_t)artboard->viewModelId() < m_ViewModels.size())
-    {
-        auto viewModel = m_ViewModels[artboard->viewModelId()];
-        return createViewModelRuntime(viewModel).get();
-    }
-    fprintf(stderr,
-            "Could not find a View Model linked to Artboard %s.\n",
-            artboard->name().c_str());
+  if (artboard == nullptr)
+  {
     return nullptr;
+  }
+  if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+  {
+    auto viewModel = m_ViewModels[artboard->viewModelId()];
+    return createViewModelRuntime(viewModel).get();
+  }
+  fprintf(
+      stderr,
+      "Could not find a View Model linked to Artboard %s.\n",
+      artboard->name().c_str());
+  return nullptr;
 }
 
 rcp<ViewModelRuntime> File::createViewModelRuntime(ViewModel* viewModel) const
 {
-    auto viewModelRuntime = make_rcp<ViewModelRuntime>(viewModel, this);
-    m_viewModelRuntimes.push_back(viewModelRuntime);
-    return viewModelRuntime;
+  auto viewModelRuntime = make_rcp<ViewModelRuntime>(viewModel, this);
+  m_viewModelRuntimes.push_back(viewModelRuntime);
+  return viewModelRuntime;
 }
 
 Span<const rcp<FileAsset>> File::assets() const { return m_fileAssets; }
@@ -2001,84 +2368,83 @@ Span<const rcp<FileAsset>> File::assets() const { return m_fileAssets; }
 const std::vector<DataEnum*>& File::enums() const { return m_Enums; }
 
 #ifdef WITH_RIVE_TOOLS
-const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
-                                             std::set<uint16_t> typeKeys,
-                                             ImportResult* result)
+const std::vector<uint8_t> File::stripAssets(
+    Span<const uint8_t> bytes,
+    std::set<uint16_t> typeKeys,
+    ImportResult* result)
 {
-    std::vector<uint8_t> strippedData;
-    strippedData.reserve(bytes.size());
-    BinaryReader reader(bytes);
-    RuntimeHeader header;
-    if (!RuntimeHeader::read(reader, header))
+  std::vector<uint8_t> strippedData;
+  strippedData.reserve(bytes.size());
+  BinaryReader reader(bytes);
+  RuntimeHeader header;
+  if (!RuntimeHeader::read(reader, header))
+  {
+    if (result)
     {
+      *result = ImportResult::malformed;
+    }
+  }
+  else if (header.majorVersion() != majorVersion)
+  {
+    if (result)
+    {
+      *result = ImportResult::unsupportedVersion;
+    }
+  }
+  else
+  {
+    strippedData.insert(strippedData.end(), bytes.data(), reader.position());
+    const uint8_t* from = reader.position();
+    const uint8_t* to = reader.position();
+    uint16_t lastAssetType = 0;
+    while (!reader.reachedEnd())
+    {
+      bool malformed = false;
+      auto object = readRuntimeObject(reader, header, malformed);
+      if (malformed)
+      {
         if (result)
         {
-            *result = ImportResult::malformed;
+          *result = ImportResult::malformed;
         }
-    }
-    else if (header.majorVersion() != majorVersion)
-    {
-        if (result)
-        {
-            *result = ImportResult::unsupportedVersion;
-        }
-    }
-    else
-    {
-        strippedData.insert(strippedData.end(),
-                            bytes.data(),
-                            reader.position());
-        const uint8_t* from = reader.position();
-        const uint8_t* to = reader.position();
-        uint16_t lastAssetType = 0;
-        while (!reader.reachedEnd())
-        {
-            bool malformed = false;
-            auto object = readRuntimeObject(reader, header, malformed);
-            if (malformed)
-            {
-                if (result)
-                {
-                    *result = ImportResult::malformed;
-                }
-                return std::vector<uint8_t>();
-            }
-            if (object == nullptr)
-            {
-                continue;
-            }
-            if (object->is<FileAssetBase>())
-            {
-                lastAssetType = object->coreType();
-            }
-            if (object->is<FileAssetContents>() &&
-                typeKeys.find(lastAssetType) != typeKeys.end())
-            {
-                if (from != to)
-                {
-                    strippedData.insert(strippedData.end(), from, to);
-                }
-                from = reader.position();
-            }
-            delete object;
-            to = reader.position();
-        }
+        return std::vector<uint8_t>();
+      }
+      if (object == nullptr)
+      {
+        continue;
+      }
+      if (object->is<FileAssetBase>())
+      {
+        lastAssetType = object->coreType();
+      }
+      if (object->is<FileAssetContents>() &&
+          typeKeys.find(lastAssetType) != typeKeys.end())
+      {
         if (from != to)
         {
-            strippedData.insert(strippedData.end(), from, to);
+          strippedData.insert(strippedData.end(), from, to);
         }
-        *result = ImportResult::success;
+        from = reader.position();
+      }
+      delete object;
+      to = reader.position();
     }
-    return strippedData;
+    if (from != to)
+    {
+      strippedData.insert(strippedData.end(), from, to);
+    }
+    *result = ImportResult::success;
+  }
+  return strippedData;
 }
 
 #endif
 
 rcp<FileAsset> File::asset(size_t index)
 {
-    if (index >= 0 && index < m_fileAssets.size())
-    {
-        return m_fileAssets[index];
-    }
-    return nullptr;
+  if (index >= 0 && index < m_fileAssets.size())
+  {
+    return m_fileAssets[index];
+  }
+  return nullptr;
 }

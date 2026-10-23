@@ -10,17 +10,17 @@ static rive::NoOpFactory gNoOpFactory;
 
 static inline std::vector<uint8_t> ReadFile(const char path[])
 {
-    FILE* fp = fopen(path, "rb");
-    REQUIRE(fp != nullptr);
+  FILE* fp = fopen(path, "rb");
+  REQUIRE(fp != nullptr);
 
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    std::vector<uint8_t> bytes(length);
-    REQUIRE(fread(bytes.data(), 1, length, fp) == length);
-    fclose(fp);
+  fseek(fp, 0, SEEK_END);
+  const size_t length = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  std::vector<uint8_t> bytes(length);
+  REQUIRE(fread(bytes.data(), 1, length, fp) == length);
+  fclose(fp);
 
-    return bytes;
+  return bytes;
 }
 
 static inline rive::rcp<rive::File> ReadRiveFile(
@@ -29,20 +29,20 @@ static inline rive::rcp<rive::File> ReadRiveFile(
     rive::FileAssetLoader* loader = nullptr,
     bool loadInBandAssets = true)
 {
-    if (!factory)
-    {
-        factory = &gNoOpFactory;
-    }
+  if (!factory)
+  {
+    factory = &gNoOpFactory;
+  }
 
-    std::vector<uint8_t> bytes = ReadFile(path);
+  std::vector<uint8_t> bytes = ReadFile(path);
 
-    rive::ImportResult result;
-    auto file = rive::File::import(bytes, factory, &result, loader);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file.get() != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+  rive::ImportResult result;
+  auto file = rive::File::import(bytes, factory, &result, loader);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file.get() != nullptr);
+  REQUIRE(file->artboard() != nullptr);
 
-    return file;
+  return file;
 }
 
 #endif

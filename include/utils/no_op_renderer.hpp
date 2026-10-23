@@ -13,33 +13,34 @@ namespace rive
 class NoOpRenderer : public Renderer
 {
 public:
-    void save() override {}
-    void restore() override {}
-    void transform(const Mat2D&) override {}
-    void drawPath(RenderPath* path, RenderPaint* paint) override {}
-    void clipPath(RenderPath* path) override {}
-    void drawImage(const RenderImage*, ImageSampler, BlendMode, float) override
-    {}
-    void drawImageMesh(const RenderImage*,
-                       ImageSampler,
-                       rcp<RenderBuffer>,
-                       rcp<RenderBuffer>,
-                       rcp<RenderBuffer>,
-                       uint32_t vertexCount,
-                       uint32_t indexCount,
-                       BlendMode,
-                       float) override
-    {}
-    void drawImageMeshInstanced(const RenderImage*,
-                                ImageSampler,
-                                rcp<RenderBuffer>,
-                                rcp<RenderBuffer>,
-                                rcp<RenderBuffer>,
-                                uint32_t vertexCount,
-                                uint32_t indexCount,
-                                rcp<ImageMeshInstances>) override
-    {}
-    void modulateOpacity(float) override {}
+  void save() override {}
+  void restore() override {}
+  void transform(const Mat2D&) override {}
+  void drawPath(RenderPath* path, RenderPaint* paint) override {}
+  void clipPath(RenderPath* path) override {}
+  void drawImage(const RenderImage*, ImageSampler, BlendMode, float) override {}
+  void drawImageMesh(
+      const RenderImage*,
+      ImageSampler,
+      rcp<RenderBuffer>,
+      rcp<RenderBuffer>,
+      rcp<RenderBuffer>,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode,
+      float) override
+  {}
+  void drawImageMeshInstanced(
+      const RenderImage*,
+      ImageSampler,
+      rcp<RenderBuffer>,
+      rcp<RenderBuffer>,
+      rcp<RenderBuffer>,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      rcp<ImageMeshInstances>) override
+  {}
+  void modulateOpacity(float) override {}
 };
 
 } // namespace rive

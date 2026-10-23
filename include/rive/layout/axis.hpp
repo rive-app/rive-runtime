@@ -6,15 +6,15 @@ namespace rive
 {
 enum class AxisType : int
 {
-    X = 0,
-    Y = 1,
+  X = 0,
+  Y = 1,
 };
 
 class Axis : public AxisBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
-    void offsetChanged() override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  void offsetChanged() override;
 };
 } // namespace rive
 

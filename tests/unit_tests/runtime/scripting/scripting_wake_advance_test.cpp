@@ -21,19 +21,19 @@ namespace
 class WakeTestScriptedDrawable : public ScriptedDrawable
 {
 public:
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        return true;
-    }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    return true;
+  }
 };
 
 int readCounter(lua_State* L, const char* getter)
 {
-    lua_getglobal(L, getter);
-    REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    int value = (int)lua_tonumber(L, -1);
-    lua_pop(L, 1);
-    return value;
+  lua_getglobal(L, getter);
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  int value = (int)lua_tonumber(L, -1);
+  lua_pop(L, 1);
+  return value;
 }
 
 constexpr const char* wakeScript =
@@ -90,60 +90,63 @@ constexpr AdvanceFlags advanceFlags = AdvanceFlags::Animate |
 // parked: further advances no longer reach the script.
 void parkAdvanceLoop(WakeTestScriptedDrawable& drawable, lua_State* L)
 {
-    int before = readCounter(L, "getAdvanceCount");
-    drawable.advanceComponent(0.016f, advanceFlags);
-    CHECK(readCounter(L, "getAdvanceCount") == before + 1);
-    drawable.advanceComponent(0.016f, advanceFlags);
-    CHECK(readCounter(L, "getAdvanceCount") == before + 1);
+  int before = readCounter(L, "getAdvanceCount");
+  drawable.advanceComponent(0.016f, advanceFlags);
+  CHECK(readCounter(L, "getAdvanceCount") == before + 1);
+  drawable.advanceComponent(0.016f, advanceFlags);
+  CHECK(readCounter(L, "getAdvanceCount") == before + 1);
 }
 } // namespace
 
-TEST_CASE("pointer event re-arms an idle scripted drawable's advance loop",
-          "[scripting]")
+TEST_CASE(
+    "pointer event re-arms an idle scripted drawable's advance loop",
+    "[scripting]")
 {
-    ScriptingTest vm(wakeScript);
-    lua_State* L = vm.state();
+  ScriptingTest vm(wakeScript);
+  lua_State* L = vm.state();
 
-    WakeTestScriptedDrawable drawable;
-    // advances (1 << 0) + wantsPointerDown (1 << 3)
-    drawable.implementedMethods((1 << 0) | (1 << 3));
-    drawable.setAsset(make_rcp<ScriptAsset>());
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  WakeTestScriptedDrawable drawable;
+  // advances (1 << 0) + wantsPointerDown (1 << 3)
+  drawable.implementedMethods((1 << 0) | (1 << 3));
+  drawable.setAsset(make_rcp<ScriptAsset>());
+  REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
-    parkAdvanceLoop(drawable, L);
+  parkAdvanceLoop(drawable, L);
 
-    // Dispatch a pointer event through the hit component.
-    HitScriptedDrawable hit(&drawable, nullptr);
-    hit.processEvent(Vec2D(1.0f, 1.0f),
-                     ListenerType::down,
-                     true,
-                     0.0f,
-                     0,
-                     PointerButton::primary);
-    CHECK(readCounter(L, "getPointerDownCount") == 1);
+  // Dispatch a pointer event through the hit component.
+  HitScriptedDrawable hit(&drawable, nullptr);
+  hit.processEvent(
+      Vec2D(1.0f, 1.0f),
+      ListenerType::down,
+      true,
+      0.0f,
+      0,
+      PointerButton::primary);
+  CHECK(readCounter(L, "getPointerDownCount") == 1);
 
-    // The event re-armed the loop: the next frame advances the script again.
-    drawable.advanceComponent(0.016f, advanceFlags);
-    CHECK(readCounter(L, "getAdvanceCount") == 2);
+  // The event re-armed the loop: the next frame advances the script again.
+  drawable.advanceComponent(0.016f, advanceFlags);
+  CHECK(readCounter(L, "getAdvanceCount") == 2);
 }
 
-TEST_CASE("keyboard event re-arms an idle scripted drawable's advance loop",
-          "[scripting]")
+TEST_CASE(
+    "keyboard event re-arms an idle scripted drawable's advance loop",
+    "[scripting]")
 {
-    ScriptingTest vm(wakeScript);
-    lua_State* L = vm.state();
+  ScriptingTest vm(wakeScript);
+  lua_State* L = vm.state();
 
-    WakeTestScriptedDrawable drawable;
-    // advances (1 << 0) + wantsKeyboardInput (1 << 16)
-    drawable.implementedMethods((1 << 0) | (1 << 16));
-    drawable.setAsset(make_rcp<ScriptAsset>());
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  WakeTestScriptedDrawable drawable;
+  // advances (1 << 0) + wantsKeyboardInput (1 << 16)
+  drawable.implementedMethods((1 << 0) | (1 << 16));
+  drawable.setAsset(make_rcp<ScriptAsset>());
+  REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
-    parkAdvanceLoop(drawable, L);
+  parkAdvanceLoop(drawable, L);
 
-    drawable.keyInput(Key::a, KeyModifiers::none, true, false);
-    CHECK(readCounter(L, "getKeyCount") == 1);
+  drawable.keyInput(Key::a, KeyModifiers::none, true, false);
+  CHECK(readCounter(L, "getKeyCount") == 1);
 
-    drawable.advanceComponent(0.016f, advanceFlags);
-    CHECK(readCounter(L, "getAdvanceCount") == 2);
+  drawable.advanceComponent(0.016f, advanceFlags);
+  CHECK(readCounter(L, "getAdvanceCount") == 2);
 }

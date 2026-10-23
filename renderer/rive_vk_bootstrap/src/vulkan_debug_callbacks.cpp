@@ -18,73 +18,73 @@ namespace rive_vkb
 static bool should_error_message_be_fully_ignored(const char* message)
 {
 #ifdef RIVE_ANDROID
-    // Some Mali drivers (specifically the Mali-G71) will report spurious
-    // resource limit errors/warnings where it incorrectly thinks the maximum
-    // size is 0.
-    // For example: "pCreateInfo->mipLevels (1) exceed image format
-    // maxMipLevels (0) for format VK_FORMAT_R8G8B8A8_UNORM."
-    static constexpr const char* s_ignoreList[] = {
-        "exceeds allowable maximum image extent width 0 ",
-        "exceeds allowable maximum image extent height 0 ",
-        "exceeds allowable maximum image extent depth 0 ",
-        "exceed image format maxMipLevels (0) ",
-        " (format maxArrayLayers: 0)",
-        "maximum resource size = 0 for format ",
-        "(format sampleCounts: VkSampleCountFlags(0))",
-        // Some PowerVR drivers (e.g. Rogue GE9215) don't support descriptor
-        // indexing, so the update-after-bind input attachment limits are
-        // reported as 0. The layer then flags our rasterOrdering PLS input
-        // attachments against those limits (both the per-stage VUID-03027 and
-        // the whole-set VUID-03043) even though none of our set layouts use
-        // UPDATE_AFTER_BIND, which is what those VUIDs are gated on. This is
-        // spurious. The real (non-update-after-bind) limits are satisfied. The
-        // shared substring matches both messages.
-        "UpdateAfterBindInputAttachments limit (0)",
-    };
+  // Some Mali drivers (specifically the Mali-G71) will report spurious
+  // resource limit errors/warnings where it incorrectly thinks the maximum
+  // size is 0.
+  // For example: "pCreateInfo->mipLevels (1) exceed image format
+  // maxMipLevels (0) for format VK_FORMAT_R8G8B8A8_UNORM."
+  static constexpr const char* s_ignoreList[] = {
+      "exceeds allowable maximum image extent width 0 ",
+      "exceeds allowable maximum image extent height 0 ",
+      "exceeds allowable maximum image extent depth 0 ",
+      "exceed image format maxMipLevels (0) ",
+      " (format maxArrayLayers: 0)",
+      "maximum resource size = 0 for format ",
+      "(format sampleCounts: VkSampleCountFlags(0))",
+      // Some PowerVR drivers (e.g. Rogue GE9215) don't support descriptor
+      // indexing, so the update-after-bind input attachment limits are
+      // reported as 0. The layer then flags our rasterOrdering PLS input
+      // attachments against those limits (both the per-stage VUID-03027 and
+      // the whole-set VUID-03043) even though none of our set layouts use
+      // UPDATE_AFTER_BIND, which is what those VUIDs are gated on. This is
+      // spurious. The real (non-update-after-bind) limits are satisfied. The
+      // shared substring matches both messages.
+      "UpdateAfterBindInputAttachments limit (0)",
+  };
 
-    for (const char* ignore : s_ignoreList)
+  for (const char* ignore : s_ignoreList)
+  {
+    if (strstr(message, ignore) != nullptr)
     {
-        if (strstr(message, ignore) != nullptr)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #endif
 
-    return false;
+  return false;
 }
 
 static bool should_error_message_abort(const char* message)
 {
-    static std::array s_ignoredValidationMsgList = {
-        // Swiftshader generates this error during
-        // vkEnumeratePhysicalDevices. It seems fine to ignore.
-        "Copying old device 0 into new device 0",
-        // Cirrus Ubuntu runner w/ Nvidia gpu reports this but it seems
-        // harmless.
-        "terminator_CreateInstance: Received return code -3 from call to vkCreateInstance in ICD /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so. Skipping this driver.",
-        "Override layer has override paths set to D:\\VulkanSDK\\1.3.296.0\\Bin",
+  static std::array s_ignoredValidationMsgList = {
+      // Swiftshader generates this error during
+      // vkEnumeratePhysicalDevices. It seems fine to ignore.
+      "Copying old device 0 into new device 0",
+      // Cirrus Ubuntu runner w/ Nvidia gpu reports this but it seems
+      // harmless.
+      "terminator_CreateInstance: Received return code -3 from call to vkCreateInstance in ICD /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so. Skipping this driver.",
+      "Override layer has override paths set to D:\\VulkanSDK\\1.3.296.0\\Bin",
 
-        // These warnings occur on the S23 and the text from the link is
-        // "Renderpass is not qualified for multipass due to a given subpass"
-        // This seems to indicate that something we're doing is disabling
-        // tile-based subpass overlapping (multipass rendering), but it's not
-        // clear what. Ignoring them for now while we just try to get things
-        // running.
-        "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/docs/adreno-gpu/developer-guide/index.html",
-        "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
-        "The following warning was triggered: VKDBGUTILWARN002. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
-    };
+      // These warnings occur on the S23 and the text from the link is
+      // "Renderpass is not qualified for multipass due to a given subpass"
+      // This seems to indicate that something we're doing is disabling
+      // tile-based subpass overlapping (multipass rendering), but it's not
+      // clear what. Ignoring them for now while we just try to get things
+      // running.
+      "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/docs/adreno-gpu/developer-guide/index.html",
+      "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
+      "The following warning was triggered: VKDBGUTILWARN002. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
+  };
 
-    for (const char* msg : s_ignoredValidationMsgList)
+  for (const char* msg : s_ignoredValidationMsgList)
+  {
+    if (strcmp(message, msg) == 0)
     {
-        if (strcmp(message, msg) == 0)
-        {
-            return false;
-        }
+      return false;
     }
+  }
 
-    return true;
+  return true;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL defaultDebugUtilCallback(
@@ -93,108 +93,115 @@ VKAPI_ATTR VkBool32 VKAPI_CALL defaultDebugUtilCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData)
 {
-    bool shouldAbort = true;
-    if (!should_error_message_be_fully_ignored(pCallbackData->pMessage))
+  bool shouldAbort = true;
+  if (!should_error_message_be_fully_ignored(pCallbackData->pMessage))
+  {
+    switch (messageType)
     {
-        switch (messageType)
-        {
-            case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-                shouldAbort =
-                    should_error_message_abort(pCallbackData->pMessage);
-                LOG_ERROR_LINE("Rive Vulkan error%s: %i: %s: %s\n",
-                               (shouldAbort) ? "" : " (error ignored)",
-                               pCallbackData->messageIdNumber,
-                               pCallbackData->pMessageIdName,
-                               pCallbackData->pMessage);
-
-                if (shouldAbort)
-                {
-                    abort();
-                }
-                break;
-
-            case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-                LOG_ERROR_LINE("Rive Vulkan Validation error: %i: %s: %s",
-                               pCallbackData->messageIdNumber,
-                               pCallbackData->pMessageIdName,
-                               pCallbackData->pMessage);
-                abort();
-            case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-                LOG_ERROR_LINE("Rive Vulkan Performance warning: %i: %s: %s",
-                               pCallbackData->messageIdNumber,
-                               pCallbackData->pMessageIdName,
-                               pCallbackData->pMessage);
-                break;
-        }
-    }
-    // VK_FALSE: never ask the layer to fail the triggering call. Paths that
-    // reach here are non-aborting (ignored errors, perf warnings); returning
-    // VK_TRUE would make those calls return VK_ERROR_VALIDATION_FAILED_EXT.
-    return VK_FALSE;
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL
-defaultDebugReportCallback(VkDebugReportFlagsEXT flags,
-                           VkDebugReportObjectTypeEXT, // objectType
-                           uint64_t,                   // object
-                           size_t,                     // location
-                           int32_t messageCode,
-                           const char* layerPrefix,
-                           const char* message,
-                           void* pUserData)
-{
-    if (should_error_message_be_fully_ignored(message))
-    {
-        return false;
-    }
-
-    if ((flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) != 0)
-    {
-        bool shouldAbort = should_error_message_abort(message);
-
-        LOG_ERROR_LINE("Rive Vulkan error%s: %s (%i): %s",
-                       (shouldAbort) ? "" : " (error ignored)",
-                       layerPrefix,
-                       messageCode,
-                       message);
+      case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+        shouldAbort = should_error_message_abort(pCallbackData->pMessage);
+        LOG_ERROR_LINE(
+            "Rive Vulkan error%s: %i: %s: %s\n",
+            (shouldAbort) ? "" : " (error ignored)",
+            pCallbackData->messageIdNumber,
+            pCallbackData->pMessageIdName,
+            pCallbackData->pMessage);
 
         if (shouldAbort)
         {
-            abort();
+          abort();
         }
-    }
-    else if ((flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) != 0)
-    {
-        LOG_ERROR_LINE("Rive Vulkan warning: %s (%i): %s",
-                       layerPrefix,
-                       messageCode,
-                       message);
-        abort();
-    }
-    else if ((flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) != 0)
-    {
-        LOG_ERROR_LINE("Rive Vulkan debug message: %s (%i): %s",
-                       layerPrefix,
-                       messageCode,
-                       message);
-        abort();
-    }
-    else if ((flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) != 0)
-    {
-        LOG_ERROR_LINE("Rive Vulkan performance warning: %s (%i): %s",
-                       layerPrefix,
-                       messageCode,
-                       message);
-    }
-    else
-    {
-        LOG_INFO_LINE("Rive Vulkan info: %s (%i): %s",
-                      layerPrefix,
-                      messageCode,
-                      message);
-    }
+        break;
 
+      case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+        LOG_ERROR_LINE(
+            "Rive Vulkan Validation error: %i: %s: %s",
+            pCallbackData->messageIdNumber,
+            pCallbackData->pMessageIdName,
+            pCallbackData->pMessage);
+        abort();
+      case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+        LOG_ERROR_LINE(
+            "Rive Vulkan Performance warning: %i: %s: %s",
+            pCallbackData->messageIdNumber,
+            pCallbackData->pMessageIdName,
+            pCallbackData->pMessage);
+        break;
+    }
+  }
+  // VK_FALSE: never ask the layer to fail the triggering call. Paths that
+  // reach here are non-aborting (ignored errors, perf warnings); returning
+  // VK_TRUE would make those calls return VK_ERROR_VALIDATION_FAILED_EXT.
+  return VK_FALSE;
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL defaultDebugReportCallback(
+    VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT, // objectType
+    uint64_t,                   // object
+    size_t,                     // location
+    int32_t messageCode,
+    const char* layerPrefix,
+    const char* message,
+    void* pUserData)
+{
+  if (should_error_message_be_fully_ignored(message))
+  {
     return false;
+  }
+
+  if ((flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) != 0)
+  {
+    bool shouldAbort = should_error_message_abort(message);
+
+    LOG_ERROR_LINE(
+        "Rive Vulkan error%s: %s (%i): %s",
+        (shouldAbort) ? "" : " (error ignored)",
+        layerPrefix,
+        messageCode,
+        message);
+
+    if (shouldAbort)
+    {
+      abort();
+    }
+  }
+  else if ((flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) != 0)
+  {
+    LOG_ERROR_LINE(
+        "Rive Vulkan warning: %s (%i): %s",
+        layerPrefix,
+        messageCode,
+        message);
+    abort();
+  }
+  else if ((flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) != 0)
+  {
+    LOG_ERROR_LINE(
+        "Rive Vulkan debug message: %s (%i): %s",
+        layerPrefix,
+        messageCode,
+        message);
+    abort();
+  }
+  else if ((flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT) != 0)
+  {
+    LOG_ERROR_LINE(
+        "Rive Vulkan performance warning: %s (%i): %s",
+        layerPrefix,
+        messageCode,
+        message);
+  }
+  else
+  {
+    LOG_INFO_LINE(
+        "Rive Vulkan info: %s (%i): %s",
+        layerPrefix,
+        messageCode,
+        message);
+  }
+
+  return false;
 }
 
 } // namespace rive_vkb

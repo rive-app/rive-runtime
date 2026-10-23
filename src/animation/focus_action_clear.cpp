@@ -8,14 +8,15 @@
 
 using namespace rive;
 
-void FocusActionClear::perform(StateMachineInstance* stateMachineInstance,
-                               const ListenerInvocation& invocation) const
+void FocusActionClear::perform(
+    StateMachineInstance* stateMachineInstance,
+    const ListenerInvocation& invocation) const
 {
-    (void)invocation;
-    if (stateMachineInstance == nullptr)
-    {
-        return;
-    }
+  (void)invocation;
+  if (stateMachineInstance == nullptr)
+  {
+    return;
+  }
 
-    stateMachineInstance->queueClearFocus();
+  stateMachineInstance->queueClearFocus();
 }

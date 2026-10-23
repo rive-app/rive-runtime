@@ -8,8 +8,7 @@ namespace rive
 /// Abstract base for assets backed by a single editor CodeFile, compiled to
 /// a signed in-band payload. Concrete subclasses: ScriptAsset (Luau
 /// bytecode), ShaderAsset (RSTB blob), TextBlobAsset. The signature state
-/// and the shared TextAssetImporter live on FileAsset, so export-only
-/// payloads with no CodeFile backing (ScriptModuleAsset) participate too.
+/// lives on FileAsset.
 class TextAsset : public TextAssetBase
 {};
 } // namespace rive

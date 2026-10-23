@@ -3,855 +3,4154 @@
 // The runtime import object for script modules executing on the
 // browser engine. Scalars forward straight into the host call
 // table; str/buf/pod params stage through the host heap because
-// the host cannot dereference module memory. `addr` ops throw
-// until their per-op audit lands.
+// the host cannot dereference module memory. `addr` params pass
+// through as module addresses, which the host reads through its
+// own memory seam.
 //
 // host contract:
 //   calls      per-op host entry points (native-pointer convention)
 //   heapU8()   Uint8Array over the host heap (refresh per call)
-//   stackAlloc(size) -> host heap ptr valid until stackReset()
-//   stackReset()
+//   stackSave() -> mark
+//   stackAlloc(size) -> host heap ptr valid until its mark is restored
+//   stackRestore(mark)
+//   malloc(size) -> host heap ptr, free(ptr)
+//   counters   optional bridge tallies, counted while counters.on
+// Staging nests: a host op may call back into the module, whose
+// imports stage again above the outer call. Buffers too big for the
+// host stack stage on its heap instead.
 // moduleMemory: late-bound accessor for the script module memory,
 // set after instantiation.
+//
+// Names that cross to wasm are quoted so a closure compiled host
+// cannot rename them.
 export function createRiveModuleImports(host, moduleMemory) {
     const calls = host.calls;
-    const stackReset = host.stackReset;
+    const stackSave = host.stackSave;
+    const stackRestore = host.stackRestore;
+    const kStackStageLimit = 4096;
+    const counters = host.counters ?? { on: false };
+    // Module addresses arrive as signed i32s.
     const stageIn = (ptr, len) => {
-        const dst = host.stackAlloc(len);
-        host.heapU8().set(
-            new Uint8Array(moduleMemory().buffer, ptr, len),
-            dst
-        );
+        // Built first: a range the module lacks throws before the alloc.
+        const src = new Uint8Array(moduleMemory().buffer, ptr >>> 0, len);
+        const dst =
+            len > kStackStageLimit ? host.malloc(len) : host.stackAlloc(len);
+        if (dst === 0) {
+            throw new Error(`could not stage ${len} bytes for the host`);
+        }
+        host.heapU8().set(src, dst);
+        if (counters.on) counters.bytesStaged += len;
         return dst;
     };
+    const unstage = (dst, len) => {
+        if (dst !== 0 && len > kStackStageLimit) {
+            host.free(dst);
+        }
+    };
     const copyOut = (src, ptr, len) => {
-        new Uint8Array(moduleMemory().buffer, ptr, len).set(
+        new Uint8Array(moduleMemory().buffer, ptr >>> 0, len).set(
             host.heapU8().subarray(src, src + len)
         );
+        if (counters.on) counters.bytesCopiedOut += len;
     };
-    const unsupported = (name) => () => {
-        throw new Error('web lane does not carry ' + name + ' yet');
+    // An AssemblyScript string: UTF-16 with its byte length in the word
+    // before it, or -1 when it lies outside module memory.
+    const managedLength = (buffer, ptr) => {
+        if (ptr > buffer.byteLength) {
+            return -1;
+        }
+        const length = new DataView(buffer).getUint32(ptr - 4, true);
+        return ptr + length <= buffer.byteLength ? length : -1;
+    };
+    // Stages the managed string at text for fn(staged, byteLength). Null
+    // reads as empty and the rest outside module memory traps, as on WAMR.
+    const stageManaged = (text, fn) => {
+        text >>>= 0;
+        const length =
+            text < 4 ? 0 : managedLength(moduleMemory().buffer, text);
+        if (length < 0) {
+            throw new Error('out of bounds memory access');
+        }
+        const mark = stackSave();
+        let text_p = 0;
+        try {
+            text_p = stageIn(text, length);
+            fn(text_p, length);
+        } finally {
+            unstage(text_p, length);
+            stackRestore(mark);
+        }
+    };
+    // The std console, under the method codes rive_web_console takes.
+    const consoleCall = (method) => (text) =>
+        stageManaged(text, (text_p, length) =>
+            calls.rive_console(method, text_p, length)
+        );
+    return {
+        // Imported only by scripts that call Math.random, trace or console.
+        'env': {
+            'seed': () => Date.now() * Math.random(),
+            // Where modules baked before rive_rt_v1.now read the clocks.
+            'emscripten_get_now': () => performance.now(),
+            'emscripten_date_now': () => Date.now(),
+            'trace': (message, n, a0, a1, a2, a3, a4) =>
+                stageManaged(message, (text_p, length) =>
+                    calls.rive_trace(text_p, length, n, a0, a1, a2, a3, a4)
+                ),
+            'console.log': consoleCall(0),
+            'console.debug': consoleCall(0),
+            'console.info': consoleCall(0),
+            'console.warn': consoleCall(0),
+            'console.error': consoleCall(0),
+            'console.time': consoleCall(1),
+            'console.timeLog': consoleCall(2),
+            'console.timeEnd': consoleCall(3),
+        },
+        'rive_rt_v1': {
+            'log': (level, message, length) => {
+                const mark = stackSave();
+                let message_p = 0;
+                try {
+                    message_p = stageIn(message, length);
+                    calls.rive_rt_log(level, message_p, length);
+                } finally {
+                    unstage(message_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'mark_needs_update': calls.rive_rt_mark_needs_update,
+            'budget_exceeded': calls.rive_rt_budget_exceeded,
+            'error': (message, length) => {
+                const mark = stackSave();
+                let message_p = 0;
+                try {
+                    message_p = stageIn(message, length);
+                    calls.rive_rt_error(message_p, length);
+                } finally {
+                    unstage(message_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'now': () => performance.now(),
+            'date_now': () => Date.now(),
+            'debug_enter': calls.rive_rt_debug_enter,
+            'debug_line': calls.rive_rt_debug_line,
+            'debug_leave': calls.rive_rt_debug_leave,
+            'utc_offset': calls.rive_rt_utc_offset,
+            'is_dst': calls.rive_rt_is_dst,
+            'zone_name': (epochSeconds, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_rt_zone_name(epochSeconds, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_data_v1': {
+            'view_model': calls.rive_data_view_model,
+            'root_view_model': calls.rive_data_root_view_model,
+            'global_view_model': (object, name, nameLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_data_global_view_model(object, name_p, nameLength);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'global_view_model_names': (object, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_global_view_model_names(object, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'context': calls.rive_data_context,
+            'context_parent': calls.rive_data_context_parent,
+            'context_view_model': calls.rive_data_context_view_model,
+            'context_release': calls.rive_data_context_release,
+            'has_view_model': (name, nameLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_data_has_view_model(name_p, nameLength);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'new_view_model': (name, nameLength, templateName, templateLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                let templateName_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    templateName_p = stageIn(templateName, templateLength);
+                    return calls.rive_data_new_view_model(name_p, nameLength, templateName_p, templateLength);
+                } finally {
+                    unstage(templateName_p, templateLength);
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_release': calls.rive_data_vmi_release,
+            'vmi_number': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_number(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_boolean': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_boolean(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_string': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_string(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_trigger': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_trigger(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_color': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_color(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_view_model': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_view_model(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_property': (vmi, name, length, kindOut, kindCount) => {
+                const mark = stackSave();
+                let name_p = 0;
+                let kindOut_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    kindOut_p = stageIn(kindOut, kindCount * 4);
+                    const ret = calls.rive_data_vmi_property(vmi, name_p, length, kindOut_p, kindCount);
+                    copyOut(kindOut_p, kindOut, kindCount * 4);
+                    return ret;
+                } finally {
+                    unstage(kindOut_p, kindCount * 4);
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_instance': (vmi, name, nameLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_data_vmi_instance(vmi, name_p, nameLength);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_symbol_index': calls.rive_data_vmi_symbol_index,
+            'vmi_equal': calls.rive_data_vmi_equal,
+            'view_model_get': calls.rive_data_view_model_get,
+            'vmi_list': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_list(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_enum': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_enum(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_image': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_image(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_font': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_font(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_blob': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_blob(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'vmi_artboard': (vmi, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_data_vmi_artboard(vmi, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'image_get': calls.rive_data_image_get,
+            'image_set': calls.rive_data_image_set,
+            'font_get': calls.rive_data_font_get,
+            'font_set': calls.rive_data_font_set,
+            'font_release': calls.rive_data_font_release,
+            'blob_present': calls.rive_data_blob_present,
+            'blob_get': (property, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_blob_get(property, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'blob_name': (property, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_blob_name(property, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'blob_set': (property, bytes, byteCount) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    calls.rive_data_blob_set(property, bytes_p, byteCount);
+                } finally {
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'blob_clear': calls.rive_data_blob_clear,
+            'artboard_get': calls.rive_data_artboard_get,
+            'artboard_set': calls.rive_data_artboard_set,
+            'enum_get': (property, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_enum_get(property, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'enum_set': (property, value, length) => {
+                const mark = stackSave();
+                let value_p = 0;
+                try {
+                    value_p = stageIn(value, length);
+                    calls.rive_data_enum_set(property, value_p, length);
+                } finally {
+                    unstage(value_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'enum_values': (property, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_enum_values(property, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'prop_release': calls.rive_data_prop_release,
+            'trigger_fire': calls.rive_data_trigger_fire,
+            'list_length': calls.rive_data_list_length,
+            'list_push': calls.rive_data_list_push,
+            'list_pop': calls.rive_data_list_pop,
+            'list_shift': calls.rive_data_list_shift,
+            'list_clear': calls.rive_data_list_clear,
+            'list_swap': calls.rive_data_list_swap,
+            'list_insert': calls.rive_data_list_insert,
+            'list_remove': calls.rive_data_list_remove,
+            'list_remove_at': calls.rive_data_list_remove_at,
+            'list_remove_all_of': calls.rive_data_list_remove_all_of,
+            'list_get': calls.rive_data_list_get,
+            'view_model_set': calls.rive_data_view_model_set,
+            'color_get': calls.rive_data_color_get,
+            'color_set': calls.rive_data_color_set,
+            'number_get': calls.rive_data_number_get,
+            'number_set': calls.rive_data_number_set,
+            'boolean_get': calls.rive_data_boolean_get,
+            'boolean_set': calls.rive_data_boolean_set,
+            'string_get': (property, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_data_string_get(property, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'string_changed': calls.rive_data_string_changed,
+            'string_set': (property, value, length) => {
+                const mark = stackSave();
+                let value_p = 0;
+                try {
+                    value_p = stageIn(value, length);
+                    calls.rive_data_string_set(property, value_p, length);
+                } finally {
+                    unstage(value_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'watch': calls.rive_data_watch,
+            'unwatch': calls.rive_data_unwatch,
+            'convert_result': (kind, number, booleanValue, color, value, length) => {
+                const mark = stackSave();
+                let value_p = 0;
+                try {
+                    value_p = stageIn(value, length);
+                    calls.rive_data_convert_result(kind, number, booleanValue, color, value_p, length);
+                } finally {
+                    unstage(value_p, length);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_artboard_v1': {
+            'release': calls.rive_artboard_release,
+            'advance': calls.rive_artboard_advance,
+            'draw': calls.rive_artboard_draw,
+            'instance': calls.rive_artboard_instance,
+            'data': calls.rive_artboard_data,
+            'width': calls.rive_artboard_width,
+            'height': calls.rive_artboard_height,
+            'set_width': calls.rive_artboard_set_width,
+            'set_height': calls.rive_artboard_set_height,
+            'frame_origin': calls.rive_artboard_frame_origin,
+            'set_frame_origin': calls.rive_artboard_set_frame_origin,
+            'bounds': (artboard, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_artboard_bounds(artboard, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'pointer_event': calls.rive_artboard_pointer_event,
+            'scroll_event': calls.rive_artboard_scroll_event,
+            'gamepad_event': (artboard, payload, byteCount) => {
+                const mark = stackSave();
+                let payload_p = 0;
+                try {
+                    payload_p = stageIn(payload, byteCount);
+                    return calls.rive_artboard_gamepad_event(artboard, payload_p, byteCount);
+                } finally {
+                    unstage(payload_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'animation': (artboard, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_artboard_animation(artboard, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'animation_release': calls.rive_artboard_animation_release,
+            'animation_duration': calls.rive_artboard_animation_duration,
+            'animation_advance': calls.rive_artboard_animation_advance,
+            'animation_set_time': calls.rive_artboard_animation_set_time,
+            'add_to_path': calls.rive_artboard_add_to_path,
+            'node': (artboard, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_artboard_node(artboard, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'node_release': calls.rive_artboard_node_release,
+            'node_transform': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_artboard_node_transform(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_set': calls.rive_artboard_node_set,
+            'node_world_transform': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_artboard_node_world_transform(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_set_world_transform': (node, values, floatCount) => {
+                const mark = stackSave();
+                let values_p = 0;
+                try {
+                    values_p = stageIn(values, floatCount * 4);
+                    calls.rive_artboard_node_set_world_transform(node, values_p, floatCount);
+                } finally {
+                    unstage(values_p, floatCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_decompose': (node, values, floatCount) => {
+                const mark = stackSave();
+                let values_p = 0;
+                try {
+                    values_p = stageIn(values, floatCount * 4);
+                    calls.rive_artboard_node_decompose(node, values_p, floatCount);
+                } finally {
+                    unstage(values_p, floatCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_path_verbs': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_artboard_node_path_verbs(node, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+            'node_path_points': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_artboard_node_path_points(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_paint': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_artboard_node_paint(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_children': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_artboard_node_children(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'node_parent': calls.rive_artboard_node_parent,
+            'property_key': (artboard, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_artboard_property_key(artboard, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'draw_visit': calls.rive_artboard_draw_visit,
+            'draw_modulated': calls.rive_artboard_draw_modulated,
+            'drawable_draw': calls.rive_artboard_drawable_draw,
+            'drawable_value': (drawable, key, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_artboard_drawable_value(drawable, key, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'drawable_string': (drawable, key, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_artboard_drawable_string(drawable, key, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+            'drawable_properties': (drawable, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_artboard_drawable_properties(drawable, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_audio_v1': {
+            'source': (object, name, nameLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_audio_source(object, name_p, nameLength);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'source_release': calls.rive_audio_source_release,
+            'source_duration': calls.rive_audio_source_duration,
+            'source_sample_rate': calls.rive_audio_source_sample_rate,
+            'source_channels': calls.rive_audio_source_channels,
+            'play': calls.rive_audio_play,
+            'play_at_time': calls.rive_audio_play_at_time,
+            'play_in_time': calls.rive_audio_play_in_time,
+            'play_at_frame': calls.rive_audio_play_at_frame,
+            'play_in_frame': calls.rive_audio_play_in_frame,
+            'time': calls.rive_audio_time,
+            'time_frame': calls.rive_audio_time_frame,
+            'sample_rate': calls.rive_audio_sample_rate,
+            'sound_release': calls.rive_audio_sound_release,
+            'sound_play': calls.rive_audio_sound_play,
+            'sound_pause': calls.rive_audio_sound_pause,
+            'sound_resume': calls.rive_audio_sound_resume,
+            'sound_stop': calls.rive_audio_sound_stop,
+            'sound_seek': calls.rive_audio_sound_seek,
+            'sound_seek_frame': calls.rive_audio_sound_seek_frame,
+            'sound_completed': calls.rive_audio_sound_completed,
+            'sound_time': calls.rive_audio_sound_time,
+            'sound_time_frame': calls.rive_audio_sound_time_frame,
+            'sound_volume': calls.rive_audio_sound_volume,
+            'sound_set_volume': calls.rive_audio_sound_set_volume,
+        },
+        'rive_path_v1': {
+            'new': calls.rive_path_new,
+            'update': (path, verbs, verbCount, points, floatCount, fillRule) => {
+                const mark = stackSave();
+                let verbs_p = 0;
+                let points_p = 0;
+                try {
+                    verbs_p = stageIn(verbs, verbCount);
+                    points_p = stageIn(points, floatCount * 4);
+                    calls.rive_path_update(path, verbs_p, verbCount, points_p, floatCount, fillRule);
+                } finally {
+                    unstage(points_p, floatCount * 4);
+                    unstage(verbs_p, verbCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_path_release,
+            'add': calls.rive_path_add,
+            'verbs': (path, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_path_verbs(path, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+            'points': (path, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_path_points(path, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'effect_result': (verbs, verbCount, points, floatCount) => {
+                const mark = stackSave();
+                let verbs_p = 0;
+                let points_p = 0;
+                try {
+                    verbs_p = stageIn(verbs, verbCount);
+                    points_p = stageIn(points, floatCount * 4);
+                    calls.rive_path_effect_result(verbs_p, verbCount, points_p, floatCount);
+                } finally {
+                    unstage(points_p, floatCount * 4);
+                    unstage(verbs_p, verbCount);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_measure_v1': {
+            'path_new': (verbs, verbCount, points, floatCount) => {
+                const mark = stackSave();
+                let verbs_p = 0;
+                let points_p = 0;
+                try {
+                    verbs_p = stageIn(verbs, verbCount);
+                    points_p = stageIn(points, floatCount * 4);
+                    return calls.rive_measure_path_new(verbs_p, verbCount, points_p, floatCount);
+                } finally {
+                    unstage(points_p, floatCount * 4);
+                    unstage(verbs_p, verbCount);
+                    stackRestore(mark);
+                }
+            },
+            'contours_new': (verbs, verbCount, points, floatCount) => {
+                const mark = stackSave();
+                let verbs_p = 0;
+                let points_p = 0;
+                try {
+                    verbs_p = stageIn(verbs, verbCount);
+                    points_p = stageIn(points, floatCount * 4);
+                    return calls.rive_measure_contours_new(verbs_p, verbCount, points_p, floatCount);
+                } finally {
+                    unstage(points_p, floatCount * 4);
+                    unstage(verbs_p, verbCount);
+                    stackRestore(mark);
+                }
+            },
+            'contour_next': calls.rive_measure_contour_next,
+            'length': calls.rive_measure_length,
+            'is_closed': calls.rive_measure_is_closed,
+            'pos_tan': (measure, distance, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_measure_pos_tan(measure, distance, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'warp': (measure, x, y, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_measure_warp(measure, x, y, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'extract': calls.rive_measure_extract,
+            'extract_read': (measure, verbs, verbCount, points, floatCount) => {
+                const mark = stackSave();
+                let verbs_p = 0;
+                let points_p = 0;
+                try {
+                    verbs_p = stageIn(verbs, verbCount);
+                    points_p = stageIn(points, floatCount * 4);
+                    const ret = calls.rive_measure_extract_read(measure, verbs_p, verbCount, points_p, floatCount);
+                    copyOut(verbs_p, verbs, verbCount);
+                    copyOut(points_p, points, floatCount * 4);
+                    return ret;
+                } finally {
+                    unstage(points_p, floatCount * 4);
+                    unstage(verbs_p, verbCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_measure_release,
+        },
+        'rive_paint_v1': {
+            'new': calls.rive_paint_new,
+            'release': calls.rive_paint_release,
+            'style': calls.rive_paint_style,
+            'color': calls.rive_paint_color,
+            'thickness': calls.rive_paint_thickness,
+            'join': calls.rive_paint_join,
+            'cap': calls.rive_paint_cap,
+            'blend_mode': calls.rive_paint_blend_mode,
+            'feather': calls.rive_paint_feather,
+            'shader': calls.rive_paint_shader,
+            'shader_transform': (paint, values, floatCount) => {
+                const mark = stackSave();
+                let values_p = 0;
+                try {
+                    values_p = stageIn(values, floatCount * 4);
+                    calls.rive_paint_shader_transform(paint, values_p, floatCount);
+                } finally {
+                    unstage(values_p, floatCount * 4);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_canvas_v1': {
+            'new': calls.rive_canvas_new,
+            'release': calls.rive_canvas_release,
+            'width': calls.rive_canvas_width,
+            'height': calls.rive_canvas_height,
+            'resize': calls.rive_canvas_resize,
+            'image': calls.rive_canvas_image,
+            'begin_frame': calls.rive_canvas_begin_frame,
+            'end_frame': calls.rive_canvas_end_frame,
+        },
+        'rive_gpu_v1': {
+            'features': (out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_gpu_features(out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'canvas_new': calls.rive_gpu_canvas_new,
+            'canvas_release': calls.rive_gpu_canvas_release,
+            'canvas_color_view': (canvas, props, propCount) => {
+                const mark = stackSave();
+                let props_p = 0;
+                try {
+                    props_p = stageIn(props, propCount * 4);
+                    const ret = calls.rive_gpu_canvas_color_view(canvas, props_p, propCount);
+                    copyOut(props_p, props, propCount * 4);
+                    return ret;
+                } finally {
+                    unstage(props_p, propCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'canvas_image': calls.rive_gpu_canvas_image,
+            'canvas_resize': (canvas, width, height, props, propCount) => {
+                const mark = stackSave();
+                let props_p = 0;
+                try {
+                    props_p = stageIn(props, propCount * 4);
+                    const ret = calls.rive_gpu_canvas_resize(canvas, width, height, props_p, propCount);
+                    copyOut(props_p, props, propCount * 4);
+                    return ret;
+                } finally {
+                    unstage(props_p, propCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'target_view': (current, props, propCount) => {
+                const mark = stackSave();
+                let props_p = 0;
+                try {
+                    props_p = stageIn(props, propCount * 4);
+                    const ret = calls.rive_gpu_target_view(current, props_p, propCount);
+                    copyOut(props_p, props, propCount * 4);
+                    return ret;
+                } finally {
+                    unstage(props_p, propCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'pass_begin': (desc, descByteCount, blob, blobCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                let blob_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    blob_p = stageIn(blob, blobCount);
+                    return calls.rive_gpu_pass_begin(desc_p, descByteCount, blob_p, blobCount);
+                } finally {
+                    unstage(blob_p, blobCount);
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'pass_set_pipeline': calls.rive_gpu_pass_set_pipeline,
+            'pass_set_vertex_buffer': calls.rive_gpu_pass_set_vertex_buffer,
+            'pass_set_index_buffer': calls.rive_gpu_pass_set_index_buffer,
+            'pass_set_bind_group': (pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount) => {
+                const mark = stackSave();
+                let dynamicOffsets_p = 0;
+                try {
+                    dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount);
+                    calls.rive_gpu_pass_set_bind_group(pass, groupIndex, bindGroup, dynamicOffsets_p, dynamicOffsetByteCount);
+                } finally {
+                    unstage(dynamicOffsets_p, dynamicOffsetByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'pass_set_viewport': calls.rive_gpu_pass_set_viewport,
+            'pass_set_scissor': calls.rive_gpu_pass_set_scissor,
+            'pass_set_stencil_reference': calls.rive_gpu_pass_set_stencil_reference,
+            'pass_set_blend_color': calls.rive_gpu_pass_set_blend_color,
+            'pass_draw': calls.rive_gpu_pass_draw,
+            'pass_draw_indexed': calls.rive_gpu_pass_draw_indexed,
+            'pass_finish': calls.rive_gpu_pass_finish,
+            'pass_release': calls.rive_gpu_pass_release,
+            'image_view': calls.rive_gpu_image_view,
+            'buffer_new': (usage, sizeInBytes, immutable, data, dataCount) => {
+                const mark = stackSave();
+                let data_p = 0;
+                try {
+                    data_p = stageIn(data, dataCount);
+                    return calls.rive_gpu_buffer_new(usage, sizeInBytes, immutable, data_p, dataCount);
+                } finally {
+                    unstage(data_p, dataCount);
+                    stackRestore(mark);
+                }
+            },
+            'buffer_update': (buffer, dstOffset, data, dataCount) => {
+                const mark = stackSave();
+                let data_p = 0;
+                try {
+                    data_p = stageIn(data, dataCount);
+                    calls.rive_gpu_buffer_update(buffer, dstOffset, data_p, dataCount);
+                } finally {
+                    unstage(data_p, dataCount);
+                    stackRestore(mark);
+                }
+            },
+            'buffer_release': calls.rive_gpu_buffer_release,
+            'texture_new': (desc, descByteCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    return calls.rive_gpu_texture_new(desc_p, descByteCount);
+                } finally {
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'texture_upload': (texture, region, regionByteCount, data, dataCount) => {
+                const mark = stackSave();
+                let region_p = 0;
+                let data_p = 0;
+                try {
+                    region_p = stageIn(region, regionByteCount);
+                    data_p = stageIn(data, dataCount);
+                    calls.rive_gpu_texture_upload(texture, region_p, regionByteCount, data_p, dataCount);
+                } finally {
+                    unstage(data_p, dataCount);
+                    unstage(region_p, regionByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'texture_release': calls.rive_gpu_texture_release,
+            'sampler_new': (desc, descByteCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    return calls.rive_gpu_sampler_new(desc_p, descByteCount);
+                } finally {
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'sampler_release': calls.rive_gpu_sampler_release,
+            'texture_view_new': (texture, desc, descByteCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    return calls.rive_gpu_texture_view_new(texture, desc_p, descByteCount);
+                } finally {
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'texture_view_release': calls.rive_gpu_texture_view_release,
+            'shader_target': calls.rive_gpu_shader_target,
+            'shader_asset_bytes': (object, name, nameLength, out, outCount) => {
+                const mark = stackSave();
+                let name_p = 0;
+                let out_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_gpu_shader_asset_bytes(object, name_p, nameLength, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'shader_asset_id': (object, name, nameLength) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_gpu_shader_asset_id(object, name_p, nameLength);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'shader_module_from_asset': (object, name, nameLength, entry) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_gpu_shader_module_from_asset(object, name_p, nameLength, entry);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'shader_module_from_rstb': (rstb, rstbCount, assetId, entry) => {
+                const mark = stackSave();
+                let rstb_p = 0;
+                try {
+                    rstb_p = stageIn(rstb, rstbCount);
+                    return calls.rive_gpu_shader_module_from_rstb(rstb_p, rstbCount, assetId, entry);
+                } finally {
+                    unstage(rstb_p, rstbCount);
+                    stackRestore(mark);
+                }
+            },
+            'shader_module_release': calls.rive_gpu_shader_module_release,
+            'bind_group_layout_new': (groupIndex, entries, entryByteCount) => {
+                const mark = stackSave();
+                let entries_p = 0;
+                try {
+                    entries_p = stageIn(entries, entryByteCount);
+                    return calls.rive_gpu_bind_group_layout_new(groupIndex, entries_p, entryByteCount);
+                } finally {
+                    unstage(entries_p, entryByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'bind_group_layout_release': calls.rive_gpu_bind_group_layout_release,
+            'bind_group_layout_from_shader': (shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount) => {
+                const mark = stackSave();
+                let dynamicUBOs_p = 0;
+                try {
+                    dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount * 4);
+                    return calls.rive_gpu_bind_group_layout_from_shader(shaderModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
+                } finally {
+                    unstage(dynamicUBOs_p, dynamicUBOCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'bind_group_layout_from_shaders': (vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount) => {
+                const mark = stackSave();
+                let dynamicUBOs_p = 0;
+                try {
+                    dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount * 4);
+                    return calls.rive_gpu_bind_group_layout_from_shaders(vertexModule, fragmentModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
+                } finally {
+                    unstage(dynamicUBOs_p, dynamicUBOCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'bind_group_layout_from_entries': (vertexModule, vertexEntry, vertexEntryLength, fragmentModule, fragmentEntry, fragmentEntryLength, groupIndex) => {
+                const mark = stackSave();
+                let vertexEntry_p = 0;
+                let fragmentEntry_p = 0;
+                try {
+                    vertexEntry_p = stageIn(vertexEntry, vertexEntryLength);
+                    fragmentEntry_p = stageIn(fragmentEntry, fragmentEntryLength);
+                    return calls.rive_gpu_bind_group_layout_from_entries(vertexModule, vertexEntry_p, vertexEntryLength, fragmentModule, fragmentEntry_p, fragmentEntryLength, groupIndex);
+                } finally {
+                    unstage(fragmentEntry_p, fragmentEntryLength);
+                    unstage(vertexEntry_p, vertexEntryLength);
+                    stackRestore(mark);
+                }
+            },
+            'bind_group_new': (layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount) => {
+                const mark = stackSave();
+                let ubos_p = 0;
+                let textures_p = 0;
+                let samplers_p = 0;
+                try {
+                    ubos_p = stageIn(ubos, uboByteCount);
+                    textures_p = stageIn(textures, textureByteCount);
+                    samplers_p = stageIn(samplers, samplerByteCount);
+                    return calls.rive_gpu_bind_group_new(layout, ubos_p, uboByteCount, textures_p, textureByteCount, samplers_p, samplerByteCount);
+                } finally {
+                    unstage(samplers_p, samplerByteCount);
+                    unstage(textures_p, textureByteCount);
+                    unstage(ubos_p, uboByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'bind_group_release': calls.rive_gpu_bind_group_release,
+            'pipeline_new': (desc, descByteCount, blob, blobCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                let blob_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    blob_p = stageIn(blob, blobCount);
+                    return calls.rive_gpu_pipeline_new(desc_p, descByteCount, blob_p, blobCount);
+                } finally {
+                    unstage(blob_p, blobCount);
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'pipeline_release': calls.rive_gpu_pipeline_release,
+        },
+        'rive_mat4_v1': {
+            'multiply': (out, outBytes, a, aBytes, b, bBytes) => {
+                const mark = stackSave();
+                let out_p = 0;
+                let a_p = 0;
+                let b_p = 0;
+                try {
+                    out_p = stageIn(out, outBytes);
+                    a_p = stageIn(a, aBytes);
+                    b_p = stageIn(b, bBytes);
+                    calls.rive_mat4_multiply(out_p, outBytes, a_p, aBytes, b_p, bBytes);
+                    copyOut(out_p, out, outBytes);
+                } finally {
+                    unstage(b_p, bBytes);
+                    unstage(a_p, aBytes);
+                    unstage(out_p, outBytes);
+                    stackRestore(mark);
+                }
+            },
+            'invert': (out, outBytes, src, srcBytes) => {
+                const mark = stackSave();
+                let out_p = 0;
+                let src_p = 0;
+                try {
+                    out_p = stageIn(out, outBytes);
+                    src_p = stageIn(src, srcBytes);
+                    const ret = calls.rive_mat4_invert(out_p, outBytes, src_p, srcBytes);
+                    copyOut(out_p, out, outBytes);
+                    return ret;
+                } finally {
+                    unstage(src_p, srcBytes);
+                    unstage(out_p, outBytes);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_buffer_v1': {
+            'new': calls.rive_buffer_new,
+            'update': (buffer, bytes, byteCount) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    calls.rive_buffer_update(buffer, bytes_p, byteCount);
+                } finally {
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_buffer_release,
+        },
+        'rive_mesh_instances_v1': {
+            'new': calls.rive_mesh_instances_new,
+            'resize': calls.rive_mesh_instances_resize,
+            'update': (instances, first, bytes, byteCount) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    calls.rive_mesh_instances_update(instances, first, bytes_p, byteCount);
+                } finally {
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_mesh_instances_release,
+        },
+        'rive_blob_v1': {
+            'asset_bytes': (object, name, nameLength, out, outCount) => {
+                const mark = stackSave();
+                let name_p = 0;
+                let out_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_blob_asset_bytes(object, name_p, nameLength, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_image_v1': {
+            'from_asset': (object, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_image_from_asset(object, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'width': calls.rive_image_width,
+            'height': calls.rive_image_height,
+            'release': calls.rive_image_release,
+            'decode': (bytes, byteCount, token) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    return calls.rive_image_decode(bytes_p, byteCount, token);
+                } finally {
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'decode_cancel': calls.rive_image_decode_cancel,
+        },
+        'rive_font_v1': {
+            'from_asset': (object, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_font_from_asset(object, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'decode': (bytes, byteCount) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    return calls.rive_font_decode(bytes_p, byteCount);
+                } finally {
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_font_release,
+            'metrics': (font, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_font_metrics(font, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'weight': calls.rive_font_weight,
+            'is_italic': calls.rive_font_is_italic,
+            'axis_count': calls.rive_font_axis_count,
+            'axis': (font, index, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_font_axis(font, index, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'axis_value': calls.rive_font_axis_value,
+            'features': (font, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_font_features(font, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'has_glyph': calls.rive_font_has_glyph,
+            'with_options': (font, coords, coordCount, features, featureCount) => {
+                const mark = stackSave();
+                let coords_p = 0;
+                let features_p = 0;
+                try {
+                    coords_p = stageIn(coords, coordCount * 4);
+                    features_p = stageIn(features, featureCount * 4);
+                    return calls.rive_font_with_options(font, coords_p, coordCount, features_p, featureCount);
+                } finally {
+                    unstage(features_p, featureCount * 4);
+                    unstage(coords_p, coordCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'glyph_verbs': (font, glyph, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_font_glyph_verbs(font, glyph, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+            'glyph_points': (font, glyph, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_font_glyph_points(font, glyph, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_text_v1': {
+            'new': calls.rive_text_new,
+            'release': calls.rive_text_release,
+            'append': (text, chars, length, font, paint, size, lineHeight, letterSpacing, foreground) => {
+                const mark = stackSave();
+                let chars_p = 0;
+                try {
+                    chars_p = stageIn(chars, length);
+                    calls.rive_text_append(text, chars_p, length, font, paint, size, lineHeight, letterSpacing, foreground);
+                } finally {
+                    unstage(chars_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'clear': calls.rive_text_clear,
+            'layout': (text, desc, descByteCount) => {
+                const mark = stackSave();
+                let desc_p = 0;
+                try {
+                    desc_p = stageIn(desc, descByteCount);
+                    calls.rive_text_layout(text, desc_p, descByteCount);
+                } finally {
+                    unstage(desc_p, descByteCount);
+                    stackRestore(mark);
+                }
+            },
+            'draw': calls.rive_text_draw,
+            'bounds': (text, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_text_bounds(text, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'length': calls.rive_text_length,
+            'lines': (text, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_text_lines(text, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'runs': (text, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_text_runs(text, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'glyphs': (text, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_text_glyphs(text, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'hit_test': calls.rive_text_hit_test,
+            'caret': (text, index, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_text_caret(text, index, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+            'selection_rects': (text, from, to, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    const ret = calls.rive_text_selection_rects(text, from, to, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_shader_v1': {
+            'linear': calls.rive_shader_linear,
+            'radial': calls.rive_shader_radial,
+            'release': calls.rive_shader_release,
+        },
+        'rive_test_v1': {
+            'blob': (name, nameLength, out, outCount) => {
+                const mark = stackSave();
+                let name_p = 0;
+                let out_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    out_p = stageIn(out, outCount);
+                    const ret = calls.rive_test_blob(name_p, nameLength, out_p, outCount);
+                    copyOut(out_p, out, outCount);
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+        },
+        'rive_transition_v1': {
+            'child_draw': calls.rive_transition_child_draw,
+            'child_width': calls.rive_transition_child_width,
+            'child_height': calls.rive_transition_child_height,
+        },
+        'rive_renderer_v1': {
+            'save': calls.rive_renderer_save,
+            'restore': calls.rive_renderer_restore,
+            'transform': calls.rive_renderer_transform,
+            'draw_path': calls.rive_renderer_draw_path,
+            'clip_path': calls.rive_renderer_clip_path,
+            'modulate_opacity': calls.rive_renderer_modulate_opacity,
+            'modulate_color': calls.rive_renderer_modulate_color,
+            'draw_image': calls.rive_renderer_draw_image,
+            'draw_image_mesh': calls.rive_renderer_draw_image_mesh,
+            'draw_image_mesh_instanced': calls.rive_renderer_draw_image_mesh_instanced,
+        },
+        'rive_net_v1': {
+            'fetch': (request, requestCount, token) => {
+                const mark = stackSave();
+                let request_p = 0;
+                try {
+                    request_p = stageIn(request, requestCount);
+                    return calls.rive_net_fetch(request_p, requestCount, token);
+                } finally {
+                    unstage(request_p, requestCount);
+                    stackRestore(mark);
+                }
+            },
+            'fetch_cancel': calls.rive_net_fetch_cancel,
+        },
+        'rive_file_v1': {
+            'decode': (bytes, byteCount, statusOut, statusCount) => {
+                const mark = stackSave();
+                let bytes_p = 0;
+                let statusOut_p = 0;
+                try {
+                    bytes_p = stageIn(bytes, byteCount);
+                    statusOut_p = stageIn(statusOut, statusCount * 4);
+                    const ret = calls.rive_file_decode(bytes_p, byteCount, statusOut_p, statusCount);
+                    copyOut(statusOut_p, statusOut, statusCount * 4);
+                    return ret;
+                } finally {
+                    unstage(statusOut_p, statusCount * 4);
+                    unstage(bytes_p, byteCount);
+                    stackRestore(mark);
+                }
+            },
+            'release': calls.rive_file_release,
+            'artboard_count': calls.rive_file_artboard_count,
+            'artboard_name': (file, index, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_file_artboard_name(file, index, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'bindable': (file, name, nameLength, useDefault) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, nameLength);
+                    return calls.rive_file_bindable(file, name_p, nameLength, useDefault);
+                } finally {
+                    unstage(name_p, nameLength);
+                    stackRestore(mark);
+                }
+            },
+            'bindable_release': calls.rive_file_bindable_release,
+            'bindable_name': (bindable, buffer, capacity) => {
+                const mark = stackSave();
+                let buffer_p = 0;
+                try {
+                    buffer_p = stageIn(buffer, capacity);
+                    const ret = calls.rive_file_bindable_name(bindable, buffer_p, capacity);
+                    copyOut(buffer_p, buffer, capacity);
+                    return ret;
+                } finally {
+                    unstage(buffer_p, capacity);
+                    stackRestore(mark);
+                }
+            },
+            'bindable_data': calls.rive_file_bindable_data,
+            'bindable_equal': calls.rive_file_bindable_equal,
+        },
+    };
+}
+
+// host.calls for one VM. hostCall(index) is the librive function at
+// that index of its kRiveWebCalls table, undefined for a missing op.
+// ctx.vm is the VM
+// handle, zeroed when the VM goes away while its module is still
+// instantiating. ctx.raised holds a raiseModuleError message: it is
+// thrown once the host call has returned, so only module frames
+// unwind. Anything thrown from inside librive unwound its frames
+// without their destructors, so ctx.hostFault marks the VM done for.
+// ctx.counters, when given, tallies the calls into librive.
+// A fault in a nested script call unwinds the outer module frames too.
+export function bindRiveHostCalls(hostCall, ctx) {
+    const counters = ctx.counters ?? { on: false };
+    const raise = () => {
+        const error = new Error(ctx.raised);
+        ctx.raised = null;
+        throw error;
+    };
+    const fault = (error) => {
+        ctx.hostFault = true;
+        throw error;
+    };
+    const nestedFault = () => {
+        throw new Error('librive faulted in a nested script call');
+    };
+    const released = () => {
+        throw new Error('script VM was released');
     };
     return {
-        rive_rt_v1: {
-            log: (level, message, length) => {
-                stackReset();
-                const message_p = stageIn(message, length);
-                calls.rive_rt_log(level, message_p, length);
-            },
-            mark_needs_update: calls.rive_rt_mark_needs_update,
-            budget_exceeded: calls.rive_rt_budget_exceeded,
-            debug_enter: calls.rive_rt_debug_enter,
-            debug_line: calls.rive_rt_debug_line,
-            debug_leave: calls.rive_rt_debug_leave,
-            utc_offset: calls.rive_rt_utc_offset,
-            is_dst: calls.rive_rt_is_dst,
-            zone_name: (epochSeconds, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_rt_zone_name(epochSeconds, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-        },
-        rive_data_v1: {
-            view_model: calls.rive_data_view_model,
-            root_view_model: calls.rive_data_root_view_model,
-            global_view_model: (object, name, nameLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const ret = calls.rive_data_global_view_model(object, name_p, nameLength);
-                return ret;
-            },
-            global_view_model_names: (object, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_global_view_model_names(object, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            context: calls.rive_data_context,
-            context_parent: calls.rive_data_context_parent,
-            context_view_model: calls.rive_data_context_view_model,
-            context_release: calls.rive_data_context_release,
-            has_view_model: (name, nameLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const ret = calls.rive_data_has_view_model(name_p, nameLength);
-                return ret;
-            },
-            new_view_model: (name, nameLength, templateName, templateLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const templateName_p = stageIn(templateName, templateLength);
-                const ret = calls.rive_data_new_view_model(name_p, nameLength, templateName_p, templateLength);
-                return ret;
-            },
-            vmi_release: calls.rive_data_vmi_release,
-            vmi_number: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_number(vmi, name_p, length);
-                return ret;
-            },
-            vmi_boolean: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_boolean(vmi, name_p, length);
-                return ret;
-            },
-            vmi_string: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_string(vmi, name_p, length);
-                return ret;
-            },
-            vmi_trigger: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_trigger(vmi, name_p, length);
-                return ret;
-            },
-            vmi_color: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_color(vmi, name_p, length);
-                return ret;
-            },
-            vmi_view_model: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_view_model(vmi, name_p, length);
-                return ret;
-            },
-            vmi_property: (vmi, name, length, kindOut, kindCount) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const kindOut_p = stageIn(kindOut, kindCount * 4);
-                const ret = calls.rive_data_vmi_property(vmi, name_p, length, kindOut_p, kindCount);
-                copyOut(kindOut_p, kindOut, kindCount * 4);
-                return ret;
-            },
-            vmi_instance: (vmi, name, nameLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const ret = calls.rive_data_vmi_instance(vmi, name_p, nameLength);
-                return ret;
-            },
-            vmi_symbol_index: calls.rive_data_vmi_symbol_index,
-            vmi_equal: calls.rive_data_vmi_equal,
-            view_model_get: calls.rive_data_view_model_get,
-            vmi_list: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_list(vmi, name_p, length);
-                return ret;
-            },
-            vmi_enum: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_enum(vmi, name_p, length);
-                return ret;
-            },
-            vmi_image: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_image(vmi, name_p, length);
-                return ret;
-            },
-            vmi_font: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_font(vmi, name_p, length);
-                return ret;
-            },
-            vmi_blob: (vmi, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_data_vmi_blob(vmi, name_p, length);
-                return ret;
-            },
-            image_get: calls.rive_data_image_get,
-            image_set: calls.rive_data_image_set,
-            font_get: calls.rive_data_font_get,
-            font_set: calls.rive_data_font_set,
-            font_release: calls.rive_data_font_release,
-            blob_present: calls.rive_data_blob_present,
-            blob_get: (property, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_blob_get(property, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            blob_name: (property, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_blob_name(property, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            blob_set: (property, bytes, byteCount) => {
-                stackReset();
-                const bytes_p = stageIn(bytes, byteCount);
-                calls.rive_data_blob_set(property, bytes_p, byteCount);
-            },
-            blob_clear: calls.rive_data_blob_clear,
-            enum_get: (property, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_enum_get(property, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            enum_set: (property, value, length) => {
-                stackReset();
-                const value_p = stageIn(value, length);
-                calls.rive_data_enum_set(property, value_p, length);
-            },
-            enum_values: (property, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_enum_values(property, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            prop_release: calls.rive_data_prop_release,
-            trigger_fire: calls.rive_data_trigger_fire,
-            list_length: calls.rive_data_list_length,
-            list_push: calls.rive_data_list_push,
-            list_pop: calls.rive_data_list_pop,
-            list_shift: calls.rive_data_list_shift,
-            list_clear: calls.rive_data_list_clear,
-            list_swap: calls.rive_data_list_swap,
-            list_insert: calls.rive_data_list_insert,
-            list_remove: calls.rive_data_list_remove,
-            list_remove_at: calls.rive_data_list_remove_at,
-            list_remove_all_of: calls.rive_data_list_remove_all_of,
-            list_get: calls.rive_data_list_get,
-            view_model_set: calls.rive_data_view_model_set,
-            color_get: calls.rive_data_color_get,
-            color_set: calls.rive_data_color_set,
-            number_get: calls.rive_data_number_get,
-            number_set: calls.rive_data_number_set,
-            boolean_get: calls.rive_data_boolean_get,
-            boolean_set: calls.rive_data_boolean_set,
-            string_get: (property, buffer, capacity) => {
-                stackReset();
-                const buffer_p = stageIn(buffer, capacity);
-                const ret = calls.rive_data_string_get(property, buffer_p, capacity);
-                copyOut(buffer_p, buffer, capacity);
-                return ret;
-            },
-            string_changed: calls.rive_data_string_changed,
-            string_set: (property, value, length) => {
-                stackReset();
-                const value_p = stageIn(value, length);
-                calls.rive_data_string_set(property, value_p, length);
-            },
-            watch: calls.rive_data_watch,
-            unwatch: calls.rive_data_unwatch,
-            convert_result: (kind, number, booleanValue, color, value, length) => {
-                stackReset();
-                const value_p = stageIn(value, length);
-                calls.rive_data_convert_result(kind, number, booleanValue, color, value_p, length);
-            },
-        },
-        rive_artboard_v1: {
-            release: calls.rive_artboard_release,
-            advance: calls.rive_artboard_advance,
-            draw: calls.rive_artboard_draw,
-            instance: calls.rive_artboard_instance,
-            data: calls.rive_artboard_data,
-            width: calls.rive_artboard_width,
-            height: calls.rive_artboard_height,
-            set_width: calls.rive_artboard_set_width,
-            set_height: calls.rive_artboard_set_height,
-            frame_origin: calls.rive_artboard_frame_origin,
-            set_frame_origin: calls.rive_artboard_set_frame_origin,
-            bounds: (artboard, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_artboard_bounds(artboard, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            pointer_event: calls.rive_artboard_pointer_event,
-            animation: (artboard, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_artboard_animation(artboard, name_p, length);
-                return ret;
-            },
-            animation_release: calls.rive_artboard_animation_release,
-            animation_duration: calls.rive_artboard_animation_duration,
-            animation_advance: calls.rive_artboard_animation_advance,
-            animation_set_time: calls.rive_artboard_animation_set_time,
-            node: (artboard, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_artboard_node(artboard, name_p, length);
-                return ret;
-            },
-            node_release: calls.rive_artboard_node_release,
-            node_transform: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_artboard_node_transform(node, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            node_set: calls.rive_artboard_node_set,
-            node_world_transform: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_artboard_node_world_transform(node, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            node_set_world_transform: (node, values, floatCount) => {
-                stackReset();
-                const values_p = stageIn(values, floatCount * 4);
-                calls.rive_artboard_node_set_world_transform(node, values_p, floatCount);
-            },
-            node_decompose: (node, values, floatCount) => {
-                stackReset();
-                const values_p = stageIn(values, floatCount * 4);
-                calls.rive_artboard_node_decompose(node, values_p, floatCount);
-            },
-            node_path_verbs: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_artboard_node_path_verbs(node, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-            node_path_points: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_artboard_node_path_points(node, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            node_paint: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_artboard_node_paint(node, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            node_children: (node, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_artboard_node_children(node, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            node_parent: calls.rive_artboard_node_parent,
-            property_key: (artboard, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_artboard_property_key(artboard, name_p, length);
-                return ret;
-            },
-            draw_visit: calls.rive_artboard_draw_visit,
-            draw_modulated: calls.rive_artboard_draw_modulated,
-            drawable_draw: calls.rive_artboard_drawable_draw,
-            drawable_value: (drawable, key, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_artboard_drawable_value(drawable, key, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            drawable_string: (drawable, key, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_artboard_drawable_string(drawable, key, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-            drawable_properties: (drawable, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_artboard_drawable_properties(drawable, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-        },
-        rive_audio_v1: {
-            source: (object, name, nameLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const ret = calls.rive_audio_source(object, name_p, nameLength);
-                return ret;
-            },
-            source_release: calls.rive_audio_source_release,
-            source_duration: calls.rive_audio_source_duration,
-            source_sample_rate: calls.rive_audio_source_sample_rate,
-            source_channels: calls.rive_audio_source_channels,
-            play: calls.rive_audio_play,
-            play_at_time: calls.rive_audio_play_at_time,
-            play_in_time: calls.rive_audio_play_in_time,
-            play_at_frame: calls.rive_audio_play_at_frame,
-            play_in_frame: calls.rive_audio_play_in_frame,
-            time: calls.rive_audio_time,
-            time_frame: calls.rive_audio_time_frame,
-            sample_rate: calls.rive_audio_sample_rate,
-            sound_release: calls.rive_audio_sound_release,
-            sound_play: calls.rive_audio_sound_play,
-            sound_pause: calls.rive_audio_sound_pause,
-            sound_resume: calls.rive_audio_sound_resume,
-            sound_stop: calls.rive_audio_sound_stop,
-            sound_seek: calls.rive_audio_sound_seek,
-            sound_seek_frame: calls.rive_audio_sound_seek_frame,
-            sound_completed: calls.rive_audio_sound_completed,
-            sound_time: calls.rive_audio_sound_time,
-            sound_time_frame: calls.rive_audio_sound_time_frame,
-            sound_volume: calls.rive_audio_sound_volume,
-            sound_set_volume: calls.rive_audio_sound_set_volume,
-        },
-        rive_path_v1: {
-            new: calls.rive_path_new,
-            update: (path, verbs, verbCount, points, floatCount, fillRule) => {
-                stackReset();
-                const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount * 4);
-                calls.rive_path_update(path, verbs_p, verbCount, points_p, floatCount, fillRule);
-            },
-            release: calls.rive_path_release,
-            add: calls.rive_path_add,
-            verbs: (path, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_path_verbs(path, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-            points: (path, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_path_points(path, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            effect_result: (verbs, verbCount, points, floatCount) => {
-                stackReset();
-                const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount * 4);
-                calls.rive_path_effect_result(verbs_p, verbCount, points_p, floatCount);
-            },
-        },
-        rive_measure_v1: {
-            path_new: (verbs, verbCount, points, floatCount) => {
-                stackReset();
-                const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount * 4);
-                const ret = calls.rive_measure_path_new(verbs_p, verbCount, points_p, floatCount);
-                return ret;
-            },
-            contours_new: (verbs, verbCount, points, floatCount) => {
-                stackReset();
-                const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount * 4);
-                const ret = calls.rive_measure_contours_new(verbs_p, verbCount, points_p, floatCount);
-                return ret;
-            },
-            contour_next: calls.rive_measure_contour_next,
-            length: calls.rive_measure_length,
-            is_closed: calls.rive_measure_is_closed,
-            pos_tan: (measure, distance, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_measure_pos_tan(measure, distance, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            warp: (measure, x, y, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_measure_warp(measure, x, y, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            extract: calls.rive_measure_extract,
-            extract_read: (measure, verbs, verbCount, points, floatCount) => {
-                stackReset();
-                const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount * 4);
-                const ret = calls.rive_measure_extract_read(measure, verbs_p, verbCount, points_p, floatCount);
-                copyOut(verbs_p, verbs, verbCount);
-                copyOut(points_p, points, floatCount * 4);
-                return ret;
-            },
-            release: calls.rive_measure_release,
-        },
-        rive_paint_v1: {
-            new: calls.rive_paint_new,
-            release: calls.rive_paint_release,
-            style: calls.rive_paint_style,
-            color: calls.rive_paint_color,
-            thickness: calls.rive_paint_thickness,
-            join: calls.rive_paint_join,
-            cap: calls.rive_paint_cap,
-            blend_mode: calls.rive_paint_blend_mode,
-            feather: calls.rive_paint_feather,
-            shader: calls.rive_paint_shader,
-        },
-        rive_canvas_v1: {
-            new: calls.rive_canvas_new,
-            release: calls.rive_canvas_release,
-            width: calls.rive_canvas_width,
-            height: calls.rive_canvas_height,
-            resize: calls.rive_canvas_resize,
-            image: calls.rive_canvas_image,
-            begin_frame: calls.rive_canvas_begin_frame,
-            end_frame: calls.rive_canvas_end_frame,
-        },
-        rive_gpu_v1: {
-            features: (out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_gpu_features(out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            canvas_new: calls.rive_gpu_canvas_new,
-            canvas_release: calls.rive_gpu_canvas_release,
-            canvas_color_view: (canvas, props, propCount) => {
-                stackReset();
-                const props_p = stageIn(props, propCount * 4);
-                const ret = calls.rive_gpu_canvas_color_view(canvas, props_p, propCount);
-                copyOut(props_p, props, propCount * 4);
-                return ret;
-            },
-            canvas_image: calls.rive_gpu_canvas_image,
-            canvas_resize: (canvas, width, height, props, propCount) => {
-                stackReset();
-                const props_p = stageIn(props, propCount * 4);
-                const ret = calls.rive_gpu_canvas_resize(canvas, width, height, props_p, propCount);
-                copyOut(props_p, props, propCount * 4);
-                return ret;
-            },
-            target_view: (current, props, propCount) => {
-                stackReset();
-                const props_p = stageIn(props, propCount * 4);
-                const ret = calls.rive_gpu_target_view(current, props_p, propCount);
-                copyOut(props_p, props, propCount * 4);
-                return ret;
-            },
-            pass_begin: (desc, descByteCount, colors, colorByteCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const colors_p = stageIn(colors, colorByteCount);
-                const ret = calls.rive_gpu_pass_begin(desc_p, descByteCount, colors_p, colorByteCount);
-                return ret;
-            },
-            pass_set_pipeline: calls.rive_gpu_pass_set_pipeline,
-            pass_set_vertex_buffer: calls.rive_gpu_pass_set_vertex_buffer,
-            pass_set_index_buffer: calls.rive_gpu_pass_set_index_buffer,
-            pass_set_bind_group: (pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount) => {
-                stackReset();
-                const dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount);
-                calls.rive_gpu_pass_set_bind_group(pass, groupIndex, bindGroup, dynamicOffsets_p, dynamicOffsetByteCount);
-            },
-            pass_set_viewport: calls.rive_gpu_pass_set_viewport,
-            pass_set_scissor: calls.rive_gpu_pass_set_scissor,
-            pass_set_stencil_reference: calls.rive_gpu_pass_set_stencil_reference,
-            pass_set_blend_color: calls.rive_gpu_pass_set_blend_color,
-            pass_draw: calls.rive_gpu_pass_draw,
-            pass_draw_indexed: calls.rive_gpu_pass_draw_indexed,
-            pass_finish: calls.rive_gpu_pass_finish,
-            pass_release: calls.rive_gpu_pass_release,
-            image_view: calls.rive_gpu_image_view,
-            buffer_new: (usage, sizeInBytes, immutable, data, dataCount) => {
-                stackReset();
-                const data_p = stageIn(data, dataCount);
-                const ret = calls.rive_gpu_buffer_new(usage, sizeInBytes, immutable, data_p, dataCount);
-                return ret;
-            },
-            buffer_update: (buffer, dstOffset, data, dataCount) => {
-                stackReset();
-                const data_p = stageIn(data, dataCount);
-                calls.rive_gpu_buffer_update(buffer, dstOffset, data_p, dataCount);
-            },
-            buffer_release: calls.rive_gpu_buffer_release,
-            texture_new: (desc, descByteCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const ret = calls.rive_gpu_texture_new(desc_p, descByteCount);
-                return ret;
-            },
-            texture_upload: (texture, region, regionByteCount, data, dataCount) => {
-                stackReset();
-                const region_p = stageIn(region, regionByteCount);
-                const data_p = stageIn(data, dataCount);
-                calls.rive_gpu_texture_upload(texture, region_p, regionByteCount, data_p, dataCount);
-            },
-            texture_release: calls.rive_gpu_texture_release,
-            sampler_new: (desc, descByteCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const ret = calls.rive_gpu_sampler_new(desc_p, descByteCount);
-                return ret;
-            },
-            sampler_release: calls.rive_gpu_sampler_release,
-            texture_view_new: (texture, desc, descByteCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const ret = calls.rive_gpu_texture_view_new(texture, desc_p, descByteCount);
-                return ret;
-            },
-            texture_view_release: calls.rive_gpu_texture_view_release,
-            shader_target: calls.rive_gpu_shader_target,
-            shader_asset_bytes: (object, name, nameLength, out, outCount) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_gpu_shader_asset_bytes(object, name_p, nameLength, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-            shader_asset_id: (object, name, nameLength) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const ret = calls.rive_gpu_shader_asset_id(object, name_p, nameLength);
-                return ret;
-            },
-            shader_module_new: (desc, descByteCount, blob, blobCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const blob_p = stageIn(blob, blobCount);
-                const ret = calls.rive_gpu_shader_module_new(desc_p, descByteCount, blob_p, blobCount);
-                return ret;
-            },
-            shader_module_release: calls.rive_gpu_shader_module_release,
-            bind_group_layout_new: (groupIndex, entries, entryByteCount) => {
-                stackReset();
-                const entries_p = stageIn(entries, entryByteCount);
-                const ret = calls.rive_gpu_bind_group_layout_new(groupIndex, entries_p, entryByteCount);
-                return ret;
-            },
-            bind_group_layout_release: calls.rive_gpu_bind_group_layout_release,
-            bind_group_layout_from_shader: (shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount) => {
-                stackReset();
-                const dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount * 4);
-                const ret = calls.rive_gpu_bind_group_layout_from_shader(shaderModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
-                return ret;
-            },
-            bind_group_new: (layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount) => {
-                stackReset();
-                const ubos_p = stageIn(ubos, uboByteCount);
-                const textures_p = stageIn(textures, textureByteCount);
-                const samplers_p = stageIn(samplers, samplerByteCount);
-                const ret = calls.rive_gpu_bind_group_new(layout, ubos_p, uboByteCount, textures_p, textureByteCount, samplers_p, samplerByteCount);
-                return ret;
-            },
-            bind_group_release: calls.rive_gpu_bind_group_release,
-            pipeline_new: (desc, descByteCount, blob, blobCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                const blob_p = stageIn(blob, blobCount);
-                const ret = calls.rive_gpu_pipeline_new(desc_p, descByteCount, blob_p, blobCount);
-                return ret;
-            },
-            pipeline_release: calls.rive_gpu_pipeline_release,
-        },
-        rive_mat4_v1: {
-            multiply: (out, outBytes, a, aBytes, b, bBytes) => {
-                stackReset();
-                const out_p = stageIn(out, outBytes);
-                const a_p = stageIn(a, aBytes);
-                const b_p = stageIn(b, bBytes);
-                calls.rive_mat4_multiply(out_p, outBytes, a_p, aBytes, b_p, bBytes);
-                copyOut(out_p, out, outBytes);
-            },
-            invert: (out, outBytes, src, srcBytes) => {
-                stackReset();
-                const out_p = stageIn(out, outBytes);
-                const src_p = stageIn(src, srcBytes);
-                const ret = calls.rive_mat4_invert(out_p, outBytes, src_p, srcBytes);
-                copyOut(out_p, out, outBytes);
-                return ret;
-            },
-        },
-        rive_buffer_v1: {
-            new: calls.rive_buffer_new,
-            update: (buffer, bytes, byteCount) => {
-                stackReset();
-                const bytes_p = stageIn(bytes, byteCount);
-                calls.rive_buffer_update(buffer, bytes_p, byteCount);
-            },
-            release: calls.rive_buffer_release,
-        },
-        rive_mesh_instances_v1: {
-            new: calls.rive_mesh_instances_new,
-            resize: calls.rive_mesh_instances_resize,
-            update: (instances, first, bytes, byteCount) => {
-                stackReset();
-                const bytes_p = stageIn(bytes, byteCount);
-                calls.rive_mesh_instances_update(instances, first, bytes_p, byteCount);
-            },
-            release: calls.rive_mesh_instances_release,
-        },
-        rive_blob_v1: {
-            asset_bytes: (object, name, nameLength, out, outCount) => {
-                stackReset();
-                const name_p = stageIn(name, nameLength);
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_blob_asset_bytes(object, name_p, nameLength, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-        },
-        rive_image_v1: {
-            from_asset: (object, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_image_from_asset(object, name_p, length);
-                return ret;
-            },
-            width: calls.rive_image_width,
-            height: calls.rive_image_height,
-            release: calls.rive_image_release,
-            decode: (bytes, byteCount, token) => {
-                stackReset();
-                const bytes_p = stageIn(bytes, byteCount);
-                const ret = calls.rive_image_decode(bytes_p, byteCount, token);
-                return ret;
-            },
-            decode_cancel: calls.rive_image_decode_cancel,
-        },
-        rive_font_v1: {
-            from_asset: (object, name, length) => {
-                stackReset();
-                const name_p = stageIn(name, length);
-                const ret = calls.rive_font_from_asset(object, name_p, length);
-                return ret;
-            },
-            decode: (bytes, byteCount) => {
-                stackReset();
-                const bytes_p = stageIn(bytes, byteCount);
-                const ret = calls.rive_font_decode(bytes_p, byteCount);
-                return ret;
-            },
-            release: calls.rive_font_release,
-            metrics: (font, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_font_metrics(font, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            weight: calls.rive_font_weight,
-            is_italic: calls.rive_font_is_italic,
-            axis_count: calls.rive_font_axis_count,
-            axis: (font, index, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_font_axis(font, index, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            axis_value: calls.rive_font_axis_value,
-            features: (font, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_font_features(font, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            has_glyph: calls.rive_font_has_glyph,
-            with_options: (font, coords, coordCount, features, featureCount) => {
-                stackReset();
-                const coords_p = stageIn(coords, coordCount * 4);
-                const features_p = stageIn(features, featureCount * 4);
-                const ret = calls.rive_font_with_options(font, coords_p, coordCount, features_p, featureCount);
-                return ret;
-            },
-            glyph_verbs: (font, glyph, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount);
-                const ret = calls.rive_font_glyph_verbs(font, glyph, out_p, outCount);
-                copyOut(out_p, out, outCount);
-                return ret;
-            },
-            glyph_points: (font, glyph, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_font_glyph_points(font, glyph, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-        },
-        rive_text_v1: {
-            new: calls.rive_text_new,
-            release: calls.rive_text_release,
-            append: (text, chars, length, font, paint, size, lineHeight, letterSpacing, foreground) => {
-                stackReset();
-                const chars_p = stageIn(chars, length);
-                calls.rive_text_append(text, chars_p, length, font, paint, size, lineHeight, letterSpacing, foreground);
-            },
-            clear: calls.rive_text_clear,
-            layout: (text, desc, descByteCount) => {
-                stackReset();
-                const desc_p = stageIn(desc, descByteCount);
-                calls.rive_text_layout(text, desc_p, descByteCount);
-            },
-            draw: calls.rive_text_draw,
-            bounds: (text, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                calls.rive_text_bounds(text, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-            },
-            length: calls.rive_text_length,
-            lines: (text, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_text_lines(text, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            runs: (text, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_text_runs(text, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            glyphs: (text, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_text_glyphs(text, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            hit_test: calls.rive_text_hit_test,
-            caret: (text, index, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_text_caret(text, index, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-            selection_rects: (text, from, to, out, outCount) => {
-                stackReset();
-                const out_p = stageIn(out, outCount * 4);
-                const ret = calls.rive_text_selection_rects(text, from, to, out_p, outCount);
-                copyOut(out_p, out, outCount * 4);
-                return ret;
-            },
-        },
-        rive_shader_v1: {
-            linear: unsupported('rive_shader_linear'),
-            radial: unsupported('rive_shader_radial'),
-            release: calls.rive_shader_release,
-        },
-        rive_renderer_v1: {
-            save: calls.rive_renderer_save,
-            restore: calls.rive_renderer_restore,
-            transform: calls.rive_renderer_transform,
-            draw_path: calls.rive_renderer_draw_path,
-            clip_path: calls.rive_renderer_clip_path,
-            modulate_opacity: calls.rive_renderer_modulate_opacity,
-            modulate_color: calls.rive_renderer_modulate_color,
-            draw_image: calls.rive_renderer_draw_image,
-            draw_image_mesh: calls.rive_renderer_draw_image_mesh,
-            draw_image_mesh_instanced: calls.rive_renderer_draw_image_mesh_instanced,
-        },
+        rive_rt_log: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(0)),
+        rive_rt_mark_needs_update: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(1)),
+        rive_rt_budget_exceeded: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(2)),
+        rive_rt_error: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(3)),
+        rive_rt_debug_enter: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(4)),
+        rive_rt_debug_line: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(5)),
+        rive_rt_debug_leave: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(6)),
+        rive_rt_utc_offset: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(7)),
+        rive_rt_is_dst: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(8)),
+        rive_rt_zone_name: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(9)),
+        rive_data_view_model: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(10)),
+        rive_data_root_view_model: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(11)),
+        rive_data_global_view_model: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(12)),
+        rive_data_global_view_model_names: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(13)),
+        rive_data_context: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(14)),
+        rive_data_context_parent: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(15)),
+        rive_data_context_view_model: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(16)),
+        rive_data_context_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(17)),
+        rive_data_has_view_model: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(18)),
+        rive_data_new_view_model: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(19)),
+        rive_data_vmi_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(20)),
+        rive_data_vmi_number: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(21)),
+        rive_data_vmi_boolean: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(22)),
+        rive_data_vmi_string: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(23)),
+        rive_data_vmi_trigger: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(24)),
+        rive_data_vmi_color: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(25)),
+        rive_data_vmi_view_model: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(26)),
+        rive_data_vmi_property: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(27)),
+        rive_data_vmi_instance: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(28)),
+        rive_data_vmi_symbol_index: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(29)),
+        rive_data_vmi_equal: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(30)),
+        rive_data_view_model_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(31)),
+        rive_data_vmi_list: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(32)),
+        rive_data_vmi_enum: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(33)),
+        rive_data_vmi_image: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(34)),
+        rive_data_vmi_font: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(35)),
+        rive_data_vmi_blob: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(36)),
+        rive_data_vmi_artboard: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(37)),
+        rive_data_image_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(38)),
+        rive_data_image_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(39)),
+        rive_data_font_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(40)),
+        rive_data_font_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(41)),
+        rive_data_font_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(42)),
+        rive_data_blob_present: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(43)),
+        rive_data_blob_get: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(44)),
+        rive_data_blob_name: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(45)),
+        rive_data_blob_set: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(46)),
+        rive_data_blob_clear: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(47)),
+        rive_data_artboard_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(48)),
+        rive_data_artboard_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(49)),
+        rive_data_enum_get: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(50)),
+        rive_data_enum_set: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(51)),
+        rive_data_enum_values: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(52)),
+        rive_data_prop_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(53)),
+        rive_data_trigger_fire: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(54)),
+        rive_data_list_length: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(55)),
+        rive_data_list_push: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(56)),
+        rive_data_list_pop: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(57)),
+        rive_data_list_shift: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(58)),
+        rive_data_list_clear: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(59)),
+        rive_data_list_swap: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(60)),
+        rive_data_list_insert: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(61)),
+        rive_data_list_remove: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(62)),
+        rive_data_list_remove_at: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(63)),
+        rive_data_list_remove_all_of: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(64)),
+        rive_data_list_get: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(65)),
+        rive_data_view_model_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(66)),
+        rive_data_color_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(67)),
+        rive_data_color_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(68)),
+        rive_data_number_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(69)),
+        rive_data_number_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(70)),
+        rive_data_boolean_get: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(71)),
+        rive_data_boolean_set: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(72)),
+        rive_data_string_get: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(73)),
+        rive_data_string_changed: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(74)),
+        rive_data_string_set: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(75)),
+        rive_data_watch: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(76)),
+        rive_data_unwatch: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(77)),
+        rive_data_convert_result: ((fn) => (a0, a1, a2, a3, a4, a5) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(78)),
+        rive_artboard_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(79)),
+        rive_artboard_advance: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(80)),
+        rive_artboard_draw: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(81)),
+        rive_artboard_instance: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(82)),
+        rive_artboard_data: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(83)),
+        rive_artboard_width: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(84)),
+        rive_artboard_height: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(85)),
+        rive_artboard_set_width: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(86)),
+        rive_artboard_set_height: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(87)),
+        rive_artboard_frame_origin: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(88)),
+        rive_artboard_set_frame_origin: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(89)),
+        rive_artboard_bounds: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(90)),
+        rive_artboard_pointer_event: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(91)),
+        rive_artboard_scroll_event: ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7, a8) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7, a8); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(92)),
+        rive_artboard_gamepad_event: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(93)),
+        rive_artboard_animation: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(94)),
+        rive_artboard_animation_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(95)),
+        rive_artboard_animation_duration: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(96)),
+        rive_artboard_animation_advance: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(97)),
+        rive_artboard_animation_set_time: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(98)),
+        rive_artboard_add_to_path: ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(99)),
+        rive_artboard_node: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(100)),
+        rive_artboard_node_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(101)),
+        rive_artboard_node_transform: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(102)),
+        rive_artboard_node_set: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(103)),
+        rive_artboard_node_world_transform: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(104)),
+        rive_artboard_node_set_world_transform: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(105)),
+        rive_artboard_node_decompose: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(106)),
+        rive_artboard_node_path_verbs: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(107)),
+        rive_artboard_node_path_points: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(108)),
+        rive_artboard_node_paint: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(109)),
+        rive_artboard_node_children: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(110)),
+        rive_artboard_node_parent: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(111)),
+        rive_artboard_property_key: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(112)),
+        rive_artboard_draw_visit: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(113)),
+        rive_artboard_draw_modulated: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(114)),
+        rive_artboard_drawable_draw: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(115)),
+        rive_artboard_drawable_value: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(116)),
+        rive_artboard_drawable_string: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(117)),
+        rive_artboard_drawable_properties: ((fn) => fn === undefined ? unlinkedImport('rive_artboard_v1', 'drawable_properties') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(118)),
+        rive_audio_source: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(119)),
+        rive_audio_source_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(120)),
+        rive_audio_source_duration: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(121)),
+        rive_audio_source_sample_rate: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(122)),
+        rive_audio_source_channels: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(123)),
+        rive_audio_play: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(124)),
+        rive_audio_play_at_time: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(125)),
+        rive_audio_play_in_time: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(126)),
+        rive_audio_play_at_frame: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(127)),
+        rive_audio_play_in_frame: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(128)),
+        rive_audio_time: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(129)),
+        rive_audio_time_frame: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(130)),
+        rive_audio_sample_rate: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(131)),
+        rive_audio_sound_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(132)),
+        rive_audio_sound_play: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(133)),
+        rive_audio_sound_pause: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(134)),
+        rive_audio_sound_resume: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(135)),
+        rive_audio_sound_stop: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(136)),
+        rive_audio_sound_seek: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(137)),
+        rive_audio_sound_seek_frame: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(138)),
+        rive_audio_sound_completed: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(139)),
+        rive_audio_sound_time: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(140)),
+        rive_audio_sound_time_frame: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(141)),
+        rive_audio_sound_volume: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(142)),
+        rive_audio_sound_set_volume: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(143)),
+        rive_path_new: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(144)),
+        rive_path_update: ((fn) => (a0, a1, a2, a3, a4, a5) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(145)),
+        rive_path_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(146)),
+        rive_path_add: ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(147)),
+        rive_path_verbs: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(148)),
+        rive_path_points: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(149)),
+        rive_path_effect_result: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(150)),
+        rive_measure_path_new: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(151)),
+        rive_measure_contours_new: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(152)),
+        rive_measure_contour_next: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(153)),
+        rive_measure_length: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(154)),
+        rive_measure_is_closed: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(155)),
+        rive_measure_pos_tan: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(156)),
+        rive_measure_warp: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(157)),
+        rive_measure_extract: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(158)),
+        rive_measure_extract_read: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(159)),
+        rive_measure_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(160)),
+        rive_paint_new: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(161)),
+        rive_paint_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(162)),
+        rive_paint_style: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(163)),
+        rive_paint_color: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(164)),
+        rive_paint_thickness: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(165)),
+        rive_paint_join: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(166)),
+        rive_paint_cap: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(167)),
+        rive_paint_blend_mode: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(168)),
+        rive_paint_feather: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(169)),
+        rive_paint_shader: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(170)),
+        rive_paint_shader_transform: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(171)),
+        rive_canvas_new: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(172)),
+        rive_canvas_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(173)),
+        rive_canvas_width: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(174)),
+        rive_canvas_height: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(175)),
+        rive_canvas_resize: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(176)),
+        rive_canvas_image: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(177)),
+        rive_canvas_begin_frame: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(178)),
+        rive_canvas_end_frame: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(179)),
+        rive_gpu_features: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(180)),
+        rive_gpu_canvas_new: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(181)),
+        rive_gpu_canvas_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(182)),
+        rive_gpu_canvas_color_view: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(183)),
+        rive_gpu_canvas_image: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(184)),
+        rive_gpu_canvas_resize: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(185)),
+        rive_gpu_target_view: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(186)),
+        rive_gpu_pass_begin: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(187)),
+        rive_gpu_pass_set_pipeline: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(188)),
+        rive_gpu_pass_set_vertex_buffer: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(189)),
+        rive_gpu_pass_set_index_buffer: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(190)),
+        rive_gpu_pass_set_bind_group: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(191)),
+        rive_gpu_pass_set_viewport: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(192)),
+        rive_gpu_pass_set_scissor: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(193)),
+        rive_gpu_pass_set_stencil_reference: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(194)),
+        rive_gpu_pass_set_blend_color: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(195)),
+        rive_gpu_pass_draw: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(196)),
+        rive_gpu_pass_draw_indexed: ((fn) => (a0, a1, a2, a3, a4, a5) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(197)),
+        rive_gpu_pass_finish: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(198)),
+        rive_gpu_pass_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(199)),
+        rive_gpu_image_view: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(200)),
+        rive_gpu_buffer_new: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(201)),
+        rive_gpu_buffer_update: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(202)),
+        rive_gpu_buffer_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(203)),
+        rive_gpu_texture_new: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(204)),
+        rive_gpu_texture_upload: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(205)),
+        rive_gpu_texture_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(206)),
+        rive_gpu_sampler_new: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(207)),
+        rive_gpu_sampler_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(208)),
+        rive_gpu_texture_view_new: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(209)),
+        rive_gpu_texture_view_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(210)),
+        rive_gpu_shader_target: ((fn) => () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(211)),
+        rive_gpu_shader_asset_bytes: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(212)),
+        rive_gpu_shader_asset_id: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(213)),
+        rive_gpu_shader_module_from_asset: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(214)),
+        rive_gpu_shader_module_from_rstb: ((fn) => fn === undefined ? unlinkedImport('rive_gpu_v1', 'shader_module_from_rstb') : (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(215)),
+        rive_gpu_shader_module_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(216)),
+        rive_gpu_bind_group_layout_new: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(217)),
+        rive_gpu_bind_group_layout_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(218)),
+        rive_gpu_bind_group_layout_from_shader: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(219)),
+        rive_gpu_bind_group_layout_from_shaders: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(220)),
+        rive_gpu_bind_group_layout_from_entries: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(221)),
+        rive_gpu_bind_group_new: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(222)),
+        rive_gpu_bind_group_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(223)),
+        rive_gpu_pipeline_new: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(224)),
+        rive_gpu_pipeline_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(225)),
+        rive_mat4_multiply: ((fn) => (a0, a1, a2, a3, a4, a5) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(226)),
+        rive_mat4_invert: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(227)),
+        rive_buffer_new: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(228)),
+        rive_buffer_update: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(229)),
+        rive_buffer_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(230)),
+        rive_mesh_instances_new: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(231)),
+        rive_mesh_instances_resize: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(232)),
+        rive_mesh_instances_update: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(233)),
+        rive_mesh_instances_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(234)),
+        rive_blob_asset_bytes: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(235)),
+        rive_image_from_asset: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(236)),
+        rive_image_width: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(237)),
+        rive_image_height: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(238)),
+        rive_image_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(239)),
+        rive_image_decode: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(240)),
+        rive_image_decode_cancel: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(241)),
+        rive_font_from_asset: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(242)),
+        rive_font_decode: ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'decode') : (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(243)),
+        rive_font_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(244)),
+        rive_font_metrics: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(245)),
+        rive_font_weight: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(246)),
+        rive_font_is_italic: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(247)),
+        rive_font_axis_count: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(248)),
+        rive_font_axis: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(249)),
+        rive_font_axis_value: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(250)),
+        rive_font_features: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(251)),
+        rive_font_has_glyph: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(252)),
+        rive_font_with_options: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(253)),
+        rive_font_glyph_verbs: ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'glyph_verbs') : (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(254)),
+        rive_font_glyph_points: ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'glyph_points') : (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(255)),
+        rive_text_new: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'new') : () => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(256)),
+        rive_text_release: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'release') : (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(257)),
+        rive_text_append: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'append') : (a0, a1, a2, a3, a4, a5, a6, a7, a8) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7, a8); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(258)),
+        rive_text_clear: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'clear') : (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(259)),
+        rive_text_layout: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'layout') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(260)),
+        rive_text_draw: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'draw') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(261)),
+        rive_text_bounds: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'bounds') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(262)),
+        rive_text_length: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'length') : (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(263)),
+        rive_text_lines: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'lines') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(264)),
+        rive_text_runs: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'runs') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(265)),
+        rive_text_glyphs: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'glyphs') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(266)),
+        rive_text_hit_test: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'hit_test') : (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(267)),
+        rive_text_caret: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'caret') : (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(268)),
+        rive_text_selection_rects: ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'selection_rects') : (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(269)),
+        rive_shader_linear: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(270)),
+        rive_shader_radial: ((fn) => (a0, a1, a2, a3, a4, a5) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(271)),
+        rive_shader_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(272)),
+        rive_test_blob: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(273)),
+        rive_transition_child_draw: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(274)),
+        rive_transition_child_width: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(275)),
+        rive_transition_child_height: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(276)),
+        rive_renderer_save: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(277)),
+        rive_renderer_restore: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(278)),
+        rive_renderer_transform: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(279)),
+        rive_renderer_draw_path: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(280)),
+        rive_renderer_clip_path: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(281)),
+        rive_renderer_modulate_opacity: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(282)),
+        rive_renderer_modulate_color: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(283)),
+        rive_renderer_draw_image: ((fn) => (a0, a1, a2, a3, a4) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(284)),
+        rive_renderer_draw_image_mesh: ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(285)),
+        rive_renderer_draw_image_mesh_instanced: ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(286)),
+        rive_net_fetch: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(287)),
+        rive_net_fetch_cancel: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(288)),
+        rive_file_decode: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(289)),
+        rive_file_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(290)),
+        rive_file_artboard_count: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(291)),
+        rive_file_artboard_name: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(292)),
+        rive_file_bindable: ((fn) => (a0, a1, a2, a3) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(293)),
+        rive_file_bindable_release: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(294)),
+        rive_file_bindable_name: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(295)),
+        rive_file_bindable_data: ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(296)),
+        rive_file_bindable_equal: ((fn) => (a0, a1) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(297)),
+        rive_console: ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(298)),
+        rive_trace: ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(299)),
+    };
+}
+
+// Stands in for an import the host lacks, so the module still links
+// and only a call to it traps, as on WAMR.
+export function unlinkedImport(module, name) {
+    return () => {
+        throw new Error(
+            'failed to call unlinked import function ' + module + '.' + name
+        );
     };
 }

@@ -42,21 +42,21 @@ class RecordingThread
 {
 public:
 #ifdef NDEBUG
-    void bind() {}
-    void check() const {}
+  void bind() {}
+  void check() const {}
 #else
-    void bind() { m_id = std::this_thread::get_id(); }
+  void bind() { m_id = std::this_thread::get_id(); }
 
-    void check() const
-    {
-        assert(
-            (m_id == std::thread::id() || std::this_thread::get_id() == m_id) &&
-            "deferred recording is single threaded: this stream, its id "
-            "allocator, and its keep alive table are all unlocked");
-    }
+  void check() const
+  {
+    assert(
+        (m_id == std::thread::id() || std::this_thread::get_id() == m_id) &&
+        "deferred recording is single threaded: this stream, its id "
+        "allocator, and its keep alive table are all unlocked");
+  }
 
 private:
-    std::thread::id m_id;
+  std::thread::id m_id;
 #endif
 };
 

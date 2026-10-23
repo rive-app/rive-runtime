@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptInputArtboardBase::clone() const
 {
-    auto cloned = new ScriptInputArtboard();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptInputArtboard();
+  cloned->copy(*this);
+  return cloned;
 }

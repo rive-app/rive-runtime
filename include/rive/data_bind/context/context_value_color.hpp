@@ -8,11 +8,12 @@ class DataBindContextValueColor : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueColor(DataBind* m_dataBind);
-    void apply(Core* component,
-               uint32_t propertyKey,
-               bool isMainDirection,
-               DataBind* dataBind) override;
+  DataBindContextValueColor(DataBind* m_dataBind);
+  void apply(
+      Core* component,
+      uint32_t propertyKey,
+      bool isMainDirection,
+      DataBind* dataBind) override;
 };
 } // namespace rive
 

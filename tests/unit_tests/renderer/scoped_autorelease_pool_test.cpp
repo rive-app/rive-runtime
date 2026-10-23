@@ -19,40 +19,41 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <thread>
 
-TEST_CASE("pool drains autoreleases on a bare thread",
-          "[ScopedAutoreleasePool]")
+TEST_CASE(
+    "pool drains autoreleases on a bare thread",
+    "[ScopedAutoreleasePool]")
 {
-    // A mutable string is always heap allocated, never a tagged pointer, so
-    // its retain count is real.
-    CFMutableStringRef obj = CFStringCreateMutable(kCFAllocatorDefault, 0);
-    REQUIRE(CFGetRetainCount(obj) == 1);
-    std::thread([obj] {
-        {
-            rive::gpu::ScopedAutoreleasePool pool;
-            CFAutorelease(CFRetain(obj));
-            CHECK(CFGetRetainCount(obj) == 2);
-        }
-        CHECK(CFGetRetainCount(obj) == 1);
-    }).join();
+  // A mutable string is always heap allocated, never a tagged pointer, so
+  // its retain count is real.
+  CFMutableStringRef obj = CFStringCreateMutable(kCFAllocatorDefault, 0);
+  REQUIRE(CFGetRetainCount(obj) == 1);
+  std::thread([obj] {
+    {
+      rive::gpu::ScopedAutoreleasePool pool;
+      CFAutorelease(CFRetain(obj));
+      CHECK(CFGetRetainCount(obj) == 2);
+    }
     CHECK(CFGetRetainCount(obj) == 1);
-    CFRelease(obj);
+  }).join();
+  CHECK(CFGetRetainCount(obj) == 1);
+  CFRelease(obj);
 }
 
 TEST_CASE("pools nest", "[ScopedAutoreleasePool]")
 {
-    CFMutableStringRef obj = CFStringCreateMutable(kCFAllocatorDefault, 0);
-    std::thread([obj] {
-        rive::gpu::ScopedAutoreleasePool outer;
-        CFAutorelease(CFRetain(obj));
-        {
-            rive::gpu::ScopedAutoreleasePool inner;
-            CFAutorelease(CFRetain(obj));
-            CHECK(CFGetRetainCount(obj) == 3);
-        }
-        CHECK(CFGetRetainCount(obj) == 2);
-    }).join();
-    CHECK(CFGetRetainCount(obj) == 1);
-    CFRelease(obj);
+  CFMutableStringRef obj = CFStringCreateMutable(kCFAllocatorDefault, 0);
+  std::thread([obj] {
+    rive::gpu::ScopedAutoreleasePool outer;
+    CFAutorelease(CFRetain(obj));
+    {
+      rive::gpu::ScopedAutoreleasePool inner;
+      CFAutorelease(CFRetain(obj));
+      CHECK(CFGetRetainCount(obj) == 3);
+    }
+    CHECK(CFGetRetainCount(obj) == 2);
+  }).join();
+  CHECK(CFGetRetainCount(obj) == 1);
+  CFRelease(obj);
 }
 
 #endif // __APPLE__

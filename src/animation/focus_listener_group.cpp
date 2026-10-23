@@ -8,36 +8,36 @@ using namespace rive;
 FocusListenerGroup::FocusListenerGroup(
     FocusData* focusData,
     const StateMachineListener* listener,
-    StateMachineInstance* stateMachineInstance) :
-    m_focusData(focusData),
-    m_listener(listener),
-    m_stateMachineInstance(stateMachineInstance),
-    m_isFocusListener(listener->hasListener(ListenerType::focus)),
-    m_isBlurListener(listener->hasListener(ListenerType::blur))
+    StateMachineInstance* stateMachineInstance)
+    : m_focusData(focusData)
+    , m_listener(listener)
+    , m_stateMachineInstance(stateMachineInstance)
+    , m_isFocusListener(listener->hasListener(ListenerType::focus))
+    , m_isBlurListener(listener->hasListener(ListenerType::blur))
 {
-    // Register ourselves as a listener on the FocusData
-    m_focusData->addFocusListener(this);
+  // Register ourselves as a listener on the FocusData
+  m_focusData->addFocusListener(this);
 }
 
 FocusListenerGroup::~FocusListenerGroup()
 {
-    m_focusData->removeFocusListener(this);
+  m_focusData->removeFocusListener(this);
 }
 
 void FocusListenerGroup::onFocused()
 {
-    // Only queue if this is a focus listener
-    if (m_isFocusListener)
-    {
-        m_stateMachineInstance->queueFocusEvent(this, true);
-    }
+  // Only queue if this is a focus listener
+  if (m_isFocusListener)
+  {
+    m_stateMachineInstance->queueFocusEvent(this, true);
+  }
 }
 
 void FocusListenerGroup::onBlurred()
 {
-    // Only queue if this is a blur listener
-    if (m_isBlurListener)
-    {
-        m_stateMachineInstance->queueFocusEvent(this, false);
-    }
+  // Only queue if this is a blur listener
+  if (m_isBlurListener)
+  {
+    m_stateMachineInstance->queueFocusEvent(this, false);
+  }
 }

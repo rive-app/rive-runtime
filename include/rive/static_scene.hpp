@@ -9,18 +9,18 @@ namespace rive
 class StaticScene : public Scene
 {
 public:
-    StaticScene(ArtboardInstance*);
-    ~StaticScene() override;
+  StaticScene(ArtboardInstance*);
+  ~StaticScene() override;
 
-    bool isTranslucent() const override;
+  bool isTranslucent() const override;
 
-    std::string name() const override;
+  std::string name() const override;
 
-    Loop loop() const override;
+  Loop loop() const override;
 
-    float durationSeconds() const override;
+  float durationSeconds() const override;
 
-    bool advanceAndApply(float seconds) override;
+  bool advanceAndApply(float seconds) override;
 };
 } // namespace rive
 #endif

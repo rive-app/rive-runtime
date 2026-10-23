@@ -7,25 +7,25 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceEnum;
-typedef void (*ViewModelEnumChanged)(ViewModelInstanceEnum* vmi,
-                                     uint32_t value);
+typedef void (
+    *ViewModelEnumChanged)(ViewModelInstanceEnum* vmi, uint32_t value);
 #endif
 class ViewModelInstanceEnum : public ViewModelInstanceEnumBase
 {
 public:
-    bool value(std::string name);
-    bool value(uint32_t index);
-    void applyValue(DataValueInteger*);
+  bool value(std::string name);
+  bool value(uint32_t index);
+  void applyValue(DataValueInteger*);
 
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onChanged(ViewModelEnumChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelEnumChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelEnumChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelEnumChanged m_changedCallback = nullptr;
 #endif
 };
 } // namespace rive

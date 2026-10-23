@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataBindContextBase::clone() const
 {
-    auto cloned = new DataBindContext();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataBindContext();
+  cloned->copy(*this);
+  return cloned;
 }

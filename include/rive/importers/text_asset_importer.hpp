@@ -4,6 +4,7 @@
 
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/simple_array.hpp"
+#include "rive/span.hpp"
 #include <vector>
 
 namespace rive
@@ -11,23 +12,22 @@ namespace rive
 class FileAsset;
 class TextAssetImporter;
 
-/// A single in-band payload (Luau bytecode, RSTB blob, or a wasm script
-/// module) captured during import, held until the aggregate signature is
-/// verified in resolve().
+/// A single in-band payload (Luau bytecode or RSTB blob) captured during
+/// import, held until the aggregate signature is verified in resolve().
 class InBandContent
 {
-    friend class TextAssetImporter;
+  friend class TextAssetImporter;
 
 public:
-    InBandContent(FileAsset* asset, SimpleArray<uint8_t>& bytes);
+  InBandContent(FileAsset* asset, SimpleArray<uint8_t>& bytes);
 
 private:
-    FileAsset* m_asset;
-    SimpleArray<uint8_t> m_bytes;
+  FileAsset* m_asset;
+  SimpleArray<uint8_t> m_bytes;
 };
 
 /// Importer shared by every signed code-derived asset (ScriptAsset,
-/// ShaderAsset, ScriptModuleAsset). Strips the SignedContentHeader envelope
+/// ShaderAsset). Strips the SignedContentHeader envelope
 /// from in-band FileAssetContents and contributes the raw content bytes to a
 /// shared verification set. The last importer with a signature runs
 /// hydro_sign_verify against the concatenated bytes and marks every
@@ -35,22 +35,28 @@ private:
 class TextAssetImporter : public FileAssetImporter
 {
 public:
-    TextAssetImporter(FileAsset*,
-                      rcp<FileAssetLoader>,
-                      Factory*,
-                      std::vector<InBandContent>*);
-    StatusCode resolve() override;
-    void onFileAssetContents(
-        std::unique_ptr<FileAssetContents> contents) override;
+  TextAssetImporter(
+      FileAsset*,
+      rcp<FileAssetLoader>,
+      Factory*,
+      std::vector<InBandContent>*);
+  StatusCode resolve() override;
+  void onFileAssetContents(
+      std::unique_ptr<FileAssetContents> contents) override;
 
 private:
-    // The set of in-band contents which are signed together.
-    std::vector<InBandContent>* m_verificationSet;
+  // The set of in-band contents which are signed together.
+  std::vector<InBandContent>* m_verificationSet;
 };
 
 // Public key for in-band content signature verification (32 bytes)
 // TODO: Replace with permanent production public key.
 extern const uint8_t g_scriptVerificationPublicKey[32];
+
+/// Whether signature is Rive's signature over content.
+bool verifiesContentSignature(
+    Span<const uint8_t> signature,
+    Span<const uint8_t> content);
 } // namespace rive
 #endif
 #endif

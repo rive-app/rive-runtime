@@ -17,8 +17,8 @@ namespace rive::cmd
 {
 struct RetiredCanvasBacking
 {
-    rcp<gpu::Texture> texture;
-    rcp<gpu::RenderTarget> renderTarget;
+  rcp<gpu::Texture> texture;
+  rcp<gpu::RenderTarget> renderTarget;
 };
 
 // Shared by the session and every canvas it made, so a canvas outliving the
@@ -26,77 +26,80 @@ struct RetiredCanvasBacking
 class CanvasRetirer : public RefCnt<CanvasRetirer>
 {
 public:
-    void retire(rcp<gpu::Texture> texture, rcp<gpu::RenderTarget> renderTarget)
+  void retire(rcp<gpu::Texture> texture, rcp<gpu::RenderTarget> renderTarget)
+  {
+    if (texture == nullptr && renderTarget == nullptr)
     {
-        if (texture == nullptr && renderTarget == nullptr)
-        {
-            return;
-        }
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_closed)
-        {
-            return; // nothing replays any more; the caller lets it go
-        }
-        m_retired.push_back({std::move(texture), std::move(renderTarget)});
+      return;
     }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_closed)
+    {
+      return; // nothing replays any more; the caller lets it go
+    }
+    m_retired.push_back({std::move(texture), std::move(renderTarget)});
+  }
 
-    std::vector<RetiredCanvasBacking> take()
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        return std::move(m_retired);
-    }
+  std::vector<RetiredCanvasBacking> take()
+  {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return std::move(m_retired);
+  }
 
-    void close()
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_closed = true;
-        m_retired.clear();
-    }
+  void close()
+  {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_closed = true;
+    m_retired.clear();
+  }
 
 private:
-    std::mutex m_mutex;
-    std::vector<RetiredCanvasBacking> m_retired;
-    bool m_closed = false;
+  std::mutex m_mutex;
+  std::vector<RetiredCanvasBacking> m_retired;
+  bool m_closed = false;
 };
 
 class DeferredRenderCanvasImage : public gpu::RenderCanvasImage
 {
 public:
-    DeferredRenderCanvasImage(rcp<CanvasRetirer> retirer,
-                              uint32_t width,
-                              uint32_t height) :
-        gpu::RenderCanvasImage(width, height), m_retirer(std::move(retirer))
-    {}
+  DeferredRenderCanvasImage(
+      rcp<CanvasRetirer> retirer,
+      uint32_t width,
+      uint32_t height)
+      : gpu::RenderCanvasImage(width, height)
+      , m_retirer(std::move(retirer))
+  {}
 
-    ~DeferredRenderCanvasImage() override
-    {
-        m_retirer->retire(ref_rcp(getTexture()), nullptr);
-        resetTexture(nullptr);
-    }
+  ~DeferredRenderCanvasImage() override
+  {
+    m_retirer->retire(ref_rcp(getTexture()), nullptr);
+    resetTexture(nullptr);
+  }
 
 private:
-    rcp<CanvasRetirer> m_retirer;
+  rcp<CanvasRetirer> m_retirer;
 };
 
 class DeferredRenderCanvas : public gpu::RenderCanvas
 {
 public:
-    DeferredRenderCanvas(rcp<CanvasRetirer> retirer,
-                         uint32_t width,
-                         uint32_t height) :
-        gpu::RenderCanvas(
+  DeferredRenderCanvas(
+      rcp<CanvasRetirer> retirer,
+      uint32_t width,
+      uint32_t height)
+      : gpu::RenderCanvas(
             make_rcp<DeferredRenderCanvasImage>(retirer, width, height),
             width,
-            height),
-        m_retirer(std::move(retirer))
-    {}
+            height)
+      , m_retirer(std::move(retirer))
+  {}
 
-    ~DeferredRenderCanvas() override
-    {
-        m_retirer->retire(nullptr, releaseRenderTarget());
-    }
+  ~DeferredRenderCanvas() override
+  {
+    m_retirer->retire(nullptr, releaseRenderTarget());
+  }
 
 private:
-    rcp<CanvasRetirer> m_retirer;
+  rcp<CanvasRetirer> m_retirer;
 };
 } // namespace rive::cmd

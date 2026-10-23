@@ -12,13 +12,13 @@ class DataBind;
 class TransitionViewModelConditionImporter : public ImportStackObject
 {
 private:
-    TransitionViewModelCondition* m_TransitionViewModelCondition;
+  TransitionViewModelCondition* m_TransitionViewModelCondition;
 
 public:
-    TransitionViewModelConditionImporter(
-        TransitionViewModelCondition* transitionViewModelCondition);
-    void setComparator(TransitionComparator* comparator);
-    StatusCode resolve() override;
+  TransitionViewModelConditionImporter(
+      TransitionViewModelCondition* transitionViewModelCondition);
+  void setComparator(TransitionComparator* comparator);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

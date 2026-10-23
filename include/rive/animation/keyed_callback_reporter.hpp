@@ -6,10 +6,11 @@ namespace rive
 class KeyedCallbackReporter
 {
 public:
-    virtual ~KeyedCallbackReporter() {}
-    virtual void reportKeyedCallback(uint32_t objectId,
-                                     uint32_t propertyKey,
-                                     float elapsedSeconds) = 0;
+  virtual ~KeyedCallbackReporter() {}
+  virtual void reportKeyedCallback(
+      uint32_t objectId,
+      uint32_t propertyKey,
+      float elapsedSeconds) = 0;
 };
 } // namespace rive
 

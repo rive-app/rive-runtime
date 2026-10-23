@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterTriggerBase::clone() const
 {
-    auto cloned = new DataConverterTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

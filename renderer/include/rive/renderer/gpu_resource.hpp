@@ -6,6 +6,7 @@
 
 #include "rive/refcnt.hpp"
 
+#include <algorithm>
 #include <deque>
 
 namespace rive::gpu
@@ -17,40 +18,41 @@ class GPUResourceManager;
 class GPUResource : public RefCnt<GPUResource>
 {
 public:
-    virtual ~GPUResource();
+  virtual ~GPUResource();
 
-    // GPUResource classes should default to non-copyable (they're typically
-    // going to contain handles that would get double-freed if copied)
-    GPUResource(const GPUResource&) = delete;
-    GPUResource& operator=(const GPUResource&) = delete;
+  // GPUResource classes should default to non-copyable (they're typically
+  // going to contain handles that would get double-freed if copied)
+  GPUResource(const GPUResource&) = delete;
+  GPUResource& operator=(const GPUResource&) = delete;
 
-    GPUResourceManager* manager() const { return m_manager.get(); }
+  GPUResourceManager* manager() const { return m_manager.get(); }
 
 protected:
-    GPUResource(rcp<GPUResourceManager> manager) : m_manager(std::move(manager))
-    {}
+  GPUResource(rcp<GPUResourceManager> manager) : m_manager(std::move(manager))
+  {}
 
-    const rcp<GPUResourceManager> m_manager;
+  const rcp<GPUResourceManager> m_manager;
 
 private:
-    friend class RefCnt<GPUResource>;
+  friend class RefCnt<GPUResource>;
 
-    // Don't delete GPUResources immediately when their ref count reaches zero;
-    // instead wait until their safe frame number is reached.
-    void onRefCntReachedZero() const;
+  // Don't delete GPUResources immediately when their ref count reaches zero;
+  // instead wait until their safe frame number is reached.
+  void onRefCntReachedZero() const;
 };
 
 // A GPUResource that has been fully released, but whose underlying native
 // resource may still be referenced by an in-flight command buffer.
 struct ZombieResource
 {
-    ZombieResource(GPUResource* resource_, uint64_t lastFrameNumber_) :
-        resource(resource_), lastFrameNumber(lastFrameNumber_)
-    {}
+  ZombieResource(GPUResource* resource_, uint64_t lastFrameNumber_)
+      : resource(resource_)
+      , lastFrameNumber(lastFrameNumber_)
+  {}
 
-    std::unique_ptr<GPUResource> resource;
-    const uint64_t lastFrameNumber; // Frame number at which the underlying
-                                    // native resource was last used.
+  std::unique_ptr<GPUResource> resource;
+  const uint64_t lastFrameNumber; // Frame number at which the underlying
+                                  // native resource was last used.
 };
 
 // Manages the lifecycle of GPUResources. When the refcount reaches zero, rather
@@ -59,51 +61,62 @@ struct ZombieResource
 class GPUResourceManager : public RefCnt<GPUResourceManager>
 {
 public:
-    virtual ~GPUResourceManager();
+  virtual ~GPUResourceManager();
 
-    // Resource lifetime counters. Resources last used on or before
-    // 'safeFrameNumber' are safe to be released or recycled.
-    uint64_t currentFrameNumber() const { return m_currentFrameNumber; }
-    uint64_t safeFrameNumber() const { return m_safeFrameNumber; }
+  // Resource lifetime counters. Resources last used on or before
+  // 'safeFrameNumber' are safe to be released or recycled.
+  uint64_t currentFrameNumber() const { return m_currentFrameNumber; }
+  uint64_t safeFrameNumber() const { return m_safeFrameNumber; }
 
-    // Purges released resources whose lastFrameNumber is on or before
-    // safeFrameNumber, and updates the monotonically increasing
-    // m_currentFrameNumber.
-    void advanceFrameNumber(uint64_t nextFrameNumber, uint64_t safeFrameNumber);
+  // Purges released resources whose lastFrameNumber is on or before
+  // safeFrameNumber, and updates the monotonically increasing
+  // m_currentFrameNumber.
+  void advanceFrameNumber(uint64_t nextFrameNumber, uint64_t safeFrameNumber);
 
-    // Called when a GPUResource has been fully released (refcount reaches 0).
-    // The underlying native resource won't actually be deleted until the
-    // resource's safe frame number is reached.
-    void onRenderingResourceReleased(GPUResource*);
+  // For a manager core and Ore share, where the other may already be on a
+  // later frame.
+  void advanceFrameNumberAtLeast(
+      uint64_t nextFrameNumber,
+      uint64_t safeFrameNumber)
+  {
+    advanceFrameNumber(
+        std::max(nextFrameNumber, m_currentFrameNumber),
+        std::max(safeFrameNumber, m_safeFrameNumber));
+  }
 
-    // Called prior to the client beginning its shutdown cycle, and after all
-    // command buffers from all frames have finished executing. After shutting
-    // down, we delete GPUResources immediately instead of going
-    // through m_resourcePurgatory.
-    void shutdown();
+  // Called when a GPUResource has been fully released (refcount reaches 0).
+  // The underlying native resource won't actually be deleted until the
+  // resource's safe frame number is reached.
+  void onRenderingResourceReleased(GPUResource*);
+
+  // Called prior to the client beginning its shutdown cycle, and after all
+  // command buffers from all frames have finished executing. After shutting
+  // down, we delete GPUResources immediately instead of going
+  // through m_resourcePurgatory.
+  void shutdown();
 
 private:
-    // An m_currentFrameNumber of this value indicates we're in a shutdown cycle
-    // and resources should be deleted immediately upon release instead of going
-    // through m_resourcePurgatory.
-    constexpr static uint64_t SHUTDOWN_FRAME_NUMBER = 0xffffffffffffffff;
+  // An m_currentFrameNumber of this value indicates we're in a shutdown cycle
+  // and resources should be deleted immediately upon release instead of going
+  // through m_resourcePurgatory.
+  constexpr static uint64_t SHUTDOWN_FRAME_NUMBER = 0xffffffffffffffff;
 
-    // Resource lifetime counters. Resources last used on or before
-    // 'safeFrameNumber' are safe to be released or recycled.
-    uint64_t m_currentFrameNumber = 0;
-    uint64_t m_safeFrameNumber = 0;
+  // Resource lifetime counters. Resources last used on or before
+  // 'safeFrameNumber' are safe to be released or recycled.
+  uint64_t m_currentFrameNumber = 0;
+  uint64_t m_safeFrameNumber = 0;
 
-    // False until advanceFrameNumber() has been called at least once (including
-    // the shutdown transition). While false we're in the pre-first-frame
-    // window, where m_currentFrameNumber == m_safeFrameNumber == 0 -- otherwise
-    // indistinguishable from a GPU-caught-up state -- but a one-shot upload
-    // submitted during initialization can leave GPU work referencing a
-    // just-released staging resource, so such releases must go to purgatory.
-    bool m_didAdvanceFrameNumber = false;
+  // False until advanceFrameNumber() has been called at least once (including
+  // the shutdown transition). While false we're in the pre-first-frame
+  // window, where m_currentFrameNumber == m_safeFrameNumber == 0 -- otherwise
+  // indistinguishable from a GPU-caught-up state -- but a one-shot upload
+  // submitted during initialization can leave GPU work referencing a
+  // just-released staging resource, so such releases must go to purgatory.
+  bool m_didAdvanceFrameNumber = false;
 
-    // Temporary container for GPUResource instances that have been fully
-    // released, but need to persist until their safe frame number is reached.
-    std::deque<ZombieResource> m_resourcePurgatory;
+  // Temporary container for GPUResource instances that have been fully
+  // released, but need to persist until their safe frame number is reached.
+  std::deque<ZombieResource> m_resourcePurgatory;
 };
 
 // Manual GPUResource lifecycle manager. Rather than allowing GPUResourceManager
@@ -112,20 +125,21 @@ private:
 class GPUResourcePool : public GPUResource
 {
 public:
-    GPUResourcePool(rcp<GPUResourceManager> manager, size_t maxPoolSize) :
-        GPUResource(std::move(manager)), m_maxPoolCount(maxPoolSize)
-    {}
+  GPUResourcePool(rcp<GPUResourceManager> manager, size_t maxPoolSize)
+      : GPUResource(std::move(manager))
+      , m_maxPoolCount(maxPoolSize)
+  {}
 
-    // Returns a previously-recycled resource whose safe frame number has been
-    // reached, or null of no such resource exists.
-    rcp<GPUResource> acquire();
+  // Returns a previously-recycled resource whose safe frame number has been
+  // reached, or null of no such resource exists.
+  rcp<GPUResource> acquire();
 
-    // Places the given resouce back in the pool, where it waits until its safe
-    // frame number is reached. Refcount must be 1.
-    void recycle(rcp<GPUResource>);
+  // Places the given resouce back in the pool, where it waits until its safe
+  // frame number is reached. Refcount must be 1.
+  void recycle(rcp<GPUResource>);
 
 private:
-    const size_t m_maxPoolCount;
-    std::deque<ZombieResource> m_pool;
+  const size_t m_maxPoolCount;
+  std::deque<ZombieResource> m_pool;
 };
 } // namespace rive::gpu

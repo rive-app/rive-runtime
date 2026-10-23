@@ -19,28 +19,28 @@ class GridItemPlacement : public GridItemPlacementBase,
                           public LayoutStyleApplier
 {
 public:
-    /// The placement child of [owner], or nullptr. A walk rather than a cached
-    /// pointer: the layout pass reaches placement through the applier list, so
-    /// this is only for callers outside it (tooling, tests).
-    static GridItemPlacement* from(const ContainerComponent* owner);
+  /// The placement child of [owner], or nullptr. A walk rather than a cached
+  /// pointer: the layout pass reaches placement through the applier list, so
+  /// this is only for callers outside it (tooling, tests).
+  static GridItemPlacement* from(const ContainerComponent* owner);
 
-    StatusCode onAddedClean(CoreContext* context) override;
-    void update(ComponentDirt value) override {}
-    void buildDependencies() override;
+  StatusCode onAddedClean(CoreContext* context) override;
+  void update(ComponentDirt value) override {}
+  void buildDependencies() override;
 
 #ifdef WITH_RIVE_LAYOUT
-    void applyPlacementStyle(YGStyle& style,
-                             const LayoutSyncContext& context) override;
+  void applyPlacementStyle(YGStyle& style, const LayoutSyncContext& context)
+      override;
 #endif
 
 protected:
-    void gridColumnChanged() override;
-    void gridRowChanged() override;
-    void gridColumnSpanChanged() override;
-    void gridRowSpanChanged() override;
+  void gridColumnChanged() override;
+  void gridRowChanged() override;
+  void gridColumnSpanChanged() override;
+  void gridRowSpanChanged() override;
 
 private:
-    void markOwnerDirty();
+  void markOwnerDirty();
 };
 } // namespace rive
 

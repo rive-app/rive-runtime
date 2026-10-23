@@ -10,16 +10,17 @@
 #define ONE_OVER_SQRT_2 0.70710678118 // 1/sqrt(2)
 
 #ifndef @RENDER_MODE_DEPTH_STENCIL
-#define AA_RADIUS float(.5)
+  #define AA_RADIUS float(.5)
 #else
-#define AA_RADIUS float(.0)
+  #define AA_RADIUS float(.0)
 #endif
 
 // Defined as a macro because 'uniforms' isn't always available at global scope.
 #define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
-    pixel_coord_to_clip_coord(COORD,                                           \
-                              uniforms.renderTargetInverseViewportX,           \
-                              uniforms.renderTargetInverseViewportY)
+  pixel_coord_to_clip_coord(                                                   \
+      COORD,                                                                   \
+      uniforms.renderTargetInverseViewportX,                                   \
+      uniforms.renderTargetInverseViewportY)
 
 // Gathers a 4xN matrix of texels, in the same order as the textureGather() API.
 // clang-format off
@@ -35,21 +36,23 @@
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 #define FEATHER(X)                                                             \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
-                                gaussianIntegralSampler,                       \
-                                X,                                             \
-                                FEATHER_FUNCTION_ARRAY_INDEX,                  \
-                                float(FEATHER_FUNCTION_ARRAY_INDEX),           \
-                                .0)                                            \
-        .r
+  TEXTURE_SAMPLE_LOD_1D_ARRAY(                                                 \
+      @gaussianIntegralTexture,                                                \
+      gaussianIntegralSampler,                                                 \
+      X,                                                                       \
+      FEATHER_FUNCTION_ARRAY_INDEX,                                            \
+      float(FEATHER_FUNCTION_ARRAY_INDEX),                                     \
+      .0)                                                                      \
+      .r
 #define INVERSE_FEATHER(X)                                                     \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
-                                gaussianIntegralSampler,                       \
-                                X,                                             \
-                                FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
-                                float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
-                                .0)                                            \
-        .r
+  TEXTURE_SAMPLE_LOD_1D_ARRAY(                                                 \
+      @gaussianIntegralTexture,                                                \
+      gaussianIntegralSampler,                                                 \
+      X,                                                                       \
+      FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,                                    \
+      float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),                             \
+      .0)                                                                      \
+      .r
 
 #ifdef GLSL
 // GLSL has different semantics around precision. Normalize type conversions
@@ -81,54 +84,54 @@ INLINE half2 make_half2(half2 xy) { return xy; }
 
 INLINE half2 make_half2(half x, half y)
 {
-    half2 ret;
-    ret.x = x, ret.y = y;
-    return ret;
+  half2 ret;
+  ret.x = x, ret.y = y;
+  return ret;
 }
 
 INLINE half2 make_half2(half x)
 {
-    half2 ret;
-    ret.x = x, ret.y = x;
-    return ret;
+  half2 ret;
+  ret.x = x, ret.y = x;
+  return ret;
 }
 
 INLINE float2 make_float2(float x) { return float2(x, x); }
 
 INLINE half3 make_half3(half x, half y, half z)
 {
-    half3 ret;
-    ret.x = x, ret.y = y, ret.z = z;
-    return ret;
+  half3 ret;
+  ret.x = x, ret.y = y, ret.z = z;
+  return ret;
 }
 
 INLINE half3 make_half3(half x)
 {
-    half3 ret;
-    ret.x = x, ret.y = x, ret.z = x;
-    return ret;
+  half3 ret;
+  ret.x = x, ret.y = x, ret.z = x;
+  return ret;
 }
 
 INLINE half4 make_half4(half x, half y, half z, half w)
 {
-    half4 ret;
-    ret.x = x, ret.y = y, ret.z = z, ret.w = w;
-    return ret;
+  half4 ret;
+  ret.x = x, ret.y = y, ret.z = z, ret.w = w;
+  return ret;
 }
 
 INLINE half4 make_half4(half3 xyz, half w)
 {
-    half4 ret;
-    ret.xyz = xyz;
-    ret.w = w;
-    return ret;
+  half4 ret;
+  ret.xyz = xyz;
+  ret.w = w;
+  return ret;
 }
 
 INLINE half4 make_half4(half x)
 {
-    half4 ret;
-    ret.x = x, ret.y = x, ret.z = x, ret.w = x;
-    return ret;
+  half4 ret;
+  ret.x = x, ret.y = x, ret.z = x, ret.w = x;
+  return ret;
 }
 
 INLINE half4 make_half4(half4 x) { return x; }
@@ -137,29 +140,29 @@ INLINE bool2 make_bool2(bool b) { return bool2(b, b); }
 
 INLINE half3x3 make_half3x3(half3 a, half3 b, half3 c)
 {
-    half3x3 ret;
-    ret[0] = a;
-    ret[1] = b;
-    ret[2] = c;
-    return ret;
+  half3x3 ret;
+  ret[0] = a;
+  ret[1] = b;
+  ret[2] = c;
+  return ret;
 }
 
 INLINE half2x3 make_half2x3(half3 a, half3 b)
 {
-    half2x3 ret;
-    ret[0] = a;
-    ret[1] = b;
-    return ret;
+  half2x3 ret;
+  ret[0] = a;
+  ret[1] = b;
+  return ret;
 }
 
 INLINE half4x4 make_half4x4(half4 a, half4 b, half4 c, half4 d)
 {
-    half4x4 ret;
-    ret[0] = a;
-    ret[1] = b;
-    ret[2] = c;
-    ret[3] = d;
-    return ret;
+  half4x4 ret;
+  ret[0] = a;
+  ret[1] = b;
+  ret[2] = c;
+  ret[3] = d;
+  return ret;
 }
 
 INLINE float2x2 make_float2x2(float4 x) { return float2x2(x.xy, x.zw); }
@@ -168,63 +171,62 @@ INLINE uint make_uint(ushort x) { return x; }
 
 INLINE float2 unchecked_mix(float2 a, float2 b, float t)
 {
-    return (b - a) * t + a;
+  return (b - a) * t + a;
 }
 
 INLINE half id_bits_to_f16(uint idBits, uint pathIDGranularity)
 {
-    return idBits == 0u
-               ? .0
-               : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity)
-                     .r;
+  return idBits == 0u
+             ? .0
+             : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity).r;
 }
 
 INLINE float atan2(float2 v)
 {
-    v = normalize(v);
-    float theta = acos(clamp(v.x, -1., 1.));
-    return v.y >= .0 ? theta : -theta;
+  v = normalize(v);
+  float theta = acos(clamp(v.x, -1., 1.));
+  return v.y >= .0 ? theta : -theta;
 }
 
 INLINE half4 premultiply(half4 color)
 {
-    return make_half4(color.rgb * color.a, color.a);
+  return make_half4(color.rgb * color.a, color.a);
 }
 
 INLINE half3 unmultiply_rgb(half4 premul)
 {
-    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
-    // also be approximate here. The blend modes that depend on this exact level
-    // of precision (colordodge and colorburn) account for it with dstPremul.
-    return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
+  // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
+  // also be approximate here. The blend modes that depend on this exact level
+  // of precision (colordodge and colorburn) account for it with dstPremul.
+  return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
 }
 
 INLINE half min_component(half2 min2) { return min(min2.x, min2.y); }
 
 INLINE half min_component(half3 min3)
 {
-    return min(min_component(min3.xy), min3.z);
+  return min(min_component(min3.xy), min3.z);
 }
 
 INLINE half min_component(half4 min4)
 {
-    half2 min2 = min(min4.xy, min4.zw);
-    half min1 = min(min2.x, min2.y);
-    return min1;
+  half2 min2 = min(min4.xy, min4.zw);
+  half min1 = min(min2.x, min2.y);
+  return min1;
 }
 
 INLINE half max_component(half2 max2) { return max(max2.x, max2.y); }
 
 INLINE half max_component(half3 max3)
 {
-    return max(max_component(max3.xy), max3.z);
+  return max(max_component(max3.xy), max3.z);
 }
 
 INLINE half max_component(half4 max4)
 {
-    half2 max2 = max(max4.xy, max4.zw);
-    half max1 = max(max2.x, max2.y);
-    return max1;
+  half2 max2 = max(max4.xy, max4.zw);
+  half max1 = max(max2.x, max2.y);
+  return max1;
 }
 
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
@@ -234,27 +236,27 @@ INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 INLINE half safe_clamp_for_mali(half x, half lo, half hi)
 {
 #if defined(@GL_RENDERER_MALI) || defined(@VULKAN_VENDOR_ARM)
-#ifdef @VULKAN_VENDOR_ARM
-    if (@VULKAN_VENDOR_ARM)
-#endif
-    {
-        if (x < hi)
-            if (x > lo)
-                return x;
-            else
-                return lo;
-        else
-            return hi;
-    }
+  #ifdef @VULKAN_VENDOR_ARM
+  if (@VULKAN_VENDOR_ARM)
+  #endif
+  {
+    if (x < hi)
+      if (x > lo)
+        return x;
+      else
+        return lo;
+    else
+      return hi;
+  }
 #endif // @GL_RENDERER_MALI || @VULKAN_VENDOR_ARM
-    return clamp(x, lo, hi);
+  return clamp(x, lo, hi);
 }
 
 INLINE half interleaved_gradient_noise(float2 fragCoord, half scale, half bias)
 {
-    half v1 = fract(0.06711056 * fragCoord.x + 0.00583715 * fragCoord.y);
-    half v2 = fract(52.9829189 * v1);
-    return (v2 * scale) + bias;
+  half v1 = fract(0.06711056 * fragCoord.x + 0.00583715 * fragCoord.y);
+  half v2 = fract(52.9829189 * v1);
+  return (v2 * scale) + bias;
 }
 
 #if 0
@@ -288,102 +290,104 @@ INLINE half bayer2x2f(float2 fragCoord, float scale, float bias)
 #ifdef @ENABLE_DITHER
 INLINE half get_dither(float2 fragCoord, half scale, half bias)
 {
-    return @ENABLE_DITHER ? interleaved_gradient_noise(fragCoord, scale, bias)
-                          : .0;
+  return @ENABLE_DITHER ? interleaved_gradient_noise(fragCoord, scale, bias)
+                        : .0;
 }
 
-INLINE half3 add_dither_if_alpha_nonzero(half3 color,
-                                         half alpha,
-                                         float2 fragCoord,
-                                         half scale,
-                                         half bias)
+INLINE half3 add_dither_if_alpha_nonzero(
+    half3 color,
+    half alpha,
+    float2 fragCoord,
+    half scale,
+    half bias)
 {
-    // Skip dither at alpha == 0, where src-over is an identity on an already
-    // quantized destination -- there is no rounding to randomize, and the noise
-    // would land in the framebuffer undiluted. It only varies with fragCoord,
-    // so that error accumulates with overdraw rather than averaging out.
-    return (@ENABLE_DITHER && alpha != .0)
-               ? (interleaved_gradient_noise(fragCoord, scale, bias) + color)
-               : color;
+  // Skip dither at alpha == 0, where src-over is an identity on an already
+  // quantized destination -- there is no rounding to randomize, and the noise
+  // would land in the framebuffer undiluted. It only varies with fragCoord,
+  // so that error accumulates with overdraw rather than averaging out.
+  return (@ENABLE_DITHER && alpha != .0)
+             ? (interleaved_gradient_noise(fragCoord, scale, bias) + color)
+             : color;
 }
 
-INLINE half3 add_dither_if_alpha_nonzero(half3 color,
-                                         half alpha,
-                                         half precomputedDither)
+INLINE half3
+add_dither_if_alpha_nonzero(half3 color, half alpha, half precomputedDither)
 {
-    // Skip dither at alpha == 0, where src-over is an identity on an already
-    // quantized destination -- there is no rounding to randomize, and the noise
-    // would land in the framebuffer undiluted. It only varies with fragCoord,
-    // so that error accumulates with overdraw rather than averaging out.
-    return (@ENABLE_DITHER && alpha != .0) ? (precomputedDither + color)
-                                           : color;
+  // Skip dither at alpha == 0, where src-over is an identity on an already
+  // quantized destination -- there is no rounding to randomize, and the noise
+  // would land in the framebuffer undiluted. It only varies with fragCoord,
+  // so that error accumulates with overdraw rather than averaging out.
+  return (@ENABLE_DITHER && alpha != .0) ? (precomputedDither + color) : color;
 }
 #else
 
 INLINE half get_dither(float2 fragCoord, float scale, float bias) { return 0.; }
 
-INLINE half3 add_dither_if_alpha_nonzero(half3 color,
-                                         half alpha,
-                                         float2 fragCoord,
-                                         half scale,
-                                         half bias)
+INLINE half3 add_dither_if_alpha_nonzero(
+    half3 color,
+    half alpha,
+    float2 fragCoord,
+    half scale,
+    half bias)
 {
-    return color;
+  return color;
 }
 
-INLINE half3 add_dither_if_alpha_nonzero(half3 color,
-                                         half alpha,
-                                         half precomputedDither)
+INLINE half3
+add_dither_if_alpha_nonzero(half3 color, half alpha, half precomputedDither)
 {
-    return color;
+  return color;
 }
 #endif
 
 #ifdef @VERTEX
 
-INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
-                                        float inverseViewportX,
-                                        float inverseViewportY)
+INLINE float4 pixel_coord_to_clip_coord(
+    float2 pixelCoord,
+    float inverseViewportX,
+    float inverseViewportY)
 {
-    return float4(pixelCoord.x * inverseViewportX - 1.,
-                  pixelCoord.y * inverseViewportY - sign(inverseViewportY),
-                  0.,
-                  1.);
+  return float4(
+      pixelCoord.x * inverseViewportX - 1.,
+      pixelCoord.y * inverseViewportY - sign(inverseViewportY),
+      0.,
+      1.);
 }
 
-#ifndef @RENDER_MODE_DEPTH_STENCIL
+  #ifndef @RENDER_MODE_DEPTH_STENCIL
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to
 // the point at each edge of the clipRect where coverage = 0.
 //
 // clipRectInverseMatrix transforms from pixel coordinates to a space where the
 // clipRect is the normalized rectangle: [-1, -1, 1, 1].
-INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
-                                                float2 clipRectInverseTranslate,
-                                                float2 pixelPosition)
+INLINE float4 find_clip_rect_coverage_distances(
+    float2x2 clipRectInverseMatrix,
+    float2 clipRectInverseTranslate,
+    float2 pixelPosition)
 {
-    float2 clipRectAAWidth =
-        abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
-    if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
-    {
-        float2 r = 1. / clipRectAAWidth;
-        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
-                               clipRectInverseTranslate;
-        // When the center of a pixel falls exactly on an edge, coverage should
-        // be .5.
-        const float coverageWhenDistanceIsZero = .5;
-        return float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy +
-               coverageWhenDistanceIsZero;
-    }
-    else
-    {
-        // The caller gave us a singular clipRectInverseMatrix. This is a
-        // special case where we are expected to use tx and ty as uniform
-        // coverage.
-        return clipRectInverseTranslate.xyxy;
-    }
+  float2 clipRectAAWidth = abs(clipRectInverseMatrix[0]) +
+                           abs(clipRectInverseMatrix[1]);
+  if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
+  {
+    float2 r = 1. / clipRectAAWidth;
+    float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
+                           clipRectInverseTranslate;
+    // When the center of a pixel falls exactly on an edge, coverage should
+    // be .5.
+    const float coverageWhenDistanceIsZero = .5;
+    return float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy +
+           coverageWhenDistanceIsZero;
+  }
+  else
+  {
+    // The caller gave us a singular clipRectInverseMatrix. This is a
+    // special case where we are expected to use tx and ty as uniform
+    // coverage.
+    return clipRectInverseTranslate.xyxy;
+  }
 }
 
-#else // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
+  #else // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
 
 // Rive's depth buffer is a packed 23-bit integer:
 //
@@ -420,58 +424,59 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
 // + 8 coverage).
 INLINE float packNormalizedDepth(uint zIndex15, uint coverage8)
 {
-    float depth = float((zIndex15 << DEPTH_COVERAGE_BIT_COUNT) | coverage8);
-#if defined(GLSL) && !defined(@TARGET_SPIRV)
-    // GL expects depth values normalized to -1..+1:
-    //
-    //   (depth + .5) * 2^-23 - 1
-    //
-    return depth * uintBitsToFloat(0x34000000u) + uintBitsToFloat(0xbf7fffffu);
-#else
-    // Everybody else expects depth values normalized to 0..1:
-    //
-    //   (depth + .5) * 2^-24
-    //
-    return depth * uintBitsToFloat(0x33800000u) + uintBitsToFloat(0x33000000u);
-#endif
+  float depth = float((zIndex15 << DEPTH_COVERAGE_BIT_COUNT) | coverage8);
+    #if defined(GLSL) && !defined(@TARGET_SPIRV)
+  // GL expects depth values normalized to -1..+1:
+  //
+  //   (depth + .5) * 2^-23 - 1
+  //
+  return depth * uintBitsToFloat(0x34000000u) + uintBitsToFloat(0xbf7fffffu);
+    #else
+  // Everybody else expects depth values normalized to 0..1:
+  //
+  //   (depth + .5) * 2^-24
+  //
+  return depth * uintBitsToFloat(0x33800000u) + uintBitsToFloat(0x33000000u);
+    #endif
 }
 
-#ifdef @ENABLE_CLIP_RECT
-INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
-                                          float2 clipRectInverseTranslate,
-                                          float2 pixelPosition
-                                              CLIP_CONTEXT_FORWARD)
+    #ifdef @ENABLE_CLIP_RECT
+INLINE void set_clip_rect_plane_distances(
+    float2x2 clipRectInverseMatrix,
+    float2 clipRectInverseTranslate,
+    float2 pixelPosition CLIP_CONTEXT_FORWARD)
 {
-// MSAA uses gl_ClipDistance when ENABLE_CLIP_RECT is set, but since SPIRV uses
-// specialization constants (as opposed to compile-time flags), it means that
-// the usage of them is in the compiled shader even if that codepath is not
-// going to be taken, which ends up as a validation failure on systems that do
-// not support that extension. In those cases, we compile separate SPIRV
-// binaries with gl_ClipDistance explicitly disabled.
-#ifndef @DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
-    if (any(notEqual(float4(clipRectInverseMatrix), float4(.0, .0, .0, .0))))
-    {
-        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
-                               clipRectInverseTranslate.xy;
-        gl_ClipDistance[0] = clipRectCoord.x + 1.;
-        gl_ClipDistance[1] = clipRectCoord.y + 1.;
-        gl_ClipDistance[2] = 1. - clipRectCoord.x;
-        gl_ClipDistance[3] = 1. - clipRectCoord.y;
-    }
-    else
-    {
-        // "clipRectInverseMatrix == 0" is a special case:
-        //     "clipRectInverseTranslate.x == 1" => all in.
-        //     "clipRectInverseTranslate.x == 0" => all out.
-        gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance[2] =
-            gl_ClipDistance[3] = clipRectInverseTranslate.x - .5;
-    }
-#endif // !@DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
+      // MSAA uses gl_ClipDistance when ENABLE_CLIP_RECT is set, but since SPIRV
+      // uses specialization constants (as opposed to compile-time flags), it
+      // means that the usage of them is in the compiled shader even if that
+      // codepath is not going to be taken, which ends up as a validation
+      // failure on systems that do not support that extension. In those cases,
+      // we compile separate SPIRV binaries with gl_ClipDistance explicitly
+      // disabled.
+      #ifndef @DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
+  if (any(notEqual(float4(clipRectInverseMatrix), float4(.0, .0, .0, .0))))
+  {
+    float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
+                           clipRectInverseTranslate.xy;
+    gl_ClipDistance[0] = clipRectCoord.x + 1.;
+    gl_ClipDistance[1] = clipRectCoord.y + 1.;
+    gl_ClipDistance[2] = 1. - clipRectCoord.x;
+    gl_ClipDistance[3] = 1. - clipRectCoord.y;
+  }
+  else
+  {
+    // "clipRectInverseMatrix == 0" is a special case:
+    //     "clipRectInverseTranslate.x == 1" => all in.
+    //     "clipRectInverseTranslate.x == 0" => all out.
+    gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance
+        [2] = gl_ClipDistance[3] = clipRectInverseTranslate.x - .5;
+  }
+      #endif // !@DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
 }
-#endif // ENABLE_CLIP_RECT
+    #endif   // ENABLE_CLIP_RECT
 
-#endif // @RENDER_MODE_DEPTH_STENCIL
-#endif // VERTEX
+  #endif // @RENDER_MODE_DEPTH_STENCIL
+#endif   // VERTEX
 
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
@@ -479,25 +484,32 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 // clang-format on
 INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 {
-    if (sampleMask == 0xf)
-    {
-        // Average together all samples for this fragment.
-        return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *
-               .25;
-    }
-    else
-    {
-        // Average together only the samples that are inside the sample mask.
-        half4 mask =
-            float4(notEqual(sampleMask & int4(1, 2, 4, 8), int4(0, 0, 0, 0)));
-        half4 ret = MUL(dstSamples, mask);
-        // Since the sample mask can only have 4 bits, counting them is faster
-        // this way on Galaxy S24 than calling bitCount().
-        int numSamples = (sampleMask & 5) + ((sampleMask >> 1) & 5);
-        numSamples = (numSamples & 3) + (numSamples >> 2);
-        ret *= 1. / float(numSamples);
-        return ret;
-    }
+  if (sampleMask == int(0xf))
+  {
+    // Average together all samples for this fragment.
+    return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *
+           .25;
+  }
+  else
+  {
+    // Average together only the samples that are inside the sample mask.
+    half4 mask = float4(
+        notEqual(sampleMask & int4(1, 2, 4, 8), int4(0, 0, 0, 0)));
+    half4 ret = MUL(dstSamples, mask);
+    // Since the sample mask can only have 4 bits, counting them is faster
+    // this way on Galaxy S24 than calling bitCount().
+    int numSamples = (sampleMask & 5) + ((sampleMask >> 1) & 5);
+    numSamples = (numSamples & 3) + (numSamples >> 2);
+    ret *= 1. / float(numSamples);
+    return ret;
+  }
 }
 #endif // @FRAGMENT && @RENDER_MODE_DEPTH_STENCIL &&
        // !@FIXED_FUNCTION_COLOR_OUTPUT
+
+#ifdef @FRAGMENT
+INLINE half4 blend_src_over(half4 srcPremul, half4 dstPremul)
+{
+  return srcPremul + dstPremul * (1. - srcPremul.a);
+}
+#endif // @FRAGMENT

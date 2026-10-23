@@ -13,9 +13,9 @@
 // An outer cubic's tessellation stride also covers its trailing zero-length
 // bowtie-join segment. (gpu::OuterCubicPatchSegmentSpanPlusBowtie.)
 #define OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE                             \
-    (OUTER_CUBIC_PATCH_SEGMENT_SPAN + 1u)
+  (OUTER_CUBIC_PATCH_SEGMENT_SPAN + 1u)
 
-// depthStencil fills use repeating index patterns instead of instancing.
+// depthStencil draws use repeating index patterns instead of instancing.
 // Per-patch vertex IDs are aligned on pow2 strides, specifically so the
 // shader can decode gl_VertexID without divides and mods. (Using integer
 // division costs 10% total framerate on PowerVR and 3% on Adreno.)
@@ -24,21 +24,39 @@
 // and the beginning of another.
 #define DS_MIDPOINT_FAN_STRIDE_LOG2 4
 #define DS_OUTER_CUBIC_STRIDE_LOG2 5
-#define DS_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC)                                   \
-    ((IS_OUTER_CUBIC) ? DS_OUTER_CUBIC_STRIDE_LOG2                             \
-                      : DS_MIDPOINT_FAN_STRIDE_LOG2)
-#define DS_PATCH_STRIDE(IS_OUTER_CUBIC)                                        \
-    (1 << DS_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
-#define DS_MIDPOINT_VERTEX_ID (int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN) + 1)
+#define DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC)                              \
+  ((IS_OUTER_CUBIC) ? DS_OUTER_CUBIC_STRIDE_LOG2 : DS_MIDPOINT_FAN_STRIDE_LOG2)
+#define DS_FILL_PATCH_STRIDE(IS_OUTER_CUBIC)                                   \
+  (1 << DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
+#define DS_STROKE_STRIDE_LOG2 5
+#define DS_AA_STROKE_STRIDE_LOG2 6
+#define DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE)                              \
+  ((IS_AA_STROKE) ? DS_AA_STROKE_STRIDE_LOG2 : DS_STROKE_STRIDE_LOG2)
+#define DS_STROKE_PATCH_STRIDE(IS_AA_STROKE)                                   \
+  (1 << DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE))
+// Normal strokes are a single triangle strip with 2 lanes of vertices (top,
+// bottom).
+// AA strokes have an AA band on top and bottom, making 4 lanes of vertices and
+// 3 bands of triangle strips (top AA ramp, body, bottom AA ramp).
+#define DS_STROKE_LANES_PER_SPOKE_LOG2(IS_AA_STROKE) ((IS_AA_STROKE) ? 2 : 1)
 
-// depthStencil fills encode some attributes as flags on gl_VertexID, in order
+// One vertex of the midpointFan pattern is reserved for the contour's midpoint
+// rather than tessellation points.
+#define DS_MIDPOINT_VERTEX_IDX (int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN) + 1)
+
+// depthStencil draws encode some attributes as flags on gl_VertexID, in order
 // to avoid input attribs.
 // NOTE: vertexIDs are 16-bit in the index buffer, but they get offset per draw
 // into the tessellation texture. So these flags have to live above the entire
-// tessellation range. Hence a shift of 29 and not 16.
-#define VERTEX_FLAGS_SHIFT 29
-#define VERTEX_FLAG_DISABLE_COLOR_WRITE (1 << VERTEX_FLAGS_SHIFT)
-#define VERTEX_FLAG_OUTER_CUBIC (1 << (VERTEX_FLAGS_SHIFT + 1))
+// tessellation range. Hence a shift of 28 and not 16.
+#define VERTEX_FLAGS_SHIFT 28
+#define VERTEX_FLAG_DISABLE_COLOR_WRITE (0x1 << VERTEX_FLAGS_SHIFT)
+#define VERTEX_FLAG_OUTER_CUBIC_FILL (0x2 << VERTEX_FLAGS_SHIFT)
+// Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
+#define VERTEX_FLAG_AA_POLAR_STROKE VERTEX_FLAG_OUTER_CUBIC_FILL
+// depthAAstrokes render in two passes: a depth-only pass followed by color.
+// We select the pass by vertex flags rather than pipeline state.
+#define VERTEX_FLAG_STROKE_DEPTH_PASS (0x4 << VERTEX_FLAGS_SHIFT)
 
 #define GRAD_TEXTURE_WIDTH float(512)
 #define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
@@ -62,7 +80,7 @@
 // Amount to increase "joinSegmentCount" in a feather join so the number of
 // literal vertices allocated increases by FEATHER_JOIN_HELPER_VERTEX_COUNT.
 #define FEATHER_JOIN_HELPER_SEGMENT_COUNT                                      \
-    (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
+  (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
 
 // Feather joins are split into a backward and forward section. Both sections
 // need at least one segment, thus a minimum of 2 (plus helper vertices).
@@ -91,8 +109,8 @@
 #define GRAD_SPAN_FLAG_RIGHT_BORDER 0x40000000u
 #define GRAD_SPAN_FLAG_COMPLEX_BORDER 0x20000000u
 #define GRAD_SPAN_FLAGS_MASK                                                   \
-    (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                \
-     GRAD_SPAN_FLAG_COMPLEX_BORDER)
+  (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                  \
+   GRAD_SPAN_FLAG_COMPLEX_BORDER)
 
 // Tells shaders that a cubic should actually be drawn as a non-AA triangle
 // strip of up to 5 points: [p0, p1, p3, p2, joinTangent]. This is used to
@@ -113,10 +131,11 @@
 
 // Flags for specifying the join type.
 #define JOIN_TYPE_MASK (7u << 26u)
-#define MITER_CLIP_JOIN_CONTOUR_FLAG (5u << 26u)
-#define MITER_REVERT_JOIN_CONTOUR_FLAG (4u << 26u)
-#define BEVEL_JOIN_CONTOUR_FLAG (3u << 26u)
-#define ROUND_JOIN_CONTOUR_FLAG (2u << 26u)
+#define MITER_CLIP_JOIN_CONTOUR_FLAG (6u << 26u)
+#define MITER_REVERT_JOIN_CONTOUR_FLAG (5u << 26u)
+#define BEVEL_JOIN_CONTOUR_FLAG (4u << 26u)
+#define ROUND_JOIN_CONTOUR_FLAG (3u << 26u)
+#define CUSP_JOIN_CONTOUR_FLAG (2u << 26u)
 #define FEATHER_JOIN_CONTOUR_FLAG (1u << 26u)
 
 // When a join is being used to emulate a stroke cap, the shader emits
@@ -157,6 +176,7 @@
 #define SOLID_COLOR_PAINT_TYPE 1u
 #define LINEAR_GRADIENT_PAINT_TYPE 2u
 #define RADIAL_GRADIENT_PAINT_TYPE 3u
+#define ANGULAR_GRADIENT_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
 #define PAINT_FLAG_NON_ZERO_FILL 0x100u
@@ -250,7 +270,7 @@
 
 #define IMAGE_COMMON_LAST_ATTRIB_IDX 8
 #define IMAGE_COMMON_ATTRIB_COUNT                                              \
-    (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 #define IMAGE_RECT_IMAGE_MATRIX_ATTRIB_IDX 9
 #define IMAGE_RECT_GRADIENT_MATRIX_ATTRIB_IDX 10
@@ -258,12 +278,12 @@
 #define IMAGE_RECT_PACKED_GRADIENT_DATA 12
 #define IMAGE_RECT_LAST_ATTRIB_IDX IMAGE_RECT_PACKED_GRADIENT_DATA
 #define IMAGE_RECT_ATTRIB_COUNT                                                \
-    (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 #define IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX 9
 #define IMAGE_MESH_LAST_ATTRIB_IDX IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX
 #define IMAGE_MESH_ATTRIB_COUNT                                                \
-    (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 // depthStencil mode attaches different resources to the framebuffer than PLS
 // planes.
@@ -359,18 +379,21 @@
 #define CLIP_RECT_SPECIALIZATION_IDX 1
 #define ADVANCED_BLEND_SPECIALIZATION_IDX 2
 #define FEATHER_SPECIALIZATION_IDX 3
-#define EVEN_ODD_SPECIALIZATION_IDX 4
-#define NESTED_CLIPPING_SPECIALIZATION_IDX 5
-#define HSL_BLEND_MODES_SPECIALIZATION_IDX 6
-#define DITHER_SPECIALIZATION_IDX 7
-#define MODULATED_IMAGE_SPECIALIZATION_IDX 8
-#define CLOCKWISE_FILL_SPECIALIZATION_IDX 9
-#define NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX 10
-#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 11
-#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 12
-#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 13
-#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 14
-#define SPECIALIZATION_COUNT 15
+#define MODULATED_IMAGE_SPECIALIZATION_IDX 4
+#define EVEN_ODD_SPECIALIZATION_IDX 5
+#define NESTED_CLIPPING_SPECIALIZATION_IDX 6
+#define HSL_BLEND_MODES_SPECIALIZATION_IDX 7
+#define DITHER_SPECIALIZATION_IDX 8
+#define ANGULAR_GRADIENT_SPECIALIZATION_IDX 9
+#define CLOCKWISE_FILL_SPECIALIZATION_IDX 10
+#define NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX 11
+#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 12
+#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 13
+#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 14
+#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 15
+#define DS_POLAR_STROKE_SPECIALIZATION_IDX 16
+#define DS_HAIRLINE_STROKE_SPECIALIZATION_IDX 17
+#define SPECIALIZATION_COUNT 18
 
 // When rendering to an r32i feather atlas, use 16:16 fixed point.
 #define ATLAS_R32I_FIXED_POINT_FACTOR 65536.
@@ -392,7 +415,7 @@
 #define PAINT_AUX_ENTRY_ELEMENT_COUNT 8u
 
 #ifdef __cplusplus
-#if __cplusplus >= 201703
+  #if __cplusplus >= 201703
 static_assert(BUFFER_IMAGE_TILE_SIZE == 1u << BUFFER_IMAGE_TILE_SIZE_LOG2);
-#endif
+  #endif
 #endif

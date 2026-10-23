@@ -15,24 +15,24 @@ class EffectsContainer
 {
 
 public:
-    static EffectsContainer* from(Component* component);
-    virtual void addStrokeEffect(StrokeEffect* effect);
-    virtual void invalidateEffects(StrokeEffect* invalidatingEffect);
-    virtual void invalidateEffects();
-    ShapePaintPath* lastEffectPath(PathProvider*);
-    bool hasEffects() const { return !m_effects.empty(); }
+  static EffectsContainer* from(Component* component);
+  virtual void addStrokeEffect(StrokeEffect* effect);
+  virtual void invalidateEffects(StrokeEffect* invalidatingEffect);
+  virtual void invalidateEffects();
+  ShapePaintPath* lastEffectPath(PathProvider*);
+  bool hasEffects() const { return !m_effects.empty(); }
 #ifdef TESTING
-    StrokeEffect* effect()
-    {
-        return m_effects.size() > 0 ? m_effects.back() : nullptr;
-    }
+  StrokeEffect* effect()
+  {
+    return m_effects.size() > 0 ? m_effects.back() : nullptr;
+  }
 #endif
 
 protected:
-    std::vector<StrokeEffect*>* effects() { return &m_effects; }
+  std::vector<StrokeEffect*>* effects() { return &m_effects; }
 
 private:
-    std::vector<StrokeEffect*> m_effects;
+  std::vector<StrokeEffect*> m_effects;
 };
 } // namespace rive
 #endif

@@ -5,6 +5,7 @@
 
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/refcnt.hpp"
 
 #include <cstdint>
 
@@ -52,49 +53,65 @@ constexpr uint32_t kMaxDim = 2048;
 // plans once and reuses the result for all of them.
 struct RasterPlan
 {
-    // The renderer's transform when the plan was made (local -> device). The
-    // raster size is chosen from it, which is why it has to be read while
-    // recording rather than at replay.
-    Mat2D ctm;
-    bool haveCtm = false;
-    // The opacity accumulated by an enclosing modulateOpacity() scope. Only
-    // needed on the fresh-renderer composite path, which inherits no state.
-    float modulatedOpacity = 1.0f;
-    bool haveOpacity = false;
-    // The local-space box being rasterized. Not necessarily [0,0,w,h].
-    AABB box;
-    // Texels per local unit actually used for the raster.
-    float rasterScale = 1.0f;
-    uint32_t widthPx = 0;
-    uint32_t heightPx = 0;
+  // The renderer's transform when the plan was made (local -> device). The
+  // raster size is chosen from it, which is why it has to be read while
+  // recording rather than at replay.
+  Mat2D ctm;
+  bool haveCtm = false;
+  // The opacity accumulated by an enclosing modulateOpacity() scope. Only
+  // needed on the fresh-renderer composite path, which inherits no state.
+  float modulatedOpacity = 1.0f;
+  bool haveOpacity = false;
+  // The local-space box being rasterized. Not necessarily [0,0,w,h].
+  AABB box;
+  // Texels per local unit actually used for the raster.
+  float rasterScale = 1.0f;
+  uint32_t widthPx = 0;
+  uint32_t heightPx = 0;
 
-    bool valid() const { return widthPx != 0 && heightPx != 0; }
+  bool valid() const { return widthPx != 0 && heightPx != 0; }
 };
 
 // How fitRasterToBox turns a local box into raster geometry.
 enum class RasterFit : uint8_t
 {
-    // widthPx = ceil(box * scale), box passed through untouched. What every
-    // caller did before layer masks needed anything else, and still the right
-    // answer whenever the box is stable across frames (an artboard's own
-    // bounds, say) so re-allocation is not a concern.
-    exact,
+  // widthPx = ceil(box * scale), box passed through untouched. What every
+  // caller did before layer masks needed anything else, and still the right
+  // answer whenever the box is stable across frames (an artboard's own
+  // bounds, say) so re-allocation is not a concern.
+  exact,
 
-    // For a box derived from content, which moves and resizes every frame:
-    // snap the origin to the raster's own texel grid, add a transparent guard
-    // band, and round the size up to a bucket. Grows `box` to span exactly the
-    // chosen pixel size, so the composite's inverse stays pixel exact.
-    stableGrid,
+  // For a box derived from content, which moves and resizes every frame:
+  // snap the origin to the raster's own texel grid, add a transparent guard
+  // band, and round the size up to a bucket. Grows `box` to span exactly the
+  // chosen pixel size, so the composite's inverse stays pixel exact.
+  stableGrid,
 };
 
 // Chooses a raster size for `box` at `resolution` quality, reading the current
 // transform and modulated opacity off `renderer`. Returns false (leaving *out
 // untouched) for a degenerate box or a non-finite/zero scale, in which case the
 // caller should draw normally instead.
-bool planRaster(Renderer* renderer,
-                const AABB& box,
-                float resolution,
-                RasterPlan* out);
+bool planRaster(
+    Renderer* renderer,
+    const AABB& box,
+    float resolution,
+    RasterPlan* out);
+
+// planRaster sized like an exported image: resolution x displayScale() texels
+// per unit, independent of zoom and mount scale.
+bool planFixedRaster(
+    Renderer* renderer,
+    const AABB& box,
+    float resolution,
+    RasterPlan* out);
+
+// planFixedRaster's size, without a renderer (mesh UVs before first draw).
+bool planFixedRasterSize(const AABB& box, float resolution, RasterPlan* out);
+
+// Display pixel ratio for fixed rasters; the host reports it, default 1.
+void setDisplayScale(float scale);
+float displayScale();
 
 // The box-independent half of planRaster: reads the CTM and the modulated
 // opacity off `renderer` and works out how many texels per local unit this
@@ -109,10 +126,11 @@ bool planRasterScale(Renderer* renderer, float resolution, RasterPlan* out);
 // io->rasterScale), then sets io->box / widthPx / heightPx per `fit`.
 // `guardTexels` is only meaningful for stableGrid, and must be 0 for exact.
 // Returns false for a degenerate box or a scale the cap drove to zero.
-bool fitRasterToBox(const AABB& box,
-                    uint32_t guardTexels,
-                    RasterFit fit,
-                    RasterPlan* io);
+bool fitRasterToBox(
+    const AABB& box,
+    uint32_t guardTexels,
+    RasterFit fit,
+    RasterPlan* io);
 
 // Keeps using an allocation at least (widthPx, heightPx), for a caller whose
 // content shrank but which does not want to re-allocate yet. Grows io->box
@@ -134,11 +152,11 @@ uint32_t bucketedRasterDim(uint32_t n);
 // through a size will otherwise re-allocate every frame.
 struct RasterResize
 {
-    // True when the caller has to mint new canvases at widthPx x heightPx. The
-    // caller must also mark its raster dirty: new textures hold nothing.
-    bool reallocate = false;
-    uint32_t widthPx = 0;
-    uint32_t heightPx = 0;
+  // True when the caller has to mint new canvases at widthPx x heightPx. The
+  // caller must also mark its raster dirty: new textures hold nothing.
+  bool reallocate = false;
+  uint32_t widthPx = 0;
+  uint32_t heightPx = 0;
 };
 
 // Consecutive decisions that wanted to shrink before one is acted on. 30 draws
@@ -150,11 +168,12 @@ constexpr uint8_t kShrinkDraws = 30;
 // `needW`/`needH` are what the content wants right now (pre-bucketing),
 // `haveW`/`haveH` what is already allocated (0 for nothing yet). `streak` is
 // owned by the caller, one per cached raster, and this updates it.
-RasterResize decideRasterResize(uint32_t needW,
-                                uint32_t needH,
-                                uint32_t haveW,
-                                uint32_t haveH,
-                                uint8_t* streak);
+RasterResize decideRasterResize(
+    uint32_t needW,
+    uint32_t needH,
+    uint32_t haveW,
+    uint32_t haveH,
+    uint8_t* streak);
 
 // Opens a content bracket on `canvas` and hands back a renderer already
 // transformed so that drawing in local coordinates lands in the canvas at
@@ -167,32 +186,33 @@ RasterResize decideRasterResize(uint32_t needW,
 class CanvasContentScope
 {
 public:
-    CanvasContentScope(cmd::DeferredCanvasHost* host,
-                       gpu::RenderCanvas* canvas,
-                       const RasterPlan& plan,
-                       uint32_t clearColor = 0);
-    ~CanvasContentScope();
+  CanvasContentScope(
+      cmd::DeferredCanvasHost* host,
+      gpu::RenderCanvas* canvas,
+      const RasterPlan& plan,
+      uint32_t clearColor = 0);
+  ~CanvasContentScope();
 
-    CanvasContentScope(const CanvasContentScope&) = delete;
-    CanvasContentScope& operator=(const CanvasContentScope&) = delete;
+  CanvasContentScope(const CanvasContentScope&) = delete;
+  CanvasContentScope& operator=(const CanvasContentScope&) = delete;
 
-    Renderer* renderer() const { return m_renderer; }
+  Renderer* renderer() const { return m_renderer; }
 
 private:
-    cmd::DeferredCanvasHost* m_host;
-    gpu::RenderCanvas* m_canvas;
-    Renderer* m_renderer;
+  cmd::DeferredCanvasHost* m_host;
+  gpu::RenderCanvas* m_canvas;
+  Renderer* m_renderer;
 };
 
 // Which renderer a composite should be issued through, and the opacity it has
 // to supply itself.
 struct CompositePlacement
 {
-    // Never null: falls back to the renderer that was passed in.
-    Renderer* renderer = nullptr;
-    // Stays 1 on the in-place path, where the interrupted renderer still
-    // carries its own modulated opacity and folds it into the draw.
-    float opacity = 1.0f;
+  // Never null: falls back to the renderer that was passed in.
+  Renderer* renderer = nullptr;
+  // Stays 1 on the in-place path, where the interrupted renderer still
+  // carries its own modulated opacity and folds it into the draw.
+  float opacity = 1.0f;
 };
 
 // Places a composite of an already-rasterized canvas: picks the renderer,
@@ -210,17 +230,47 @@ struct CompositePlacement
 // were rasterized for, which is not plan.box when the plan was re-fitted this
 // frame but the pixels were not re-rastered. Defaults to plan.box, which is
 // correct for any caller whose box does not move.
-CompositePlacement beginComposite(Renderer* renderer,
-                                  cmd::DeferredCanvasHost* host,
-                                  const RasterPlan& plan,
-                                  float compositedRasterScale);
-CompositePlacement beginComposite(Renderer* renderer,
-                                  cmd::DeferredCanvasHost* host,
-                                  const RasterPlan& plan,
-                                  float compositedRasterScale,
-                                  const AABB& compositedBox);
+CompositePlacement beginComposite(
+    Renderer* renderer,
+    cmd::DeferredCanvasHost* host,
+    const RasterPlan& plan,
+    float compositedRasterScale);
+CompositePlacement beginComposite(
+    Renderer* renderer,
+    cmd::DeferredCanvasHost* host,
+    const RasterPlan& plan,
+    float compositedRasterScale,
+    const AABB& compositedBox);
 
 void endComposite(const CompositePlacement& placement);
+
+// beginComposite without mapping onto a box, for callers that place the image
+// themselves (a mesh). Pair with endComposite.
+CompositePlacement beginPlacement(
+    Renderer* renderer,
+    cmd::DeferredCanvasHost* host,
+    const RasterPlan& plan);
+
+// Ctor/dtor out of line: RenderCanvas is incomplete here.
+struct CachedRaster
+{
+  CachedRaster();
+  ~CachedRaster();
+  CachedRaster(const CachedRaster&) = delete;
+  CachedRaster& operator=(const CachedRaster&) = delete;
+
+  void release();
+
+  rcp<gpu::RenderCanvas> canvas;
+  uint32_t widthPx = 0;
+  uint32_t heightPx = 0;
+  // Texels per unit actually drawn with; the composite inverts it.
+  float rasterScale = 1.0f;
+  AABB box;
+  // The artboard content revision this raster holds.
+  uint64_t contentRevision = 0;
+  bool dirty = true;
+};
 
 } // namespace offscreen
 } // namespace rive

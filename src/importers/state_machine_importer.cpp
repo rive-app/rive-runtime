@@ -7,41 +7,48 @@
 
 using namespace rive;
 
-StateMachineImporter::StateMachineImporter(StateMachine* machine) :
-    m_StateMachine(machine)
+StateMachineImporter::StateMachineImporter(StateMachine* machine)
+    : m_StateMachine(machine)
 {}
 
 void StateMachineImporter::addLayer(std::unique_ptr<StateMachineLayer> layer)
 {
-    m_StateMachine->addLayer(std::move(layer));
+  m_StateMachine->addLayer(std::move(layer));
 }
 
 void StateMachineImporter::addInput(std::unique_ptr<StateMachineInput> input)
 {
-    m_StateMachine->addInput(std::move(input));
+  m_StateMachine->addInput(std::move(input));
 }
 
 void StateMachineImporter::addListener(
     std::unique_ptr<StateMachineListener> listener)
 {
-    m_StateMachine->addListener(std::move(listener));
+  m_StateMachine->addListener(std::move(listener));
 }
 
 void StateMachineImporter::addDataBind(std::unique_ptr<DataBind> dataBind)
 {
-    m_StateMachine->addDataBind(std::move(dataBind));
+  m_StateMachine->addDataBind(std::move(dataBind));
 }
 
 bool StateMachineImporter::readNullObject()
 {
-    // Hard assumption that we won't add new layer types...
-    m_StateMachine->addInput(nullptr);
-    return true;
+  // Hard assumption that we won't add new layer types...
+  m_StateMachine->addInput(nullptr);
+  return true;
 }
 
 void StateMachineImporter::addScriptedObject(ScriptedObject* object)
 {
-    m_StateMachine->addScriptedObject(object);
+  m_StateMachine->addScriptedObject(object);
 }
 
-StatusCode StateMachineImporter::resolve() { return StatusCode::Ok; }
+StatusCode StateMachineImporter::resolve()
+{
+  // StateMachineInstance counts its layers in 16 bits; a machine with more
+  // can't be played as authored, so it fails the import rather than lose
+  // layers.
+  return m_StateMachine->layerCount() > UINT16_MAX ? StatusCode::InvalidObject
+                                                   : StatusCode::Ok;
+}

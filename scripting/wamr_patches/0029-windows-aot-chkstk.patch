@@ -1,0 +1,62 @@
+--- a/core/iwasm/aot/arch/aot_reloc_x86_64.c
++++ b/core/iwasm/aot/arch/aot_reloc_x86_64.c
+@@ -29,11 +29,19 @@
+ #pragma function(ceil)
+ #pragma function(floorf)
+ #pragma function(ceilf)
++
++/* LLVM probes frames past a page through it, since Windows commits thread
++   stacks one guard page at a time. */
++void
++__chkstk(void);
+ #endif
+ 
+ /* clang-format off */
+ static SymbolMap target_sym_map[] = {
+     REG_COMMON_SYMBOLS
++#if defined(BH_PLATFORM_WINDOWS)
++    REG_SYM(__chkstk),
++#endif
+ };
+ /* clang-format on */
+ 
+@@ -61,7 +69,11 @@
+ get_plt_item_size(void)
+ {
+     /* size of mov instruction and jmp instruction */
++#if defined(BH_PLATFORM_WINDOWS)
++    return 13;
++#else
+     return 12;
++#endif
+ }
+ 
+ uint32
+@@ -80,6 +92,19 @@
+ 
+     for (i = 0; i < num; i++) {
+         p = plt;
++#if defined(BH_PLATFORM_WINDOWS)
++        /* __chkstk takes its size in rax, so jump through r11, which the
++           Windows ABI leaves free across calls. */
++        /* mov symbol_addr, r11 */
++        *p++ = 0x49;
++        *p++ = 0xBB;
++        *(uint64 *)p = (uint64)(uintptr_t)target_sym_map[i].symbol_addr;
++        p += sizeof(uint64);
++        /* jmp r11 */
++        *p++ = 0x41;
++        *p++ = 0xFF;
++        *p++ = 0xE3;
++#else
+         /* mov symbol_addr, rax */
+         *p++ = 0x48;
+         *p++ = 0xB8;
+@@ -88,6 +113,7 @@
+         /* jmp rax */
+         *p++ = 0xFF;
+         *p++ = 0xE0;
++#endif
+         plt += get_plt_item_size();
+     }
+ }

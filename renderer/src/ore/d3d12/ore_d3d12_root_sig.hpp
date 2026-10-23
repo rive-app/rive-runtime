@@ -45,57 +45,58 @@ constexpr uint32_t kD3D12MaxGroups = kMaxBindGroups;
 // `D3D12GroupRootParams` shape (counts + min global slot per kind).
 // HLSL SM5 has a merged VS/PS register namespace, so the global slot
 // can come from either stage's nativeSlot field.
-inline void tallyGroupFromLayoutDesc(const BindGroupLayoutDesc& desc,
-                                     D3D12GroupRootParams* out)
+inline void tallyGroupFromLayoutDesc(
+    const BindGroupLayoutDesc& desc,
+    D3D12GroupRootParams* out)
 {
-    *out = D3D12GroupRootParams{};
-    uint8_t cbvMin = 0xFF, srvMin = 0xFF, uavMin = 0xFF, sampMin = 0xFF;
+  *out = D3D12GroupRootParams{};
+  uint8_t cbvMin = 0xFF, srvMin = 0xFF, uavMin = 0xFF, sampMin = 0xFF;
 
-    for (uint32_t i = 0; i < desc.entryCount; ++i)
+  for (uint32_t i = 0; i < desc.entryCount; ++i)
+  {
+    const BindGroupLayoutEntry& e = desc.entries[i];
+    // Pick a non-absent native slot (VS preferred).
+    uint32_t slot32 = (e.nativeSlotVS !=
+                       BindGroupLayoutEntry::kNativeSlotAbsent)
+                          ? e.nativeSlotVS
+                          : e.nativeSlotFS;
+    if (slot32 == BindGroupLayoutEntry::kNativeSlotAbsent)
+      continue;
+    uint8_t slot = static_cast<uint8_t>(slot32);
+
+    switch (e.kind)
     {
-        const BindGroupLayoutEntry& e = desc.entries[i];
-        // Pick a non-absent native slot (VS preferred).
-        uint32_t slot32 =
-            (e.nativeSlotVS != BindGroupLayoutEntry::kNativeSlotAbsent)
-                ? e.nativeSlotVS
-                : e.nativeSlotFS;
-        if (slot32 == BindGroupLayoutEntry::kNativeSlotAbsent)
-            continue;
-        uint8_t slot = static_cast<uint8_t>(slot32);
-
-        switch (e.kind)
-        {
-            case BindingKind::uniformBuffer:
-                out->cbvCount++;
-                if (slot < cbvMin)
-                    cbvMin = slot;
-                break;
-            case BindingKind::sampledTexture:
-            case BindingKind::storageBufferRO:
-                out->srvCount++;
-                if (slot < srvMin)
-                    srvMin = slot;
-                break;
-            case BindingKind::storageBufferRW:
-            case BindingKind::storageTexture:
-                out->uavCount++;
-                if (slot < uavMin)
-                    uavMin = slot;
-                break;
-            case BindingKind::sampler:
-            case BindingKind::comparisonSampler:
-                out->samplerCount++;
-                if (slot < sampMin)
-                    sampMin = slot;
-                break;
-        }
+      case BindingKind::uniformBuffer:
+        out->cbvCount++;
+        if (slot < cbvMin)
+          cbvMin = slot;
+        break;
+      case BindingKind::sampledTexture:
+      case BindingKind::storageBufferRO:
+        out->srvCount++;
+        if (slot < srvMin)
+          srvMin = slot;
+        break;
+      case BindingKind::storageBufferRW:
+      case BindingKind::storageTexture:
+        out->uavCount++;
+        if (slot < uavMin)
+          uavMin = slot;
+        break;
+      case BindingKind::sampler:
+      case BindingKind::comparisonSampler:
+        out->samplerCount++;
+        if (slot < sampMin)
+          sampMin = slot;
+        break;
     }
-    out->cbvBaseGlobalSlot = (cbvMin == 0xFF) ? 0 : cbvMin;
-    out->srvBaseGlobalSlot = (srvMin == 0xFF) ? 0 : srvMin;
-    out->uavBaseGlobalSlot = (uavMin == 0xFF) ? 0 : uavMin;
-    out->samplerBaseGlobalSlot = (sampMin == 0xFF) ? 0 : sampMin;
-    out->cbvSrvUavRootParamIdx = -1;
-    out->samplerRootParamIdx = -1;
+  }
+  out->cbvBaseGlobalSlot = (cbvMin == 0xFF) ? 0 : cbvMin;
+  out->srvBaseGlobalSlot = (srvMin == 0xFF) ? 0 : srvMin;
+  out->uavBaseGlobalSlot = (uavMin == 0xFF) ? 0 : uavMin;
+  out->samplerBaseGlobalSlot = (sampMin == 0xFF) ? 0 : sampMin;
+  out->cbvSrvUavRootParamIdx = -1;
+  out->samplerRootParamIdx = -1;
 }
 
 // Build a per-pipeline `ID3D12RootSignature` from user-supplied
@@ -110,142 +111,144 @@ inline Microsoft::WRL::ComPtr<ID3D12RootSignature> buildPerPipelineRootSig(
     HRESULT* outHr = nullptr,
     const char** outErrMsg = nullptr)
 {
-    // ── Step 1: build root parameters + ranges from layouts ──
-    constexpr uint32_t kMaxParams = 2 * kD3D12MaxGroups;
-    D3D12_ROOT_PARAMETER rootParams[kMaxParams]{};
-    D3D12_DESCRIPTOR_RANGE ranges[kMaxParams * 3]{};
-    uint32_t paramCount = 0;
-    uint32_t rangeCount = 0;
+  // ── Step 1: build root parameters + ranges from layouts ──
+  constexpr uint32_t kMaxParams = 2 * kD3D12MaxGroups;
+  D3D12_ROOT_PARAMETER rootParams[kMaxParams]{};
+  D3D12_DESCRIPTOR_RANGE ranges[kMaxParams * 3]{};
+  uint32_t paramCount = 0;
+  uint32_t rangeCount = 0;
 
-    for (uint32_t g = 0; g < kD3D12MaxGroups; ++g)
+  for (uint32_t g = 0; g < kD3D12MaxGroups; ++g)
+  {
+    // Default-initialize this group's pipeline-side params.
+    groupOut[g] = D3D12GroupRootParams{};
+
+    // Skip groups with no layout supplied.
+    if (g >= layoutCount || layouts == nullptr || layouts[g] == nullptr)
+      continue;
+
+    auto layout = lite_rtti_cast<BindGroupLayoutD3D12*>(layouts[g]);
+    assert(layout && "BindGroupLayout must be a BindGroupLayoutD3D12");
+    const D3D12GroupRootParams& src = layout->d3dGroupParams();
+    D3D12GroupRootParams& out = groupOut[g];
+
+    // Mirror counts + base global slots from the layout. Indices get
+    // assigned below based on insertion order in the root sig.
+    out.cbvCount = src.cbvCount;
+    out.srvCount = src.srvCount;
+    out.uavCount = src.uavCount;
+    out.samplerCount = src.samplerCount;
+    out.cbvBaseGlobalSlot = src.cbvBaseGlobalSlot;
+    out.srvBaseGlobalSlot = src.srvBaseGlobalSlot;
+    out.uavBaseGlobalSlot = src.uavBaseGlobalSlot;
+    out.samplerBaseGlobalSlot = src.samplerBaseGlobalSlot;
+
+    // Merged CBV / SRV / UAV table for this group.
+    if (src.cbvCount || src.srvCount || src.uavCount)
     {
-        // Default-initialize this group's pipeline-side params.
-        groupOut[g] = D3D12GroupRootParams{};
+      out.cbvSrvUavRootParamIdx = static_cast<int8_t>(paramCount);
 
-        // Skip groups with no layout supplied.
-        if (g >= layoutCount || layouts == nullptr || layouts[g] == nullptr)
-            continue;
+      uint32_t firstRange = rangeCount;
+      uint32_t numRanges = 0;
+      if (src.cbvCount)
+      {
+        D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
+        r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+        r.NumDescriptors = src.cbvCount;
+        r.BaseShaderRegister = src.cbvBaseGlobalSlot;
+        r.RegisterSpace = 0;
+        r.OffsetInDescriptorsFromTableStart =
+            D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        ++numRanges;
+      }
+      if (src.srvCount)
+      {
+        D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
+        r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        r.NumDescriptors = src.srvCount;
+        r.BaseShaderRegister = src.srvBaseGlobalSlot;
+        r.RegisterSpace = 0;
+        r.OffsetInDescriptorsFromTableStart =
+            D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        ++numRanges;
+      }
+      if (src.uavCount)
+      {
+        D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
+        r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        r.NumDescriptors = src.uavCount;
+        r.BaseShaderRegister = src.uavBaseGlobalSlot;
+        r.RegisterSpace = 0;
+        r.OffsetInDescriptorsFromTableStart =
+            D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        ++numRanges;
+      }
 
-        auto layout = lite_rtti_cast<BindGroupLayoutD3D12*>(layouts[g]);
-        assert(layout && "BindGroupLayout must be a BindGroupLayoutD3D12");
-        const D3D12GroupRootParams& src = layout->d3dGroupParams();
-        D3D12GroupRootParams& out = groupOut[g];
-
-        // Mirror counts + base global slots from the layout. Indices get
-        // assigned below based on insertion order in the root sig.
-        out.cbvCount = src.cbvCount;
-        out.srvCount = src.srvCount;
-        out.uavCount = src.uavCount;
-        out.samplerCount = src.samplerCount;
-        out.cbvBaseGlobalSlot = src.cbvBaseGlobalSlot;
-        out.srvBaseGlobalSlot = src.srvBaseGlobalSlot;
-        out.uavBaseGlobalSlot = src.uavBaseGlobalSlot;
-        out.samplerBaseGlobalSlot = src.samplerBaseGlobalSlot;
-
-        // Merged CBV / SRV / UAV table for this group.
-        if (src.cbvCount || src.srvCount || src.uavCount)
-        {
-            out.cbvSrvUavRootParamIdx = static_cast<int8_t>(paramCount);
-
-            uint32_t firstRange = rangeCount;
-            uint32_t numRanges = 0;
-            if (src.cbvCount)
-            {
-                D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
-                r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-                r.NumDescriptors = src.cbvCount;
-                r.BaseShaderRegister = src.cbvBaseGlobalSlot;
-                r.RegisterSpace = 0;
-                r.OffsetInDescriptorsFromTableStart =
-                    D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                ++numRanges;
-            }
-            if (src.srvCount)
-            {
-                D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
-                r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-                r.NumDescriptors = src.srvCount;
-                r.BaseShaderRegister = src.srvBaseGlobalSlot;
-                r.RegisterSpace = 0;
-                r.OffsetInDescriptorsFromTableStart =
-                    D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                ++numRanges;
-            }
-            if (src.uavCount)
-            {
-                D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
-                r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-                r.NumDescriptors = src.uavCount;
-                r.BaseShaderRegister = src.uavBaseGlobalSlot;
-                r.RegisterSpace = 0;
-                r.OffsetInDescriptorsFromTableStart =
-                    D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-                ++numRanges;
-            }
-
-            D3D12_ROOT_PARAMETER& p = rootParams[paramCount++];
-            p.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            p.DescriptorTable.NumDescriptorRanges = numRanges;
-            p.DescriptorTable.pDescriptorRanges = &ranges[firstRange];
-            p.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        }
-
-        // Sampler table for this group (separate heap type).
-        if (src.samplerCount)
-        {
-            out.samplerRootParamIdx = static_cast<int8_t>(paramCount);
-
-            D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
-            r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-            r.NumDescriptors = src.samplerCount;
-            r.BaseShaderRegister = src.samplerBaseGlobalSlot;
-            r.RegisterSpace = 0;
-            r.OffsetInDescriptorsFromTableStart = 0;
-
-            D3D12_ROOT_PARAMETER& p = rootParams[paramCount++];
-            p.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            p.DescriptorTable.NumDescriptorRanges = 1;
-            p.DescriptorTable.pDescriptorRanges = &r;
-            p.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        }
+      D3D12_ROOT_PARAMETER& p = rootParams[paramCount++];
+      p.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      p.DescriptorTable.NumDescriptorRanges = numRanges;
+      p.DescriptorTable.pDescriptorRanges = &ranges[firstRange];
+      p.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
 
-    // ── Step 3: serialize + create ──
-    D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
-    rsDesc.NumParameters = paramCount;
-    rsDesc.pParameters = paramCount > 0 ? rootParams : nullptr;
-    rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-    Microsoft::WRL::ComPtr<ID3DBlob> sigBlob, errBlob;
-    HRESULT hr = D3D12SerializeRootSignature(&rsDesc,
-                                             D3D_ROOT_SIGNATURE_VERSION_1,
-                                             sigBlob.GetAddressOf(),
-                                             errBlob.GetAddressOf());
-    if (FAILED(hr))
+    // Sampler table for this group (separate heap type).
+    if (src.samplerCount)
     {
-        if (outHr)
-            *outHr = hr;
-        if (outErrMsg)
-            *outErrMsg =
-                errBlob ? static_cast<const char*>(errBlob->GetBufferPointer())
-                        : "D3D12SerializeRootSignature failed";
-        return nullptr;
-    }
+      out.samplerRootParamIdx = static_cast<int8_t>(paramCount);
 
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
-    hr = device->CreateRootSignature(0,
-                                     sigBlob->GetBufferPointer(),
-                                     sigBlob->GetBufferSize(),
-                                     IID_PPV_ARGS(rootSig.GetAddressOf()));
-    if (FAILED(hr))
-    {
-        if (outHr)
-            *outHr = hr;
-        if (outErrMsg)
-            *outErrMsg = "CreateRootSignature failed";
-        return nullptr;
+      D3D12_DESCRIPTOR_RANGE& r = ranges[rangeCount++];
+      r.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+      r.NumDescriptors = src.samplerCount;
+      r.BaseShaderRegister = src.samplerBaseGlobalSlot;
+      r.RegisterSpace = 0;
+      r.OffsetInDescriptorsFromTableStart = 0;
+
+      D3D12_ROOT_PARAMETER& p = rootParams[paramCount++];
+      p.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      p.DescriptorTable.NumDescriptorRanges = 1;
+      p.DescriptorTable.pDescriptorRanges = &r;
+      p.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
-    return rootSig;
+  }
+
+  // ── Step 3: serialize + create ──
+  D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+  rsDesc.NumParameters = paramCount;
+  rsDesc.pParameters = paramCount > 0 ? rootParams : nullptr;
+  rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+  Microsoft::WRL::ComPtr<ID3DBlob> sigBlob, errBlob;
+  HRESULT hr = D3D12SerializeRootSignature(
+      &rsDesc,
+      D3D_ROOT_SIGNATURE_VERSION_1,
+      sigBlob.GetAddressOf(),
+      errBlob.GetAddressOf());
+  if (FAILED(hr))
+  {
+    if (outHr)
+      *outHr = hr;
+    if (outErrMsg)
+      *outErrMsg = errBlob
+                       ? static_cast<const char*>(errBlob->GetBufferPointer())
+                       : "D3D12SerializeRootSignature failed";
+    return nullptr;
+  }
+
+  Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
+  hr = device->CreateRootSignature(
+      0,
+      sigBlob->GetBufferPointer(),
+      sigBlob->GetBufferSize(),
+      IID_PPV_ARGS(rootSig.GetAddressOf()));
+  if (FAILED(hr))
+  {
+    if (outHr)
+      *outHr = hr;
+    if (outErrMsg)
+      *outErrMsg = "CreateRootSignature failed";
+    return nullptr;
+  }
+  return rootSig;
 }
 
 } // namespace rive::ore

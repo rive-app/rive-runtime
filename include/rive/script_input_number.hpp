@@ -9,22 +9,26 @@ namespace rive
 class ScriptInputNumber : public ScriptInputNumberBase, public ScriptInput
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ~ScriptInputNumber();
-    void initScriptedValue() override
+  ~ScriptInputNumber();
+  void initScriptedValue() override
+  {
+    ScriptInput::initScriptedValue();
+    auto obj = scriptedObject();
+    if (obj)
     {
-        ScriptInput::initScriptedValue();
-        auto obj = scriptedObject();
-        if (obj)
-        {
-            obj->setNumberInput(name(), propertyValue());
-        }
+      obj->setNumberInput(name(), propertyValue());
     }
-    StatusCode onAddedClean(CoreContext* context) override;
-    bool validateForScriptInit() override { return true; }
-    StatusCode import(ImportStack& importStack) override;
+  }
+  StatusCode onAddedClean(CoreContext* context) override;
+  bool validateForScriptInit() override { return true; }
+  StatusCode import(ImportStack& importStack) override;
+  bool claimsArtboardSlot(ImportStack& importStack) const override
+  {
+    return ScriptInput::takesArtboardSlot(this);
+  }
 };
 } // namespace rive
 

@@ -22,222 +22,241 @@ using namespace rive;
 
 ScriptedObject* ScriptedObject::from(Core* object)
 {
-    switch (object->coreType())
-    {
-        case ScriptedDataConverter::typeKey:
-            return object->as<ScriptedDataConverter>();
-        case ScriptedDrawable::typeKey:
-            return object->as<ScriptedDrawable>();
-        case ScriptedLayout::typeKey:
-            return object->as<ScriptedLayout>();
-        case ScriptedTransition::typeKey:
-            return object->as<ScriptedTransition>();
-        case ScriptedPathEffect::typeKey:
-            return object->as<ScriptedPathEffect>();
-        case ScriptedListenerAction::typeKey:
-            return object->as<ScriptedListenerAction>();
-        case ScriptedTransitionCondition::typeKey:
-            return object->as<ScriptedTransitionCondition>();
-        case ScriptedInterpolator::typeKey:
-            return object->as<ScriptedInterpolator>();
-    }
-    return nullptr;
+  switch (object->coreType())
+  {
+    case ScriptedDataConverter::typeKey:
+      return object->as<ScriptedDataConverter>();
+    case ScriptedDrawable::typeKey:
+      return object->as<ScriptedDrawable>();
+    case ScriptedLayout::typeKey:
+      return object->as<ScriptedLayout>();
+    case ScriptedTransition::typeKey:
+      return object->as<ScriptedTransition>();
+    case ScriptedPathEffect::typeKey:
+      return object->as<ScriptedPathEffect>();
+    case ScriptedListenerAction::typeKey:
+      return object->as<ScriptedListenerAction>();
+    case ScriptedTransitionCondition::typeKey:
+      return object->as<ScriptedTransitionCondition>();
+    case ScriptedInterpolator::typeKey:
+      return object->as<ScriptedInterpolator>();
+  }
+  return nullptr;
 }
 
 #ifdef WITH_RIVE_SCRIPTING
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
 {
-    if (m_vm == nullptr || !m_vm->valid() || scriptAsset() == nullptr)
-    {
-        return;
-    }
-    m_vm->setInputArtboard(m_self, name.c_str(), this, artboard);
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid() || scriptAsset() == nullptr)
+  {
+    return;
+  }
+  // The input is an instance of the artboard, and initializing it sets the
+  // Artboard inputs of its own scripts, nested ones included. An artboard
+  // that leads back to itself that way would recurse until the stack
+  // overflows, so leave the input unset where it repeats.
+  static thread_local std::vector<const Artboard*> instancing;
+  const Artboard* source = artboard->artboardSource();
+  if (std::find(instancing.begin(), instancing.end(), source) !=
+      instancing.end())
+  {
+    return;
+  }
+  // Popped on unwind too: Luau raises errors as exceptions.
+  struct Instancing
+  {
+    Instancing(const Artboard* source) { instancing.push_back(source); }
+    ~Instancing() { instancing.pop_back(); }
+  } scope(source);
+  m_vm->setInputArtboard(m_self, name.c_str(), this, artboard);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setBooleanInput(std::string name, bool value)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->setInputBoolean(m_self, name.c_str(), value);
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputBoolean(m_self, name.c_str(), value);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setNumberInput(std::string name, float value)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->setInputNumber(m_self, name.c_str(), value);
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputNumber(m_self, name.c_str(), value);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setIntegerInput(std::string name, int value)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->setInputUnsigned(m_self, name.c_str(), value);
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputUnsigned(m_self, name.c_str(), value);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setStringInput(std::string name, std::string value)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->setInputString(m_self, name.c_str(), value.c_str());
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputString(m_self, name.c_str(), value.c_str());
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
-void ScriptedObject::setViewModelInput(std::string name,
-                                       ViewModelInstanceValue* value)
+void ScriptedObject::setViewModelInput(
+    std::string name,
+    ViewModelInstanceValue* value)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->setInputViewModel(m_self, name.c_str(), value);
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputViewModel(m_self, name.c_str(), value);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::trigger(std::string name)
 {
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->callTrigger(this, m_self, name.c_str());
-    addScriptedDirt(ComponentDirt::ScriptUpdate);
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->callTrigger(this, m_self, name.c_str());
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 {
-    if (!advances() || m_vm == nullptr || !m_vm->valid())
-    {
-        return false;
-    }
-    return m_vm->callAdvance(this, m_self, elapsedSeconds);
+  if (!advances() || m_vm == nullptr || !m_vm->valid())
+  {
+    return false;
+  }
+  return m_vm->callAdvance(this, m_self, elapsedSeconds);
 }
 
 void ScriptedObject::scriptUpdate()
 {
-    if (!updates() || m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->callUpdate(this, m_self);
+  if (!updates() || m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->callUpdate(this, m_self);
 }
 
 bool ScriptedObject::tryUserInit()
 {
-    switch (m_vm->callUserInit(this, m_self, m_context))
-    {
-        case ScriptBackend::InitResult::notImplemented:
-        case ScriptBackend::InitResult::succeeded:
-            return true;
-        case ScriptBackend::InitResult::failed:
-            break;
-    }
-    m_vm->releaseRef(m_self);
-    disposeScriptedContext();
-    m_vm->unregisterScriptedObject(this);
-    m_vm = nullptr;
-    m_self = 0;
-    return false;
+  switch (m_vm->callUserInit(this, m_self, m_context))
+  {
+    case ScriptBackend::InitResult::notImplemented:
+    case ScriptBackend::InitResult::succeeded:
+      return true;
+    case ScriptBackend::InitResult::failed:
+      break;
+  }
+  m_vm->releaseRef(m_self);
+  disposeScriptedContext();
+  m_vm->unregisterScriptedObject(this);
+  m_vm = nullptr;
+  m_self = 0;
+  return false;
 }
 
-bool ScriptedObject::ensureScriptInitialized(ScriptBackend* vm,
-                                             int generatorRef)
+bool ScriptedObject::ensureScriptInitialized(
+    ScriptBackend* vm,
+    int generatorRef)
 {
-    if (vm == nullptr || !vm->valid())
-    {
-        return false;
-    }
-    if (m_self != 0 && m_vm == vm)
-    {
-        return true;
-    }
-    if (m_vm != nullptr)
-    {
-        if (m_self != 0)
-        {
-            m_vm->releaseRef(m_self);
-            m_self = 0;
-        }
-
-        disposeTrackedProperties();
-        disposeScriptedContext();
-        m_vm->unregisterScriptedObject(this);
-    }
-    m_userLuaInitDone = false;
-
-    for (auto prop : m_customProperties)
-    {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput && !scriptInput->validateForColdScriptInit())
-        {
-            return false;
-        }
-    }
-
-    // m_vm is assigned only after a successful instantiate, so the failure
-    // path leaves the object fully detached.
-    m_self = vm->instantiate(generatorRef, this, &m_context, &m_contextPtr);
-    if (m_self == 0)
-    {
-        m_context = 0;
-        m_contextPtr = nullptr;
-        return false;
-    }
-    m_vm = vm;
-    vm->registerScriptedObject(this);
+  if (vm == nullptr || !vm->valid())
+  {
+    return false;
+  }
+  if (m_self != 0 && m_vm == vm)
+  {
     return true;
+  }
+  if (m_vm != nullptr)
+  {
+    if (m_self != 0)
+    {
+      m_vm->releaseRef(m_self);
+      m_self = 0;
+    }
+
+    disposeTrackedProperties();
+    disposeScriptedContext();
+    m_vm->unregisterScriptedObject(this);
+  }
+  m_userLuaInitDone = false;
+
+  for (auto prop : m_customProperties)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput && !scriptInput->validateForColdScriptInit())
+    {
+      return false;
+    }
+  }
+
+  // m_vm is assigned only after a successful instantiate, so the failure
+  // path leaves the object fully detached.
+  m_self = vm->instantiate(generatorRef, this, &m_context, &m_contextPtr);
+  if (m_self == 0)
+  {
+    m_context = 0;
+    m_contextPtr = nullptr;
+    return false;
+  }
+  m_vm = vm;
+  vm->registerScriptedObject(this);
+  return true;
 }
 
 bool ScriptedObject::hydrateScriptInputs()
 {
-    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
+  if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
+  {
+    return false;
+  }
+  // First validate that all properties are hydratable.
+  // This ensures we don't partially hydrate props and early out on the next
+  // step
+  for (auto prop : m_customProperties)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr &&
+        !scriptInput->validateHydrationPrerequisites())
     {
-        return false;
+      return false;
     }
-    // First validate that all properties are hydratable.
-    // This ensures we don't partially hydrate props and early out on the next
-    // step
-    for (auto prop : m_customProperties)
+  }
+  // Next hydrate all properties
+  for (auto prop : m_customProperties)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr && !scriptInput->hydrateScriptInput())
     {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr &&
-            !scriptInput->validateHydrationPrerequisites())
-        {
-            return false;
-        }
+      return false;
     }
-    // Next hydrate all properties
-    for (auto prop : m_customProperties)
+  }
+  // Finally initialize the script if it hasn't been initialized before.
+  if (inits() && !m_userLuaInitDone)
+  {
+    if (!tryUserInit())
     {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr && !scriptInput->hydrateScriptInput())
-        {
-            return false;
-        }
+      return false;
     }
-    // Finally initialize the script if it hasn't been initialized before.
-    if (inits() && !m_userLuaInitDone)
-    {
-        if (!tryUserInit())
-        {
-            return false;
-        }
-        m_userLuaInitDone = true;
-    }
-    didHydrateScriptInputs();
-    return true;
+    m_userLuaInitDone = true;
+  }
+  didHydrateScriptInputs();
+  return true;
 }
 
 void ScriptedObject::disposeTrackedProperties()
@@ -245,54 +264,54 @@ void ScriptedObject::disposeTrackedProperties()
 // Tracked properties only exist on the Luau backend; the wasm module keeps
 // its property wrappers module side.
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    auto trackedProperties = m_trackedScriptedProperties;
-    for (auto* property : trackedProperties)
+  auto trackedProperties = m_trackedScriptedProperties;
+  for (auto* property : trackedProperties)
+  {
+    if (property != nullptr)
     {
-        if (property != nullptr)
-        {
-            property->dispose();
-        }
+      property->dispose();
     }
+  }
 #endif
 }
 
 void ScriptedObject::disposeScriptedContext()
 {
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    if (m_contextPtr != nullptr)
-    {
-        m_contextPtr->clearScriptedObject();
-        m_contextPtr = nullptr;
-    }
+  if (m_contextPtr != nullptr)
+  {
+    m_contextPtr->clearScriptedObject();
+    m_contextPtr = nullptr;
+  }
 #endif
-    if (m_context != 0)
+  if (m_context != 0)
+  {
+    if (m_vm != nullptr && m_vm->valid())
     {
-        if (m_vm != nullptr && m_vm->valid())
-        {
-            m_vm->releaseRef(m_context);
-        }
-        m_context = 0;
+      m_vm->releaseRef(m_context);
     }
+    m_context = 0;
+  }
 }
 
 void ScriptedObject::scriptDispose()
 {
-    disposeScriptInputs();
-    disposeTrackedProperties();
-    m_trackedScriptedProperties.clear();
+  disposeScriptInputs();
+  disposeTrackedProperties();
+  m_trackedScriptedProperties.clear();
 
-    if (m_vm != nullptr && m_vm->valid())
-    {
-        m_vm->releaseRef(m_self);
-        disposeScriptedContext();
-    }
-    if (m_vm != nullptr)
-    {
-        m_vm->unregisterScriptedObject(this);
-        m_vm = nullptr;
-    }
-    m_self = 0;
-    m_userLuaInitDone = false;
+  if (m_vm != nullptr && m_vm->valid())
+  {
+    m_vm->releaseRef(m_self);
+    disposeScriptedContext();
+  }
+  if (m_vm != nullptr)
+  {
+    m_vm->unregisterScriptedObject(this);
+    m_vm = nullptr;
+  }
+  m_self = 0;
+  m_userLuaInitDone = false;
 }
 #else
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard) {}
@@ -305,8 +324,9 @@ void ScriptedObject::setNumberInput(std::string name, float value) {}
 
 void ScriptedObject::setStringInput(std::string name, std::string value) {}
 
-void ScriptedObject::setViewModelInput(std::string name,
-                                       ViewModelInstanceValue* value)
+void ScriptedObject::setViewModelInput(
+    std::string name,
+    ViewModelInstanceValue* value)
 {}
 
 void ScriptedObject::trigger(std::string name) {}
@@ -323,73 +343,75 @@ void ScriptedObject::scriptDispose() { disposeScriptInputs(); }
 // Shared by both scripting flavors.
 void ScriptedObject::disposeScriptInputs()
 {
-    for (auto prop : m_customProperties)
+  for (auto prop : m_customProperties)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
     {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(nullptr);
-        }
+      scriptInput->scriptedObject(nullptr);
     }
-    m_customProperties.clear();
+  }
+  m_customProperties.clear();
 }
 
 void ScriptedObject::reinit()
 {
-    if (scriptAsset() != nullptr)
-    {
-        scriptAsset()->initScriptedObject(this);
+  if (scriptAsset() != nullptr)
+  {
+    scriptAsset()->initScriptedObject(this);
 #ifdef WITH_RIVE_SCRIPTING
-        hydrateScriptInputs();
-        didReinit();
+    hydrateScriptInputs();
+    didReinit();
 #endif
-    }
+  }
 }
 
 ScriptAsset* ScriptedObject::scriptAsset() const
 {
-    return (ScriptAsset*)m_fileAsset.get();
+  return (ScriptAsset*)m_fileAsset.get();
 }
 
 void ScriptedObject::setAsset(rcp<FileAsset> asset)
 {
-    if (asset != nullptr && asset->is<ScriptAsset>())
-    {
-        FileAssetReferencer::setAsset(asset);
-    }
+  if (asset != nullptr && asset->is<ScriptAsset>())
+  {
+    FileAssetReferencer::setAsset(asset);
+  }
 }
 
 void ScriptedObject::markNeedsUpdate() {}
 
-void ScriptedObject::cloneProperties(CustomPropertyContainer* twin,
-                                     DataBindContainer* dataBindContainer) const
+void ScriptedObject::cloneProperties(
+    CustomPropertyContainer* twin,
+    DataBindContainer* dataBindContainer) const
 {
 
-    for (auto prop : m_customProperties)
+  for (auto prop : m_customProperties)
+  {
+    auto clonedValue = prop->clone()->as<CustomProperty>();
+    twin->addProperty(clonedValue);
+    auto input = ScriptInput::from(prop);
+    if (input != nullptr)
     {
-        auto clonedValue = prop->clone()->as<CustomProperty>();
-        twin->addProperty(clonedValue);
-        auto input = ScriptInput::from(prop);
-        if (input != nullptr)
+      auto dataBind = input->dataBind();
+      if (dataBind)
+      {
+        auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+        dataBindClone->file(dataBind->file());
+        if (dataBind->converter() != nullptr)
         {
-            auto dataBind = input->dataBind();
-            if (dataBind)
-            {
-                auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
-                dataBindClone->file(dataBind->file());
-                if (dataBind->converter() != nullptr)
-                {
-                    dataBindClone->converter(
-                        dataBind->converter()->clone()->as<DataConverter>());
-                }
-                dataBindClone->target(clonedValue);
-                dataBindContainer->addDataBind(dataBindClone);
-                if (auto* clonedInput = ScriptInput::from(clonedValue))
-                {
-                    clonedInput->dataBind(dataBindClone,
-                                          /*ownsDataBind=*/false);
-                }
-            }
+          dataBindClone->converter(
+              dataBind->converter()->clone()->as<DataConverter>());
         }
+        dataBindClone->target(clonedValue);
+        dataBindContainer->addDataBind(dataBindClone);
+        if (auto* clonedInput = ScriptInput::from(clonedValue))
+        {
+          clonedInput->dataBind(
+              dataBindClone,
+              /*ownsDataBind=*/false);
+        }
+      }
     }
+  }
 }

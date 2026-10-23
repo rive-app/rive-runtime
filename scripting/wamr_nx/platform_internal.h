@@ -54,12 +54,12 @@ extern "C"
 
 #define BH_THREAD_DEFAULT_PRIORITY 0
 
-    typedef pthread_t korp_tid;
-    typedef pthread_mutex_t korp_mutex;
-    typedef pthread_cond_t korp_cond;
-    typedef pthread_t korp_thread;
-    typedef pthread_rwlock_t korp_rwlock;
-    typedef sem_t korp_sem;
+  typedef pthread_t korp_tid;
+  typedef pthread_mutex_t korp_mutex;
+  typedef pthread_cond_t korp_cond;
+  typedef pthread_t korp_thread;
+  typedef pthread_rwlock_t korp_rwlock;
+  typedef sem_t korp_sem;
 
 #define OS_THREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 
@@ -67,19 +67,19 @@ extern "C"
 
 #define bh_socket_t int
 
-    // OS_ENABLE_HW_BOUND_CHECK stays undefined: nnSdk exports no signal API, so
-    // the trap based bounds checks cannot be serviced. Artifacts must be built
-    // with software bounds checks.
+  // OS_ENABLE_HW_BOUND_CHECK stays undefined: nnSdk exports no signal API, so
+  // the trap based bounds checks cannot be serviced. Artifacts must be built
+  // with software bounds checks.
 
-    // nnSdk has no getpagesize; nx_platform.cpp defines both this and the libc
-    // spelling that WAMR's shared posix thread code calls directly.
-    int os_getpagesize(void);
+  // nnSdk has no getpagesize; nx_platform.cpp defines both this and the libc
+  // spelling that WAMR's shared posix thread code calls directly.
+  int os_getpagesize(void);
 
-    typedef int os_file_handle;
-    typedef DIR* os_dir_stream;
-    typedef int os_raw_file_handle;
+  typedef int os_file_handle;
+  typedef DIR* os_dir_stream;
+  typedef int os_raw_file_handle;
 
-    static inline os_file_handle os_get_invalid_handle(void) { return -1; }
+  static inline os_file_handle os_get_invalid_handle(void) { return -1; }
 
 #ifdef __cplusplus
 }

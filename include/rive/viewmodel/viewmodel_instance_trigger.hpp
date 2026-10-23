@@ -8,30 +8,33 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceTrigger;
-typedef void (*ViewModelTriggerChanged)(ViewModelInstanceTrigger* vmi,
-                                        uint32_t value);
+typedef void (
+    *ViewModelTriggerChanged)(ViewModelInstanceTrigger* vmi, uint32_t value);
 #endif
 class ViewModelInstanceTrigger : public ViewModelInstanceTriggerBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    void advanced() override;
+  // Its count only goes up, by one per fire, and nothing resets it.
+  // Consumers see a fire as a change: transitions through the value's change
+  // sequence (see ViewModelInstanceValue::changeSequence), listeners
+  // through its dirt.
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelTriggerChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelTriggerChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelTriggerChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelTriggerChanged m_changedCallback = nullptr;
 #endif
 
-    void fire(const CallbackData& value) override
-    {
-        propertyValue(propertyValue() + 1);
-    }
-    void trigger() { propertyValue(propertyValue() + 1); }
-    void applyValue(DataValueInteger*);
+  void fire(const CallbackData& value) override
+  {
+    propertyValue(propertyValue() + 1);
+  }
+  void trigger() { propertyValue(propertyValue() + 1); }
+  void applyValue(DataValueInteger*);
 };
 } // namespace rive
 

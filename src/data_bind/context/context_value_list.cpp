@@ -5,27 +5,29 @@
 
 using namespace rive;
 
-DataBindContextValueList::DataBindContextValueList(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueList::DataBindContextValueList(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueList::apply(Core* target,
-                                     uint32_t propertyKey,
-                                     bool isMainDirection,
-                                     DataBind* dataBind)
+void DataBindContextValueList::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value = calculateValue<DataValueList,
-                                std::vector<rcp<ViewModelInstanceListItem>>*>(
-        m_dataValue,
-        isMainDirection,
-        dataBind);
-    if (target != nullptr)
+  syncSourceValue(dataBind);
+  auto value = calculateValue<
+      DataValueList,
+      std::vector<rcp<ViewModelInstanceListItem>>*>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  if (target != nullptr)
+  {
+    auto consumer = DataBindListItemConsumer::from(target);
+    if (consumer != nullptr)
     {
-        auto consumer = DataBindListItemConsumer::from(target);
-        if (consumer != nullptr)
-        {
-            consumer->updateList(value);
-        }
+      consumer->updateList(value);
     }
+  }
 }

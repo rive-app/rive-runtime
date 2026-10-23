@@ -13,12 +13,12 @@ class ViewModelInstanceNumberRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceNumberRuntime(ViewModelInstanceNumber* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    float value() const;
-    void value(float);
-    const DataType dataType() override { return DataType::number; }
+  ViewModelInstanceNumberRuntime(ViewModelInstanceNumber* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  float value() const;
+  void value(float);
+  const DataType dataType() override { return DataType::number; }
 };
 } // namespace rive
 #endif

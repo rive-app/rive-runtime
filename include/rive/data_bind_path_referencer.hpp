@@ -8,15 +8,15 @@ class File;
 class DataBindPathReferencer
 {
 public:
-    ~DataBindPathReferencer();
-    DataBindPath* dataBindPath() const { return m_dataBindPath; }
+  ~DataBindPathReferencer();
+  DataBindPath* dataBindPath() const { return m_dataBindPath; }
 
-    void copyDataBindPath(DataBindPath* dataBindPath);
-    void importDataBindPath(ImportStack& importStack);
-    void decodeDataBindPath(Span<const uint8_t>& value);
+  void copyDataBindPath(DataBindPath* dataBindPath);
+  void importDataBindPath(ImportStack& importStack);
+  void decodeDataBindPath(Span<const uint8_t>& value);
 
 protected:
-    DataBindPath* m_dataBindPath = nullptr;
+  DataBindPath* m_dataBindPath = nullptr;
 };
 } // namespace rive
 

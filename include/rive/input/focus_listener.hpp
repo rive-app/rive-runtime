@@ -9,13 +9,13 @@ namespace rive
 class FocusListener
 {
 public:
-    virtual ~FocusListener() = default;
+  virtual ~FocusListener() = default;
 
-    /// Called when the associated FocusData gains focus.
-    virtual void onFocused() = 0;
+  /// Called when the associated FocusData gains focus.
+  virtual void onFocused() = 0;
 
-    /// Called when the associated FocusData loses focus.
-    virtual void onBlurred() = 0;
+  /// Called when the associated FocusData loses focus.
+  virtual void onBlurred() = 0;
 };
 
 } // namespace rive

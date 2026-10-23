@@ -11,10 +11,11 @@ class BlendStateDirectInstance
     : public BlendStateInstance<BlendStateDirect, BlendAnimationDirect>
 {
 public:
-    BlendStateDirectInstance(const BlendStateDirect* blendState,
-                             ArtboardInstance* instance);
-    void advance(float seconds,
-                 StateMachineInstance* stateMachineInstance) override;
+  BlendStateDirectInstance(
+      const BlendStateDirect* blendState,
+      ArtboardInstance* instance);
+  void advance(float seconds, StateMachineInstance* stateMachineInstance)
+      override;
 };
 } // namespace rive
 #endif

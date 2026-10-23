@@ -25,12 +25,13 @@
 //   RIVE_ASTC_DECODER  --  astc (any block size)
 //   RIVE_BC_DECODER    --  bc1 / bc2 / bc3 / bc7
 //   RIVE_ETC_DECODER   --  etc2 (RGB8 and RGBA8)
-std::unique_ptr<Bitmap> decode_texture(const uint8_t* blocks,
-                                       size_t byteCount,
-                                       uint32_t width,
-                                       uint32_t height,
-                                       rive::GPUTextureFormat format,
-                                       uint32_t blockWidth = 1,
-                                       uint32_t blockHeight = 1);
+std::unique_ptr<Bitmap> decode_texture(
+    const uint8_t* blocks,
+    size_t byteCount,
+    uint32_t width,
+    uint32_t height,
+    rive::GPUTextureFormat format,
+    uint32_t blockWidth = 1,
+    uint32_t blockHeight = 1);
 
 #endif

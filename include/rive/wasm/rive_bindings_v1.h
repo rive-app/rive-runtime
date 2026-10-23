@@ -83,18 +83,6 @@ typedef struct rive_gpu_texture_view_desc_v1
     uint32_t layerCount;
 } rive_gpu_texture_view_desc_v1;
 
-typedef struct rive_gpu_shader_module_desc_v1
-{
-    uint32_t language;
-    uint32_t stage;
-    uint32_t codeSize;
-    uint32_t hlslSourceSize;
-    uint32_t hlslEntryPointSize;
-    uint32_t bindingMapSize;
-    uint32_t glFixupSize;
-    uint32_t shaderAssetId;
-} rive_gpu_shader_module_desc_v1;
-
 typedef struct rive_gpu_bind_group_layout_entry_v1
 {
     uint32_t binding;
@@ -180,6 +168,7 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t stencilLoadOp;
     uint32_t stencilStoreOp;
     uint32_t stencilClearValue;
+    uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
 
 typedef struct rive_gpu_pipeline_desc_v1
@@ -222,6 +211,12 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "mark_needs_update")
 void rive_rt_mark_needs_update(uint32_t object);
 RIVE_BINDING_IMPORT("rive_rt_v1", "budget_exceeded")
 void rive_rt_budget_exceeded(uint32_t ms);
+RIVE_BINDING_IMPORT("rive_rt_v1", "error")
+void rive_rt_error(const char* message, uint32_t length);
+RIVE_BINDING_IMPORT("rive_rt_v1", "now")
+double rive_rt_now(void);
+RIVE_BINDING_IMPORT("rive_rt_v1", "date_now")
+double rive_rt_date_now(void);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_enter")
 void rive_rt_debug_enter(uint32_t func, uint32_t line);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_line")
@@ -290,6 +285,8 @@ RIVE_BINDING_IMPORT("rive_data_v1", "vmi_font")
 uint32_t rive_data_vmi_font(uint32_t vmi, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_data_v1", "vmi_blob")
 uint32_t rive_data_vmi_blob(uint32_t vmi, const char* name, uint32_t length);
+RIVE_BINDING_IMPORT("rive_data_v1", "vmi_artboard")
+uint32_t rive_data_vmi_artboard(uint32_t vmi, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_data_v1", "image_get")
 uint32_t rive_data_image_get(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "image_set")
@@ -310,6 +307,10 @@ RIVE_BINDING_IMPORT("rive_data_v1", "blob_set")
 void rive_data_blob_set(uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_clear")
 void rive_data_blob_clear(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "artboard_get")
+uint32_t rive_data_artboard_get(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "artboard_set")
+void rive_data_artboard_set(uint32_t property, uint32_t bindable);
 RIVE_BINDING_IMPORT("rive_data_v1", "enum_get")
 uint32_t rive_data_enum_get(uint32_t property, char* buffer, uint32_t capacity);
 RIVE_BINDING_IMPORT("rive_data_v1", "enum_set")
@@ -396,6 +397,10 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "bounds")
 void rive_artboard_bounds(uint32_t artboard, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "pointer_event")
 uint32_t rive_artboard_pointer_event(uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "scroll_event")
+uint32_t rive_artboard_scroll_event(uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "gamepad_event")
+uint32_t rive_artboard_gamepad_event(uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation")
 uint32_t rive_artboard_animation(uint32_t artboard, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_release")
@@ -406,6 +411,8 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_advance")
 uint32_t rive_artboard_animation_advance(uint32_t animation, float seconds);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_set_time")
 void rive_artboard_animation_set_time(uint32_t animation, float value, uint32_t mode);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "add_to_path")
+void rive_artboard_add_to_path(uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node")
 uint32_t rive_artboard_node(uint32_t artboard, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_release")
@@ -556,6 +563,8 @@ RIVE_BINDING_IMPORT("rive_paint_v1", "feather")
 void rive_paint_feather(uint32_t paint, float value);
 RIVE_BINDING_IMPORT("rive_paint_v1", "shader")
 void rive_paint_shader(uint32_t paint, uint32_t shader);
+RIVE_BINDING_IMPORT("rive_paint_v1", "shader_transform")
+void rive_paint_shader_transform(uint32_t paint, const float* values, uint32_t floatCount);
 
 // rive_canvas_v1
 RIVE_BINDING_IMPORT("rive_canvas_v1", "new")
@@ -591,7 +600,7 @@ uint32_t rive_gpu_canvas_resize(uint32_t canvas, uint32_t width, uint32_t height
 RIVE_BINDING_IMPORT("rive_gpu_v1", "target_view")
 uint32_t rive_gpu_target_view(uint32_t current, uint32_t* props, uint32_t propCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_begin")
-uint32_t rive_gpu_pass_begin(const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
+uint32_t rive_gpu_pass_begin(const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_set_pipeline")
 void rive_gpu_pass_set_pipeline(uint32_t pass, uint32_t pipeline);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_set_vertex_buffer")
@@ -644,8 +653,10 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_asset_bytes")
 uint32_t rive_gpu_shader_asset_bytes(uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_asset_id")
 uint32_t rive_gpu_shader_asset_id(uint32_t object, const char* name, uint32_t nameLength);
-RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_new")
-uint32_t rive_gpu_shader_module_new(const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_from_asset")
+uint32_t rive_gpu_shader_module_from_asset(uint32_t object, const char* name, uint32_t nameLength, uint32_t entry);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_from_rstb")
+uint32_t rive_gpu_shader_module_from_rstb(const uint8_t* rstb, uint32_t rstbCount, uint32_t assetId, uint32_t entry);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_release")
 void rive_gpu_shader_module_release(uint32_t shaderModule);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_new")
@@ -654,6 +665,10 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_release")
 void rive_gpu_bind_group_layout_release(uint32_t layout);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shader")
 uint32_t rive_gpu_bind_group_layout_from_shader(uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shaders")
+uint32_t rive_gpu_bind_group_layout_from_shaders(uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_entries")
+uint32_t rive_gpu_bind_group_layout_from_entries(uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_new")
 uint32_t rive_gpu_bind_group_new(uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_release")
@@ -773,6 +788,18 @@ uint32_t rive_shader_radial(float cx, float cy, float radius, const uint32_t* co
 RIVE_BINDING_IMPORT("rive_shader_v1", "release")
 void rive_shader_release(uint32_t shader);
 
+// rive_test_v1
+RIVE_BINDING_IMPORT("rive_test_v1", "blob")
+uint32_t rive_test_blob(const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+
+// rive_transition_v1
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_draw")
+void rive_transition_child_draw(uint32_t child, uint32_t renderer);
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_width")
+float rive_transition_child_width(uint32_t child);
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_height")
+float rive_transition_child_height(uint32_t child);
+
 // rive_renderer_v1
 RIVE_BINDING_IMPORT("rive_renderer_v1", "save")
 void rive_renderer_save(uint32_t renderer);
@@ -794,6 +821,32 @@ RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh")
 void rive_renderer_draw_image_mesh(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh_instanced")
 void rive_renderer_draw_image_mesh_instanced(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
+
+// rive_net_v1
+RIVE_BINDING_IMPORT("rive_net_v1", "fetch")
+uint32_t rive_net_fetch(const uint8_t* request, uint32_t requestCount, uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "fetch_cancel")
+void rive_net_fetch_cancel(uint32_t token);
+
+// rive_file_v1
+RIVE_BINDING_IMPORT("rive_file_v1", "decode")
+uint32_t rive_file_decode(const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+RIVE_BINDING_IMPORT("rive_file_v1", "release")
+void rive_file_release(uint32_t file);
+RIVE_BINDING_IMPORT("rive_file_v1", "artboard_count")
+uint32_t rive_file_artboard_count(uint32_t file);
+RIVE_BINDING_IMPORT("rive_file_v1", "artboard_name")
+uint32_t rive_file_artboard_name(uint32_t file, uint32_t index, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable")
+uint32_t rive_file_bindable(uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_release")
+void rive_file_bindable_release(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_name")
+uint32_t rive_file_bindable_name(uint32_t bindable, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_data")
+uint32_t rive_file_bindable_data(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_equal")
+uint32_t rive_file_bindable_equal(uint32_t a, uint32_t b);
 
 #ifdef __cplusplus
 }

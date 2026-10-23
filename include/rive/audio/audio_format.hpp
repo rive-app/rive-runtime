@@ -4,12 +4,12 @@ namespace rive
 {
 enum class AudioFormat : unsigned int
 {
-    unknown = 0,
-    wav,
-    flac,
-    mp3,
-    vorbis,
-    buffered
+  unknown = 0,
+  wav,
+  flac,
+  mp3,
+  vorbis,
+  buffered
 };
 }
 #endif

@@ -14,59 +14,59 @@ class Skinnable;
 
 class Skin : public SkinBase
 {
-    friend class Tendon;
+  friend class Tendon;
 
 public:
-    ~Skin() override;
+  ~Skin() override;
 
 private:
-    Mat2D m_WorldTransform;
-    std::vector<Tendon*> m_Tendons;
-    float* m_BoneTransforms = nullptr;
-    Skinnable* m_Skinnable;
+  Mat2D m_WorldTransform;
+  std::vector<Tendon*> m_Tendons;
+  float* m_BoneTransforms = nullptr;
+  Skinnable* m_Skinnable;
 
 protected:
-    void addTendon(Tendon* tendon);
+  void addTendon(Tendon* tendon);
 
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
-    void buildDependencies() override;
-    void deform(Span<Vertex*> vertices);
-    // The skinnable's world transform when it was bound. With every bone at
-    // its bind transform, deform maps a vertex through this alone.
-    const Mat2D& bindTransform() const { return m_WorldTransform; }
-    void onDirty(ComponentDirt dirt) override;
-    void update(ComponentDirt value) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  void buildDependencies() override;
+  void deform(Span<Vertex*> vertices);
+  // The skinnable's world transform when it was bound. With every bone at
+  // its bind transform, deform maps a vertex through this alone.
+  const Mat2D& bindTransform() const { return m_WorldTransform; }
+  void onDirty(ComponentDirt dirt) override;
+  void update(ComponentDirt value) override;
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
-    // Editor-only readback of the accumulated bone transforms array
-    // (slot 0 = identity, slot N+1 = `bone[N].worldTransform *
-    // tendon[N].inverseBind`, 6 floats per slot). Tangent / vertex
-    // translation setters invert per-slot weights against this to
-    // map post-deform cursor positions back to path-local
-    // coordinates — dart's `Weight.computeDeformTransform` reads the
-    // same array via `skin.boneTransforms`.
-    const float* boneTransforms() const { return m_BoneTransforms; }
-    // Editor-only counterpart to `Path::sortVerticesForEditor`. Coop
-    // hydration delivers Tendons in server-batch arrival order, not
-    // childOrder; `Tendon::onAddedClean` pushes them onto `m_Tendons`
-    // in that arrival order. Vertex weights index into `m_Tendons` by
-    // position, so a load-time arrival-order shuffle silently maps
-    // each weight to the wrong bone. `finalizeBatch` calls this on
-    // every Skin after hydration to restore the author-time order.
-    void sortTendonsForEditor();
-    void bindingChangedForEditor();
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
+  // Editor-only readback of the accumulated bone transforms array
+  // (slot 0 = identity, slot N+1 = `bone[N].worldTransform *
+  // tendon[N].inverseBind`, 6 floats per slot). Tangent / vertex
+  // translation setters invert per-slot weights against this to
+  // map post-deform cursor positions back to path-local
+  // coordinates — dart's `Weight.computeDeformTransform` reads the
+  // same array via `skin.boneTransforms`.
+  const float* boneTransforms() const { return m_BoneTransforms; }
+  // Editor-only counterpart to `Path::sortVerticesForEditor`. Coop
+  // hydration delivers Tendons in server-batch arrival order, not
+  // childOrder; `Tendon::onAddedClean` pushes them onto `m_Tendons`
+  // in that arrival order. Vertex weights index into `m_Tendons` by
+  // position, so a load-time arrival-order shuffle silently maps
+  // each weight to the wrong bone. `finalizeBatch` calls this on
+  // every Skin after hydration to restore the author-time order.
+  void sortTendonsForEditor();
+  void bindingChangedForEditor();
 #endif
-    // 1 when no bone mirrors, -1 when every bone mirrors, 0 when they
-    // disagree or none carries an orientation.
-    int windingSign() const;
-    // 1 when a transform keeps orientation, -1 when it mirrors, 0 when it
-    // collapses.
-    static int orientation(float xx, float xy, float yx, float yy);
+  // 1 when no bone mirrors, -1 when every bone mirrors, 0 when they
+  // disagree or none carries an orientation.
+  int windingSign() const;
+  // 1 when a transform keeps orientation, -1 when it mirrors, 0 when it
+  // collapses.
+  static int orientation(float xx, float xy, float yx, float yy);
 
 #ifdef TESTING
-    std::vector<Tendon*>& tendons() { return m_Tendons; }
+  std::vector<Tendon*>& tendons() { return m_Tendons; }
 #endif
 };
 } // namespace rive

@@ -5,12 +5,13 @@
 #include "testing_window.hpp"
 
 #if defined(RIVE_TOOLS_NO_GLFW)
-TestingWindow* TestingWindow::MakeFiddleContext(Backend,
-                                                const BackendParams&,
-                                                Visibility,
-                                                void* platformWindow)
+TestingWindow* TestingWindow::MakeFiddleContext(
+    Backend,
+    const BackendParams&,
+    Visibility,
+    void* platformWindow)
 {
-    return nullptr;
+  return nullptr;
 }
 
 #else
@@ -55,83 +56,89 @@ using namespace rive::gpu;
 // what matters is that the detach repeats the attach.
 static void forceWindowToForeground(GLFWwindow* window)
 {
-    HWND hwnd = glfwGetWin32Window(window);
-    HWND foreground = GetForegroundWindow();
-    DWORD foregroundThread =
-        foreground ? GetWindowThreadProcessId(foreground, nullptr) : 0;
-    DWORD thisThread = GetCurrentThreadId();
-    bool attached = foregroundThread != 0 && foregroundThread != thisThread &&
-                    AttachThreadInput(foregroundThread, thisThread, TRUE);
-    BringWindowToTop(hwnd);
-    SetForegroundWindow(hwnd);
-    SetFocus(hwnd);
-    if (attached)
-    {
-        AttachThreadInput(foregroundThread, thisThread, FALSE);
-    }
+  HWND hwnd = glfwGetWin32Window(window);
+  HWND foreground = GetForegroundWindow();
+  DWORD foregroundThread = foreground
+                               ? GetWindowThreadProcessId(foreground, nullptr)
+                               : 0;
+  DWORD thisThread = GetCurrentThreadId();
+  bool attached = foregroundThread != 0 && foregroundThread != thisThread &&
+                  AttachThreadInput(foregroundThread, thisThread, TRUE);
+  BringWindowToTop(hwnd);
+  SetForegroundWindow(hwnd);
+  SetFocus(hwnd);
+  if (attached)
+  {
+    AttachThreadInput(foregroundThread, thisThread, FALSE);
+  }
 }
 #endif
 
 static std::queue<TestingWindow::InputEventData> inputEvents;
 static float dpi = 1.0f;
 
-static void mouse_position_callback(GLFWwindow* window,
-                                    double xPos,
-                                    double yPos)
+static void mouse_position_callback(
+    GLFWwindow* window,
+    double xPos,
+    double yPos)
 {
-    inputEvents.push({TestingWindow::InputEvent::MouseMove,
-                      static_cast<float>(xPos) * dpi,
-                      static_cast<float>(yPos) * dpi});
+  inputEvents.push(
+      {TestingWindow::InputEvent::MouseMove,
+       static_cast<float>(xPos) * dpi,
+       static_cast<float>(yPos) * dpi});
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    assert(0 <= button);
-    assert(button <= GLFW_MOUSE_BUTTON_LAST);
+  assert(0 <= button);
+  assert(button <= GLFW_MOUSE_BUTTON_LAST);
 
-    double xPos, yPos;
-    glfwGetCursorPos(window, &xPos, &yPos);
+  double xPos, yPos;
+  glfwGetCursorPos(window, &xPos, &yPos);
 
-    switch (action)
-    {
-        case GLFW_PRESS:
-            inputEvents.push({TestingWindow::InputEvent::MouseDown,
-                              static_cast<float>(xPos) * dpi,
-                              static_cast<float>(yPos) * dpi});
-            break;
-        case GLFW_RELEASE:
-            inputEvents.push({TestingWindow::InputEvent::MouseUp,
-                              static_cast<float>(xPos) * dpi,
-                              static_cast<float>(yPos) * dpi});
-            break;
-        default:
-            printf("Unsupported GLFW mouse button event received!\n");
-            break;
-    }
+  switch (action)
+  {
+    case GLFW_PRESS:
+      inputEvents.push(
+          {TestingWindow::InputEvent::MouseDown,
+           static_cast<float>(xPos) * dpi,
+           static_cast<float>(yPos) * dpi});
+      break;
+    case GLFW_RELEASE:
+      inputEvents.push(
+          {TestingWindow::InputEvent::MouseUp,
+           static_cast<float>(xPos) * dpi,
+           static_cast<float>(yPos) * dpi});
+      break;
+    default:
+      printf("Unsupported GLFW mouse button event received!\n");
+      break;
+  }
 }
 
-static void key_callback(GLFWwindow* window,
-                         int key,
-                         int scancode,
-                         int action,
-                         int mods)
+static void key_callback(
+    GLFWwindow* window,
+    int key,
+    int scancode,
+    int action,
+    int mods)
 {
-    if (action == GLFW_PRESS)
+  if (action == GLFW_PRESS)
+  {
+    if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
     {
-        if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
+      if (!(mods & GLFW_MOD_SHIFT))
+      {
+        key += 'a' - 'A';
+      }
+    }
+    else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+    {
+      if (mods & GLFW_MOD_SHIFT)
+      {
+        switch (key)
         {
-            if (!(mods & GLFW_MOD_SHIFT))
-            {
-                key += 'a' - 'A';
-            }
-        }
-        else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
-        {
-            if (mods & GLFW_MOD_SHIFT)
-            {
-                switch (key)
-                {
-                        // clang-format off
+            // clang-format off
                     case GLFW_KEY_1: key = '!'; break;
                     case GLFW_KEY_2: key = '@'; break;
                     case GLFW_KEY_3: key = '#'; break;
@@ -142,499 +149,506 @@ static void key_callback(GLFWwindow* window,
                     case GLFW_KEY_8: key = '*'; break;
                     case GLFW_KEY_9: key = '('; break;
                     case GLFW_KEY_0: key = ')'; break;
-                        // clang-format on
-                }
-            }
+            // clang-format on
         }
-        if (key < 128)
-        {
-            inputEvents.push(
-                {TestingWindow::InputEvent::KeyPress, static_cast<char>(key)});
-            return;
-        }
-        switch (key)
-        {
-            case GLFW_KEY_ESCAPE:
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
-                break;
-            case GLFW_KEY_TAB:
-                inputEvents.push({TestingWindow::InputEvent::KeyPress, '\t'});
-                break;
-            case GLFW_KEY_BACKSPACE:
-                inputEvents.push({TestingWindow::InputEvent::KeyPress, '\b'});
-                break;
-        }
+      }
     }
+    if (key < 128)
+    {
+      inputEvents.push(
+          {TestingWindow::InputEvent::KeyPress, static_cast<char>(key)});
+      return;
+    }
+    switch (key)
+    {
+      case GLFW_KEY_ESCAPE:
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        break;
+      case GLFW_KEY_TAB:
+        inputEvents.push({TestingWindow::InputEvent::KeyPress, '\t'});
+        break;
+      case GLFW_KEY_BACKSPACE:
+        inputEvents.push({TestingWindow::InputEvent::KeyPress, '\b'});
+        break;
+    }
+  }
 }
 
 class TestingWindowFiddleContext : public TestingWindow
 {
 public:
-    TestingWindowFiddleContext(Backend backend,
-                               const BackendParams& backendParams,
-                               Visibility visibility,
-                               void* platformWindow) :
-        m_backendParams(backendParams)
+  TestingWindowFiddleContext(
+      Backend backend,
+      const BackendParams& backendParams,
+      Visibility visibility,
+      void* platformWindow)
+      : m_backendParams(backendParams)
+  {
+    // Vulkan headless rendering doesn't need an OS window.
+    // It's convenient to run Swiftshader on CI without GLFW.
+    if (backend == Backend::angle)
     {
-        // Vulkan headless rendering doesn't need an OS window.
-        // It's convenient to run Swiftshader on CI without GLFW.
-        if (backend == Backend::angle)
-        {
 #if !defined(__EMSCRIPTEN__)
-            switch (m_backendParams.angleRenderer)
-            {
-                case ANGLERenderer::metal:
-                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                                 GLFW_ANGLE_PLATFORM_TYPE_METAL);
-                    break;
-                case ANGLERenderer::d3d11:
-                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                                 GLFW_ANGLE_PLATFORM_TYPE_D3D11);
-                    break;
-                case ANGLERenderer::vk:
-                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                                 GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
-                    break;
-                case ANGLERenderer::gles:
-                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                                 GLFW_ANGLE_PLATFORM_TYPE_OPENGLES);
-                    break;
-                case ANGLERenderer::gl:
-                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                                 GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
-                    break;
-            }
+      switch (m_backendParams.angleRenderer)
+      {
+        case ANGLERenderer::metal:
+          glfwInitHint(
+              GLFW_ANGLE_PLATFORM_TYPE,
+              GLFW_ANGLE_PLATFORM_TYPE_METAL);
+          break;
+        case ANGLERenderer::d3d11:
+          glfwInitHint(
+              GLFW_ANGLE_PLATFORM_TYPE,
+              GLFW_ANGLE_PLATFORM_TYPE_D3D11);
+          break;
+        case ANGLERenderer::vk:
+          glfwInitHint(
+              GLFW_ANGLE_PLATFORM_TYPE,
+              GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+          break;
+        case ANGLERenderer::gles:
+          glfwInitHint(
+              GLFW_ANGLE_PLATFORM_TYPE,
+              GLFW_ANGLE_PLATFORM_TYPE_OPENGLES);
+          break;
+        case ANGLERenderer::gl:
+          glfwInitHint(
+              GLFW_ANGLE_PLATFORM_TYPE,
+              GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
+          break;
+      }
 #endif
-        }
-        if (!glfwInit())
-        {
-            fprintf(stderr, "Failed to initialize GLFW.\n");
-            abort();
-        }
+    }
+    if (!glfwInit())
+    {
+      fprintf(stderr, "Failed to initialize GLFW.\n");
+      abort();
+    }
 
-        if (backend != Backend::gl && backend != Backend::angle)
-        {
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-            glfwWindowHint(GLFW_SAMPLES, 0);
-            glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        }
-        else
-        {
-            if (backend == Backend::angle)
-            {
-                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-            }
-            else
-            {
-                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-            }
-            if (m_backendParams.msaaSampleCount <= 1)
-            {
-                // A request of 1 sample is interpreted by the GL driver as a
-                // request for MSAA, and can be non-intuitively rounded up to 2
-                // or 4. In our case, a sample count of 1 means non-MSAA (duh),
-                // so request GLFW_SAMPLES=0.
-                glfwWindowHint(GLFW_SAMPLES, 0);
-            }
-            else
-            {
-                glfwWindowHint(GLFW_SAMPLES, m_backendParams.msaaSampleCount);
-            }
-            if (m_backendParams.msaaSampleCount >= 1)
-            {
-                // msaaSampleCount >= 1 selects depthStencil, which renders
-                // directly to the screen.
-                glfwWindowHint(GLFW_STENCIL_BITS, 8);
-                glfwWindowHint(GLFW_DEPTH_BITS, 24);
-            }
-        }
+    if (backend != Backend::gl && backend != Backend::angle)
+    {
+      glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+      glfwWindowHint(GLFW_SAMPLES, 0);
+      glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    }
+    else
+    {
+      if (backend == Backend::angle)
+      {
+        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+      }
+      else
+      {
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+      }
+      if (m_backendParams.msaaSampleCount <= 1)
+      {
+        // A request of 1 sample is interpreted by the GL driver as a
+        // request for MSAA, and can be non-intuitively rounded up to 2
+        // or 4. In our case, a sample count of 1 means non-MSAA (duh),
+        // so request GLFW_SAMPLES=0.
+        glfwWindowHint(GLFW_SAMPLES, 0);
+      }
+      else
+      {
+        glfwWindowHint(GLFW_SAMPLES, m_backendParams.msaaSampleCount);
+      }
+      if (m_backendParams.msaaSampleCount >= 1)
+      {
+        // msaaSampleCount >= 1 selects depthStencil, which renders
+        // directly to the screen.
+        glfwWindowHint(GLFW_STENCIL_BITS, 8);
+        glfwWindowHint(GLFW_DEPTH_BITS, 24);
+      }
+    }
 
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        // Create hidden, then show. GLFW_FOCUS_ON_SHOW only applies to a
-        // hidden->visible transition, so with the default (visible) the show
-        // below is a no-op and the window can come up behind the terminal.
-        // Headless simply never gets shown.
-        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    // Create hidden, then show. GLFW_FOCUS_ON_SHOW only applies to a
+    // hidden->visible transition, so with the default (visible) the show
+    // below is a no-op and the window can come up behind the terminal.
+    // Headless simply never gets shown.
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
 
-        GLFWmonitor* fullscreenMonitor = nullptr;
-        if (visibility == Visibility::fullscreen)
-        {
-            glfwWindowHint(GLFW_CENTER_CURSOR, GLFW_FALSE);
-            glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
+    GLFWmonitor* fullscreenMonitor = nullptr;
+    if (visibility == Visibility::fullscreen)
+    {
+      glfwWindowHint(GLFW_CENTER_CURSOR, GLFW_FALSE);
+      glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
 
-            // For GLFW, the platformWindow is a fullscreen monitor index.
-            intptr_t fullscreenMonitorIdx =
-                reinterpret_cast<intptr_t>(platformWindow);
+      // For GLFW, the platformWindow is a fullscreen monitor index.
+      intptr_t fullscreenMonitorIdx = reinterpret_cast<intptr_t>(
+          platformWindow);
 
-            int monitorCount;
-            GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-            if (fullscreenMonitorIdx < 0 ||
-                fullscreenMonitorIdx >= monitorCount)
-            {
-                fprintf(stderr,
-                        "Monitor index out of range. Requested %zi but %i are "
-                        "available.",
-                        fullscreenMonitorIdx,
-                        monitorCount);
-                abort();
-            }
-            fullscreenMonitor = monitors[fullscreenMonitorIdx];
-        }
+      int monitorCount;
+      GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
+      if (fullscreenMonitorIdx < 0 || fullscreenMonitorIdx >= monitorCount)
+      {
+        fprintf(
+            stderr,
+            "Monitor index out of range. Requested %zi but %i are "
+            "available.",
+            fullscreenMonitorIdx,
+            monitorCount);
+        abort();
+      }
+      fullscreenMonitor = monitors[fullscreenMonitorIdx];
+    }
 
-        // GLFW doesn't appear to have a way to say "make the window as big as
-        // the screen", but if we don't make it large enough here, the
-        // fullscreen window will be quarter resultion instead of full. NOTE:
-        // glfwGetMonitorPhysicalSize() returns bogus values.
-        m_glfwWindow = glfwCreateWindow(3840,
-                                        2160,
-                                        "Rive Renderer",
-                                        fullscreenMonitor,
-                                        nullptr);
-        if (!m_glfwWindow)
-        {
+    // GLFW doesn't appear to have a way to say "make the window as big as
+    // the screen", but if we don't make it large enough here, the
+    // fullscreen window will be quarter resultion instead of full. NOTE:
+    // glfwGetMonitorPhysicalSize() returns bogus values.
+    m_glfwWindow = glfwCreateWindow(
+        3840,
+        2160,
+        "Rive Renderer",
+        fullscreenMonitor,
+        nullptr);
+    if (!m_glfwWindow)
+    {
 #ifndef __EMSCRIPTEN__
-            const char* errorDescription;
-            int errorCode = glfwGetError(&errorDescription);
-            fprintf(stderr,
-                    "Failed to create GLFW window: %s\n",
-                    errorDescription);
-            if (errorCode == GLFW_API_UNAVAILABLE)
-            {
-                // This means that the driver does not support the given API and
-                // we cannot create a window. MakeFiddleContext will detect this
-                // object as non-valid and clean it up and return nullptr.
-                return;
-            }
+      const char* errorDescription;
+      int errorCode = glfwGetError(&errorDescription);
+      fprintf(stderr, "Failed to create GLFW window: %s\n", errorDescription);
+      if (errorCode == GLFW_API_UNAVAILABLE)
+      {
+        // This means that the driver does not support the given API and
+        // we cannot create a window. MakeFiddleContext will detect this
+        // object as non-valid and clean it up and return nullptr.
+        return;
+      }
 #else
-            // Emscripten doesn't support glfwGetError so print a generic
-            // message.
-            fprintf(stderr, "Failed to create GLFW window.\n");
+      // Emscripten doesn't support glfwGetError so print a generic
+      // message.
+      fprintf(stderr, "Failed to create GLFW window.\n");
 #endif
-            glfwTerminate();
-            abort();
-        }
-        glfwMakeContextCurrent(m_glfwWindow);
+      glfwTerminate();
+      abort();
+    }
+    glfwMakeContextCurrent(m_glfwWindow);
 #ifndef __EMSCRIPTEN__
-        glfwSwapInterval(0);
+    glfwSwapInterval(0);
 #endif
 
-        if (visibility != Visibility::headless)
-        {
-            glfwShowWindow(m_glfwWindow);
-            // Windows can still refuse to hand over the foreground, so ask
-            // explicitly as well.
-            glfwFocusWindow(m_glfwWindow);
+    if (visibility != Visibility::headless)
+    {
+      glfwShowWindow(m_glfwWindow);
+      // Windows can still refuse to hand over the foreground, so ask
+      // explicitly as well.
+      glfwFocusWindow(m_glfwWindow);
 #ifdef _WIN32
-            forceWindowToForeground(m_glfwWindow);
+      forceWindowToForeground(m_glfwWindow);
 #endif
-        }
-
-        glfwSetKeyCallback(m_glfwWindow, key_callback);
-        glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);
-        glfwSetMouseButtonCallback(m_glfwWindow, mouse_button_callback);
-
-        FiddleContextOptions fiddleOptions = {
-            .retinaDisplay = visibility == Visibility::fullscreen,
-            .shaderCompilationMode = backendParams.shaderCompilationMode,
-            .enableReadPixels = true,
-            .disableRasterOrdering = backendParams.atomic,
-            .coreFeaturesOnly = backendParams.core,
-            .srgb = m_backendParams.srgb,
-            .allowHeadlessRendering = visibility == Visibility::headless,
-            .enableVulkanCoreValidationLayers =
-                !backendParams.disableValidationLayers &&
-                !backendParams.wantVulkanSynchronizationValidation,
-            .enableVulkanSynchronizationValidationLayers =
-                !backendParams.disableValidationLayers &&
-                backendParams.wantVulkanSynchronizationValidation,
-            .disableDebugCallbacks = backendParams.disableDebugCallbacks,
-            .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
-        };
-
-        switch (backend)
-        {
-            case Backend::wgpu:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::canvas2d:
-            case Backend::svg:
-            case Backend::external:
-            case Backend::null:
-            case Backend::invalid:
-                break;
-            case Backend::gl:
-            case Backend::angle:
-                m_fiddleContext = FiddleContext::MakeGLPLS(fiddleOptions);
-                break;
-            case Backend::d3d:
-                m_fiddleContext = FiddleContext::MakeD3DPLS(fiddleOptions);
-                break;
-            case Backend::d3d12:
-                m_fiddleContext = FiddleContext::MakeD3D12PLS(fiddleOptions);
-                break;
-            case Backend::metal:
-                m_fiddleContext = FiddleContext::MakeMetalPLS(fiddleOptions);
-                break;
-            case Backend::vk:
-            case Backend::moltenvk:
-            case Backend::swiftshader:
-                m_fiddleContext = FiddleContext::MakeVulkanPLS(fiddleOptions);
-                break;
-            case Backend::dawn:
-                m_fiddleContext = FiddleContext::MakeDawnPLS(fiddleOptions);
-                break;
-        }
-
-        if (m_fiddleContext == nullptr)
-        {
-            return;
-        }
-        // On Mac we need to call glfwSetWindowSize even though we created the
-        // window with these same dimensions.
-        int w, h;
-        glfwGetFramebufferSize(m_glfwWindow, &w, &h);
-        m_width = w;
-        m_height = h;
-        dpi = m_fiddleContext->dpiScale(m_glfwWindow);
-        m_fiddleContext->onSizeChanged(m_glfwWindow,
-                                       m_width,
-                                       m_height,
-                                       m_backendParams.msaaSampleCount);
     }
 
-    ~TestingWindowFiddleContext() override
+    glfwSetKeyCallback(m_glfwWindow, key_callback);
+    glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);
+    glfwSetMouseButtonCallback(m_glfwWindow, mouse_button_callback);
+
+    FiddleContextOptions fiddleOptions = {
+        .retinaDisplay = visibility == Visibility::fullscreen,
+        .shaderCompilationMode = backendParams.shaderCompilationMode,
+        .enableReadPixels = true,
+        .disableRasterOrdering = backendParams.atomic,
+        .coreFeaturesOnly = backendParams.core,
+        .srgb = m_backendParams.srgb,
+        .allowHeadlessRendering = visibility == Visibility::headless,
+        .enableVulkanCoreValidationLayers =
+            !backendParams.disableValidationLayers &&
+            !backendParams.wantVulkanSynchronizationValidation,
+        .enableVulkanSynchronizationValidationLayers =
+            !backendParams.disableValidationLayers &&
+            backendParams.wantVulkanSynchronizationValidation,
+        .disableDebugCallbacks = backendParams.disableDebugCallbacks,
+        .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
+    };
+
+    switch (backend)
     {
-        m_fiddleContext.reset();
-        if (m_glfwWindow != nullptr)
-        {
-            glfwPollEvents();
-            glfwDestroyWindow(m_glfwWindow);
-            glfwTerminate();
-        }
+      case Backend::wgpu:
+      case Backend::skia:
+      case Backend::canvas2d:
+      case Backend::svg:
+      case Backend::external:
+      case Backend::null:
+      case Backend::invalid:
+        break;
+      case Backend::gl:
+      case Backend::angle:
+        m_fiddleContext = FiddleContext::MakeGLPLS(fiddleOptions);
+        break;
+      case Backend::d3d:
+        m_fiddleContext = FiddleContext::MakeD3DPLS(fiddleOptions);
+        break;
+      case Backend::d3d12:
+        m_fiddleContext = FiddleContext::MakeD3D12PLS(fiddleOptions);
+        break;
+      case Backend::metal:
+        m_fiddleContext = FiddleContext::MakeMetalPLS(fiddleOptions);
+        break;
+      case Backend::vk:
+      case Backend::moltenvk:
+      case Backend::swiftshader:
+        m_fiddleContext = FiddleContext::MakeVulkanPLS(fiddleOptions);
+        break;
+      case Backend::dawn:
+        m_fiddleContext = FiddleContext::MakeDawnPLS(fiddleOptions);
+        break;
     }
 
-    bool valid() const { return m_fiddleContext != nullptr; }
-
-    rive::Factory* factory() override { return m_fiddleContext->factory(); }
-
-    void resize(int width, int height) override
+    if (m_fiddleContext == nullptr)
     {
-        if (width != m_width || height != m_height)
-        {
-            glfwSetWindowSize(m_glfwWindow, width, height);
-            m_fiddleContext->onSizeChanged(m_glfwWindow,
-                                           width,
-                                           height,
-                                           m_backendParams.msaaSampleCount);
-            m_width = width;
-            m_height = height;
-        }
+      return;
     }
+    // On Mac we need to call glfwSetWindowSize even though we created the
+    // window with these same dimensions.
+    int w, h;
+    glfwGetFramebufferSize(m_glfwWindow, &w, &h);
+    m_width = w;
+    m_height = h;
+    dpi = m_fiddleContext->dpiScale(m_glfwWindow);
+    m_fiddleContext->onSizeChanged(
+        m_glfwWindow,
+        m_width,
+        m_height,
+        m_backendParams.msaaSampleCount);
+  }
 
-    void hotloadShaders() override { m_fiddleContext->hotloadShaders(); }
-
-    rive::rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        bool riveRenderable) const override
+  ~TestingWindowFiddleContext() override
+  {
+    m_fiddleContext.reset();
+    if (m_glfwWindow != nullptr)
     {
+      glfwPollEvents();
+      glfwDestroyWindow(m_glfwWindow);
+      glfwTerminate();
+    }
+  }
+
+  bool valid() const { return m_fiddleContext != nullptr; }
+
+  rive::Factory* factory() override { return m_fiddleContext->factory(); }
+
+  void resize(int width, int height) override
+  {
+    if (width != m_width || height != m_height)
+    {
+      glfwSetWindowSize(m_glfwWindow, width, height);
+      m_fiddleContext->onSizeChanged(
+          m_glfwWindow,
+          width,
+          height,
+          m_backendParams.msaaSampleCount);
+      m_width = width;
+      m_height = height;
+    }
+  }
+
+  void hotloadShaders() override { m_fiddleContext->hotloadShaders(); }
+
+  rive::rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+      uint32_t width,
+      uint32_t height,
+      bool riveRenderable) const override
+  {
 #ifdef _WIN32
-        if (auto* renderContextD3D12 =
-                m_fiddleContext->renderContextD3D12Impl())
-        {
-            return rive_tests::OffscreenRenderTarget::MakeD3D12(
-                renderContextD3D12,
-                width,
-                height,
-                riveRenderable);
-        }
-        if (auto* renderContextD3D = m_fiddleContext->renderContextD3DImpl())
-        {
-            return rive_tests::OffscreenRenderTarget::MakeD3D(renderContextD3D,
-                                                              width,
-                                                              height,
-                                                              riveRenderable);
-        }
+    if (auto* renderContextD3D12 = m_fiddleContext->renderContextD3D12Impl())
+    {
+      return rive_tests::OffscreenRenderTarget::MakeD3D12(
+          renderContextD3D12,
+          width,
+          height,
+          riveRenderable);
+    }
+    if (auto* renderContextD3D = m_fiddleContext->renderContextD3DImpl())
+    {
+      return rive_tests::OffscreenRenderTarget::MakeD3D(
+          renderContextD3D,
+          width,
+          height,
+          riveRenderable);
+    }
 #endif
 #ifndef RIVE_TOOLS_NO_GL
-        if (auto* renderContextGL = m_fiddleContext->renderContextGLImpl())
-        {
-            return rive_tests::OffscreenRenderTarget::MakeGL(renderContextGL,
-                                                             width,
-                                                             height);
-        }
+    if (auto* renderContextGL = m_fiddleContext->renderContextGLImpl())
+    {
+      return rive_tests::OffscreenRenderTarget::MakeGL(
+          renderContextGL,
+          width,
+          height);
+    }
 #endif
 #ifdef RIVE_VULKAN
-        if (auto* renderContextVulkan =
-                m_fiddleContext->renderContextVulkanImpl())
-        {
-            return rive_tests::OffscreenRenderTarget::MakeVulkan(
-                renderContextVulkan->vulkanContext(),
-                width,
-                height,
-                riveRenderable);
-        }
+    if (auto* renderContextVulkan = m_fiddleContext->renderContextVulkanImpl())
+    {
+      return rive_tests::OffscreenRenderTarget::MakeVulkan(
+          renderContextVulkan->vulkanContext(),
+          width,
+          height,
+          riveRenderable);
+    }
 #endif
 #if defined(RIVE_WEBGPU) || defined(RIVE_DAWN)
-        if (auto* renderContextWebGPU =
-                m_fiddleContext->renderContextWebGPUImpl())
-        {
-            return rive_tests::OffscreenRenderTarget::MakeWebGPU(
-                renderContextWebGPU,
-                width,
-                height);
-        }
+    if (auto* renderContextWebGPU = m_fiddleContext->renderContextWebGPUImpl())
+    {
+      return rive_tests::OffscreenRenderTarget::MakeWebGPU(
+          renderContextWebGPU,
+          width,
+          height);
+    }
 #endif
-        return nullptr;
-    }
+    return nullptr;
+  }
 
-    void* getCurrentCommandBuffer() const override
-    {
-        return m_fiddleContext->getCommandBuffer();
-    }
+  void* getCurrentCommandBuffer() const override
+  {
+    return m_fiddleContext->getCommandBuffer();
+  }
 
-    FrameMode frameMode(const FrameOptions& options) const override
-    {
-        return {std::max(m_backendParams.msaaSampleCount,
-                         options.forceMSAA ? 4u : 0u),
-                options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride};
-    }
+  FrameMode frameMode(const FrameOptions& options) const override
+  {
+    return {
+        std::max(m_backendParams.msaaSampleCount, options.forceMSAA ? 4u : 0u),
+        options.disableRasterOrdering,
+        m_backendParams.clockwise || options.clockwiseFillOverride,
+        m_backendParams.inkbleed};
+  }
 
-    std::unique_ptr<rive::Renderer> beginFrame(
-        const FrameOptions& options) override
-    {
-        FrameMode mode = frameMode(options);
-        rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
-            .renderTargetWidth = static_cast<uint32_t>(m_width),
-            .renderTargetHeight = static_cast<uint32_t>(m_height),
-            .loadAction = options.doClear
-                              ? rive::gpu::LoadAction::clear
-                              : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = options.clearColor,
-            .msaaSampleCount = mode.msaaSampleCount,
-            .disableRasterOrdering = mode.disableRasterOrdering,
-            .triangulationThresholds = options.triangulationThresholds,
-            .wireframe = options.wireframe,
-            .fillsDisabled = options.fillsDisabled,
-            .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride = mode.clockwiseFillOverride,
+  std::unique_ptr<rive::Renderer> beginFrame(
+      const FrameOptions& options) override
+  {
+    FrameMode mode = frameMode(options);
+    rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
+        .renderTargetWidth = static_cast<uint32_t>(m_width),
+        .renderTargetHeight = static_cast<uint32_t>(m_height),
+        .loadAction = options.doClear
+                          ? rive::gpu::LoadAction::clear
+                          : rive::gpu::LoadAction::preserveRenderTarget,
+        .clearColor = options.clearColor,
+        .msaaSampleCount = mode.msaaSampleCount,
+        .disableRasterOrdering = mode.disableRasterOrdering,
+        .triangulationThresholds = options.triangulationThresholds,
+        .wireframe = options.wireframe,
+        .fillsDisabled = options.fillsDisabled,
+        .strokesDisabled = options.strokesDisabled,
+        .clockwiseFillOverride = mode.clockwiseFillOverride,
+        .inkbleedOverride = mode.inkbleed,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizedFailureType = options.synthesizedFailureType,
+        .synthesizedFailureType = options.synthesizedFailureType,
 #endif
-        };
-        m_fiddleContext->begin(std::move(frameDescriptor));
-        return m_fiddleContext->makeRenderer(m_width, m_height);
-    }
+    };
+    m_fiddleContext->begin(std::move(frameDescriptor));
+    return m_fiddleContext->makeRenderer(m_width, m_height);
+  }
 
-    void endFrame(std::vector<uint8_t>* pixelData) override
+  void endFrame(std::vector<uint8_t>* pixelData) override
+  {
+    m_fiddleContext->end(m_glfwWindow, pixelData);
+    m_fiddleContext->tick();
+    glfwPollEvents();
+    glfwSwapBuffers(m_glfwWindow);
+  }
+
+  rive::gpu::RenderContext* renderContext() const override
+  {
+    return m_fiddleContext->renderContextOrNull();
+  }
+
+  rive::gpu::RenderContextGLImpl* renderContextGLImpl() const override
+  {
+    return m_fiddleContext->renderContextGLImpl();
+  }
+
+  rive::gpu::RenderTarget* renderTarget() const override
+  {
+    return m_fiddleContext->renderTargetOrNull();
+  }
+
+  OreTarget oreTarget() const override
+  {
+    switch (backend())
     {
-        m_fiddleContext->end(m_glfwWindow, pixelData);
-        m_fiddleContext->tick();
-        glfwPollEvents();
-        glfwSwapBuffers(m_glfwWindow);
+      case Backend::d3d:
+      case Backend::d3d12:
+      case Backend::dawn:
+        return {true, false};
+      case Backend::metal:
+        return {true, true};
+      default:
+        return {};
     }
+  }
 
-    rive::gpu::RenderContext* renderContext() const override
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) override
+  {
+    m_fiddleContext->flushPLSContext(offscreenRenderTarget);
+  }
+
+  bool consumeInputEvent(InputEventData& eventData) override
+  {
+    glfwPollEvents();
+    const bool hasNewEvent = !inputEvents.empty();
+    if (hasNewEvent)
     {
-        return m_fiddleContext->renderContextOrNull();
+      eventData = inputEvents.front();
+      inputEvents.pop();
     }
+    return hasNewEvent;
+  }
 
-    rive::gpu::RenderContextGLImpl* renderContextGLImpl() const override
+  InputEventData waitForInputEvent() override
+  {
+    InputEventData eventData;
+
+    while (!consumeInputEvent(eventData))
     {
-        return m_fiddleContext->renderContextGLImpl();
+      glfwWaitEvents();
+      if (glfwWindowShouldClose(m_glfwWindow))
+      {
+        printf("Window terminated by user.\n");
+        exit(0);
+      }
     }
+    return eventData;
+  }
 
-    rive::gpu::RenderTarget* renderTarget() const override
-    {
-        return m_fiddleContext->renderTargetOrNull();
-    }
-
-    OreTarget oreTarget() const override
-    {
-        switch (backend())
-        {
-            case Backend::d3d:
-            case Backend::d3d12:
-            case Backend::dawn:
-                return {true, false};
-            case Backend::metal:
-                return {true, true};
-            default:
-                return {};
-        }
-    }
-
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) override
-    {
-        m_fiddleContext->flushPLSContext(offscreenRenderTarget);
-    }
-
-    bool consumeInputEvent(InputEventData& eventData) override
-    {
-        glfwPollEvents();
-        const bool hasNewEvent = !inputEvents.empty();
-        if (hasNewEvent)
-        {
-            eventData = inputEvents.front();
-            inputEvents.pop();
-        }
-        return hasNewEvent;
-    }
-
-    InputEventData waitForInputEvent() override
-    {
-        InputEventData eventData;
-
-        while (!consumeInputEvent(eventData))
-        {
-            glfwWaitEvents();
-            if (glfwWindowShouldClose(m_glfwWindow))
-            {
-                printf("Window terminated by user.\n");
-                exit(0);
-            }
-        }
-        return eventData;
-    }
-
-    bool shouldQuit() const override
-    {
-        return glfwWindowShouldClose(m_glfwWindow);
-    }
+  bool shouldQuit() const override
+  {
+    return glfwWindowShouldClose(m_glfwWindow);
+  }
 
 #ifdef RIVE_ORE
-    void* getOreContext() const override
-    {
-        return renderContext()->getOreContext();
-    }
+  void* getOreContext() const override
+  {
+    return renderContext()->getOreContext();
+  }
 
-    void beginOreFrame() override
-    {
-        auto oreContext = renderContext()->getOreContext();
-        m_fiddleContext->beginOreFrame(oreContext);
-    }
+  void beginOreFrame() override
+  {
+    auto oreContext = renderContext()->getOreContext();
+    m_fiddleContext->beginOreFrame(oreContext);
+  }
 
-    void endOreFrame() override
-    {
-        auto oreContext = renderContext()->getOreContext();
-        if (oreContext == nullptr)
-            return;
-        oreContext->finishOpenRenderPassesFrom(0);
-        m_fiddleContext->endOreFrame(oreContext);
-    }
+  void endOreFrame() override
+  {
+    auto oreContext = renderContext()->getOreContext();
+    if (oreContext == nullptr)
+      return;
+    oreContext->finishOpenRenderPassesFrom(0);
+    m_fiddleContext->endOreFrame(oreContext);
+  }
 #endif
 
 private:
-    const BackendParams m_backendParams;
-    GLFWwindow* m_glfwWindow = nullptr;
-    std::unique_ptr<FiddleContext> m_fiddleContext;
+  const BackendParams m_backendParams;
+  GLFWwindow* m_glfwWindow = nullptr;
+  std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 
 TestingWindow* TestingWindow::MakeFiddleContext(
@@ -643,13 +657,14 @@ TestingWindow* TestingWindow::MakeFiddleContext(
     Visibility visibility,
     void* platformWindow)
 {
-    auto window = std::make_unique<TestingWindowFiddleContext>(backend,
-                                                               backendParams,
-                                                               visibility,
-                                                               platformWindow);
-    if (!window->valid())
-        window = nullptr;
-    return window.release();
+  auto window = std::make_unique<TestingWindowFiddleContext>(
+      backend,
+      backendParams,
+      visibility,
+      platformWindow);
+  if (!window->valid())
+    window = nullptr;
+  return window.release();
 }
 
 #endif

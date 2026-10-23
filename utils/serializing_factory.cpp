@@ -31,497 +31,547 @@ static const float relativeEpsilon = 1e-5f;
 
 static float toleranceFor(float magnitude)
 {
-    return epsilon + relativeEpsilon * std::abs(magnitude);
+  return epsilon + relativeEpsilon * std::abs(magnitude);
 }
 
 static const char* opToName(SerializeOp op)
 {
-    switch (op)
-    {
-        case SerializeOp::makeRenderBuffer:
-            return "makeRenderBuffer";
-        case SerializeOp::makeLinearGradient:
-            return "makeLinearGradient";
-        case SerializeOp::makeRadialGradient:
-            return "makeRadialGradient";
-        case SerializeOp::makeRenderPath:
-            return "makeRenderPath";
-        case SerializeOp::makeRenderPaint:
-            return "makeRenderPaint";
-        case SerializeOp::decodeImage:
-            return "decodeImage";
-        case SerializeOp::save:
-            return "save";
-        case SerializeOp::restore:
-            return "restore";
-        case SerializeOp::transform:
-            return "transform";
-        case SerializeOp::drawPath:
-            return "drawPath";
-        case SerializeOp::clipPath:
-            return "clipPath";
-        case SerializeOp::applyLayerMask:
-            return "applyLayerMask";
-        case SerializeOp::drawImage:
-            return "drawImage";
-        case SerializeOp::drawImageMesh:
-            return "drawImageMesh";
-        case SerializeOp::makeImageMeshInstances:
-            return "makeImageMeshInstances";
-        case SerializeOp::setImageMeshInstancesData:
-            return "setImageMeshInstancesData";
-        case SerializeOp::drawImageMeshInstanced:
-            return "drawImageMeshInstanced";
+  switch (op)
+  {
+    case SerializeOp::makeRenderBuffer:
+      return "makeRenderBuffer";
+    case SerializeOp::makeLinearGradient:
+      return "makeLinearGradient";
+    case SerializeOp::makeRadialGradient:
+      return "makeRadialGradient";
+    case SerializeOp::makeAngularGradient:
+      return "makeAngularGradient";
+    case SerializeOp::makeRenderPath:
+      return "makeRenderPath";
+    case SerializeOp::makeRenderPaint:
+      return "makeRenderPaint";
+    case SerializeOp::decodeImage:
+      return "decodeImage";
+    case SerializeOp::save:
+      return "save";
+    case SerializeOp::restore:
+      return "restore";
+    case SerializeOp::transform:
+      return "transform";
+    case SerializeOp::drawPath:
+      return "drawPath";
+    case SerializeOp::clipPath:
+      return "clipPath";
+    case SerializeOp::applyLayerMask:
+      return "applyLayerMask";
+    case SerializeOp::drawImage:
+      return "drawImage";
+    case SerializeOp::drawImageMesh:
+      return "drawImageMesh";
+    case SerializeOp::makeImageMeshInstances:
+      return "makeImageMeshInstances";
+    case SerializeOp::setImageMeshInstancesData:
+      return "setImageMeshInstancesData";
+    case SerializeOp::drawImageMeshInstanced:
+      return "drawImageMeshInstanced";
 
-        // RenderBuffer
-        case SerializeOp::setVertexBufferData:
-            return "setVertexBufferData";
-        case SerializeOp::setIndexBufferData:
-            return "setIndexBufferData";
+    // RenderBuffer
+    case SerializeOp::setVertexBufferData:
+      return "setVertexBufferData";
+    case SerializeOp::setIndexBufferData:
+      return "setIndexBufferData";
 
-        // RenderPath
-        case SerializeOp::addRawPath:
-            return "addRawPath";
-        case SerializeOp::rewind:
-            return "rewind";
-        case SerializeOp::fillRule:
-            return "fillRule";
+    // RenderPath
+    case SerializeOp::addRawPath:
+      return "addRawPath";
+    case SerializeOp::rewind:
+      return "rewind";
+    case SerializeOp::fillRule:
+      return "fillRule";
 
-        // RenderPaint
-        case SerializeOp::style:
-            return "style";
-        case SerializeOp::color:
-            return "color";
-        case SerializeOp::thickness:
-            return "thickness";
-        case SerializeOp::join:
-            return "join";
-        case SerializeOp::cap:
-            return "cap";
-        case SerializeOp::feather:
-            return "feather";
-        case SerializeOp::blendMode:
-            return "blendMode";
-        case SerializeOp::additiveness:
-            return "additiveness";
-        case SerializeOp::shader:
-            return "shader";
-        case SerializeOp::paintModulatedImage:
-            return "paintModulatedImage";
+    // RenderPaint
+    case SerializeOp::style:
+      return "style";
+    case SerializeOp::color:
+      return "color";
+    case SerializeOp::thickness:
+      return "thickness";
+    case SerializeOp::join:
+      return "join";
+    case SerializeOp::cap:
+      return "cap";
+    case SerializeOp::feather:
+      return "feather";
+    case SerializeOp::blendMode:
+      return "blendMode";
+    case SerializeOp::additiveness:
+      return "additiveness";
+    case SerializeOp::strokePosition:
+      return "strokePosition";
+    case SerializeOp::shader:
+      return "shader";
+    case SerializeOp::paintModulatedImage:
+      return "paintModulatedImage";
 
-        case SerializeOp::frame:
-            return "frame";
-        case SerializeOp::frameSize:
-            return "frameSize";
-        case SerializeOp::modulateOpacity:
-            return "modulateOpacity";
-        case SerializeOp::modulateColor:
-            return "modulateColor";
+    case SerializeOp::frame:
+      return "frame";
+    case SerializeOp::frameSize:
+      return "frameSize";
+    case SerializeOp::modulateOpacity:
+      return "modulateOpacity";
+    case SerializeOp::modulateColor:
+      return "modulateColor";
 
-        // Offscreen canvases (cache-as-bitmap).
-        case SerializeOp::makeRenderCanvas:
-            return "makeRenderCanvas";
-        case SerializeOp::canvasContentBegin:
-            return "canvasContentBegin";
-        case SerializeOp::canvasContentEnd:
-            return "canvasContentEnd";
-        case SerializeOp::drawImageAdditive:
-            return "drawImageAdditive";
-        case SerializeOp::drawImageMeshAdditive:
-            return "drawImageMeshAdditive";
-    }
-    return "???";
+    // Offscreen canvases (cache-as-bitmap).
+    case SerializeOp::makeRenderCanvas:
+      return "makeRenderCanvas";
+    case SerializeOp::canvasContentBegin:
+      return "canvasContentBegin";
+    case SerializeOp::canvasContentEnd:
+      return "canvasContentEnd";
+    case SerializeOp::drawImageAdditive:
+      return "drawImageAdditive";
+    case SerializeOp::drawImageMeshAdditive:
+      return "drawImageMeshAdditive";
+
+    case SerializeOp::shaderTransform:
+      return "shaderTransform";
+  }
+  return "???";
 }
 
 class SerializingRenderImage : public RenderImage
 {
 public:
-    SerializingRenderImage(uint64_t id, uint32_t width, uint32_t height) :
-        m_id(id)
-    {
-        m_Width = width;
-        m_Height = height;
-    }
+  SerializingRenderImage(uint64_t id, uint32_t width, uint32_t height)
+      : m_id(id)
+  {
+    m_Width = width;
+    m_Height = height;
+  }
 
-    uint64_t id() const { return m_id; }
+  uint64_t id() const { return m_id; }
 
 private:
-    uint64_t m_id;
+  uint64_t m_id;
 };
 
 class SerializingRenderShader : public RenderShader
 {
 public:
-    SerializingRenderShader(uint64_t id) : m_id(id) {}
-    uint64_t id() const { return m_id; }
+  SerializingRenderShader(uint64_t id) : m_id(id) {}
+  uint64_t id() const { return m_id; }
 
 private:
-    uint64_t m_id;
+  uint64_t m_id;
 };
 
 class SerializingRenderPaint : public RenderPaint
 {
 public:
-    SerializingRenderPaint(BinaryWriter* writer, uint64_t id) :
-        m_id(id), m_writer(writer)
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPaint);
-        m_writer->writeVarUint(m_id);
-    }
+  SerializingRenderPaint(
+      BinaryWriter* writer,
+      uint64_t id,
+      const SerializingFactory* factory)
+      : m_id(id)
+      , m_writer(writer)
+      , m_factory(factory)
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPaint);
+    m_writer->writeVarUint(m_id);
+  }
 
-    void color(unsigned int value) override
+  void color(unsigned int value) override
+  {
+    if (m_color == value)
     {
-        if (m_color == value)
-        {
-            return;
-        }
-        m_color = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::color);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint(m_color);
+      return;
     }
+    m_color = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::color);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint(m_color);
+  }
 
-    void style(RenderPaintStyle value) override
+  void style(RenderPaintStyle value) override
+  {
+    if (m_stroked == (value == RenderPaintStyle::stroke))
     {
-        if (m_stroked == (value == RenderPaintStyle::stroke))
-        {
-            return;
-        }
-        m_stroked = value == RenderPaintStyle::stroke;
-        m_writer->writeVarUint((uint32_t)SerializeOp::style);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint32_t)(m_stroked ? 0 : 1));
+      return;
     }
+    m_stroked = value == RenderPaintStyle::stroke;
+    m_writer->writeVarUint((uint32_t)SerializeOp::style);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint32_t)(m_stroked ? 0 : 1));
+  }
 
-    void thickness(float value) override
+  void thickness(float value) override
+  {
+    if (m_thickness == value)
     {
-        if (m_thickness == value)
-        {
-            return;
-        }
-        m_thickness = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::thickness);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeFloat(m_thickness);
+      return;
     }
+    m_thickness = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::thickness);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeFloat(m_thickness);
+  }
 
-    void join(StrokeJoin value) override
+  void join(StrokeJoin value) override
+  {
+    if (m_join == value)
     {
-        if (m_join == value)
-        {
-            return;
-        }
-        m_join = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::join);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint32_t)m_join);
+      return;
     }
+    m_join = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::join);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint32_t)m_join);
+  }
 
-    void cap(StrokeCap value) override
+  void cap(StrokeCap value) override
+  {
+    if (m_cap == value)
     {
-        if (m_cap == value)
-        {
-            return;
-        }
-        m_cap = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::cap);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint32_t)m_cap);
+      return;
     }
+    m_cap = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::cap);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint32_t)m_cap);
+  }
 
-    void blendMode(BlendMode value) override
+  void strokePosition(StrokePosition value) override
+  {
+    if (m_strokePosition == value)
     {
-        if (m_blendMode == value)
-        {
-            return;
-        }
-        m_blendMode = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::blendMode);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint32_t)m_blendMode);
+      return;
     }
+    m_strokePosition = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::strokePosition);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint32_t)m_strokePosition);
+  }
 
-    void additiveness(float value) override
+  void blendMode(BlendMode value) override
+  {
+    if (m_blendMode == value)
     {
-        if (m_additiveness == value)
-        {
-            return;
-        }
-        m_additiveness = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::additiveness);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeFloat(m_additiveness);
+      return;
     }
+    m_blendMode = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::blendMode);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint32_t)m_blendMode);
+  }
 
-    void shader(rcp<RenderShader> shader) override
+  void additiveness(float value) override
+  {
+    if (m_additiveness == value)
     {
-        if (m_shader == shader)
-        {
-            return;
-        }
-        m_shader = shader;
-        m_writer->writeVarUint((uint32_t)SerializeOp::shader);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint(
-            shader == nullptr
-                ? 0
-                : static_cast<SerializingRenderShader*>(shader.get())->id());
+      return;
     }
-    void modulatedImage(const RenderImage* image,
-                        ImageSampler sampler,
-                        const Mat2D& matrix) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::paintModulatedImage);
-        m_writer->writeVarUint(m_id);
-        // Image id is offset by one so 0 unambiguously means "no image".
-        m_writer->writeVarUint(
-            image == nullptr
-                ? 0
-                : static_cast<const SerializingRenderImage*>(image)->id() + 1);
-        m_writer->writeVarUint((uint32_t)sampler.filter);
-        m_writer->writeVarUint((uint32_t)sampler.wrapX);
-        m_writer->writeVarUint((uint32_t)sampler.wrapY);
-        m_writer->writeFloat(matrix.xx());
-        m_writer->writeFloat(matrix.xy());
-        m_writer->writeFloat(matrix.yx());
-        m_writer->writeFloat(matrix.yy());
-        m_writer->writeFloat(matrix.tx());
-        m_writer->writeFloat(matrix.ty());
-    }
-    void invalidateStroke() override {}
-    void feather(float value) override
-    {
-        if (m_feather == value)
-        {
-            return;
-        }
-        m_feather = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::feather);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeFloat(m_feather);
-    }
+    m_additiveness = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::additiveness);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeFloat(m_additiveness);
+  }
 
-    uint64_t id() const { return m_id; }
+  void shader(rcp<RenderShader> shader) override
+  {
+    if (m_shader == shader)
+    {
+      return;
+    }
+    m_shader = shader;
+    m_writer->writeVarUint((uint32_t)SerializeOp::shader);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint(
+        shader == nullptr
+            ? 0
+            : static_cast<SerializingRenderShader*>(shader.get())->id());
+  }
+  void shaderTransform(const Mat2D& transform) override
+  {
+    if (m_shaderTransform == transform)
+    {
+      return;
+    }
+    m_shaderTransform = transform;
+    m_writer->writeVarUint((uint32_t)SerializeOp::shaderTransform);
+    m_writer->writeVarUint(m_id);
+    for (int i = 0; i < 6; i++)
+    {
+      m_writer->writeFloat(m_shaderTransform[i]);
+    }
+  }
+
+  void modulatedImage(
+      const RenderImage* image,
+      ImageSampler sampler,
+      const Mat2D& matrix) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::paintModulatedImage);
+    m_writer->writeVarUint(m_id);
+    // Image id is offset by one so 0 unambiguously means "no image". Ask
+    // the factory rather than casting: the image may be a canvas's (an
+    // artboard paint source samples one), which carries no id of its own.
+    m_writer->writeVarUint(
+        image == nullptr ? 0 : m_factory->imageId(image) + 1);
+    m_writer->writeVarUint((uint32_t)sampler.filter);
+    m_writer->writeVarUint((uint32_t)sampler.wrapX);
+    m_writer->writeVarUint((uint32_t)sampler.wrapY);
+    m_writer->writeFloat(matrix.xx());
+    m_writer->writeFloat(matrix.xy());
+    m_writer->writeFloat(matrix.yx());
+    m_writer->writeFloat(matrix.yy());
+    m_writer->writeFloat(matrix.tx());
+    m_writer->writeFloat(matrix.ty());
+  }
+
+  void invalidateStroke() override {}
+  void feather(float value) override
+  {
+    if (m_feather == value)
+    {
+      return;
+    }
+    m_feather = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::feather);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeFloat(m_feather);
+  }
+
+  uint64_t id() const { return m_id; }
 
 private:
-    uint64_t m_id;
-    BinaryWriter* m_writer;
-    rcp<RenderShader> m_shader;
+  uint64_t m_id;
+  BinaryWriter* m_writer;
+  const SerializingFactory* m_factory;
+  rcp<RenderShader> m_shader;
+  Mat2D m_shaderTransform;
 
-    unsigned int m_color = 0xFF000000;
-    float m_thickness = 1;
-    StrokeJoin m_join = StrokeJoin::miter;
-    StrokeCap m_cap = StrokeCap::butt;
-    float m_feather = 0;
-    float m_additiveness = 0;
-    BlendMode m_blendMode = BlendMode::srcOver;
-    bool m_stroked = false;
+  unsigned int m_color = 0xFF000000;
+  float m_thickness = 1;
+  StrokeJoin m_join = StrokeJoin::miter;
+  StrokeCap m_cap = StrokeCap::butt;
+  StrokePosition m_strokePosition = StrokePosition::center;
+  float m_feather = 0;
+  float m_additiveness = 0;
+  BlendMode m_blendMode = BlendMode::srcOver;
+  bool m_stroked = false;
 };
 
 class SerializingRenderPath : public RenderPath
 {
 public:
-    void rewind() override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::rewind);
-        m_writer->writeVarUint(m_id);
-    }
+  void rewind() override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::rewind);
+    m_writer->writeVarUint(m_id);
+  }
 
-    void fillRule(FillRule value) override
+  void fillRule(FillRule value) override
+  {
+    if (m_fillRule == value)
     {
-        if (m_fillRule == value)
-        {
-            return;
-        }
-        m_fillRule = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::fillRule);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint64_t)value);
+      return;
     }
+    m_fillRule = value;
+    m_writer->writeVarUint((uint32_t)SerializeOp::fillRule);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint64_t)value);
+  }
 
-    void addPath(CommandPath* path, const Mat2D& transform) override
-    {
-        RIVE_UNREACHABLE();
-    }
-    void addRenderPath(const RenderPath* path, const Mat2D& transform) override
-    {
-        RIVE_UNREACHABLE();
-    }
+  void addPath(CommandPath* path, const Mat2D& transform) override
+  {
+    RIVE_UNREACHABLE();
+  }
+  void addRenderPath(const RenderPath* path, const Mat2D& transform) override
+  {
+    RIVE_UNREACHABLE();
+  }
 
-    void moveTo(float x, float y) override { RIVE_UNREACHABLE(); }
-    void lineTo(float x, float y) override { RIVE_UNREACHABLE(); }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
-        override
-    {
-        RIVE_UNREACHABLE();
-    }
-    void close() override { RIVE_UNREACHABLE(); }
+  void moveTo(float x, float y) override { RIVE_UNREACHABLE(); }
+  void lineTo(float x, float y) override { RIVE_UNREACHABLE(); }
+  void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+      override
+  {
+    RIVE_UNREACHABLE();
+  }
+  void close() override { RIVE_UNREACHABLE(); }
 
-    void addRawPath(const RawPath& path) override
-    {
-        m_rawPath.addPath(path, nullptr);
+  void addRawPath(const RawPath& path) override
+  {
+    m_rawPath.addPath(path, nullptr);
 
-        m_writer->writeVarUint((uint32_t)SerializeOp::addRawPath);
-        m_writer->writeVarUint(m_id);
-        serializeRawPath(m_writer, path);
-    }
+    m_writer->writeVarUint((uint32_t)SerializeOp::addRawPath);
+    m_writer->writeVarUint(m_id);
+    serializeRawPath(m_writer, path);
+  }
 
-    SerializingRenderPath(BinaryWriter* writer, uint64_t id) :
-        m_id(id), m_writer(writer)
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPath);
-        m_writer->writeVarUint(m_id);
-    }
+  SerializingRenderPath(BinaryWriter* writer, uint64_t id)
+      : m_id(id)
+      , m_writer(writer)
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPath);
+    m_writer->writeVarUint(m_id);
+  }
 
-    SerializingRenderPath(BinaryWriter* writer,
-                          uint64_t id,
-                          const RawPath& path,
-                          FillRule fillRule) :
-        m_id(id), m_fillRule(fillRule), m_rawPath(path), m_writer(writer)
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPath);
-        m_writer->writeVarUint(m_id);
-        this->fillRule(fillRule);
-        addRawPath(path);
-    }
+  SerializingRenderPath(
+      BinaryWriter* writer,
+      uint64_t id,
+      const RawPath& path,
+      FillRule fillRule)
+      : m_id(id)
+      , m_fillRule(fillRule)
+      , m_rawPath(path)
+      , m_writer(writer)
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPath);
+    m_writer->writeVarUint(m_id);
+    this->fillRule(fillRule);
+    addRawPath(path);
+  }
 
-    uint64_t id() const { return m_id; }
+  uint64_t id() const { return m_id; }
 
 private:
-    uint64_t m_id;
-    FillRule m_fillRule = FillRule::nonZero;
-    RawPath m_rawPath;
-    BinaryWriter* m_writer;
+  uint64_t m_id;
+  FillRule m_fillRule = FillRule::nonZero;
+  RawPath m_rawPath;
+  BinaryWriter* m_writer;
 };
 
 class SerializingImageMeshInstances : public ImageMeshInstances
 {
 public:
-    SerializingImageMeshInstances(BinaryWriter* writer,
-                                  uint64_t id,
-                                  size_t count) :
-        ImageMeshInstances(count), m_writer(writer), m_id(id)
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::makeImageMeshInstances);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint64_t)count);
-    }
+  SerializingImageMeshInstances(BinaryWriter* writer, uint64_t id, size_t count)
+      : ImageMeshInstances(count)
+      , m_writer(writer)
+      , m_id(id)
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::makeImageMeshInstances);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint64_t)count);
+  }
 
-    uint64_t id() const { return m_id; }
+  uint64_t id() const { return m_id; }
 
 protected:
-    void onEndEdit() override
+  void onEndEdit() override
+  {
+    Span<const ImageMeshInstanceData> data = instanceData();
+    m_writer->writeVarUint((uint32_t)SerializeOp::setImageMeshInstancesData);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint64_t)data.size());
+    for (const ImageMeshInstanceData& instance : data)
     {
-        Span<const ImageMeshInstanceData> data = instanceData();
-        m_writer->writeVarUint(
-            (uint32_t)SerializeOp::setImageMeshInstancesData);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint64_t)data.size());
-        for (const ImageMeshInstanceData& instance : data)
-        {
-            for (int i = 0; i < 6; ++i)
-            {
-                m_writer->writeFloat(instance.transform[i]);
-            }
-            m_writer->writeFloat(instance.uvTranslate.x);
-            m_writer->writeFloat(instance.uvTranslate.y);
-            m_writer->writeFloat(instance.uvScale.x);
-            m_writer->writeFloat(instance.uvScale.y);
-            m_writer->writeFloat(instance.opacity);
-            m_writer->writeFloat(instance.additiveness);
-        }
+      for (int i = 0; i < 6; ++i)
+      {
+        m_writer->writeFloat(instance.transform[i]);
+      }
+      m_writer->writeFloat(instance.uvTranslate.x);
+      m_writer->writeFloat(instance.uvTranslate.y);
+      m_writer->writeFloat(instance.uvScale.x);
+      m_writer->writeFloat(instance.uvScale.y);
+      m_writer->writeFloat(instance.opacity);
+      m_writer->writeFloat(instance.additiveness);
     }
+  }
 
 private:
-    BinaryWriter* m_writer;
-    uint64_t m_id;
+  BinaryWriter* m_writer;
+  uint64_t m_id;
 };
 
 class SerializingRenderBuffer : public RenderBuffer
 {
 public:
-    SerializingRenderBuffer(BinaryWriter* writer,
-                            uint64_t id,
-                            RenderBufferType type,
-                            RenderBufferFlags flags,
-                            size_t sizeInBytes) :
-        RenderBuffer(type, flags, sizeInBytes),
-        m_writer(writer),
-        m_bytes(sizeInBytes),
-        m_id(id)
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderBuffer);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint64_t)sizeInBytes);
-        m_writer->writeVarUint((uint32_t)type);
-        m_writer->writeVarUint((uint32_t)flags);
-    }
+  SerializingRenderBuffer(
+      BinaryWriter* writer,
+      uint64_t id,
+      RenderBufferType type,
+      RenderBufferFlags flags,
+      size_t sizeInBytes)
+      : RenderBuffer(type, flags, sizeInBytes)
+      , m_writer(writer)
+      , m_bytes(sizeInBytes)
+      , m_id(id)
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderBuffer);
+    m_writer->writeVarUint(m_id);
+    m_writer->writeVarUint((uint64_t)sizeInBytes);
+    m_writer->writeVarUint((uint32_t)type);
+    m_writer->writeVarUint((uint32_t)flags);
+  }
 
-    uint64_t id() const { return m_id; }
-    void* onMap() override { return m_bytes.data(); }
-    void onUnmap() override
+  uint64_t id() const { return m_id; }
+  void* onMap() override { return m_bytes.data(); }
+  void onUnmap() override
+  {
+    switch (type())
     {
-        switch (type())
-        {
-            case RenderBufferType::index:
-                m_writer->writeVarUint(
-                    (uint32_t)SerializeOp::setIndexBufferData);
-                break;
-            case RenderBufferType::vertex:
-                m_writer->writeVarUint(
-                    (uint32_t)SerializeOp::setVertexBufferData);
-                break;
-            default:
-                RIVE_UNREACHABLE();
-        }
-        m_writer->writeVarUint(m_id);
-        switch (type())
-        {
-            case RenderBufferType::vertex:
-            {
-                auto count = m_bytes.size() / sizeof(float);
-                auto floatBuffer = reinterpret_cast<float*>(m_bytes.data());
-                for (size_t i = 0; i < count; i++)
-                {
-                    m_writer->writeFloat(floatBuffer[i]);
-                }
-                break;
-            }
-            case RenderBufferType::index:
-            {
-                auto count = m_bytes.size() / sizeof(uint16_t);
-                auto shortBuffer = reinterpret_cast<uint16_t*>(m_bytes.data());
-                for (size_t i = 0; i < count; i++)
-                {
-                    m_writer->writeVarUint((uint32_t)shortBuffer[i]);
-                }
-                break;
-            }
-        }
+      case RenderBufferType::index:
+        m_writer->writeVarUint((uint32_t)SerializeOp::setIndexBufferData);
+        break;
+      case RenderBufferType::vertex:
+        m_writer->writeVarUint((uint32_t)SerializeOp::setVertexBufferData);
+        break;
+      default:
+        RIVE_UNREACHABLE();
     }
+    m_writer->writeVarUint(m_id);
+    switch (type())
+    {
+      case RenderBufferType::vertex:
+      {
+        auto count = m_bytes.size() / sizeof(float);
+        auto floatBuffer = reinterpret_cast<float*>(m_bytes.data());
+        for (size_t i = 0; i < count; i++)
+        {
+          m_writer->writeFloat(floatBuffer[i]);
+        }
+        break;
+      }
+      case RenderBufferType::index:
+      {
+        auto count = m_bytes.size() / sizeof(uint16_t);
+        auto shortBuffer = reinterpret_cast<uint16_t*>(m_bytes.data());
+        for (size_t i = 0; i < count; i++)
+        {
+          m_writer->writeVarUint((uint32_t)shortBuffer[i]);
+        }
+        break;
+      }
+    }
+  }
 
 private:
-    BinaryWriter* m_writer;
-    std::vector<uint8_t> m_bytes;
-    uint64_t m_id;
+  BinaryWriter* m_writer;
+  std::vector<uint8_t> m_bytes;
+  uint64_t m_id;
 };
 
-rcp<RenderBuffer> SerializingFactory::makeRenderBuffer(RenderBufferType type,
-                                                       RenderBufferFlags flags,
-                                                       size_t size)
+rcp<RenderBuffer> SerializingFactory::makeRenderBuffer(
+    RenderBufferType type,
+    RenderBufferFlags flags,
+    size_t size)
 {
-    return make_rcp<SerializingRenderBuffer>(&m_writer,
-                                             m_renderBufferId++,
-                                             type,
-                                             flags,
-                                             size);
+  return make_rcp<SerializingRenderBuffer>(
+      &m_writer,
+      m_renderBufferId++,
+      type,
+      flags,
+      size);
 }
 
 rcp<ImageMeshInstances> SerializingFactory::makeImageMeshInstances(size_t count)
 {
-    return make_rcp<SerializingImageMeshInstances>(&m_writer,
-                                                   m_imageMeshInstancesId++,
-                                                   count);
+  return make_rcp<SerializingImageMeshInstances>(
+      &m_writer,
+      m_imageMeshInstancesId++,
+      count);
 }
 
 rcp<RenderShader> SerializingFactory::makeLinearGradient(
@@ -533,21 +583,21 @@ rcp<RenderShader> SerializingFactory::makeLinearGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    auto id = m_renderShaderId++;
-    m_writer.writeVarUint((uint32_t)SerializeOp::makeLinearGradient);
-    m_writer.writeVarUint(id);
-    m_writer.writeVarUint((uint64_t)count);
-    for (auto i = 0; i < count; i++)
-    {
-        m_writer.writeVarUint(colors[i]);
-        m_writer.writeFloat(stops[i]);
-    }
-    m_writer.writeFloat(sx);
-    m_writer.writeFloat(sy);
-    m_writer.writeFloat(ex);
-    m_writer.writeFloat(ey);
+  auto id = m_renderShaderId++;
+  m_writer.writeVarUint((uint32_t)SerializeOp::makeLinearGradient);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint((uint64_t)count);
+  for (auto i = 0; i < count; i++)
+  {
+    m_writer.writeVarUint(colors[i]);
+    m_writer.writeFloat(stops[i]);
+  }
+  m_writer.writeFloat(sx);
+  m_writer.writeFloat(sy);
+  m_writer.writeFloat(ex);
+  m_writer.writeFloat(ey);
 
-    return make_rcp<SerializingRenderShader>(id);
+  return make_rcp<SerializingRenderShader>(id);
 }
 
 rcp<RenderShader> SerializingFactory::makeRadialGradient(
@@ -558,232 +608,254 @@ rcp<RenderShader> SerializingFactory::makeRadialGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    auto id = m_renderShaderId++;
-    m_writer.writeVarUint((uint32_t)SerializeOp::makeRadialGradient);
-    m_writer.writeVarUint(id);
-    m_writer.writeVarUint((uint64_t)count);
-    for (auto i = 0; i < count; i++)
-    {
-        m_writer.writeVarUint(colors[i]);
-        m_writer.writeFloat(stops[i]);
-    }
-    m_writer.writeFloat(cx);
-    m_writer.writeFloat(cy);
-    m_writer.writeFloat(radius);
+  auto id = m_renderShaderId++;
+  m_writer.writeVarUint((uint32_t)SerializeOp::makeRadialGradient);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint((uint64_t)count);
+  for (auto i = 0; i < count; i++)
+  {
+    m_writer.writeVarUint(colors[i]);
+    m_writer.writeFloat(stops[i]);
+  }
+  m_writer.writeFloat(cx);
+  m_writer.writeFloat(cy);
+  m_writer.writeFloat(radius);
 
-    return make_rcp<SerializingRenderShader>(id);
+  return make_rcp<SerializingRenderShader>(id);
 }
 
-rcp<RenderPath> SerializingFactory::makeRenderPath(RawPath& rawPath,
-                                                   FillRule fillRule)
+rcp<RenderShader> SerializingFactory::makeAngularGradient(
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
-    return make_rcp<SerializingRenderPath>(&m_writer,
-                                           m_renderPathId++,
-                                           rawPath,
-                                           fillRule);
+  auto id = m_renderShaderId++;
+  m_writer.writeVarUint((uint32_t)SerializeOp::makeAngularGradient);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint((uint64_t)count);
+  for (auto i = 0; i < count; i++)
+  {
+    m_writer.writeVarUint(colors[i]);
+    m_writer.writeFloat(stops[i]);
+  }
+
+  return make_rcp<SerializingRenderShader>(id);
+}
+
+rcp<RenderPath> SerializingFactory::makeRenderPath(
+    RawPath& rawPath,
+    FillRule fillRule)
+{
+  return make_rcp<SerializingRenderPath>(
+      &m_writer,
+      m_renderPathId++,
+      rawPath,
+      fillRule);
 }
 
 rcp<RenderPath> SerializingFactory::makeEmptyRenderPath()
 {
-    return make_rcp<SerializingRenderPath>(&m_writer, m_renderPathId++);
+  return make_rcp<SerializingRenderPath>(&m_writer, m_renderPathId++);
 }
 
 rcp<RenderPaint> SerializingFactory::makeRenderPaint()
 {
-    return make_rcp<SerializingRenderPaint>(&m_writer, m_renderPaintId++);
+  return make_rcp<SerializingRenderPaint>(&m_writer, m_renderPaintId++, this);
 }
 
 rcp<RenderImage> SerializingFactory::decodeImage(Span<const uint8_t> data)
 {
-    auto id = m_renderImageId++;
-    m_writer.writeVarUint((uint32_t)SerializeOp::decodeImage);
-    m_writer.writeVarUint(id);
-    m_writer.writeVarUint((uint64_t)data.size());
-    m_writer.write(data.data(), data.size());
+  auto id = m_renderImageId++;
+  m_writer.writeVarUint((uint32_t)SerializeOp::decodeImage);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint((uint64_t)data.size());
+  m_writer.write(data.data(), data.size());
 
-    auto bitmap = Bitmap::decode(data.data(), data.size());
-    if (!bitmap)
-    {
-        return nullptr;
-    }
+  auto bitmap = Bitmap::decode(data.data(), data.size());
+  if (!bitmap)
+  {
+    return nullptr;
+  }
 
-    return make_rcp<SerializingRenderImage>(id,
-                                            bitmap->width(),
-                                            bitmap->height());
+  return make_rcp<SerializingRenderImage>(
+      id,
+      bitmap->width(),
+      bitmap->height());
 }
 
 class SerializingRenderer : public Renderer
 {
 public:
-    SerializingRenderer(BinaryWriter* writer,
-                        const SerializingFactory* factory) :
-        m_writer(writer), m_factory(factory)
-    {}
+  SerializingRenderer(BinaryWriter* writer, const SerializingFactory* factory)
+      : m_writer(writer)
+      , m_factory(factory)
+  {}
 
-    void save() override
+  void save() override { m_writer->writeVarUint((uint32_t)SerializeOp::save); }
+  void restore() override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::restore);
+  }
+  void transform(const Mat2D& mat) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::transform);
+    for (int i = 0; i < 6; i++)
     {
-        m_writer->writeVarUint((uint32_t)SerializeOp::save);
+      m_writer->writeFloat(mat[i]);
     }
-    void restore() override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::restore);
-    }
-    void transform(const Mat2D& mat) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::transform);
-        for (int i = 0; i < 6; i++)
-        {
-            m_writer->writeFloat(mat[i]);
-        }
-    }
+  }
 
-    void modulateOpacity(float opacity) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::modulateOpacity);
-        m_writer->writeFloat(opacity);
-    }
+  void modulateOpacity(float opacity) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::modulateOpacity);
+    m_writer->writeFloat(opacity);
+  }
 
-    void modulateColor(ColorInt color, bool replace) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::modulateColor);
-        m_writer->writeVarUint(color);
-        m_writer->writeVarUint((uint32_t)replace);
-    }
+  void modulateColor(ColorInt color, bool replace) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::modulateColor);
+    m_writer->writeVarUint(color);
+    m_writer->writeVarUint((uint32_t)replace);
+  }
 
-    void drawPath(RenderPath* path, RenderPaint* paint) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::drawPath);
-        m_writer->writeVarUint(static_cast<SerializingRenderPath*>(path)->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderPaint*>(paint)->id());
-    }
+  void drawPath(RenderPath* path, RenderPaint* paint) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::drawPath);
+    m_writer->writeVarUint(static_cast<SerializingRenderPath*>(path)->id());
+    m_writer->writeVarUint(static_cast<SerializingRenderPaint*>(paint)->id());
+  }
 
-    void clipPath(RenderPath* path) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::clipPath);
-        m_writer->writeVarUint(static_cast<SerializingRenderPath*>(path)->id());
-    }
+  void clipPath(RenderPath* path) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::clipPath);
+    m_writer->writeVarUint(static_cast<SerializingRenderPath*>(path)->id());
+  }
 
-    virtual void drawImage(const RenderImage* image,
-                           ImageSampler samplerOptions,
-                           BlendMode blendMode,
-                           float opacity) override
-    {
-        drawImage(image, samplerOptions, blendMode, opacity, 0.0f);
-    }
+  virtual void drawImage(
+      const RenderImage* image,
+      ImageSampler samplerOptions,
+      BlendMode blendMode,
+      float opacity) override
+  {
+    drawImage(image, samplerOptions, blendMode, opacity, 0.0f);
+  }
 
-    virtual void drawImage(const RenderImage* image,
-                           ImageSampler samplerOptions,
-                           BlendMode blendMode,
-                           float opacity,
-                           float additiveness) override
+  virtual void drawImage(
+      const RenderImage* image,
+      ImageSampler samplerOptions,
+      BlendMode blendMode,
+      float opacity,
+      float additiveness) override
+  {
+    // The additive variant only differs by a trailing float, so a draw
+    // that isn't additive still records as a plain drawImage.
+    const bool isAdditive = additiveness != 0;
+    m_writer->writeVarUint((uint32_t)(isAdditive
+                                          ? SerializeOp::drawImageAdditive
+                                          : SerializeOp::drawImage));
+    m_writer->writeVarUint(m_factory->imageId(image));
+    m_writer->writeVarUint((uint32_t)blendMode);
+    m_writer->writeFloat(opacity);
+    if (isAdditive)
     {
-        // The additive variant only differs by a trailing float, so a draw
-        // that isn't additive still records as a plain drawImage.
-        const bool isAdditive = additiveness != 0;
-        m_writer->writeVarUint((uint32_t)(isAdditive
-                                              ? SerializeOp::drawImageAdditive
-                                              : SerializeOp::drawImage));
-        m_writer->writeVarUint(m_factory->imageId(image));
-        m_writer->writeVarUint((uint32_t)blendMode);
-        m_writer->writeFloat(opacity);
-        if (isAdditive)
-        {
-            m_writer->writeFloat(additiveness);
-        }
+      m_writer->writeFloat(additiveness);
     }
+  }
 
-    void applyLayerMask(const RenderImage* mask,
-                        ImageSampler,
-                        LayerMaskMode mode) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::applyLayerMask);
-        m_writer->writeVarUint(m_factory->imageId(mask));
-        m_writer->writeVarUint((uint32_t)mode);
-    }
+  void applyLayerMask(const RenderImage* mask, ImageSampler, LayerMaskMode mode)
+      override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::applyLayerMask);
+    m_writer->writeVarUint(m_factory->imageId(mask));
+    m_writer->writeVarUint((uint32_t)mode);
+  }
 
-    virtual void drawImageMesh(const RenderImage* image,
-                               ImageSampler samplerOptions,
-                               rcp<RenderBuffer> positions,
-                               rcp<RenderBuffer> uvs,
-                               rcp<RenderBuffer> indices,
-                               uint32_t vertexCount,
-                               uint32_t indexCount,
-                               BlendMode blendMode,
-                               float opacity) override
-    {
-        drawImageMesh(image,
-                      samplerOptions,
-                      std::move(positions),
-                      std::move(uvs),
-                      std::move(indices),
-                      vertexCount,
-                      indexCount,
-                      blendMode,
-                      opacity,
-                      0.0f);
-    }
+  virtual void drawImageMesh(
+      const RenderImage* image,
+      ImageSampler samplerOptions,
+      rcp<RenderBuffer> positions,
+      rcp<RenderBuffer> uvs,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode blendMode,
+      float opacity) override
+  {
+    drawImageMesh(
+        image,
+        samplerOptions,
+        std::move(positions),
+        std::move(uvs),
+        std::move(indices),
+        vertexCount,
+        indexCount,
+        blendMode,
+        opacity,
+        0.0f);
+  }
 
-    virtual void drawImageMesh(const RenderImage* image,
-                               ImageSampler samplerOptions,
-                               rcp<RenderBuffer> positions,
-                               rcp<RenderBuffer> uvs,
-                               rcp<RenderBuffer> indices,
-                               uint32_t vertexCount,
-                               uint32_t indexCount,
-                               BlendMode blendMode,
-                               float opacity,
-                               float additiveness) override
+  virtual void drawImageMesh(
+      const RenderImage* image,
+      ImageSampler samplerOptions,
+      rcp<RenderBuffer> positions,
+      rcp<RenderBuffer> uvs,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode blendMode,
+      float opacity,
+      float additiveness) override
+  {
+    const bool isAdditive = additiveness != 0;
+    m_writer->writeVarUint((uint32_t)(isAdditive
+                                          ? SerializeOp::drawImageMeshAdditive
+                                          : SerializeOp::drawImageMesh));
+    m_writer->writeVarUint(m_factory->imageId(image));
+    m_writer->writeVarUint((uint32_t)blendMode);
+    m_writer->writeFloat(opacity);
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(positions.get())->id());
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(uvs.get())->id());
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(indices.get())->id());
+    if (isAdditive)
     {
-        const bool isAdditive = additiveness != 0;
-        m_writer->writeVarUint(
-            (uint32_t)(isAdditive ? SerializeOp::drawImageMeshAdditive
-                                  : SerializeOp::drawImageMesh));
-        m_writer->writeVarUint(m_factory->imageId(image));
-        m_writer->writeVarUint((uint32_t)blendMode);
-        m_writer->writeFloat(opacity);
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(positions.get())->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(uvs.get())->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(indices.get())->id());
-        if (isAdditive)
-        {
-            m_writer->writeFloat(additiveness);
-        }
+      m_writer->writeFloat(additiveness);
     }
+  }
 
-    void drawImageMeshInstanced(const RenderImage* image,
-                                ImageSampler samplerOptions,
-                                rcp<RenderBuffer> positions,
-                                rcp<RenderBuffer> uvs,
-                                rcp<RenderBuffer> indices,
-                                uint32_t vertexCount,
-                                uint32_t indexCount,
-                                rcp<ImageMeshInstances> instances) override
-    {
-        m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMeshInstanced);
-        m_writer->writeVarUint(m_factory->imageId(image));
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(positions.get())->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(uvs.get())->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingRenderBuffer*>(indices.get())->id());
-        m_writer->writeVarUint(
-            static_cast<SerializingImageMeshInstances*>(instances.get())->id());
-    }
+  void drawImageMeshInstanced(
+      const RenderImage* image,
+      ImageSampler samplerOptions,
+      rcp<RenderBuffer> positions,
+      rcp<RenderBuffer> uvs,
+      rcp<RenderBuffer> indices,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      rcp<ImageMeshInstances> instances) override
+  {
+    m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMeshInstanced);
+    m_writer->writeVarUint(m_factory->imageId(image));
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(positions.get())->id());
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(uvs.get())->id());
+    m_writer->writeVarUint(
+        static_cast<SerializingRenderBuffer*>(indices.get())->id());
+    m_writer->writeVarUint(
+        static_cast<SerializingImageMeshInstances*>(instances.get())->id());
+  }
 
 private:
-    BinaryWriter* m_writer;
-    const SerializingFactory* m_factory;
+  BinaryWriter* m_writer;
+  const SerializingFactory* m_factory;
 };
 
 SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
 {
-    m_writer.write((const uint8_t*)"SRIV", 4);
-    m_writer.writeVarUint((uint32_t)1);
+  m_writer.write((const uint8_t*)"SRIV", 4);
+  m_writer.writeVarUint((uint32_t)1);
 }
 
 // Out of line so this translation unit anchors the vtable.
@@ -791,1139 +863,1092 @@ SerializingFactory::~SerializingFactory() = default;
 
 std::unique_ptr<Renderer> SerializingFactory::makeRenderer()
 {
-    return std::make_unique<SerializingRenderer>(&m_writer, this);
+  return std::make_unique<SerializingRenderer>(&m_writer, this);
 }
 
 void SerializingFactory::enableBitmapCache(gpu::RenderContext* renderContext)
 {
-    m_bitmapCacheContext = renderContext;
+  m_bitmapCacheContext = renderContext;
 }
 
 Factory* SerializingFactory::renderContext() { return m_bitmapCacheContext; }
 
 cmd::DeferredCanvasHost* SerializingFactory::deferredCanvasHost()
 {
-    // Both hooks stay null until enableBitmapCache() runs, so an existing
-    // [silver] test keeps recording the plain vector path.
-    return m_bitmapCacheContext != nullptr ? this : nullptr;
+  // Both hooks stay null until enableBitmapCache() runs, so an existing
+  // [silver] test keeps recording the plain vector path.
+  return m_bitmapCacheContext != nullptr ? this : nullptr;
 }
 
 cmd::DeferredCanvasHost* SerializingFactory::canvasContentHost()
 {
-    return deferredCanvasHost();
+  return deferredCanvasHost();
 }
 
-rcp<gpu::RenderCanvas> SerializingFactory::makeContentCanvas(uint32_t width,
-                                                             uint32_t height)
+rcp<gpu::RenderCanvas> SerializingFactory::makeContentCanvas(
+    uint32_t width,
+    uint32_t height)
 {
 #ifdef RIVE_CANVAS
-    // Nothing is allocated on a device here -- the canvas only needs the
-    // identity the stream refers to, which is why a null-device context is
-    // enough. Whoever replays installs the pixels.
-    return m_bitmapCacheContext != nullptr
-               ? m_bitmapCacheContext->makeDeferredRenderCanvas(width, height)
-               : nullptr;
+  // Nothing is allocated on a device here -- the canvas only needs the
+  // identity the stream refers to, which is why a null-device context is
+  // enough. Whoever replays installs the pixels.
+  return m_bitmapCacheContext != nullptr
+             ? m_bitmapCacheContext->makeDeferredRenderCanvas(width, height)
+             : nullptr;
 #else
-    // Offscreen canvases are compiled out, so the artboard falls back to a
-    // plain vector draw.
-    return nullptr;
+  // Offscreen canvases are compiled out, so the artboard falls back to a
+  // plain vector draw.
+  return nullptr;
 #endif
 }
 
 rcp<RenderImage> SerializingFactory::contentCanvasImage(
     gpu::RenderCanvas* canvas)
 {
-    return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
-                             : nullptr;
+  return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
+                           : nullptr;
 }
 
 uint64_t SerializingFactory::canvasId(gpu::RenderCanvas* canvas)
 {
-    const RenderImage* image = canvas->renderImage();
-    auto it = m_canvasImageIds.find(image);
-    if (it != m_canvasImageIds.end())
-    {
-        return it->second;
-    }
-    uint64_t id = m_renderImageId++;
-    m_canvasImageIds[image] = id;
-    m_retainedCanvases.push_back(ref_rcp(canvas));
-    m_writer.writeVarUint((uint32_t)SerializeOp::makeRenderCanvas);
-    m_writer.writeVarUint(id);
-    m_writer.writeVarUint(canvas->width());
-    m_writer.writeVarUint(canvas->height());
-    return id;
+  const RenderImage* image = canvas->renderImage();
+  auto it = m_canvasImageIds.find(image);
+  if (it != m_canvasImageIds.end())
+  {
+    return it->second;
+  }
+  uint64_t id = m_renderImageId++;
+  m_canvasImageIds[image] = id;
+  m_retainedCanvases.push_back(ref_rcp(canvas));
+  m_writer.writeVarUint((uint32_t)SerializeOp::makeRenderCanvas);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint(canvas->width());
+  m_writer.writeVarUint(canvas->height());
+  return id;
 }
 
 uint64_t SerializingFactory::imageId(const RenderImage* image) const
 {
-    auto it = m_canvasImageIds.find(image);
-    if (it != m_canvasImageIds.end())
-    {
-        return it->second;
-    }
-    // Everything this factory hands out that is not canvas backed carries its
-    // own id.
-    return static_cast<const SerializingRenderImage*>(image)->id();
+  auto it = m_canvasImageIds.find(image);
+  if (it != m_canvasImageIds.end())
+  {
+    return it->second;
+  }
+  // Everything this factory hands out that is not canvas backed carries its
+  // own id.
+  return static_cast<const SerializingRenderImage*>(image)->id();
 }
 
-Renderer* SerializingFactory::beginCanvasContent(gpu::RenderCanvas* canvas,
-                                                 uint32_t clearColor)
+Renderer* SerializingFactory::beginCanvasContent(
+    gpu::RenderCanvas* canvas,
+    uint32_t clearColor)
 {
-    if (canvas == nullptr)
-    {
-        return nullptr;
-    }
-    // Minted before the bracket so a replayer knows the canvas's size by the
-    // time it has to open a frame on it.
-    uint64_t id = canvasId(canvas);
-    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentBegin);
-    m_writer.writeVarUint(id);
-    m_writer.writeVarUint(clearColor);
-    if (m_canvasRenderer == nullptr)
-    {
-        // Content records inline into the same stream, so one recorder serves
-        // every canvas. Kept for the factory's lifetime rather than released
-        // at endCanvasContent: a nested cache brackets inside an outer one,
-        // and freeing on the inner end would dangle the pointer the outer
-        // content is still drawing through.
-        m_canvasRenderer = makeRenderer();
-    }
-    return m_canvasRenderer.get();
+  if (canvas == nullptr)
+  {
+    return nullptr;
+  }
+  // Minted before the bracket so a replayer knows the canvas's size by the
+  // time it has to open a frame on it.
+  uint64_t id = canvasId(canvas);
+  m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentBegin);
+  m_writer.writeVarUint(id);
+  m_writer.writeVarUint(clearColor);
+  if (m_canvasRenderer == nullptr)
+  {
+    // Content records inline into the same stream, so one recorder serves
+    // every canvas. Kept for the factory's lifetime rather than released
+    // at endCanvasContent: a nested cache brackets inside an outer one,
+    // and freeing on the inner end would dangle the pointer the outer
+    // content is still drawing through.
+    m_canvasRenderer = makeRenderer();
+  }
+  return m_canvasRenderer.get();
 }
 
 void SerializingFactory::endCanvasContent(gpu::RenderCanvas* canvas)
 {
-    if (canvas == nullptr)
-    {
-        return;
-    }
-    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentEnd);
-    m_writer.writeVarUint(canvasId(canvas));
+  if (canvas == nullptr)
+  {
+    return;
+  }
+  m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentEnd);
+  m_writer.writeVarUint(canvasId(canvas));
 }
 
 void SerializingFactory::addFrame()
 {
-    Artboard::incFrameId();
-    m_writer.writeVarUint((uint32_t)SerializeOp::frame);
+  Artboard::incFrameId();
+  m_writer.writeVarUint((uint32_t)SerializeOp::frame);
 }
 
 void SerializingFactory::frameSize(uint32_t width, uint32_t height)
 {
-    m_writer.writeVarUint((uint32_t)SerializeOp::frameSize);
-    m_writer.writeVarUint(width);
-    m_writer.writeVarUint(height);
+  m_writer.writeVarUint((uint32_t)SerializeOp::frameSize);
+  m_writer.writeVarUint(width);
+  m_writer.writeVarUint(height);
 }
 
 void SerializingFactory::save(const char* filename)
 {
-    FILE* fp = fopen(filename, "wb");
-    fwrite(m_buffer.data(), 1, m_buffer.size(), fp);
-    fclose(fp);
+  FILE* fp = fopen(filename, "wb");
+  fwrite(m_buffer.data(), 1, m_buffer.size(), fp);
+  fclose(fp);
 }
 
 void SerializingFactory::saveTarnished(const char* filename)
 {
-    auto path = std::string("silvers/tarnished/");
+  auto path = std::string("silvers/tarnished/");
 #ifndef RIVE_NO_FILESYSTEM
-    if (!std::filesystem::exists(path))
+  if (!std::filesystem::exists(path))
+  {
+    if (!std::filesystem::create_directories(path))
     {
-        if (!std::filesystem::create_directories(path))
-        {
-            fprintf(stderr, "failed to create directory %s\n", path.c_str());
-        }
+      fprintf(stderr, "failed to create directory %s\n", path.c_str());
     }
-    auto fullFileName = path + std::string(filename) + std::string(".sriv");
-    save(fullFileName.c_str());
+  }
+  auto fullFileName = path + std::string(filename) + std::string(".sriv");
+  save(fullFileName.c_str());
 #else
-    printf("No std::filesystem api support. Ignoring tarnished save.");
+  printf("No std::filesystem api support. Ignoring tarnished save.");
 #endif
 }
 
-static bool varUintMatches(uint64_t op,
-                           std::string name,
-                           BinaryReader& readerA,
-                           BinaryReader& readerB,
-                           uint64_t* value = nullptr)
+static bool varUintMatches(
+    uint64_t op,
+    std::string name,
+    BinaryReader& readerA,
+    BinaryReader& readerB,
+    uint64_t* value = nullptr)
 {
-    auto valueA = readerA.readVarUint64();
-    auto valueB = readerB.readVarUint64();
+  auto valueA = readerA.readVarUint64();
+  auto valueB = readerB.readVarUint64();
+  if (valueA != valueB)
+  {
+    fprintf(
+        stderr,
+        "%s for %s doesn't match %" PRIu64 " != %" PRIu64 "\n",
+        name.c_str(),
+        opToName((SerializeOp)op),
+        valueA,
+        valueB);
+    return false;
+  }
+  if (value != nullptr)
+  {
+    *value = valueA;
+  }
+  return true;
+}
+
+static bool bytesMatches(
+    uint64_t op,
+    std::string name,
+    uint64_t size,
+    BinaryReader& readerA,
+    BinaryReader& readerB)
+{
+  for (int i = 0; i < size; i++)
+  {
+    auto valueA = readerA.readByte();
+    auto valueB = readerB.readByte();
     if (valueA != valueB)
     {
-        fprintf(stderr,
-                "%s for %s doesn't match %" PRIu64 " != %" PRIu64 "\n",
-                name.c_str(),
-                opToName((SerializeOp)op),
-                valueA,
-                valueB);
-        return false;
+      fprintf(
+          stderr,
+          "%s [%i] for %s doesn't match %hhu != %hhu\n",
+          name.c_str(),
+          i,
+          opToName((SerializeOp)op),
+          valueA,
+          valueB);
+      return false;
     }
-    if (value != nullptr)
-    {
-        *value = valueA;
-    }
-    return true;
+  }
+  return true;
 }
 
-static bool bytesMatches(uint64_t op,
-                         std::string name,
-                         uint64_t size,
-                         BinaryReader& readerA,
-                         BinaryReader& readerB)
+static bool floatMatches(
+    uint64_t op,
+    std::string name,
+    BinaryReader& readerA,
+    BinaryReader& readerB,
+    float* value = nullptr)
 {
-    for (int i = 0; i < size; i++)
-    {
-        auto valueA = readerA.readByte();
-        auto valueB = readerB.readByte();
-        if (valueA != valueB)
-        {
-            fprintf(stderr,
-                    "%s [%i] for %s doesn't match %hhu != %hhu\n",
-                    name.c_str(),
-                    i,
-                    opToName((SerializeOp)op),
-                    valueA,
-                    valueB);
-            return false;
-        }
-    }
-    return true;
+  auto valueA = readerA.readFloat32();
+  auto valueB = readerB.readFloat32();
+  if (std::abs(valueA - valueB) >
+      toleranceFor(std::max(std::abs(valueA), std::abs(valueB))))
+  {
+    fprintf(
+        stderr,
+        "%s for %s doesn't match %f != %f\n",
+        name.c_str(),
+        opToName((SerializeOp)op),
+        valueA,
+        valueB);
+    return false;
+  }
+  if (value != nullptr)
+  {
+    *value = valueA;
+  }
+  return true;
 }
 
-static bool floatMatches(uint64_t op,
-                         std::string name,
-                         BinaryReader& readerA,
-                         BinaryReader& readerB,
-                         float* value = nullptr)
+static bool vec2DMatches(
+    uint64_t op,
+    std::string name,
+    BinaryReader& readerA,
+    BinaryReader& readerB,
+    Vec2D* value = nullptr)
 {
-    auto valueA = readerA.readFloat32();
-    auto valueB = readerB.readFloat32();
-    if (std::abs(valueA - valueB) >
-        toleranceFor(std::max(std::abs(valueA), std::abs(valueB))))
-    {
-        fprintf(stderr,
-                "%s for %s doesn't match %f != %f\n",
-                name.c_str(),
-                opToName((SerializeOp)op),
-                valueA,
-                valueB);
-        return false;
-    }
-    if (value != nullptr)
-    {
-        *value = valueA;
-    }
-    return true;
+  auto ax = readerA.readFloat32();
+  auto ay = readerA.readFloat32();
+
+  auto bx = readerB.readFloat32();
+  auto by = readerB.readFloat32();
+
+  // if (ax != bx || ay != by)
+  float magnitude = std::max(
+      std::max(std::abs(ax), std::abs(ay)),
+      std::max(std::abs(bx), std::abs(by)));
+  if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) >
+      toleranceFor(magnitude))
+  {
+    fprintf(
+        stderr,
+        "%s for %s doesn't match (%f, %f) != (%f, %f)\n",
+        name.c_str(),
+        opToName((SerializeOp)op),
+        ax,
+        ay,
+        bx,
+        by);
+    return false;
+  }
+  if (value != nullptr)
+  {
+    *value = Vec2D(ax, ay);
+  }
+  return true;
 }
 
-static bool vec2DMatches(uint64_t op,
-                         std::string name,
-                         BinaryReader& readerA,
-                         BinaryReader& readerB,
-                         Vec2D* value = nullptr)
+static bool gradientMatches(
+    uint64_t op,
+    std::string name,
+    BinaryReader& readerA,
+    BinaryReader& readerB,
+    Vec2D* value = nullptr)
 {
-    auto ax = readerA.readFloat32();
-    auto ay = readerA.readFloat32();
-
-    auto bx = readerB.readFloat32();
-    auto by = readerB.readFloat32();
-
-    // if (ax != bx || ay != by)
-    float magnitude = std::max(std::max(std::abs(ax), std::abs(ay)),
-                               std::max(std::abs(bx), std::abs(by)));
-    if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) >
-        toleranceFor(magnitude))
+  if (!varUintMatches(
+          op,
+          std::string("make_") + name + std::string("_id"),
+          readerA,
+          readerB))
+  {
+    return false;
+  }
+  uint64_t count = 0;
+  if (!varUintMatches(
+          op,
+          std::string("make_") + name + std::string("_count"),
+          readerA,
+          readerB,
+          &count))
+  {
+    return false;
+  }
+  for (size_t i = 0; i < count; i++)
+  {
+    std::string colorName = std::string("make_") + name +
+                            std::string("_color_") + std::to_string(i);
+    if (!varUintMatches(op, colorName, readerA, readerB))
     {
-        fprintf(stderr,
-                "%s for %s doesn't match (%f, %f) != (%f, %f)\n",
-                name.c_str(),
-                opToName((SerializeOp)op),
-                ax,
-                ay,
-                bx,
-                by);
-        return false;
+      return false;
     }
-    if (value != nullptr)
+    std::string stopName = std::string("make_") + name + std::string("_stop_") +
+                           std::to_string(i);
+    if (!floatMatches(op, stopName, readerA, readerB))
     {
-        *value = Vec2D(ax, ay);
+      return false;
     }
-    return true;
-}
-
-static bool gradientMatches(uint64_t op,
-                            std::string name,
-                            BinaryReader& readerA,
-                            BinaryReader& readerB,
-                            Vec2D* value = nullptr)
-{
-    if (!varUintMatches(op,
-                        std::string("make_") + name + std::string("_id"),
-                        readerA,
-                        readerB))
-    {
-        return false;
-    }
-    uint64_t count = 0;
-    if (!varUintMatches(op,
-                        std::string("make_") + name + std::string("_count"),
-                        readerA,
-                        readerB,
-                        &count))
-    {
-        return false;
-    }
-    for (size_t i = 0; i < count; i++)
-    {
-        std::string colorName = std::string("make_") + name +
-                                std::string("_color_") + std::to_string(i);
-        if (!varUintMatches(op, colorName, readerA, readerB))
-        {
-            return false;
-        }
-        std::string stopName = std::string("make_") + name +
-                               std::string("_stop_") + std::to_string(i);
-        if (!floatMatches(op, stopName, readerA, readerB))
-        {
-            return false;
-        }
-    }
-    return true;
+  }
+  return true;
 }
 
 bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
 {
-    BinaryReader readerA(fileA);
-    BinaryReader readerB(fileB);
-    if (readerA.readByte() != 'S' || readerA.readByte() != 'R' ||
-        readerA.readByte() != 'I' || readerA.readByte() != 'V')
-    {
-        fprintf(stderr, "advancedMatch: invalid header A\n");
-        return false;
-    }
-    if (readerB.readByte() != 'S' || readerB.readByte() != 'R' ||
-        readerB.readByte() != 'I' || readerB.readByte() != 'V')
-    {
-        fprintf(stderr, "advancedMatch: invalid header B\n");
-        return false;
-    }
+  BinaryReader readerA(fileA);
+  BinaryReader readerB(fileB);
+  if (readerA.readByte() != 'S' || readerA.readByte() != 'R' ||
+      readerA.readByte() != 'I' || readerA.readByte() != 'V')
+  {
+    fprintf(stderr, "advancedMatch: invalid header A\n");
+    return false;
+  }
+  if (readerB.readByte() != 'S' || readerB.readByte() != 'R' ||
+      readerB.readByte() != 'I' || readerB.readByte() != 'V')
+  {
+    fprintf(stderr, "advancedMatch: invalid header B\n");
+    return false;
+  }
 
-    if (readerA.readVarUint64() != 1 || readerB.readVarUint64() != 1)
+  if (readerA.readVarUint64() != 1 || readerB.readVarUint64() != 1)
+  {
+    fprintf(stderr, "advancedMatch: invalid version\n");
+    return false;
+  }
+  std::unordered_map<uint64_t, uint64_t> renderBufferSizes;
+  while (!readerA.reachedEnd())
+  {
+    if (readerB.reachedEnd())
     {
-        fprintf(stderr, "advancedMatch: invalid version\n");
-        return false;
+      fprintf(stderr, "generated file is shorter.\n");
+      return false;
     }
-    std::unordered_map<uint64_t, uint64_t> renderBufferSizes;
-    while (!readerA.reachedEnd())
+    auto opA = readerA.readVarUint64();
+    auto opB = readerB.readVarUint64();
+    if (opA != opB)
     {
-        if (readerB.reachedEnd())
+      fprintf(
+          stderr,
+          "expected %s but got %s\n",
+          opToName((SerializeOp)opA),
+          opToName((SerializeOp)opB));
+      return false;
+    }
+    // Past an unrecognized opcode there is no way to know how many bytes
+    // the record holds, so the walk would silently reinterpret the rest of
+    // the stream as garbage instead of reporting a mismatch.
+    if (strcmp(opToName((SerializeOp)opA), "???") == 0)
+    {
+      fprintf(
+          stderr,
+          "advancedMatch: unknown op %" PRIu64 ", stream is out of "
+          "sync.\n",
+          opA);
+      return false;
+    }
+    switch ((SerializeOp)opA)
+    {
+      case SerializeOp::makeRenderBuffer:
+      {
+        uint64_t id = 0;
+        uint64_t size = 0;
+        if (!varUintMatches(opA, "make_renderbuffer_id", readerA, readerB, &id))
         {
-            fprintf(stderr, "generated file is shorter.\n");
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "make_renderbuffer_size",
+                readerA,
+                readerB,
+                &size))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "make_renderbuffer_type", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "make_renderbuffer_flags", readerA, readerB))
+        {
+          return false;
+        }
+        renderBufferSizes[id] = size;
+        break;
+      }
+      case SerializeOp::makeLinearGradient:
+        if (!gradientMatches(opA, "lineargradient", readerA, readerB))
+        {
+          return false;
+        }
+        if (!vec2DMatches(opA, "make_lineargradient_start", readerA, readerB))
+        {
+          return false;
+        }
+        if (!vec2DMatches(opA, "make_lineargradient_end", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::makeRadialGradient:
+        if (!gradientMatches(opA, "lineargradient", readerA, readerB))
+        {
+          return false;
+        }
+        if (!vec2DMatches(opA, "make_lineargradient_center", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "make_lineargradient_radius", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::makeAngularGradient:
+        if (!gradientMatches(opA, "angulargradient", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::makeRenderPath:
+        if (!varUintMatches(opA, "make_renderpath_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::makeRenderPaint:
+        if (!varUintMatches(opA, "make_renderpaint_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::decodeImage:
+      {
+        if (!varUintMatches(opA, "decodeimage_id", readerA, readerB))
+        {
+          return false;
+        }
+        uint64_t size = 0;
+        if (!varUintMatches(opA, "decodeimage_size", readerA, readerB, &size))
+        {
+          return false;
+        }
+        if (!bytesMatches(opA, "decodeimage_bytes", size, readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      }
+      case SerializeOp::save:
+        break;
+      case SerializeOp::restore:
+        break;
+      case SerializeOp::transform:
+        for (int i = 0; i < 6; i++)
+        {
+          if (!floatMatches(
+                  opA,
+                  std::string("transform[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
             return false;
+          }
         }
-        auto opA = readerA.readVarUint64();
-        auto opB = readerB.readVarUint64();
-        if (opA != opB)
+        break;
+      case SerializeOp::drawPath:
+        if (!varUintMatches(opA, "drawpath_id", readerA, readerB))
         {
-            fprintf(stderr,
-                    "expected %s but got %s\n",
-                    opToName((SerializeOp)opA),
-                    opToName((SerializeOp)opB));
+          return false;
+        }
+        if (!varUintMatches(opA, "drawpath_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::clipPath:
+        if (!varUintMatches(opA, "clippath_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::applyLayerMask:
+        if (!varUintMatches(opA, "layermask_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "layermask_mode", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::drawImage:
+      case SerializeOp::drawImageAdditive:
+        if (!varUintMatches(opA, "drawimage_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "drawimage_blendmode", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "drawimage_opacity", readerA, readerB))
+        {
+          return false;
+        }
+        if (opA == (uint64_t)SerializeOp::drawImageAdditive &&
+            !floatMatches(opA, "drawimage_additiveness", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::drawImageMesh:
+      case SerializeOp::drawImageMeshAdditive:
+        if (!varUintMatches(opA, "drawimagemesh_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "drawimagemesh_blendmode", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "drawimagemesh_opacity", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "drawimagemesh_vertex_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "drawimagemesh_uv_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "drawimagemesh_index_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (opA == (uint64_t)SerializeOp::drawImageMeshAdditive &&
+            !floatMatches(opA, "drawimagemesh_additiveness", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+
+      case SerializeOp::makeImageMeshInstances:
+        if (!varUintMatches(opA, "makeimagemeshinstances_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "makeimagemeshinstances_count",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        break;
+
+      case SerializeOp::setImageMeshInstancesData:
+      {
+        if (!varUintMatches(
+                opA,
+                "setimagemeshinstancesdata_id",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        uint64_t count = 0;
+        if (!varUintMatches(
+                opA,
+                "setimagemeshinstancesdata_count",
+                readerA,
+                readerB,
+                &count))
+        {
+          return false;
+        }
+        // transform[6], uvTranslate, uvScale, opacity, additiveness.
+        constexpr int FloatsPerInstance = 12;
+        for (uint64_t i = 0; i < count * FloatsPerInstance; i++)
+        {
+          if (!floatMatches(
+                  opA,
+                  std::string("setimagemeshinstancesdata_[") +
+                      std::to_string(i) + std::string("]"),
+                  readerA,
+                  readerB))
+          {
             return false;
+          }
         }
-        // Past an unrecognized opcode there is no way to know how many bytes
-        // the record holds, so the walk would silently reinterpret the rest of
-        // the stream as garbage instead of reporting a mismatch.
-        if (strcmp(opToName((SerializeOp)opA), "???") == 0)
+        break;
+      }
+
+      case SerializeOp::drawImageMeshInstanced:
+        if (!varUintMatches(opA, "drawimagemeshinstanced_id", readerA, readerB))
         {
-            fprintf(stderr,
-                    "advancedMatch: unknown op %" PRIu64 ", stream is out of "
-                    "sync.\n",
-                    opA);
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "drawimagemeshinstanced_vertex_id",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "drawimagemeshinstanced_uv_id",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "drawimagemeshinstanced_index_id",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "drawimagemeshinstanced_instances_id",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        break;
+
+      case SerializeOp::setVertexBufferData:
+      {
+        uint64_t id = 0;
+        if (!varUintMatches(
+                opA,
+                "setvertexbufferdata_id",
+                readerA,
+                readerB,
+                &id))
+        {
+          return false;
+        }
+        if (renderBufferSizes.find(id) == renderBufferSizes.end())
+        {
+          fprintf(
+              stderr,
+              "could not find render buffer with id: %" PRIu64 "\n",
+              id);
+          return false;
+        }
+        uint64_t size = renderBufferSizes[id];
+        uint64_t floatCount = size / sizeof(float);
+        for (int i = 0; i < floatCount; i++)
+        {
+          if (!floatMatches(
+                  opA,
+                  std::string("setvertexbufferdata_[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
             return false;
+          }
         }
-        switch ((SerializeOp)opA)
+        break;
+      }
+      case SerializeOp::setIndexBufferData:
+      {
+        uint64_t id = 0;
+        if (!varUintMatches(
+                opA,
+                "setindexbufferdata_id",
+                readerA,
+                readerB,
+                &id))
         {
-            case SerializeOp::makeRenderBuffer:
-            {
-                uint64_t id = 0;
-                uint64_t size = 0;
-                if (!varUintMatches(opA,
-                                    "make_renderbuffer_id",
-                                    readerA,
-                                    readerB,
-                                    &id))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "make_renderbuffer_size",
-                                    readerA,
-                                    readerB,
-                                    &size))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "make_renderbuffer_type",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "make_renderbuffer_flags",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                renderBufferSizes[id] = size;
-                break;
-            }
-            case SerializeOp::makeLinearGradient:
-                if (!gradientMatches(opA, "lineargradient", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!vec2DMatches(opA,
-                                  "make_lineargradient_start",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                if (!vec2DMatches(opA,
-                                  "make_lineargradient_end",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::makeRadialGradient:
-                if (!gradientMatches(opA, "lineargradient", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!vec2DMatches(opA,
-                                  "make_lineargradient_center",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA,
-                                  "make_lineargradient_radius",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::makeRenderPath:
-                if (!varUintMatches(opA,
-                                    "make_renderpath_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::makeRenderPaint:
-                if (!varUintMatches(opA,
-                                    "make_renderpaint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::decodeImage:
-            {
-                if (!varUintMatches(opA, "decodeimage_id", readerA, readerB))
-                {
-                    return false;
-                }
-                uint64_t size = 0;
-                if (!varUintMatches(opA,
-                                    "decodeimage_size",
-                                    readerA,
-                                    readerB,
-                                    &size))
-                {
-                    return false;
-                }
-                if (!bytesMatches(opA,
-                                  "decodeimage_bytes",
-                                  size,
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-            }
-            case SerializeOp::save:
-                break;
-            case SerializeOp::restore:
-                break;
-            case SerializeOp::transform:
-                for (int i = 0; i < 6; i++)
-                {
-                    if (!floatMatches(opA,
-                                      std::string("transform[") +
-                                          std::to_string(i) + std::string("]"),
-                                      readerA,
-                                      readerB))
-                    {
-                        return false;
-                    }
-                }
-                break;
-            case SerializeOp::drawPath:
-                if (!varUintMatches(opA, "drawpath_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "drawpath_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::clipPath:
-                if (!varUintMatches(opA, "clippath_id", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::applyLayerMask:
-                if (!varUintMatches(opA, "layermask_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "layermask_mode", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::drawImage:
-            case SerializeOp::drawImageAdditive:
-                if (!varUintMatches(opA, "drawimage_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimage_blendmode",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA, "drawimage_opacity", readerA, readerB))
-                {
-                    return false;
-                }
-                if (opA == (uint64_t)SerializeOp::drawImageAdditive &&
-                    !floatMatches(opA,
-                                  "drawimage_additiveness",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::drawImageMesh:
-            case SerializeOp::drawImageMeshAdditive:
-                if (!varUintMatches(opA, "drawimagemesh_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemesh_blendmode",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA,
-                                  "drawimagemesh_opacity",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemesh_vertex_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemesh_uv_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemesh_index_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (opA == (uint64_t)SerializeOp::drawImageMeshAdditive &&
-                    !floatMatches(opA,
-                                  "drawimagemesh_additiveness",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-
-            case SerializeOp::makeImageMeshInstances:
-                if (!varUintMatches(opA,
-                                    "makeimagemeshinstances_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "makeimagemeshinstances_count",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-
-            case SerializeOp::setImageMeshInstancesData:
-            {
-                if (!varUintMatches(opA,
-                                    "setimagemeshinstancesdata_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                uint64_t count = 0;
-                if (!varUintMatches(opA,
-                                    "setimagemeshinstancesdata_count",
-                                    readerA,
-                                    readerB,
-                                    &count))
-                {
-                    return false;
-                }
-                // transform[6], uvTranslate, uvScale, opacity, additiveness.
-                constexpr int FloatsPerInstance = 12;
-                for (uint64_t i = 0; i < count * FloatsPerInstance; i++)
-                {
-                    if (!floatMatches(
-                            opA,
-                            std::string("setimagemeshinstancesdata_[") +
-                                std::to_string(i) + std::string("]"),
-                            readerA,
-                            readerB))
-                    {
-                        return false;
-                    }
-                }
-                break;
-            }
-
-            case SerializeOp::drawImageMeshInstanced:
-                if (!varUintMatches(opA,
-                                    "drawimagemeshinstanced_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemeshinstanced_vertex_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemeshinstanced_uv_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemeshinstanced_index_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "drawimagemeshinstanced_instances_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-
-            case SerializeOp::setVertexBufferData:
-            {
-                uint64_t id = 0;
-                if (!varUintMatches(opA,
-                                    "setvertexbufferdata_id",
-                                    readerA,
-                                    readerB,
-                                    &id))
-                {
-                    return false;
-                }
-                if (renderBufferSizes.find(id) == renderBufferSizes.end())
-                {
-                    fprintf(stderr,
-                            "could not find render buffer with id: %" PRIu64
-                            "\n",
-                            id);
-                    return false;
-                }
-                uint64_t size = renderBufferSizes[id];
-                uint64_t floatCount = size / sizeof(float);
-                for (int i = 0; i < floatCount; i++)
-                {
-                    if (!floatMatches(opA,
-                                      std::string("setvertexbufferdata_[") +
-                                          std::to_string(i) + std::string("]"),
-                                      readerA,
-                                      readerB))
-                    {
-                        return false;
-                    }
-                }
-                break;
-            }
-            case SerializeOp::setIndexBufferData:
-            {
-                uint64_t id = 0;
-                if (!varUintMatches(opA,
-                                    "setindexbufferdata_id",
-                                    readerA,
-                                    readerB,
-                                    &id))
-                {
-                    return false;
-                }
-                if (renderBufferSizes.find(id) == renderBufferSizes.end())
-                {
-                    fprintf(stderr,
-                            "could not find render buffer with id: %" PRIu64
-                            "\n",
-                            id);
-                    return false;
-                }
-                uint64_t size = renderBufferSizes[id];
-                uint64_t shortCount = size / sizeof(uint16_t);
-                for (int i = 0; i < shortCount; i++)
-                {
-                    // Indices go out as varuints, not fixed-width shorts.
-                    if (!varUintMatches(opA,
-                                        std::string("setindexbufferdata_[") +
-                                            std::to_string(i) +
-                                            std::string("]"),
-                                        readerA,
-                                        readerB))
-                    {
-                        return false;
-                    }
-                }
-                break;
-            }
-
-            // RenderPath
-            case SerializeOp::addRawPath:
-            {
-                uint64_t verbCount = 0;
-                uint64_t pointCount = 0;
-                if (!varUintMatches(opA, "addrawpath_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "addrawpath_verb_count",
-                                    readerA,
-                                    readerB,
-                                    &verbCount))
-                {
-                    return false;
-                }
-                for (int i = 0; i < verbCount; i++)
-                {
-                    if (!varUintMatches(opA,
-                                        std::string("addrawpath_verb[") +
-                                            std::to_string(i) +
-                                            std::string("]"),
-                                        readerA,
-                                        readerB))
-                    {
-                        return false;
-                    }
-                }
-                if (!varUintMatches(opA,
-                                    "addrawpath_point_count",
-                                    readerA,
-                                    readerB,
-                                    &pointCount))
-                {
-                    return false;
-                }
-                for (int i = 0; i < pointCount; i++)
-                {
-                    if (!vec2DMatches(opA,
-                                      std::string("addrawpath_point[") +
-                                          std::to_string(i) + std::string("]"),
-                                      readerA,
-                                      readerB))
-                    {
-                        return false;
-                    }
-                }
-            }
-            break;
-            case SerializeOp::rewind:
-                if (!varUintMatches(opA, "rewind_path_id", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::fillRule:
-                if (!varUintMatches(opA, "fillrule_path_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "fillrule_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-
-            // RenderPaint
-            case SerializeOp::style:
-                if (!varUintMatches(opA, "style_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "style_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::color:
-                if (!varUintMatches(opA, "color_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "color_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::thickness:
-                if (!varUintMatches(opA,
-                                    "thickness_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA, "thickness_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::join:
-                if (!varUintMatches(opA, "join_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "join_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::cap:
-                if (!varUintMatches(opA, "cap_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "cap_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::feather:
-                if (!varUintMatches(opA, "feather_paint_id", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA, "feather_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::additiveness:
-                if (!varUintMatches(opA,
-                                    "additiveness_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!floatMatches(opA, "additiveness_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::blendMode:
-                if (!varUintMatches(opA,
-                                    "blendmode_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "blendmode_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::shader:
-                if (!varUintMatches(opA,
-                                    "setgradient_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "setgradient_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::paintModulatedImage:
-                if (!varUintMatches(opA,
-                                    "modulatedimage_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "modulatedimage_image_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "modulatedimage_filter",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "modulatedimage_wrapx",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "modulatedimage_wrapy",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                for (const char* field : {"modulatedimage_xx",
-                                          "modulatedimage_xy",
-                                          "modulatedimage_yx",
-                                          "modulatedimage_yy",
-                                          "modulatedimage_tx",
-                                          "modulatedimage_ty"})
-                {
-                    if (!floatMatches(opA, field, readerA, readerB))
-                    {
-                        return false;
-                    }
-                }
-                break;
-
-            case SerializeOp::frame:
-                break;
-            case SerializeOp::frameSize:
-                if (!varUintMatches(opA, "framesize_width", readerA, readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA, "framesize_height", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::modulateColor:
-                if (!varUintMatches(opA,
-                                    "modulatecolor_value",
-                                    readerA,
-                                    readerB) ||
-                    !varUintMatches(opA,
-                                    "modulatecolor_replace",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::modulateOpacity:
-                if (!floatMatches(opA,
-                                  "modulateopacity_value",
-                                  readerA,
-                                  readerB))
-                {
-                    return false;
-                }
-                break;
-
-            // Offscreen canvases (cache-as-bitmap). The content between a
-            // begin/end bracket is ordinary inline ops, so the walk needs
-            // nothing beyond each bracket's own payload.
-            case SerializeOp::makeRenderCanvas:
-                if (!varUintMatches(opA,
-                                    "make_rendercanvas_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "make_rendercanvas_width",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "make_rendercanvas_height",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::canvasContentBegin:
-                if (!varUintMatches(opA,
-                                    "canvascontentbegin_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "canvascontentbegin_clearcolor",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::canvasContentEnd:
-                if (!varUintMatches(opA,
-                                    "canvascontentend_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                break;
+          return false;
         }
-    }
-    if (!readerB.reachedEnd())
-    {
-        fprintf(stderr, "generated file is longer, otherwise matches.\n");
-        return false;
-    }
-    // for (size_t i = 0; i < length; i++)
-    // {
-    //     if (fileA[i] != fileB[i])
-    //     {
-    //         fprintf(stderr,
-    //                 "SerializingFactory::matches - %s buffer did not match "
-    //                 "generated one.\n",
-    //                 filename);
+        if (renderBufferSizes.find(id) == renderBufferSizes.end())
+        {
+          fprintf(
+              stderr,
+              "could not find render buffer with id: %" PRIu64 "\n",
+              id);
+          return false;
+        }
+        uint64_t size = renderBufferSizes[id];
+        uint64_t shortCount = size / sizeof(uint16_t);
+        for (int i = 0; i < shortCount; i++)
+        {
+          // Indices go out as varuints, not fixed-width shorts.
+          if (!varUintMatches(
+                  opA,
+                  std::string("setindexbufferdata_[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
+            return false;
+          }
+        }
+        break;
+      }
 
-    //         return false;
-    //     }
-    // }
-    return true;
+      // RenderPath
+      case SerializeOp::addRawPath:
+      {
+        uint64_t verbCount = 0;
+        uint64_t pointCount = 0;
+        if (!varUintMatches(opA, "addrawpath_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "addrawpath_verb_count",
+                readerA,
+                readerB,
+                &verbCount))
+        {
+          return false;
+        }
+        for (int i = 0; i < verbCount; i++)
+        {
+          if (!varUintMatches(
+                  opA,
+                  std::string("addrawpath_verb[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
+            return false;
+          }
+        }
+        if (!varUintMatches(
+                opA,
+                "addrawpath_point_count",
+                readerA,
+                readerB,
+                &pointCount))
+        {
+          return false;
+        }
+        for (int i = 0; i < pointCount; i++)
+        {
+          if (!vec2DMatches(
+                  opA,
+                  std::string("addrawpath_point[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
+            return false;
+          }
+        }
+      }
+      break;
+      case SerializeOp::rewind:
+        if (!varUintMatches(opA, "rewind_path_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::fillRule:
+        if (!varUintMatches(opA, "fillrule_path_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "fillrule_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+
+      // RenderPaint
+      case SerializeOp::style:
+        if (!varUintMatches(opA, "style_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "style_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::color:
+        if (!varUintMatches(opA, "color_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "color_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::thickness:
+        if (!varUintMatches(opA, "thickness_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "thickness_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::join:
+        if (!varUintMatches(opA, "join_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "join_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::cap:
+        if (!varUintMatches(opA, "cap_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "cap_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::strokePosition:
+        if (!varUintMatches(opA, "strokeposition_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "strokeposition_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::feather:
+        if (!varUintMatches(opA, "feather_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "feather_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::additiveness:
+        if (!varUintMatches(opA, "additiveness_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!floatMatches(opA, "additiveness_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::blendMode:
+        if (!varUintMatches(opA, "blendmode_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "blendmode_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::shader:
+        if (!varUintMatches(opA, "setgradient_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "setgradient_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::shaderTransform:
+        if (!varUintMatches(opA, "shadertransform_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        for (int i = 0; i < 6; i++)
+        {
+          if (!floatMatches(
+                  opA,
+                  std::string("setgradienttransform[") + std::to_string(i) +
+                      std::string("]"),
+                  readerA,
+                  readerB))
+          {
+            return false;
+          }
+        }
+        break;
+      case SerializeOp::paintModulatedImage:
+        if (!varUintMatches(opA, "modulatedimage_paint_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "modulatedimage_image_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "modulatedimage_filter", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "modulatedimage_wrapx", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "modulatedimage_wrapy", readerA, readerB))
+        {
+          return false;
+        }
+        for (const char* field :
+             {"modulatedimage_xx",
+              "modulatedimage_xy",
+              "modulatedimage_yx",
+              "modulatedimage_yy",
+              "modulatedimage_tx",
+              "modulatedimage_ty"})
+        {
+          if (!floatMatches(opA, field, readerA, readerB))
+          {
+            return false;
+          }
+        }
+        break;
+
+      case SerializeOp::frame:
+        break;
+      case SerializeOp::frameSize:
+        if (!varUintMatches(opA, "framesize_width", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "framesize_height", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::modulateColor:
+        if (!varUintMatches(opA, "modulatecolor_value", readerA, readerB) ||
+            !varUintMatches(opA, "modulatecolor_replace", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::modulateOpacity:
+        if (!floatMatches(opA, "modulateopacity_value", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+
+      // Offscreen canvases (cache-as-bitmap). The content between a
+      // begin/end bracket is ordinary inline ops, so the walk needs
+      // nothing beyond each bracket's own payload.
+      case SerializeOp::makeRenderCanvas:
+        if (!varUintMatches(opA, "make_rendercanvas_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "make_rendercanvas_width", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(opA, "make_rendercanvas_height", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::canvasContentBegin:
+        if (!varUintMatches(opA, "canvascontentbegin_id", readerA, readerB))
+        {
+          return false;
+        }
+        if (!varUintMatches(
+                opA,
+                "canvascontentbegin_clearcolor",
+                readerA,
+                readerB))
+        {
+          return false;
+        }
+        break;
+      case SerializeOp::canvasContentEnd:
+        if (!varUintMatches(opA, "canvascontentend_id", readerA, readerB))
+        {
+          return false;
+        }
+        break;
+    }
+  }
+  if (!readerB.reachedEnd())
+  {
+    fprintf(stderr, "generated file is longer, otherwise matches.\n");
+    return false;
+  }
+  // for (size_t i = 0; i < length; i++)
+  // {
+  //     if (fileA[i] != fileB[i])
+  //     {
+  //         fprintf(stderr,
+  //                 "SerializingFactory::matches - %s buffer did not match "
+  //                 "generated one.\n",
+  //                 filename);
+
+  //         return false;
+  //     }
+  // }
+  return true;
 }
 
 bool SerializingFactory::matches(const char* filename)
 {
-    auto fullFileName =
-        std::string("silvers/") + std::string(filename) + std::string(".sriv");
+  auto fullFileName = std::string("silvers/") + std::string(filename) +
+                      std::string(".sriv");
 #ifndef NO_GETENV
-    const char* rebaseline = getenv("REBASELINE_SILVERS");
-    if (rebaseline != nullptr)
-    {
-        save(fullFileName.c_str());
-        return true;
-    }
+  const char* rebaseline = getenv("REBASELINE_SILVERS");
+  if (rebaseline != nullptr)
+  {
+    save(fullFileName.c_str());
+    return true;
+  }
 #endif
 
-    FILE* fp = fopen(fullFileName.c_str(), "rb");
-    if (fp == nullptr)
-    {
-        fprintf(stderr,
-                "SerializingFactory::matches - %s is missing\n",
-                fullFileName.c_str());
-        return false;
-    }
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    if (m_buffer.size() != length)
-    {
-        fprintf(stderr,
-                "SerializingFactory::matches - %s size differs from generated "
-                "one %zu != %zu.\n",
-                filename,
-                m_buffer.size(),
-                length);
-        fclose(fp);
-        saveTarnished(filename);
-        return false;
-    }
-
-    fseek(fp, 0, SEEK_SET);
-    std::vector<uint8_t> existing(length);
-    if (fread(existing.data(), 1, length, fp) != length)
-    {
-        fprintf(stderr,
-                "SerializingFactory::matches - %s could not be read.\n",
-                filename);
-        return false;
-    }
+  FILE* fp = fopen(fullFileName.c_str(), "rb");
+  if (fp == nullptr)
+  {
+    fprintf(
+        stderr,
+        "SerializingFactory::matches - %s is missing\n",
+        fullFileName.c_str());
+    return false;
+  }
+  fseek(fp, 0, SEEK_END);
+  const size_t length = ftell(fp);
+  if (m_buffer.size() != length)
+  {
+    fprintf(
+        stderr,
+        "SerializingFactory::matches - %s size differs from generated "
+        "one %zu != %zu.\n",
+        filename,
+        m_buffer.size(),
+        length);
     fclose(fp);
+    saveTarnished(filename);
+    return false;
+  }
 
-    if (!advancedMatch(existing, m_buffer))
-    {
-        saveTarnished(filename);
-        return false;
-    }
-    return true;
+  fseek(fp, 0, SEEK_SET);
+  std::vector<uint8_t> existing(length);
+  if (fread(existing.data(), 1, length, fp) != length)
+  {
+    fprintf(
+        stderr,
+        "SerializingFactory::matches - %s could not be read.\n",
+        filename);
+    return false;
+  }
+  fclose(fp);
+
+  if (!advancedMatch(existing, m_buffer))
+  {
+    saveTarnished(filename);
+    return false;
+  }
+  return true;
 }

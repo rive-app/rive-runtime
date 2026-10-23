@@ -13,34 +13,32 @@ using namespace rive;
 
 StatusCode ListenerAction::import(ImportStack& importStack)
 {
-    switch (parentKind())
+  switch (parentKind())
+  {
+    case ParentKind::Listener:
     {
-        case ParentKind::Listener:
-        {
-            auto listenerImporter =
-                importStack.latest<StateMachineListenerImporter>(
-                    StateMachineListenerBase::typeKey);
-            if (listenerImporter == nullptr)
-            {
-                return StatusCode::MissingObject;
-            }
-            listenerImporter->addAction(std::unique_ptr<ListenerAction>(this));
-            return Super::import(importStack);
-        }
-        case ParentKind::Transition:
-        case ParentKind::State:
-        {
-            auto layerImporter =
-                importStack.latest<StateMachineLayerComponentImporter>(
-                    StateMachineLayerComponentBase::typeKey);
-            if (layerImporter == nullptr)
-            {
-                return StatusCode::MissingObject;
-            }
-            layerImporter->addListenerAction(
-                std::unique_ptr<ListenerAction>(this));
-            return Super::import(importStack);
-        }
+      auto listenerImporter = importStack.latest<StateMachineListenerImporter>(
+          StateMachineListenerBase::typeKey);
+      if (listenerImporter == nullptr)
+      {
+        return StatusCode::MissingObject;
+      }
+      listenerImporter->addAction(std::unique_ptr<ListenerAction>(this));
+      return Super::import(importStack);
     }
-    return StatusCode::MissingObject;
+    case ParentKind::Transition:
+    case ParentKind::State:
+    {
+      auto layerImporter = importStack
+                               .latest<StateMachineLayerComponentImporter>(
+                                   StateMachineLayerComponentBase::typeKey);
+      if (layerImporter == nullptr)
+      {
+        return StatusCode::MissingObject;
+      }
+      layerImporter->addListenerAction(std::unique_ptr<ListenerAction>(this));
+      return Super::import(importStack);
+    }
+  }
+  return StatusCode::MissingObject;
 }

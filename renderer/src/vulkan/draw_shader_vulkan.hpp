@@ -18,27 +18,28 @@ namespace rive::gpu
 class DrawShaderVulkan
 {
 public:
-    enum class Type
-    {
-        vertex,
-        fragment,
-    };
-    DrawShaderVulkan(Type,
-                     VulkanContext*,
-                     DrawType,
-                     ShaderFeatures,
-                     InterlockMode,
-                     ShaderMiscFlags);
+  enum class Type
+  {
+    vertex,
+    fragment,
+  };
+  DrawShaderVulkan(
+      Type,
+      VulkanContext*,
+      DrawType,
+      ShaderFeatures,
+      InterlockMode,
+      ShaderMiscFlags);
 
-    ~DrawShaderVulkan();
+  ~DrawShaderVulkan();
 
-    DrawShaderVulkan(const DrawShaderVulkan&) = delete;
-    DrawShaderVulkan& operator=(const DrawShaderVulkan&) = delete;
+  DrawShaderVulkan(const DrawShaderVulkan&) = delete;
+  DrawShaderVulkan& operator=(const DrawShaderVulkan&) = delete;
 
-    VkShaderModule module() const { return m_module; }
+  VkShaderModule module() const { return m_module; }
 
 private:
-    const rcp<VulkanContext> m_vk;
-    VkShaderModule m_module = VK_NULL_HANDLE;
+  const rcp<VulkanContext> m_vk;
+  VkShaderModule m_module = VK_NULL_HANDLE;
 };
 } // namespace rive::gpu

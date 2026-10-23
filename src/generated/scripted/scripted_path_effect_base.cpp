@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedPathEffectBase::clone() const
 {
-    auto cloned = new ScriptedPathEffect();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedPathEffect();
+  cloned->copy(*this);
+  return cloned;
 }

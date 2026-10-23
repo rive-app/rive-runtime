@@ -7,16 +7,16 @@ namespace rive
 {
 enum class DataConverterToStringFlags : unsigned short
 {
-    None = 0,
+  None = 0,
 
-    /// Whether to round to decimals
-    Round = 1 << 0,
+  /// Whether to round to decimals
+  Round = 1 << 0,
 
-    /// Whether to remove trailing zeros
-    TrailingZeros = 1 << 1,
+  /// Whether to remove trailing zeros
+  TrailingZeros = 1 << 1,
 
-    /// Whether to format the number with commans
-    FormatWithCommas = 1 << 2,
+  /// Whether to format the number with commans
+  FormatWithCommas = 1 << 2,
 
 };
 } // namespace rive

@@ -8,10 +8,10 @@ using namespace rive;
 
 DataBindViewModelConsumer* DataBindViewModelConsumer::from(Core* component)
 {
-    switch (component->coreType())
-    {
-        case ViewModelInstanceViewModel::typeKey:
-            return component->as<ViewModelInstanceViewModel>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case ViewModelInstanceViewModel::typeKey:
+      return component->as<ViewModelInstanceViewModel>();
+  }
+  return nullptr;
 }

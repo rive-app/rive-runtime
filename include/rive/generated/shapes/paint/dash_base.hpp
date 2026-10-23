@@ -8,88 +8,75 @@ namespace rive
 class DashBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 507;
+  static const uint16_t typeKey = 507;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DashBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t lengthPropertyKey = 692;
-    static const uint16_t lengthIsPercentagePropertyKey = 693;
+  static const uint16_t lengthPropertyKey = 692;
+  static const uint16_t lengthIsPercentagePropertyKey = 693;
 
 protected:
-    float m_Length = 0.0f;
-    bool m_LengthIsPercentage = false;
+  float m_Length = 0.0f;
+  bool m_LengthIsPercentage = false;
 
 public:
-    inline float length() const { return m_Length; }
-    void length(float value)
+  inline float length() const { return m_Length; }
+  void length(float value)
+  {
+    if (m_Length == value)
     {
-        if (m_Length == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(lengthPropertyKey, &m_Length, &value);
-        m_Length = value;
-        RIVE_EDITOR_CHANGED(lengthChanged());
-        notifyPropertyChanged(lengthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(lengthPropertyKey, &m_Length, &value);
+    m_Length = value;
+    RIVE_EDITOR_CHANGED(lengthChanged());
+    notifyPropertyChanged(lengthPropertyKey);
+  }
 
-    inline bool lengthIsPercentage() const { return m_LengthIsPercentage; }
-    void lengthIsPercentage(bool value)
+  inline bool lengthIsPercentage() const { return m_LengthIsPercentage; }
+  void lengthIsPercentage(bool value)
+  {
+    if (m_LengthIsPercentage == value)
     {
-        if (m_LengthIsPercentage == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(lengthIsPercentagePropertyKey,
-                             &m_LengthIsPercentage,
-                             &value);
-        m_LengthIsPercentage = value;
-        RIVE_EDITOR_CHANGED(lengthIsPercentageChanged());
-        notifyPropertyChanged(lengthIsPercentagePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        lengthIsPercentagePropertyKey,
+        &m_LengthIsPercentage,
+        &value);
+    m_LengthIsPercentage = value;
+    RIVE_EDITOR_CHANGED(lengthIsPercentageChanged());
+    notifyPropertyChanged(lengthIsPercentagePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DashBase& object)
-    {
-        m_Length = object.m_Length;
-        m_LengthIsPercentage = object.m_LengthIsPercentage;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DashBase& object)
+  {
+    m_Length = object.m_Length;
+    m_LengthIsPercentage = object.m_LengthIsPercentage;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case lengthPropertyKey:
-                m_Length = CoreDoubleType::deserialize(reader);
-                return true;
-            case lengthIsPercentagePropertyKey:
-                m_LengthIsPercentage = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case lengthPropertyKey:
+        m_Length = CoreDoubleType::deserialize(reader);
+        return true;
+      case lengthIsPercentagePropertyKey:
+        m_LengthIsPercentage = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void lengthChanged() {}
-    virtual void lengthIsPercentageChanged() {}
+  virtual void lengthChanged() {}
+  virtual void lengthIsPercentageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/dash_ext.inl"
 #endif

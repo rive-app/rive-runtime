@@ -9,15 +9,14 @@ using namespace rive;
 
 StatusCode ListenerInputType::import(ImportStack& importStack)
 {
-    auto stateMachineListenerImporter =
-        importStack.latest<StateMachineListenerImporter>(
-            StateMachineListenerBase::typeKey);
-    if (stateMachineListenerImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto stateMachineListenerImporter = importStack.latest<
+      StateMachineListenerImporter>(StateMachineListenerBase::typeKey);
+  if (stateMachineListenerImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    stateMachineListenerImporter->addListenerInputType(
-        std::unique_ptr<ListenerInputType>(this));
-    return Super::import(importStack);
+  stateMachineListenerImporter->addListenerInputType(
+      std::unique_ptr<ListenerInputType>(this));
+  return Super::import(importStack);
 }

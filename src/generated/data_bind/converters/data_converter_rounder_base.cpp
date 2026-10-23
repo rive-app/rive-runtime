@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterRounderBase::clone() const
 {
-    auto cloned = new DataConverterRounder();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterRounder();
+  cloned->copy(*this);
+  return cloned;
 }

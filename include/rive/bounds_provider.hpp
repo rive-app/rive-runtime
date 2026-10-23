@@ -10,8 +10,8 @@ namespace rive
 class BoundsProvider
 {
 public:
-    virtual ~BoundsProvider() {}
-    virtual AABB computeBounds(Mat2D toParent);
+  virtual ~BoundsProvider() {}
+  virtual AABB computeBounds(Mat2D toParent);
 };
 } // namespace rive
 #endif

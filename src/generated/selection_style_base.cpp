@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* SelectionStyleBase::clone() const
 {
-    auto cloned = new SelectionStyle();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new SelectionStyle();
+  cloned->copy(*this);
+  return cloned;
 }

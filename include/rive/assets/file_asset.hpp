@@ -13,63 +13,66 @@ class FileAssetReferencer;
 class FileAsset : public FileAssetBase, public RefCnt<FileAsset>
 {
 #ifdef WITH_RIVE_SCRIPTING
-    friend class TextAssetImporter;
+  friend class TextAssetImporter;
 #endif
 
 private:
-    std::vector<uint8_t> m_cdnUuid;
-    std::vector<FileAssetReferencer*> m_fileAssetReferencers;
+  std::vector<uint8_t> m_cdnUuid;
+  std::vector<FileAssetReferencer*> m_fileAssetReferencers;
 
 protected:
-    virtual bool addsToBackboard() { return true; }
+  virtual bool addsToBackboard() { return true; }
 #ifdef WITH_RIVE_SCRIPTING
-    bool m_verified = false;
+  bool m_verified = false;
 
 public:
-    /// True once the aggregate in-band signature has verified against this
-    /// asset's content. Defaults to false until TextAssetImporter::resolve
-    /// runs. Production (non-tools) consumers should gate use of the content
-    /// behind this check.
-    bool verified() const { return m_verified; }
+  /// True once the aggregate in-band signature has verified against this
+  /// asset's content. Defaults to false until TextAssetImporter::resolve
+  /// runs. Production (non-tools) consumers should gate use of the content
+  /// behind this check.
+  bool verified() const { return m_verified; }
 #endif
 
 public:
-    Span<const uint8_t> cdnUuid() const;
-    std::string cdnUuidStr() const;
+#ifdef WITH_RIVE_EDITOR
+  void editorRelease() override { unref(); }
+#endif
+  Span<const uint8_t> cdnUuid() const;
+  std::string cdnUuidStr() const;
 
-    void decodeCdnUuid(Span<const uint8_t> value) override;
-    void copyCdnUuid(const FileAssetBase& object) override;
-    virtual bool decode(SimpleArray<uint8_t>&, Factory*) = 0;
-    virtual std::string fileExtension() const = 0;
-    StatusCode import(ImportStack& importStack) override;
-    const std::vector<FileAssetReferencer*>& fileAssetReferencers()
+  void decodeCdnUuid(Span<const uint8_t> value) override;
+  void copyCdnUuid(const FileAssetBase& object) override;
+  virtual bool decode(SimpleArray<uint8_t>&, Factory*) = 0;
+  virtual std::string fileExtension() const = 0;
+  StatusCode import(ImportStack& importStack) override;
+  const std::vector<FileAssetReferencer*>& fileAssetReferencers()
+  {
+    return m_fileAssetReferencers;
+  }
+
+  void addFileAssetReferencer(FileAssetReferencer* referencer)
+  {
+    m_fileAssetReferencers.push_back(referencer);
+  }
+
+  void removeFileAssetReferencer(FileAssetReferencer* referencer)
+  {
+    auto itr = m_fileAssetReferencers.begin();
+    while (itr != m_fileAssetReferencers.end())
     {
-        return m_fileAssetReferencers;
+      if (*itr == referencer)
+      {
+        itr = m_fileAssetReferencers.erase(itr);
+      }
+      else
+      {
+        itr++;
+      }
     }
+  }
 
-    void addFileAssetReferencer(FileAssetReferencer* referencer)
-    {
-        m_fileAssetReferencers.push_back(referencer);
-    }
-
-    void removeFileAssetReferencer(FileAssetReferencer* referencer)
-    {
-        auto itr = m_fileAssetReferencers.begin();
-        while (itr != m_fileAssetReferencers.end())
-        {
-            if (*itr == referencer)
-            {
-                itr = m_fileAssetReferencers.erase(itr);
-            }
-            else
-            {
-                itr++;
-            }
-        }
-    }
-
-    std::string uniqueName() const;
-    std::string uniqueFilename() const;
+  std::string uniqueName() const;
+  std::string uniqueFilename() const;
 };
 } // namespace rive
 

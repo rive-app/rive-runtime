@@ -7,11 +7,12 @@ namespace rive
 class TransitionBoolCondition : public TransitionBoolConditionBase
 {
 public:
-    bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  StateMachineLayerInstance* layerInstance) const override;
+  bool evaluate(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
 
 protected:
-    bool validateInputType(const StateMachineInput* input) const override;
+  bool validateInputType(const StateMachineInput* input) const override;
 };
 } // namespace rive
 

@@ -9,22 +9,26 @@ namespace rive
 class ScriptInputColor : public ScriptInputColorBase, public ScriptInput
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ~ScriptInputColor();
-    void initScriptedValue() override
+  ~ScriptInputColor();
+  void initScriptedValue() override
+  {
+    ScriptInput::initScriptedValue();
+    auto obj = scriptedObject();
+    if (obj)
     {
-        ScriptInput::initScriptedValue();
-        auto obj = scriptedObject();
-        if (obj)
-        {
-            obj->setIntegerInput(name(), propertyValue());
-        }
+      obj->setIntegerInput(name(), propertyValue());
     }
-    bool validateForScriptInit() override { return true; }
-    StatusCode import(ImportStack& importStack) override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  }
+  bool validateForScriptInit() override { return true; }
+  StatusCode import(ImportStack& importStack) override;
+  bool claimsArtboardSlot(ImportStack& importStack) const override
+  {
+    return ScriptInput::takesArtboardSlot(this);
+  }
+  StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

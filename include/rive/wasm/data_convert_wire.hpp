@@ -12,17 +12,17 @@ namespace rive
 /// stringLength bytes after the struct.
 struct DataConvertWire
 {
-    static constexpr uint32_t kindNone = 0;
-    static constexpr uint32_t kindNumber = 1;
-    static constexpr uint32_t kindString = 2;
-    static constexpr uint32_t kindBoolean = 3;
-    static constexpr uint32_t kindColor = 4;
+  static constexpr uint32_t kindNone = 0;
+  static constexpr uint32_t kindNumber = 1;
+  static constexpr uint32_t kindString = 2;
+  static constexpr uint32_t kindBoolean = 3;
+  static constexpr uint32_t kindColor = 4;
 
-    uint32_t kind = kindNone;
-    float number = 0;
-    uint32_t boolean = 0;
-    int32_t color = 0;
-    uint32_t stringLength = 0;
+  uint32_t kind = kindNone;
+  float number = 0;
+  uint32_t boolean = 0;
+  int32_t color = 0;
+  uint32_t stringLength = 0;
 };
 
 } // namespace rive

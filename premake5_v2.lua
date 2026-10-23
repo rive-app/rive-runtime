@@ -12,6 +12,18 @@ filter({ 'options:with_rive_canvas' })
 do
     defines({ 'RIVE_CANVAS' })
 end
+-- One word list per language for scripts written without spaces, see
+-- dev/unicode/generate_line_break_dictionaries.py.
+for _, language in ipairs({ 'thai', 'lao', 'khmer', 'burmese' }) do
+    filter({ 'options:with_rive_text_dict_' .. language })
+    do
+        defines({ 'WITH_RIVE_TEXT_DICT_' .. language:upper() })
+    end
+end
+filter({ 'options:with_rive_text_dict_compressed' })
+do
+    defines({ 'WITH_RIVE_TEXT_DICT_COMPRESSED' })
+end
 filter({ 'options:with_rive_scripting' })
 do
     defines({ 'WITH_RIVE_SCRIPTING' })
@@ -25,6 +37,9 @@ if _OPTIONS['scripting_vm'] ~= 'wasm' then
     end
     filter({})
 end
+-- WAMR has no emscripten platform layer. On the web script modules run on
+-- the browser's own wasm engine, so the backend stays on and only WAMR is out.
+local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
 if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
@@ -74,6 +89,12 @@ filter({ 'options:with_rive_layout' })
 do
     defines({ 'WITH_RIVE_LAYOUT' })
 end
+-- Script networking (fetch). Hosts still choose the transport at runtime;
+-- without one every request is denied.
+filter({ 'options:with_rive_scriptnet' })
+do
+    defines({ 'WITH_RIVE_SCRIPTNET' })
+end
 filter({ 'options:with_rive_editor' })
 do
     defines({ 'WITH_RIVE_EDITOR' })
@@ -102,7 +123,8 @@ if _OPTIONS['with_rive_scripting'] then
     local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
     luau = scripting.luau
     libhydrogen = scripting.libhydrogen
-    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    if (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
+        and wamrBuildable
     then
         local wamrLib =
             require(path.join(path.getabsolute('scripting/'), 'premake5_wamr'))
@@ -225,7 +247,11 @@ do
 
     filter('system:macosx or system:ios')
     do
-        files({ 'src/text/font_hb_apple.mm' })
+        files({
+            'src/text/font_hb_apple.mm',
+            -- Gated inside on WITH_RIVE_SCRIPTNET.
+            'src/scriptnet/net_provider_apple.mm',
+        })
     end
 
     if TESTING == true then
@@ -259,33 +285,19 @@ do
         do
             includedirs({ wamr .. '/core/iwasm/include' })
             defines(wamrConfigDefines)
-            -- The tier transplant is the one TU reading instance internals
-            -- (layout hinges on the config defines above); runtime builds
-            -- compile its stub without them. The tests workspace forces
-            -- tools on without the option, so honor both signals.
-            if WITH_RIVE_TOOLS == true then
-                includedirs(wamrInternalIncludes)
-            else
-                filter({
-                    'options:with_rive_scripting',
-                    'options:with_rive_tools',
-                })
-                includedirs(wamrInternalIncludes)
-            end
+            -- Tools builds may read wamr internals, whose layouts hinge on
+            -- the config defines above.
+            filter({
+                'options:with_rive_scripting',
+                'options:with_rive_tools',
+            })
+            includedirs(wamrInternalIncludes)
             filter({ 'options:with_rive_scripting', 'system:macosx' })
             defines({ 'BH_PLATFORM_DARWIN' })
             filter({ 'options:with_rive_scripting', 'system:linux' })
             defines({ 'BH_PLATFORM_LINUX' })
             filter({ 'options:with_rive_scripting', 'system:windows' })
             defines({ 'BH_PLATFORM_WINDOWS', 'HAVE_STRUCT_TIMESPEC' })
-            filter({
-                'options:with_rive_scripting',
-                'system:windows',
-                'files:**/wamr_state_transplant.cpp',
-            })
-            -- platform_common.h hardcodes __declspec on BH_MALLOC while our
-            -- static-link wasm_export.h declares it plain.
-            buildoptions({ '-Wno-dll-attribute-on-redeclaration' })
             filter({ 'options:with_rive_scripting' })
         end
         filter({})
@@ -325,6 +337,14 @@ do
         filter({})
         removefiles({ 'src/lua/**' })
     end
+    filter({ 'system:emscripten' })
+    do
+        removefiles({
+            'src/wasm/module_tier_ladder.cpp',
+            'src/wasm/prelinked_aot.cpp',
+        })
+    end
+    filter({})
     filter({
         'options:with_rive_scripting',
         'options:config=release',
@@ -393,6 +413,32 @@ newoption({
 })
 
 newoption({
+    trigger = 'with_rive_text_dict_thai',
+    description = 'Compiles in the Thai word list (~150 KB) so Thai wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_lao',
+    description = 'Compiles in the Lao word list (~190 KB) so Lao wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_khmer',
+    description = 'Compiles in the Khmer word list (~510 KB) so Khmer wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_burmese',
+    description = 'Compiles in the Burmese word list (~300 KB) so Burmese wraps between words.',
+})
+
+newoption({
+    trigger = 'with_rive_text_dict_compressed',
+    description = 'Stores the line break dictionaries as deflated word lists (about 40% '
+        .. 'of their size) and builds each one in memory the first time its script is laid out.',
+})
+
+newoption({
     trigger = 'with_rive_audio',
     value = 'disabled',
     description = 'The audio mode to use.',
@@ -407,6 +453,11 @@ newoption({
 newoption({
     trigger = 'with_rive_canvas',
     description = 'Compiles in RenderCanvas and Ore GPU abstraction layer.',
+})
+
+newoption({
+    trigger = 'with_rive_scriptnet',
+    description = 'Compiles in script networking (fetch). Requires scripting.',
 })
 
 newoption({

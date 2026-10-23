@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* GridTrackBase::clone() const
 {
-    auto cloned = new GridTrack();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new GridTrack();
+  cloned->copy(*this);
+  return cloned;
 }

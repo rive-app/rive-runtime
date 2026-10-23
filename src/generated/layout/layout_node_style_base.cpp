@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* LayoutNodeStyleBase::clone() const
 {
-    auto cloned = new LayoutNodeStyle();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new LayoutNodeStyle();
+  cloned->copy(*this);
+  return cloned;
 }

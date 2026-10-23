@@ -14,63 +14,63 @@ namespace rive
 // SemanticManager::drainDiff().
 struct SemanticsDiffNode
 {
-    uint32_t id = 0;
-    uint32_t role = 0;
-    std::string label = "";
-    std::string value = "";
-    std::string hint = "";
-    uint32_t stateFlags = 0;
-    uint32_t traitFlags = 0;
-    uint32_t headingLevel = 0;
-    float minX = 0.0f;
-    float minY = 0.0f;
-    float maxX = 0.0f;
-    float maxY = 0.0f;
-    // -1 means root.
-    int32_t parentId = -1;
-    // Sibling position under parent (or root index if parent is -1).
-    uint32_t siblingIndex = 0;
+  uint32_t id = 0;
+  uint32_t role = 0;
+  std::string label = "";
+  std::string value = "";
+  std::string hint = "";
+  uint32_t stateFlags = 0;
+  uint32_t traitFlags = 0;
+  uint32_t headingLevel = 0;
+  float minX = 0.0f;
+  float minY = 0.0f;
+  float maxX = 0.0f;
+  float maxY = 0.0f;
+  // -1 means root.
+  int32_t parentId = -1;
+  // Sibling position under parent (or root index if parent is -1).
+  uint32_t siblingIndex = 0;
 
-    AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
+  AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
 
-    void setBounds(const AABB& value)
-    {
-        minX = value.minX;
-        minY = value.minY;
-        maxX = value.maxX;
-        maxY = value.maxY;
-    }
+  void setBounds(const AABB& value)
+  {
+    minX = value.minX;
+    minY = value.minY;
+    maxX = value.maxX;
+    maxY = value.maxY;
+  }
 };
 
 // Parent children list update for robust reorder/reparent sync.
 // parentId == -1 updates root ordering.
 struct SemanticsChildrenUpdate
 {
-    // -1 means roots list order.
-    int32_t parentId = -1;
-    // Full ordered child list for the parent.
-    std::vector<uint32_t> childIds;
+  // -1 means roots list order.
+  int32_t parentId = -1;
+  // Full ordered child list for the parent.
+  std::vector<uint32_t> childIds;
 };
 
 // Minimal bounds-only update for the hot path — avoids string allocations
 // when only geometry changes frame-to-frame.
 struct SemanticsBoundsUpdate
 {
-    uint32_t id = 0;
-    float minX = 0.0f;
-    float minY = 0.0f;
-    float maxX = 0.0f;
-    float maxY = 0.0f;
+  uint32_t id = 0;
+  float minX = 0.0f;
+  float minY = 0.0f;
+  float maxX = 0.0f;
+  float maxY = 0.0f;
 
-    AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
+  AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
 
-    void setBounds(const AABB& value)
-    {
-        minX = value.minX;
-        minY = value.minY;
-        maxX = value.maxX;
-        maxY = value.maxY;
-    }
+  void setBounds(const AABB& value)
+  {
+    minX = value.minX;
+    minY = value.minY;
+    maxX = value.maxX;
+    maxY = value.maxY;
+  }
 };
 
 // Incremental delta payload emitted by SemanticManager::refresh().
@@ -92,22 +92,22 @@ struct SemanticsBoundsUpdate
 // each array, iterate linearly without a deferred-attachment queue.
 struct SemanticsDiff
 {
-    uint64_t frameNumber = 0;
-    uint64_t treeVersion = 0;
-    uint32_t rootId = 0;
-    std::vector<uint32_t> removed;
-    std::vector<SemanticsDiffNode> added;
-    std::vector<SemanticsDiffNode> moved;
-    std::vector<SemanticsChildrenUpdate> childrenUpdated;
-    std::vector<SemanticsDiffNode> updatedSemantic;
-    std::vector<SemanticsBoundsUpdate> updatedGeometry;
+  uint64_t frameNumber = 0;
+  uint64_t treeVersion = 0;
+  uint32_t rootId = 0;
+  std::vector<uint32_t> removed;
+  std::vector<SemanticsDiffNode> added;
+  std::vector<SemanticsDiffNode> moved;
+  std::vector<SemanticsChildrenUpdate> childrenUpdated;
+  std::vector<SemanticsDiffNode> updatedSemantic;
+  std::vector<SemanticsBoundsUpdate> updatedGeometry;
 
-    bool empty() const
-    {
-        return removed.empty() && added.empty() && moved.empty() &&
-               childrenUpdated.empty() && updatedSemantic.empty() &&
-               updatedGeometry.empty();
-    }
+  bool empty() const
+  {
+    return removed.empty() && added.empty() && moved.empty() &&
+           childrenUpdated.empty() && updatedSemantic.empty() &&
+           updatedGeometry.empty();
+  }
 };
 } // namespace rive
 

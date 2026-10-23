@@ -28,95 +28,90 @@ using namespace rive::ore;
 class RenderDeferredCanvasGM : public GM
 {
 public:
-    RenderDeferredCanvasGM(bool deferred) : GM(256, 256), m_deferred(deferred)
-    {}
+  RenderDeferredCanvasGM(bool deferred) : GM(256, 256), m_deferred(deferred) {}
 
-    ColorInt clearColor() const override { return 0xff202028; }
+  ColorInt clearColor() const override { return 0xff202028; }
 
-    void onDraw(rive::Renderer* originalRenderer) override
+  void onDraw(rive::Renderer* originalRenderer) override
+  {
+    auto renderContext = TestingWindow::Get()->renderContext();
+    if (!renderContext || !m_ore.ensureContext(renderContext))
     {
-        auto renderContext = TestingWindow::Get()->renderContext();
-        if (!renderContext || !m_ore.ensureContext(renderContext))
-        {
-            return;
-        }
-
-#if ORE_GM_HAS_BACKEND
-        auto& realCtx = *renderContext->getOreContext();
-        // The deferred half records against a shell canvas the replay backs,
-        // which is what a scripted gpuCanvas gets; the goldens must still
-        // match the immediate half that allocates up front.
-        auto canvas = m_deferred
-                          ? renderContext->makeDeferredRenderCanvas(200, 200)
-                          : renderContext->makeRenderCanvas(200, 200);
-        if (!canvas)
-        {
-            return;
-        }
-
-        ImageSampler sampler{};
-        sampler.filter = ImageFilter::nearest;
-
-        auto recordClear = [&](Context& ctx, TextureView* view) {
-            ColorAttachment ca{};
-            ca.view = view;
-            ca.loadOp = LoadOp::clear;
-            ca.storeOp = StoreOp::store;
-            ca.clearColor = {0.10f, 0.70f, 0.55f, 1.0f};
-            RenderPassDesc rp{};
-            rp.colorAttachments[0] = ca;
-            rp.colorCount = 1;
-            auto pass = ctx.beginRenderPass(rp);
-            pass->setViewport(0, 0, 200, 200);
-            pass->finish();
-        };
-        auto drawCanvasToScreen = [&](Renderer* r) {
-            r->save();
-            r->translate(28, 28);
-            r->drawImage(canvas->renderImage(),
-                         sampler,
-                         BlendMode::srcOver,
-                         1.0f);
-            r->restore();
-        };
-
-        if (m_deferred)
-        {
-            // Same DeferredReplayer the goldens host and editor use. The marker
-            // orders the Ore replay before the screen draw.
-            rive::cmd::DeferredSession session(
-                rive::ore::ReplayCaps::from(realCtx));
-
-            auto view = session.oreContext().wrapCanvasTexture(canvas.get());
-            recordClear(session.oreContext(), view.get());
-            session.recordOreReplayMarker();
-
-            auto dr = session.makeScreenRenderer();
-            drawCanvasToScreen(dr.get());
-
-            // Snapshot replay is the same path a threaded consumer takes.
-            rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(session);
-            ore_gm::GMFrameSink sink(renderContext, originalRenderer, &m_ore);
-            rive::cmd::DeferredReplayer replayer;
-            replayer.replayFrame(frame, sink);
-        }
-        else
-        {
-            auto view = realCtx.wrapCanvasTexture(canvas.get());
-            m_ore.beginFrame(renderContext);
-            recordClear(realCtx, view.get());
-            m_ore.endFrame(renderContext);
-            ore_gm::invalidateGLStateAfterOre(renderContext);
-            drawCanvasToScreen(originalRenderer);
-        }
-#endif
+      return;
     }
 
+#if ORE_GM_HAS_BACKEND
+    auto& realCtx = *renderContext->getOreContext();
+    // The deferred half records against a shell canvas the replay backs,
+    // which is what a scripted gpuCanvas gets; the goldens must still
+    // match the immediate half that allocates up front.
+    auto canvas = m_deferred ? renderContext->makeDeferredRenderCanvas(200, 200)
+                             : renderContext->makeRenderCanvas(200, 200);
+    if (!canvas)
+    {
+      return;
+    }
+
+    ImageSampler sampler{};
+    sampler.filter = ImageFilter::nearest;
+
+    auto recordClear = [&](Context& ctx, TextureView* view) {
+      ColorAttachment ca{};
+      ca.view = view;
+      ca.loadOp = LoadOp::clear;
+      ca.storeOp = StoreOp::store;
+      ca.clearColor = {0.10f, 0.70f, 0.55f, 1.0f};
+      RenderPassDesc rp{};
+      rp.colorAttachments[0] = ca;
+      rp.colorCount = 1;
+      auto pass = ctx.beginRenderPass(rp);
+      pass->setViewport(0, 0, 200, 200);
+      pass->finish();
+    };
+    auto drawCanvasToScreen = [&](Renderer* r) {
+      r->save();
+      r->translate(28, 28);
+      r->drawImage(canvas->renderImage(), sampler, BlendMode::srcOver, 1.0f);
+      r->restore();
+    };
+
+    if (m_deferred)
+    {
+      // Same DeferredReplayer the goldens host and editor use. The marker
+      // orders the Ore replay before the screen draw.
+      rive::cmd::DeferredSession session(rive::ore::ReplayCaps::from(realCtx));
+
+      auto view = session.oreContext().wrapCanvasTexture(canvas.get());
+      recordClear(session.oreContext(), view.get());
+      session.recordOreReplayMarker();
+
+      auto dr = session.makeScreenRenderer();
+      drawCanvasToScreen(dr.get());
+
+      // Snapshot replay is the same path a threaded consumer takes.
+      rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(session);
+      ore_gm::GMFrameSink sink(renderContext, originalRenderer, &m_ore);
+      rive::cmd::DeferredReplayer replayer;
+      replayer.replayFrame(frame, sink);
+    }
+    else
+    {
+      auto view = realCtx.wrapCanvasTexture(canvas.get());
+      m_ore.beginFrame(renderContext);
+      recordClear(realCtx, view.get());
+      m_ore.endFrame(renderContext);
+      ore_gm::invalidateGLStateAfterOre(renderContext);
+      drawCanvasToScreen(originalRenderer);
+    }
+#endif
+  }
+
 private:
-    bool m_deferred;
-    ore_gm::OreGMContext m_ore;
+  bool m_deferred;
+  ore_gm::OreGMContext m_ore;
 };
 
-GMREGISTER(render_deferred_canvas_immediate,
-           return new RenderDeferredCanvasGM(false))
+GMREGISTER(
+    render_deferred_canvas_immediate,
+    return new RenderDeferredCanvasGM(false))
 GMREGISTER(render_deferred_canvas, return new RenderDeferredCanvasGM(true))

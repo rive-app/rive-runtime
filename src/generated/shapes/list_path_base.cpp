@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListPathBase::clone() const
 {
-    auto cloned = new ListPath();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListPath();
+  cloned->copy(*this);
+  return cloned;
 }

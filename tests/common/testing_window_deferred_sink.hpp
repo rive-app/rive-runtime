@@ -30,84 +30,87 @@ namespace rive_tests
 class TestingWindowFrameSink : public rive::cmd::DeferredFrameSink
 {
 public:
-    TestingWindowFrameSink(
-        TestingWindow* window,
-        rive::gpu::RenderContext* rc,
-        const rive::gpu::RenderContext::FrameDescriptor& mainDesc) :
-        m_window(window), m_rc(rc), m_mainDesc(mainDesc)
-    {}
+  TestingWindowFrameSink(
+      TestingWindow* window,
+      rive::gpu::RenderContext* rc,
+      const rive::gpu::RenderContext::FrameDescriptor& mainDesc)
+      : m_window(window)
+      , m_rc(rc)
+      , m_mainDesc(mainDesc)
+  {}
 
-    rive::Factory* factory() override { return m_window->factory(); }
+  rive::Factory* factory() override { return m_window->factory(); }
 
-    rive::gpu::RenderContext* renderContext() override { return m_rc; }
+  rive::gpu::RenderContext* renderContext() override { return m_rc; }
 
-    // The window owns one main render target.
-    rive::Renderer* beginScreenFrame(uint64_t target) override
+  // The window owns one main render target.
+  rive::Renderer* beginScreenFrame(uint64_t target) override
+  {
+    assert(target == 0);
+    flushOpenFrame();
+    auto d = m_mainDesc;
+    d.loadAction = rive::gpu::LoadAction::preserveRenderTarget;
+    m_rc->beginFrame(std::move(d));
+    m_frameOpen = true;
+    m_screen = std::make_unique<rive::RiveRenderer>(m_rc);
+    return m_screen.get();
+  }
+
+  rive::Renderer* beginCanvasContent(
+      rive::gpu::RenderCanvas* canvas,
+      uint32_t clearColor) override
+  {
+    flushOpenFrame();
+    m_activeCanvas = canvas;
+    m_canvasFrames++;
+    auto d = m_mainDesc;
+    d.renderTargetWidth = canvas->width();
+    d.renderTargetHeight = canvas->height();
+    d.loadAction = rive::gpu::LoadAction::clear;
+    d.clearColor = clearColor;
+    m_rc->beginFrame(std::move(d));
+    m_frameOpen = true;
+    m_canvasRenderer = std::make_unique<rive::RiveRenderer>(m_rc);
+    return m_canvasRenderer.get();
+  }
+
+  void endCanvasContent() override
+  {
+    if (m_activeCanvas == nullptr)
     {
-        assert(target == 0);
-        flushOpenFrame();
-        auto d = m_mainDesc;
-        d.loadAction = rive::gpu::LoadAction::preserveRenderTarget;
-        m_rc->beginFrame(std::move(d));
-        m_frameOpen = true;
-        m_screen = std::make_unique<rive::RiveRenderer>(m_rc);
-        return m_screen.get();
+      return;
     }
+    m_window->flushPLSContext(m_activeCanvas->renderTarget());
+    m_frameOpen = false;
+    m_canvasRenderer = nullptr;
+    m_activeCanvas = nullptr;
+  }
 
-    rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
-                                       uint32_t clearColor) override
-    {
-        flushOpenFrame();
-        m_activeCanvas = canvas;
-        m_canvasFrames++;
-        auto d = m_mainDesc;
-        d.renderTargetWidth = canvas->width();
-        d.renderTargetHeight = canvas->height();
-        d.loadAction = rive::gpu::LoadAction::clear;
-        d.clearColor = clearColor;
-        m_rc->beginFrame(std::move(d));
-        m_frameOpen = true;
-        m_canvasRenderer = std::make_unique<rive::RiveRenderer>(m_rc);
-        return m_canvasRenderer.get();
-    }
-
-    void endCanvasContent() override
-    {
-        if (m_activeCanvas == nullptr)
-        {
-            return;
-        }
-        m_window->flushPLSContext(m_activeCanvas->renderTarget());
-        m_frameOpen = false;
-        m_canvasRenderer = nullptr;
-        m_activeCanvas = nullptr;
-    }
-
-    // Offscreen frames opened while replaying, i.e. how many times the content
-    // was actually rasterized into a canvas.
-    size_t canvasFrames() const { return m_canvasFrames; }
+  // Offscreen frames opened while replaying, i.e. how many times the content
+  // was actually rasterized into a canvas.
+  size_t canvasFrames() const { return m_canvasFrames; }
 
 private:
-    // The window (or the previous replay) leaves the main frame open.
-    void flushOpenFrame()
+  // The window (or the previous replay) leaves the main frame open.
+  void flushOpenFrame()
+  {
+    if (!m_flushedWindowFrame || m_frameOpen)
     {
-        if (!m_flushedWindowFrame || m_frameOpen)
-        {
-            m_window->flushPLSContext();
-            m_flushedWindowFrame = true;
-            m_frameOpen = false;
-        }
+      m_window->flushPLSContext();
+      m_flushedWindowFrame = true;
+      m_frameOpen = false;
     }
+  }
 
-    TestingWindow* m_window;
-    rive::gpu::RenderContext* m_rc;
-    rive::gpu::RenderContext::FrameDescriptor m_mainDesc;
-    bool m_flushedWindowFrame = false;
-    bool m_frameOpen = false;
-    size_t m_canvasFrames = 0;
-    std::unique_ptr<rive::RiveRenderer> m_screen;
-    std::unique_ptr<rive::RiveRenderer> m_canvasRenderer;
-    rive::gpu::RenderCanvas* m_activeCanvas = nullptr;
+  TestingWindow* m_window;
+  rive::gpu::RenderContext* m_rc;
+  rive::gpu::RenderContext::FrameDescriptor m_mainDesc;
+  bool m_flushedWindowFrame = false;
+  bool m_frameOpen = false;
+  size_t m_canvasFrames = 0;
+  std::unique_ptr<rive::RiveRenderer> m_screen;
+  std::unique_ptr<rive::RiveRenderer> m_canvasRenderer;
+  rive::gpu::RenderCanvas* m_activeCanvas = nullptr;
 };
 } // namespace rive_tests
 

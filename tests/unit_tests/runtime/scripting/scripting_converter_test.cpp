@@ -13,8 +13,8 @@ using namespace rive;
 
 TEST_CASE("scripted string converter support data types", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type InputTypes = DataValueString | DataValueBoolean | DataValueNumber
+  ScriptingTest vm(
+      R"(type InputTypes = DataValueString | DataValueBoolean | DataValueNumber
 
 type StringConverter = {}
 function convert(self: StringConverter, input: InputTypes): DataValueString
@@ -57,69 +57,73 @@ return function(): Converter<StringConverter, InputTypes, DataValueString>
 end
 
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueString>(L, L, "input");
-        CHECK(dv->isString());
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueString>(L, L, "input");
+    CHECK(dv->isString());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isString());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
-              "input - suffix");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
-        CHECK(dv->isBoolean());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isString());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
+        "input - suffix");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
+    CHECK(dv->isBoolean());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isString());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
-              "True - suffix");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueNumber>(L, L, 1);
-        CHECK(dv->isNumber());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isString());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
+        "True - suffix");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueNumber>(L, L, 1);
+    CHECK(dv->isNumber());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isString());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
-              "1 - suffix");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "reverseConvert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueString>(L, L, "input as output");
-        CHECK(dv->isString());
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isString());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
-              "input as output");
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isString());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
+        "1 - suffix");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "reverseConvert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueString>(L, L, "input as output");
+    CHECK(dv->isString());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isString());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueString>()->value() ==
+        "input as output");
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted number converter support data types", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type NumberConverter = {}
+  ScriptingTest vm(
+      R"(type NumberConverter = {}
 function convert(self: NumberConverter, input: DataValueNumber): DataValueNumber
   local dv: DataValueNumber = DataValue.number()
   if input:isNumber() then
@@ -145,28 +149,28 @@ return function(): Converter<NumberConverter, DataValueNumber, DataValueNumber>
 end
 
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueNumber>(L, L, 1);
-        CHECK(dv->isNumber());
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueNumber>(L, L, 1);
+    CHECK(dv->isNumber());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isNumber());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueNumber>()->value() ==
-              251);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isNumber());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueNumber>()->value() == 251);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted boolean converts bool", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type BoolConverter = {
+  ScriptingTest vm(
+      R"(type BoolConverter = {
   coin: Input<Artboard<Data.Coin>>,
 }
 
@@ -198,42 +202,44 @@ return function(): Converter<BoolConverter, DataValueBoolean, DataValueBoolean>
 end
 
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
-        CHECK(dv->isBoolean());
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
+    CHECK(dv->isBoolean());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isBoolean());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueBoolean>()->value() ==
-              false);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, false);
-        CHECK(dv->isBoolean());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isBoolean());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueBoolean>()->value() ==
+        false);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, false);
+    CHECK(dv->isBoolean());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isBoolean());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueBoolean>()->value() ==
-              true);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isBoolean());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueBoolean>()->value() ==
+        true);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted color converts color value", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type ColorConverter = {}
+  ScriptingTest vm(
+      R"(type ColorConverter = {}
 function convert(self: ColorConverter, input: DataValueColor): DataValueColor
   local dv: DataValueColor = DataValue.color()
   dv.value = input.value
@@ -256,42 +262,44 @@ return function(): Converter<ColorConverter, DataValueColor, DataValueColor>
   return { convert = convert, reverseConvert = reverseConvert, init = init }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0xFFFFFF00);
-        CHECK(dv->isColor());
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0xFFFFFF00);
+    CHECK(dv->isColor());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isColor());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
-              0xFF00FFFF);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0);
-        CHECK(dv->isColor());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isColor());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+        0xFF00FFFF);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0);
+    CHECK(dv->isColor());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isColor());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
-              0x000000FF);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isColor());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+        0x000000FF);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("another scripted color converter", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type ColorConverter = {}
+  ScriptingTest vm(
+      R"(type ColorConverter = {}
 function convert(self: ColorConverter, input: DataValueColor): DataValueColor
   local dv: DataValueColor = DataValue.color()
   if input:isColor() then
@@ -317,43 +325,46 @@ return function(): Converter<ColorConverter, DataValueColor, DataValueColor>
   return { convert = convert, reverseConvert = reverseConvert, init = init }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0x11223344);
-        CHECK(dv->isColor());
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0x11223344);
+    CHECK(dv->isColor());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isColor());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
-              0x22334411);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
-    {
-        lua_getglobal(L, "convert");
-        lua_pushvalue(L, -2);
-        auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
-        CHECK(dv->isBoolean());
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isColor());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+        0x22334411);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+  {
+    lua_getglobal(L, "convert");
+    lua_pushvalue(L, -2);
+    auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
+    CHECK(dv->isBoolean());
 
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
-        CHECK(scriptedDataValue->isColor());
-        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
-              0x00000000);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+    CHECK(scriptedDataValue->isColor());
+    CHECK(
+        scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+        0x00000000);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("scripted converter survives Number<->String direction flips",
-          "[scripting]")
+TEST_CASE(
+    "scripted converter survives Number<->String direction flips",
+    "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type NumberToStringConverter = {}
+  ScriptingTest vm(
+      R"(type NumberToStringConverter = {}
 
 function convert(self: NumberToStringConverter, input: DataValueNumber): DataValueString
   local result = DataValue.string()
@@ -375,45 +386,45 @@ return function(): Converter<NumberToStringConverter, DataValueNumber, DataValue
 end
 )");
 
-    // ScriptingTest leaves the factory function on top of the stack;
-    // ensureScriptInitialized consumes it to build m_self.
-    ScriptedDataConverter converter;
-    // Enable convert() (bit 10) and reverseConvert() (bit 11).
-    converter.implementedMethods((1 << 10) | (1 << 11));
-    REQUIRE(converter.dataConverts());
-    REQUIRE(converter.dataReverseConverts());
-    REQUIRE(
-        converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
+  // ScriptingTest leaves the factory function on top of the stack;
+  // ensureScriptInitialized consumes it to build m_self.
+  ScriptedDataConverter converter;
+  // Enable convert() (bit 10) and reverseConvert() (bit 11).
+  converter.implementedMethods((1 << 10) | (1 << 11));
+  REQUIRE(converter.dataConverts());
+  REQUIRE(converter.dataReverseConverts());
+  REQUIRE(
+      converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
 
-    // Flip directions repeatedly on the same converter instance. Each flip
-    // changes the type storeData<T> must produce; the buggy version crashed
-    // on the second call.
-    for (int i = 0; i < 3; i++)
-    {
-        DataValueNumber number(20000 + i);
-        auto forward = converter.convert(&number, nullptr);
-        REQUIRE(forward != nullptr);
-        REQUIRE(forward->is<DataValueString>());
-        CHECK(forward->as<DataValueString>()->value() ==
-              std::to_string(20000 + i));
+  // Flip directions repeatedly on the same converter instance. Each flip
+  // changes the type storeData<T> must produce; the buggy version crashed
+  // on the second call.
+  for (int i = 0; i < 3; i++)
+  {
+    DataValueNumber number(20000 + i);
+    auto forward = converter.convert(&number, nullptr);
+    REQUIRE(forward != nullptr);
+    REQUIRE(forward->is<DataValueString>());
+    CHECK(forward->as<DataValueString>()->value() == std::to_string(20000 + i));
 
-        DataValueString text(std::to_string(12345 + i));
-        auto reverse = converter.reverseConvert(&text, nullptr);
-        REQUIRE(reverse != nullptr);
-        REQUIRE(reverse->is<DataValueNumber>());
-        CHECK(reverse->as<DataValueNumber>()->value() == (float)(12345 + i));
-    }
+    DataValueString text(std::to_string(12345 + i));
+    auto reverse = converter.reverseConvert(&text, nullptr);
+    REQUIRE(reverse != nullptr);
+    REQUIRE(reverse->is<DataValueNumber>());
+    CHECK(reverse->as<DataValueNumber>()->value() == (float)(12345 + i));
+  }
 }
 
 // A converter script whose convert()/reverseConvert() returns something that
 // isn't a DataValue userdata (nil, a raw Lua number, a table, ...) must not
 // crash the runtime. lua_touserdata yields nullptr for those and the backend
 // used to call a virtual method straight through it.
-TEST_CASE("scripted converter returning a non DataValue does not crash",
-          "[scripting]")
+TEST_CASE(
+    "scripted converter returning a non DataValue does not crash",
+    "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type BadConverter = {}
+  ScriptingTest vm(
+      R"(type BadConverter = {}
 
 function convert(self: BadConverter, input: any): any
   -- Falls off the end: Luau returns nil.
@@ -432,117 +443,117 @@ return function(): any
 end
 )");
 
-    ScriptedDataConverter converter;
-    // Enable convert() (bit 10) and reverseConvert() (bit 11).
-    converter.implementedMethods((1 << 10) | (1 << 11));
-    REQUIRE(
-        converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
+  ScriptedDataConverter converter;
+  // Enable convert() (bit 10) and reverseConvert() (bit 11).
+  converter.implementedMethods((1 << 10) | (1 << 11));
+  REQUIRE(
+      converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
 
-    auto top = lua_gettop(vm.state());
+  auto top = lua_gettop(vm.state());
 
-    DataValueNumber number(7);
-    auto forward = converter.convert(&number, nullptr);
-    REQUIRE(forward != nullptr);
-    // Nothing usable came back, so the converter yields an empty DataValue.
-    CHECK(!forward->is<DataValueNumber>());
-    CHECK(!forward->is<DataValueString>());
+  DataValueNumber number(7);
+  auto forward = converter.convert(&number, nullptr);
+  REQUIRE(forward != nullptr);
+  // Nothing usable came back, so the converter yields an empty DataValue.
+  CHECK(!forward->is<DataValueNumber>());
+  CHECK(!forward->is<DataValueString>());
 
-    DataValueString text("9");
-    auto reverse = converter.reverseConvert(&text, nullptr);
-    REQUIRE(reverse != nullptr);
-    CHECK(!reverse->is<DataValueNumber>());
-    CHECK(!reverse->is<DataValueString>());
+  DataValueString text("9");
+  auto reverse = converter.reverseConvert(&text, nullptr);
+  REQUIRE(reverse != nullptr);
+  CHECK(!reverse->is<DataValueNumber>());
+  CHECK(!reverse->is<DataValueString>());
 
-    // The Lua stack must be left exactly as we found it.
-    CHECK(lua_gettop(vm.state()) == top);
+  // The Lua stack must be left exactly as we found it.
+  CHECK(lua_gettop(vm.state()) == top);
 }
 
 TEST_CASE("scripted string converter", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/script_string_converter_test.riv", &silver);
-    auto artboard = file->artboardNamed("Converter");
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/script_string_converter_test.riv", &silver);
+  auto artboard = file->artboardNamed("Converter");
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto field1 =
-        vmi->propertyValue("Field1")->as<rive::ViewModelInstanceString>();
-    REQUIRE(field1 != nullptr);
-    field1->propertyValue("H#e%l&l*o");
+  auto field1 = vmi->propertyValue("Field1")
+                    ->as<rive::ViewModelInstanceString>();
+  REQUIRE(field1 != nullptr);
+  field1->propertyValue("H#e%l&l*o");
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    auto field2 =
-        vmi->propertyValue("Field2")->as<rive::ViewModelInstanceString>();
-    REQUIRE(field2 != nullptr);
-    field2->propertyValue("____one two three___");
+  auto field2 = vmi->propertyValue("Field2")
+                    ->as<rive::ViewModelInstanceString>();
+  REQUIRE(field2 != nullptr);
+  field2->propertyValue("____one two three___");
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    auto field3 =
-        vmi->propertyValue("Field3")->as<rive::ViewModelInstanceString>();
-    REQUIRE(field3 != nullptr);
-    field3->propertyValue("  **This uses a string converter@@. ");
+  auto field3 = vmi->propertyValue("Field3")
+                    ->as<rive::ViewModelInstanceString>();
+  REQUIRE(field3 != nullptr);
+  field3->propertyValue("  **This uses a string converter@@. ");
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    auto field4 =
-        vmi->propertyValue("Field4")->as<rive::ViewModelInstanceString>();
-    REQUIRE(field4 != nullptr);
-    field4->propertyValue("It strips special characters like *&^%$#@!)()");
+  auto field4 = vmi->propertyValue("Field4")
+                    ->as<rive::ViewModelInstanceString>();
+  REQUIRE(field4 != nullptr);
+  field4->propertyValue("It strips special characters like *&^%$#@!)()");
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("script_string_converter"));
+  CHECK(silver.matches("script_string_converter"));
 }
 
-TEST_CASE("Data converter with bound inputs in artboard and state machine",
-          "[silver]")
+TEST_CASE(
+    "Data converter with bound inputs in artboard and state machine",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/scripted_data_converter_bound_input.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/scripted_data_converter_bound_input.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
+  silver.addFrame();
 
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(0.1f);
 
-    artboard->draw(renderer.get());
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripted_data_converter_bound_input"));
+  CHECK(silver.matches("scripted_data_converter_bound_input"));
 }

@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace rive::gpu
 {
@@ -27,106 +28,112 @@ class TextureGL;
 class ContextGL : public Context
 {
 public:
-    static std::unique_ptr<ContextGL> Make();
+  static std::unique_ptr<ContextGL> Make();
 
-    ~ContextGL() override;
+  ~ContextGL() override;
 
-    /**
-     * Discards framebuffer objects cached by completed Ore render passes.
-     *
-     * This must be called with the owning GL context current and with no Ore
-     * render pass active. Cached VAOs are unaffected because they do not
-     * reference framebuffer or drawable state.
-     */
-    void invalidateScratchFramebuffers();
+  /**
+   * Discards framebuffer objects cached by completed Ore render passes.
+   *
+   * This must be called with the owning GL context current and with no Ore
+   * render pass active. Cached VAOs are unaffected because they do not
+   * reference framebuffer or drawable state.
+   */
+  void invalidateScratchFramebuffers();
 
-    rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
-    rcp<Texture> makeTexture(const TextureDesc& desc) override;
-    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
-    rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
-    rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
-    rcp<BindGroupLayout> makeBindGroupLayout(
-        const BindGroupLayoutDesc& desc) override;
-    rcp<Pipeline> makePipeline(const PipelineDesc& desc,
-                               std::string* outError = nullptr) override;
-    rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
+  rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
+  rcp<Texture> makeTexture(const TextureDesc& desc) override;
+  rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
+  rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
+  rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
+  rcp<BindGroupLayout> makeBindGroupLayout(
+      const BindGroupLayoutDesc& desc) override;
+  rcp<Pipeline> makePipeline(
+      const PipelineDesc& desc,
+      std::string* outError = nullptr) override;
+  rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    std::unique_ptr<RenderPass> beginRenderPass(
-        const RenderPassDesc& desc,
-        std::string* outError = nullptr) override;
+  std::unique_ptr<RenderPass> beginRenderPass(
+      const RenderPassDesc& desc,
+      std::string* outError = nullptr) override;
 
-    void beginFrame(const FrameDescriptor&) override;
-    void endFrame() override;
-    void waitForGPU() override;
+  void beginFrame(const FrameDescriptor&) override;
+  void endFrame() override;
+  void waitForGPU() override;
 
-    // GL stays on per pass inline replay: it has no command buffer so no
-    // natural frame boundary drain, and the ore frame is not reliably driven.
-    // TODO: whole frame GL deferral.
-    bool usesDeferredFrameReplay() const override { return false; }
+  // GL stays on per pass inline replay: it has no command buffer so no
+  // natural frame boundary drain, and the ore frame is not reliably driven.
+  // TODO: whole frame GL deferral.
+  bool usesDeferredFrameReplay() const override { return false; }
 
-    rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
-    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget* target) override;
-    rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
-                                     uint32_t width,
-                                     uint32_t height) override;
+  rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+  rcp<TextureView> wrapRenderTarget(gpu::RenderTarget* target) override;
+  rcp<TextureView> wrapRiveTexture(
+      gpu::Texture* gpuTex,
+      uint32_t width,
+      uint32_t height) override;
 
-    ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
+  ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
 
-    ContextGL(const ContextGL&) = delete;
-    ContextGL& operator=(const ContextGL&) = delete;
+  ContextGL(const ContextGL&) = delete;
+  ContextGL& operator=(const ContextGL&) = delete;
 
 private:
-    friend class RenderPassGL;
-    friend class BindGroupGL;
-    friend class TextureGL;
+  friend class RenderPassGL;
+  friend class BindGroupGL;
+  friend class TextureGL;
 
-    ContextGL() : Context(nullptr) {}
+  ContextGL() : Context(nullptr) {}
 
-    rcp<TextureView> glWrapTarget(gpu::TextureRenderTargetGL* target);
+  rcp<TextureView> glWrapTarget(gpu::TextureRenderTargetGL* target);
 
-    // An incomplete framebuffer repeats every frame; print each message once.
-    std::string m_lastReportedError;
+  // An incomplete framebuffer repeats every frame; print each message once.
+  std::string m_lastReportedError;
 
-    // ── Scratch pass objects ───────────────────────────────────────────
-    //
-    // A pass's FBO and VAO carry nothing between passes: the FBO is
-    // reattached from the descriptor every time and the VAO exists only to
-    // keep Ore's attrib state off the host renderer's. Minting a pair per
-    // pass therefore burns two GL names per pass, and on WebGL emscripten
-    // never recycles a name, so a replayed frame ratchets GL.framebuffers
-    // and GL.vaos for the life of the page. One of each per context is
-    // enough, because Ore has exactly one pass open at a time. A pass that
-    // opens while the pair is out on loan still mints its own, so nesting
-    // stays correct rather than aliasing one FBO across two passes.
-    //
-    // These are GLuints; the header stays free of glad (see note above).
-    unsigned int acquireScratchFBO();
-    unsigned int acquireScratchVAO();
-    unsigned int scratchResolveFBO();
-    void releaseScratchFBO(uint32_t colorCount, unsigned int depthAttachment);
-    void releaseScratchVAO();
+  // Attachment sets already found complete. Checking again is a GPU sync on
+  // WebGL, and a scene reattaches the same sets every frame.
+  std::unordered_set<uint64_t> m_completeAttachmentKeys;
 
-    unsigned int m_scratchFBO = 0;
-    unsigned int m_scratchVAO = 0;
-    unsigned int m_scratchResolveFBO = 0;
-    bool m_scratchFBOLent = false;
-    bool m_scratchVAOLent = false;
-    // What the last borrower attached, so the next one is handed an FBO as
-    // empty as a freshly minted one and cannot inherit a stale attachment.
-    uint32_t m_scratchFBOColorCount = 0;
-    unsigned int m_scratchFBODepthAttachment = 0; // GLenum, 0 when none
+  // ── Scratch pass objects ───────────────────────────────────────────
+  //
+  // A pass's FBO and VAO carry nothing between passes: the FBO is
+  // reattached from the descriptor every time and the VAO exists only to
+  // keep Ore's attrib state off the host renderer's. Minting a pair per
+  // pass therefore burns two GL names per pass, and on WebGL emscripten
+  // never recycles a name, so a replayed frame ratchets GL.framebuffers
+  // and GL.vaos for the life of the page. One of each per context is
+  // enough, because Ore has exactly one pass open at a time. A pass that
+  // opens while the pair is out on loan still mints its own, so nesting
+  // stays correct rather than aliasing one FBO across two passes.
+  //
+  // These are GLuints; the header stays free of glad (see note above).
+  unsigned int acquireScratchFBO();
+  unsigned int acquireScratchVAO();
+  unsigned int scratchResolveFBO();
+  void releaseScratchFBO(uint32_t colorCount, unsigned int depthAttachment);
+  void releaseScratchVAO();
 
-    // GL state tracking for save/restore at frame boundaries.
-    // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally excluded — it is VAO
-    // state, so restoring the VAO implicitly restores the element buffer.
-    struct GLSavedState
-    {
-        int program = 0;
-        int arrayBuffer = 0;
-        int uniformBuffer = 0;
-        int framebuffer = 0;
-        int vertexArray = 0;
-    } m_savedState;
+  unsigned int m_scratchFBO = 0;
+  unsigned int m_scratchVAO = 0;
+  unsigned int m_scratchResolveFBO = 0;
+  bool m_scratchFBOLent = false;
+  bool m_scratchVAOLent = false;
+  // What the last borrower attached, so the next one is handed an FBO as
+  // empty as a freshly minted one and cannot inherit a stale attachment.
+  uint32_t m_scratchFBOColorCount = 0;
+  unsigned int m_scratchFBODepthAttachment = 0; // GLenum, 0 when none
+
+  // GL state tracking for save/restore at frame boundaries.
+  // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally excluded — it is VAO
+  // state, so restoring the VAO implicitly restores the element buffer.
+  struct GLSavedState
+  {
+    int program = 0;
+    int arrayBuffer = 0;
+    int uniformBuffer = 0;
+    int framebuffer = 0;
+    int vertexArray = 0;
+  } m_savedState;
 };
 
 } // namespace rive::ore

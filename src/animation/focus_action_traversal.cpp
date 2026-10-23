@@ -8,14 +8,15 @@
 
 using namespace rive;
 
-void FocusActionTraversal::perform(StateMachineInstance* stateMachineInstance,
-                                   const ListenerInvocation& invocation) const
+void FocusActionTraversal::perform(
+    StateMachineInstance* stateMachineInstance,
+    const ListenerInvocation& invocation) const
 {
-    (void)invocation;
-    if (stateMachineInstance == nullptr)
-    {
-        return;
-    }
+  (void)invocation;
+  if (stateMachineInstance == nullptr)
+  {
+    return;
+  }
 
-    stateMachineInstance->queueFocusTraversal(traversalKind());
+  stateMachineInstance->queueFocusTraversal(traversalKind());
 }

@@ -18,108 +18,110 @@ class StateMachineLayerInstance;
 
 class SMIInput
 {
-    friend class StateMachineInstance;
-    friend class StateMachineLayerInstance;
+  friend class StateMachineInstance;
+  friend class StateMachineLayerInstance;
 
 private:
-    virtual void advanced() {}
+  virtual void advanced() {}
 
 protected:
-    void valueChanged();
+  void valueChanged();
 
-    SMIInput(const StateMachineInput* input,
-             StateMachineInstance* machineInstance);
+  SMIInput(
+      const StateMachineInput* input,
+      StateMachineInstance* machineInstance);
 
 public:
-    virtual ~SMIInput() {}
-    const StateMachineInput* input() const { return m_input; }
+  virtual ~SMIInput() {}
+  const StateMachineInput* input() const { return m_input; }
 
-    const std::string& name() const;
-    uint16_t inputCoreType() const;
+  const std::string& name() const;
+  uint16_t inputCoreType() const;
 
 private:
-    StateMachineInstance* m_machineInstance;
-    const StateMachineInput* m_input;
+  StateMachineInstance* m_machineInstance;
+  const StateMachineInput* m_input;
 #ifdef WITH_RIVE_TOOLS
-    uint64_t m_index = 0;
+  uint64_t m_index = 0;
 #endif
 };
 
 class SMIBool : public SMIInput
 {
-    friend class StateMachineInstance;
+  friend class StateMachineInstance;
 
 private:
-    bool m_Value;
+  bool m_Value;
 
-    SMIBool(const StateMachineBool* input,
-            StateMachineInstance* machineInstance);
+  SMIBool(const StateMachineBool* input, StateMachineInstance* machineInstance);
 
 public:
-    bool value() const { return m_Value; }
-    void value(bool newValue);
+  bool value() const { return m_Value; }
+  void value(bool newValue);
 };
 
 class SMINumber : public SMIInput
 {
-    friend class StateMachineInstance;
+  friend class StateMachineInstance;
 
 private:
-    float m_Value;
+  float m_Value;
 
-    SMINumber(const StateMachineNumber* input,
-              StateMachineInstance* machineInstance);
+  SMINumber(
+      const StateMachineNumber* input,
+      StateMachineInstance* machineInstance);
 
 public:
-    float value() const { return m_Value; }
-    void value(float newValue);
+  float value() const { return m_Value; }
+  void value(float newValue);
 };
 
 class Triggerable
 {
 
 public:
-    bool isUsedInLayer(StateMachineLayerInstance* layer) const
+  bool isUsedInLayer(StateMachineLayerInstance* layer) const
+  {
+    auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
+    if (it == m_usedLayers.end())
     {
-        auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
-        if (it == m_usedLayers.end())
-        {
-            return false;
-        }
-        return true;
+      return false;
     }
-    void useInLayer(StateMachineLayerInstance* layer) const
+    return true;
+  }
+  void useInLayer(StateMachineLayerInstance* layer) const
+  {
+    auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
+    if (it == m_usedLayers.end())
     {
-        auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
-        if (it == m_usedLayers.end())
-        {
-            m_usedLayers.push_back(layer);
-        }
+      m_usedLayers.push_back(layer);
     }
+  }
 
 protected:
-    mutable std::vector<StateMachineLayerInstance*> m_usedLayers;
+  mutable std::vector<StateMachineLayerInstance*> m_usedLayers;
 };
 
 class SMITrigger : public SMIInput, public Triggerable
 {
-    friend class StateMachineInstance;
-    friend class TransitionTriggerCondition;
-    bool m_fired = false;
+  friend class StateMachineInstance;
+  friend class TransitionTriggerCondition;
+  bool m_fired = false;
 
-    SMITrigger(const StateMachineTrigger* input,
-               StateMachineInstance* machineInstance);
-    void advanced() override
-    {
-        m_fired = false;
-        m_usedLayers.clear();
-    }
+  SMITrigger(
+      const StateMachineTrigger* input,
+      StateMachineInstance* machineInstance);
+  void advanced() override
+  {
+    m_fired = false;
+    m_usedLayers.clear();
+  }
 
 public:
-    void fire();
+  void fire();
 
 #ifdef TESTING
-    bool didFire() { return m_fired; }
+  bool didFire() { return m_fired; }
 #endif
 };
 } // namespace rive

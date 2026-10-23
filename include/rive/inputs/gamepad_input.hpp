@@ -8,7 +8,7 @@ namespace rive
 class GamepadInput : public GamepadInputBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

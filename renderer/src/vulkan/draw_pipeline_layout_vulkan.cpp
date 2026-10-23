@@ -15,165 +15,165 @@ namespace rive::gpu
 DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
     PipelineManagerVulkan* pipelineManager,
     gpu::InterlockMode interlockMode,
-    RenderPassOptionsVulkan renderPassOptions) :
-    m_vk(ref_rcp(pipelineManager->vulkanContext())),
-    m_interlockMode(interlockMode),
-    m_renderPassOptions(renderPassOptions)
+    RenderPassOptionsVulkan renderPassOptions)
+    : m_vk(ref_rcp(pipelineManager->vulkanContext()))
+    , m_interlockMode(interlockMode)
+    , m_renderPassOptions(renderPassOptions)
 {
-    const bool fixedFunctionColorOutput =
-        enums::is_flag_set(m_renderPassOptions,
-                           RenderPassOptionsVulkan::fixedFunctionColorOutput);
+  const bool fixedFunctionColorOutput = enums::is_flag_set(
+      m_renderPassOptions,
+      RenderPassOptionsVulkan::fixedFunctionColorOutput);
 
-    // PLS planes get bound per flush as input attachments or storage
-    // textures.
-    const VkDescriptorType plsDescriptorType =
-        (pipelineManager->plsBackingType(interlockMode) ==
-         PipelineManagerVulkan::PLSBackingType::storageTexture)
-            ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-            : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+  // PLS planes get bound per flush as input attachments or storage
+  // textures.
+  const VkDescriptorType
+      plsDescriptorType = (pipelineManager->plsBackingType(interlockMode) ==
+                           PipelineManagerVulkan::PLSBackingType::
+                               storageTexture)
+                              ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                              : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 
-    StackVector<VkDescriptorSetLayoutBinding, PLS_PLANE_COUNT>
-        plsLayoutBindings;
+  StackVector<VkDescriptorSetLayoutBinding, PLS_PLANE_COUNT> plsLayoutBindings;
 
-    if (!fixedFunctionColorOutput)
-    {
-        plsLayoutBindings.push_back({
-            .binding = COLOR_PLANE_IDX,
-            .descriptorType = plsDescriptorType,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-    }
+  if (!fixedFunctionColorOutput)
+  {
+    plsLayoutBindings.push_back({
+        .binding = COLOR_PLANE_IDX,
+        .descriptorType = plsDescriptorType,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    });
+  }
 
-    if (interlockMode != gpu::InterlockMode::depthStencil)
-    {
-        plsLayoutBindings.push_back({
-            .binding = CLIP_PLANE_IDX,
-            .descriptorType = plsDescriptorType,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-    }
+  if (interlockMode != gpu::InterlockMode::depthStencil)
+  {
+    plsLayoutBindings.push_back({
+        .binding = CLIP_PLANE_IDX,
+        .descriptorType = plsDescriptorType,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    });
+  }
 
-    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        ((interlockMode == gpu::InterlockMode::clockwise ||
-          interlockMode == gpu::InterlockMode::clockwiseAtomic) &&
-         !fixedFunctionColorOutput))
-    {
-        plsLayoutBindings.push_back({
-            .binding = SCRATCH_COLOR_PLANE_IDX,
-            .descriptorType =
-                (interlockMode == gpu::InterlockMode::clockwiseAtomic)
-                    ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                    : plsDescriptorType,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-    }
+  if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+      ((interlockMode == gpu::InterlockMode::clockwise ||
+        interlockMode == gpu::InterlockMode::clockwiseAtomic) &&
+       !fixedFunctionColorOutput))
+  {
+    plsLayoutBindings.push_back({
+        .binding = SCRATCH_COLOR_PLANE_IDX,
+        .descriptorType = (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+                              ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                              : plsDescriptorType,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    });
+  }
 
-    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        interlockMode == gpu::InterlockMode::atomics ||
-        interlockMode == gpu::InterlockMode::clockwise)
-    {
-        plsLayoutBindings.push_back({
-            .binding = COVERAGE_PLANE_IDX,
-            .descriptorType = m_interlockMode == gpu::InterlockMode::atomics
-                                  ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                                  : plsDescriptorType,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-    }
-    else if (enums::is_flag_set(renderPassOptions,
-                                RenderPassOptionsVulkan::msaa))
-    {
-        // Configure an input attachment to seed the transient MSAA color
-        // attachment.
-        // TODO: pipeline layouts aren't currently keyed by loadAction, but if
-        // they were, we could only include this binding with
-        // preserveRenderTarget.
-        assert(interlockMode == gpu::InterlockMode::depthStencil);
-        plsLayoutBindings.push_back({
-            .binding = MSAA_COLOR_SEED_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-    }
+  if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+      interlockMode == gpu::InterlockMode::atomics ||
+      interlockMode == gpu::InterlockMode::clockwise)
+  {
+    plsLayoutBindings.push_back({
+        .binding = COVERAGE_PLANE_IDX,
+        .descriptorType = m_interlockMode == gpu::InterlockMode::atomics
+                              ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                              : plsDescriptorType,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    });
+  }
+  else if (enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa))
+  {
+    // Configure an input attachment to seed the transient MSAA color
+    // attachment.
+    // TODO: pipeline layouts aren't currently keyed by loadAction, but if
+    // they were, we could only include this binding with
+    // preserveRenderTarget.
+    assert(interlockMode == gpu::InterlockMode::depthStencil);
+    plsLayoutBindings.push_back({
+        .binding = MSAA_COLOR_SEED_IDX,
+        .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+    });
+  }
 
-    if (plsLayoutBindings.size() > 0)
-    {
-        VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = plsLayoutBindings.size(),
-            .pBindings = plsLayoutBindings.data(),
-        };
-
-        VK_ABORT_ON_FAIL(
-            m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                            &plsLayoutInfo,
-                                            nullptr,
-                                            &m_plsTextureDescriptorSetLayout));
-    }
-
-    VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
-        pipelineManager->perFlushDescriptorSetLayout(),
-        pipelineManager->perDrawDescriptorSetLayout(),
-        m_plsTextureDescriptorSetLayout,
+  if (plsLayoutBindings.size() > 0)
+  {
+    VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = plsLayoutBindings.size(),
+        .pBindings = plsLayoutBindings.data(),
     };
-    static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(CLIP_PLANE_IDX == 1);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-    static_assert(COVERAGE_PLANE_IDX == 3);
-    static_assert(VULKAN_BINDINGS_SET_COUNT == 3);
 
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = m_plsTextureDescriptorSetLayout != VK_NULL_HANDLE
-                              ? VULKAN_BINDINGS_SET_COUNT
-                              : VULKAN_BINDINGS_SET_COUNT - 1u,
-        .pSetLayouts = pipelineDescriptorSetLayouts,
-    };
-    VK_ABORT_ON_FAIL(m_vk->CreatePipelineLayout(m_vk->device,
-                                                &pipelineLayoutCreateInfo,
-                                                nullptr,
-                                                &m_pipelineLayout));
+    VK_ABORT_ON_FAIL(m_vk->CreateDescriptorSetLayout(
+        m_vk->device,
+        &plsLayoutInfo,
+        nullptr,
+        &m_plsTextureDescriptorSetLayout));
+  }
+
+  VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
+      pipelineManager->perFlushDescriptorSetLayout(),
+      pipelineManager->perDrawDescriptorSetLayout(),
+      m_plsTextureDescriptorSetLayout,
+  };
+  static_assert(COLOR_PLANE_IDX == 0);
+  static_assert(CLIP_PLANE_IDX == 1);
+  static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+  static_assert(COVERAGE_PLANE_IDX == 3);
+  static_assert(VULKAN_BINDINGS_SET_COUNT == 3);
+
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = m_plsTextureDescriptorSetLayout != VK_NULL_HANDLE
+                            ? VULKAN_BINDINGS_SET_COUNT
+                            : VULKAN_BINDINGS_SET_COUNT - 1u,
+      .pSetLayouts = pipelineDescriptorSetLayouts,
+  };
+  VK_ABORT_ON_FAIL(m_vk->CreatePipelineLayout(
+      m_vk->device,
+      &pipelineLayoutCreateInfo,
+      nullptr,
+      &m_pipelineLayout));
 }
 
 DrawPipelineLayoutVulkan::~DrawPipelineLayoutVulkan()
 {
-    m_vk->DestroyDescriptorSetLayout(m_vk->device,
-                                     m_plsTextureDescriptorSetLayout,
-                                     nullptr);
-    m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
+  m_vk->DestroyDescriptorSetLayout(
+      m_vk->device,
+      m_plsTextureDescriptorSetLayout,
+      nullptr);
+  m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
 }
 
 uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
     uint32_t subpassIndex,
     RenderPassOptionsVulkan renderPassOptions) const
 {
-    switch (m_interlockMode)
-    {
-        case gpu::InterlockMode::rasterOrdering:
-            assert(subpassIndex == 0 || subpassIndex == 1);
-            return (subpassIndex == 0) ? 4u : 1u;
-        case gpu::InterlockMode::atomics:
-            assert(subpassIndex <= 1);
-            return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
-        case gpu::InterlockMode::clockwise:
-            assert(subpassIndex == 0);
-            return enums::is_flag_set(
-                       renderPassOptions,
-                       RenderPassOptionsVulkan::fixedFunctionColorOutput)
-                       ? 1u
-                       : 0u;
-        case gpu::InterlockMode::clockwiseAtomic:
-            assert(subpassIndex == 0 || subpassIndex == 1);
-            return 2; // color & clip.
-        case gpu::InterlockMode::depthStencil:
-            assert(0 <= subpassIndex && subpassIndex <= 2);
-            return 1u;
-    }
-    RIVE_UNREACHABLE();
+  switch (m_interlockMode)
+  {
+    case gpu::InterlockMode::rasterOrdering:
+      assert(subpassIndex == 0 || subpassIndex == 1);
+      return (subpassIndex == 0) ? 4u : 1u;
+    case gpu::InterlockMode::atomics:
+      assert(subpassIndex <= 1);
+      return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
+    case gpu::InterlockMode::clockwise:
+      assert(subpassIndex == 0);
+      return enums::is_flag_set(
+                 renderPassOptions,
+                 RenderPassOptionsVulkan::fixedFunctionColorOutput)
+                 ? 1u
+                 : 0u;
+    case gpu::InterlockMode::clockwiseAtomic:
+      assert(subpassIndex == 0 || subpassIndex == 1);
+      return 2; // color & clip.
+    case gpu::InterlockMode::depthStencil:
+      assert(0 <= subpassIndex && subpassIndex <= 2);
+      return 1u;
+  }
+  RIVE_UNREACHABLE();
 }
 } // namespace rive::gpu

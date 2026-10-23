@@ -9,32 +9,32 @@ namespace
 {
 std::vector<uint8_t> readFile(const char* filename)
 {
-    FILE* fp = fopen(filename, "rb");
-    REQUIRE(fp != nullptr);
-    fseek(fp, 0, SEEK_END);
-    std::vector<uint8_t> bytes(ftell(fp));
-    fseek(fp, 0, SEEK_SET);
-    REQUIRE(fread(bytes.data(), 1, bytes.size(), fp) == bytes.size());
-    fclose(fp);
-    return bytes;
+  FILE* fp = fopen(filename, "rb");
+  REQUIRE(fp != nullptr);
+  fseek(fp, 0, SEEK_END);
+  std::vector<uint8_t> bytes(ftell(fp));
+  fseek(fp, 0, SEEK_SET);
+  REQUIRE(fread(bytes.data(), 1, bytes.size(), fp) == bytes.size());
+  fclose(fp);
+  return bytes;
 }
 
 // Sets a global while keeping the sandbox's read only state as it was.
 template <typename Push>
 void setGlobal(lua_State* L, const char* name, Push push)
 {
-    int readonly = lua_getreadonly(L, LUA_GLOBALSINDEX);
-    lua_setreadonly(L, LUA_GLOBALSINDEX, false);
-    push();
-    lua_setglobal(L, name);
-    lua_setreadonly(L, LUA_GLOBALSINDEX, readonly);
+  int readonly = lua_getreadonly(L, LUA_GLOBALSINDEX);
+  lua_setreadonly(L, LUA_GLOBALSINDEX, false);
+  push();
+  lua_setglobal(L, name);
+  lua_setreadonly(L, LUA_GLOBALSINDEX, readonly);
 }
 
 void setGlobalFont(lua_State* L, const char* name, const char* filename)
 {
-    setGlobal(L, name, [&] {
-        lua_pushfont(L, HBFont::Decode(readFile(filename)));
-    });
+  setGlobal(L, name, [&] {
+    lua_pushfont(L, HBFont::Decode(readFile(filename)));
+  });
 }
 
 const char* kLatin = "assets/fonts/Inter_18pt-Regular.ttf";
@@ -43,29 +43,29 @@ const char* kArabic = "assets/IBMPlexSansArabic-Regular.ttf";
 // Runs source with `latin` and `arabic` fonts in scope.
 struct TextTest : ScriptingTest
 {
-    TextTest(const char* source, int numResults = 0, bool errorOk = false) :
-        ScriptingTest(source, numResults, errorOk, {}, false)
-    {
-        setGlobalFont(state(), "latin", kLatin);
-        setGlobalFont(state(), "arabic", kArabic);
-        execute();
-    }
+  TextTest(const char* source, int numResults = 0, bool errorOk = false)
+      : ScriptingTest(source, numResults, errorOk, {}, false)
+  {
+    setGlobalFont(state(), "latin", kLatin);
+    setGlobalFont(state(), "arabic", kArabic);
+    execute();
+  }
 };
 
 void drawWith(ScriptingTest& vm, const char* function)
 {
-    lua_State* L = vm.state();
-    lua_getglobal(L, function);
-    auto renderer = vm.serializer()->makeRenderer();
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
-    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(scriptedRenderer->end());
+  lua_State* L = vm.state();
+  lua_getglobal(L, function);
+  auto renderer = vm.serializer()->makeRenderer();
+  auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(scriptedRenderer->end());
 }
 } // namespace
 
 TEST_CASE("text lays out and draws", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         local paint = Paint.with({ color = 0xFF202020 })
         text:append('Hello ', { font = latin, size = 24, paint = paint })
@@ -83,13 +83,13 @@ TEST_CASE("text lays out and draws", "[scripting]")
             text:draw(renderer)
         end
     )");
-    drawWith(vm, "render");
-    CHECK(vm.serializer()->matches("scripted_text_wrapped"));
+  drawWith(vm, "render");
+  CHECK(vm.serializer()->matches("scripted_text_wrapped"));
 }
 
 TEST_CASE("text orders bidi runs visually", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         text:append('abc مرحبا def', { font = arabic, size = 20, paint = Paint.new() })
         assert(text.lineCount == 1)
@@ -123,14 +123,15 @@ TEST_CASE("text orders bidi runs visually", "[scripting]")
             text:draw(renderer)
         end
     )");
-    drawWith(vm, "render");
-    CHECK(vm.serializer()->matches("scripted_text_bidi"));
+  drawWith(vm, "render");
+  CHECK(vm.serializer()->matches("scripted_text_bidi"));
 }
 
-TEST_CASE("text resolves start and end against the paragraph direction",
-          "[scripting]")
+TEST_CASE(
+    "text resolves start and end against the paragraph direction",
+    "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         text:append('مرحبا', { font = arabic, size = 20, paint = Paint.new() })
         text.sizing = 'fixed'
@@ -151,7 +152,7 @@ TEST_CASE("text resolves start and end against the paragraph direction",
 
 TEST_CASE("text carets and hit tests agree", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         text:append('Hello', { font = latin, size = 20, paint = Paint.new() })
         local x1, top, bottom = text:caret(1)
@@ -168,7 +169,7 @@ TEST_CASE("text carets and hit tests agree", "[scripting]")
 
 TEST_CASE("text lines go stale when the text changes", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         text:append('Hello', { font = latin, size = 20 })
         local line = text:line(1)
@@ -186,7 +187,7 @@ TEST_CASE("text lines go stale when the text changes", "[scripting]")
 
 TEST_CASE("cleared text reads as empty", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         text:append('Hello world', { font = latin, size = 20 })
         assert(text.lineCount == 1)
@@ -203,9 +204,20 @@ TEST_CASE("cleared text reads as empty", "[scripting]")
     )");
 }
 
+TEST_CASE("text decodes a sequence cut short inside its string", "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        text:append('a\xE2b', { font = latin, size = 20 })
+        text:append(string.rep('c', 40) .. '\xF0', { font = latin, size = 20 })
+        assert(text.length == 44, 'length ' .. text.length)
+        assert(text.lineCount == 1)
+    )");
+}
+
 TEST_CASE("font exposes metrics, options and outlines", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         assert(latin.ascent < 0 and latin.descent > 0)
         assert(latin.capHeight < 0 and latin.xHeight < 0)
         assert(latin.weight == 400 and not latin.isItalic)
@@ -230,7 +242,7 @@ TEST_CASE("font exposes metrics, options and outlines", "[scripting]")
 
 TEST_CASE("font tag tables reject keys that are not strings", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local ok, message = pcall(function()
             return latin:withOptions({ [1] = 700 })
         end)
@@ -245,25 +257,26 @@ TEST_CASE("font tag tables reject keys that are not strings", "[scripting]")
 
 TEST_CASE("font decodes from bytes", "[scripting]")
 {
-    ScriptingTest vm(R"(
+  ScriptingTest vm(
+      R"(
         local font = Font.decode(fontBytes)
         assert(font and font.ascent < 0)
     )",
-                     0,
-                     false,
-                     {},
-                     false);
-    lua_State* L = vm.state();
-    auto bytes = readFile(kLatin);
-    setGlobal(L, "fontBytes", [&] {
-        memcpy(lua_newbuffer(L, bytes.size()), bytes.data(), bytes.size());
-    });
-    vm.execute();
+      0,
+      false,
+      {},
+      false);
+  lua_State* L = vm.state();
+  auto bytes = readFile(kLatin);
+  setGlobal(L, "fontBytes", [&] {
+    memcpy(lua_newbuffer(L, bytes.size()), bytes.data(), bytes.size());
+  });
+  vm.execute();
 }
 
 TEST_CASE("glyphs expose their placed outline", "[scripting]")
 {
-    TextTest vm(R"(
+  TextTest vm(R"(
         local text = Text.new()
         local paint = Paint.with({ color = 0xFF0000FF })
         text:append('ab', { font = latin, size = 30, paint = paint })
@@ -280,6 +293,6 @@ TEST_CASE("glyphs expose their placed outline", "[scripting]")
             end
         end
     )");
-    drawWith(vm, "render");
-    CHECK(vm.serializer()->matches("scripted_text_glyphs"));
+  drawWith(vm, "render");
+  CHECK(vm.serializer()->matches("scripted_text_glyphs"));
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextVariationModifierBase::clone() const
 {
-    auto cloned = new TextVariationModifier();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextVariationModifier();
+  cloned->copy(*this);
+  return cloned;
 }

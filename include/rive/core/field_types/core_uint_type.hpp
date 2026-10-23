@@ -7,10 +7,10 @@ class BinaryReader;
 class CoreUintType
 {
 public:
-    static const int id = 0;
-    static unsigned int deserialize(BinaryReader& reader);
+  static const int id = 0;
+  static unsigned int deserialize(BinaryReader& reader);
 #ifdef WITH_RIVE_TOOLS
-    static unsigned int deserializeRev(BinaryReader& reader);
+  static unsigned int deserializeRev(BinaryReader& reader);
 #endif
 };
 } // namespace rive

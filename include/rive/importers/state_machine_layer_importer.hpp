@@ -12,15 +12,14 @@ class Artboard;
 class StateMachineLayerImporter : public ImportStackObject
 {
 private:
-    StateMachineLayer* m_Layer;
-    const Artboard* m_Artboard;
+  StateMachineLayer* m_Layer;
+  const Artboard* m_Artboard;
 
 public:
-    StateMachineLayerImporter(StateMachineLayer* layer,
-                              const Artboard* artboard);
-    void addState(LayerState* state);
-    StatusCode resolve() override;
-    bool readNullObject() override;
+  StateMachineLayerImporter(StateMachineLayer* layer, const Artboard* artboard);
+  void addState(LayerState* state);
+  StatusCode resolve() override;
+  bool readNullObject() override;
 };
 } // namespace rive
 #endif

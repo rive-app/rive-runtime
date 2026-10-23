@@ -8,6 +8,7 @@
 
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/artboard.hpp>
+#include <rive/artboard_component_list.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/semantic/semantic_manager.hpp>
 #include <rive/semantic/semantic_node.hpp>
@@ -17,6 +18,9 @@
 #include <rive/semantic/semantic_trait.hpp>
 #include <rive/viewmodel/viewmodel_instance.hpp>
 #include <rive/viewmodel/viewmodel_instance_artboard.hpp>
+#include <rive/viewmodel/viewmodel_instance_list.hpp>
+#include <rive/viewmodel/viewmodel_instance_list_item.hpp>
+#include <rive/viewmodel/viewmodel_instance_string.hpp>
 #include "rive_file_reader.hpp"
 #include "semantic_test_helpers.hpp"
 #include <catch.hpp>
@@ -42,114 +46,137 @@ static const std::set<std::string> kFandomLabels = {
 // retaining only the fields these tests assert on.
 struct Setup
 {
-    Fixture fixture;
+  Fixture fixture;
 
-    struct Entry
+  struct Entry
+  {
+    uint32_t id;
+    uint32_t role;
+    std::string label;
+    uint32_t stateFlags;
+    uint32_t traitFlags;
+    AABB bounds;
+  };
+  std::unordered_map<uint32_t, Entry> entries;
+
+  StateMachineInstance* sm() const { return fixture.sm.get(); }
+
+  void applyDiff(const SemanticsDiff& diff)
+  {
+    for (auto id : diff.removed)
     {
-        uint32_t id;
-        uint32_t role;
-        std::string label;
-        uint32_t stateFlags;
-        uint32_t traitFlags;
-        AABB bounds;
-    };
-    std::unordered_map<uint32_t, Entry> entries;
-
-    StateMachineInstance* sm() const { return fixture.sm.get(); }
-
-    void applyDiff(const SemanticsDiff& diff)
-    {
-        for (auto id : diff.removed)
-        {
-            entries.erase(id);
-        }
-        for (const auto& n : diff.added)
-        {
-            entries[n.id] = {n.id,
-                             n.role,
-                             n.label,
-                             n.stateFlags,
-                             n.traitFlags,
-                             AABB(n.minX, n.minY, n.maxX, n.maxY)};
-        }
-        for (const auto& n : diff.updatedSemantic)
-        {
-            auto it = entries.find(n.id);
-            if (it != entries.end())
-            {
-                it->second.role = n.role;
-                it->second.label = n.label;
-                it->second.stateFlags = n.stateFlags;
-                it->second.traitFlags = n.traitFlags;
-            }
-        }
-        for (const auto& g : diff.updatedGeometry)
-        {
-            auto it = entries.find(g.id);
-            if (it != entries.end())
-            {
-                it->second.bounds = AABB(g.minX, g.minY, g.maxX, g.maxY);
-            }
-        }
+      entries.erase(id);
     }
-
-    void settle()
+    for (const auto& n : diff.added)
     {
-        auto* mgr = sm()->semanticManager();
-        REQUIRE(mgr != nullptr);
-        advance(sm());
-        applyDiff(mgr->drainDiff());
+      entries[n.id] = {
+          n.id,
+          n.role,
+          n.label,
+          n.stateFlags,
+          n.traitFlags,
+          AABB(n.minX, n.minY, n.maxX, n.maxY)};
     }
-
-    const Entry* findByLabel(const std::string& label) const
+    for (const auto& n : diff.updatedSemantic)
     {
-        for (const auto& kv : entries)
-        {
-            if (kv.second.label == label)
-            {
-                return &kv.second;
-            }
-        }
-        return nullptr;
+      auto it = entries.find(n.id);
+      if (it != entries.end())
+      {
+        it->second.role = n.role;
+        it->second.label = n.label;
+        it->second.stateFlags = n.stateFlags;
+        it->second.traitFlags = n.traitFlags;
+      }
     }
-
-    std::set<std::string> fandomLabelsPresent() const
+    for (const auto& g : diff.updatedGeometry)
     {
-        std::set<std::string> out;
-        for (const auto& kv : entries)
-        {
-            if (kv.second.role == static_cast<uint32_t>(SemanticRole::text) &&
-                kFandomLabels.count(kv.second.label) > 0)
-            {
-                out.insert(kv.second.label);
-            }
-        }
-        return out;
+      auto it = entries.find(g.id);
+      if (it != entries.end())
+      {
+        it->second.bounds = AABB(g.minX, g.minY, g.maxX, g.maxY);
+      }
     }
+  }
 
-    void tapDropdown()
+  void settle()
+  {
+    auto* mgr = sm()->semanticManager();
+    REQUIRE(mgr != nullptr);
+    advance(sm());
+    applyDiff(mgr->drainDiff());
+  }
+
+  const Entry* findByLabel(const std::string& label) const
+  {
+    for (const auto& kv : entries)
     {
-        const auto* button = findByLabel(kDropdownLabel);
-        REQUIRE(button != nullptr);
-        const Vec2D center((button->bounds.minX + button->bounds.maxX) * 0.5f,
-                           (button->bounds.minY + button->bounds.maxY) * 0.5f);
-        sm()->pointerDown(center);
-        sm()->pointerUp(center);
-        settle();
+      if (kv.second.label == label)
+      {
+        return &kv.second;
+      }
     }
+    return nullptr;
+  }
+
+  std::set<std::string> fandomLabelsPresent() const
+  {
+    std::set<std::string> out;
+    for (const auto& kv : entries)
+    {
+      if (kv.second.role == static_cast<uint32_t>(SemanticRole::text) &&
+          kFandomLabels.count(kv.second.label) > 0)
+      {
+        out.insert(kv.second.label);
+      }
+    }
+    return out;
+  }
+
+  void tapDropdown()
+  {
+    const auto* button = findByLabel(kDropdownLabel);
+    REQUIRE(button != nullptr);
+    const Vec2D center(
+        (button->bounds.minX + button->bounds.maxX) * 0.5f,
+        (button->bounds.minY + button->bounds.maxY) * 0.5f);
+    sm()->pointerDown(center);
+    sm()->pointerUp(center);
+    settle();
+  }
 };
+
+// Registered nodes that belong to a SemanticData. Boundary nodes are left
+// out: hosted artboards' boundaries accumulate across the dropdown's cycles,
+// a separate leak.
+static size_t semanticDataNodeCount(const SemanticManager* mgr)
+{
+  size_t found = 0;
+  size_t count = 0;
+  for (uint32_t id = 0; found < mgr->nodeCount() && id < 65536; id++)
+  {
+    if (auto* node = mgr->nodeById(id))
+    {
+      found++;
+      if (node->semanticData() != nullptr)
+      {
+        count++;
+      }
+    }
+  }
+  return count;
+}
 
 // Loads the fixture via the shared helper, then seeds the diff-replay
 // aggregator from the initial settle diff so Setup::entries is ready.
 static Setup loadDataBindingLists()
 {
-    Setup s;
-    s.fixture = loadFixture("assets/semantic/data_binding_lists.riv");
-    REQUIRE(s.fixture.sm != nullptr);
-    auto* mgr = s.fixture.sm->semanticManager();
-    REQUIRE(mgr != nullptr);
-    s.applyDiff(mgr->drainDiff());
-    return s;
+  Setup s;
+  s.fixture = loadFixture("assets/semantic/data_binding_lists.riv");
+  REQUIRE(s.fixture.sm != nullptr);
+  auto* mgr = s.fixture.sm->semanticManager();
+  REQUIRE(mgr != nullptr);
+  s.applyDiff(mgr->drainDiff());
+  return s;
 }
 
 } // namespace
@@ -159,208 +186,264 @@ static Setup loadDataBindingLists()
 // SemanticManager.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("ArtboardComponentList items populate the parent artboard's semantic "
-          "manager",
-          "[semantics][artboard]")
+TEST_CASE(
+    "ArtboardComponentList items populate the parent artboard's semantic "
+    "manager",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
-    // All four fandom labels should be present as text SDs in the unified
-    // tree, even though they live inside list-item sub-artboards.
-    CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  // All four fandom labels should be present as text SDs in the unified
+  // tree, even though they live inside list-item sub-artboards.
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
 
-    // Each fandom text SD's id must resolve through the top-level manager
-    // (not just show up in the diff).
-    auto* mgr = s.sm()->semanticManager();
-    for (const auto& label : kFandomLabels)
-    {
-        const auto* entry = s.findByLabel(label);
-        REQUIRE(entry != nullptr);
-        CAPTURE(label);
-        CHECK(mgr->nodeById(entry->id) != nullptr);
-    }
+  // Each fandom text SD's id must resolve through the top-level manager
+  // (not just show up in the diff).
+  auto* mgr = s.sm()->semanticManager();
+  for (const auto& label : kFandomLabels)
+  {
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    CAPTURE(label);
+    CHECK(mgr->nodeById(entry->id) != nullptr);
+  }
 }
 
-TEST_CASE("Dropdown button starts expanded with the Expandable trait authored",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Dropdown button starts expanded with the Expandable trait authored",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
-    const auto* button = s.findByLabel(kDropdownLabel);
-    REQUIRE(button != nullptr);
-    CHECK(button->role == static_cast<uint32_t>(SemanticRole::button));
-    CHECK(hasSemanticTrait(button->traitFlags, SemanticTrait::Expandable));
-    CHECK(hasSemanticState(button->stateFlags, SemanticState::Expanded));
+  const auto* button = s.findByLabel(kDropdownLabel);
+  REQUIRE(button != nullptr);
+  CHECK(button->role == static_cast<uint32_t>(SemanticRole::button));
+  CHECK(hasSemanticTrait(button->traitFlags, SemanticTrait::Expandable));
+  CHECK(hasSemanticState(button->stateFlags, SemanticState::Expanded));
 }
 
-TEST_CASE("List-item SDs have non-empty bounds in the unified coordinate space",
-          "[semantics][artboard]")
+TEST_CASE(
+    "List-item SDs have non-empty bounds in the unified coordinate space",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
-    for (const auto& label : kFandomLabels)
-    {
-        const auto* entry = s.findByLabel(label);
-        REQUIRE(entry != nullptr);
-        CAPTURE(label);
-        CAPTURE(entry->bounds.minX);
-        CAPTURE(entry->bounds.minY);
-        CAPTURE(entry->bounds.maxX);
-        CAPTURE(entry->bounds.maxY);
-        // List items go through rootTransform during bounds computation —
-        // the result must be a non-degenerate rect.
-        CHECK_FALSE(entry->bounds.isEmptyOrNaN());
-        CHECK(entry->bounds.width() > 0.0f);
-        CHECK(entry->bounds.height() > 0.0f);
-    }
+  for (const auto& label : kFandomLabels)
+  {
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    CAPTURE(label);
+    CAPTURE(entry->bounds.minX);
+    CAPTURE(entry->bounds.minY);
+    CAPTURE(entry->bounds.maxX);
+    CAPTURE(entry->bounds.maxY);
+    // List items go through rootTransform during bounds computation —
+    // the result must be a non-degenerate rect.
+    CHECK_FALSE(entry->bounds.isEmptyOrNaN());
+    CHECK(entry->bounds.width() > 0.0f);
+    CHECK(entry->bounds.height() > 0.0f);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Spawn / despawn cycle.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("Collapsing the dropdown removes list-item SDs from the unified tree",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Collapsing the dropdown removes list-item SDs from the unified tree",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
-    CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
 
-    // Record ids before collapse so we can verify the manager index
-    // drops them.
-    std::vector<uint32_t> preCollapseIds;
-    for (const auto& label : kFandomLabels)
-    {
-        const auto* entry = s.findByLabel(label);
-        REQUIRE(entry != nullptr);
-        preCollapseIds.push_back(entry->id);
-    }
+  // Record ids before collapse so we can verify they leave the tree.
+  std::vector<uint32_t> preCollapseIds;
+  for (const auto& label : kFandomLabels)
+  {
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    preCollapseIds.push_back(entry->id);
+  }
 
-    s.tapDropdown();
+  s.tapDropdown();
 
-    CHECK(s.fandomLabelsPresent().empty());
+  CHECK(s.fandomLabelsPresent().empty());
 
-    // Dropdown button's Expanded state bit must have flipped.
-    const auto* button = s.findByLabel(kDropdownLabel);
-    REQUIRE(button != nullptr);
-    CHECK_FALSE(hasSemanticState(button->stateFlags, SemanticState::Expanded));
+  // Dropdown button's Expanded state bit must have flipped.
+  const auto* button = s.findByLabel(kDropdownLabel);
+  REQUIRE(button != nullptr);
+  CHECK_FALSE(hasSemanticState(button->stateFlags, SemanticState::Expanded));
 
-    // The manager's authoritative index must agree: every pre-collapse id
-    // is gone.
-    auto* mgr = s.sm()->semanticManager();
-    for (auto id : preCollapseIds)
-    {
-        CHECK(mgr->nodeById(id) == nullptr);
-    }
+  // The manager must agree: no pre-collapse id is in the tree the platform
+  // sees, yet each stays registered. Hiding never removes a node, so the
+  // same node comes back on re-expand.
+  auto* mgr = s.sm()->semanticManager();
+  for (auto id : preCollapseIds)
+  {
+    CHECK(mgr->nodeById(id) != nullptr);
+    CHECK_FALSE(mgr->isInTree(mgr->nodeById(id)));
+  }
 }
 
-TEST_CASE("Re-expanding the dropdown re-registers list-item SDs",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Re-expanding the dropdown brings list-item SDs back",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
+  s.tapDropdown(); // collapse
+  CHECK(s.fandomLabelsPresent().empty());
+
+  s.tapDropdown(); // re-expand
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
+
+  // All four labels must resolve through the top-level manager post-reexpand.
+  auto* mgr = s.sm()->semanticManager();
+  for (const auto& label : kFandomLabels)
+  {
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    CAPTURE(label);
+    CHECK(mgr->isInTree(mgr->nodeById(entry->id)));
+  }
+}
+
+TEST_CASE(
+    "Multiple collapse / uncollapse cycles maintain exactly 4 fandoms",
+    "[semantics][artboard]")
+{
+  auto s = loadDataBindingLists();
+
+  // Initial.
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  const auto registered = semanticDataNodeCount(s.sm()->semanticManager());
+
+  // Three full cycles — each cycle must clean up fully and rebuild
+  // without duplicating entries or leaking state.
+  for (int cycle = 0; cycle < 3; ++cycle)
+  {
+    CAPTURE(cycle);
     s.tapDropdown(); // collapse
     CHECK(s.fandomLabelsPresent().empty());
 
     s.tapDropdown(); // re-expand
     CHECK(s.fandomLabelsPresent() == kFandomLabels);
+    // No SemanticData is registered twice or left behind.
+    CHECK(semanticDataNodeCount(s.sm()->semanticManager()) == registered);
 
-    // All four labels must resolve through the top-level manager post-reexpand.
-    auto* mgr = s.sm()->semanticManager();
-    for (const auto& label : kFandomLabels)
+    // There must be exactly four fandom-labelled text SDs — not eight
+    // or twelve — across all cycles.
+    int count = 0;
+    for (const auto& kv : s.entries)
     {
-        const auto* entry = s.findByLabel(label);
-        REQUIRE(entry != nullptr);
-        CAPTURE(label);
-        CHECK(mgr->nodeById(entry->id) != nullptr);
+      if (kv.second.role == static_cast<uint32_t>(SemanticRole::text) &&
+          kFandomLabels.count(kv.second.label) > 0)
+      {
+        count++;
+      }
     }
+    CHECK(count == 4);
+  }
 }
 
-TEST_CASE("Multiple collapse / uncollapse cycles maintain exactly 4 fandoms",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Replacing every list item keeps the new rows in the semantic tree",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
 
-    // Initial.
-    CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  // Replacing the items in one update reuses their rows for the new items.
+  auto items = s.fixture.vmi->propertyValue("menu")
+                   ->as<ViewModelInstanceList>();
+  REQUIRE(items->listItems().size() == 4);
+  auto itemViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  const std::set<std::string> replacementLabels = {
+      "First replacement",
+      "Second replacement",
+      "Third replacement",
+      "Fourth replacement",
+  };
+  items->removeAllItems();
+  for (const auto& label : replacementLabels)
+  {
+    auto replacement = s.fixture.file->createDefaultViewModelInstance(
+        itemViewModel);
+    replacement->propertyValue("label")
+        ->as<ViewModelInstanceString>()
+        ->propertyValue(label);
+    auto item = make_rcp<ViewModelInstanceListItem>();
+    item->viewModelInstance(replacement);
+    items->addItem(item);
+  }
+  s.settle();
 
-    // Three full cycles — each cycle must clean up fully and rebuild
-    // without duplicating entries or leaking state.
-    for (int cycle = 0; cycle < 3; ++cycle)
-    {
-        CAPTURE(cycle);
-        s.tapDropdown(); // collapse
-        CHECK(s.fandomLabelsPresent().empty());
-
-        s.tapDropdown(); // re-expand
-        CHECK(s.fandomLabelsPresent() == kFandomLabels);
-
-        // There must be exactly four fandom-labelled text SDs — not eight
-        // or twelve — across all cycles.
-        int count = 0;
-        for (const auto& kv : s.entries)
-        {
-            if (kv.second.role == static_cast<uint32_t>(SemanticRole::text) &&
-                kFandomLabels.count(kv.second.label) > 0)
-            {
-                count++;
-            }
-        }
-        CHECK(count == 4);
-    }
+  CHECK(s.fandomLabelsPresent().empty());
+  auto* mgr = s.sm()->semanticManager();
+  for (const auto& label : replacementLabels)
+  {
+    CAPTURE(label);
+    const auto* entry = s.findByLabel(label);
+    REQUIRE(entry != nullptr);
+    CHECK(entry->role == static_cast<uint32_t>(SemanticRole::text));
+    CHECK(mgr->nodeById(entry->id) != nullptr);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // fireSemanticAction routed to a SD reached via the unified manager.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("fireSemanticAction(tap) on the dropdown button collapses the list",
-          "[semantics][artboard]")
+TEST_CASE(
+    "fireSemanticAction(tap) on the dropdown button collapses the list",
+    "[semantics][artboard]")
 {
-    auto s = loadDataBindingLists();
+  auto s = loadDataBindingLists();
 
-    const auto* button = s.findByLabel(kDropdownLabel);
-    REQUIRE(button != nullptr);
-    CHECK(hasSemanticState(button->stateFlags, SemanticState::Expanded));
-    CHECK(s.fandomLabelsPresent() == kFandomLabels);
+  const auto* button = s.findByLabel(kDropdownLabel);
+  REQUIRE(button != nullptr);
+  CHECK(hasSemanticState(button->stateFlags, SemanticState::Expanded));
+  CHECK(s.fandomLabelsPresent() == kFandomLabels);
 
-    s.sm()->fireSemanticAction(button->id, SemanticActionType::tap);
-    s.settle();
+  s.sm()->fireSemanticAction(button->id, SemanticActionType::tap);
+  s.settle();
 
-    const auto* afterButton = s.findByLabel(kDropdownLabel);
-    REQUIRE(afterButton != nullptr);
-    CHECK_FALSE(
-        hasSemanticState(afterButton->stateFlags, SemanticState::Expanded));
-    CHECK(s.fandomLabelsPresent().empty());
+  const auto* afterButton = s.findByLabel(kDropdownLabel);
+  REQUIRE(afterButton != nullptr);
+  CHECK_FALSE(
+      hasSemanticState(afterButton->stateFlags, SemanticState::Expanded));
+  CHECK(s.fandomLabelsPresent().empty());
 }
 
 TEST_CASE(
     "fireSemanticAction(tap) via pointerDown/Up converge on the same state",
     "[semantics][artboard]")
 {
-    auto pointerSetup = loadDataBindingLists();
-    auto semanticSetup = loadDataBindingLists();
+  auto pointerSetup = loadDataBindingLists();
+  auto semanticSetup = loadDataBindingLists();
 
-    // Pointer path.
-    pointerSetup.tapDropdown();
+  // Pointer path.
+  pointerSetup.tapDropdown();
 
-    // Semantic path.
-    const auto* button = semanticSetup.findByLabel(kDropdownLabel);
-    REQUIRE(button != nullptr);
-    semanticSetup.sm()->fireSemanticAction(button->id, SemanticActionType::tap);
-    semanticSetup.settle();
+  // Semantic path.
+  const auto* button = semanticSetup.findByLabel(kDropdownLabel);
+  REQUIRE(button != nullptr);
+  semanticSetup.sm()->fireSemanticAction(button->id, SemanticActionType::tap);
+  semanticSetup.settle();
 
-    // Both must have collapsed.
-    CHECK(pointerSetup.fandomLabelsPresent().empty());
-    CHECK(semanticSetup.fandomLabelsPresent().empty());
+  // Both must have collapsed.
+  CHECK(pointerSetup.fandomLabelsPresent().empty());
+  CHECK(semanticSetup.fandomLabelsPresent().empty());
 
-    // Both should agree on the dropdown button's Expanded bit.
-    const auto* pBtn = pointerSetup.findByLabel(kDropdownLabel);
-    const auto* sBtn = semanticSetup.findByLabel(kDropdownLabel);
-    REQUIRE(pBtn != nullptr);
-    REQUIRE(sBtn != nullptr);
-    CHECK(hasSemanticState(pBtn->stateFlags, SemanticState::Expanded) ==
-          hasSemanticState(sBtn->stateFlags, SemanticState::Expanded));
+  // Both should agree on the dropdown button's Expanded bit.
+  const auto* pBtn = pointerSetup.findByLabel(kDropdownLabel);
+  const auto* sBtn = semanticSetup.findByLabel(kDropdownLabel);
+  REQUIRE(pBtn != nullptr);
+  REQUIRE(sBtn != nullptr);
+  CHECK(
+      hasSemanticState(pBtn->stateFlags, SemanticState::Expanded) ==
+      hasSemanticState(sBtn->stateFlags, SemanticState::Expanded));
 }
 
 // ---------------------------------------------------------------------------
@@ -383,236 +466,276 @@ namespace
 
 static bool hasAncestorWithRole(const SemanticNode* node, SemanticRole role)
 {
-    const auto asU = static_cast<uint32_t>(role);
-    auto* current = node != nullptr ? node->parent() : nullptr;
-    while (current != nullptr)
+  const auto asU = static_cast<uint32_t>(role);
+  auto* current = node != nullptr ? node->parent() : nullptr;
+  while (current != nullptr)
+  {
+    if (current->role() == asU)
     {
-        if (current->role() == asU)
-        {
-            return true;
-        }
-        current = current->parent();
+      return true;
     }
-    return false;
+    current = current->parent();
+  }
+  return false;
 }
 
 } // namespace
 
-TEST_CASE("Dynamic list item artboards parent listItem nodes under the "
-          "enclosing list role",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Dynamic list item artboards parent listItem nodes under the "
+    "enclosing list role",
+    "[semantics][artboard]")
 {
-    auto f = loadFixture("assets/semantic/data_binding_lists_items.riv");
-    REQUIRE(f.sm != nullptr);
-    auto* mgr = f.sm->semanticManager();
-    REQUIRE(mgr != nullptr);
+  auto f = loadFixture("assets/semantic/data_binding_lists_items.riv");
+  REQUIRE(f.sm != nullptr);
+  auto* mgr = f.sm->semanticManager();
+  REQUIRE(mgr != nullptr);
 
-    const auto diff = mgr->drainDiff();
+  const auto diff = mgr->drainDiff();
 
-    // Collect every list and listItem node that the manager emitted.
-    std::vector<uint32_t> listIds;
-    std::vector<uint32_t> listItemIds;
-    for (const auto& n : diff.added)
+  // Collect every list and listItem node that the manager emitted.
+  std::vector<uint32_t> listIds;
+  std::vector<uint32_t> listItemIds;
+  for (const auto& n : diff.added)
+  {
+    if (n.role == static_cast<uint32_t>(SemanticRole::list))
     {
-        if (n.role == static_cast<uint32_t>(SemanticRole::list))
-        {
-            listIds.push_back(n.id);
-        }
-        else if (n.role == static_cast<uint32_t>(SemanticRole::listItem))
-        {
-            listItemIds.push_back(n.id);
-        }
+      listIds.push_back(n.id);
     }
-
-    REQUIRE(listIds.size() == 1);
-    REQUIRE_FALSE(listItemIds.empty());
-
-    // (1) In the flattened diff, every listItem's parentId must resolve to
-    //     the list-role node — not -1 (root) and not a non-list sibling.
-    //     Boundary nodes between the listItem and the list get skipped
-    //     during flatten, so the parentId lands directly on the list id.
-    std::unordered_map<uint32_t, int32_t> parentById;
-    for (const auto& n : diff.added)
+    else if (n.role == static_cast<uint32_t>(SemanticRole::listItem))
     {
-        parentById[n.id] = n.parentId;
+      listItemIds.push_back(n.id);
     }
-    const uint32_t listId = listIds.front();
-    for (auto id : listItemIds)
-    {
-        CAPTURE(id);
-        REQUIRE(parentById.count(id) == 1);
-        CHECK(parentById[id] == static_cast<int32_t>(listId));
-    }
+  }
 
-    // (2) Cross-check against the in-memory SemanticNode tree: each
-    //     listItem must have a list-role ancestor reachable via parent()
-    //     pointers. This catches regressions where the diff happens to
-    //     look right but the underlying tree is misparented.
-    for (auto id : listItemIds)
-    {
-        CAPTURE(id);
-        auto* node = mgr->nodeById(id);
-        REQUIRE(node != nullptr);
-        CHECK(hasAncestorWithRole(node, SemanticRole::list));
-    }
+  REQUIRE(listIds.size() == 1);
+  REQUIRE_FALSE(listItemIds.empty());
+
+  // (1) In the flattened diff, every listItem's parentId must resolve to
+  //     the list-role node — not -1 (root) and not a non-list sibling.
+  //     Boundary nodes between the listItem and the list get skipped
+  //     during flatten, so the parentId lands directly on the list id.
+  std::unordered_map<uint32_t, int32_t> parentById;
+  for (const auto& n : diff.added)
+  {
+    parentById[n.id] = n.parentId;
+  }
+  const uint32_t listId = listIds.front();
+  for (auto id : listItemIds)
+  {
+    CAPTURE(id);
+    REQUIRE(parentById.count(id) == 1);
+    CHECK(parentById[id] == static_cast<int32_t>(listId));
+  }
+
+  // (2) Cross-check against the in-memory SemanticNode tree: each
+  //     listItem must have a list-role ancestor reachable via parent()
+  //     pointers. This catches regressions where the diff happens to
+  //     look right but the underlying tree is misparented.
+  for (auto id : listItemIds)
+  {
+    CAPTURE(id);
+    auto* node = mgr->nodeById(id);
+    REQUIRE(node != nullptr);
+    CHECK(hasAncestorWithRole(node, SemanticRole::list));
+  }
 }
 
-TEST_CASE("enableSemantics called twice doesn't duplicate list-item SD entries",
-          "[semantics][artboard]")
+TEST_CASE(
+    "enableSemantics called twice doesn't duplicate list-item SD entries",
+    "[semantics][artboard]")
 {
-    auto file = ReadRiveFile("assets/semantic/data_binding_lists.riv");
-    auto artboard = file->artboardDefault();
-    auto sm = artboard->stateMachineAt(0);
+  auto file = ReadRiveFile("assets/semantic/data_binding_lists.riv");
+  auto artboard = file->artboardDefault();
+  auto sm = artboard->stateMachineAt(0);
 
-    sm->enableSemantics();
-    sm->enableSemantics(); // second call should be a no-op
+  sm->enableSemantics();
+  sm->enableSemantics(); // second call should be a no-op
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    if (vmi != nullptr)
-    {
-        artboard->bindViewModelInstance(vmi);
-        sm->bindViewModelInstance(vmi);
-    }
-
-    for (int i = 0; i < 10; ++i)
-    {
-        sm->advanceAndApply(0.1f);
-    }
-
-    auto* mgr = sm->semanticManager();
-    REQUIRE(mgr != nullptr);
-    const auto diff = mgr->drainDiff();
-
-    // Count unique ids for each fandom label in the initial added diff.
-    // Duplicate enableSemantics would show up as duplicate added entries.
-    std::set<uint32_t> fandomIds;
-    for (const auto& n : diff.added)
-    {
-        if (n.role == static_cast<uint32_t>(SemanticRole::text) &&
-            kFandomLabels.count(n.label) > 0)
-        {
-            fandomIds.insert(n.id);
-        }
-    }
-    CHECK(fandomIds.size() == kFandomLabels.size());
-}
-
-TEST_CASE("Semantics enabled before the first advance survives the initial "
-          "data-bind artboard swap",
-          "[semantics][artboard]")
-{
-    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    auto sm = artboard->stateMachineAt(0);
-    REQUIRE(sm != nullptr);
-
-    NestedArtboard* slotHost = nullptr;
-    for (auto* host : artboard->nestedArtboards())
-    {
-        if (host->isArtboardDataBound())
-        {
-            slotHost = host;
-        }
-    }
-    REQUIRE(slotHost != nullptr);
-
-    sm->enableSemantics();
-    auto* mgr = sm->semanticManager();
-    REQUIRE(mgr != nullptr);
-
-    // The instance the slot's boundary node was just built against.
-    auto* builtAgainst = slotHost->artboardInstance(0);
-    REQUIRE(builtAgainst != nullptr);
-    REQUIRE(builtAgainst->volume() == 1.0f);
-    builtAgainst->volume(0.25f);
-
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(vmi != nullptr);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  if (vmi != nullptr)
+  {
+    artboard->bindViewModelInstance(vmi);
     sm->bindViewModelInstance(vmi);
+  }
 
+  for (int i = 0; i < 10; ++i)
+  {
+    sm->advanceAndApply(0.1f);
+  }
+
+  auto* mgr = sm->semanticManager();
+  REQUIRE(mgr != nullptr);
+  const auto diff = mgr->drainDiff();
+
+  // Count unique ids for each fandom label in the initial added diff.
+  // Duplicate enableSemantics would show up as duplicate added entries.
+  std::set<uint32_t> fandomIds;
+  for (const auto& n : diff.added)
+  {
+    if (n.role == static_cast<uint32_t>(SemanticRole::text) &&
+        kFandomLabels.count(n.label) > 0)
+    {
+      fandomIds.insert(n.id);
+    }
+  }
+  CHECK(fandomIds.size() == kFandomLabels.size());
+}
+
+TEST_CASE(
+    "Semantics enabled before the first advance survives the initial "
+    "data-bind artboard swap",
+    "[semantics][artboard]")
+{
+  auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto sm = artboard->stateMachineAt(0);
+  REQUIRE(sm != nullptr);
+
+  NestedArtboard* slotHost = nullptr;
+  for (auto* host : artboard->nestedArtboards())
+  {
+    if (host->isArtboardDataBound())
+    {
+      slotHost = host;
+    }
+  }
+  REQUIRE(slotHost != nullptr);
+
+  sm->enableSemantics();
+  auto* mgr = sm->semanticManager();
+  REQUIRE(mgr != nullptr);
+
+  // The instance the slot's boundary node was just built against.
+  auto* builtAgainst = slotHost->artboardInstance(0);
+  REQUIRE(builtAgainst != nullptr);
+  REQUIRE(builtAgainst->volume() == 1.0f);
+  builtAgainst->volume(0.25f);
+
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  sm->bindViewModelInstance(vmi);
+
+  sm->advanceAndApply(0.016f);
+
+  // Applying the bind instantiates a replacement and frees `builtAgainst`.
+  // A replacement is built from the source artboard, so it carries the
+  // default volume rather than the marker.
+  auto* afterBind = slotHost->artboardInstance(0);
+  REQUIRE(afterBind != nullptr);
+  REQUIRE(afterBind->volume() == 1.0f);
+
+  // The replacement is registered with the same manager, which also means the
+  // freed instance's boundary node was removed rather than left dangling
+  CHECK(afterBind->semanticManager() == mgr);
+
+  mgr->drainDiff();
+
+  const size_t nodesAfterBind = mgr->nodeCount();
+  for (int i = 0; i < 10; ++i)
+  {
     sm->advanceAndApply(0.016f);
-
-    // Applying the bind instantiates a replacement and frees `builtAgainst`.
-    // A replacement is built from the source artboard, so it carries the
-    // default volume rather than the marker.
-    auto* afterBind = slotHost->artboardInstance(0);
-    REQUIRE(afterBind != nullptr);
-    REQUIRE(afterBind->volume() == 1.0f);
-
-    // The replacement is registered with the same manager, which also means the
-    // freed instance's boundary node was removed rather than left dangling
-    CHECK(afterBind->semanticManager() == mgr);
-
     mgr->drainDiff();
-
-    const size_t nodesAfterBind = mgr->nodeCount();
-    for (int i = 0; i < 10; ++i)
-    {
-        sm->advanceAndApply(0.016f);
-        mgr->drainDiff();
-    }
-    CHECK(mgr->nodeCount() == nodesAfterBind);
-    CHECK(slotHost->artboardInstance(0)->semanticManager() == mgr);
+  }
+  CHECK(mgr->nodeCount() == nodesAfterBind);
+  CHECK(slotHost->artboardInstance(0)->semanticManager() == mgr);
 }
 
-TEST_CASE("Swapping a data-bound nested artboard rehomes its semantic subtree",
-          "[semantics][artboard]")
+TEST_CASE(
+    "Swapping a data-bound nested artboard rehomes its semantic subtree",
+    "[semantics][artboard]")
 {
-    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    auto sm = artboard->stateMachineAt(0);
-    REQUIRE(sm != nullptr);
+  auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto sm = artboard->stateMachineAt(0);
+  REQUIRE(sm != nullptr);
 
-    sm->enableSemantics();
-    auto* mgr = sm->semanticManager();
-    REQUIRE(mgr != nullptr);
+  sm->enableSemantics();
+  auto* mgr = sm->semanticManager();
+  REQUIRE(mgr != nullptr);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(vmi != nullptr);
-    sm->bindViewModelInstance(vmi);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  sm->bindViewModelInstance(vmi);
 
-    NestedArtboard* slotHost = nullptr;
-    for (auto* host : artboard->nestedArtboards())
+  NestedArtboard* slotHost = nullptr;
+  for (auto* host : artboard->nestedArtboards())
+  {
+    if (host->isArtboardDataBound())
     {
-        if (host->isArtboardDataBound())
-        {
-            slotHost = host;
-        }
+      slotHost = host;
     }
-    REQUIRE(slotHost != nullptr);
+  }
+  REQUIRE(slotHost != nullptr);
 
-    auto* artboardProp = vmi->propertyValue("artboardProp");
-    REQUIRE(artboardProp != nullptr);
-    REQUIRE(artboardProp->is<ViewModelInstanceArtboard>());
-    auto* vmiArtboard = artboardProp->as<ViewModelInstanceArtboard>();
+  auto* artboardProp = vmi->propertyValue("artboardProp");
+  REQUIRE(artboardProp != nullptr);
+  REQUIRE(artboardProp->is<ViewModelInstanceArtboard>());
+  auto* vmiArtboard = artboardProp->as<ViewModelInstanceArtboard>();
 
-    auto swap = [&](const char* name) {
-        auto source = file->bindableArtboardNamed(name);
-        REQUIRE(source != nullptr);
-        auto* outgoing = slotHost->artboardInstance(0);
-        REQUIRE(outgoing != nullptr);
-        const std::string outgoingName = outgoing->name();
-        vmiArtboard->asset(source);
-        sm->advanceAndApply(0.016f);
-        mgr->drainDiff();
-        auto* incoming = slotHost->artboardInstance(0);
-        REQUIRE(incoming != nullptr);
-        // Each swap targets a different source artboard, so the name proves the
-        // slot really re-instanced.
-        REQUIRE(incoming->name() != outgoingName);
-        // The swapped-in instance shares the host's manager, so its content
-        // reaches the accessibility tree without re-enabling semantics.
-        CHECK(incoming->semanticManager() == mgr);
-    };
+  auto swap = [&](const char* name) {
+    auto source = file->bindableArtboardNamed(name);
+    REQUIRE(source != nullptr);
+    auto* outgoing = slotHost->artboardInstance(0);
+    REQUIRE(outgoing != nullptr);
+    const std::string outgoingName = outgoing->name();
+    vmiArtboard->asset(source);
+    sm->advanceAndApply(0.016f);
+    mgr->drainDiff();
+    auto* incoming = slotHost->artboardInstance(0);
+    REQUIRE(incoming != nullptr);
+    // Each swap targets a different source artboard, so the name proves the
+    // slot really re-instanced.
+    REQUIRE(incoming->name() != outgoingName);
+    // The swapped-in instance shares the host's manager, so its content
+    // reaches the accessibility tree without re-enabling semantics.
+    CHECK(incoming->semanticManager() == mgr);
+  };
 
-    swap("Swappable2");
-    const size_t nodesAfterFirstSwap = mgr->nodeCount();
+  swap("Swappable2");
+  const size_t nodesAfterFirstSwap = mgr->nodeCount();
 
-    // Alternating swaps return the tree to the same shape each time. A
-    // boundary node orphaned by a freed instance would accumulate here.
-    swap("Swappable1");
-    swap("Swappable2");
-    CHECK(mgr->nodeCount() == nodesAfterFirstSwap);
+  // Alternating swaps return the tree to the same shape each time. A
+  // boundary node orphaned by a freed instance would accumulate here.
+  swap("Swappable1");
+  swap("Swappable2");
+  CHECK(mgr->nodeCount() == nodesAfterFirstSwap);
+}
+
+TEST_CASE(
+    "A hosted artboard's own rotation updates semantic bounds",
+    "[semantics][artboard]")
+{
+  // The self transform cascades no dirt, so the semantic boundary has to be
+  // marked for list-item bounds to follow it.
+  auto f = loadFixture("assets/semantic/data_binding_lists.riv");
+  REQUIRE(f.sm != nullptr);
+  auto* mgr = f.sm->semanticManager();
+  REQUIRE(mgr != nullptr);
+  mgr->drainDiff();
+
+  std::vector<ArtboardInstance*> hosted;
+  for (Core* o : f.artboard->objects())
+  {
+    if (o != nullptr && o->is<ArtboardComponentList>())
+    {
+      auto* list = o->as<ArtboardComponentList>();
+      for (size_t i = 0; i < list->artboardCount(); i++)
+      {
+        if (auto* ab = list->artboardInstance(static_cast<int>(i)))
+        {
+          hosted.push_back(ab);
+        }
+      }
+    }
+  }
+  REQUIRE(!hosted.empty());
+  for (auto* ab : hosted)
+  {
+    ab->rotation(0.7f);
+  }
+  advance(f.sm.get(), 3);
+  CHECK(!mgr->drainDiff().updatedGeometry.empty());
 }

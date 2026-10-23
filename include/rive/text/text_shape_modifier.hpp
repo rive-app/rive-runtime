@@ -9,10 +9,11 @@ class Font;
 class TextShapeModifier : public TextShapeModifierBase
 {
 public:
-    virtual float modify(Font* font,
-                         std::unordered_map<uint32_t, float>& variations,
-                         float fontSize,
-                         float strength) const = 0;
+  virtual float modify(
+      Font* font,
+      std::unordered_map<uint32_t, float>& variations,
+      float fontSize,
+      float strength) const = 0;
 };
 } // namespace rive
 

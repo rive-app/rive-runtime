@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextStyleBackgroundBase::clone() const
 {
-    auto cloned = new TextStyleBackground();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextStyleBackground();
+  cloned->copy(*this);
+  return cloned;
 }

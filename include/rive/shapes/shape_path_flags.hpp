@@ -7,9 +7,9 @@ namespace rive
 {
 enum class ShapePathFlags : uint8_t
 {
-    none = 0,
-    hidden = 1 << 0, // Unused at runtime
-    isCounterClockwise = 1 << 1,
+  none = 0,
+  hidden = 1 << 0, // Unused at runtime
+  isCounterClockwise = 1 << 1,
 };
 } // namespace rive
 

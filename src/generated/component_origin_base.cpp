@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ComponentOriginBase::clone() const
 {
-    auto cloned = new ComponentOrigin();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ComponentOrigin();
+  cloned->copy(*this);
+  return cloned;
 }

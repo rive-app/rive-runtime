@@ -15,23 +15,23 @@ class StateMachineListener;
 class ListenerInputTypeSemantic : public ListenerInputTypeSemanticBase
 {
 public:
-    size_t semanticInputCount() const { return m_semanticInputs.size(); }
-    const SemanticInput* semanticInput(size_t index) const;
-    void addSemanticInput(SemanticInput* input);
+  size_t semanticInputCount() const { return m_semanticInputs.size(); }
+  const SemanticInput* semanticInput(size_t index) const;
+  void addSemanticInput(SemanticInput* input);
 
-    /// True if [listener] should receive a semantic invocation for [action].
-    /// Mirrors [ListenerInputTypeKeyboard::keyboardListenerConstraintsMet]:
-    /// a [ListenerInputTypeSemantic] with no [semanticInput] rows matches any
-    /// [action]; otherwise at least one [SemanticInput] row must match
-    /// [action]. Only the typed subclass matches: a base [ListenerInputType]
-    /// whose value is [ListenerType::semanticAction] builds a listener group
-    /// (see [StateMachineListener::hasListener]) but never fires.
-    static bool semanticListenerConstraintsMet(
-        const StateMachineListener* listener,
-        SemanticActionType action);
+  /// True if [listener] should receive a semantic invocation for [action].
+  /// Mirrors [ListenerInputTypeKeyboard::keyboardListenerConstraintsMet]:
+  /// a [ListenerInputTypeSemantic] with no [semanticInput] rows matches any
+  /// [action]; otherwise at least one [SemanticInput] row must match
+  /// [action]. Only the typed subclass matches: a base [ListenerInputType]
+  /// whose value is [ListenerType::semanticAction] builds a listener group
+  /// (see [StateMachineListener::hasListener]) but never fires.
+  static bool semanticListenerConstraintsMet(
+      const StateMachineListener* listener,
+      SemanticActionType action);
 
 private:
-    std::vector<SemanticInput*> m_semanticInputs;
+  std::vector<SemanticInput*> m_semanticInputs;
 };
 } // namespace rive
 

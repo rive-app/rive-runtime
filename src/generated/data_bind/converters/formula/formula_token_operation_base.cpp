@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FormulaTokenOperationBase::clone() const
 {
-    auto cloned = new FormulaTokenOperation();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FormulaTokenOperation();
+  cloned->copy(*this);
+  return cloned;
 }

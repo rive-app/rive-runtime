@@ -11,17 +11,17 @@ class TextInputDrawable : public TextInputDrawableBase,
                           public ShapePaintContainer
 {
 private:
-    Artboard* getArtboard() override { return artboard(); }
+  Artboard* getArtboard() override { return artboard(); }
 
 public:
-    ShapePaintPath* worldPath() override;
-    const Mat2D& shapeWorldTransform() const override;
-    ShapePaintPath* localPath() override { return localClockwisePath(); }
-    StatusCode onAddedClean(CoreContext* context) override;
-    TextInput* textInput() const;
-    Component* pathBuilder() override { return parent(); }
-    void draw(Renderer* renderer) override;
-    bool willDraw() override;
+  ShapePaintPath* worldPath() override;
+  const Mat2D& shapeWorldTransform() const override;
+  ShapePaintPath* localPath() override { return localClockwisePath(); }
+  StatusCode onAddedClean(CoreContext* context) override;
+  TextInput* textInput() const;
+  Component* pathBuilder() override { return parent(); }
+  void draw(Renderer* renderer) override;
+  bool willDraw() override;
 };
 } // namespace rive
 

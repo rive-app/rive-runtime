@@ -11,93 +11,97 @@ class ContextGL;
 class RenderPassGL : public RenderPass
 {
 public:
-    void setPipeline(Pipeline* pipeline) override;
-    void setVertexBuffer(uint32_t slot,
-                         Buffer* buffer,
-                         uint32_t offset = 0) override;
-    void setIndexBuffer(Buffer* buffer,
-                        IndexFormat format,
-                        uint32_t offset = 0) override;
-    void setBindGroup(uint32_t groupIndex,
-                      BindGroup* bg,
-                      const uint32_t* dynamicOffsets = nullptr,
-                      uint32_t dynamicOffsetCount = 0) override;
-    void setViewport(float x,
-                     float y,
-                     float width,
-                     float height,
-                     float minDepth = 0.0f,
-                     float maxDepth = 1.0f) override;
-    void setScissorRect(uint32_t x,
-                        uint32_t y,
-                        uint32_t width,
-                        uint32_t height) override;
-    void setStencilReference(uint32_t ref) override;
-    void setBlendColor(float r, float g, float b, float a) override;
-    void draw(uint32_t vertexCount,
-              uint32_t instanceCount = 1,
-              uint32_t firstVertex = 0,
-              uint32_t firstInstance = 0) override;
-    void drawIndexed(uint32_t indexCount,
-                     uint32_t instanceCount = 1,
-                     uint32_t firstIndex = 0,
-                     int32_t baseVertex = 0,
-                     uint32_t firstInstance = 0) override;
-    void finish() override;
+  void setPipeline(Pipeline* pipeline) override;
+  void setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset = 0)
+      override;
+  void setIndexBuffer(Buffer* buffer, IndexFormat format, uint32_t offset = 0)
+      override;
+  void setBindGroup(
+      uint32_t groupIndex,
+      BindGroup* bg,
+      const uint32_t* dynamicOffsets = nullptr,
+      uint32_t dynamicOffsetCount = 0) override;
+  void setViewport(
+      float x,
+      float y,
+      float width,
+      float height,
+      float minDepth = 0.0f,
+      float maxDepth = 1.0f) override;
+  void setScissorRect(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+      override;
+  void setStencilReference(uint32_t ref) override;
+  void setBlendColor(float r, float g, float b, float a) override;
+  void draw(
+      uint32_t vertexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstVertex = 0,
+      uint32_t firstInstance = 0) override;
+  void drawIndexed(
+      uint32_t indexCount,
+      uint32_t instanceCount = 1,
+      uint32_t firstIndex = 0,
+      int32_t baseVertex = 0,
+      uint32_t firstInstance = 0) override;
+  void finish() override;
 
-    void validate() const override;
+  void validate() const override;
 
-    RenderPassGL() = default;
-    RenderPassGL(Context* context) : RenderPass(context) {}
-    ~RenderPassGL() override;
-    // Deleted, not defined: a move would have to settle who deletes m_glFBO
-    // and who hands the context's lend back, and nothing needs one.
-    RenderPassGL(RenderPassGL&&) = delete;
-    RenderPassGL& operator=(RenderPassGL&&) = delete;
+  RenderPassGL() = default;
+  RenderPassGL(Context* context) : RenderPass(context) {}
+  ~RenderPassGL() override;
+  // Deleted, not defined: a move would have to settle who deletes m_glFBO
+  // and who hands the context's lend back, and nothing needs one.
+  RenderPassGL(RenderPassGL&&) = delete;
+  RenderPassGL& operator=(RenderPassGL&&) = delete;
 
-    struct GLResolveEntry
-    {
-        unsigned int colorIndex = 0;    // attachment index
-        unsigned int resolveTarget = 0; // GLenum (e.g. GL_TEXTURE_2D)
-        unsigned int resolveTex = 0;    // GLuint
-        uint32_t width = 0;
-        uint32_t height = 0;
-    };
+  struct GLResolveEntry
+  {
+    unsigned int colorIndex = 0;    // attachment index
+    unsigned int resolveTarget = 0; // GLenum (e.g. GL_TEXTURE_2D)
+    unsigned int resolveTex = 0;    // GLuint
+    uint32_t width = 0;
+    uint32_t height = 0;
+  };
 
 private:
-    friend class ContextGL;
+  friend class ContextGL;
 
-    // Deferred to draw time: the pairing comes from the pipeline, which may
-    // be set after the bind groups.
-    void applySamplerBindings();
+  // Deferred to draw time: the pairing comes from the pipeline, which may
+  // be set after the bind groups.
+  void applySamplerBindings();
 
-    void applyVertexBuffer(uint32_t slot);
-    void flushVertexBuffers();
+  // Buffers and textures at the pipeline's units, which differ from the
+  // layout's when the layout came from another shader.
+  void applyBindGroup(uint32_t groupIndex);
 
-    unsigned int m_glFBO = 0;   // GLuint
-    unsigned int m_glVAO = 0;   // GLuint
-    unsigned int m_prevVAO = 0; // GLuint saved before this pass
-    unsigned int m_prevFBO = 0; // GLuint saved before this pass
-    // Depth/stencil attachment point this pass used, 0 when it had none.
-    // Only meaningful for a borrowed FBO, which finish() has to hand back
-    // with a note of what is still attached to it.
-    unsigned int m_glDepthAttachment = 0; // GLenum
-    // False for the FBO/VAO the context lends out: those go back at finish()
-    // instead of being deleted.
-    bool m_ownsFBO = false;
-    bool m_ownsVAO = false;
-    rcp<Pipeline> m_currentPipeline;
-    uint32_t m_viewportWidth = 0;
-    uint32_t m_viewportHeight = 0;
-    uint32_t m_maxSamplerSlot = 0;
-    bool m_samplerBindingsDirty = false;
-    bool m_usedSamplers = false;
-    // Enabled attribute arrays, one bit per location.
-    uint32_t m_enabledAttribs = 0;
-    IndexFormat m_glIndexFormat = IndexFormat::uint16;
-    uint32_t m_glIndexOffset = 0;
-    uint32_t m_glStencilRef = 0;
-    uint32_t m_glResolveCount = 0;
-    GLResolveEntry m_glResolves[4];
+  void applyVertexBuffer(uint32_t slot);
+  void flushVertexBuffers();
+
+  unsigned int m_glFBO = 0;   // GLuint
+  unsigned int m_glVAO = 0;   // GLuint
+  unsigned int m_prevVAO = 0; // GLuint saved before this pass
+  unsigned int m_prevFBO = 0; // GLuint saved before this pass
+  // Depth/stencil attachment point this pass used, 0 when it had none.
+  // Only meaningful for a borrowed FBO, which finish() has to hand back
+  // with a note of what is still attached to it.
+  unsigned int m_glDepthAttachment = 0; // GLenum
+  // False for the FBO/VAO the context lends out: those go back at finish()
+  // instead of being deleted.
+  bool m_ownsFBO = false;
+  bool m_ownsVAO = false;
+  rcp<Pipeline> m_currentPipeline;
+  uint32_t m_viewportWidth = 0;
+  uint32_t m_viewportHeight = 0;
+  uint32_t m_maxSamplerSlot = 0;
+  bool m_samplerBindingsDirty = false;
+  bool m_usedSamplers = false;
+  // Enabled attribute arrays, one bit per location.
+  uint32_t m_enabledAttribs = 0;
+  IndexFormat m_glIndexFormat = IndexFormat::uint16;
+  uint32_t m_glIndexOffset = 0;
+  uint32_t m_glStencilRef = 0;
+  uint32_t m_glResolveCount = 0;
+  GLResolveEntry m_glResolves[4];
 };
 } // namespace rive::ore

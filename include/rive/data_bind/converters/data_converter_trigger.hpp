@@ -9,9 +9,9 @@ namespace rive
 class DataConverterTrigger : public DataConverterTriggerBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::trigger; };
-    DataValueTrigger m_output;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::trigger; };
+  DataValueTrigger m_output;
 };
 } // namespace rive
 

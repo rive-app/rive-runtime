@@ -7,7 +7,7 @@ namespace rive
 class BindablePropertyArtboard : public BindablePropertyArtboardBase
 {
 public:
-    constexpr static uint32_t defaultValue = -1;
+  constexpr static uint32_t defaultValue = -1;
 };
 } // namespace rive
 

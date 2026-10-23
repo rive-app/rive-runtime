@@ -7,7 +7,7 @@ namespace rive
 class BindablePropertyEnum : public BindablePropertyEnumBase
 {
 public:
-    constexpr static uint16_t defaultValue = 0;
+  constexpr static uint16_t defaultValue = 0;
 };
 } // namespace rive
 

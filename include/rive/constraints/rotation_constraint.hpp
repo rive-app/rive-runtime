@@ -8,14 +8,14 @@ namespace rive
 class RotationConstraint : public RotationConstraintBase
 {
 private:
-    TransformComponents m_ComponentsA;
-    TransformComponents m_ComponentsB;
+  TransformComponents m_ComponentsA;
+  TransformComponents m_ComponentsB;
 
 protected:
-    bool requiresTarget() override { return false; }
+  bool requiresTarget() override { return false; }
 
 public:
-    void constrain(TransformComponent* component) override;
+  void constrain(TransformComponent* component) override;
 };
 } // namespace rive
 

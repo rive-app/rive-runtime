@@ -7,67 +7,52 @@ namespace rive
 class TextStyleBackgroundBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 1069;
+  static const uint16_t typeKey = 1069;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextStyleBackgroundBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t cornerRadiusPropertyKey = 1071;
+  static const uint16_t cornerRadiusPropertyKey = 1071;
 
 protected:
-    float m_CornerRadius = 0.0f;
+  float m_CornerRadius = 0.0f;
 
 public:
-    inline float cornerRadius() const { return m_CornerRadius; }
-    void cornerRadius(float value)
+  inline float cornerRadius() const { return m_CornerRadius; }
+  void cornerRadius(float value)
+  {
+    if (m_CornerRadius == value)
     {
-        if (m_CornerRadius == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
-        m_CornerRadius = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusChanged());
-        notifyPropertyChanged(cornerRadiusPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
+    m_CornerRadius = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusChanged());
+    notifyPropertyChanged(cornerRadiusPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextStyleBackgroundBase& object)
-    {
-        m_CornerRadius = object.m_CornerRadius;
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextStyleBackgroundBase& object)
+  {
+    m_CornerRadius = object.m_CornerRadius;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case cornerRadiusPropertyKey:
-                m_CornerRadius = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case cornerRadiusPropertyKey:
+        m_CornerRadius = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void cornerRadiusChanged() {}
+  virtual void cornerRadiusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_style_background_ext.inl"
 #endif

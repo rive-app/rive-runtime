@@ -9,19 +9,19 @@ namespace rive
 class DataValueViewModel : public DataValue
 {
 private:
-    ViewModelInstance* m_value = nullptr;
+  ViewModelInstance* m_value = nullptr;
 
 public:
-    DataValueViewModel() {};
-    static const DataType typeKey = DataType::viewModel;
-    bool isTypeOf(DataType typeKey) const override
-    {
-        return typeKey == DataType::viewModel;
-    }
-    ViewModelInstance* value() { return m_value; };
-    void value(ViewModelInstance* value) { m_value = value; };
+  DataValueViewModel() {};
+  static const DataType typeKey = DataType::viewModel;
+  bool isTypeOf(DataType typeKey) const override
+  {
+    return typeKey == DataType::viewModel;
+  }
+  ViewModelInstance* value() { return m_value; };
+  void value(ViewModelInstance* value) { m_value = value; };
 
-    constexpr static ViewModelInstance* defaultValue = nullptr;
+  constexpr static ViewModelInstance* defaultValue = nullptr;
 };
 } // namespace rive
 

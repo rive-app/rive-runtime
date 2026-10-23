@@ -8,168 +8,152 @@ namespace rive
 class TextFollowPathModifierBase : public TextTargetModifier
 {
 protected:
-    typedef TextTargetModifier Super;
+  typedef TextTargetModifier Super;
 
 public:
-    static const uint16_t typeKey = 547;
+  static const uint16_t typeKey = 547;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextFollowPathModifierBase::typeKey:
-            case TextTargetModifierBase::typeKey:
-            case TextModifierBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t radialPropertyKey = 779;
-    static const uint16_t orientPropertyKey = 782;
-    static const uint16_t startPropertyKey = 783;
-    static const uint16_t endPropertyKey = 784;
-    static const uint16_t strengthPropertyKey = 785;
-    static const uint16_t offsetPropertyKey = 786;
+  static const uint16_t radialPropertyKey = 779;
+  static const uint16_t orientPropertyKey = 782;
+  static const uint16_t startPropertyKey = 783;
+  static const uint16_t endPropertyKey = 784;
+  static const uint16_t strengthPropertyKey = 785;
+  static const uint16_t offsetPropertyKey = 786;
 
 protected:
-    bool m_Radial = false;
-    bool m_Orient = true;
-    float m_Start = 0.0f;
-    float m_End = 1.0f;
-    float m_Strength = 1.0f;
-    float m_Offset = 0.0f;
+  bool m_Radial = false;
+  bool m_Orient = true;
+  float m_Start = 0.0f;
+  float m_End = 1.0f;
+  float m_Strength = 1.0f;
+  float m_Offset = 0.0f;
 
 public:
-    inline bool radial() const { return m_Radial; }
-    void radial(bool value)
+  inline bool radial() const { return m_Radial; }
+  void radial(bool value)
+  {
+    if (m_Radial == value)
     {
-        if (m_Radial == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(radialPropertyKey, &m_Radial, &value);
-        m_Radial = value;
-        RIVE_EDITOR_CHANGED(radialChanged());
-        notifyPropertyChanged(radialPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(radialPropertyKey, &m_Radial, &value);
+    m_Radial = value;
+    RIVE_EDITOR_CHANGED(radialChanged());
+    notifyPropertyChanged(radialPropertyKey);
+  }
 
-    inline bool orient() const { return m_Orient; }
-    void orient(bool value)
+  inline bool orient() const { return m_Orient; }
+  void orient(bool value)
+  {
+    if (m_Orient == value)
     {
-        if (m_Orient == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(orientPropertyKey, &m_Orient, &value);
-        m_Orient = value;
-        RIVE_EDITOR_CHANGED(orientChanged());
-        notifyPropertyChanged(orientPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(orientPropertyKey, &m_Orient, &value);
+    m_Orient = value;
+    RIVE_EDITOR_CHANGED(orientChanged());
+    notifyPropertyChanged(orientPropertyKey);
+  }
 
-    inline float start() const { return m_Start; }
-    void start(float value)
+  inline float start() const { return m_Start; }
+  void start(float value)
+  {
+    if (m_Start == value)
     {
-        if (m_Start == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(startPropertyKey, &m_Start, &value);
-        m_Start = value;
-        RIVE_EDITOR_CHANGED(startChanged());
-        notifyPropertyChanged(startPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(startPropertyKey, &m_Start, &value);
+    m_Start = value;
+    RIVE_EDITOR_CHANGED(startChanged());
+    notifyPropertyChanged(startPropertyKey);
+  }
 
-    inline float end() const { return m_End; }
-    void end(float value)
+  inline float end() const { return m_End; }
+  void end(float value)
+  {
+    if (m_End == value)
     {
-        if (m_End == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(endPropertyKey, &m_End, &value);
-        m_End = value;
-        RIVE_EDITOR_CHANGED(endChanged());
-        notifyPropertyChanged(endPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(endPropertyKey, &m_End, &value);
+    m_End = value;
+    RIVE_EDITOR_CHANGED(endChanged());
+    notifyPropertyChanged(endPropertyKey);
+  }
 
-    inline float strength() const { return m_Strength; }
-    void strength(float value)
+  inline float strength() const { return m_Strength; }
+  void strength(float value)
+  {
+    if (m_Strength == value)
     {
-        if (m_Strength == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
-        m_Strength = value;
-        RIVE_EDITOR_CHANGED(strengthChanged());
-        notifyPropertyChanged(strengthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
+    m_Strength = value;
+    RIVE_EDITOR_CHANGED(strengthChanged());
+    notifyPropertyChanged(strengthPropertyKey);
+  }
 
-    inline float offset() const { return m_Offset; }
-    void offset(float value)
+  inline float offset() const { return m_Offset; }
+  void offset(float value)
+  {
+    if (m_Offset == value)
     {
-        if (m_Offset == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
-        m_Offset = value;
-        RIVE_EDITOR_CHANGED(offsetChanged());
-        notifyPropertyChanged(offsetPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
+    m_Offset = value;
+    RIVE_EDITOR_CHANGED(offsetChanged());
+    notifyPropertyChanged(offsetPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextFollowPathModifierBase& object)
-    {
-        m_Radial = object.m_Radial;
-        m_Orient = object.m_Orient;
-        m_Start = object.m_Start;
-        m_End = object.m_End;
-        m_Strength = object.m_Strength;
-        m_Offset = object.m_Offset;
-        TextTargetModifier::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextFollowPathModifierBase& object)
+  {
+    m_Radial = object.m_Radial;
+    m_Orient = object.m_Orient;
+    m_Start = object.m_Start;
+    m_End = object.m_End;
+    m_Strength = object.m_Strength;
+    m_Offset = object.m_Offset;
+    TextTargetModifier::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case radialPropertyKey:
-                m_Radial = CoreBoolType::deserialize(reader);
-                return true;
-            case orientPropertyKey:
-                m_Orient = CoreBoolType::deserialize(reader);
-                return true;
-            case startPropertyKey:
-                m_Start = CoreDoubleType::deserialize(reader);
-                return true;
-            case endPropertyKey:
-                m_End = CoreDoubleType::deserialize(reader);
-                return true;
-            case strengthPropertyKey:
-                m_Strength = CoreDoubleType::deserialize(reader);
-                return true;
-            case offsetPropertyKey:
-                m_Offset = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return TextTargetModifier::deserialize(propertyKey, reader);
+      case radialPropertyKey:
+        m_Radial = CoreBoolType::deserialize(reader);
+        return true;
+      case orientPropertyKey:
+        m_Orient = CoreBoolType::deserialize(reader);
+        return true;
+      case startPropertyKey:
+        m_Start = CoreDoubleType::deserialize(reader);
+        return true;
+      case endPropertyKey:
+        m_End = CoreDoubleType::deserialize(reader);
+        return true;
+      case strengthPropertyKey:
+        m_Strength = CoreDoubleType::deserialize(reader);
+        return true;
+      case offsetPropertyKey:
+        m_Offset = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return TextTargetModifier::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void radialChanged() {}
-    virtual void orientChanged() {}
-    virtual void startChanged() {}
-    virtual void endChanged() {}
-    virtual void strengthChanged() {}
-    virtual void offsetChanged() {}
+  virtual void radialChanged() {}
+  virtual void orientChanged() {}
+  virtual void startChanged() {}
+  virtual void endChanged() {}
+  virtual void strengthChanged() {}
+  virtual void offsetChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_follow_path_modifier_ext.inl"
 #endif

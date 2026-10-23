@@ -12,210 +12,180 @@ namespace rive
 class LinearAnimationBase : public Animation
 {
 protected:
-    typedef Animation Super;
+  typedef Animation Super;
 
 public:
-    static const uint16_t typeKey = 31;
+  static const uint16_t typeKey = 31;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case LinearAnimationBase::typeKey:
-            case AnimationBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t fpsPropertyKey = 56;
-    static const uint16_t durationPropertyKey = 57;
-    static const uint16_t speedPropertyKey = 58;
-    static const uint16_t loopValuePropertyKey = 59;
-    static const uint16_t workStartPropertyKey = 60;
-    static const uint16_t workEndPropertyKey = 61;
-    static const uint16_t enableWorkAreaPropertyKey = 62;
-    static const uint16_t quantizePropertyKey = 376;
+  static const uint16_t fpsPropertyKey = 56;
+  static const uint16_t durationPropertyKey = 57;
+  static const uint16_t speedPropertyKey = 58;
+  static const uint16_t loopValuePropertyKey = 59;
+  static const uint16_t workStartPropertyKey = 60;
+  static const uint16_t workEndPropertyKey = 61;
+  static const uint16_t enableWorkAreaPropertyKey = 62;
+  static const uint16_t quantizePropertyKey = 376;
 
 protected:
-    uint32_t m_Fps = 60;
-    uint32_t m_Duration = 60;
-    float m_Speed = 1.0f;
-    uint32_t m_LoopValue = 0;
-    uint32_t m_WorkStart = -1;
-    uint32_t m_WorkEnd = -1;
-    bool m_EnableWorkArea = false;
-    bool m_Quantize = false;
+  uint32_t m_Fps = 60;
+  uint32_t m_Duration = 60;
+  float m_Speed = 1.0f;
+  uint32_t m_LoopValue = 0;
+  uint32_t m_WorkStart = -1;
+  uint32_t m_WorkEnd = -1;
+  bool m_EnableWorkArea = false;
+  bool m_Quantize = false;
 
 public:
-    inline uint32_t fps() const { return m_Fps; }
-    void fps(uint32_t value)
+  inline uint32_t fps() const { return m_Fps; }
+  void fps(uint32_t value)
+  {
+    if (m_Fps == value)
     {
-        if (m_Fps == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(fpsPropertyKey, &m_Fps, &value);
-        m_Fps = value;
-        RIVE_EDITOR_CHANGED(fpsChanged());
-        notifyPropertyChanged(fpsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(fpsPropertyKey, &m_Fps, &value);
+    m_Fps = value;
+    notifyPropertyChanged(fpsPropertyKey);
+  }
 
-    inline uint32_t duration() const { return m_Duration; }
-    void duration(uint32_t value)
+  inline uint32_t duration() const { return m_Duration; }
+  void duration(uint32_t value)
+  {
+    if (m_Duration == value)
     {
-        if (m_Duration == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(durationPropertyKey, &m_Duration, &value);
-        m_Duration = value;
-        RIVE_EDITOR_CHANGED(durationChanged());
-        notifyPropertyChanged(durationPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(durationPropertyKey, &m_Duration, &value);
+    m_Duration = value;
+    RIVE_EDITOR_CHANGED(durationChanged());
+    notifyPropertyChanged(durationPropertyKey);
+  }
 
-    inline float speed() const { return m_Speed; }
-    void speed(float value)
+  inline float speed() const { return m_Speed; }
+  void speed(float value)
+  {
+    if (m_Speed == value)
     {
-        if (m_Speed == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
-        m_Speed = value;
-        RIVE_EDITOR_CHANGED(speedChanged());
-        notifyPropertyChanged(speedPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
+    m_Speed = value;
+    notifyPropertyChanged(speedPropertyKey);
+  }
 
-    inline uint32_t loopValue() const { return m_LoopValue; }
-    void loopValue(uint32_t value)
+  inline uint32_t loopValue() const { return m_LoopValue; }
+  void loopValue(uint32_t value)
+  {
+    if (m_LoopValue == value)
     {
-        if (m_LoopValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(loopValuePropertyKey, &m_LoopValue, &value);
-        m_LoopValue = value;
-        RIVE_EDITOR_CHANGED(loopValueChanged());
-        notifyPropertyChanged(loopValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(loopValuePropertyKey, &m_LoopValue, &value);
+    m_LoopValue = value;
+    notifyPropertyChanged(loopValuePropertyKey);
+  }
 
-    inline uint32_t workStart() const { return m_WorkStart; }
-    void workStart(uint32_t value)
+  inline uint32_t workStart() const { return m_WorkStart; }
+  void workStart(uint32_t value)
+  {
+    if (m_WorkStart == value)
     {
-        if (m_WorkStart == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(workStartPropertyKey, &m_WorkStart, &value);
-        m_WorkStart = value;
-        RIVE_EDITOR_CHANGED(workStartChanged());
-        notifyPropertyChanged(workStartPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(workStartPropertyKey, &m_WorkStart, &value);
+    m_WorkStart = value;
+    notifyPropertyChanged(workStartPropertyKey);
+  }
 
-    inline uint32_t workEnd() const { return m_WorkEnd; }
-    void workEnd(uint32_t value)
+  inline uint32_t workEnd() const { return m_WorkEnd; }
+  void workEnd(uint32_t value)
+  {
+    if (m_WorkEnd == value)
     {
-        if (m_WorkEnd == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(workEndPropertyKey, &m_WorkEnd, &value);
-        m_WorkEnd = value;
-        RIVE_EDITOR_CHANGED(workEndChanged());
-        notifyPropertyChanged(workEndPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(workEndPropertyKey, &m_WorkEnd, &value);
+    m_WorkEnd = value;
+    notifyPropertyChanged(workEndPropertyKey);
+  }
 
-    inline bool enableWorkArea() const { return m_EnableWorkArea; }
-    void enableWorkArea(bool value)
+  inline bool enableWorkArea() const { return m_EnableWorkArea; }
+  void enableWorkArea(bool value)
+  {
+    if (m_EnableWorkArea == value)
     {
-        if (m_EnableWorkArea == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(enableWorkAreaPropertyKey,
-                             &m_EnableWorkArea,
-                             &value);
-        m_EnableWorkArea = value;
-        RIVE_EDITOR_CHANGED(enableWorkAreaChanged());
-        notifyPropertyChanged(enableWorkAreaPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(enableWorkAreaPropertyKey, &m_EnableWorkArea, &value);
+    m_EnableWorkArea = value;
+    notifyPropertyChanged(enableWorkAreaPropertyKey);
+  }
 
-    inline bool quantize() const { return m_Quantize; }
-    void quantize(bool value)
+  inline bool quantize() const { return m_Quantize; }
+  void quantize(bool value)
+  {
+    if (m_Quantize == value)
     {
-        if (m_Quantize == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(quantizePropertyKey, &m_Quantize, &value);
-        m_Quantize = value;
-        RIVE_EDITOR_CHANGED(quantizeChanged());
-        notifyPropertyChanged(quantizePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(quantizePropertyKey, &m_Quantize, &value);
+    m_Quantize = value;
+    notifyPropertyChanged(quantizePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const LinearAnimationBase& object)
-    {
-        m_Fps = object.m_Fps;
-        m_Duration = object.m_Duration;
-        m_Speed = object.m_Speed;
-        m_LoopValue = object.m_LoopValue;
-        m_WorkStart = object.m_WorkStart;
-        m_WorkEnd = object.m_WorkEnd;
-        m_EnableWorkArea = object.m_EnableWorkArea;
-        m_Quantize = object.m_Quantize;
-        RIVE_EDITOR_COPY(object);
-        Animation::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const LinearAnimationBase& object)
+  {
+    m_Fps = object.m_Fps;
+    m_Duration = object.m_Duration;
+    m_Speed = object.m_Speed;
+    m_LoopValue = object.m_LoopValue;
+    m_WorkStart = object.m_WorkStart;
+    m_WorkEnd = object.m_WorkEnd;
+    m_EnableWorkArea = object.m_EnableWorkArea;
+    m_Quantize = object.m_Quantize;
+    RIVE_EDITOR_COPY(object);
+    Animation::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case fpsPropertyKey:
-                m_Fps = CoreUintType::deserialize(reader);
-                return true;
-            case durationPropertyKey:
-                m_Duration = CoreUintType::deserialize(reader);
-                return true;
-            case speedPropertyKey:
-                m_Speed = CoreDoubleType::deserialize(reader);
-                return true;
-            case loopValuePropertyKey:
-                m_LoopValue = CoreUintType::deserialize(reader);
-                return true;
-            case workStartPropertyKey:
-                m_WorkStart = CoreUintType::deserialize(reader);
-                return true;
-            case workEndPropertyKey:
-                m_WorkEnd = CoreUintType::deserialize(reader);
-                return true;
-            case enableWorkAreaPropertyKey:
-                m_EnableWorkArea = CoreBoolType::deserialize(reader);
-                return true;
-            case quantizePropertyKey:
-                m_Quantize = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return Animation::deserialize(propertyKey, reader);
+      case fpsPropertyKey:
+        m_Fps = CoreUintType::deserialize(reader);
+        return true;
+      case durationPropertyKey:
+        m_Duration = CoreUintType::deserialize(reader);
+        return true;
+      case speedPropertyKey:
+        m_Speed = CoreDoubleType::deserialize(reader);
+        return true;
+      case loopValuePropertyKey:
+        m_LoopValue = CoreUintType::deserialize(reader);
+        return true;
+      case workStartPropertyKey:
+        m_WorkStart = CoreUintType::deserialize(reader);
+        return true;
+      case workEndPropertyKey:
+        m_WorkEnd = CoreUintType::deserialize(reader);
+        return true;
+      case enableWorkAreaPropertyKey:
+        m_EnableWorkArea = CoreBoolType::deserialize(reader);
+        return true;
+      case quantizePropertyKey:
+        m_Quantize = CoreBoolType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return Animation::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void fpsChanged() {}
-    virtual void durationChanged() {}
-    virtual void speedChanged() {}
-    virtual void loopValueChanged() {}
-    virtual void workStartChanged() {}
-    virtual void workEndChanged() {}
-    virtual void enableWorkAreaChanged() {}
-    virtual void quantizeChanged() {}
+  virtual void durationChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/linear_animation_ext.inl"
 #endif

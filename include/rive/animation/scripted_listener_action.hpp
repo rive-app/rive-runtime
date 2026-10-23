@@ -9,27 +9,32 @@ class ScriptedListenerAction : public ScriptedListenerActionBase,
                                public ScriptedObject
 {
 public:
-    ~ScriptedListenerAction();
-    virtual void disposeScriptInputs() override;
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
-    void performStateful(StateMachineInstance* stateMachineInstance,
-                         const ListenerInvocation& invocation) const;
+#ifdef WITH_RIVE_EDITOR
+  void editorPrepareForDestruction() override;
+#endif
+  ~ScriptedListenerAction();
+  virtual void disposeScriptInputs() override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
+  void performStateful(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const;
 
-    uint32_t assetId() override { return scriptAssetId(); }
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
-    {
-        return false;
-    }
-    ScriptProtocol scriptProtocol() override
-    {
-        return ScriptProtocol::listenerAction;
-    }
-    Component* component() override { return nullptr; }
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
-    ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
-    void addProperty(CustomProperty* prop) override;
+  uint32_t assetId() override { return scriptAssetId(); }
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    return false;
+  }
+  ScriptProtocol scriptProtocol() override
+  {
+    return ScriptProtocol::listenerAction;
+  }
+  Component* component() override { return nullptr; }
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
+  ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
+  void addProperty(CustomProperty* prop) override;
 };
 } // namespace rive
 

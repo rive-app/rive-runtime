@@ -5,21 +5,21 @@ using namespace rive;
 
 float CoreDoubleType::deserialize(BinaryReader& reader)
 {
-    return reader.readFloat32();
+  return reader.readFloat32();
 }
 
 #if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
 float CoreDoubleType::deserializeRev(BinaryReader& reader)
 {
-    size_t length = reader.lengthInBytes();
-    if (length == 4)
-    {
-        return reader.readFloat32();
-    }
-    else if (length == 8)
-    {
-        return (float)reader.readFloat64();
-    }
-    return 0.0f;
+  size_t length = reader.lengthInBytes();
+  if (length == 4)
+  {
+    return reader.readFloat32();
+  }
+  else if (length == 8)
+  {
+    return (float)reader.readFloat64();
+  }
+  return 0.0f;
 }
 #endif

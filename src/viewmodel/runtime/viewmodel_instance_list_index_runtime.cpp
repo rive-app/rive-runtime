@@ -6,6 +6,6 @@ using namespace rive;
 
 uint32_t ViewModelInstanceListIndexRuntime::value() const
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceSymbolListIndex>()
-        ->propertyValue();
+  return m_viewModelInstanceValue->as<ViewModelInstanceSymbolListIndex>()
+      ->propertyValue();
 }

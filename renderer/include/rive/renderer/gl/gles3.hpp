@@ -52,18 +52,21 @@
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_UNSIGNED_INT_ANGLE 0x96ED
 extern bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent();
 extern bool webgl_shader_pixel_local_storage_is_coherent();
-extern void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
-                                                       GLuint backingtexture,
-                                                       GLint level,
-                                                       GLint layer,
-                                                       GLenum usage);
-extern void glFramebufferPixelLocalClearValuefvANGLE(GLint plane,
-                                                     const GLfloat value[4]);
+extern void glFramebufferTexturePixelLocalStorageANGLE(
+    GLint plane,
+    GLuint backingtexture,
+    GLint level,
+    GLint layer,
+    GLenum usage);
+extern void glFramebufferPixelLocalClearValuefvANGLE(
+    GLint plane,
+    const GLfloat value[4]);
 extern void glBeginPixelLocalStorageANGLE(GLsizei n, const GLenum loadops[]);
 extern void glEndPixelLocalStorageANGLE(GLsizei n, const GLenum storeops[]);
-extern void glGetFramebufferPixelLocalStorageParameterivANGLE(GLint plane,
-                                                              GLenum pname,
-                                                              GLint* param);
+extern void glGetFramebufferPixelLocalStorageParameterivANGLE(
+    GLint plane,
+    GLenum pname,
+    GLint* param);
 #endif
 
 #ifndef GL_ANGLE_provoking_vertex
@@ -140,99 +143,105 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 
 struct GLCapabilities
 {
-    GLCapabilities() { memset(this, 0, sizeof(*this)); }
+  GLCapabilities() { memset(this, 0, sizeof(*this)); }
 
-    static bool IsVersionAtLeast(uint32_t aMajor,
-                                 uint32_t aMinor,
-                                 uint32_t bMajor,
-                                 uint32_t bMinor)
-    {
-        uint64_t a = (static_cast<uint64_t>(aMajor) << 32) | aMinor;
-        uint64_t b = (static_cast<uint64_t>(bMajor) << 32) | bMinor;
-        return a >= b;
-    }
-    bool isContextVersionAtLeast(uint32_t major, uint32_t minor) const
-    {
-        return IsVersionAtLeast(contextVersionMajor,
-                                contextVersionMinor,
-                                major,
-                                minor);
-    }
-    bool isVendorDriverVersionAtLeast(uint32_t major, uint32_t minor) const
-    {
-        return IsVersionAtLeast(vendorDriverVersionMajor,
-                                vendorDriverVersionMinor,
-                                major,
-                                minor);
-    }
+  static bool IsVersionAtLeast(
+      uint32_t aMajor,
+      uint32_t aMinor,
+      uint32_t bMajor,
+      uint32_t bMinor)
+  {
+    uint64_t a = (static_cast<uint64_t>(aMajor) << 32) | aMinor;
+    uint64_t b = (static_cast<uint64_t>(bMajor) << 32) | bMinor;
+    return a >= b;
+  }
+  bool isContextVersionAtLeast(uint32_t major, uint32_t minor) const
+  {
+    return IsVersionAtLeast(
+        contextVersionMajor,
+        contextVersionMinor,
+        major,
+        minor);
+  }
+  bool isVendorDriverVersionAtLeast(uint32_t major, uint32_t minor) const
+  {
+    return IsVersionAtLeast(
+        vendorDriverVersionMajor,
+        vendorDriverVersionMinor,
+        major,
+        minor);
+  }
 
-    // Driver info.
-    bool isGLES : 1;
-    // Is the system OpenGL driver ANGLE? (Not WebGL via ANGLE, but the actual
-    // system driver (which can also be true in a situation like
-    // WebGL (probably ANGLE) -> System OpenGL ES (also ANGLE) -> Vulkan)).
-    bool isANGLESystemDriver : 1;
-    bool isAdreno : 1;
-    bool isMali : 1;
-    bool isPowerVR : 1;
-    bool isIntel : 1;
+  // Driver info.
+  bool isGLES : 1;
+  // Is the system OpenGL driver ANGLE? (Not WebGL via ANGLE, but the actual
+  // system driver (which can also be true in a situation like
+  // WebGL (probably ANGLE) -> System OpenGL ES (also ANGLE) -> Vulkan)).
+  bool isANGLESystemDriver : 1;
+  bool isAdreno : 1;
+  bool isMali : 1;
+  bool isPowerVR : 1;
+  bool isIntel : 1;
 
-    // GL version.
-    uint32_t contextVersionMajor;
-    uint32_t contextVersionMinor;
-    uint32_t vendorDriverVersionMajor;
-    uint32_t vendorDriverVersionMinor;
-    uint32_t adrenoSeries;
+  // GL version.
+  uint32_t contextVersionMajor;
+  uint32_t contextVersionMinor;
+  uint32_t vendorDriverVersionMajor;
+  uint32_t vendorDriverVersionMinor;
+  uint32_t adrenoSeries;
 
-    // Workarounds.
-    // Many devices crash on draw commands with a large instancecount, or when
-    // drawing many instances without a glFlush to break them up.
-    uint32_t maxSupportedInstancesPerFlush;
-    // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe pixel
-    // local storage corruption issues with our renderer. Using some of the
-    // EXT_shader_pixel_local_storage2 API is an apparent workaround that comes
-    // with worse performance and other, less severe visual artifacts.
-    bool usePixelLocalStorage2AsWorkaround;
-    // ANGLE_shader_pixel_local_storage is currently broken with
-    // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
-    bool avoidTexture2DArrayWithWebGLPLS;
-    // Android ANGLE backed by SwiftShader can corrupt memory when resolving
-    // partial framebuffer regions. Resolve the full target as a workaround.
-    bool avoidPartialFramebufferBlits;
+  // Workarounds.
+  // Many devices crash on draw commands with a large instancecount, or when
+  // drawing many instances without a glFlush to break them up.
+  uint32_t maxSupportedInstancesPerFlush;
+  // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe pixel
+  // local storage corruption issues with our renderer. Using some of the
+  // EXT_shader_pixel_local_storage2 API is an apparent workaround that comes
+  // with worse performance and other, less severe visual artifacts.
+  bool usePixelLocalStorage2AsWorkaround;
+  // ANGLE_shader_pixel_local_storage is currently broken with
+  // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
+  bool avoidTexture2DArrayWithWebGLPLS;
+  // We have observed Mali driver crashes when calling glTexSubImage2D on a
+  // texture that is still in-flight from a previous frame.
+  bool avoidTexSubImage2DOnInFlightTextures;
+  // Android ANGLE backed by SwiftShader can corrupt memory when resolving
+  // partial framebuffer regions. Resolve the full target as a workaround.
+  bool avoidPartialFramebufferBlits;
 
-    // Extensions
-    bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
-    bool ANGLE_shader_pixel_local_storage : 1;
-    bool ANGLE_shader_pixel_local_storage_coherent : 1;
-    bool ANGLE_polygon_mode : 1;
-    bool ANGLE_provoking_vertex : 1;
-    bool ARM_shader_framebuffer_fetch : 1;
-    bool ARB_fragment_shader_interlock : 1;
-    bool ARB_shader_image_load_store : 1;
-    bool ARB_shader_storage_buffer_object : 1;
-    bool OES_shader_image_atomic : 1;
-    bool KHR_blend_equation_advanced : 1;
-    bool KHR_blend_equation_advanced_coherent : 1;
-    bool KHR_parallel_shader_compile : 1;
-    bool EXT_base_instance : 1;
-    bool EXT_clip_cull_distance : 1;
-    bool EXT_color_buffer_half_float : 1;
-    bool OES_texture_half_float_linear : 1;
-    bool EXT_color_buffer_float : 1;
-    bool EXT_float_blend : 1;
-    bool EXT_multisampled_render_to_texture : 1;
-    bool EXT_shader_framebuffer_fetch : 1;
-    bool EXT_shader_pixel_local_storage : 1;
-    bool EXT_shader_pixel_local_storage2 : 1;
-    bool INTEL_fragment_shader_ordering : 1;
-    bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
+  // Extensions
+  bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
+  bool ANGLE_shader_pixel_local_storage : 1;
+  bool ANGLE_shader_pixel_local_storage_coherent : 1;
+  bool ANGLE_polygon_mode : 1;
+  bool ANGLE_provoking_vertex : 1;
+  bool ARM_shader_framebuffer_fetch : 1;
+  bool ARB_fragment_shader_interlock : 1;
+  bool ARB_shader_image_load_store : 1;
+  bool ARB_shader_storage_buffer_object : 1;
+  bool OES_shader_image_atomic : 1;
+  bool KHR_blend_equation_advanced : 1;
+  bool KHR_blend_equation_advanced_coherent : 1;
+  bool KHR_parallel_shader_compile : 1;
+  bool EXT_base_instance : 1;
+  bool EXT_clip_cull_distance : 1;
+  bool EXT_color_buffer_half_float : 1;
+  bool OES_texture_half_float_linear : 1;
+  bool EXT_color_buffer_float : 1;
+  bool EXT_float_blend : 1;
+  bool EXT_multisampled_render_to_texture : 1;
+  bool EXT_shader_framebuffer_fetch : 1;
+  bool EXT_shader_pixel_local_storage : 1;
+  bool EXT_shader_pixel_local_storage2 : 1;
+  bool INTEL_fragment_shader_ordering : 1;
+  bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
 
-    // Texture compression extensions.
-    bool EXT_texture_compression_s3tc : 1; // BC1/BC2/BC3
-    bool EXT_texture_compression_bptc : 1; // BC7
-    bool KHR_texture_compression_astc_ldr : 1;
-    // ETC2 is core in GLES 3.0+; tracked here for desktop GL (ARB_ES3_compat).
-    bool supportsETC2 : 1;
+  // Texture compression extensions.
+  bool EXT_texture_compression_s3tc : 1; // BC1/BC2/BC3
+  bool EXT_texture_compression_bptc : 1; // BC7
+  bool KHR_texture_compression_astc_ldr : 1;
+  // ETC2 is core in GLES 3.0+; tracked here for desktop GL (ARB_ES3_compat).
+  bool supportsETC2 : 1;
 };
 
 #ifdef RIVE_ANDROID

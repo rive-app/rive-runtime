@@ -1,0 +1,109 @@
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -1340,6 +1340,22 @@
+  */
+ WASM_RUNTIME_API_EXTERN void
+ wasm_runtime_rive_clear_interrupt(wasm_exec_env_t exec_env);
++
++/**
++ * rive: called on the instantiating thread with the exec env a module's
++ * start function runs on, before it runs (begin true) and after (begin
++ * false), so a host can bound it like any other call.
++ */
++typedef void (*wasm_rive_start_hook_t)(wasm_exec_env_t exec_env, bool begin,
++                                       void *user_data);
++
++/**
++ * rive: installs the start hook every instantiation calls, once before any
++ * instantiates; NULL removes it.
++ */
++WASM_RUNTIME_API_EXTERN void
++wasm_runtime_rive_set_start_hook(wasm_rive_start_hook_t hook,
++                                 void *user_data);
+ 
+ /**
+  * rive: a native registered with &wasm_runtime_rive_leaf_native as its
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -3284,8 +3284,25 @@
+     WASM_SUSPEND_FLAGS_FETCH_AND(exec_env->suspend_flags,
+                                  ~WASM_SUSPEND_FLAG_TERMINATE);
+ }
++
++static wasm_rive_start_hook_t rive_start_hook = NULL;
++static void *rive_start_hook_data = NULL;
+ 
+ void
++wasm_runtime_rive_set_start_hook(wasm_rive_start_hook_t hook, void *user_data)
++{
++    rive_start_hook = hook;
++    rive_start_hook_data = user_data;
++}
++
++void
++wasm_runtime_rive_notify_start(WASMExecEnv *exec_env, bool begin)
++{
++    if (rive_start_hook)
++        rive_start_hook(exec_env, begin, rive_start_hook_data);
++}
++
++void
+ wasm_runtime_terminate(WASMModuleInstanceCommon *module_inst_comm)
+ {
+     WASMModuleInstance *module_inst = (WASMModuleInstance *)module_inst_comm;
+--- a/core/iwasm/common/wasm_runtime_common.h
++++ b/core/iwasm/common/wasm_runtime_common.h
+@@ -1255,6 +1255,11 @@
+                            void *attachment, uint32 *argv, uint32 argc,
+                            uint32 *ret);
+ 
++/* rive: tells the thread's start hook that post instantiate functions are
++   about to run on exec_env, or have finished */
++void
++wasm_runtime_rive_notify_start(WASMExecEnv *exec_env, bool begin);
++
+ /* rive: direct host-call dispatch for simple signatures skips the generic
+    arg classifier; relies on int and float args living in disjoint register
+    files, which Windows x64 does not honor */
+--- a/core/iwasm/interpreter/wasm_runtime.c
++++ b/core/iwasm/interpreter/wasm_runtime.c
+@@ -1738,6 +1738,9 @@
+         }
+     }
+ 
++    if (!is_sub_inst)
++        wasm_runtime_rive_notify_start(exec_env, true);
++
+     /* Execute start function for both main instance and sub instance */
+     if (start_func && !wasm_call_function(exec_env, start_func, 0, NULL)) {
+         goto fail;
+@@ -1765,6 +1768,8 @@
+     ret = true;
+ 
+ fail:
++    if (!is_sub_inst)
++        wasm_runtime_rive_notify_start(exec_env, false);
+     if (is_sub_inst) {
+         /* Restore the parent exec_env's module inst */
+         wasm_exec_env_restore_module_inst(exec_env_main, module_inst_main);
+--- a/core/iwasm/aot/aot_runtime.c
++++ b/core/iwasm/aot/aot_runtime.c
+@@ -1806,6 +1806,9 @@
+     }
+ #endif
+ 
++    if (!is_sub_inst)
++        wasm_runtime_rive_notify_start(exec_env, true);
++
+     /* Execute start function for both main instance and sub instance */
+     if (module->start_function) {
+         AOTFunctionInstance start_func = { 0 };
+@@ -1842,6 +1845,8 @@
+     ret = true;
+ 
+ fail:
++    if (!is_sub_inst)
++        wasm_runtime_rive_notify_start(exec_env, false);
+     if (is_sub_inst) {
+         /* Restore the parent exec_env's module inst */
+         wasm_exec_env_restore_module_inst(exec_env_main, module_inst_main);

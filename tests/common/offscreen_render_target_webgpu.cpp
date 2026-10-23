@@ -13,7 +13,7 @@ rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeWebGPU(
     uint32_t width,
     uint32_t height)
 {
-    return nullptr;
+  return nullptr;
 }
 } // namespace rive_tests
 
@@ -31,76 +31,75 @@ namespace rive_tests
 class OffscreenRenderTargetWebGPU : public rive_tests::OffscreenRenderTarget
 {
 public:
-    OffscreenRenderTargetWebGPU(rive::gpu::RenderContextWebGPUImpl* impl,
-                                wgpu::TextureFormat format,
-                                uint32_t width,
-                                uint32_t height) :
-        m_textureTarget(
+  OffscreenRenderTargetWebGPU(
+      rive::gpu::RenderContextWebGPUImpl* impl,
+      wgpu::TextureFormat format,
+      uint32_t width,
+      uint32_t height)
+      : m_textureTarget(
             rive::make_rcp<TextureTarget>(impl, format, width, height))
-    {}
+  {}
 
-    rive::RenderImage* asRenderImage() override
-    {
-        return m_textureTarget->renderImage();
-    }
+  rive::RenderImage* asRenderImage() override
+  {
+    return m_textureTarget->renderImage();
+  }
 
-    rive::gpu::RenderTarget* asRenderTarget() override
-    {
-        return m_textureTarget.get();
-    }
+  rive::gpu::RenderTarget* asRenderTarget() override
+  {
+    return m_textureTarget.get();
+  }
 
 private:
-    class TextureTarget : public rive::gpu::RenderTargetWebGPU
+  class TextureTarget : public rive::gpu::RenderTargetWebGPU
+  {
+  public:
+    TextureTarget(
+        rive::gpu::RenderContextWebGPUImpl* impl,
+        wgpu::TextureFormat format,
+        uint32_t width,
+        uint32_t height)
+        : RenderTargetWebGPU(
+              impl->device(),
+              impl->platformFeatures(),
+              impl->capabilities(),
+              format,
+              width,
+              height)
     {
-    public:
-        TextureTarget(rive::gpu::RenderContextWebGPUImpl* impl,
-                      wgpu::TextureFormat format,
-                      uint32_t width,
-                      uint32_t height) :
-            RenderTargetWebGPU(impl->device(),
-                               impl->platformFeatures(),
-                               impl->capabilities(),
-                               format,
-                               width,
-                               height)
-        {
-            wgpu::TextureDescriptor textureDesc = {
-                .usage = wgpu::TextureUsage::TextureBinding |
-                         wgpu::TextureUsage::RenderAttachment |
-                         wgpu::TextureUsage::CopySrc,
-                .dimension = wgpu::TextureDimension::e2D,
-                .size = {width, height},
-                .format = format,
-            };
+      wgpu::TextureDescriptor textureDesc = {
+          .usage = wgpu::TextureUsage::TextureBinding |
+                   wgpu::TextureUsage::RenderAttachment |
+                   wgpu::TextureUsage::CopySrc,
+          .dimension = wgpu::TextureDimension::e2D,
+          .size = {width, height},
+          .format = format,
+      };
 #ifdef RIVE_WAGYU
-            if (impl->capabilities().plsType ==
-                rive::gpu::RenderContextWebGPUImpl::PixelLocalStorageType::
-                    VK_EXT_rasterization_order_attachment_access)
-            {
-                textureDesc.usage |= static_cast<wgpu::TextureUsage>(
-                    WGPUTextureUsage_WagyuInputAttachment);
-            }
+      if (impl->capabilities().plsType ==
+          rive::gpu::RenderContextWebGPUImpl::PixelLocalStorageType::
+              VK_EXT_rasterization_order_attachment_access)
+      {
+        textureDesc.usage |= static_cast<wgpu::TextureUsage>(
+            WGPUTextureUsage_WagyuInputAttachment);
+      }
 #endif
 
-            auto texture = rive::make_rcp<rive::gpu::TextureWebGPUImpl>(
-                width,
-                height,
-                impl->device().CreateTexture(&textureDesc));
-            setTargetTextureView(texture->textureView(), texture->texture());
-            m_renderImage =
-                rive::make_rcp<rive::RiveRenderImage>(std::move(texture));
-        }
+      auto texture = rive::make_rcp<rive::gpu::TextureWebGPUImpl>(
+          width,
+          height,
+          impl->device().CreateTexture(&textureDesc));
+      setTargetTextureView(texture->textureView(), texture->texture());
+      m_renderImage = rive::make_rcp<rive::RiveRenderImage>(std::move(texture));
+    }
 
-        rive::RiveRenderImage* renderImage() const
-        {
-            return m_renderImage.get();
-        }
+    rive::RiveRenderImage* renderImage() const { return m_renderImage.get(); }
 
-    private:
-        rive::rcp<rive::RiveRenderImage> m_renderImage;
-    };
+  private:
+    rive::rcp<rive::RiveRenderImage> m_renderImage;
+  };
 
-    rive::rcp<TextureTarget> m_textureTarget;
+  rive::rcp<TextureTarget> m_textureTarget;
 };
 
 rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeWebGPU(
@@ -108,11 +107,11 @@ rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeWebGPU(
     uint32_t width,
     uint32_t height)
 {
-    return rive::make_rcp<OffscreenRenderTargetWebGPU>(
-        impl,
-        wgpu::TextureFormat::RGBA8Unorm,
-        width,
-        height);
+  return rive::make_rcp<OffscreenRenderTargetWebGPU>(
+      impl,
+      wgpu::TextureFormat::RGBA8Unorm,
+      width,
+      height);
 }
 }; // namespace rive_tests
 

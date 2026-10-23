@@ -37,99 +37,99 @@ class DeferredSession;
 class Player : public FrameRunner
 {
 public:
-    enum class InputMode : uint8_t
-    {
-        chars,
-        consolecommands
-    };
+  enum class InputMode : uint8_t
+  {
+    chars,
+    consolecommands
+  };
 
-    Player();
-    ~Player() override;
+  Player();
+  ~Player() override;
 
-    bool parseArgs(int argc,
-                   const char* const argv[],
-                   LaunchOptions& options) override;
+  bool parseArgs(int argc, const char* const argv[], LaunchOptions& options)
+      override;
 
-    void init() override;
+  void init() override;
 
-    void init(std::string rivName, std::vector<uint8_t> rivBytes);
+  void init(std::string rivName, std::vector<uint8_t> rivBytes);
 
-    bool doFrame() override;
-    void submitGamepad(const TestingWindow::InputEventData& event);
+  bool doFrame() override;
+  void submitGamepad(const TestingWindow::InputEventData& event);
 
-    // Unwinds deferred resources against the live context; call before the
-    // window is destroyed.
-    void shutdown();
+  // Unwinds deferred resources against the live context; call before the
+  // window is destroyed.
+  void shutdown();
 
-    void keyPressed(char key);
+  void keyPressed(char key);
 
-    int monitorIdx() const { return m_monitorIdx; }
+  int monitorIdx() const { return m_monitorIdx; }
 
 private:
-    int m_copiesLeft = 0;
-    int m_copiesAbove = 0;
-    int m_copiesRight = 0;
-    int m_copiesBelow = 0;
-    int m_rotations90 = 0;
-    int m_zoomLevel = 0;
-    rive::Fit m_fit = rive::Fit::contain;
-    bool m_fitSet = false;
-    int m_spacing = 0;
-    int m_monitorIdx = 0;
-    int m_paintStyle = 0;
-    bool m_wireframe = false;
-    bool m_paused = false;
-    bool m_forceFixedDeltaTime = false;
-    bool m_quit = false;
-    InputMode m_inputMode = InputMode::chars;
-    bool m_hotloadShaders = false;
+  int m_copiesLeft = 0;
+  int m_copiesAbove = 0;
+  int m_copiesRight = 0;
+  int m_copiesBelow = 0;
+  int m_rotations90 = 0;
+  int m_zoomLevel = 0;
+  rive::Fit m_fit = rive::Fit::contain;
+  bool m_fitSet = false;
+  int m_spacing = 0;
+  int m_monitorIdx = 0;
+  int m_paintStyle = 0;
+  bool m_wireframe = false;
+  bool m_paused = false;
+  bool m_forceFixedDeltaTime = false;
+  bool m_quit = false;
+  InputMode m_inputMode = InputMode::chars;
+  bool m_hotloadShaders = false;
 
-    int m_keyMultiplier = 0;
-    bool m_seenDigit = false;
-    bool m_seenBang = false;
+  int m_keyMultiplier = 0;
+  bool m_seenDigit = false;
+  bool m_seenBang = false;
 
-    std::vector<uint8_t> m_pendingRivBytes;
+  std::vector<uint8_t> m_pendingRivBytes;
 
-    // --dump writes one frame's pixels to a raw RGBA file (u32 width, u32
-    // height, then tightly packed RGBA) and quits, for platforms without a
-    // golden harness. --dump-frame chooses which frame (default 30, giving
-    // scripted content time to load).
-    std::string m_dumpPath;
-    int m_dumpFrame = 30;
-    int m_frameCounter = 0;
+  // --dump writes one frame's pixels to a raw RGBA file (u32 width, u32
+  // height, then tightly packed RGBA) and quits, for platforms without a
+  // golden harness. --dump-frame chooses which frame (default 30, giving
+  // scripted content time to load).
+  std::string m_dumpPath;
+  int m_dumpFrame = 30;
+  int m_frameCounter = 0;
 
-    bool m_useDeferred = false;
-    bool m_threaded = false;
-    struct FrameJob;
-    struct RenderThread;
-    std::unique_ptr<RenderThread> m_renderThread;
-    // Replays and presents one frame, on the render thread under --threaded.
-    void presentFrame(FrameJob& job);
-    // The import factory: the session when deferred, the window's otherwise.
-    rive::Factory* m_factory = nullptr;
+  bool m_useDeferred = false;
+  bool m_threaded = false;
+  bool m_gpuProfile = false;
+  struct FrameJob;
+  struct RenderThread;
+  std::unique_ptr<RenderThread> m_renderThread;
+  // Replays and presents one frame, on the render thread under --threaded.
+  void presentFrame(FrameJob& job);
+  // The import factory: the session when deferred, the window's otherwise.
+  rive::Factory* m_factory = nullptr;
 #ifdef RIVE_CANVAS
-    // Destroyed last since deferred resources held by the file record their
-    // destruction into the session, so it must outlive them.
-    std::unique_ptr<rive::cmd::DeferredSession> m_session;
-    std::unique_ptr<rive::cmd::DeferredReplayer> m_replayer;
-    uint32_t m_lastDroppedDraws = 0;
-    // Tells the recording what target scripts may render into.
-    void declareTarget();
+  // Destroyed last since deferred resources held by the file record their
+  // destruction into the session, so it must outlive them.
+  std::unique_ptr<rive::cmd::DeferredSession> m_session;
+  std::unique_ptr<rive::cmd::DeferredReplayer> m_replayer;
+  uint32_t m_lastDroppedDraws = 0;
+  // Tells the recording what target scripts may render into.
+  void declareTarget();
 #endif
 
-    std::string m_rivName;
-    rive::rcp<rive::File> m_file;
-    std::unique_ptr<rive::ArtboardInstance> m_artboard;
-    std::unique_ptr<rive::Scene> m_scene;
-    // The scene when it is a state machine, which is what takes gamepads.
-    rive::StateMachineInstance* m_stateMachine = nullptr;
-    rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
+  std::string m_rivName;
+  rive::rcp<rive::File> m_file;
+  std::unique_ptr<rive::ArtboardInstance> m_artboard;
+  std::unique_ptr<rive::Scene> m_scene;
+  // The scene when it is a state machine, which is what takes gamepads.
+  rive::StateMachineInstance* m_stateMachine = nullptr;
+  rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
 
-    int m_lastReportedCopyCount = 0;
-    bool m_lastReportedPauseState = false;
+  int m_lastReportedCopyCount = 0;
+  bool m_lastReportedPauseState = false;
 
-    struct FPSOverlay;
-    std::unique_ptr<FPSOverlay> m_fps;
+  struct FPSOverlay;
+  std::unique_ptr<FPSOverlay> m_fps;
 
-    std::chrono::high_resolution_clock::time_point m_timestampPrevFrame;
+  std::chrono::high_resolution_clock::time_point m_timestampPrevFrame;
 };

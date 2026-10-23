@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptInputBooleanBase::clone() const
 {
-    auto cloned = new ScriptInputBoolean();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptInputBoolean();
+  cloned->copy(*this);
+  return cloned;
 }

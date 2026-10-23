@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CubicInterpolatorComponentBase::clone() const
 {
-    auto cloned = new CubicInterpolatorComponent();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new CubicInterpolatorComponent();
+  cloned->copy(*this);
+  return cloned;
 }

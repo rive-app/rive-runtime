@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FeatherBase::clone() const
 {
-    auto cloned = new Feather();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new Feather();
+  cloned->copy(*this);
+  return cloned;
 }

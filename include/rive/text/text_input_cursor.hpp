@@ -7,8 +7,8 @@ namespace rive
 class TextInputCursor : public TextInputCursorBase
 {
 public:
-    Core* hitTest(HitInfo*, const Mat2D&) override;
-    ShapePaintPath* localClockwisePath() override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
+  ShapePaintPath* localClockwisePath() override;
 };
 } // namespace rive
 

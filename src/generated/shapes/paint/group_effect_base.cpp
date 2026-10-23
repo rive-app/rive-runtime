@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* GroupEffectBase::clone() const
 {
-    auto cloned = new GroupEffect();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new GroupEffect();
+  cloned->copy(*this);
+  return cloned;
 }

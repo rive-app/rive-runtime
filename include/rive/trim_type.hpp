@@ -4,10 +4,10 @@ namespace rive
 {
 enum class TrimType : int
 {
-    none = 0,
-    start = 1,
-    end = 2,
-    all = 3,
+  none = 0,
+  start = 1,
+  end = 2,
+  all = 3,
 };
 }
 #endif

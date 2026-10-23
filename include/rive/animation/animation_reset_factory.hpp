@@ -13,31 +13,29 @@ namespace rive
 
 class AnimationResetFactory
 {
-    static std::vector<std::unique_ptr<AnimationReset>> m_resources;
-    static std::mutex m_mutex;
+  static std::vector<std::unique_ptr<AnimationReset>> m_resources;
+  static std::mutex m_mutex;
 
 private:
-    static void fromState(StateInstance* stateInstance,
-                          std::vector<const LinearAnimation*>& animations);
+  static void fromState(
+      StateInstance* stateInstance,
+      std::vector<const LinearAnimation*>& animations);
 
 public:
-    static std::unique_ptr<AnimationReset> getInstance();
-    static std::unique_ptr<AnimationReset> fromStates(
-        StateInstance* stateFrom,
-        StateInstance* currentState,
-        ArtboardInstance* artboard);
-    static std::unique_ptr<AnimationReset> fromAnimations(
-        std::vector<const LinearAnimation*>& animations,
-        ArtboardInstance* artboard,
-        bool useFirstAsBaseline);
-    static void release(std::unique_ptr<AnimationReset> value);
+  static std::unique_ptr<AnimationReset> getInstance();
+  static std::unique_ptr<AnimationReset> fromStates(
+      StateInstance* stateFrom,
+      StateInstance* currentState,
+      ArtboardInstance* artboard);
+  static std::unique_ptr<AnimationReset> fromAnimations(
+      std::vector<const LinearAnimation*>& animations,
+      ArtboardInstance* artboard,
+      bool useFirstAsBaseline);
+  static void release(std::unique_ptr<AnimationReset> value);
 #ifdef TESTING
-    // Used in testing to check pooled resources;
-    static int resourcesCount()
-    {
-        return static_cast<int>(m_resources.size());
-    };
-    static void releaseResources() { m_resources.clear(); };
+  // Used in testing to check pooled resources;
+  static int resourcesCount() { return static_cast<int>(m_resources.size()); };
+  static void releaseResources() { m_resources.clear(); };
 #endif
 };
 } // namespace rive

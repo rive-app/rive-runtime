@@ -7,67 +7,52 @@ namespace rive
 class ListenerBoolChangeBase : public ListenerInputChange
 {
 protected:
-    typedef ListenerInputChange Super;
+  typedef ListenerInputChange Super;
 
 public:
-    static const uint16_t typeKey = 117;
+  static const uint16_t typeKey = 117;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListenerBoolChangeBase::typeKey:
-            case ListenerInputChangeBase::typeKey:
-            case ListenerActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
+  uint16_t coreType() const override { return typeKey; }
 
-    uint16_t coreType() const override { return typeKey; }
-
-    static const uint16_t valuePropertyKey = 228;
+  static const uint16_t valuePropertyKey = 228;
 
 protected:
-    uint32_t m_Value = 1;
+  uint32_t m_Value = 1;
 
 public:
-    inline uint32_t value() const { return m_Value; }
-    void value(uint32_t value)
+  inline uint32_t value() const { return m_Value; }
+  void value(uint32_t value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListenerBoolChangeBase& object)
-    {
-        m_Value = object.m_Value;
-        ListenerInputChange::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListenerBoolChangeBase& object)
+  {
+    m_Value = object.m_Value;
+    ListenerInputChange::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return ListenerInputChange::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreUintType::deserialize(reader);
+        return true;
     }
+    return ListenerInputChange::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/listener_bool_change_ext.inl"
 #endif

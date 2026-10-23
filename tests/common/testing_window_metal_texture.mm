@@ -16,210 +16,206 @@ namespace rive::gpu
 class TestingWindowMetalTexture : public TestingWindow
 {
 public:
-    TestingWindowMetalTexture(const BackendParams& backendParams)
+  TestingWindowMetalTexture(const BackendParams& backendParams)
+  {
+    RenderContextMetalImpl::ContextOptions metalOptions;
+    // Turn on synchronous shader compilations to ensure deterministic
+    // rendering and to make sure we test every unique shader.
+    metalOptions.shaderCompilationMode = backendParams.shaderCompilationMode;
+    metalOptions.disableFramebufferReads = backendParams.atomic;
+    m_renderContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+    m_renderContext->static_impl_cast<RenderContextMetalImpl>()
+        ->setCommandQueue(m_queue);
+    printf(
+        "==== MTLDevice: %s (%s) ====\n",
+        m_gpu.name.UTF8String,
+        // MTLDebugDevice when API validation is on, the real driver
+        // class when it isn't.
+        NSStringFromClass([m_gpu class]).UTF8String);
+  }
+
+  rive::Factory* factory() override { return m_renderContext.get(); }
+
+  rive::gpu::RenderContext* renderContext() const override
+  {
+    return m_renderContext.get();
+  }
+
+  std::unique_ptr<rive::Renderer> beginFrame(
+      const FrameOptions& options) override
+  {
+    rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
+        .renderTargetWidth = m_width,
+        .renderTargetHeight = m_height,
+        .loadAction = options.doClear
+                          ? rive::gpu::LoadAction::clear
+                          : rive::gpu::LoadAction::preserveRenderTarget,
+        .clearColor = options.clearColor,
+        .disableRasterOrdering = options.disableRasterOrdering,
+        .triangulationThresholds = options.triangulationThresholds,
+        .wireframe = options.wireframe,
+        .fillsDisabled = options.fillsDisabled,
+        .strokesDisabled = options.strokesDisabled,
+        .clockwiseFillOverride = options.clockwiseFillOverride,
+        .synthesizedFailureType = options.synthesizedFailureType,
+    };
+    m_renderContext->beginFrame(frameDescriptor);
+    // Ore replays into the target before the first flush.
+    ensureRenderTarget();
+    return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
+
+  rive::gpu::RenderTarget* renderTarget() const override
+  {
+    return m_renderTarget.get();
+  }
+
+  OreTarget oreTarget() const override { return {true, true}; }
+
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  {
+    // A deferred replay flushes canvases before beginFrame, so the buffer
+    // may not exist yet.
+    if (m_flushCommandBuffer == nil)
     {
-        RenderContextMetalImpl::ContextOptions metalOptions;
-        // Turn on synchronous shader compilations to ensure deterministic
-        // rendering and to make sure we test every unique shader.
-        metalOptions.shaderCompilationMode =
-            backendParams.shaderCompilationMode;
-        metalOptions.disableFramebufferReads = backendParams.atomic;
-        m_renderContext =
-            RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
-        m_renderContext->static_impl_cast<RenderContextMetalImpl>()
-            ->setCommandQueue(m_queue);
-        printf("==== MTLDevice: %s (%s) ====\n",
-               m_gpu.name.UTF8String,
-               // MTLDebugDevice when API validation is on, the real driver
-               // class when it isn't.
-               NSStringFromClass([m_gpu class]).UTF8String);
+      m_flushCommandBuffer = [m_queue commandBuffer];
+    }
+    m_renderContext->flush({
+        .renderTarget = offscreenRenderTarget != nullptr ? offscreenRenderTarget
+                                                         : m_renderTarget.get(),
+        .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer,
+    });
+    // Commit the command buffer now so the buffer ring lock is released
+    // immediately (via the completed handler). Allocate a fresh one for
+    // any subsequent work in endFrame(). Without this, multiple canvas
+    // flushes before endFrame() would deadlock on the buffer ring.
+    [m_flushCommandBuffer commit];
+    m_flushCommandBuffer = [m_queue commandBuffer];
+  }
+
+  void endFrame(std::vector<uint8_t>* pixelData) override
+  {
+    flushPLSContext(nullptr);
+
+    if (pixelData)
+    {
+      id<MTLBlitCommandEncoder>
+          blitEncoder = [m_flushCommandBuffer blitCommandEncoder];
+
+      // Blit the framebuffer into m_pixelReadBuff.
+      [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
+                       sourceSlice:0
+                       sourceLevel:0
+                      sourceOrigin:MTLOriginMake(0, 0, 0)
+                        sourceSize:MTLSizeMake(m_width, m_height, 1)
+                          toBuffer:m_pixelReadBuff
+                 destinationOffset:0
+            destinationBytesPerRow:m_width * 4
+          destinationBytesPerImage:m_height * m_width * 4];
+
+      [blitEncoder endEncoding];
     }
 
-    rive::Factory* factory() override { return m_renderContext.get(); }
+    [m_flushCommandBuffer commit];
 
-    rive::gpu::RenderContext* renderContext() const override
+    if (pixelData)
     {
-        return m_renderContext.get();
-    }
+      [m_flushCommandBuffer waitUntilCompleted];
 
-    std::unique_ptr<rive::Renderer> beginFrame(
-        const FrameOptions& options) override
-    {
-        rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
-            .renderTargetWidth = m_width,
-            .renderTargetHeight = m_height,
-            .loadAction = options.doClear
-                              ? rive::gpu::LoadAction::clear
-                              : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = options.clearColor,
-            .disableRasterOrdering = options.disableRasterOrdering,
-            .triangulationThresholds = options.triangulationThresholds,
-            .wireframe = options.wireframe,
-            .fillsDisabled = options.fillsDisabled,
-            .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride = options.clockwiseFillOverride,
-            .synthesizedFailureType = options.synthesizedFailureType,
-        };
-        m_renderContext->beginFrame(frameDescriptor);
-        // Ore replays into the target before the first flush.
-        ensureRenderTarget();
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
-    }
-
-    rive::gpu::RenderTarget* renderTarget() const override
-    {
-        return m_renderTarget.get();
-    }
-
-    OreTarget oreTarget() const override { return {true, true}; }
-
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
-    {
-        // A deferred replay flushes canvases before beginFrame, so the buffer
-        // may not exist yet.
-        if (m_flushCommandBuffer == nil)
+      // Copy the image data from m_pixelReadBuff to pixelData.
+      pixelData->resize(m_height * m_width * 4);
+      assert(m_pixelReadBuff.length == pixelData->size());
+      const uint8_t* contents = reinterpret_cast<const uint8_t*>(
+          m_pixelReadBuff.contents);
+      const size_t rowBytes = m_width * 4;
+      for (size_t y = 0; y < m_height; ++y)
+      {
+        // Flip Y.
+        const uint8_t* src = &contents[(m_height - y - 1) * m_width * 4];
+        uint8_t* dst = &(*pixelData)[y * m_width * 4];
+        for (size_t x = 0; x < rowBytes; x += 4)
         {
-            m_flushCommandBuffer = [m_queue commandBuffer];
+          // BGBRA -> RGBA.
+          dst[x + 0] = src[x + 2];
+          dst[x + 1] = src[x + 1];
+          dst[x + 2] = src[x + 0];
+          dst[x + 3] = src[x + 3];
         }
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTarget.get(),
-            .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer,
-        });
-        // Commit the command buffer now so the buffer ring lock is released
-        // immediately (via the completed handler). Allocate a fresh one for
-        // any subsequent work in endFrame(). Without this, multiple canvas
-        // flushes before endFrame() would deadlock on the buffer ring.
-        [m_flushCommandBuffer commit];
-        m_flushCommandBuffer = [m_queue commandBuffer];
+      }
     }
 
-    void endFrame(std::vector<uint8_t>* pixelData) override
-    {
-        flushPLSContext(nullptr);
-
-        if (pixelData)
-        {
-            id<MTLBlitCommandEncoder> blitEncoder =
-                [m_flushCommandBuffer blitCommandEncoder];
-
-            // Blit the framebuffer into m_pixelReadBuff.
-            [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
-                             sourceSlice:0
-                             sourceLevel:0
-                            sourceOrigin:MTLOriginMake(0, 0, 0)
-                              sourceSize:MTLSizeMake(m_width, m_height, 1)
-                                toBuffer:m_pixelReadBuff
-                       destinationOffset:0
-                  destinationBytesPerRow:m_width * 4
-                destinationBytesPerImage:m_height * m_width * 4];
-
-            [blitEncoder endEncoding];
-        }
-
-        [m_flushCommandBuffer commit];
-
-        if (pixelData)
-        {
-            [m_flushCommandBuffer waitUntilCompleted];
-
-            // Copy the image data from m_pixelReadBuff to pixelData.
-            pixelData->resize(m_height * m_width * 4);
-            assert(m_pixelReadBuff.length == pixelData->size());
-            const uint8_t* contents =
-                reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
-            const size_t rowBytes = m_width * 4;
-            for (size_t y = 0; y < m_height; ++y)
-            {
-                // Flip Y.
-                const uint8_t* src =
-                    &contents[(m_height - y - 1) * m_width * 4];
-                uint8_t* dst = &(*pixelData)[y * m_width * 4];
-                for (size_t x = 0; x < rowBytes; x += 4)
-                {
-                    // BGBRA -> RGBA.
-                    dst[x + 0] = src[x + 2];
-                    dst[x + 1] = src[x + 1];
-                    dst[x + 2] = src[x + 0];
-                    dst[x + 3] = src[x + 3];
-                }
-            }
-        }
-
-        m_flushCommandBuffer = nil;
-    }
+    m_flushCommandBuffer = nil;
+  }
 
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
-    // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
-    // this cross-platform header (same pattern as externalCommandBuffer).
-    void* metalQueue() const override { return (__bridge void*)m_queue; }
+  // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
+  // this cross-platform header (same pattern as externalCommandBuffer).
+  void* metalQueue() const override { return (__bridge void*)m_queue; }
 #endif
 
-    void* getCurrentCommandBuffer() const override
-    {
-        return (__bridge void*)m_queue;
-    }
+  void* getCurrentCommandBuffer() const override
+  {
+    return (__bridge void*)m_queue;
+  }
 
-    void* getOreContext() const override
-    {
-        return m_renderContext->getOreContext();
-    }
+  void* getOreContext() const override
+  {
+    return m_renderContext->getOreContext();
+  }
 
-    void beginOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+  void beginOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
 
-        oreContext->beginFrame({});
-    }
-    void endOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+    oreContext->beginFrame({});
+  }
+  void endOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
 
-        oreContext->endFrame();
-    }
+    oreContext->endFrame();
+  }
 
 private:
-    void ensureRenderTarget()
+  void ensureRenderTarget()
+  {
+    if (!m_renderTarget || m_renderTarget->height() != m_height ||
+        m_renderTarget->width() != m_width)
     {
-        if (!m_renderTarget || m_renderTarget->height() != m_height ||
-            m_renderTarget->width() != m_width)
-        {
-            m_renderTarget =
-                m_renderContext->static_impl_cast<RenderContextMetalImpl>()
-                    ->makeRenderTarget(
-                        MTLPixelFormatBGRA8Unorm, m_width, m_height);
-            MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-            desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
-            desc.width = m_width;
-            desc.height = m_height;
-            desc.usage = MTLTextureUsageRenderTarget;
-            desc.textureType = MTLTextureType2D;
-            desc.mipmapLevelCount = 1;
-            desc.storageMode = MTLStorageModePrivate;
-            m_renderTarget->setTargetTexture(
-                [m_gpu newTextureWithDescriptor:desc]);
-            m_pixelReadBuff =
-                [m_gpu newBufferWithLength:m_height * m_width * 4
-                                   options:MTLResourceStorageModeShared];
-        }
+      m_renderTarget = m_renderContext
+                           ->static_impl_cast<RenderContextMetalImpl>()
+                           ->makeRenderTarget(
+                               MTLPixelFormatBGRA8Unorm, m_width, m_height);
+      MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+      desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
+      desc.width = m_width;
+      desc.height = m_height;
+      desc.usage = MTLTextureUsageRenderTarget;
+      desc.textureType = MTLTextureType2D;
+      desc.mipmapLevelCount = 1;
+      desc.storageMode = MTLStorageModePrivate;
+      m_renderTarget->setTargetTexture([m_gpu newTextureWithDescriptor:desc]);
+      m_pixelReadBuff = [m_gpu
+          newBufferWithLength:m_height * m_width * 4
+                      options:MTLResourceStorageModeShared];
     }
+  }
 
-    id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
-    id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
-    std::unique_ptr<RenderContext> m_renderContext;
-    rcp<RenderTargetMetal> m_renderTarget;
-    id<MTLBuffer> m_pixelReadBuff;
-    id<MTLCommandBuffer> m_flushCommandBuffer;
+  id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
+  id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
+  std::unique_ptr<RenderContext> m_renderContext;
+  rcp<RenderTargetMetal> m_renderTarget;
+  id<MTLBuffer> m_pixelReadBuff;
+  id<MTLCommandBuffer> m_flushCommandBuffer;
 };
 }; // namespace rive::gpu
 
 TestingWindow* TestingWindow::MakeMetalTexture(
     const BackendParams& backendParams)
 {
-    return new rive::gpu::TestingWindowMetalTexture(backendParams);
+  return new rive::gpu::TestingWindowMetalTexture(backendParams);
 }
 
 #endif

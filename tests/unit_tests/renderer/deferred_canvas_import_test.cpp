@@ -22,14 +22,14 @@ namespace
 {
 struct FakeTarget : gpu::RenderTarget
 {
-    FakeTarget() : gpu::RenderTarget(8, 8) {}
+  FakeTarget() : gpu::RenderTarget(8, 8) {}
 };
 
 rcp<gpu::RenderCanvas> fakeCanvas()
 {
-    auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
-    canvas->setBacking(nullptr, make_rcp<FakeTarget>());
-    return canvas;
+  auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
+  canvas->setBacking(nullptr, make_rcp<FakeTarget>());
+  return canvas;
 }
 
 // A decoded file asset: neither a canvas nor anything the recorder minted, so
@@ -37,11 +37,11 @@ rcp<gpu::RenderCanvas> fakeCanvas()
 // matching backends whose images are context free until upload.
 struct FakeForeignImage : public RenderImage
 {
-    FakeForeignImage()
-    {
-        m_Width = 8;
-        m_Height = 8;
-    }
+  FakeForeignImage()
+  {
+    m_Width = 8;
+    m_Height = 8;
+  }
 };
 
 // GPU free stand-in for the replaying backend. Only the canvas wraps are
@@ -49,267 +49,272 @@ struct FakeForeignImage : public RenderImage
 class RecordingOreContext : public ore::Context
 {
 public:
-    RecordingOreContext() : ore::Context(nullptr) {}
+  RecordingOreContext() : ore::Context(nullptr) {}
 
-    std::vector<gpu::RenderCanvas*> sampleWraps;
+  std::vector<gpu::RenderCanvas*> sampleWraps;
 
-    rcp<ore::TextureView> wrapCanvasSampleView(
-        gpu::RenderCanvas* canvas) override
-    {
-        sampleWraps.push_back(canvas);
-        return nullptr;
-    }
+  rcp<ore::TextureView> wrapCanvasSampleView(gpu::RenderCanvas* canvas) override
+  {
+    sampleWraps.push_back(canvas);
+    return nullptr;
+  }
 
-    rcp<ore::Buffer> makeBuffer(const ore::BufferDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::Texture> makeTexture(const ore::TextureDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::TextureView> makeTextureViewImpl(
-        const ore::TextureViewDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::Sampler> makeSampler(const ore::SamplerDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::ShaderModule> makeShaderModule(
-        const ore::ShaderModuleDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::BindGroupLayout> makeBindGroupLayout(
-        const ore::BindGroupLayoutDesc&) override
-    {
-        return nullptr;
-    }
-    rcp<ore::Pipeline> makePipeline(const ore::PipelineDesc&,
-                                    std::string*) override
-    {
-        return nullptr;
-    }
-    rcp<ore::BindGroup> makeBindGroup(const ore::BindGroupDesc&) override
-    {
-        return nullptr;
-    }
-    std::unique_ptr<ore::RenderPass> beginRenderPass(const ore::RenderPassDesc&,
-                                                     std::string*) override
-    {
-        return nullptr;
-    }
-    void beginFrame(const FrameDescriptor&) override {}
-    void endFrame() override {}
-    void waitForGPU() override {}
-    rcp<ore::TextureView> wrapCanvasTexture(gpu::RenderCanvas*) override
-    {
-        return nullptr;
-    }
-    rcp<ore::TextureView> wrapRiveTexture(gpu::Texture*,
-                                          uint32_t,
-                                          uint32_t) override
-    {
-        return nullptr;
-    }
-    ore::ShaderTarget shaderTarget() const override
-    {
-        return ore::ShaderTarget::glsl;
-    }
+  rcp<ore::Buffer> makeBuffer(const ore::BufferDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::Texture> makeTexture(const ore::TextureDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::TextureView> makeTextureViewImpl(
+      const ore::TextureViewDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::Sampler> makeSampler(const ore::SamplerDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::ShaderModule> makeShaderModule(const ore::ShaderModuleDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::BindGroupLayout> makeBindGroupLayout(
+      const ore::BindGroupLayoutDesc&) override
+  {
+    return nullptr;
+  }
+  rcp<ore::Pipeline> makePipeline(const ore::PipelineDesc&, std::string*)
+      override
+  {
+    return nullptr;
+  }
+  rcp<ore::BindGroup> makeBindGroup(const ore::BindGroupDesc&) override
+  {
+    return nullptr;
+  }
+  std::unique_ptr<ore::RenderPass> beginRenderPass(
+      const ore::RenderPassDesc&,
+      std::string*) override
+  {
+    return nullptr;
+  }
+  void beginFrame(const FrameDescriptor&) override {}
+  void endFrame() override {}
+  void waitForGPU() override {}
+  rcp<ore::TextureView> wrapCanvasTexture(gpu::RenderCanvas*) override
+  {
+    return nullptr;
+  }
+  rcp<ore::TextureView> wrapRiveTexture(gpu::Texture*, uint32_t, uint32_t)
+      override
+  {
+    return nullptr;
+  }
+  ore::ShaderTarget shaderTarget() const override
+  {
+    return ore::ShaderTarget::glsl;
+  }
 };
 
 // Logs the replay steps whose relative order the import depends on.
 class ImportOrderSink : public deferred_test::TestSink
 {
 public:
-    explicit ImportOrderSink(bool openScreen = true) : m_openScreen(openScreen)
-    {}
+  explicit ImportOrderSink(bool openScreen = true) : m_openScreen(openScreen) {}
 
-    RecordingOreContext ore;
-    std::vector<std::string> steps;
-    uint32_t oreFrameEnds = 0;
-    uint32_t oreFrameAfters = 0;
+  RecordingOreContext ore;
+  std::vector<std::string> steps;
+  uint32_t oreFrameEnds = 0;
+  uint32_t oreFrameAfters = 0;
 
-    rive::ore::Context* oreContext() override { return &ore; }
+  rive::ore::Context* oreContext() override { return &ore; }
 
-    Renderer* beginScreenFrame(uint64_t target) override
-    {
-        return m_openScreen ? deferred_test::TestSink::beginScreenFrame(target)
-                            : nullptr;
-    }
+  Renderer* beginScreenFrame(uint64_t target) override
+  {
+    return m_openScreen ? deferred_test::TestSink::beginScreenFrame(target)
+                        : nullptr;
+  }
 
-    Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t) override
-    {
-        m_openCanvas = canvas;
-        m_canvasRenderer = serializingFactory.makeRenderer();
-        return m_canvasRenderer.get();
-    }
-    void endCanvasContent() override
-    {
-        steps.push_back("content");
-        m_contentFlushed.push_back(m_openCanvas);
-        m_openCanvas = nullptr;
-        m_canvasRenderer.reset();
-    }
-    std::vector<RenderImage*> foreignPreps;
-    RenderImage* prepForeignImage(RenderImage* image) override
-    {
-        foreignPreps.push_back(image);
-        return image;
-    }
+  Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t) override
+  {
+    m_openCanvas = canvas;
+    m_canvasRenderer = serializingFactory.makeRenderer();
+    return m_canvasRenderer.get();
+  }
+  void endCanvasContent() override
+  {
+    steps.push_back("content");
+    m_contentFlushed.push_back(m_openCanvas);
+    m_openCanvas = nullptr;
+    m_canvasRenderer.reset();
+  }
+  std::vector<RenderImage*> foreignPreps;
+  RenderImage* prepForeignImage(RenderImage* image) override
+  {
+    foreignPreps.push_back(image);
+    return image;
+  }
 
-    void beginOreFrame() override { steps.push_back("ore"); }
-    void endOreFrame() override { ++oreFrameEnds; }
-    void afterOreFrame() override { ++oreFrameAfters; }
+  void beginOreFrame() override { steps.push_back("ore"); }
+  void endOreFrame() override { ++oreFrameEnds; }
+  void afterOreFrame() override { ++oreFrameAfters; }
 
-    const std::vector<gpu::RenderCanvas*>& contentFlushed() const
-    {
-        return m_contentFlushed;
-    }
+  const std::vector<gpu::RenderCanvas*>& contentFlushed() const
+  {
+    return m_contentFlushed;
+  }
 
 private:
-    bool m_openScreen;
-    gpu::RenderCanvas* m_openCanvas = nullptr;
-    std::unique_ptr<Renderer> m_canvasRenderer;
-    std::vector<gpu::RenderCanvas*> m_contentFlushed;
+  bool m_openScreen;
+  gpu::RenderCanvas* m_openCanvas = nullptr;
+  std::unique_ptr<Renderer> m_canvasRenderer;
+  std::vector<gpu::RenderCanvas*> m_contentFlushed;
 };
 } // namespace
 
-TEST_CASE("a canvas written and sampled in one frame wraps after its content",
-          "[deferred][canvas-import]")
+TEST_CASE(
+    "a canvas written and sampled in one frame wraps after its content",
+    "[deferred][canvas-import]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvas = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvas = fakeCanvas();
 
-    // What a script does: draw into the canvas, then Image:view() it.
-    Renderer* content = session.beginCanvasContent(canvas.get(), 0xFF000000);
+  // What a script does: draw into the canvas, then Image:view() it.
+  Renderer* content = session.beginCanvasContent(canvas.get(), 0xFF000000);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  content->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvas.get());
+  REQUIRE(
+      session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+      nullptr);
+  session.closeOpenRange();
+
+  auto frame = snapshotFrame(session);
+  ImportOrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
+
+  REQUIRE(sink.ore.sampleWraps.size() == 1);
+  // Resolved off the canvas the view was recorded against, not a stale id.
+  CHECK(sink.ore.sampleWraps[0] == canvas.get());
+  REQUIRE(sink.contentFlushed().size() == 1);
+  CHECK(sink.contentFlushed()[0] == canvas.get());
+  // The companion the wrap builds is only as fresh as the content behind it.
+  REQUIRE(sink.steps == std::vector<std::string>{"content", "ore"});
+}
+
+TEST_CASE(
+    "each recorded canvas view resolves to its own canvas",
+    "[deferred][canvas-import]")
+{
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvasA = fakeCanvas();
+  auto canvasB = fakeCanvas();
+
+  for (gpu::RenderCanvas* canvas : {canvasA.get(), canvasB.get()})
+  {
+    Renderer* content = session.beginCanvasContent(canvas, 0);
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
     content->drawPath(path.get(), paint.get());
-    session.endCanvasContent(canvas.get());
-    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
-            nullptr);
-    session.closeOpenRange();
+    session.endCanvasContent(canvas);
+    session.oreContext().recordWrapCanvasImage(canvas, 8, 8);
+  }
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    ImportOrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  ImportOrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    REQUIRE(sink.ore.sampleWraps.size() == 1);
-    // Resolved off the canvas the view was recorded against, not a stale id.
-    CHECK(sink.ore.sampleWraps[0] == canvas.get());
-    REQUIRE(sink.contentFlushed().size() == 1);
-    CHECK(sink.contentFlushed()[0] == canvas.get());
-    // The companion the wrap builds is only as fresh as the content behind it.
-    REQUIRE(sink.steps == std::vector<std::string>{"content", "ore"});
+  REQUIRE(sink.ore.sampleWraps.size() == 2);
+  CHECK(sink.ore.sampleWraps[0] == canvasA.get());
+  CHECK(sink.ore.sampleWraps[1] == canvasB.get());
 }
 
-TEST_CASE("each recorded canvas view resolves to its own canvas",
-          "[deferred][canvas-import]")
+TEST_CASE(
+    "ore replay waits for a successfully opened screen frame",
+    "[deferred][canvas-import]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvasA = fakeCanvas();
-    auto canvasB = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvas = fakeCanvas();
 
-    for (gpu::RenderCanvas* canvas : {canvasA.get(), canvasB.get()})
-    {
-        Renderer* content = session.beginCanvasContent(canvas, 0);
-        auto paint = session.makeRenderPaint();
-        auto path = session.makeEmptyRenderPath();
-        content->drawPath(path.get(), paint.get());
-        session.endCanvasContent(canvas);
-        session.oreContext().recordWrapCanvasImage(canvas, 8, 8);
-    }
-    session.closeOpenRange();
+  Renderer* content = session.beginCanvasContent(canvas.get(), 0);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  content->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvas.get());
+  REQUIRE(
+      session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+      nullptr);
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    ImportOrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  ImportOrderSink sink(/*openScreen=*/false);
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    REQUIRE(sink.ore.sampleWraps.size() == 2);
-    CHECK(sink.ore.sampleWraps[0] == canvasA.get());
-    CHECK(sink.ore.sampleWraps[1] == canvasB.get());
+  // Canvas content is scheduled before the screen opens, but ORE must not
+  // consume its one-shot import unless the host admitted a screen frame.
+  REQUIRE(sink.steps == std::vector<std::string>{"content"});
+  CHECK(sink.ore.sampleWraps.empty());
+  CHECK(sink.oreFrameEnds == 0);
+  CHECK(sink.oreFrameAfters == 0);
 }
 
-TEST_CASE("ore replay waits for a successfully opened screen frame",
-          "[deferred][canvas-import]")
+TEST_CASE(
+    "a foreign image view resolves through the registry, not the canvas "
+    "table",
+    "[deferred][canvas-import]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvas = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto image = make_rcp<FakeForeignImage>();
 
-    Renderer* content = session.beginCanvasContent(canvas.get(), 0);
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    content->drawPath(path.get(), paint.get());
-    session.endCanvasContent(canvas.get());
-    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
-            nullptr);
-    session.closeOpenRange();
+  // What a script does with a decoded asset: context:image('Name'):view().
+  REQUIRE(
+      session.oreContext().recordWrapForeignImageView(image.get(), 8, 8) !=
+      nullptr);
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    ImportOrderSink sink(/*openScreen=*/false);
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  ImportOrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    // Canvas content is scheduled before the screen opens, but ORE must not
-    // consume its one-shot import unless the host admitted a screen frame.
-    REQUIRE(sink.steps == std::vector<std::string>{"content"});
-    CHECK(sink.ore.sampleWraps.empty());
-    CHECK(sink.oreFrameEnds == 0);
-    CHECK(sink.oreFrameAfters == 0);
+  // It reached the foreign resolver with the image it was recorded for.
+  REQUIRE(sink.foreignPreps.size() == 1);
+  CHECK(sink.foreignPreps[0] == image.get());
+  // And never the canvas sampling wrap, which is where it used to be hunted
+  // for: a decoded asset has no entry there, so the view came back null and
+  // every draw behind its bind group was dropped.
+  CHECK(sink.ore.sampleWraps.empty());
 }
 
-TEST_CASE("a foreign image view resolves through the registry, not the canvas "
-          "table",
-          "[deferred][canvas-import]")
+TEST_CASE(
+    "a canvas sampled in a frame it was never opened in still resolves",
+    "[deferred][canvas-import]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto image = make_rcp<FakeForeignImage>();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvas = fakeCanvas();
 
-    // What a script does with a decoded asset: context:image('Name'):view().
-    REQUIRE(session.oreContext().recordWrapForeignImageView(image.get(),
-                                                            8,
-                                                            8) != nullptr);
-    session.closeOpenRange();
+  // No beginCanvasContent this frame — the script samples a canvas whose
+  // content it wrote earlier. Minting the id without registering the canvas
+  // would leave it unresolvable, and the wrap is one shot: it never
+  // re-records, so the miss would be permanent rather than a dropped frame.
+  REQUIRE(
+      session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+      nullptr);
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    ImportOrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  ImportOrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    // It reached the foreign resolver with the image it was recorded for.
-    REQUIRE(sink.foreignPreps.size() == 1);
-    CHECK(sink.foreignPreps[0] == image.get());
-    // And never the canvas sampling wrap, which is where it used to be hunted
-    // for: a decoded asset has no entry there, so the view came back null and
-    // every draw behind its bind group was dropped.
-    CHECK(sink.ore.sampleWraps.empty());
-}
-
-TEST_CASE("a canvas sampled in a frame it was never opened in still resolves",
-          "[deferred][canvas-import]")
-{
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvas = fakeCanvas();
-
-    // No beginCanvasContent this frame — the script samples a canvas whose
-    // content it wrote earlier. Minting the id without registering the canvas
-    // would leave it unresolvable, and the wrap is one shot: it never
-    // re-records, so the miss would be permanent rather than a dropped frame.
-    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
-            nullptr);
-    session.closeOpenRange();
-
-    auto frame = snapshotFrame(session);
-    ImportOrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
-
-    REQUIRE(sink.ore.sampleWraps.size() == 1);
-    CHECK(sink.ore.sampleWraps[0] == canvas.get());
-    CHECK(sink.foreignPreps.empty());
+  REQUIRE(sink.ore.sampleWraps.size() == 1);
+  CHECK(sink.ore.sampleWraps[0] == canvas.get());
+  CHECK(sink.foreignPreps.empty());
 }

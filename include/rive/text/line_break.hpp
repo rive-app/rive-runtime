@@ -15,77 +15,77 @@ namespace rive
 // appear). Order must match CLASSES in dev/unicode/generate_line_break.py.
 enum class LineBreakClass : uint8_t
 {
-    AL,
-    AK,
-    AP,
-    AS,
-    B2,
-    BA,
-    BB,
-    BK,
-    CB,
-    CJ,
-    CL,
-    CM,
-    CP,
-    CR,
-    EB,
-    EM,
-    EX,
-    GL,
-    H2,
-    H3,
-    HH,
-    HL,
-    HY,
-    ID,
-    IN,
-    IS,
-    JL,
-    JT,
-    JV,
-    LF,
-    NL,
-    NS,
-    NU,
-    OP,
-    PO,
-    PR,
-    QU,
-    RI,
-    SP,
-    SY,
-    VF,
-    VI,
-    WJ,
-    ZW,
-    ZWJ,
+  AL,
+  AK,
+  AP,
+  AS,
+  B2,
+  BA,
+  BB,
+  BK,
+  CB,
+  CJ,
+  CL,
+  CM,
+  CP,
+  CR,
+  EB,
+  EM,
+  EX,
+  GL,
+  H2,
+  H3,
+  HH,
+  HL,
+  HY,
+  ID,
+  IN,
+  IS,
+  JL,
+  JT,
+  JV,
+  LF,
+  NL,
+  NS,
+  NU,
+  OP,
+  PO,
+  PR,
+  QU,
+  RI,
+  SP,
+  SY,
+  VF,
+  VI,
+  WJ,
+  ZW,
+  ZWJ,
 };
 
 // Extra properties some rules need beyond the class. Values must match the
 // FLAG_ constants in the generator.
 enum LineBreakFlags : uint8_t
 {
-    lineBreakEastAsian = 1,      // East_Asian_Width is F, W or H
-    lineBreakPi = 2,             // General_Category Pi
-    lineBreakPf = 4,             // General_Category Pf
-    lineBreakDottedCircle = 8,   // U+25CC
-    lineBreakPictographicCn = 16 // Extended_Pictographic and unassigned
+  lineBreakEastAsian = 1,      // East_Asian_Width is F, W or H
+  lineBreakPi = 2,             // General_Category Pi
+  lineBreakPf = 4,             // General_Category Pf
+  lineBreakDottedCircle = 8,   // U+25CC
+  lineBreakPictographicCn = 16 // Extended_Pictographic and unassigned
 };
 
 struct LineBreakProps
 {
-    LineBreakClass cls;
-    uint8_t flags;
+  LineBreakClass cls;
+  uint8_t flags;
 };
 
 LineBreakProps lineBreakProps(uint32_t codepoint);
 
 enum class LineBreak : uint8_t
 {
-    none,      // no break allowed at this boundary
-    allowed,   // break opportunity
-    mandatory, // hard break
+  none,      // no break allowed at this boundary
+  allowed,   // break opportunity
+  mandatory, // hard break
 };
 
 // Computes the break status of every boundary in text. out must hold

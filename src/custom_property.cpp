@@ -10,28 +10,28 @@ using namespace rive;
 
 StatusCode CustomProperty::onAddedClean(CoreContext* context)
 {
-    if (tagsParent() && parent() != nullptr && parent()->is<Drawable>())
-    {
-        parent()->as<Drawable>()->markHasCustomProperties();
-    }
-    return Super::onAddedClean(context);
+  if (tagsParent() && parent() != nullptr && parent()->is<Drawable>())
+  {
+    parent()->as<Drawable>()->markHasCustomProperties();
+  }
+  return Super::onAddedClean(context);
 }
 
 CustomPropertyKind CustomProperty::kind() const
 {
-    switch (coreType())
-    {
-        case CustomPropertyBooleanBase::typeKey:
-            return CustomPropertyKind::boolean;
-        case CustomPropertyStringBase::typeKey:
-            return CustomPropertyKind::string;
-        case CustomPropertyColorBase::typeKey:
-            return CustomPropertyKind::color;
-        case CustomPropertyEnumBase::typeKey:
-            return CustomPropertyKind::enumeration;
-        case CustomPropertyTriggerBase::typeKey:
-            return CustomPropertyKind::trigger;
-        default:
-            return CustomPropertyKind::number;
-    }
+  switch (coreType())
+  {
+    case CustomPropertyBooleanBase::typeKey:
+      return CustomPropertyKind::boolean;
+    case CustomPropertyStringBase::typeKey:
+      return CustomPropertyKind::string;
+    case CustomPropertyColorBase::typeKey:
+      return CustomPropertyKind::color;
+    case CustomPropertyEnumBase::typeKey:
+      return CustomPropertyKind::enumeration;
+    case CustomPropertyTriggerBase::typeKey:
+      return CustomPropertyKind::trigger;
+    default:
+      return CustomPropertyKind::number;
+  }
 }

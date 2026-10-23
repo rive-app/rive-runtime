@@ -6,6 +6,8 @@ layout(constant_id = ADVANCED_BLEND_SPECIALIZATION_IDX) const
     bool EnableAdvancedBlend = true;
 layout(constant_id = FEATHER_SPECIALIZATION_IDX) const
     bool EnableFeather = true;
+layout(constant_id = MODULATED_IMAGE_SPECIALIZATION_IDX) const
+    bool EnableModulatedImage = true;
 layout(constant_id = EVEN_ODD_SPECIALIZATION_IDX) const
     bool EnableEvenOdd = true;
 layout(constant_id = NESTED_CLIPPING_SPECIALIZATION_IDX) const
@@ -13,8 +15,8 @@ layout(constant_id = NESTED_CLIPPING_SPECIALIZATION_IDX) const
 layout(constant_id = HSL_BLEND_MODES_SPECIALIZATION_IDX) const
     bool EnableHSLBlendModes = true;
 layout(constant_id = DITHER_SPECIALIZATION_IDX) const bool EnableDither = true;
-layout(constant_id = MODULATED_IMAGE_SPECIALIZATION_IDX) const
-    bool EnableModulatedImage = true;
+layout(constant_id = ANGULAR_GRADIENT_SPECIALIZATION_IDX) const
+    bool EnableAngularGradient = true;
 layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
     bool ClockwiseFill = true;
 layout(constant_id = NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX) const
@@ -27,20 +29,27 @@ layout(constant_id = LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX) const
     bool LoadColorFromDstTexture = false;
 layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
     bool VulkanVendorARM = false;
+layout(constant_id = DS_POLAR_STROKE_SPECIALIZATION_IDX) const
+    bool DSPolarStroke = false;
+layout(constant_id = DS_HAIRLINE_STROKE_SPECIALIZATION_IDX) const
+    bool DSHairlineStroke = false;
 
 #define @ENABLE_CLIPPING EnableClipping
 #define @ENABLE_CLIP_RECT EnableClipRect
 #define @ENABLE_ADVANCED_BLEND EnableAdvancedBlend
 #define @DISABLE_ADVANCED_BLEND DisableAdvancedBlend
 #define @ENABLE_FEATHER EnableFeather
+#define @ENABLE_MODULATED_IMAGE EnableModulatedImage
 #define @ENABLE_EVEN_ODD EnableEvenOdd
 #define @ENABLE_NESTED_CLIPPING EnableNestedClipping
 #define @ENABLE_HSL_BLEND_MODES EnableHSLBlendModes
 #define @ENABLE_DITHER EnableDither
-#define @ENABLE_MODULATED_IMAGE EnableModulatedImage
+#define @ENABLE_ANGULAR_GRADIENT EnableAngularGradient
 #define @CLOCKWISE_FILL ClockwiseFill
 #define @NESTED_CLIP_UPDATE_ONLY NestedClipUpdateOnly
 #define @BORROWED_COVERAGE_PASS BorrowedCoveragePrepass
 #define @STORE_COLOR_CLEAR StoreColorClear
 #define @LOAD_COLOR_FROM_DST_TEXTURE LoadColorFromDstTexture
 #define @VULKAN_VENDOR_ARM VulkanVendorARM
+#define @DS_POLAR_STROKE DSPolarStroke
+#define @DS_HAIRLINE_STROKE DSHairlineStroke

@@ -11,38 +11,42 @@ class NSlicedNode : public NSlicedNodeBase,
                     public RenderPathDeformer,
                     public PointDeformer
 {
-    void markPathDirtyRecursive(bool sendToLayout = true);
-    void updateMapWorldPoint();
+  void markPathDirtyRecursive(bool sendToLayout = true);
+  void updateMapWorldPoint();
 
 public:
-    void axisChanged() override;
-    void widthChanged() override;
-    void heightChanged() override;
-    void update(ComponentDirt value) override;
+  void axisChanged() override;
+  void widthChanged() override;
+  void heightChanged() override;
+  void update(ComponentDirt value) override;
 
-    std::function<void(Vec2D&)> mapWorldPoint = [](Vec2D& v) {};
+  std::function<void(Vec2D&)> mapWorldPoint = [](Vec2D& v) {};
 
-    Component* asComponent() override { return this; };
-    void deformWorldRenderPath(RawPath& path) const override;
-    void deformLocalRenderPath(RawPath& path,
-                               const Mat2D& worldTransform,
-                               const Mat2D& inverseWorld) const override;
-    Vec2D deformLocalPoint(Vec2D point,
-                           const Mat2D& worldTransform,
-                           const Mat2D& inverseWorld) const override;
-    Vec2D deformWorldPoint(Vec2D point) const override;
-    Vec2D scaleForNSlicer() const;
-    AABB localBounds() const override;
+  Component* asComponent() override { return this; };
+  void deformWorldRenderPath(RawPath& path) const override;
+  void deformLocalRenderPath(
+      RawPath& path,
+      const Mat2D& worldTransform,
+      const Mat2D& inverseWorld) const override;
+  Vec2D deformLocalPoint(
+      Vec2D point,
+      const Mat2D& worldTransform,
+      const Mat2D& inverseWorld) const override;
+  Vec2D deformWorldPoint(Vec2D point) const override;
+  Vec2D scaleForNSlicer() const;
+  AABB localBounds() const override;
 
-    Vec2D measureLayout(float width,
-                        LayoutMeasureMode widthMode,
-                        float height,
-                        LayoutMeasureMode heightMode) override;
-    void controlSize(Vec2D size,
-                     LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType,
-                     LayoutDirection direction) override;
-    bool shouldPropagateSizeToChildren() override { return false; }
+  Vec2D measureLayout(
+      float width,
+      LayoutMeasureMode widthMode,
+      float height,
+      LayoutMeasureMode heightMode) override;
+  void controlSize(
+      Vec2D size,
+      LayoutScaleType widthScaleType,
+      LayoutScaleType heightScaleType,
+      LayoutDirection direction) override;
+  bool shouldPropagateSizeToChildren() override { return false; }
 };
 } // namespace rive
 

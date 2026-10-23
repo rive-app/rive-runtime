@@ -11,54 +11,54 @@ using namespace rive;
 bool ListenerNumberChange::validateInputType(
     const StateMachineInput* input) const
 {
-    // A null input is valid as the StateMachine can attempt to limp along if we
-    // introduce new input types that old conditions are expected to handle in
-    // newer runtimes. The older runtimes will just evaluate them to true.
-    return input == nullptr || input->is<StateMachineNumber>();
+  // A null input is valid as the StateMachine can attempt to limp along if we
+  // introduce new input types that old conditions are expected to handle in
+  // newer runtimes. The older runtimes will just evaluate them to true.
+  return input == nullptr || input->is<StateMachineNumber>();
 }
 
 bool ListenerNumberChange::validateNestedInputType(
     const NestedInput* input) const
 {
-    // A null nested input is valid as the StateMachine can attempt to limp
-    // along if we introduce new input types that old conditions are expected to
-    // handle in newer runtimes. The older runtimes will just evaluate them to
-    // true.
-    return input == nullptr || input->is<NestedNumber>();
+  // A null nested input is valid as the StateMachine can attempt to limp
+  // along if we introduce new input types that old conditions are expected to
+  // handle in newer runtimes. The older runtimes will just evaluate them to
+  // true.
+  return input == nullptr || input->is<NestedNumber>();
 }
 
-void ListenerNumberChange::perform(StateMachineInstance* stateMachineInstance,
-                                   const ListenerInvocation& invocation) const
+void ListenerNumberChange::perform(
+    StateMachineInstance* stateMachineInstance,
+    const ListenerInvocation& invocation) const
 {
-    (void)invocation;
-    if (nestedInputId() != Core::emptyId)
+  (void)invocation;
+  if (nestedInputId() != Core::emptyId)
+  {
+    auto nestedInputInstance = stateMachineInstance->artboard()->resolve(
+        nestedInputId());
+    if (nestedInputInstance == nullptr)
     {
-        auto nestedInputInstance =
-            stateMachineInstance->artboard()->resolve(nestedInputId());
-        if (nestedInputInstance == nullptr)
-        {
-            return;
-        }
-        auto nestedNumberInput =
-            static_cast<NestedNumber*>(nestedInputInstance);
-        if (nestedNumberInput != nullptr)
-        {
-            nestedNumberInput->nestedValue(value());
-        }
+      return;
     }
-    else
+    auto nestedNumberInput = static_cast<NestedNumber*>(nestedInputInstance);
+    if (nestedNumberInput != nullptr)
     {
-        auto inputInstance = stateMachineInstance->input(inputId());
-        if (inputInstance == nullptr)
-        {
-            return;
-        }
-        // If it's not null, it must be our correct type (why we validate at
-        // load time).
-        auto numberInput = static_cast<SMINumber*>(inputInstance);
-        if (numberInput != nullptr)
-        {
-            numberInput->value(value());
-        }
+      nestedNumberInput->nestedValue(value());
     }
+  }
+  else
+  {
+    auto inputInstance = stateMachineInstance->input(inputId());
+    if (inputInstance == nullptr)
+    {
+      return;
+    }
+    // If it's not null, it must be our correct type (why we validate at
+    // load time).
+    auto numberInput = static_cast<SMINumber*>(inputInstance);
+    if (numberInput != nullptr)
+    {
+      numberInput->value(value());
+    }
+  }
 }

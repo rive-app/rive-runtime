@@ -10,16 +10,16 @@ namespace rive
 class DataConverterOperation : public DataConverterOperationBase
 {
 public:
-    DataType outputType() override { return DataType::number; };
-    ArithmeticOperation op() const
-    {
-        return (ArithmeticOperation)operationType();
-    }
+  DataType outputType() override { return DataType::number; };
+  ArithmeticOperation op() const
+  {
+    return (ArithmeticOperation)operationType();
+  }
 
 protected:
-    DataValue* convertValue(DataValue* input, float value);
-    DataValue* reverseConvertValue(DataValue* input, float value);
-    DataValueNumber m_output;
+  DataValue* convertValue(DataValue* input, float value);
+  DataValue* reverseConvertValue(DataValue* input, float value);
+  DataValueNumber m_output;
 };
 } // namespace rive
 

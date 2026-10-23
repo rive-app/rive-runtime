@@ -27,23 +27,21 @@ namespace rive::cmd
 
 // The destroy lands in stream order after the draws that referenced the id,
 // making reuse safe. A release after the session died no-ops.
-inline void releaseDeferred(RenderCommandBuffer* commands,
-                            IdAllocator<RenderHandle>* allocator,
-                            ResourceKind kind,
-                            RenderHandle id,
-                            uint32_t generation)
+inline void releaseDeferred(
+    RenderCommandBuffer* commands,
+    IdAllocator<RenderHandle>* allocator,
+    ResourceKind kind,
+    RenderHandle id,
+    uint32_t generation)
 {
-    std::lock_guard<std::mutex> lock(recorderRegistryMutex());
-    if (liveRecorders().count(commands) == 0)
-    {
-        return; // the session died first, nothing to record into
-    }
-    // Destructors run on any thread, so queue rather than append; the
-    // recording thread drains at the frame boundary.
-    commands->queueDestroy(static_cast<uint8_t>(kind),
-                           id,
-                           generation,
-                           allocator);
+  std::lock_guard<std::mutex> lock(recorderRegistryMutex());
+  if (liveRecorders().count(commands) == 0)
+  {
+    return; // the session died first, nothing to record into
+  }
+  // Destructors run on any thread, so queue rather than append; the
+  // recording thread drains at the frame boundary.
+  commands->queueDestroy(static_cast<uint8_t>(kind), id, generation, allocator);
 }
 
 // Common deferred resource state: the dense creation id other streams
@@ -51,34 +49,35 @@ inline void releaseDeferred(RenderCommandBuffer* commands,
 class DeferredResourceBase
 {
 public:
-    DeferredResourceBase(ResourceKind kind,
-                         RenderHandle id,
-                         uint32_t generation,
-                         RenderCommandBuffer* buffer,
-                         IdAllocator<RenderHandle>* allocator) :
-        m_id(id),
-        m_buffer(buffer),
-        m_generation(generation),
-        m_allocator(allocator),
-        m_kind(kind)
-    {}
-    RenderHandle id() const { return m_id; }
+  DeferredResourceBase(
+      ResourceKind kind,
+      RenderHandle id,
+      uint32_t generation,
+      RenderCommandBuffer* buffer,
+      IdAllocator<RenderHandle>* allocator)
+      : m_id(id)
+      , m_buffer(buffer)
+      , m_generation(generation)
+      , m_allocator(allocator)
+      , m_kind(kind)
+  {}
+  RenderHandle id() const { return m_id; }
 
 protected:
-    ~DeferredResourceBase()
-    {
-        releaseDeferred(m_buffer, m_allocator, m_kind, m_id, m_generation);
-    }
+  ~DeferredResourceBase()
+  {
+    releaseDeferred(m_buffer, m_allocator, m_kind, m_id, m_generation);
+  }
 
-    RenderHandle m_id;
-    RenderCommandBuffer* m_buffer;
+  RenderHandle m_id;
+  RenderCommandBuffer* m_buffer;
 
-    ResourceKind kind() const { return m_kind; }
+  ResourceKind kind() const { return m_kind; }
 
 private:
-    uint32_t m_generation;
-    IdAllocator<RenderHandle>* m_allocator;
-    ResourceKind m_kind;
+  uint32_t m_generation;
+  IdAllocator<RenderHandle>* m_allocator;
+  ResourceKind m_kind;
 };
 
 // Adds the drawn-version pinning: draws pin the version they recorded
@@ -87,29 +86,29 @@ private:
 class VersionedDeferredResource : public DeferredResourceBase
 {
 public:
-    using DeferredResourceBase::DeferredResourceBase;
+  using DeferredResourceBase::DeferredResourceBase;
 
-    uint32_t version() const { return m_version; }
-    void markDrawn() { m_drawnFrame = m_buffer->frameId(); }
+  uint32_t version() const { return m_version; }
+  void markDrawn() { m_drawnFrame = m_buffer->frameId(); }
 
 protected:
-    void bump()
+  void bump()
+  {
+    if (m_drawnFrame != m_buffer->frameId())
     {
-        if (m_drawnFrame != m_buffer->frameId())
-        {
-            return; // not drawn this frame: mutate the live object in place
-        }
-        m_version++;
-        m_drawnFrame = kNeverDrawn;
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::resourceNewVersion),
-            ResourceVersionPOD{static_cast<uint8_t>(kind()), m_id, m_version});
+      return; // not drawn this frame: mutate the live object in place
     }
+    m_version++;
+    m_drawnFrame = kNeverDrawn;
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::resourceNewVersion),
+        ResourceVersionPOD{static_cast<uint8_t>(kind()), m_id, m_version});
+  }
 
 private:
-    uint32_t m_version = 0;
-    static constexpr uint32_t kNeverDrawn = ~0u;
-    uint32_t m_drawnFrame = kNeverDrawn;
+  uint32_t m_version = 0;
+  static constexpr uint32_t kNeverDrawn = ~0u;
+  uint32_t m_drawnFrame = kNeverDrawn;
 };
 
 // RenderShader is only ever a gradient, so a deferred shader is just an id.
@@ -118,16 +117,18 @@ class DeferredRenderShader
       public DeferredResourceBase
 {
 public:
-    DeferredRenderShader(RenderHandle id,
-                         uint32_t generation,
-                         RenderCommandBuffer* commands,
-                         IdAllocator<RenderHandle>* allocator) :
-        DeferredResourceBase(ResourceKind::shader,
-                             id,
-                             generation,
-                             commands,
-                             allocator)
-    {}
+  DeferredRenderShader(
+      RenderHandle id,
+      uint32_t generation,
+      RenderCommandBuffer* commands,
+      IdAllocator<RenderHandle>* allocator)
+      : DeferredResourceBase(
+            ResourceKind::shader,
+            id,
+            generation,
+            commands,
+            allocator)
+  {}
 };
 
 class DeferredRenderPaint
@@ -135,178 +136,209 @@ class DeferredRenderPaint
       public VersionedDeferredResource
 {
 public:
-    DeferredRenderPaint(RenderHandle id,
-                        uint32_t generation,
-                        RenderCommandBuffer* buffer,
-                        IdAllocator<RenderHandle>* allocator,
-                        ForeignImageRegistry* canvases = nullptr) :
-        VersionedDeferredResource(ResourceKind::paint,
-                                  id,
-                                  generation,
-                                  buffer,
-                                  allocator),
-        m_canvases(canvases)
-    {}
+  DeferredRenderPaint(
+      RenderHandle id,
+      uint32_t generation,
+      RenderCommandBuffer* buffer,
+      IdAllocator<RenderHandle>* allocator,
+      ForeignImageRegistry* canvases = nullptr)
+      : VersionedDeferredResource(
+            ResourceKind::paint,
+            id,
+            generation,
+            buffer,
+            allocator)
+      , m_canvases(canvases)
+  {}
 
-    void style(RenderPaintStyle v) override
+  void style(RenderPaintStyle v) override
+  {
+    if (absorbed(m_state.style, static_cast<uint8_t>(v)))
     {
-        if (absorbed(m_state.style, static_cast<uint8_t>(v)))
-        {
-            return;
-        }
-        emitU8(RenderCmd::paintStyle, m_state.style);
+      return;
     }
-    void color(ColorInt v) override
+    emitU8(RenderCmd::paintStyle, m_state.style);
+  }
+  void color(ColorInt v) override
+  {
+    if (absorbed(m_state.color, v) && m_colorKnown)
     {
-        if (absorbed(m_state.color, v) && m_colorKnown)
-        {
-            return;
-        }
-        m_colorKnown = true;
-        bump();
-        m_buffer->append(t(RenderCmd::paintColor),
-                         PaintColorPOD{m_id, m_state.color});
+      return;
     }
-    void thickness(float v) override
+    m_colorKnown = true;
+    bump();
+    m_buffer->append(
+        t(RenderCmd::paintColor),
+        PaintColorPOD{m_id, m_state.color});
+  }
+  void thickness(float v) override
+  {
+    if (absorbed(m_state.thickness, v))
     {
-        if (absorbed(m_state.thickness, v))
-        {
-            return;
-        }
-        emitFloat(RenderCmd::paintThickness, m_state.thickness);
+      return;
     }
-    void join(StrokeJoin v) override
+    emitFloat(RenderCmd::paintThickness, m_state.thickness);
+  }
+  void join(StrokeJoin v) override
+  {
+    if (absorbed(m_state.join, static_cast<uint8_t>(v)))
     {
-        if (absorbed(m_state.join, static_cast<uint8_t>(v)))
-        {
-            return;
-        }
-        emitU8(RenderCmd::paintJoin, m_state.join);
+      return;
     }
-    void cap(StrokeCap v) override
+    emitU8(RenderCmd::paintJoin, m_state.join);
+  }
+  void cap(StrokeCap v) override
+  {
+    if (absorbed(m_state.cap, static_cast<uint8_t>(v)))
     {
-        if (absorbed(m_state.cap, static_cast<uint8_t>(v)))
-        {
-            return;
-        }
-        emitU8(RenderCmd::paintCap, m_state.cap);
+      return;
     }
-    void strokePosition(StrokePosition v) override
+    emitU8(RenderCmd::paintCap, m_state.cap);
+  }
+  void strokePosition(StrokePosition v) override
+  {
+    if (absorbed(m_state.strokePosition, static_cast<uint8_t>(v)))
     {
-        if (absorbed(m_state.strokePosition, static_cast<uint8_t>(v)))
-        {
-            return;
-        }
-        emitU8(RenderCmd::paintStrokePosition, m_state.strokePosition);
+      return;
     }
+    emitU8(RenderCmd::paintStrokePosition, m_state.strokePosition);
+  }
 
-    void feather(float v) override
+  void feather(float v) override
+  {
+    if (absorbed(m_state.feather, v))
     {
-        if (absorbed(m_state.feather, v))
-        {
-            return;
-        }
-        emitFloat(RenderCmd::paintFeather, m_state.feather);
+      return;
     }
-    void additiveness(float v) override
+    emitFloat(RenderCmd::paintFeather, m_state.feather);
+  }
+  void additiveness(float v) override
+  {
+    if (absorbed(m_state.additiveness, v))
     {
-        if (absorbed(m_state.additiveness, v))
-        {
-            return;
-        }
-        emitFloat(RenderCmd::paintAdditiveness, m_state.additiveness);
+      return;
     }
-    void blendMode(BlendMode v) override
+    emitFloat(RenderCmd::paintAdditiveness, m_state.additiveness);
+  }
+  void blendMode(BlendMode v) override
+  {
+    if (absorbed(m_state.blendMode, static_cast<uint8_t>(v)))
     {
-        if (absorbed(m_state.blendMode, static_cast<uint8_t>(v)))
-        {
-            return;
-        }
-        emitU8(RenderCmd::paintBlendMode, m_state.blendMode);
+      return;
     }
-    void shader(
-        rcp<RenderShader> s) override; // defined below (needs the helper)
-    void modulatedImage(const RenderImage*,
-                        ImageSampler,
-                        const Mat2D&) override; // defined below (needs the
-                                                // DeferredRenderImage type)
-    void invalidateStroke() override
+    emitU8(RenderCmd::paintBlendMode, m_state.blendMode);
+  }
+  void shader(rcp<RenderShader> s) override; // defined below (needs the helper)
+  void shaderTransform(const Mat2D& transform) override
+  {
+    if (absorbed(m_state.transform, transform))
     {
-        // Stroked shapes invalidate every frame their path moves, and the
-        // consumer only rebuilds the stroke when it draws, so repeats before
-        // the next draw say nothing new. It carries no state either, so it
-        // must not drag a version bump and a state rewrite behind it.
-        if (m_strokeInvalidated)
-        {
-            return;
-        }
-        m_strokeInvalidated = true;
-        m_buffer->append(t(RenderCmd::paintInvalidateStroke), ResIdPOD{m_id});
+      return;
     }
+    bump();
+    m_buffer->append(
+        t(RenderCmd::paintShaderTransform),
+        PaintMat2DPOD{
+            m_id,
+            transform.xx(),
+            transform.xy(),
+            transform.yx(),
+            transform.yy(),
+            transform.tx(),
+            transform.ty()});
+  }
+  void modulatedImage(
+      const RenderImage*,
+      ImageSampler,
+      const Mat2D&) override; // defined below (needs the
+                              // DeferredRenderImage type)
+  // The flagged id of the foreign image, such as a canvas snapshot, this
+  // paint is modulated by now, or kInvalidRenderHandle.
+  RenderHandle foreignImageId() const
+  {
+    return m_imageId != kInvalidRenderHandle &&
+                   (m_imageId & kCanvasHandleFlag) != 0
+               ? m_imageId
+               : kInvalidRenderHandle;
+  }
+  void invalidateStroke() override
+  {
+    // Stroked shapes invalidate every frame their path moves, and the
+    // consumer only rebuilds the stroke when it draws, so repeats before
+    // the next draw say nothing new. It carries no state either, so it
+    // must not drag a version bump and a state rewrite behind it.
+    if (m_strokeInvalidated)
+    {
+      return;
+    }
+    m_strokeInvalidated = true;
+    m_buffer->append(t(RenderCmd::paintInvalidateStroke), ResIdPOD{m_id});
+  }
 
-    void markDrawn()
-    {
-        VersionedDeferredResource::markDrawn();
-        m_strokeInvalidated = false;
-    }
+  void markDrawn()
+  {
+    VersionedDeferredResource::markDrawn();
+    m_strokeInvalidated = false;
+  }
 
 private:
-    // Must be the backend's defaults, because a property nothing ever changes
-    // away from them is never written and the replay object keeps its own.
-    struct State
-    {
-        ColorInt color = 0xFF000000;
-        float thickness = 1;
-        float feather = 0;
-        float additiveness = 0;
-        uint8_t style = 1; // fill; a fresh paint is unstroked until told
-        uint8_t join = 0;  // miter
-        uint8_t cap = 0;   // butt
-        uint8_t strokePosition = 1; // center
-        uint8_t blendMode = 3;      // srcOver
-    };
+  // Must be the backend's defaults, because a property nothing ever changes
+  // away from them is never written and the replay object keeps its own.
+  struct State
+  {
+    ColorInt color = 0xFF000000;
+    float thickness = 1;
+    float feather = 0;
+    float additiveness = 0;
+    uint8_t style = 1;          // fill; a fresh paint is unstroked until told
+    uint8_t join = 0;           // miter
+    uint8_t cap = 0;            // butt
+    uint8_t strokePosition = 1; // center
+    uint8_t blendMode = 3;      // srcOver
+    Mat2D transform;
+  };
 
-    static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }
-    // Absorbs the new value into the shadow; true when the consumer already
-    // has it and the append can be skipped.
-    template <typename T> bool absorbed(T& field, T v)
+  static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }
+  // Absorbs the new value into the shadow; true when the consumer already
+  // has it and the append can be skipped.
+  template <typename T> bool absorbed(T& field, T v)
+  {
+    if (field == v)
     {
-        if (field == v)
-        {
-            return true;
-        }
-        field = v;
-        return false;
+      return true;
     }
-    void emitU8(RenderCmd c, uint8_t v)
-    {
-        bump();
-        m_buffer->append(t(c), PaintU8POD{m_id, v});
-    }
-    void emitFloat(RenderCmd c, float v)
-    {
-        bump();
-        m_buffer->append(t(c), PaintFloatPOD{m_id, v});
-    }
+    field = v;
+    return false;
+  }
+  void emitU8(RenderCmd c, uint8_t v)
+  {
+    bump();
+    m_buffer->append(t(c), PaintU8POD{m_id, v});
+  }
+  void emitFloat(RenderCmd c, float v)
+  {
+    bump();
+    m_buffer->append(t(c), PaintFloatPOD{m_id, v});
+  }
 
-    State m_state;
-    // Held as an rcp so an animated gradient outlives the setter: comparing
-    // ids alone would alias a recycled one.
-    rcp<RenderShader> m_shader;
-    bool m_colorKnown = true;
-    bool m_strokeInvalidated = false;
+  State m_state;
+  // Held as an rcp so an animated gradient outlives the setter: comparing
+  // ids alone would alias a recycled one.
+  rcp<RenderShader> m_shader;
+  bool m_colorKnown = true;
+  bool m_strokeInvalidated = false;
 
-    // Shadow of the last modulated image so an unchanged re-set every frame
-    // (the shape paint re-applies it each render) is absorbed rather than
-    // bumping a fresh version.
-    RenderHandle m_imageId = kInvalidRenderHandle;
-    bool m_imageKnown = false;
-    uint8_t m_imageWrapX = 0, m_imageWrapY = 0, m_imageFilter = 0;
-    Mat2D m_imageMatrix;
+  // Shadow of the last modulated image so an unchanged re-set every frame
+  // (the shape paint re-applies it each render) is absorbed rather than
+  // bumping a fresh version.
+  RenderHandle m_imageId = kInvalidRenderHandle;
+  bool m_imageKnown = false;
+  uint8_t m_imageWrapX = 0, m_imageWrapY = 0, m_imageFilter = 0;
+  Mat2D m_imageMatrix;
 
-    // Registry used to resolve a modulated image that isn't a decoded
-    // DeferredRenderImage (e.g. a Luau canvas snapshot), mirroring drawImage.
-    ForeignImageRegistry* m_canvases = nullptr;
+  // Registry used to resolve a modulated image that isn't a decoded
+  // DeferredRenderImage (e.g. a Luau canvas snapshot), mirroring drawImage.
+  ForeignImageRegistry* m_canvases = nullptr;
 };
 
 class DeferredRenderPath
@@ -314,240 +346,246 @@ class DeferredRenderPath
       public VersionedDeferredResource
 {
 public:
-    DeferredRenderPath(RenderHandle id,
-                       uint32_t generation,
-                       RenderCommandBuffer* buffer,
-                       IdAllocator<RenderHandle>* allocator) :
-        VersionedDeferredResource(ResourceKind::path,
-                                  id,
-                                  generation,
-                                  buffer,
-                                  allocator)
-    {}
+  DeferredRenderPath(
+      RenderHandle id,
+      uint32_t generation,
+      RenderCommandBuffer* buffer,
+      IdAllocator<RenderHandle>* allocator)
+      : VersionedDeferredResource(
+            ResourceKind::path,
+            id,
+            generation,
+            buffer,
+            allocator)
+  {}
 
-    void rewind() override
-    {
-        bump();
-        m_scratch.rewind(); // discards any pending per-verb geometry
+  void rewind() override
+  {
+    bump();
+    m_scratch.rewind(); // discards any pending per-verb geometry
 #ifdef WITH_RIVE_PATH_QUERY
-        if (m_query != nullptr)
-        {
-            m_query->rewind();
-        }
+    if (m_query != nullptr)
+    {
+      m_query->rewind();
+    }
 #endif
-        m_buffer->append(t(RenderCmd::pathRewind), ResIdPOD{m_id});
-    }
-    void fillRule(FillRule v) override
+    m_buffer->append(t(RenderCmd::pathRewind), ResIdPOD{m_id});
+  }
+  void fillRule(FillRule v) override
+  {
+    // ShapePaint re-sets the fill rule before every fill draw; a no-op
+    // set must not bump a drawn path to a new version.
+    if (m_haveFillRule && v == m_fillRule)
     {
-        // ShapePaint re-sets the fill rule before every fill draw; a no-op
-        // set must not bump a drawn path to a new version.
-        if (m_haveFillRule && v == m_fillRule)
-        {
-            return;
-        }
-        m_haveFillRule = true;
-        m_fillRule = v;
-        bump();
-        m_buffer->append(t(RenderCmd::pathFillRule),
-                         PathFillRulePOD{m_id, static_cast<uint8_t>(v)});
+      return;
     }
-    FillRule fillRule() const { return m_fillRule; }
+    m_haveFillRule = true;
+    m_fillRule = v;
+    bump();
+    m_buffer->append(
+        t(RenderCmd::pathFillRule),
+        PathFillRulePOD{m_id, static_cast<uint8_t>(v)});
+  }
+  FillRule fillRule() const { return m_fillRule; }
 
-    // Where a host RawPath re-enters us, since RawPath::addTo fans out to
-    // these. Accumulate into a scratch RawPath flushed on next use, dropping
-    // zero length segments like RiveRenderPath so replay draws the same thing.
-    void moveTo(float x, float y) override
-    {
-        m_scratch.moveTo(x, y);
-        queryMirror([=](RawPath& q) { q.moveTo(x, y); });
-    }
-    void lineTo(float x, float y) override
-    {
-        appendLine(m_scratch, {x, y});
-        queryMirror([=](RawPath& q) { appendLine(q, {x, y}); });
-    }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
-        override
-    {
-        appendCubic(m_scratch, {ox, oy}, {ix, iy}, {x, y});
-        queryMirror(
-            [=](RawPath& q) { appendCubic(q, {ox, oy}, {ix, iy}, {x, y}); });
-    }
-    void close() override
-    {
-        m_scratch.close();
-        queryMirror([](RawPath& q) { q.close(); });
-    }
+  // Where a host RawPath re-enters us, since RawPath::addTo fans out to
+  // these. Accumulate into a scratch RawPath flushed on next use, dropping
+  // zero length segments like RiveRenderPath so replay draws the same thing.
+  void moveTo(float x, float y) override
+  {
+    m_scratch.moveTo(x, y);
+    queryMirror([=](RawPath& q) { q.moveTo(x, y); });
+  }
+  void lineTo(float x, float y) override
+  {
+    appendLine(m_scratch, {x, y});
+    queryMirror([=](RawPath& q) { appendLine(q, {x, y}); });
+  }
+  void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+      override
+  {
+    appendCubic(m_scratch, {ox, oy}, {ix, iy}, {x, y});
+    queryMirror(
+        [=](RawPath& q) { appendCubic(q, {ox, oy}, {ix, iy}, {x, y}); });
+  }
+  void close() override
+  {
+    m_scratch.close();
+    queryMirror([](RawPath& q) { q.close(); });
+  }
 
-    void addRenderPath(const RenderPath* path, const Mat2D& m) override
-    {
-        bump();
-        flushScratch();
-        flushScratchOf(path); // src geometry must be complete in the stream
-        RenderHandle src = idOfPath(path);
-        m_buffer->append(t(RenderCmd::pathAddRenderPath),
-                         PathAddPathPOD{m_id,
-                                        src,
-                                        m.xx(),
-                                        m.xy(),
-                                        m.yx(),
-                                        m.yy(),
-                                        m.tx(),
-                                        m.ty()});
+  void addRenderPath(const RenderPath* path, const Mat2D& m) override
+  {
+    bump();
+    flushScratch();
+    flushScratchOf(path); // src geometry must be complete in the stream
+    RenderHandle src = idOfPath(path);
+    m_buffer->append(
+        t(RenderCmd::pathAddRenderPath),
+        PathAddPathPOD{
+            m_id,
+            src,
+            m.xx(),
+            m.xy(),
+            m.yx(),
+            m.yy(),
+            m.tx(),
+            m.ty()});
 #ifdef WITH_RIVE_PATH_QUERY
-        if (m_query != nullptr)
-        {
-            auto* d = lite_rtti_cast<DeferredRenderPath*>(
-                const_cast<RenderPath*>(path));
-            if (const RawPath* srcQuery = d ? d->queryRawPath() : nullptr)
-            {
-                if (d == this)
-                {
-                    // Adding a path into itself reads the vector it appends.
-                    RawPath copy(*srcQuery);
-                    m_query->addPath(copy, &m);
-                }
-                else
-                {
-                    m_query->addPath(*srcQuery, &m);
-                }
-            }
-        }
-#endif
-    }
-    void addRawPath(const RawPath& path) override
+    if (m_query != nullptr)
     {
-        flushScratch(); // preserve order: pending per-verb before this bulk add
-        recordAddRawPath(path);
-        queryMirror([&](RawPath& q) { q.addPath(path); });
+      auto* d = lite_rtti_cast<DeferredRenderPath*>(
+          const_cast<RenderPath*>(path));
+      if (const RawPath* srcQuery = d ? d->queryRawPath() : nullptr)
+      {
+        if (d == this)
+        {
+          // Adding a path into itself reads the vector it appends.
+          RawPath copy(*srcQuery);
+          m_query->addPath(copy, &m);
+        }
+        else
+        {
+          m_query->addPath(*srcQuery, &m);
+        }
+      }
     }
+#endif
+  }
+  void addRawPath(const RawPath& path) override
+  {
+    flushScratch(); // preserve order: pending per-verb before this bulk add
+    recordAddRawPath(path);
+    queryMirror([&](RawPath& q) { q.addPath(path); });
+  }
 
 #ifdef WITH_RIVE_PATH_QUERY
-    // Opt in per path: hosts that hit test or measure what they record call
-    // this at creation; file loads never do, so their paths stay twin free.
-    // A seed refreshes rather than appends, effect paths re-hand the same
-    // live pointer.
-    void retainQueryGeometry(const RawPath* seed = nullptr)
+  // Opt in per path: hosts that hit test or measure what they record call
+  // this at creation; file loads never do, so their paths stay twin free.
+  // A seed refreshes rather than appends, effect paths re-hand the same
+  // live pointer.
+  void retainQueryGeometry(const RawPath* seed = nullptr)
+  {
+    if (m_query == nullptr)
     {
-        if (m_query == nullptr)
-        {
-            m_query = std::make_unique<RawPath>();
-        }
-        if (seed != nullptr)
-        {
-            m_query->rewind();
-            m_query->addPath(*seed);
-        }
+      m_query = std::make_unique<RawPath>();
     }
-    const RawPath* queryRawPath() const { return m_query.get(); }
+    if (seed != nullptr)
+    {
+      m_query->rewind();
+      m_query->addPath(*seed);
+    }
+  }
+  const RawPath* queryRawPath() const { return m_query.get(); }
 #endif
 
-    // Emit any pending per verb geometry as one addRawPath. Public so the
-    // renderer can flush before a draw or clip.
-    void flushScratch()
+  // Emit any pending per verb geometry as one addRawPath. Public so the
+  // renderer can flush before a draw or clip.
+  void flushScratch()
+  {
+    if (m_scratch.empty())
     {
-        if (m_scratch.empty())
-        {
-            return;
-        }
-        recordAddRawPath(m_scratch);
-        m_scratch.rewind();
+      return;
     }
-    static void flushScratchOf(const RenderPath* p)
+    recordAddRawPath(m_scratch);
+    m_scratch.rewind();
+  }
+  static void flushScratchOf(const RenderPath* p)
+  {
+    if (auto* d = lite_rtti_cast<DeferredRenderPath*>(
+            const_cast<RenderPath*>(p)))
     {
-        if (auto* d =
-                lite_rtti_cast<DeferredRenderPath*>(const_cast<RenderPath*>(p)))
-        {
-            d->flushScratch();
-        }
+      d->flushScratch();
     }
+  }
 
-    // kInvalid when the path is not one of ours.
-    static RenderHandle idOfPath(const RenderPath* p)
-    {
-        auto* d =
-            lite_rtti_cast<DeferredRenderPath*>(const_cast<RenderPath*>(p));
-        return d ? d->id() : kInvalidRenderHandle;
-    }
+  // kInvalid when the path is not one of ours.
+  static RenderHandle idOfPath(const RenderPath* p)
+  {
+    auto* d = lite_rtti_cast<DeferredRenderPath*>(const_cast<RenderPath*>(p));
+    return d ? d->id() : kInvalidRenderHandle;
+  }
 
 private:
-    static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }
+  static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }
 
-    // Start the contour even when the segment itself is empty, matching
-    // RiveRenderPath.
-    static void appendLine(RawPath& path, Vec2D p1)
+  // Start the contour even when the segment itself is empty, matching
+  // RiveRenderPath.
+  static void appendLine(RawPath& path, Vec2D p1)
+  {
+    path.injectImplicitMoveIfNeeded();
+    if (path.points().back() != p1)
     {
-        path.injectImplicitMoveIfNeeded();
-        if (path.points().back() != p1)
-        {
-            path.line(p1);
-        }
+      path.line(p1);
     }
-    static void appendCubic(RawPath& path, Vec2D p1, Vec2D p2, Vec2D p3)
+  }
+  static void appendCubic(RawPath& path, Vec2D p1, Vec2D p2, Vec2D p3)
+  {
+    path.injectImplicitMoveIfNeeded();
+    if (path.points().back() != p1 || p1 != p2 || p2 != p3)
     {
-        path.injectImplicitMoveIfNeeded();
-        if (path.points().back() != p1 || p1 != p2 || p2 != p3)
-        {
-            path.cubic(p1, p2, p3);
-        }
+      path.cubic(p1, p2, p3);
     }
-    // Replay seeds a bumped path version from the outgoing one, so appends
-    // land on prior geometry and a rewind clears the seed via its own
-    // recorded command.
-    void recordAddRawPath(const RawPath& path)
-    {
-        bump();
-        auto verbs = path.verbs();
-        auto points = path.points();
-        uint64_t verbsOff = m_buffer->appendBlob(
-            verbs.data(),
-            static_cast<uint32_t>(verbs.size() * sizeof(PathVerb)));
-        uint64_t pointsOff = m_buffer->appendBlob(
-            points.data(),
-            static_cast<uint32_t>(points.size() * sizeof(Vec2D)));
-        m_buffer->append(t(RenderCmd::pathAddRawPath),
-                         PathRawPOD{verbsOff,
-                                    pointsOff,
-                                    m_id,
-                                    static_cast<uint32_t>(verbs.size()),
-                                    static_cast<uint32_t>(points.size())});
-    }
+  }
+  // Replay seeds a bumped path version from the outgoing one, so appends
+  // land on prior geometry and a rewind clears the seed via its own
+  // recorded command.
+  void recordAddRawPath(const RawPath& path)
+  {
+    bump();
+    auto verbs = path.verbs();
+    auto points = path.points();
+    uint64_t verbsOff = m_buffer->appendBlob(
+        verbs.data(),
+        static_cast<uint32_t>(verbs.size() * sizeof(PathVerb)));
+    uint64_t pointsOff = m_buffer->appendBlob(
+        points.data(),
+        static_cast<uint32_t>(points.size() * sizeof(Vec2D)));
+    m_buffer->append(
+        t(RenderCmd::pathAddRawPath),
+        PathRawPOD{
+            verbsOff,
+            pointsOff,
+            m_id,
+            static_cast<uint32_t>(verbs.size()),
+            static_cast<uint32_t>(points.size())});
+  }
 
 #ifdef WITH_RIVE_PATH_QUERY
-    template <typename F> void queryMirror(F&& f)
+  template <typename F> void queryMirror(F&& f)
+  {
+    if (m_query != nullptr)
     {
-        if (m_query != nullptr)
-        {
-            f(*m_query);
-        }
+      f(*m_query);
     }
-    std::unique_ptr<RawPath> m_query;
+  }
+  std::unique_ptr<RawPath> m_query;
 #else
-    template <typename F> void queryMirror(F&&) {}
+  template <typename F> void queryMirror(F&&) {}
 #endif
 
-    RawPath m_scratch; // pending CommandPath per-verb geometry
-    FillRule m_fillRule = FillRule::nonZero;
-    bool m_haveFillRule = false;
+  RawPath m_scratch; // pending CommandPath per-verb geometry
+  FillRule m_fillRule = FillRule::nonZero;
+  bool m_haveFillRule = false;
 };
 
 inline void DeferredRenderPaint::shader(rcp<RenderShader> s)
 {
-    if (m_shader.get() == s.get())
-    {
-        return;
-    }
-    m_shader = std::move(s);
-    RenderHandle id = kInvalidRenderHandle; // null clears the shader
-    if (auto* d = lite_rtti_cast<DeferredRenderShader*>(m_shader.get()))
-    {
-        id = d->id();
-    }
-    // Backends are free to disturb the solid color when the shader moves
-    // (RiveRenderPaint does), so stop trusting the shadowed one.
-    m_colorKnown = false;
-    bump();
-    m_buffer->append(t(RenderCmd::paintShader), PaintShaderPOD{m_id, id});
+  if (m_shader.get() == s.get())
+  {
+    return;
+  }
+  m_shader = std::move(s);
+  RenderHandle id = kInvalidRenderHandle; // null clears the shader
+  if (auto* d = lite_rtti_cast<DeferredRenderShader*>(m_shader.get()))
+  {
+    id = d->id();
+  }
+  // Backends are free to disturb the solid color when the shader moves
+  // (RiveRenderPaint does), so stop trusting the shadowed one.
+  m_colorKnown = false;
+  bump();
+  m_buffer->append(t(RenderCmd::paintShader), PaintShaderPOD{m_id, id});
 }
 
 // Carries dims decoded at record time so the artboard can read them during
@@ -557,73 +595,78 @@ class DeferredRenderImage
       public DeferredResourceBase
 {
 public:
-    DeferredRenderImage(RenderHandle id,
-                        uint32_t generation,
-                        int width,
-                        int height,
-                        RenderCommandBuffer* commands,
-                        IdAllocator<RenderHandle>* allocator) :
-        DeferredResourceBase(ResourceKind::image,
-                             id,
-                             generation,
-                             commands,
-                             allocator)
-    {
-        m_Width = width;
-        m_Height = height;
-    }
+  DeferredRenderImage(
+      RenderHandle id,
+      uint32_t generation,
+      int width,
+      int height,
+      RenderCommandBuffer* commands,
+      IdAllocator<RenderHandle>* allocator)
+      : DeferredResourceBase(
+            ResourceKind::image,
+            id,
+            generation,
+            commands,
+            allocator)
+  {
+    m_Width = width;
+    m_Height = height;
+  }
 };
 
-inline void DeferredRenderPaint::modulatedImage(const RenderImage* image,
-                                                ImageSampler sampler,
-                                                const Mat2D& matrix)
+inline void DeferredRenderPaint::modulatedImage(
+    const RenderImage* image,
+    ImageSampler sampler,
+    const Mat2D& matrix)
 {
-    RenderHandle id = kInvalidRenderHandle; // null clears the image
-    bool foreign = false;
-    if (auto* d = lite_rtti_cast<DeferredRenderImage*>(
-            const_cast<RenderImage*>(image)))
-    {
-        id = d->id();
-    }
-    else if (image != nullptr && m_canvases != nullptr)
-    {
-        // Not a decoded image: a foreign RenderImage such as a Luau canvas
-        // snapshot. Resolve it to a flagged id through the per-frame registry,
-        // exactly as drawImage does, so the modulated image survives to replay.
-        id = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
-        foreign = true;
-    }
-    // Absorb an unchanged re-set: the shape paint re-applies the image every
-    // render, and only a real change should bump a version. Foreign images are
-    // never absorbed: the registry is cleared each frame, so their entry must
-    // be re-registered (via imageDrawId above) and re-recorded every frame.
-    if (!foreign && m_imageKnown && id == m_imageId &&
-        static_cast<uint8_t>(sampler.wrapX) == m_imageWrapX &&
-        static_cast<uint8_t>(sampler.wrapY) == m_imageWrapY &&
-        static_cast<uint8_t>(sampler.filter) == m_imageFilter &&
-        matrix == m_imageMatrix)
-    {
-        return;
-    }
-    m_imageKnown = true;
-    m_imageId = id;
-    m_imageWrapX = static_cast<uint8_t>(sampler.wrapX);
-    m_imageWrapY = static_cast<uint8_t>(sampler.wrapY);
-    m_imageFilter = static_cast<uint8_t>(sampler.filter);
-    m_imageMatrix = matrix;
-    bump();
-    m_buffer->append(t(RenderCmd::paintModulatedImage),
-                     PaintModulatedImagePOD{m_id,
-                                            id,
-                                            m_imageWrapX,
-                                            m_imageWrapY,
-                                            m_imageFilter,
-                                            matrix.xx(),
-                                            matrix.xy(),
-                                            matrix.yx(),
-                                            matrix.yy(),
-                                            matrix.tx(),
-                                            matrix.ty()});
+  RenderHandle id = kInvalidRenderHandle; // null clears the image
+  bool foreign = false;
+  if (auto* d = lite_rtti_cast<DeferredRenderImage*>(
+          const_cast<RenderImage*>(image)))
+  {
+    id = d->id();
+  }
+  else if (image != nullptr && m_canvases != nullptr)
+  {
+    // Not a decoded image: a foreign RenderImage such as a Luau canvas
+    // snapshot. Resolve it to a flagged id through the per-frame registry,
+    // exactly as drawImage does, so the modulated image survives to replay.
+    id = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
+    foreign = true;
+  }
+  // Absorb an unchanged re-set: the shape paint re-applies the image every
+  // render, and only a real change should bump a version. Foreign images are
+  // never absorbed: the registry is cleared each frame, so their entry must
+  // be re-registered (via imageDrawId above) and re-recorded every frame.
+  if (!foreign && m_imageKnown && id == m_imageId &&
+      static_cast<uint8_t>(sampler.wrapX) == m_imageWrapX &&
+      static_cast<uint8_t>(sampler.wrapY) == m_imageWrapY &&
+      static_cast<uint8_t>(sampler.filter) == m_imageFilter &&
+      matrix == m_imageMatrix)
+  {
+    return;
+  }
+  m_imageKnown = true;
+  m_imageId = id;
+  m_imageWrapX = static_cast<uint8_t>(sampler.wrapX);
+  m_imageWrapY = static_cast<uint8_t>(sampler.wrapY);
+  m_imageFilter = static_cast<uint8_t>(sampler.filter);
+  m_imageMatrix = matrix;
+  bump();
+  m_buffer->append(
+      t(RenderCmd::paintModulatedImage),
+      PaintModulatedImagePOD{
+          m_id,
+          id,
+          m_imageWrapX,
+          m_imageWrapY,
+          m_imageFilter,
+          matrix.xx(),
+          matrix.xy(),
+          matrix.yx(),
+          matrix.yy(),
+          matrix.tx(),
+          matrix.ty()});
 }
 
 // map() hands out a scratch buffer; unmap() records its bytes as a bufferData
@@ -633,41 +676,44 @@ class DeferredRenderBuffer
       public VersionedDeferredResource
 {
 public:
-    DeferredRenderBuffer(RenderHandle id,
-                         uint32_t generation,
-                         RenderBufferType type,
-                         RenderBufferFlags flags,
-                         size_t sizeInBytes,
-                         RenderCommandBuffer* buffer,
-                         IdAllocator<RenderHandle>* allocator) :
-        LITE_RTTI_OVERRIDE(RenderBuffer,
-                           DeferredRenderBuffer)(type, flags, sizeInBytes),
-        VersionedDeferredResource(ResourceKind::buffer,
-                                  id,
-                                  generation,
-                                  buffer,
-                                  allocator)
-    {}
+  DeferredRenderBuffer(
+      RenderHandle id,
+      uint32_t generation,
+      RenderBufferType type,
+      RenderBufferFlags flags,
+      size_t sizeInBytes,
+      RenderCommandBuffer* buffer,
+      IdAllocator<RenderHandle>* allocator)
+      : LITE_RTTI_OVERRIDE(
+            RenderBuffer,
+            DeferredRenderBuffer)(type, flags, sizeInBytes)
+      , VersionedDeferredResource(
+            ResourceKind::buffer,
+            id,
+            generation,
+            buffer,
+            allocator)
+  {}
 
 protected:
-    void* onMap() override
-    {
-        m_scratch.resize(sizeInBytes());
-        return m_scratch.data();
-    }
-    void onUnmap() override
-    {
-        bump();
-        uint64_t off =
-            m_buffer->appendBlob(m_scratch.data(),
-                                 static_cast<uint32_t>(m_scratch.size()));
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::bufferData),
-            BufferDataPOD{off, m_id, static_cast<uint32_t>(m_scratch.size())});
-    }
+  void* onMap() override
+  {
+    m_scratch.resize(sizeInBytes());
+    return m_scratch.data();
+  }
+  void onUnmap() override
+  {
+    bump();
+    uint64_t off = m_buffer->appendBlob(
+        m_scratch.data(),
+        static_cast<uint32_t>(m_scratch.size()));
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::bufferData),
+        BufferDataPOD{off, m_id, static_cast<uint32_t>(m_scratch.size())});
+  }
 
 private:
-    std::vector<uint8_t> m_scratch;
+  std::vector<uint8_t> m_scratch;
 };
 
 class DeferredImageMeshInstances
@@ -675,34 +721,37 @@ class DeferredImageMeshInstances
       public VersionedDeferredResource
 {
 public:
-    DeferredImageMeshInstances(RenderHandle id,
-                               uint32_t generation,
-                               size_t count,
-                               RenderCommandBuffer* buffer,
-                               IdAllocator<RenderHandle>* allocator) :
-        LITE_RTTI_OVERRIDE(ImageMeshInstances,
-                           DeferredImageMeshInstances)(count),
-        VersionedDeferredResource(ResourceKind::imageMeshInstances,
-                                  id,
-                                  generation,
-                                  buffer,
-                                  allocator)
-    {}
+  DeferredImageMeshInstances(
+      RenderHandle id,
+      uint32_t generation,
+      size_t count,
+      RenderCommandBuffer* buffer,
+      IdAllocator<RenderHandle>* allocator)
+      : LITE_RTTI_OVERRIDE(ImageMeshInstances, DeferredImageMeshInstances)(
+            count)
+      , VersionedDeferredResource(
+            ResourceKind::imageMeshInstances,
+            id,
+            generation,
+            buffer,
+            allocator)
+  {}
 
 protected:
-    void onEndEdit() override
-    {
-        bump();
-        Span<const ImageMeshInstanceData> data = instanceData();
-        uint64_t off =
-            m_buffer->appendBlob(data.data(),
-                                 static_cast<uint32_t>(data.size_bytes()));
-        m_buffer->append(
-            static_cast<uint8_t>(RenderCmd::imageMeshInstancesData),
-            ImageMeshInstancesDataPOD{off,
-                                      m_id,
-                                      static_cast<uint32_t>(data.size())});
-    }
+  void onEndEdit() override
+  {
+    bump();
+    Span<const ImageMeshInstanceData> data = instanceData();
+    uint64_t off = m_buffer->appendBlob(
+        data.data(),
+        static_cast<uint32_t>(data.size_bytes()));
+    m_buffer->append(
+        static_cast<uint8_t>(RenderCmd::imageMeshInstancesData),
+        ImageMeshInstancesDataPOD{
+            off,
+            m_id,
+            static_cast<uint32_t>(data.size())});
+  }
 };
 
 } // namespace rive::cmd

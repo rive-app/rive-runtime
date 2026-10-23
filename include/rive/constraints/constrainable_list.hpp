@@ -10,13 +10,13 @@ class ListConstraint;
 class ConstrainableList
 {
 protected:
-    std::vector<ListConstraint*> m_listConstraints;
+  std::vector<ListConstraint*> m_listConstraints;
 
 public:
-    static ConstrainableList* from(Component* component);
-    void addListConstraint(ListConstraint* constraint);
-    virtual const Mat2D& listTransform() = 0;
-    virtual void listItemTransforms(std::vector<Mat2D*>& transforms) = 0;
+  static ConstrainableList* from(Component* component);
+  void addListConstraint(ListConstraint* constraint);
+  virtual const Mat2D& listTransform() = 0;
+  virtual void listItemTransforms(std::vector<Mat2D*>& transforms) = 0;
 };
 } // namespace rive
 

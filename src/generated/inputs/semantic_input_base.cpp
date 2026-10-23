@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* SemanticInputBase::clone() const
 {
-    auto cloned = new SemanticInput();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new SemanticInput();
+  cloned->copy(*this);
+  return cloned;
 }

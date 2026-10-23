@@ -27,57 +27,53 @@ static constexpr size_t kSignatureSize = 64;
 class SignedContentHeader
 {
 public:
-    /// Constructs a SignedContentHeader from raw data (header + content).
-    /// The data must outlive this object.
-    explicit SignedContentHeader(Span<const uint8_t> data) : m_data(data)
+  /// Constructs a SignedContentHeader from raw data (header + content).
+  /// The data must outlive this object.
+  explicit SignedContentHeader(Span<const uint8_t> data) : m_data(data)
+  {
+    if (!data.empty())
     {
-        if (!data.empty())
-        {
-            m_flags = data[0];
-        }
+      m_flags = data[0];
     }
+  }
 
-    /// @returns true if the header indicates the content is signed
-    bool isSigned() const { return (m_flags & 0x80) != 0; }
+  /// @returns true if the header indicates the content is signed
+  bool isSigned() const { return (m_flags & 0x80) != 0; }
 
-    /// @returns the version number from the header (0-127)
-    uint8_t version() const { return m_flags & 0x7F; }
+  /// @returns the version number from the header (0-127)
+  uint8_t version() const { return m_flags & 0x7F; }
 
-    /// @returns true if the data is valid (has at least the header byte and
-    /// enough bytes for signature if signed)
-    bool isValid() const { return m_data.size() >= contentOffset(); }
+  /// @returns true if the data is valid (has at least the header byte and
+  /// enough bytes for signature if signed)
+  bool isValid() const { return m_data.size() >= contentOffset(); }
 
-    /// @returns the offset where content starts (1 if unsigned, 65 if signed)
-    size_t contentOffset() const
+  /// @returns the offset where content starts (1 if unsigned, 65 if signed)
+  size_t contentOffset() const { return isSigned() ? (1 + kSignatureSize) : 1; }
+
+  /// @returns a span of the signature bytes, or empty span if not signed
+  Span<const uint8_t> signature() const
+  {
+    if (!isSigned() || m_data.size() < 1 + kSignatureSize)
     {
-        return isSigned() ? (1 + kSignatureSize) : 1;
+      return Span<const uint8_t>();
     }
+    return Span<const uint8_t>(m_data.data() + 1, kSignatureSize);
+  }
 
-    /// @returns a span of the signature bytes, or empty span if not signed
-    Span<const uint8_t> signature() const
+  /// @returns a span of the actual content (without header)
+  Span<const uint8_t> content() const
+  {
+    size_t offset = contentOffset();
+    if (m_data.size() < offset)
     {
-        if (!isSigned() || m_data.size() < 1 + kSignatureSize)
-        {
-            return Span<const uint8_t>();
-        }
-        return Span<const uint8_t>(m_data.data() + 1, kSignatureSize);
+      return Span<const uint8_t>();
     }
-
-    /// @returns a span of the actual content (without header)
-    Span<const uint8_t> content() const
-    {
-        size_t offset = contentOffset();
-        if (m_data.size() < offset)
-        {
-            return Span<const uint8_t>();
-        }
-        return Span<const uint8_t>(m_data.data() + offset,
-                                   m_data.size() - offset);
-    }
+    return Span<const uint8_t>(m_data.data() + offset, m_data.size() - offset);
+  }
 
 private:
-    Span<const uint8_t> m_data;
-    uint8_t m_flags = 0;
+  Span<const uint8_t> m_data;
+  uint8_t m_flags = 0;
 };
 
 } // namespace rive

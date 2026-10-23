@@ -19,9 +19,9 @@ class EffectsContainer;
 class EffectPath
 {
 public:
-    virtual ~EffectPath() = default;
-    virtual void invalidateEffect() {}
-    virtual ShapePaintPath* path() { return nullptr; }
+  virtual ~EffectPath() = default;
+  virtual void invalidateEffect() {}
+  virtual ShapePaintPath* path() { return nullptr; }
 };
 
 // A PathProvider is any object that will be used to map a unique EffectPath.
@@ -37,23 +37,24 @@ class PathProvider
 class StrokeEffect
 {
 public:
-    virtual ~StrokeEffect();
-    virtual void updateEffect(PathProvider* pathProvider,
-                              const ShapePaintPath* source,
-                              const ShapePaint* shapePaint) = 0;
-    virtual void invalidateEffect(PathProvider* pathProvider);
-    virtual EffectsContainer* parentPaint() = 0;
-    virtual void addPathProvider(PathProvider* component)
-    {
-        m_effectPaths[component] = createEffectPath();
-    }
+  virtual ~StrokeEffect();
+  virtual void updateEffect(
+      PathProvider* pathProvider,
+      const ShapePaintPath* source,
+      const ShapePaint* shapePaint) = 0;
+  virtual void invalidateEffect(PathProvider* pathProvider);
+  virtual EffectsContainer* parentPaint() = 0;
+  virtual void addPathProvider(PathProvider* component)
+  {
+    m_effectPaths[component] = createEffectPath();
+  }
 
-    virtual ShapePaintPath* effectPath(PathProvider* pathProvider);
-    virtual void invalidateEffectFromLocal();
+  virtual ShapePaintPath* effectPath(PathProvider* pathProvider);
+  virtual void invalidateEffectFromLocal();
 
 protected:
-    virtual EffectPath* createEffectPath() { return new EffectPath(); }
-    std::unordered_map<PathProvider*, EffectPath*> m_effectPaths;
+  virtual EffectPath* createEffectPath() { return new EffectPath(); }
+  std::unordered_map<PathProvider*, EffectPath*> m_effectPaths;
 };
 } // namespace rive
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelInstanceAssetFontBase::clone() const
 {
-    auto cloned = new ViewModelInstanceAssetFont();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelInstanceAssetFont();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -12,6 +12,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer/cmd/render_command_buffer.hpp"
 #include "rive/renderer/cmd/render_commands.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <functional>
@@ -25,15 +26,17 @@ namespace rive::cmd
 {
 
 // Bulk copy is safe since the bytes came from a valid RawPath at record time.
-inline RawPath rebuildRawPath(Span<const uint8_t> verbBytes,
-                              Span<const uint8_t> pointBytes)
+inline RawPath rebuildRawPath(
+    Span<const uint8_t> verbBytes,
+    Span<const uint8_t> pointBytes)
 {
-    return RawPath(
-        Span<const PathVerb>(
-            reinterpret_cast<const PathVerb*>(verbBytes.data()),
-            verbBytes.size() / sizeof(PathVerb)),
-        Span<const Vec2D>(reinterpret_cast<const Vec2D*>(pointBytes.data()),
-                          pointBytes.size() / sizeof(Vec2D)));
+  return RawPath(
+      Span<const PathVerb>(
+          reinterpret_cast<const PathVerb*>(verbBytes.data()),
+          verbBytes.size() / sizeof(PathVerb)),
+      Span<const Vec2D>(
+          reinterpret_cast<const Vec2D*>(pointBytes.data()),
+          pointBytes.size() / sizeof(Vec2D)));
 }
 
 // Resolves a flagged canvas id to the real canvas's RenderImage at replay.
@@ -43,18 +46,19 @@ using CanvasImageResolver = std::function<RenderImage*(RenderHandle canvasId)>;
 // Draw drop accounting for verification.
 struct ReplayStats
 {
-    uint32_t droppedDraws = 0;
+  uint32_t droppedDraws = 0;
 };
 
 namespace replay_detail
 {
 inline void logDroppedDraw(uint8_t type, uint32_t h0, uint32_t h1)
 {
-    RIVE_WARN_THROTTLED("rive replay: dropped draw opcode=%u handles=%u,%u "
-                        "(unresolved at replay)\n",
-                        type,
-                        h0,
-                        h1);
+  RIVE_WARN_THROTTLED(
+      "rive replay: dropped draw opcode=%u handles=%u,%u "
+      "(unresolved at replay)\n",
+      type,
+      h0,
+      h1);
 }
 } // namespace replay_detail
 
@@ -62,132 +66,139 @@ inline void logDroppedDraw(uint8_t type, uint32_t h0, uint32_t h1)
 // reads always consume payloads so the walk stays in sync.
 enum class ReplayFilter : uint8_t
 {
-    all,
-    resources, // creates, mutations, version bumps, in record order
-    draws,     // draws, brackets, markers, in scheduled segment order
-    destroys,  // destroyResource
+  all,
+  resources, // creates, mutations, version bumps, in record order
+  draws,     // draws, brackets, markers, in scheduled segment order
+  destroys,  // destroyResource
 };
 
 // Render thread hooks for a deferred runtime frame. A bare replay leaves them
 // null and everything draws into renderer.
 struct ReplayHooks
 {
-    ReplayFilter filter = ReplayFilter::all;
-    CanvasImageResolver canvasImage = nullptr;
-    // Open the real canvas's frame and return the renderer that draws into
-    // it; a null return safely drops that canvas's content.
-    std::function<Renderer*(RenderHandle canvasId, uint32_t clearColor)>
-        beginCanvasContent = nullptr;
-    // Nonzero dropped draws mean mixed factory recording or a replay bug.
-    ReplayStats* stats = nullptr;
+  ReplayFilter filter = ReplayFilter::all;
+  CanvasImageResolver canvasImage = nullptr;
+  // Open the real canvas's frame and return the renderer that draws into
+  // it; a null return safely drops that canvas's content.
+  std::function<Renderer*(RenderHandle canvasId, uint32_t clearColor)>
+      beginCanvasContent = nullptr;
+  // Readies a resident image for a paint to sample. Draws prep their own
+  // images in the backend's renderer, but a paint takes its image as is, and
+  // a backend whose images upload lazily (web) leaves it unsampleable.
+  std::function<RenderImage*(RenderImage*)> prepImage = nullptr;
+  // Nonzero dropped draws mean mixed factory recording or a replay bug.
+  ReplayStats* stats = nullptr;
+  // Saves each real renderer has open, shared by a frame replayed in several
+  // calls. A restore past them is dropped, and null counts per call.
+  std::unordered_map<const Renderer*, uint32_t>* openSaves = nullptr;
 };
 
 // One resident resource type: a dense vector indexed by id, each slot carrying
 // the real object and its creation generation. Never compacts.
 template <typename T> struct Resident
 {
-    std::vector<rcp<T>> objects;
-    std::vector<uint32_t> generations;
-    // Draws pin the exact version they recorded against; older versions of a
-    // slot live in per frame aliases keyed (id << 32) | version.
-    std::vector<uint32_t> versions;
-    std::unordered_map<uint64_t, rcp<T>> versionAliases;
+  std::vector<rcp<T>> objects;
+  std::vector<uint32_t> generations;
+  // Draws pin the exact version they recorded against; older versions of a
+  // slot live in per frame aliases keyed (id << 32) | version.
+  std::vector<uint32_t> versions;
+  std::unordered_map<uint64_t, rcp<T>> versionAliases;
 
-    void set(RenderHandle id, rcp<T> obj, uint32_t generation)
+  void set(RenderHandle id, rcp<T> obj, uint32_t generation)
+  {
+    if (id > objects.size())
     {
-        if (id > objects.size())
-        {
-            // The producer mints ids sequentially, so a fresh id may only
-            // append; anything further ahead is a corrupt stream.
-            assert(false);
-            return;
-        }
-        if (id == objects.size())
-        {
-            objects.push_back(std::move(obj));
-            generations.push_back(generation);
-            versions.push_back(0);
-            return;
-        }
-        // A retaken id must not resolve to the old take's versions.
-        dropVersionAliases(id);
-        objects[id] = std::move(obj);
-        generations[id] = generation;
-        versions[id] = 0;
+      // The producer mints ids sequentially, so a fresh id may only
+      // append; anything further ahead is a corrupt stream.
+      assert(false);
+      return;
     }
-    void dropVersionAliases(RenderHandle id)
+    if (id == objects.size())
     {
-        if (versionAliases.empty())
-        {
-            return;
-        }
-        for (auto it = versionAliases.begin(); it != versionAliases.end();)
-        {
-            if (static_cast<RenderHandle>(it->first >> 32) == id)
-            {
-                it = versionAliases.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
+      objects.push_back(std::move(obj));
+      generations.push_back(generation);
+      versions.push_back(0);
+      return;
     }
-    // Move the live object under its old version and make obj the live one.
-    void newVersion(RenderHandle id, uint32_t version, rcp<T> obj)
+    // A retaken id must not resolve to the old take's versions.
+    dropVersionAliases(id);
+    objects[id] = std::move(obj);
+    generations[id] = generation;
+    versions[id] = 0;
+  }
+  void dropVersionAliases(RenderHandle id)
+  {
+    if (versionAliases.empty())
     {
-        if (id >= objects.size())
-        {
-            return;
-        }
-        versionAliases[(uint64_t(id) << 32) | versions[id]] =
-            std::move(objects[id]);
-        objects[id] = std::move(obj);
-        versions[id] = version;
+      return;
     }
-    void destroy(RenderHandle id, uint32_t generation)
+    for (auto it = versionAliases.begin(); it != versionAliases.end();)
     {
-        if (id < objects.size() && generations[id] == generation)
-        {
-            objects[id] = nullptr;
-            dropVersionAliases(id);
-        }
+      if (static_cast<RenderHandle>(it->first >> 32) == id)
+      {
+        it = versionAliases.erase(it);
+      }
+      else
+      {
+        ++it;
+      }
     }
-    T* get(RenderHandle id) const
+  }
+  // Move the live object under its old version and make obj the live one.
+  void newVersion(RenderHandle id, uint32_t version, rcp<T> obj)
+  {
+    if (id >= objects.size())
     {
-        return id < objects.size() ? objects[id].get() : nullptr;
+      return;
     }
-    T* get(RenderHandle id, uint32_t version) const
+    versionAliases[(uint64_t(id) << 32) | versions[id]] = std::move(
+        objects[id]);
+    objects[id] = std::move(obj);
+    versions[id] = version;
+  }
+  void destroy(RenderHandle id, uint32_t generation)
+  {
+    if (id < objects.size() && generations[id] == generation)
     {
-        if (id >= objects.size())
-        {
-            return nullptr;
-        }
-        if (version == versions[id])
-        {
-            return objects[id].get();
-        }
-        auto it = versionAliases.find((uint64_t(id) << 32) | version);
-        return it == versionAliases.end() ? nullptr : it->second.get();
+      objects[id] = nullptr;
+      dropVersionAliases(id);
     }
-    // Owning rcp for APIs that take one.
-    rcp<T> shared(RenderHandle id) const
+  }
+  T* get(RenderHandle id) const
+  {
+    return id < objects.size() ? objects[id].get() : nullptr;
+  }
+  T* get(RenderHandle id, uint32_t version) const
+  {
+    if (id >= objects.size())
     {
-        return id < objects.size() ? objects[id] : nullptr;
+      return nullptr;
     }
-    rcp<T> shared(RenderHandle id, uint32_t version) const
+    if (version == versions[id])
     {
-        if (id >= objects.size())
-        {
-            return nullptr;
-        }
-        if (version == versions[id])
-        {
-            return objects[id];
-        }
-        auto it = versionAliases.find((uint64_t(id) << 32) | version);
-        return it == versionAliases.end() ? nullptr : it->second;
+      return objects[id].get();
     }
+    auto it = versionAliases.find((uint64_t(id) << 32) | version);
+    return it == versionAliases.end() ? nullptr : it->second.get();
+  }
+  // Owning rcp for APIs that take one.
+  rcp<T> shared(RenderHandle id) const
+  {
+    return id < objects.size() ? objects[id] : nullptr;
+  }
+  rcp<T> shared(RenderHandle id, uint32_t version) const
+  {
+    if (id >= objects.size())
+    {
+      return nullptr;
+    }
+    if (version == versions[id])
+    {
+      return objects[id];
+    }
+    auto it = versionAliases.find((uint64_t(id) << 32) | version);
+    return it == versionAliases.end() ? nullptr : it->second;
+  }
 };
 
 // The materialized 2D resources, persisted across frames so resources stay
@@ -196,113 +207,148 @@ template <typename T> struct Resident
 // object carrying the outgoing state without cloning backend objects.
 struct PaintShadow
 {
-    // Must be the backend's defaults: a property the producer never sends is
-    // one it knows the fresh object already carries.
-    uint8_t style = 1; // fill; a fresh paint is unstroked until told
-    ColorInt color = 0xFF000000;
-    float thickness = 1;
-    uint8_t join = 0;
-    uint8_t cap = 0;
-    uint8_t strokePosition = 1; // center
-    float feather = 0;
-    float additiveness = 0;
-    uint8_t blendMode = 3; // srcOver
-    RenderHandle shader = kInvalidRenderHandle;
-    // Modulated image; kInvalidRenderHandle means none (a fresh paint has no
-    // image), so a version bump re-applies whatever was last set.
-    RenderHandle image = kInvalidRenderHandle;
-    uint8_t imageWrapX = 0, imageWrapY = 0, imageFilter = 0;
-    float imageXX = 1, imageXY = 0, imageYX = 0, imageYY = 1, imageTX = 0,
-          imageTY = 0;
+  // Must be the backend's defaults: a property the producer never sends is
+  // one it knows the fresh object already carries.
+  uint8_t style = 1; // fill; a fresh paint is unstroked until told
+  ColorInt color = 0xFF000000;
+  float thickness = 1;
+  uint8_t join = 0;
+  uint8_t cap = 0;
+  uint8_t strokePosition = 1; // center
+  float feather = 0;
+  float additiveness = 0;
+  uint8_t blendMode = 3; // srcOver
+  RenderHandle shader = kInvalidRenderHandle;
+  Mat2D transform;
+  // Modulated image; kInvalidRenderHandle means none (a fresh paint has no
+  // image), so a version bump re-applies whatever was last set.
+  RenderHandle image = kInvalidRenderHandle;
+  uint8_t imageWrapX = 0, imageWrapY = 0, imageFilter = 0;
+  float imageXX = 1, imageXY = 0, imageYX = 0, imageYY = 1, imageTX = 0,
+        imageTY = 0;
 };
 struct BufferShadow
 {
-    uint8_t type = 0;
-    uint16_t flags = 0;
-    uint32_t size = 0;
+  uint8_t type = 0;
+  uint16_t flags = 0;
+  uint32_t size = 0;
 };
 
 struct ResourceTable
 {
-    Resident<RenderPath> paths;
-    Resident<RenderPaint> paints;
-    Resident<RenderShader> shaders;
-    Resident<RenderImage> images;
-    Resident<RenderBuffer> buffers;
-    Resident<ImageMeshInstances> imageMeshInstances;
-    std::vector<PaintShadow> paintShadows;
-    std::vector<uint8_t> pathFillRules;
-    std::vector<BufferShadow> bufferShadows;
+  Resident<RenderPath> paths;
+  Resident<RenderPaint> paints;
+  Resident<RenderShader> shaders;
+  Resident<RenderImage> images;
+  Resident<RenderBuffer> buffers;
+  Resident<ImageMeshInstances> imageMeshInstances;
+  std::vector<PaintShadow> paintShadows;
+  std::vector<uint8_t> pathFillRules;
+  std::vector<BufferShadow> bufferShadows;
+  // Paints whose image prepImage could not ready yet (web decodes images
+  // asynchronously). The producer never re-records an unchanged image, so
+  // retryPendingPaintImages re-offers it every replay until it lands.
+  std::vector<RenderHandle> pendingPaintImages;
 
-    // Generation checked so a stale destroy after slot reuse is a no-op.
-    void destroy(ResourceKind kind, RenderHandle id, uint32_t generation)
+  void markPaintImagePending(RenderHandle paint, bool pending)
+  {
+    auto it = std::find(
+        pendingPaintImages.begin(),
+        pendingPaintImages.end(),
+        paint);
+    if (pending && it == pendingPaintImages.end())
     {
-        switch (kind)
+      pendingPaintImages.push_back(paint);
+    }
+    else if (!pending && it != pendingPaintImages.end())
+    {
+      pendingPaintImages.erase(it);
+    }
+  }
+
+  // Generation checked so a stale destroy after slot reuse is a no-op.
+  void destroy(ResourceKind kind, RenderHandle id, uint32_t generation)
+  {
+    switch (kind)
+    {
+      case ResourceKind::path:
+        paths.destroy(id, generation);
+        break;
+      case ResourceKind::paint:
+        paints.destroy(id, generation);
+        if (paints.get(id) == nullptr)
         {
-            case ResourceKind::path:
-                paths.destroy(id, generation);
-                break;
-            case ResourceKind::paint:
-                paints.destroy(id, generation);
-                break;
-            case ResourceKind::shader:
-                shaders.destroy(id, generation);
-                break;
-            case ResourceKind::image:
-                images.destroy(id, generation);
-                break;
-            case ResourceKind::buffer:
-                buffers.destroy(id, generation);
-                break;
-            case ResourceKind::imageMeshInstances:
-                imageMeshInstances.destroy(id, generation);
-                break;
+          markPaintImagePending(id, false);
         }
+        break;
+      case ResourceKind::shader:
+        shaders.destroy(id, generation);
+        break;
+      case ResourceKind::image:
+        images.destroy(id, generation);
+        break;
+      case ResourceKind::buffer:
+        buffers.destroy(id, generation);
+        break;
+      case ResourceKind::imageMeshInstances:
+        imageMeshInstances.destroy(id, generation);
+        break;
     }
+  }
 
-    // Old versions only live within one frame's replay.
-    void clearVersionAliases()
-    {
-        paths.versionAliases.clear();
-        paints.versionAliases.clear();
-        shaders.versionAliases.clear();
-        images.versionAliases.clear();
-        buffers.versionAliases.clear();
-    }
+  // Old versions only live within one frame's replay.
+  void clearVersionAliases()
+  {
+    paths.versionAliases.clear();
+    paints.versionAliases.clear();
+    shaders.versionAliases.clear();
+    images.versionAliases.clear();
+    buffers.versionAliases.clear();
+  }
 };
+
+// Re-offers every pending paint image to hooks.prepImage, applying the ones
+// that are ready now to the live paint. Run once per replay, before the
+// resource pass can move that paint into a version alias. Defined in
+// src/deferred_cmd.cpp.
+void retryPendingPaintImages(ResourceTable& table, const ReplayHooks& hooks);
 
 // Span form: replays raw stream bytes so a snapshot copy can replay without a
 // RenderCommandBuffer. Defined in src/deferred_cmd.cpp.
-void replayRenderCommands(Factory* factory,
-                          Renderer* renderer,
-                          Span<const uint8_t> commands,
-                          Span<const uint8_t> blobs,
-                          ResourceTable& table,
-                          const ReplayHooks& hooks = {});
+void replayRenderCommands(
+    Factory* factory,
+    Renderer* renderer,
+    Span<const uint8_t> commands,
+    Span<const uint8_t> blobs,
+    ResourceTable& table,
+    const ReplayHooks& hooks = {});
 
 // Buffer form.
-inline void replayRenderCommands(Factory* factory,
-                                 Renderer* renderer,
-                                 const RenderCommandBuffer& cmd,
-                                 ResourceTable& table,
-                                 const ReplayHooks& hooks = {})
+inline void replayRenderCommands(
+    Factory* factory,
+    Renderer* renderer,
+    const RenderCommandBuffer& cmd,
+    ResourceTable& table,
+    const ReplayHooks& hooks = {})
 {
-    replayRenderCommands(factory,
-                         renderer,
-                         cmd.commandBytes(),
-                         cmd.blobBytes(),
-                         table,
-                         hooks);
+  replayRenderCommands(
+      factory,
+      renderer,
+      cmd.commandBytes(),
+      cmd.blobBytes(),
+      table,
+      hooks);
 }
 
 // Convenience form with a throwaway table.
-inline void replayRenderCommands(Factory* factory,
-                                 Renderer* renderer,
-                                 const RenderCommandBuffer& cmd,
-                                 const ReplayHooks& hooks = {})
+inline void replayRenderCommands(
+    Factory* factory,
+    Renderer* renderer,
+    const RenderCommandBuffer& cmd,
+    const ReplayHooks& hooks = {})
 {
-    ResourceTable table;
-    replayRenderCommands(factory, renderer, cmd, table, hooks);
+  ResourceTable table;
+  replayRenderCommands(factory, renderer, cmd, table, hooks);
 }
 
 } // namespace rive::cmd

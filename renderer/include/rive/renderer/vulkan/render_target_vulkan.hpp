@@ -13,143 +13,146 @@ namespace rive::gpu
 class RenderTargetVulkan : public RenderTarget
 {
 public:
-    const VkFormat framebufferFormat() const { return m_framebufferFormat; }
-    const VkImageUsageFlags targetUsageFlags() const
-    {
-        return m_targetUsageFlags;
-    }
+  const VkFormat framebufferFormat() const { return m_framebufferFormat; }
+  const VkImageUsageFlags targetUsageFlags() const
+  {
+    return m_targetUsageFlags;
+  }
 
-    // Raw handle accessors — no layout transition. Used by ORE to wrap the
-    // canvas backing image at wrapCanvasTexture() time.
-    virtual VkImage targetImage() const = 0;
-    virtual VkImageView targetImageView() const = 0;
+  // Raw handle accessors — no layout transition. Used by ORE to wrap the
+  // canvas backing image at wrapCanvasTexture() time.
+  virtual VkImage targetImage() const = 0;
+  virtual VkImageView targetImageView() const = 0;
 
-    // Called by ORE's RenderPass::finish() after it has transitioned the image
-    // to SHADER_READ_ONLY_OPTIMAL, so Rive's own barrier logic sees the correct
-    // layout on the next draw.
-    virtual void updateLastAccess(const vkutil::ImageAccess&) {}
-    virtual vkutil::ImageAccess targetLastAccess() const { return {}; }
+  // Called by ORE's RenderPass::finish() after it has transitioned the image
+  // to SHADER_READ_ONLY_OPTIMAL, so Rive's own barrier logic sees the correct
+  // layout on the next draw.
+  virtual void updateLastAccess(const vkutil::ImageAccess&) {}
+  virtual vkutil::ImageAccess targetLastAccess() const { return {}; }
 
-    // Performs a pipeline barrier and returns the target image in the requested
-    // layout.
-    virtual VkImage accessTargetImage(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccess,
-        vkutil::ImageAccessAction =
-            vkutil::ImageAccessAction::preserveContents) = 0;
+  // Performs a pipeline barrier and returns the target image in the requested
+  // layout.
+  virtual VkImage accessTargetImage(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccess,
+      vkutil::ImageAccessAction =
+          vkutil::ImageAccessAction::preserveContents) = 0;
 
-    // Performs a pipeline barrier, transitions the target image to the
-    // requested layout, and returns the target image view.
-    virtual VkImageView accessTargetImageView(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccess,
-        vkutil::ImageAccessAction =
-            vkutil::ImageAccessAction::preserveContents) = 0;
+  // Performs a pipeline barrier, transitions the target image to the
+  // requested layout, and returns the target image view.
+  virtual VkImageView accessTargetImageView(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccess,
+      vkutil::ImageAccessAction =
+          vkutil::ImageAccessAction::preserveContents) = 0;
 
 protected:
-    friend class RenderContextVulkanImpl;
+  friend class RenderContextVulkanImpl;
 
-    RenderTargetVulkan(rcp<VulkanContext> vk,
-                       uint32_t width,
-                       uint32_t height,
-                       VkFormat framebufferFormat,
-                       VkImageUsageFlags targetUsageFlags);
+  RenderTargetVulkan(
+      rcp<VulkanContext> vk,
+      uint32_t width,
+      uint32_t height,
+      VkFormat framebufferFormat,
+      VkImageUsageFlags targetUsageFlags);
 
-    // Performs pipeline barriers, clears the target image, transitions the
-    // target image to the requested layout, and returns target image view.
-    VkImageView clearTargetImageView(
-        VkCommandBuffer,
-        ColorInt clearColor,
-        const vkutil::ImageAccess& dstAccessAfterClear);
+  // Performs pipeline barriers, clears the target image, transitions the
+  // target image to the requested layout, and returns target image view.
+  VkImageView clearTargetImageView(
+      VkCommandBuffer,
+      ColorInt clearColor,
+      const vkutil::ImageAccess& dstAccessAfterClear);
 
-    // Performs a pipeline barrier and returns the offscreen texture in the
-    // requested layout.
-    vkutil::Texture2D* accessOffscreenColorTexture(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccess,
-        vkutil::ImageAccessAction =
-            vkutil::ImageAccessAction::preserveContents);
+  // Performs a pipeline barrier and returns the offscreen texture in the
+  // requested layout.
+  vkutil::Texture2D* accessOffscreenColorTexture(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccess,
+      vkutil::ImageAccessAction = vkutil::ImageAccessAction::preserveContents);
 
-    // Performs pipeline barriers, copies the target image into the
-    // offscreen color texture (for the intended purpose of supporting
-    // gpu::LoadAction::preserveRenderTarget), and returns the offscreen texture
-    // in the requested layout.
-    vkutil::Texture2D* copyTargetImageToOffscreenColorTexture(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccessAfterCopy,
-        const IAABB& copyBounds);
+  // Performs pipeline barriers, copies the target image into the
+  // offscreen color texture (for the intended purpose of supporting
+  // gpu::LoadAction::preserveRenderTarget), and returns the offscreen texture
+  // in the requested layout.
+  vkutil::Texture2D* copyTargetImageToOffscreenColorTexture(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccessAfterCopy,
+      const IAABB& copyBounds);
 
-    // Extra attachments for InterlockMode::depthStencil. Allocated lazily as
-    // needed.
-    vkutil::Texture2D* depthStencilTexture(bool msaa);
-    vkutil::Texture2D* msaaColorTexture();
+  // Extra attachments for InterlockMode::depthStencil. Allocated lazily as
+  // needed.
+  vkutil::Texture2D* depthStencilTexture(bool msaa);
+  vkutil::Texture2D* msaaColorTexture();
 
-    const rcp<VulkanContext> m_vk;
-    const VkFormat m_framebufferFormat;
-    const VkImageUsageFlags m_targetUsageFlags;
+  const rcp<VulkanContext> m_vk;
+  const VkFormat m_framebufferFormat;
+  const VkImageUsageFlags m_targetUsageFlags;
 
-    // Used when m_targetTextureView does not have
-    // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-    rcp<vkutil::Texture2D> m_offscreenColorTexture;
+  // Used when m_targetTextureView does not have
+  // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+  rcp<vkutil::Texture2D> m_offscreenColorTexture;
 
-    // InterlockMode::depthStencil.
-    rcp<vkutil::Texture2D> m_depthStencilTexture;
-    rcp<vkutil::Texture2D> m_msaaDepthStencilTexture;
-    rcp<vkutil::Texture2D> m_msaaColorTexture;
+  // InterlockMode::depthStencil.
+  rcp<vkutil::Texture2D> m_depthStencilTexture;
+  rcp<vkutil::Texture2D> m_msaaDepthStencilTexture;
+  rcp<vkutil::Texture2D> m_msaaColorTexture;
 };
 
 class RenderTargetVulkanImpl : public RenderTargetVulkan
 {
 public:
-    RenderTargetVulkanImpl(rcp<VulkanContext> vk,
-                           uint32_t width,
-                           uint32_t height,
-                           VkFormat framebufferFormat,
-                           VkImageUsageFlags targetUsageFlags) :
-        RenderTargetVulkan(std::move(vk),
-                           width,
-                           height,
-                           framebufferFormat,
-                           targetUsageFlags)
-    {}
+  RenderTargetVulkanImpl(
+      rcp<VulkanContext> vk,
+      uint32_t width,
+      uint32_t height,
+      VkFormat framebufferFormat,
+      VkImageUsageFlags targetUsageFlags)
+      : RenderTargetVulkan(
+            std::move(vk),
+            width,
+            height,
+            framebufferFormat,
+            targetUsageFlags)
+  {}
 
-    void setTargetImageView(VkImageView imageView,
-                            VkImage image,
-                            vkutil::ImageAccess targetLastAccess)
-    {
-        m_targetImageView = imageView;
-        m_targetImage = image;
-        m_targetLastAccess = targetLastAccess;
-    }
+  void setTargetImageView(
+      VkImageView imageView,
+      VkImage image,
+      vkutil::ImageAccess targetLastAccess)
+  {
+    m_targetImageView = imageView;
+    m_targetImage = image;
+    m_targetLastAccess = targetLastAccess;
+  }
 
-    vkutil::ImageAccess targetLastAccess() const override
-    {
-        return m_targetLastAccess;
-    }
+  vkutil::ImageAccess targetLastAccess() const override
+  {
+    return m_targetLastAccess;
+  }
 
-    VkImage targetImage() const override { return m_targetImage; }
-    VkImageView targetImageView() const override { return m_targetImageView; }
+  VkImage targetImage() const override { return m_targetImage; }
+  VkImageView targetImageView() const override { return m_targetImageView; }
 
-    void updateLastAccess(const vkutil::ImageAccess& a) override
-    {
-        m_targetLastAccess = a;
-    }
+  void updateLastAccess(const vkutil::ImageAccess& a) override
+  {
+    m_targetLastAccess = a;
+  }
 
-    VkImage accessTargetImage(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccess,
-        vkutil::ImageAccessAction =
-            vkutil::ImageAccessAction::preserveContents) override;
+  VkImage accessTargetImage(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccess,
+      vkutil::ImageAccessAction =
+          vkutil::ImageAccessAction::preserveContents) override;
 
-    VkImageView accessTargetImageView(
-        VkCommandBuffer,
-        const vkutil::ImageAccess& dstAccess,
-        vkutil::ImageAccessAction =
-            vkutil::ImageAccessAction::preserveContents) override;
+  VkImageView accessTargetImageView(
+      VkCommandBuffer,
+      const vkutil::ImageAccess& dstAccess,
+      vkutil::ImageAccessAction =
+          vkutil::ImageAccessAction::preserveContents) override;
 
 private:
-    VkImageView m_targetImageView = VK_NULL_HANDLE;
-    VkImage m_targetImage = VK_NULL_HANDLE;
-    vkutil::ImageAccess m_targetLastAccess;
+  VkImageView m_targetImageView = VK_NULL_HANDLE;
+  VkImage m_targetImage = VK_NULL_HANDLE;
+  vkutil::ImageAccess m_targetLastAccess;
 };
 } // namespace rive::gpu

@@ -7,23 +7,23 @@
 
 TEST_CASE("test cubic value load and interpolate properly", "[file]")
 {
-    auto file = ReadRiveFile("assets/cubic_value_test.riv");
+  auto file = ReadRiveFile("assets/cubic_value_test.riv");
 
-    auto artboard = file->artboard();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboard();
+  REQUIRE(artboard != nullptr);
 
-    auto greyRect = artboard->find<rive::Node>("grey_rectangle");
-    REQUIRE(greyRect != nullptr);
+  auto greyRect = artboard->find<rive::Node>("grey_rectangle");
+  REQUIRE(greyRect != nullptr);
 
-    REQUIRE(artboard->find<rive::CubicValueInterpolatorBase>().size() == 3);
+  REQUIRE(artboard->find<rive::CubicValueInterpolatorBase>().size() == 3);
 
-    auto animation = artboard->animation("Timeline 1");
-    REQUIRE(animation != nullptr);
-    // Go to frame 15.
-    animation->apply(artboard, 15.0f / animation->fps(), 1.0f);
-    REQUIRE(greyRect->x() == Approx(290.71f));
+  auto animation = artboard->animation("Timeline 1");
+  REQUIRE(animation != nullptr);
+  // Go to frame 15.
+  animation->apply(artboard, 15.0f / animation->fps(), 1.0f);
+  REQUIRE(greyRect->x() == Approx(290.71f));
 
-    // Go to frame 11.
-    animation->apply(artboard, 11.0f / animation->fps(), 1.0f);
-    REQUIRE(greyRect->x() == Approx(363.01f));
+  // Go to frame 11.
+  animation->apply(artboard, 11.0f / animation->fps(), 1.0f);
+  REQUIRE(greyRect->x() == Approx(363.01f));
 }

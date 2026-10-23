@@ -3,11 +3,11 @@
 using namespace rive;
 
 ListenerInputTypeGamepadImporter::ListenerInputTypeGamepadImporter(
-    ListenerInputTypeGamepad* listenerInputTypeGamepad) :
-    m_listenerInputTypeGamepad(listenerInputTypeGamepad)
+    ListenerInputTypeGamepad* listenerInputTypeGamepad)
+    : m_listenerInputTypeGamepad(listenerInputTypeGamepad)
 {}
 
 StatusCode ListenerInputTypeGamepadImporter::resolve()
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }

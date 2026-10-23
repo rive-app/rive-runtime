@@ -7,10 +7,10 @@ namespace rive
 class ViewModelPropertyEnumSystem : public ViewModelPropertyEnumSystemBase
 {
 public:
-    DataEnum* dataEnum() override { return &m_systemDataEnum; }
+  DataEnum* dataEnum() override { return &m_systemDataEnum; }
 
 private:
-    static DataEnum m_systemDataEnum;
+  static DataEnum m_systemDataEnum;
 };
 } // namespace rive
 

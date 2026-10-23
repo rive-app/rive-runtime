@@ -23,129 +23,146 @@ using namespace rivegm;
 
 // Validate all our atlas fallbacks by rendering feathered strokes and fills
 // with every FeatherAtlasRenderType.
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
+class AtlasTypesGM : public GM
 {
-    gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
-    gpu::RenderContext::FrameDescriptor frameDescriptor;
-    if (renderContext != nullptr)
-    {
-        frameDescriptor = renderContext->frameDescriptor();
-        frameDescriptor.loadAction = gpu::LoadAction::preserveRenderTarget;
-    }
+public:
+  AtlasTypesGM() : GM(1600, 1600) {}
 
-    Paint textPaint;
-    textPaint->color(0xffffffff);
-    textPaint->feather(30);
+  ColorInt clearColor() const override { return 0x80000000; }
 
-    rive::RawText text(TestingWindow::Get()->factory());
-    text.maxWidth(800);
-    text.sizing(rive::TextSizing::fixed);
-    text.append("RIVE",
-                ref_rcp(textPaint.get()),
-                HBFont::Decode(assets::roboto_flex_ttf()),
-                325.0f);
+  void updateFrameOptions(TestingWindow::FrameOptions* options) const override
+  {
+    // Reduce this to test the canvas 2D renderer's atlas flush
+    options->maxCanvasAtlasSize = 1024;
+  }
 
-    Paint starPaint;
-    starPaint->color(0x80ffff80);
-    starPaint->blendMode(BlendMode::colorBurn);
+  void onDraw(Renderer* renderer) override;
+};
+GMREGISTER(atlastypes, return new AtlasTypesGM)
 
-    Paint starStroke;
-    starStroke->color(0x80ffffff);
-    starStroke->blendMode(BlendMode::colorDodge);
-    starStroke->style(RenderPaintStyle::stroke);
-    starStroke->thickness(.05f);
+void AtlasTypesGM::onDraw(Renderer* renderer)
+{
+  gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
+  gpu::RenderContext::FrameDescriptor frameDescriptor;
+  if (renderContext != nullptr)
+  {
+    frameDescriptor = renderContext->frameDescriptor();
+    frameDescriptor.loadAction = gpu::LoadAction::preserveRenderTarget;
+  }
+
+  Paint textPaint;
+  textPaint->color(0xffffffff);
+  textPaint->feather(30);
+
+  rive::RawText text(TestingWindow::Get()->factory());
+  text.maxWidth(800);
+  text.sizing(rive::TextSizing::fixed);
+  text.append(
+      "RIVE",
+      ref_rcp(textPaint.get()),
+      HBFont::Decode(assets::roboto_flex_ttf()),
+      325.0f);
+
+  Paint starPaint;
+  starPaint->color(0x80ffff80);
+  starPaint->blendMode(BlendMode::colorBurn);
+
+  Paint starStroke;
+  starStroke->color(0x80ffffff);
+  starStroke->blendMode(BlendMode::colorDodge);
+  starStroke->style(RenderPaintStyle::stroke);
+  starStroke->thickness(.05f);
 
 #ifndef RIVE_TOOLS_NO_GL
-    auto originalFeatherAtlasRenderType =
-        gpu::RenderContextGLImpl::FeatherAtlasRenderType::r16f;
+  auto originalFeatherAtlasRenderType = gpu::RenderContextGLImpl::
+      FeatherAtlasRenderType::r16f;
 #endif
 
-    for (int i = 0; i < 6; ++i)
+  for (int i = 0; i < 6; ++i)
+  {
+    if (renderContext != nullptr)
     {
-        if (renderContext != nullptr)
-        {
 #ifndef RIVE_TOOLS_NO_GL
-            if (gpu::RenderContextGLImpl* glImpl =
-                    TestingWindow::Get()->renderContextGLImpl())
-            {
-                TestingWindow::Get()->flushPLSContext();
-                auto desiredRenderType = static_cast<
-                    gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i);
-                if (desiredRenderType >=
+      if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                                 ->renderContextGLImpl())
+      {
+        TestingWindow::Get()->flushPLSContext();
+        auto desiredRenderType = static_cast<
+            gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i);
+        if (desiredRenderType >=
 #ifndef RIVE_ANDROID
-                    gpu::RenderContextGLImpl::FeatherAtlasRenderType::
-                        r8PixelLocalStorageEXT
+            gpu::RenderContextGLImpl::FeatherAtlasRenderType::
+                r8PixelLocalStorageEXT
 #else
-                    gpu::RenderContextGLImpl::FeatherAtlasRenderType::
-                        r32uiPixelLocalStorageANGLE
+            gpu::RenderContextGLImpl::FeatherAtlasRenderType::
+                r32uiPixelLocalStorageANGLE
 #endif
-                )
-                {
-                    desiredRenderType = static_cast<
-                        gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i +
-                                                                          1);
-                }
-                auto lastAtlasRenderType =
-                    glImpl->testingOnly_resetFeatherAtlasDesiredRenderType(
-                        renderContext,
-                        desiredRenderType);
-                if (i == 0)
-                {
-                    originalFeatherAtlasRenderType = lastAtlasRenderType;
-                }
-                renderContext->beginFrame(frameDescriptor);
-            }
-#endif
-        }
-
-        renderer->save();
-        renderer->translate(60, 100);
-        renderer->translate((i % 2) * 800, int(i / 2) * 500);
-
-        text.render(renderer);
-
-        Rand rando;
-        for (size_t j = 0; j < 30; ++j)
+        )
         {
-            Path star;
-            star->fillRule(FillRule::clockwise);
-            // Sequence Rand calls into named locals — C++ doesn't specify
-            // argument evaluation order, so passing them directly causes the
-            // draws to interleave differently across compilers.
-            uint32_t numPts = rando.u32(2, 4) * 2 + 1;
-            float phase = rando.f32();
-            rivegm::path_add_star(star, numPts, phase, 1);
-            renderer->save();
-            float tx = rando.f32(-50, 750);
-            float ty = rando.f32(-50, 350);
-            renderer->translate(tx, ty);
-            float s = rando.f32(50, 100);
-            renderer->scale(s, s);
-            float f = rando.f32(.1f, .5f);
-            starPaint->feather(f);
-            starStroke->feather(f);
-            renderer->drawPath(star, starPaint);
-            renderer->drawPath(star, starStroke);
-            renderer->restore();
+          desiredRenderType = static_cast<
+              gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i + 1);
         }
-        renderer->restore();
-    }
-
-    if (renderContext != nullptr)
-    {
-        // Restore the most ideal FeatherAtlasRenderType for future tests.
-#ifndef RIVE_TOOLS_NO_GL
-        if (gpu::RenderContextGLImpl* glImpl =
-                TestingWindow::Get()->renderContextGLImpl())
-        {
-            TestingWindow::Get()->flushPLSContext();
+        auto lastAtlasRenderType =
             glImpl->testingOnly_resetFeatherAtlasDesiredRenderType(
                 renderContext,
-                originalFeatherAtlasRenderType);
-            renderContext->beginFrame(frameDescriptor);
+                desiredRenderType);
+        if (i == 0)
+        {
+          originalFeatherAtlasRenderType = lastAtlasRenderType;
         }
+        renderContext->beginFrame(frameDescriptor);
+      }
 #endif
     }
+
+    renderer->save();
+    renderer->translate(60, 100);
+    renderer->translate((i % 2) * 800, int(i / 2) * 500);
+
+    text.render(renderer);
+
+    Rand rando;
+    for (size_t j = 0; j < 30; ++j)
+    {
+      Path star;
+      star->fillRule(FillRule::clockwise);
+      // Sequence Rand calls into named locals — C++ doesn't specify
+      // argument evaluation order, so passing them directly causes the
+      // draws to interleave differently across compilers.
+      uint32_t numPts = rando.u32(2, 4) * 2 + 1;
+      float phase = rando.f32();
+      rivegm::path_add_star(star, numPts, phase, 1);
+      renderer->save();
+      float tx = rando.f32(-50, 750);
+      float ty = rando.f32(-50, 350);
+      renderer->translate(tx, ty);
+      float s = rando.f32(50, 100);
+      renderer->scale(s, s);
+      float f = rando.f32(.1f, .5f);
+      starPaint->feather(f);
+      starStroke->feather(f);
+      renderer->drawPath(star, starPaint);
+      renderer->drawPath(star, starStroke);
+      renderer->restore();
+    }
+    renderer->restore();
+  }
+
+  if (renderContext != nullptr)
+  {
+    // Restore the most ideal FeatherAtlasRenderType for future tests.
+#ifndef RIVE_TOOLS_NO_GL
+    if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                               ->renderContextGLImpl())
+    {
+      TestingWindow::Get()->flushPLSContext();
+      glImpl->testingOnly_resetFeatherAtlasDesiredRenderType(
+          renderContext,
+          originalFeatherAtlasRenderType);
+      renderContext->beginFrame(frameDescriptor);
+    }
+#endif
+  }
 }
 
 #endif

@@ -57,9 +57,10 @@ constexpr static float MIP_MAP_LOD_BIAS = -.5f;
 // draw's z is 1 + LOD, and LOD is never below MIP_MAP_LOD_BIAS, so its z stays
 // strictly positive. Lowering the bias past -1 would silently turn every
 // minified image draw into a layer mask.
-static_assert(MIP_MAP_LOD_BIAS > -1.f,
-              "v_image.z < 0 is the layer-mask sentinel; an image draw's "
-              "1 + LOD must stay positive");
+static_assert(
+    MIP_MAP_LOD_BIAS > -1.f,
+    "v_image.z < 0 is the layer-mask sentinel; an image draw's "
+    "1 + LOD must stay positive");
 
 // Tessellate in parametric space until each segment is within 1/4 pixel of the
 // true curve.
@@ -79,8 +80,8 @@ constexpr static uint32_t kMaxPolarSegments = 1023;
 constexpr static float FEATHER_POLAR_SEGMENT_MIN_ANGLE = math::PI / 16;
 
 // cos(FEATHER_MIN_POLAR_SEGMENT_ANGLE / 2)
-constexpr static float COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2 =
-    0.99518472667f;
+constexpr static float
+    COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2 = 0.99518472667f;
 
 // We allocate all our GPU buffers in rings. This ensures the CPU can prepare
 // frames in parallel while the GPU renders them.
@@ -96,16 +97,16 @@ constexpr static int kLargestFP16BeforeExponentAll1s = (0x1f << 10) - 1;
 constexpr static int kLargestDenormalizedFP16 = 1023;
 constexpr static int MaxPathID(int granularity)
 {
-    // Floating point equality gets funky when the exponent bits are all 1's, so
-    // the largest pathID we can support is kLargestFP16BeforeExponentAll1s.
-    //
-    // The shader converts an integer path ID to fp16 as:
-    //
-    //     (id + kLargestDenormalizedFP16) * granularity
-    //
-    // So the largest path ID we can support is as follows.
-    return kLargestFP16BeforeExponentAll1s / granularity -
-           kLargestDenormalizedFP16;
+  // Floating point equality gets funky when the exponent bits are all 1's, so
+  // the largest pathID we can support is kLargestFP16BeforeExponentAll1s.
+  //
+  // The shader converts an integer path ID to fp16 as:
+  //
+  //     (id + kLargestDenormalizedFP16) * granularity
+  //
+  // So the largest path ID we can support is as follows.
+  return kLargestFP16BeforeExponentAll1s / granularity -
+         kLargestDenormalizedFP16;
 }
 
 // Each contour has its own unique ID, which it uses to index a data record
@@ -116,16 +117,16 @@ static_assert((kMaxContourID & kContourIDMask) == kMaxContourID);
 
 // Tessellation is performed by rendering vertices into a data texture. These
 // values define the dimensions of the tessellation data texture.
-constexpr static size_t kTessTextureWidth =
-    2048; // GL_MAX_TEXTURE_SIZE spec minimum on ES3/WebGL2.
+constexpr static size_t
+    kTessTextureWidth = 2048; // GL_MAX_TEXTURE_SIZE spec minimum on ES3/WebGL2.
 constexpr static size_t kTessTextureWidthLog2 = 11;
 static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 
 // Gradients are implemented by sampling a horizontal ramp of pixels allocated
 // in a global gradient texture.
 constexpr static uint32_t kGradTextureWidth = 512;
-constexpr static uint32_t kGradTextureWidthInSimpleRamps =
-    kGradTextureWidth / 2;
+constexpr static uint32_t kGradTextureWidthInSimpleRamps = kGradTextureWidth /
+                                                           2;
 
 // Depth/stencil parameters
 constexpr static float DEPTH_MIN = 0.0f;
@@ -135,158 +136,169 @@ constexpr static uint8_t STENCIL_CLEAR = 0u;
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    // Supported InterlockModes.
-    // FIXME: depthStencil is implicit even though it isn't implemented on all
-    // backends.
-    bool supportsRasterOrderingMode = false;
-    bool supportsAtomicMode = false;
-    bool supportsClockwiseMode = false;
-    // InterlockMode::Clockwise with fixedFunctionColorOutput and srcOver blend.
-    // (Only viable for frames that don't use advanced blend.)
-    bool supportsClockwiseFixedFunctionMode = false;
-    bool supportsClockwiseAtomicMode = false;
-    // Use KHR_blend_equation_advanced in depthStencil mode?
-    bool supportsBlendAdvancedKHR = false;
-    bool supportsBlendAdvancedCoherentKHR = false;
-    // Required for @ENABLE_CLIP_RECT in depthStencil mode.
-    bool supportsClipPlanes = false;
-    // The backend supports dynamic state that allows Rive to collapse multiple
-    // subpasses onto a single pipeline, namely:
-    //  * Depth (Vulkan 1.3)
-    //  * Stencil (Vulkan 1.3)
-    //  * Cull (Vulkan 1.3)
-    //  * Color-write (VK_EXT_color_write_enable)
-    // With this state being dynamic, we can combine multiple subpasses (e.g.,
-    // borrowed coverage, fans, stencil reset) onto a single dynamic pipeline
-    // with multiple draws and state updates in between.
-    bool supportsPipelineDynamicState = false;
-    bool avoidFlatVaryings = false;
-    // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
-    // to hit some sort of reset condition that corrupts pixel local storage
-    // when rendering a complex feather. Provide a workaround that allows the
-    // implementation to opt in to always feathering to the feather atlas
-    // instead of rendering directly to the screen.
-    bool alwaysFeatherToAtlas = false;
-    // clipSpaceBottomUp specifies whether the top of the viewport, in clip
-    // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
-    //
-    // framebufferBottomUp specifies whether "row 0" of the framebuffer is the
-    // bottom of the image (OpenGL) or the top (Metal, D3D, WebGPU, Vulkan).
-    //
-    //
-    //                                OpenGL
-    //           (clipSpaceBottomUp=true, framebufferBottomUp=true)
-    //
-    //  Rive Pixel Space             Clip Space              Framebuffer
-    //
-    //  0 ----------->                   ^ +1                ^ height
-    //  |          width                 |                   |
-    //  |                         -1     |     +1            |
-    //  |                 ===>    <------|------>    ===>    |
-    //  |                                |                   |
-    //  |                                |                   |          width
-    //  v height                         v -1                0 ----------->
-    //
-    //
-    //
-    //                            Metal/D3D/WebGPU
-    //           (clipSpaceBottomUp=true, framebufferBottomUp=false)
-    //
-    //  Rive Pixel Space             Clip Space              Framebuffer
-    //
-    //  0 ----------->                   ^ +1                0 ----------->
-    //  |          width                 |                   |          width
-    //  |                         -1     |     +1            |
-    //  |                 ===>    <------|------>    ===>    |
-    //  |                                |                   |
-    //  |                                |                   |
-    //  v height                         v -1                v height
-    //
-    //
-    //
-    //                                Vulkan
-    //          (clipSpaceBottomUp=false, framebufferBottomUp=false)
-    //
-    //  Rive Pixel Space             Clip Space              Framebuffer
-    //
-    //  0 ----------->                   ^ -1                0 ----------->
-    //  |          width                 |                   |          width
-    //  |                         -1     |     +1            |
-    //  |                 ===>    <------|------>    ===>    |
-    //  |                                |                   |
-    //  |                                |                   |
-    //  v height                         v +1                v height
-    //
-    // A target can keep its rows the other way round from the framebuffer
-    // through RenderTarget::bottomUp(). GL canvases do, so their textures
-    // match every other backend.
-    bool clipSpaceBottomUp = false;
-    bool framebufferBottomUp = false;
-    // Backend cannot initialize PLS with typical clear/load APIs in atomic
-    // mode. Issue a "DrawType::renderPassInitialize" draw instead.
-    bool atomicPLSInitNeedsDraw = false;
-    // Backend API does not support initializing our (transient) MSAA color
-    // buffer with the existing (non-MSAA) target texture at the beginning of a
-    // render pass. Draw the previous renderTarget contents into it manually via
-    // DrawType::renderPassInitialize when LoadAction::preserveRenderTarget is
-    // specified.
-    bool msaaColorPreserveNeedsDraw = false;
-    // Workaround for Qualcomm. Framebuffer reads on Qualcomm seem to not work
-    // in clockwiseAtomic mode unless we issue a simple, 1-pixel draw that reads
-    // the framebuffer between borrowed coverage and the main draws.
-    bool clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit = false;
-    // Workaround for precision issues. Determines how far apart we space unique
-    // path IDs when they will be bit-casted to fp16.
-    uint8_t pathIDGranularity = 1;
-    // Maximum size (width or height) of a texture.
-    uint32_t maxTextureSize = 2048;
-    // Maximum length (in 32-bit uints) of the coverage buffer used for paths in
-    // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
-    // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
-    size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
+  // Supported InterlockModes.
+  // FIXME: depthStencil is implicit even though it isn't implemented on all
+  // backends.
+  bool supportsRasterOrderingMode = false;
+  bool supportsAtomicMode = false;
+  bool supportsClockwiseMode = false;
+  // InterlockMode::Clockwise with fixedFunctionColorOutput and srcOver blend.
+  // (Only viable for frames that don't use advanced blend.)
+  bool supportsClockwiseFixedFunctionMode = false;
+  bool supportsClockwiseAtomicMode = false;
+  // Use KHR_blend_equation_advanced in depthStencil mode?
+  bool supportsBlendAdvancedKHR = false;
+  bool supportsBlendAdvancedCoherentKHR = false;
+  // Required for @ENABLE_CLIP_RECT in depthStencil mode.
+  bool supportsClipPlanes = false;
+  // The backend implements BlendEquation::layerMask, so a depthStencil frame
+  // can apply a layer mask. rasterOrdering does the op in the shader and
+  // needs nothing from the backend; depthStencil has to scale the
+  // destination with hardware blending, which takes a src factor of ZERO
+  // that not every backend's blend-state builder can express yet. The backend
+  // must also mask color writes for real on passes that disable them:
+  // VERTEX_FLAG_DISABLE_COLOR_WRITE alone makes the shader emit 0, which
+  // this blend applies as an erase.
+  bool supportsDepthStencilLayerMask = false;
+  // The backend supports dynamic state that allows Rive to collapse multiple
+  // subpasses onto a single pipeline, namely:
+  //  * Depth (Vulkan 1.3)
+  //  * Stencil (Vulkan 1.3)
+  //  * Cull (Vulkan 1.3)
+  //  * Color-write (VK_EXT_color_write_enable)
+  // With this state being dynamic, we can combine multiple subpasses (e.g.,
+  // borrowed coverage, fans, stencil reset) onto a single dynamic pipeline
+  // with multiple draws and state updates in between.
+  bool supportsPipelineDynamicState = false;
+  bool avoidFlatVaryings = false;
+  // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
+  // to hit some sort of reset condition that corrupts pixel local storage
+  // when rendering a complex feather. Provide a workaround that allows the
+  // implementation to opt in to always feathering to the feather atlas
+  // instead of rendering directly to the screen.
+  bool alwaysFeatherToAtlas = false;
+  // clipSpaceBottomUp specifies whether the top of the viewport, in clip
+  // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
+  //
+  // framebufferBottomUp specifies whether "row 0" of the framebuffer is the
+  // bottom of the image (OpenGL) or the top (Metal, D3D, WebGPU, Vulkan).
+  //
+  //
+  //                                OpenGL
+  //           (clipSpaceBottomUp=true, framebufferBottomUp=true)
+  //
+  //  Rive Pixel Space             Clip Space              Framebuffer
+  //
+  //  0 ----------->                   ^ +1                ^ height
+  //  |          width                 |                   |
+  //  |                         -1     |     +1            |
+  //  |                 ===>    <------|------>    ===>    |
+  //  |                                |                   |
+  //  |                                |                   |          width
+  //  v height                         v -1                0 ----------->
+  //
+  //
+  //
+  //                            Metal/D3D/WebGPU
+  //           (clipSpaceBottomUp=true, framebufferBottomUp=false)
+  //
+  //  Rive Pixel Space             Clip Space              Framebuffer
+  //
+  //  0 ----------->                   ^ +1                0 ----------->
+  //  |          width                 |                   |          width
+  //  |                         -1     |     +1            |
+  //  |                 ===>    <------|------>    ===>    |
+  //  |                                |                   |
+  //  |                                |                   |
+  //  v height                         v -1                v height
+  //
+  //
+  //
+  //                                Vulkan
+  //          (clipSpaceBottomUp=false, framebufferBottomUp=false)
+  //
+  //  Rive Pixel Space             Clip Space              Framebuffer
+  //
+  //  0 ----------->                   ^ -1                0 ----------->
+  //  |          width                 |                   |          width
+  //  |                         -1     |     +1            |
+  //  |                 ===>    <------|------>    ===>    |
+  //  |                                |                   |
+  //  |                                |                   |
+  //  v height                         v +1                v height
+  //
+  // A target can keep its rows the other way round from the framebuffer
+  // through RenderTarget::bottomUp(). GL canvases do, so their textures
+  // match every other backend.
+  bool clipSpaceBottomUp = false;
+  bool framebufferBottomUp = false;
+  // Backend cannot initialize PLS with typical clear/load APIs in atomic
+  // mode. Issue a "DrawType::renderPassInitialize" draw instead.
+  bool atomicPLSInitNeedsDraw = false;
+  // Backend API does not support initializing our (transient) MSAA color
+  // buffer with the existing (non-MSAA) target texture at the beginning of a
+  // render pass. Draw the previous renderTarget contents into it manually via
+  // DrawType::renderPassInitialize when LoadAction::preserveRenderTarget is
+  // specified.
+  bool msaaColorPreserveNeedsDraw = false;
+  // Workaround for Qualcomm. Framebuffer reads on Qualcomm seem to not work
+  // in clockwiseAtomic mode unless we issue a simple, 1-pixel draw that reads
+  // the framebuffer between borrowed coverage and the main draws.
+  bool clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit = false;
+  // Workaround for precision issues. Determines how far apart we space unique
+  // path IDs when they will be bit-casted to fp16.
+  uint8_t pathIDGranularity = 1;
+  // Maximum size (width or height) of a texture.
+  uint32_t maxTextureSize = 2048;
+  // Maximum length (in 32-bit uints) of the coverage buffer used for paths in
+  // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
+  // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
+  size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
 
-    // True when the backend supports using the scissor rectangle for reducing
-    // the draw bounds of clip reads and writes.
-    // TODO: This should be possible to implement across all backends - at which
-    // point this bool could go away.
-    bool supportsClipScissor = false;
+  // True when the backend supports using the scissor rectangle for reducing
+  // the draw bounds of clip reads and writes.
+  // TODO: This should be possible to implement across all backends - at which
+  // point this bool could go away.
+  bool supportsClipScissor = false;
 
-    // GPU compressed texture format support (queried per backend at init).
-    bool supportsTextureCompressionBC = false;   // BC1/BC2/BC3/BC7
-    bool supportsTextureCompressionASTC = false; // ASTC LDR (any block size)
-    bool supportsTextureCompressionETC2 = false; // ETC2 RGB8 / RGBA8
+  // GPU compressed texture format support (queried per backend at init).
+  bool supportsTextureCompressionBC = false;   // BC1/BC2/BC3/BC7
+  bool supportsTextureCompressionASTC = false; // ASTC LDR (any block size)
+  bool supportsTextureCompressionETC2 = false; // ETC2 RGB8 / RGBA8
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a
 // global gradient texture. They are rendered by "GradientSpan" instances.
 struct GradientSpan
 {
-    // x0Fixed and x1Fixed are normalized texel x coordinates, in the
-    // fixed-point range 0..65535.
-    RIVE_ALWAYS_INLINE void set(uint32_t x0Fixed,
-                                uint32_t x1Fixed,
-                                uint32_t y,
-                                uint32_t flags,
-                                ColorInt color0_,
-                                ColorInt color1_)
-    {
-        assert(x0Fixed < 65536);
-        assert(x1Fixed < 65536);
-        horizontalSpan = (x1Fixed << 16) | x0Fixed;
-        yWithFlags = flags | y;
-        color0 = color0_;
-        color1 = color1_;
-    }
-    uint32_t horizontalSpan;
-    uint32_t yWithFlags;
-    uint32_t color0;
-    uint32_t color1;
+  // x0Fixed and x1Fixed are normalized texel x coordinates, in the
+  // fixed-point range 0..65535.
+  RIVE_ALWAYS_INLINE void set(
+      uint32_t x0Fixed,
+      uint32_t x1Fixed,
+      uint32_t y,
+      uint32_t flags,
+      ColorInt color0_,
+      ColorInt color1_)
+  {
+    assert(x0Fixed < 65536);
+    assert(x1Fixed < 65536);
+    horizontalSpan = (x1Fixed << 16) | x0Fixed;
+    yWithFlags = flags | y;
+    color0 = color0_;
+    color1 = color1_;
+  }
+  uint32_t horizontalSpan;
+  uint32_t yWithFlags;
+  uint32_t color0;
+  uint32_t color1;
 };
 static_assert(sizeof(GradientSpan) == sizeof(uint32_t) * 4);
 static_assert(256 % sizeof(GradientSpan) == 0);
 // Metal requires vertex buffers to be 256-byte aligned.
-constexpr static size_t kGradSpanBufferAlignmentInElements =
-    256 / sizeof(GradientSpan);
+constexpr static size_t kGradSpanBufferAlignmentInElements = 256 /
+                                                             sizeof(
+                                                                 GradientSpan);
 
 // Gradient spans are drawn as 1px-tall triangle strips with 3 sub-rectangles.
 constexpr uint32_t GRAD_SPAN_TRI_STRIP_VERTEX_COUNT = 8;
@@ -304,93 +316,94 @@ constexpr uint32_t GRAD_SPAN_TRI_STRIP_VERTEX_COUNT = 8;
 // (discarding the other).
 struct TessVertexSpan
 {
-    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
-                                Vec2D joinTangent_,
-                                float y_,
-                                int32_t x0,
-                                int32_t x1,
-                                uint32_t parametricSegmentCount,
-                                uint32_t polarSegmentCount,
-                                uint32_t joinSegmentCount,
-                                uint32_t contourIDWithFlags_)
-    {
-        set(pts_,
-            joinTangent_,
-            y_,
-            x0,
-            x1,
-            std::numeric_limits<float>::quiet_NaN(), // Discard the reflection.
-            -1,
-            -1,
-            parametricSegmentCount,
-            polarSegmentCount,
-            joinSegmentCount,
-            contourIDWithFlags_);
-    }
+  RIVE_ALWAYS_INLINE void set(
+      const Vec2D pts_[4],
+      Vec2D joinTangent_,
+      float y_,
+      int32_t x0,
+      int32_t x1,
+      uint32_t parametricSegmentCount,
+      uint32_t polarSegmentCount,
+      uint32_t joinSegmentCount,
+      uint32_t contourIDWithFlags_)
+  {
+    set(pts_,
+        joinTangent_,
+        y_,
+        x0,
+        x1,
+        std::numeric_limits<float>::quiet_NaN(), // Discard the reflection.
+        -1,
+        -1,
+        parametricSegmentCount,
+        polarSegmentCount,
+        joinSegmentCount,
+        contourIDWithFlags_);
+  }
 
-    RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
-                                Vec2D joinTangent_,
-                                float y_,
-                                int32_t x0,
-                                int32_t x1,
-                                float reflectionY_,
-                                int32_t reflectionX0,
-                                int32_t reflectionX1,
-                                uint32_t parametricSegmentCount,
-                                uint32_t polarSegmentCount,
-                                uint32_t joinSegmentCount,
-                                uint32_t contourIDWithFlags_)
-    {
+  RIVE_ALWAYS_INLINE void set(
+      const Vec2D pts_[4],
+      Vec2D joinTangent_,
+      float y_,
+      int32_t x0,
+      int32_t x1,
+      float reflectionY_,
+      int32_t reflectionX0,
+      int32_t reflectionX1,
+      uint32_t parametricSegmentCount,
+      uint32_t polarSegmentCount,
+      uint32_t joinSegmentCount,
+      uint32_t contourIDWithFlags_)
+  {
 #ifndef NDEBUG
-        // Write to an intermediate local object in debug mode, so we can check
-        // its values. (Otherwise we can't read it because mapped memory is
-        // write-only.)
-        TessVertexSpan localCopy;
+    // Write to an intermediate local object in debug mode, so we can check
+    // its values. (Otherwise we can't read it because mapped memory is
+    // write-only.)
+    TessVertexSpan localCopy;
 #define LOCAL(VAR) localCopy.VAR
 #else
 #define LOCAL(VAR) VAR
 #endif
-        RIVE_INLINE_MEMCPY(LOCAL(pts), pts_, sizeof(LOCAL(pts)));
-        LOCAL(joinTangent) = joinTangent_;
-        LOCAL(y) = y_;
-        LOCAL(reflectionY) = reflectionY_;
-        LOCAL(x0x1) = (x1 << 16 | (x0 & 0xffff));
-        LOCAL(reflectionX0X1) = (reflectionX1 << 16 | (reflectionX0 & 0xffff));
-        LOCAL(segmentCounts) = (joinSegmentCount << 20) |
-                               (polarSegmentCount << 10) |
-                               parametricSegmentCount;
-        LOCAL(contourIDWithFlags) = contourIDWithFlags_;
+    RIVE_INLINE_MEMCPY(LOCAL(pts), pts_, sizeof(LOCAL(pts)));
+    LOCAL(joinTangent) = joinTangent_;
+    LOCAL(y) = y_;
+    LOCAL(reflectionY) = reflectionY_;
+    LOCAL(x0x1) = (x1 << 16 | (x0 & 0xffff));
+    LOCAL(reflectionX0X1) = (reflectionX1 << 16 | (reflectionX0 & 0xffff));
+    LOCAL(segmentCounts) = (joinSegmentCount << 20) |
+                           (polarSegmentCount << 10) | parametricSegmentCount;
+    LOCAL(contourIDWithFlags) = contourIDWithFlags_;
 #undef LOCAL
 
-        // Ensure we didn't lose any data from packing.
-        assert(localCopy.x0x1 << 16 >> 16 == x0);
-        assert(localCopy.x0x1 >> 16 == x1);
-        assert(localCopy.reflectionX0X1 << 16 >> 16 == reflectionX0);
-        assert(localCopy.reflectionX0X1 >> 16 == reflectionX1);
-        assert((localCopy.segmentCounts & 0x3ff) == parametricSegmentCount);
-        assert(((localCopy.segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
-        assert(localCopy.segmentCounts >> 20 == joinSegmentCount);
+    // Ensure we didn't lose any data from packing.
+    assert(localCopy.x0x1 << 16 >> 16 == x0);
+    assert(localCopy.x0x1 >> 16 == x1);
+    assert(localCopy.reflectionX0X1 << 16 >> 16 == reflectionX0);
+    assert(localCopy.reflectionX0X1 >> 16 == reflectionX1);
+    assert((localCopy.segmentCounts & 0x3ff) == parametricSegmentCount);
+    assert(((localCopy.segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
+    assert(localCopy.segmentCounts >> 20 == joinSegmentCount);
 
 #ifndef NDEBUG
-        memcpy(this, &localCopy, sizeof(*this));
+    memcpy(this, &localCopy, sizeof(*this));
 #endif
-    }
+  }
 
-    Vec2D pts[4];      // Cubic bezier curve.
-    Vec2D joinTangent; // Ending tangent of the join that follows the cubic.
-    float y;
-    float reflectionY;
-    int32_t x0x1;
-    int32_t reflectionX0X1;
-    uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount,
-                                 // parametricSegmentCount]
-    uint32_t contourIDWithFlags; // flags | contourID
+  Vec2D pts[4];      // Cubic bezier curve.
+  Vec2D joinTangent; // Ending tangent of the join that follows the cubic.
+  float y;
+  float reflectionY;
+  int32_t x0x1;
+  int32_t reflectionX0X1;
+  uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount,
+                               // parametricSegmentCount]
+  uint32_t contourIDWithFlags; // flags | contourID
 };
 static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
 static_assert(256 % sizeof(TessVertexSpan) == 0);
 // Metal requires vertex buffers to be 256-byte aligned.
-constexpr static size_t kTessVertexBufferAlignmentInElements =
-    256 / sizeof(TessVertexSpan);
+constexpr static size_t
+    kTessVertexBufferAlignmentInElements = 256 / sizeof(TessVertexSpan);
 
 // Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span
 // and its reflection.
@@ -402,10 +415,10 @@ constexpr uint16_t kTessSpanIndices[4 * 3] =
 // in its entirety in a single pass.
 struct ImageRectVertex
 {
-    float x;
-    float y;
-    float aaOffsetX;
-    float aaOffsetY;
+  float x;
+  float y;
+  float aaOffsetX;
+  float aaOffsetY;
 };
 
 constexpr ImageRectVertex kImageRectVertices[12] = {
@@ -430,10 +443,11 @@ constexpr uint16_t kImageRectIndices[14 * 3] = {
 
 enum class PaintType : uint32_t
 {
-    clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
-    solidColor,
-    linearGradient,
-    radialGradient,
+  clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
+  solidColor,
+  linearGradient,
+  radialGradient,
+  angularGradient,
 };
 
 // Specifies the location of a simple or complex horizontal color ramp within
@@ -443,19 +457,19 @@ enum class PaintType : uint32_t
 //     "GradTextureLayout::complexOffsetY + ColorRampLocation::row".
 struct ColorRampLocation
 {
-    constexpr static uint16_t kComplexGradientMarker = 0xffff;
-    bool isComplex() const { return col == kComplexGradientMarker; }
-    uint16_t row;
-    uint16_t col;
+  constexpr static uint16_t kComplexGradientMarker = 0xffff;
+  bool isComplex() const { return col == kComplexGradientMarker; }
+  uint16_t row;
+  uint16_t col;
 };
 
 // Most of a paint's information can be described in a single value. Gradients
 // and images reference an additional Gradient* and Texture* respectively.
 union SimplePaintValue
 {
-    ColorInt color = 0xff000000;         // PaintType::solidColor
-    ColorRampLocation colorRampLocation; // PainTtype::linear/radialGradient
-    uint32_t outerClipID;                // PainTtype::clipUpdate
+  ColorInt color = 0xff000000;         // PaintType::solidColor
+  ColorRampLocation colorRampLocation; // PainTtype::linear/radialGradient
+  uint32_t outerClipID;                // PainTtype::clipUpdate
 };
 static_assert(sizeof(SimplePaintValue) == 4);
 
@@ -464,34 +478,34 @@ static_assert(sizeof(SimplePaintValue) == 4);
 class ClipRectInverseMatrix
 {
 public:
-    // When the clipRect inverse matrix is singular (e.g., all 0 in scale and
-    // skew), the shader uses tx and ty as fixed clip coverage values instead of
-    // finding edge distances.
-    constexpr static ClipRectInverseMatrix WideOpen()
-    {
-        return Mat2D{0, 0, 0, 0, 1, 1};
-    }
-    constexpr static ClipRectInverseMatrix Empty()
-    {
-        return Mat2D{0, 0, 0, 0, 0, 0};
-    }
+  // When the clipRect inverse matrix is singular (e.g., all 0 in scale and
+  // skew), the shader uses tx and ty as fixed clip coverage values instead of
+  // finding edge distances.
+  constexpr static ClipRectInverseMatrix WideOpen()
+  {
+    return Mat2D{0, 0, 0, 0, 1, 1};
+  }
+  constexpr static ClipRectInverseMatrix Empty()
+  {
+    return Mat2D{0, 0, 0, 0, 0, 0};
+  }
 
-    ClipRectInverseMatrix() = default;
+  ClipRectInverseMatrix() = default;
 
-    ClipRectInverseMatrix(const Mat2D& clipMatrix, const AABB& clipRect)
-    {
-        reset(clipMatrix, clipRect);
-    }
+  ClipRectInverseMatrix(const Mat2D& clipMatrix, const AABB& clipRect)
+  {
+    reset(clipMatrix, clipRect);
+  }
 
-    void reset(const Mat2D& clipMatrix, const AABB& clipRect);
+  void reset(const Mat2D& clipMatrix, const AABB& clipRect);
 
-    const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
+  const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
 
 private:
-    constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) :
-        m_inverseMatrix(inverseMatrix)
-    {}
-    Mat2D m_inverseMatrix;
+  constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix)
+      : m_inverseMatrix(inverseMatrix)
+  {}
+  Mat2D m_inverseMatrix;
 };
 
 // Specifies the height of the gradient texture, and the row at which we
@@ -501,8 +515,8 @@ private:
 // color ramps of each type will be in the gradient texture.
 struct GradTextureLayout
 {
-    uint32_t complexOffsetY; // Row of the first complex gradient.
-    float inverseHeight;     // 1 / textureHeight
+  uint32_t complexOffsetY; // Row of the first complex gradient.
+  float inverseHeight;     // 1 / textureHeight
 };
 
 // Once all curves in a contour have been tessellated, we render the tessellated
@@ -519,24 +533,24 @@ struct GradTextureLayout
 // of the fan triangles depend on the PatchType.
 enum class PatchType
 {
-    // Patches fan around the contour midpoint. Outer edges are inset by ~1px,
-    // followed by a ~1px AA ramp.
-    midpointFan,
+  // Patches fan around the contour midpoint. Outer edges are inset by ~1px,
+  // followed by a ~1px AA ramp.
+  midpointFan,
 
-    // Similar to midpointFan, except AA ramps are split down the center and
-    // drawn with a ~1/2px outset AA ramp and a ~1/2px inset AA ramp that
-    // overlaps the inner tessellation and has negative coverage.
-    midpointFanCenterAA,
+  // Similar to midpointFan, except AA ramps are split down the center and
+  // drawn with a ~1/2px outset AA ramp and a ~1/2px inset AA ramp that
+  // overlaps the inner tessellation and has negative coverage.
+  midpointFanCenterAA,
 
-    // Patches only cover the AA ramps and interiors of bezier curves. The
-    // interior path triangles that connect the outer curves are triangulated on
-    // the CPU to eliminate overlap, and are drawn in a separate call. AA ramps
-    // are split down the center (on the same lines as the interior
-    // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
-    // AA ramp that overlaps the inner tessellation and has negative coverage. A
-    // lone bowtie join is emitted at the end of the patch to tie the outer
-    // curves together.
-    outerCurves,
+  // Patches only cover the AA ramps and interiors of bezier curves. The
+  // interior path triangles that connect the outer curves are triangulated on
+  // the CPU to eliminate overlap, and are drawn in a separate call. AA ramps
+  // are split down the center (on the same lines as the interior
+  // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
+  // AA ramp that overlaps the inner tessellation and has negative coverage. A
+  // lone bowtie join is emitted at the end of the patch to tie the outer
+  // curves together.
+  outerCurves,
 };
 
 // When tessellating path vertices, we have the ability to generate the
@@ -545,59 +559,61 @@ enum class PatchType
 // reverse, or BOTH.
 enum class ContourDirections
 {
-    forward,
-    reverse,
-    // Generate two tessellations of the contour: reverse first, then forward.
-    reverseThenForward,
-    // Generate two tessellations of the contour: forward first, then reverse.
-    forwardThenReverse,
+  forward,
+  reverse,
+  // Generate two tessellations of the contour: reverse first, then forward.
+  reverseThenForward,
+  // Generate two tessellations of the contour: forward first, then reverse.
+  forwardThenReverse,
 };
 constexpr static bool ContourDirectionsAreDoubleSided(
     ContourDirections contourDirections)
 {
-    return contourDirections >= ContourDirections::reverseThenForward;
+  return contourDirections >= ContourDirections::reverseThenForward;
 }
 
 struct PatchVertex
 {
-    void set(float localVertexID_,
-             float outset_,
-             float fillCoverage_,
-             float params_)
-    {
-        localVertexID = localVertexID_;
-        outset = outset_;
-        fillCoverage = fillCoverage_;
-        params = params_;
-        setMirroredPosition(localVertexID_, outset_, fillCoverage_);
-    }
+  void set(
+      float localVertexID_,
+      float outset_,
+      float fillCoverage_,
+      float params_)
+  {
+    localVertexID = localVertexID_;
+    outset = outset_;
+    fillCoverage = fillCoverage_;
+    params = params_;
+    setMirroredPosition(localVertexID_, outset_, fillCoverage_);
+  }
 
-    // Patch vertices can have an optional, alternate position when mirrored.
-    // This is so we can ensure the diagonals inside the stroke line up on both
-    // versions of the patch (mirrored and not).
-    void setMirroredPosition(float localVertexID_,
-                             float outset_,
-                             float fillCoverage_)
-    {
-        mirroredVertexID = localVertexID_;
-        mirroredOutset = outset_;
-        mirroredFillCoverage = fillCoverage_;
-    }
+  // Patch vertices can have an optional, alternate position when mirrored.
+  // This is so we can ensure the diagonals inside the stroke line up on both
+  // versions of the patch (mirrored and not).
+  void setMirroredPosition(
+      float localVertexID_,
+      float outset_,
+      float fillCoverage_)
+  {
+    mirroredVertexID = localVertexID_;
+    mirroredOutset = outset_;
+    mirroredFillCoverage = fillCoverage_;
+  }
 
-    float localVertexID; // 0 or 1 -- which tessellated vertex of the two that
-                         // we are connecting?
-    float outset; // Outset from the tessellated position, in the direction of
-                  // the normal.
-    float fillCoverage; // 0..1 for the stroke. 1 all around for the triangles.
-                        // (Coverage will be negated later for counterclockwise
-                        // triangles.)
-    int32_t params;     // "(patchSize << 2) | [flags::kStrokeVertex,
-                        //                      flags::kFanVertex,
-                        //                      flags::kFanMidpointVertex]"
-    float mirroredVertexID;
-    float mirroredOutset;
-    float mirroredFillCoverage;
-    int32_t padding = 0;
+  float localVertexID; // 0 or 1 -- which tessellated vertex of the two that
+                       // we are connecting?
+  float outset; // Outset from the tessellated position, in the direction of
+                // the normal.
+  float fillCoverage; // 0..1 for the stroke. 1 all around for the triangles.
+                      // (Coverage will be negated later for counterclockwise
+                      // triangles.)
+  int32_t params;     // "(patchSize << 2) | [flags::kStrokeVertex,
+                      //                      flags::kFanVertex,
+                      //                      flags::kFanMidpointVertex]"
+  float mirroredVertexID;
+  float mirroredOutset;
+  float mirroredFillCoverage;
+  int32_t padding = 0;
 };
 static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 
@@ -612,323 +628,463 @@ constexpr static uint32_t OuterCubicPatchSegmentSpan = 16;
 
 // Full tessellation stride of an outer cubic patch: the curve segments plus the
 // trailing zero-length bowtie-join segment.
-constexpr static uint32_t OuterCubicPatchSegmentSpanPlusBowtie =
-    OuterCubicPatchSegmentSpan + 1;
+constexpr static uint32_t
+    OuterCubicPatchSegmentSpanPlusBowtie = OuterCubicPatchSegmentSpan + 1;
 
 // Define vertex and index buffers that contain all the triangles in every
 // PatchType.
-constexpr static uint32_t kMidpointFanPatchVertexCount =
-    kMidpointFanPatchSegmentSpan * 4 /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ +
-    1 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanPatchBorderIndexCount =
-    kMidpointFanPatchSegmentSpan * 6 /*Stroke and/or AA outer ramp*/;
-constexpr static uint32_t kMidpointFanPatchIndexCount =
-    kMidpointFanPatchBorderIndexCount /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ +
-    3 /*Triangle from path midpoint*/;
+constexpr static uint32_t
+    kMidpointFanPatchVertexCount = kMidpointFanPatchSegmentSpan *
+                                       4 /*Stroke and/or AA outer ramp*/
+                                   + (kMidpointFanPatchSegmentSpan +
+                                      1) /*Curve fan*/
+                                   + 1 /*Triangle from path midpoint*/;
+constexpr static uint32_t
+    kMidpointFanPatchBorderIndexCount = kMidpointFanPatchSegmentSpan *
+                                        6 /*Stroke and/or AA outer ramp*/;
+constexpr static uint32_t
+    kMidpointFanPatchIndexCount = kMidpointFanPatchBorderIndexCount /*Stroke
+                                                                       and/or AA
+                                                                       outer
+                                                                       ramp*/
+                                  + (kMidpointFanPatchSegmentSpan - 1) *
+                                        3 /*Curve fan*/
+                                  + 3 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
 static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-constexpr static uint32_t kMidpointFanCenterAAPatchVertexCount =
-    kMidpointFanPatchSegmentSpan * 4 * 2 /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ +
-    1 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanCenterAAPatchBorderIndexCount =
-    kMidpointFanPatchSegmentSpan * 12 /*Stroke and/or AA outer ramp*/;
+constexpr static uint32_t
+    kMidpointFanCenterAAPatchVertexCount = kMidpointFanPatchSegmentSpan * 4 *
+                                               2 /*Stroke and/or AA outer ramp*/
+                                           + (kMidpointFanPatchSegmentSpan +
+                                              1) /*Curve fan*/
+                                           + 1 /*Triangle from path midpoint*/;
+constexpr static uint32_t
+    kMidpointFanCenterAAPatchBorderIndexCount = kMidpointFanPatchSegmentSpan *
+                                                12 /*Stroke and/or AA outer
+                                                      ramp*/
+    ;
 constexpr static uint32_t kMidpointFanCenterAAPatchIndexCount =
     kMidpointFanCenterAAPatchBorderIndexCount /*Stroke and/or AA outer ramp*/ +
     (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ +
     3 /*Triangle from path midpoint*/;
-constexpr static uint32_t kMidpointFanCenterAAPatchBaseIndex =
-    kMidpointFanPatchBaseIndex + kMidpointFanPatchIndexCount;
+constexpr static uint32_t
+    kMidpointFanCenterAAPatchBaseIndex = kMidpointFanPatchBaseIndex +
+                                         kMidpointFanPatchIndexCount;
 static_assert((kMidpointFanCenterAAPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-constexpr static uint32_t kOuterCurvePatchVertexCount =
-    OuterCubicPatchSegmentSpanPlusBowtie * 8 /*AA center ramp with bowtie*/ +
-    OuterCubicPatchSegmentSpanPlusBowtie /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchBorderIndexCount =
-    OuterCubicPatchSegmentSpanPlusBowtie * 12 /*AA center ramp with bowtie*/;
-constexpr static uint32_t kOuterCurvePatchIndexCount =
-    kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
-    (OuterCubicPatchSegmentSpan - 1) * 3 /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchBaseIndex =
-    kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
+constexpr static uint32_t
+    kOuterCurvePatchVertexCount = OuterCubicPatchSegmentSpanPlusBowtie *
+                                      8 /*AA center ramp with bowtie*/
+                                  +
+                                  OuterCubicPatchSegmentSpanPlusBowtie /*Curve
+                                                                          fan*/
+    ;
+constexpr static uint32_t
+    kOuterCurvePatchBorderIndexCount = OuterCubicPatchSegmentSpanPlusBowtie *
+                                       12 /*AA center ramp with bowtie*/;
+constexpr static uint32_t
+    kOuterCurvePatchIndexCount = kOuterCurvePatchBorderIndexCount /*AA center
+                                                                     ramp with
+                                                                     bowtie*/
+                                 + (OuterCubicPatchSegmentSpan - 1) *
+                                       3 /*Curve fan*/;
+constexpr static uint32_t
+    kOuterCurvePatchBaseIndex = kMidpointFanCenterAAPatchBaseIndex +
+                                kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-// depthStencil fills use repeating index patterns instead of instancing. They
-// otherwise draw the same basic patch geometry as other modes, but without the
-// AA border. (And rather than input attribs, the shader derives its vertex
-// attributes from gl_VertexID.)
-constexpr static uint32_t DSMidpointFanFillPatchIndexCount =
-    kMidpointFanPatchIndexCount - kMidpointFanPatchBorderIndexCount;
+// Repeating middle-out index pattern for depthStencil midpointFans.
+constexpr static uint32_t
+    DSMidpointFanFillPatchIndexCount = kMidpointFanPatchIndexCount -
+                                       kMidpointFanPatchBorderIndexCount;
 // A single midpointFan patch is repeated multiple times in the index buffer,
 // with increasing vertex IDs.
 constexpr static uint32_t DSMidpointFanFillPatchMaxReps = 4096;
 // depthStencil draws may bind the index buffer at an offset rather than using
 // baseIndex, and Metal's indexBufferOffset has to be a multiple of 4 bytes.
-constexpr static uint32_t DSMidpointFanFillBaseIndex =
-    math::round_up_to_multiple_of<4 / sizeof(uint16_t)>(
+constexpr static uint32_t DSMidpointFanFillBaseIndex = math::
+    round_up_to_multiple_of<4 / sizeof(uint16_t)>(
         kOuterCurvePatchBaseIndex + kOuterCurvePatchIndexCount);
 // Metal's indexBufferOffset has to be a multiple of 4 bytes.
 static_assert((DSMidpointFanFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-constexpr static uint32_t DSOuterCubicFillPatchIndexCount =
-    kOuterCurvePatchIndexCount - kOuterCurvePatchBorderIndexCount;
+// Repeating middle-out index pattern for depthStencil outerCubics.
+constexpr static uint32_t
+    DSOuterCubicFillPatchIndexCount = kOuterCurvePatchIndexCount -
+                                      kOuterCurvePatchBorderIndexCount;
 // A single outerCubic patch is repeated multiple times in the index buffer,
 // with increasing vertex IDs.
 constexpr static uint32_t DSOuterCubicFillPatchMaxReps = 2048;
 // depthStencil draws may bind the index buffer at an offset rather than using
 // baseIndex, and Metal's indexBufferOffset has to be a multiple of 4 bytes.
-constexpr static uint32_t DSOuterCubicFillBaseIndex =
-    math::round_up_to_multiple_of<4 / sizeof(uint16_t)>(
+constexpr static uint32_t DSOuterCubicFillBaseIndex = math::
+    round_up_to_multiple_of<4 / sizeof(uint16_t)>(
         DSMidpointFanFillBaseIndex +
         DSMidpointFanFillPatchMaxReps * DSMidpointFanFillPatchIndexCount);
 // Metal's indexBufferOffset has to be a multiple of 4 bytes.
 static_assert((DSOuterCubicFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-constexpr static uint32_t dsFillPatchIndexCount(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillPatchIndexCount
-                      : DSMidpointFanFillPatchIndexCount;
-}
-constexpr static uint32_t dsFillPatchMaxReps(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillPatchMaxReps
-                      : DSMidpointFanFillPatchMaxReps;
-}
-constexpr static uint32_t dsFillBaseIndex(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillBaseIndex : DSMidpointFanFillBaseIndex;
-}
+// Repeating triangle strip index pattern for DrawType::depthStrokes.
+constexpr static uint32_t
+    DSStrokePatchIndexCount = kMidpointFanPatchSegmentSpan * 6 /*2 triangles*/;
+constexpr static uint32_t DSStrokePatchMaxReps = 2048;
+constexpr static uint32_t
+    DSStrokePatchBaseIndex = DSOuterCubicFillBaseIndex +
+                             DSOuterCubicFillPatchIndexCount *
+                                 DSOuterCubicFillPatchMaxReps;
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSStrokePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
+// Repeating 3-band triangle strip index pattern for DrawType::depthAAStrokes.
+// (2 bands with AA ramps on top and bottom, and a solid band in the middle.)
+constexpr static uint32_t DSAAStrokePatchIndexCount = DSStrokePatchIndexCount *
+                                                      3 /*3 bands*/;
+constexpr static uint32_t DSAAStrokePatchMaxReps = 1024;
+constexpr static uint32_t DSAAStrokePatchBaseIndex = DSStrokePatchBaseIndex +
+                                                     DSStrokePatchIndexCount *
+                                                         DSStrokePatchMaxReps;
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSAAStrokePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
 // depthStencil vertex IDs are spaced on pow2 strides per patch so the shader
-// can decode them with shifts instead of divides. (DS_PATCH_STRIDE_LOG2 in
-// constants.glsl.)
+// can decode them with shifts instead of divides.
 constexpr static uint32_t DSMidpointFanFillPatchStrideLog2 = 4;
 constexpr static uint32_t DSOuterCubicFillPatchStrideLog2 = 5;
+constexpr static uint32_t DSStrokePatchStrideLog2 = 5;
+constexpr static uint32_t DSAAStrokePatchStrideLog2 = 6;
 
-// depthStencil fills encode some attributes as flags on gl_VertexID, in order
-// to avoid input attribs. (DS_PATCH_STRIDE_LOG2 in constants.glsl.)
-constexpr static int32_t DSFillVertexFlagsShift = 29;
-constexpr static int32_t DSFillVertexFlagDisableColorWrite =
-    1 << DSFillVertexFlagsShift;
-constexpr static int32_t DSFillVertexFlagOuterCubic =
-    1 << (DSFillVertexFlagsShift + 1);
+// depthStencil draws encode some attributes as flags on gl_VertexID, in order
+// to avoid input attribs. (The official flags are #defines in constants.glsl;
+// these are just aliases for headers that can't access that file.)
+constexpr static int32_t DSVertexFlagsShift = 28;
+constexpr static int32_t DSVertexFlag_DisableColorWrite = 0x1
+                                                          << DSVertexFlagsShift;
+constexpr static int32_t DSVertexFlag_OuterCubicFill = 0x2
+                                                       << DSVertexFlagsShift;
+// Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
+constexpr static int32_t
+    DSVertexFlag_AAPolarStroke = DSVertexFlag_OuterCubicFill;
+// depthAAstrokes render in two passes: a depth-only pass followed by color.
+// We select the pass by vertex flags rather than pipeline state.
+constexpr static int32_t DSVertexFlag_StrokeDepthPass = 0x4
+                                                        << DSVertexFlagsShift;
 
-// Byte offset to bind the index buffer for a depthStencil fill. Every backend
-// that may see Adreno should use this rather than baseIndex. Using baseIndex on
-// Adreno drops the total framerate by 26%.
-constexpr static uint32_t dsFillIndexOffset(bool outerCubic)
-{
-    return static_cast<uint32_t>(dsFillBaseIndex(outerCubic) *
-                                 sizeof(uint16_t));
-}
+constexpr static uint32_t
+    kPatchVertexBufferCount = kMidpointFanPatchVertexCount +
+                              kMidpointFanCenterAAPatchVertexCount +
+                              kOuterCurvePatchVertexCount;
 
-constexpr static uint32_t kPatchVertexBufferCount =
-    kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount +
-    kOuterCurvePatchVertexCount;
-constexpr static uint32_t kPatchIndexBufferCount =
-    DSOuterCubicFillBaseIndex +
-    DSOuterCubicFillPatchIndexCount * DSOuterCubicFillPatchMaxReps;
-void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
-                             uint16_t indices[kPatchIndexBufferCount]);
+constexpr static uint32_t kPatchIndexBufferCount = DSAAStrokePatchBaseIndex +
+                                                   DSAAStrokePatchIndexCount *
+                                                       DSAAStrokePatchMaxReps;
+
+void GeneratePatchBufferData(
+    PatchVertex[kPatchVertexBufferCount],
+    uint16_t indices[kPatchIndexBufferCount]);
 
 enum class DrawType : uint8_t
 {
-    // Fills, strokes, feathered strokes.
-    midpointFanPatches,
+  // Fills, strokes, feathered strokes.
+  midpointFanPatches,
 
-    // Feathered fills.
-    midpointFanCenterAAPatches,
+  // Feathered fills.
+  midpointFanCenterAAPatches,
 
-    // Just the outer curves of a path; the interior will be triangulated.
-    outerCurvePatches,
+  // Just the outer curves of a path; the interior will be triangulated.
+  outerCurvePatches,
 
-    interiorTriangulation,
-    featherAtlasBlit,
-    imageRect,
-    imageMesh,
+  interiorTriangulation,
+  featherAtlasBlit,
+  imageRect,
+  imageMesh,
 
-    // Strokes that use the depth buffer to work out coverage and avoid double
-    // hits.
-    depthStrokes,
+  // depthStencil "fast" path: (almost) single pass rendering.
+  stencilMidpointFanBorrowedCoverage,
+  stencilMidpointFans,
+  stencilMidpointFanReset,
 
-    // depthStencil "fast" path: (almost) single pass rendering.
-    stencilMidpointFanBorrowedCoverage,
-    stencilMidpointFans,
-    stencilMidpointFanReset,
+  // Equivalent to stencilMidpointFanBorrowedCoverage + stencilMidpointFans +
+  // stencilMidpointFanReset on a single pipeline, switching between them
+  // with dynamic color/depth/stencil/cull state. Keeps the three passes on
+  // one batch so the reorderer can still instance non-overlapping paths
+  // together, while collapsing three pipeline binds into one.
+  stencilDynamicMidpointFans,
 
-    // Equivalent to stencilMidpointFanBorrowedCoverage + stencilMidpointFans +
-    // stencilMidpointFanReset on a single pipeline, switching between them
-    // with dynamic color/depth/stencil/cull state. Keeps the three passes on
-    // one batch so the reorderer can still instance non-overlapping paths
-    // together, while collapsing three pipeline binds into one.
-    stencilDynamicMidpointFans,
+  // Same as the midpoint-fan "fast" path, but submits outer-cubic patches
+  // instead of midpoint-fan patches. These use the exact same depth/stencil
+  // settings as their midpoint-fan counterparts; they just draw a different
+  // patch of triangles. Used to fill paths via interior triangulation, whose
+  // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
+  stencilOuterCubicBorrowedCoverage,
+  stencilOuterCubics,
+  stencilOuterCubicReset,
 
-    // Same as the midpoint-fan "fast" path, but submits outer-cubic patches
-    // instead of midpoint-fan patches. These use the exact same depth/stencil
-    // settings as their midpoint-fan counterparts; they just draw a different
-    // patch of triangles. Used to fill paths via interior triangulation, whose
-    // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
-    stencilOuterCubicBorrowedCoverage,
-    stencilOuterCubics,
-    stencilOuterCubicReset,
+  // The stencilDynamicMidpointFans equivalent for outer cubics: collapses
+  // stencilOuterCubicBorrowedCoverage + stencilOuterCubics +
+  // stencilOuterCubicReset onto a single pipeline, switching between them
+  // with dynamic state. Same geometry as the outer-cubic passes above.
+  stencilDynamicOuterCubics,
 
-    // The stencilDynamicMidpointFans equivalent for outer cubics: collapses
-    // stencilOuterCubicBorrowedCoverage + stencilOuterCubics +
-    // stencilOuterCubicReset onto a single pipeline, switching between them
-    // with dynamic state. Same geometry as the outer-cubic passes above.
-    stencilDynamicOuterCubics,
+  // depthStencil "slow" path: stencil-then-cover.
+  stencilMidpointFanWinding,
+  stencilMidpointFanCover,
 
-    // depthStencil "slow" path: stencil-then-cover.
-    stencilMidpointFanWinding,
-    stencilMidpointFanCover,
+  // Same as the midpoint-fan "slow" path, but submits outer-cubic patches.
+  stencilOuterCubicWinding,
+  stencilOuterCubicCover,
 
-    // Same as the midpoint-fan "slow" path, but submits outer-cubic patches.
-    stencilOuterCubicWinding,
-    stencilOuterCubicCover,
+  // Strokes that use the depth buffer to reject double hits.
+  depthStrokes,
 
-    // Clear or intersect (based on DrawContents) the clip value.
-    clipReset,
+  // Strokes that use the depth buffer to work out analytic coverage.
+  depthAAStrokes,
 
-    // Clear/init render pass data with a fullscreen draw when we can't do it
-    // with existing clear/load APIs. (e.g., for pixel local storage in buffers
-    // that don't have copy/clear commands, or preserving existing color data in
-    // a transient MSAA arrachment).
-    renderPassInitialize,
+  // Only the outer AA band of a depthAAStroke. Used in inkbleed mode to
+  // antialias clockwise fills.
+  depthAAOuterHairline,
 
-    // Resolve render pass data (e.g., by applying the final deferred color in
-    // atomic mode, or copying an offscreen attachment to the final
-    // renderTarget).
-    renderPassResolve,
+  // Clear or intersect (based on DrawContents) the clip value.
+  clipReset,
+
+  // Clear/init render pass data with a fullscreen draw when we can't do it
+  // with existing clear/load APIs. (e.g., for pixel local storage in buffers
+  // that don't have copy/clear commands, or preserving existing color data in
+  // a transient MSAA arrachment).
+  renderPassInitialize,
+
+  // Resolve render pass data (e.g., by applying the final deferred color in
+  // atomic mode, or copying an offscreen attachment to the final
+  // renderTarget).
+  renderPassResolve,
 };
 
 // True for drawTypes that switch dynamic state on a single pipeline and issue
 // multiple draws, rather than baking multiple pipelines.
 constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
 {
-    switch (drawType)
-    {
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-            return true;
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::depthStrokes:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubics:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            return false;
-    }
-    RIVE_UNREACHABLE();
+  switch (drawType)
+  {
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+      return true;
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::renderPassResolve:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      return false;
+  }
+  RIVE_UNREACHABLE();
 }
 
-constexpr static bool drawTypeSubmitsOuterCubicPatches(DrawType drawType)
+// depthStencil draws use repeating index patterns instead of instancing, with
+// runs of distinct index repetitions laid out in different regions of the
+// patchIndexBuffer. (And there are no vertex attribs; the vertex shader derives
+// all its attributes from gl_VertexID.)
+constexpr static uint32_t dsPatchMaxReps(DrawType drawType)
 {
-    switch (drawType)
-    {
-        case DrawType::outerCurvePatches:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubics:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-            return true;
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::depthStrokes:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            return false;
-    }
-    RIVE_UNREACHABLE();
+  switch (drawType)
+  {
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+      return DSMidpointFanFillPatchMaxReps;
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+      return DSOuterCubicFillPatchMaxReps;
+    case DrawType::depthStrokes:
+    case DrawType::depthAAOuterHairline:
+      return DSStrokePatchMaxReps;
+    case DrawType::depthAAStrokes:
+      return DSAAStrokePatchMaxReps;
+    default:
+      RIVE_UNREACHABLE();
+  }
+}
+constexpr static uint32_t dsPatchStrideLog2(DrawType drawType)
+{
+  switch (drawType)
+  {
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+      return DSMidpointFanFillPatchStrideLog2;
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+      return DSOuterCubicFillPatchStrideLog2;
+    case DrawType::depthStrokes:
+    case DrawType::depthAAOuterHairline:
+      return DSStrokePatchStrideLog2;
+    case DrawType::depthAAStrokes:
+      return DSAAStrokePatchStrideLog2;
+    default:
+      RIVE_UNREACHABLE();
+  }
+}
+constexpr static bool drawTypeIsDepthStencilPolarStroke(DrawType drawType)
+{
+  switch (drawType)
+  {
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+      return true;
+    case DrawType::depthAAOuterHairline:
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::renderPassResolve:
+      return false;
+  }
+  RIVE_UNREACHABLE();
+}
+
+// depthStencil draws whose analytic AA renders in two passes: depth only, then
+// color.
+constexpr static bool drawTypeIsDepthAAStroke(DrawType drawType)
+{
+  switch (drawType)
+  {
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      return true;
+    case DrawType::depthStrokes:
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::renderPassResolve:
+      return false;
+  }
+  RIVE_UNREACHABLE();
 }
 
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
 {
-    switch (drawType)
-    {
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-            return true;
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-        case DrawType::depthStrokes:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubics:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            return false;
-    }
-    RIVE_UNREACHABLE();
+  switch (drawType)
+  {
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+      return true;
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::renderPassResolve:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      return false;
+  }
+  RIVE_UNREACHABLE();
 }
 
 // Specifies what to do with the render target at the beginning of a flush.
 enum class LoadAction
 {
-    clear,
-    preserveRenderTarget,
-    dontCare,
+  clear,
+  preserveRenderTarget,
+  dontCare,
 };
 
 // Synchronization method for pixel local storage with overlapping fragments.
 enum class InterlockMode
 {
-    rasterOrdering,
-    atomics,
-    // Overrides every path's fill rule with clockwise, and implements the
-    // clockwise algorithm using raster ordering hardware.
-    // TODO: Once polished, this mode can be mixed into "rasterOrdering" and
-    // used selectively for clockwise paths.
-    clockwise,
-    // Use an experimental path rendering algorithm that utilizes atomics
-    // without barriers. This requires that we override all paths' fill rules
-    // (winding or even/odd) with a "clockwise" fill rule, where only regions
-    // with a positive winding number get filled.
-    clockwiseAtomic,
-    depthStencil,
+  rasterOrdering,
+  atomics,
+  // Overrides every path's fill rule with clockwise, and implements the
+  // clockwise algorithm using raster ordering hardware.
+  // TODO: Once polished, this mode can be mixed into "rasterOrdering" and
+  // used selectively for clockwise paths.
+  clockwise,
+  // Use an experimental path rendering algorithm that utilizes atomics
+  // without barriers. This requires that we override all paths' fill rules
+  // (winding or even/odd) with a "clockwise" fill rule, where only regions
+  // with a positive winding number get filled.
+  clockwiseAtomic,
+  depthStencil,
 };
 constexpr static size_t INTERLOCK_MODE_COUNT = 5;
 // # of bits required to contain an InterlockMode.
@@ -939,9 +1095,9 @@ static_assert(INTERLOCK_MODE_COUNT > (1 << (InterlockModeBitCount - 1)));
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
 {
-    AABBu16 scissor;
-    uint32_t patchCount;
-    uint32_t basePatch;
+  AABBu16 scissor;
+  uint32_t patchCount;
+  uint32_t basePatch;
 };
 
 // "Uber shader" features that can be #defined in a draw shader.
@@ -951,64 +1107,69 @@ struct AtlasDrawBatch
 // know a batch doesn't need it for better performance.
 enum class ShaderFeatures
 {
-    NONE = 0,
+  NONE = 0,
 
-    // Whole program features.
-    ENABLE_CLIPPING = 1 << 0,
-    ENABLE_CLIP_RECT = 1 << 1,
-    ENABLE_ADVANCED_BLEND = 1 << 2,
-    ENABLE_FEATHER = 1 << 3,
+  // Whole program features.
+  ENABLE_CLIPPING = 1 << 0,
+  ENABLE_CLIP_RECT = 1 << 1,
+  ENABLE_ADVANCED_BLEND = 1 << 2,
+  ENABLE_FEATHER = 1 << 3,
+  ENABLE_MODULATED_IMAGE = 1 << 4,
 
-    // Fragment-only features.
-    ENABLE_EVEN_ODD = 1 << 4,
-    ENABLE_NESTED_CLIPPING = 1 << 5,
-    ENABLE_HSL_BLEND_MODES = 1 << 6,
-    ENABLE_DITHER = 1 << 7,
-    ENABLE_MODULATED_IMAGE = 1 << 8,
+  // Fragment-only features.
+  ENABLE_EVEN_ODD = 1 << 5,
+  ENABLE_NESTED_CLIPPING = 1 << 6,
+  ENABLE_HSL_BLEND_MODES = 1 << 7,
+  ENABLE_DITHER = 1 << 8,
+  ENABLE_ANGULAR_GRADIENT = 1 << 9,
 };
 
-constexpr static size_t ShaderFeatureCount = 9;
-constexpr static ShaderFeatures kAllShaderFeatures =
-    static_cast<gpu::ShaderFeatures>((1 << ShaderFeatureCount) - 1);
-constexpr static ShaderFeatures kVertexShaderFeaturesMask =
-    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
-    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER |
-    ShaderFeatures::ENABLE_MODULATED_IMAGE;
+constexpr static size_t ShaderFeatureCount = 10;
+constexpr static ShaderFeatures
+    kAllShaderFeatures = static_cast<gpu::ShaderFeatures>(
+        (1 << ShaderFeatureCount) - 1);
+constexpr static ShaderFeatures
+    kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
+                                ShaderFeatures::ENABLE_CLIP_RECT |
+                                ShaderFeatures::ENABLE_ADVANCED_BLEND |
+                                ShaderFeatures::ENABLE_FEATHER |
+                                ShaderFeatures::ENABLE_MODULATED_IMAGE;
 
 // These shader features change the way atomic pipelines are set up (or cause
 //  validation failures when enabled but not used)
-constexpr static ShaderFeatures kExclusiveAtomicUbershaderFeaturesMask =
-    ShaderFeatures::ENABLE_ADVANCED_BLEND;
+constexpr static ShaderFeatures
+    kExclusiveAtomicUbershaderFeaturesMask = ShaderFeatures::
+        ENABLE_ADVANCED_BLEND;
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     InterlockMode interlockMode)
 {
-    switch (interlockMode)
-    {
-        case InterlockMode::rasterOrdering:
-            return kAllShaderFeatures;
-        case InterlockMode::atomics:
-            return kAllShaderFeatures &
-                   ~(ShaderFeatures::ENABLE_NESTED_CLIPPING |
-                     ShaderFeatures::ENABLE_MODULATED_IMAGE);
-        case InterlockMode::clockwise:
-            return kAllShaderFeatures & ~ShaderFeatures::ENABLE_EVEN_ODD;
-        case InterlockMode::clockwiseAtomic:
-            return kAllShaderFeatures &
-                   // clockwiseAtomic never supports even/odd fill rule.
-                   ~ShaderFeatures::ENABLE_EVEN_ODD &
-                   // clockwiseAtomic requires special blend state for nested
-                   // clip updates, so they need their own draw anyway and the
-                   // ENABLE_NESTED_CLIPPING feature isn't necessary.
-                   ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
-        case InterlockMode::depthStencil:
-            return ShaderFeatures::ENABLE_CLIP_RECT |
-                   ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                   ShaderFeatures::ENABLE_HSL_BLEND_MODES |
-                   ShaderFeatures::ENABLE_DITHER |
-                   ShaderFeatures::ENABLE_MODULATED_IMAGE;
-    }
-    RIVE_UNREACHABLE();
+  switch (interlockMode)
+  {
+    case InterlockMode::rasterOrdering:
+      return kAllShaderFeatures;
+    case InterlockMode::atomics:
+      return kAllShaderFeatures & ~(ShaderFeatures::ENABLE_NESTED_CLIPPING |
+                                    ShaderFeatures::ENABLE_MODULATED_IMAGE);
+    case InterlockMode::clockwise:
+      return kAllShaderFeatures & ~ShaderFeatures::ENABLE_EVEN_ODD;
+    case InterlockMode::clockwiseAtomic:
+      return kAllShaderFeatures &
+             // clockwiseAtomic never supports even/odd fill rule.
+             ~ShaderFeatures::ENABLE_EVEN_ODD &
+             // clockwiseAtomic requires special blend state for nested
+             // clip updates, so they need their own draw anyway and the
+             // ENABLE_NESTED_CLIPPING feature isn't necessary.
+             ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
+    case InterlockMode::depthStencil:
+      return ShaderFeatures::ENABLE_CLIP_RECT |
+             ShaderFeatures::ENABLE_ADVANCED_BLEND |
+             ShaderFeatures::ENABLE_HSL_BLEND_MODES |
+             ShaderFeatures::ENABLE_DITHER |
+             ShaderFeatures::ENABLE_MODULATED_IMAGE |
+             ShaderFeatures::ENABLE_ANGULAR_GRADIENT;
+  }
+  RIVE_UNREACHABLE();
 }
 
 // Miscellaneous switches that *do* affect the behavior of the shaders. The
@@ -1017,71 +1178,79 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
 // the fragment shader.
 enum class ShaderMiscFlags : uint32_t
 {
-    none = 0,
+  none = 0,
 
-    // Render to a standard color attachment with pure hardware blending (no dst
-    // reads or in-shader blending). The draw pipeline sets the appropriate
-    // fixed-function hardware blend state.
-    // NOTE: This can be a whole-flush decision (atomics, clockwise), or
-    // decided per draw (clockwiseAtomic, depthStencil).
-    fixedFunctionColorOutput = 1 << 0,
+  // Render to a standard color attachment with pure hardware blending (no dst
+  // reads or in-shader blending). The draw pipeline sets the appropriate
+  // fixed-function hardware blend state.
+  // NOTE: This can be a whole-flush decision (atomics, clockwise), or
+  // decided per draw (clockwiseAtomic, depthStencil).
+  fixedFunctionColorOutput = 1 << 0,
 
-    // Override all paths' fill rules (winding or even/odd) with an experimental
-    // "clockwise" fill rule, where only regions with a positive winding number
-    // get filled.
-    clockwiseFill = 1 << 1,
+  // Override all paths' fill rules (winding or even/odd) with an experimental
+  // "clockwise" fill rule, where only regions with a positive winding number
+  // get filled.
+  clockwiseFill = 1 << 1,
 
-    // clockwise and clockwiseAtomic only: This is a specialized shader that
-    // only renders to the clip buffer. It doesn't output color.
-    clipUpdateOnly = 1 << 2,
+  // clockwise and clockwiseAtomic only: This is a specialized shader that
+  // only renders to the clip buffer. It doesn't output color.
+  clipUpdateOnly = 1 << 2,
 
-    // clockwiseAtomic only: This is a specialized shader that only subtracts
-    // coverage from the existing clip contents (i.e., nested clip updates).
-    // It doesn't output color.
-    nestedClipUpdateOnly = 1 << 3,
+  // clockwiseAtomic only: This is a specialized shader that only subtracts
+  // coverage from the existing clip contents (i.e., nested clip updates).
+  // It doesn't output color.
+  nestedClipUpdateOnly = 1 << 3,
 
-    // clockwise and clockwiseAtomic modes only. This shader renders a pass that
-    // only subtracts (counterclockwise) borrowed coverage from the coverage
-    // buffer. It doesn't output color or clip.
-    // If drawing interior triangulations, every fragment will be the first of
-    // the path at its pixel, so it can blindly overwrite coverage without
-    // reading the buffer and subtracting.
-    borrowedCoveragePass = 1 << 4,
+  // clockwise and clockwiseAtomic modes only. This shader renders a pass that
+  // only subtracts (counterclockwise) borrowed coverage from the coverage
+  // buffer. It doesn't output color or clip.
+  // If drawing interior triangulations, every fragment will be the first of
+  // the path at its pixel, so it can blindly overwrite coverage without
+  // reading the buffer and subtracting.
+  borrowedCoveragePass = 1 << 4,
 
-    // InterlockMode::depthStencil only. The shader determines dstColor for
-    // advanced blend by fetching every sample the fragment covers and
-    // averaging them.
-    msaaDstRead = 1 << 5,
+  // InterlockMode::depthStencil only. The shader determines dstColor for
+  // advanced blend by fetching every sample the fragment covers and
+  // averaging them.
+  msaaDstRead = 1 << 5,
 
-    // InterlockMode::atomics, DrawType::renderPassInitialize only. Also store
-    // the color clear value to PLS when drawing a clear, in addition to
-    // clearing the other PLS planes.
-    storeColorClear = 1 << 6,
+  // InterlockMode::atomics, DrawType::renderPassInitialize only. Also store
+  // the color clear value to PLS when drawing a clear, in addition to
+  // clearing the other PLS planes.
+  storeColorClear = 1 << 6,
 
-    // InterlockMode::atomics, DrawType::renderPassInitialize only. Seed the
-    // color PLS plane by sampling the framebuffer contents (previously copied
-    // into a dst color texture bound at IMAGE_TEXTURE_IDX). Used for
-    // LoadAction::preserveRenderTarget on backends that can't directly copy
-    // a texture into a storage buffer (e.g. WebGPU).
-    loadColorFromDstTexture = 1 << 7,
+  // InterlockMode::atomics, DrawType::renderPassInitialize only. Seed the
+  // color PLS plane by sampling the framebuffer contents (previously copied
+  // into a dst color texture bound at IMAGE_TEXTURE_IDX). Used for
+  // LoadAction::preserveRenderTarget on backends that can't directly copy
+  // a texture into a storage buffer (e.g. WebGPU).
+  loadColorFromDstTexture = 1 << 7,
 
-    // InterlockMode::atomics, DrawType::renderPassInitialize only. Swizzle the
-    // existing framebuffer contents from BGRA to RGBA. (For when this data had
-    // to get copied from a BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 8,
+  // InterlockMode::atomics, DrawType::renderPassInitialize only. Swizzle the
+  // existing framebuffer contents from BGRA to RGBA. (For when this data had
+  // to get copied from a BGRA target.)
+  swizzleColorBGRAToRGBA = 1 << 8,
 
-    // InterlockMode::atomics, DrawType::renderPassResolve only. Optimization
-    // for when rendering to an offscreen texture.
-    //
-    // It renders the final "resolve" operation directly to the renderTarget in
-    // a single pass, instead of (1) resolving the offscreen texture, and then
-    // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 9,
+  // InterlockMode::atomics, DrawType::renderPassResolve only. Optimization
+  // for when rendering to an offscreen texture.
+  //
+  // It renders the final "resolve" operation directly to the renderTarget in
+  // a single pass, instead of (1) resolving the offscreen texture, and then
+  // (2) copying the offscreen texture to back the renderTarget.
+  coalescedResolveAndTransfer = 1 << 9,
+
+  // InterlockMode::depthStencil only. This draw applies a layer mask: it
+  // scales the color already in the target by a per-pixel factor instead of
+  // compositing over it, via BlendEquation::layerMask. The shader itself is
+  // identical (the draw is recognized at runtime by its negative v_image.z);
+  // this flag exists so the pipeline gets the right blend state and the draw
+  // never batches with an ordinary one.
+  layerMask = 1 << 10,
 };
 
-constexpr static size_t ShaderMiscFlagCount = 10;
+constexpr static size_t ShaderMiscFlagCount = 11;
 static_assert(
-    static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
+    static_cast<uint32_t>(ShaderMiscFlags::layerMask) ==
     1 << (ShaderMiscFlagCount - 1));
 
 // Since shader keys also pack the interlockMode and drawType, they don't have
@@ -1093,89 +1262,97 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     DrawType drawType,
     InterlockMode interlockMode)
 {
-    ShaderFeatures mask = ShaderFeatures::NONE;
-    switch (drawType)
-    {
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::featherAtlasBlit:
-            if (interlockMode != InterlockMode::atomics)
-            {
-                mask = ShaderFeatures::ENABLE_CLIPPING |
-                       ShaderFeatures::ENABLE_CLIP_RECT |
-                       ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                       ShaderFeatures::ENABLE_HSL_BLEND_MODES |
-                       ShaderFeatures::ENABLE_DITHER;
-                if (drawType == DrawType::featherAtlasBlit)
-                {
-                    mask |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
-                }
-                break;
-            }
-            // Since atomic mode has to resolve previous draws, images need to
-            // consider the same shader features for path draws.
-            [[fallthrough]];
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::depthStrokes:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubics:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-            mask = kAllShaderFeatures;
-            break;
-        case DrawType::clipReset:
-            mask = ShaderFeatures::ENABLE_DITHER;
-            break;
-        case DrawType::renderPassInitialize:
-            if (interlockMode == InterlockMode::atomics)
-            {
-                // Atomic mode initializes clipping and color (when advanced
-                // blend is active).
-                mask = ShaderFeatures::ENABLE_CLIPPING |
-                       ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                       ShaderFeatures::ENABLE_DITHER;
-            }
-            else if (interlockMode == InterlockMode::depthStencil)
-            {
-                // depthStencil mode only needs to initialize color, and only
-                // when preserving the render target but using a transient MSAA
-                // attachment.
-                mask = ShaderFeatures::ENABLE_DITHER;
-            }
-            else
-            {
-                // The renderPassInitialize draw in clockwiseAtomic mode is just
-                // a simple workaround that draws a single pixel. No Rive
-                // ShaderFeatures needed.
-                assert(interlockMode == InterlockMode::clockwiseAtomic);
-                mask = ShaderFeatures::NONE;
-            }
-            break;
-        case DrawType::renderPassResolve:
-            if (interlockMode == InterlockMode::atomics)
-            {
-                mask = kAllShaderFeatures;
-            }
-            else
-            {
-                assert(interlockMode == InterlockMode::rasterOrdering ||
-                       interlockMode == InterlockMode::depthStencil);
-                mask = ShaderFeatures::ENABLE_DITHER;
-            }
-            break;
-    }
-    return mask & ShaderFeaturesMaskFor(interlockMode);
+  ShaderFeatures mask = ShaderFeatures::NONE;
+  switch (drawType)
+  {
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::featherAtlasBlit:
+      if (interlockMode != InterlockMode::atomics)
+      {
+        mask = ShaderFeatures::ENABLE_CLIPPING |
+               ShaderFeatures::ENABLE_CLIP_RECT |
+               ShaderFeatures::ENABLE_ADVANCED_BLEND |
+               ShaderFeatures::ENABLE_HSL_BLEND_MODES |
+               ShaderFeatures::ENABLE_DITHER;
+
+        if (drawType != DrawType::imageMesh)
+        {
+          mask |= ShaderFeatures::ENABLE_ANGULAR_GRADIENT;
+        }
+        if (drawType == DrawType::featherAtlasBlit)
+        {
+          mask |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
+        }
+        break;
+      }
+      // Since atomic mode has to resolve previous draws, images need to
+      // consider the same shader features for path draws.
+      [[fallthrough]];
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      mask = kAllShaderFeatures;
+      break;
+    case DrawType::clipReset:
+      mask = ShaderFeatures::ENABLE_DITHER;
+      break;
+    case DrawType::renderPassInitialize:
+      if (interlockMode == InterlockMode::atomics)
+      {
+        // Atomic mode initializes clipping and color (when advanced
+        // blend is active).
+        mask = ShaderFeatures::ENABLE_CLIPPING |
+               ShaderFeatures::ENABLE_ADVANCED_BLEND |
+               ShaderFeatures::ENABLE_DITHER;
+      }
+      else if (interlockMode == InterlockMode::depthStencil)
+      {
+        // depthStencil mode only needs to initialize color, and only
+        // when preserving the render target but using a transient MSAA
+        // attachment.
+        mask = ShaderFeatures::ENABLE_DITHER;
+      }
+      else
+      {
+        // The renderPassInitialize draw in clockwiseAtomic mode is just
+        // a simple workaround that draws a single pixel. No Rive
+        // ShaderFeatures needed.
+        assert(interlockMode == InterlockMode::clockwiseAtomic);
+        mask = ShaderFeatures::NONE;
+      }
+      break;
+    case DrawType::renderPassResolve:
+      if (interlockMode == InterlockMode::atomics)
+      {
+        mask = kAllShaderFeatures;
+      }
+      else
+      {
+        assert(
+            interlockMode == InterlockMode::rasterOrdering ||
+            interlockMode == InterlockMode::depthStencil);
+        mask = ShaderFeatures::ENABLE_DITHER;
+      }
+      break;
+  }
+  return mask & ShaderFeaturesMaskFor(interlockMode);
 }
 
 // Returns the flags that are valid for an ubershader version of the currently-
@@ -1189,61 +1366,64 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     ShaderMiscFlags shaderMiscFlags,
     const PlatformFeatures& platformFeatures)
 {
-    ShaderFeatures outFeatures = ShaderFeaturesMaskFor(drawType, interlockMode);
-    if (interlockMode == InterlockMode::atomics)
-    {
-        // Turn off the exclusive atomic features unless they're set in our
-        //  requested feature flags.
-        outFeatures &=
-            (requestedFeatures | ~kExclusiveAtomicUbershaderFeaturesMask);
-    }
+  ShaderFeatures outFeatures = ShaderFeaturesMaskFor(drawType, interlockMode);
+  if (interlockMode == InterlockMode::atomics)
+  {
+    // Turn off the exclusive atomic features unless they're set in our
+    //  requested feature flags.
+    outFeatures &= (requestedFeatures | ~kExclusiveAtomicUbershaderFeaturesMask);
+  }
 
-    // Ensure that we haven't dropped features we care about somehow
-    assert((requestedFeatures & outFeatures) == requestedFeatures);
+  // Ensure that we haven't dropped features we care about somehow
+  assert((requestedFeatures & outFeatures) == requestedFeatures);
 
-    // ENABLE_CLIP_RECT shouldn't be set if we're in depthStencil mode without
-    // clip plane support.
-    if (interlockMode == InterlockMode::depthStencil &&
-        !platformFeatures.supportsClipPlanes)
-    {
-        outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
-    }
+  // ENABLE_CLIP_RECT shouldn't be set if we're in depthStencil mode without
+  // clip plane support.
+  if (interlockMode == InterlockMode::depthStencil &&
+      !platformFeatures.supportsClipPlanes)
+  {
+    outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
+  }
 
-    // Borrowed coverage and anything with fixedFunctionColorOutput cannot
-    // coexist with ENABLE_ADVANCED_BLEND
-    if (enums::any_flag_set(shaderMiscFlags,
-                            ShaderMiscFlags::borrowedCoveragePass |
-                                ShaderMiscFlags::fixedFunctionColorOutput))
-    {
-        outFeatures &= ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
-    }
+  // Borrowed coverage and anything with fixedFunctionColorOutput cannot
+  // coexist with ENABLE_ADVANCED_BLEND
+  if (enums::any_flag_set(
+          shaderMiscFlags,
+          ShaderMiscFlags::borrowedCoveragePass |
+              ShaderMiscFlags::fixedFunctionColorOutput))
+  {
+    outFeatures &= ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
+  }
 
-    // in atomic mode, coalescedResolveAndTransfer currently implies advanced
-    // blend.
-    if (interlockMode == InterlockMode::atomics &&
-        enums::is_flag_set(shaderMiscFlags,
-                           ShaderMiscFlags::coalescedResolveAndTransfer))
-    {
-        outFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
-    }
+  // in atomic mode, coalescedResolveAndTransfer currently implies advanced
+  // blend.
+  if (interlockMode == InterlockMode::atomics &&
+      enums::is_flag_set(
+          shaderMiscFlags,
+          ShaderMiscFlags::coalescedResolveAndTransfer))
+  {
+    outFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
+  }
 
-    return outFeatures;
+  return outFeatures;
 }
 
 // Returns a unique value that can be used to key a shader.
-uint32_t ShaderUniqueKey(DrawType,
-                         ShaderFeatures,
-                         InterlockMode,
-                         ShaderMiscFlags);
+uint32_t ShaderUniqueKey(
+    DrawType,
+    ShaderFeatures,
+    InterlockMode,
+    ShaderMiscFlags);
 
-// ShaderUniqueKey() is currently 21 bits. Be careful when adding to it because
+// ShaderUniqueKey() is currently 22 bits. Be careful when adding to it because
 // some backends pack their own private state into keys, and still need to fit
 // in 64 bits.
 constexpr static uint32_t DrawTypeKeyBitCount = 4;
-constexpr static uint32_t ShaderUniqueKeyBitCount =
-    ShaderMiscFlagKeyBitCount + InterlockModeBitCount + ShaderFeatureCount +
-    DrawTypeKeyBitCount;
-static_assert(ShaderUniqueKeyBitCount == 21);
+constexpr static uint32_t ShaderUniqueKeyBitCount = ShaderMiscFlagKeyBitCount +
+                                                    InterlockModeBitCount +
+                                                    ShaderFeatureCount +
+                                                    DrawTypeKeyBitCount;
+static_assert(ShaderUniqueKeyBitCount == 22);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
@@ -1258,52 +1438,54 @@ void ForEachUbershaderPermutation(
 //
 // These also affect the draw sort order, so we attempt associate more expensive
 // shader branch misses with higher flags.
-enum class DrawContents
+enum class DrawContents : uint16_t
 {
-    none = 0,
-    opaquePaint = 1 << 0,
-    // Put feathered fills down low because they only need to draw different
-    // geometry, which isn't really a context switch at all.
-    featheredFill = 1 << 1,
-    stroke = 1 << 2,
-    clockwiseFill = 1 << 3,
-    nonZeroFill = 1 << 4,
-    evenOddFill = 1 << 5,
-    activeClip = 1 << 6,
-    advancedBlend = 1 << 7,
-    // Put clip updates last because they use an entirely different shader in
-    // clockwise mode.
-    clipUpdate = 1 << 8,
+  none = 0,
+  opaquePaint = 1 << 0,
+  // Put feathered fills down low because they only need to draw different
+  // geometry, which isn't really a context switch at all.
+  featheredFill = 1 << 1,
+  stroke = 1 << 2,
+  clockwiseFill = 1 << 3,
+  nonZeroFill = 1 << 4,
+  evenOddFill = 1 << 5,
+  activeClip = 1 << 6,
+  advancedBlend = 1 << 7,
+  // Put clip updates last because they use an entirely different shader in
+  // clockwise mode.
+  clipUpdate = 1 << 8,
 };
 
 // These are the only draw contents flags that apply to the pipeline state (and
 // they only matter for depthStencil)
-constexpr static DrawContents DrawContentsForDepthStencilPipelineState =
-    DrawContents::activeClip | DrawContents::clipUpdate |
-    DrawContents::clockwiseFill | DrawContents::evenOddFill |
-    DrawContents::opaquePaint;
+constexpr static DrawContents
+    DrawContentsForDepthStencilPipelineState = DrawContents::activeClip |
+                                               DrawContents::clipUpdate |
+                                               DrawContents::clockwiseFill |
+                                               DrawContents::evenOddFill |
+                                               DrawContents::opaquePaint;
 
 enum class StencilType
 {
-    disabled,
-    activeStencilClip,
-    clipStroke,
-    borrowedCoverage,
-    forwardClippedByBackward,
-    backwardTriangleCleanup,
-    stencilNestedOrEvenOdd,
-    evenOddDrawAndReset,
-    nestedClipReset,
-    clipReset,
+  disabled,
+  activeStencilClip,
+  clipStroke,
+  borrowedCoverage,
+  forwardClippedByBackward,
+  backwardTriangleCleanup,
+  stencilNestedOrEvenOdd,
+  evenOddDrawAndReset,
+  nestedClipReset,
+  clipReset,
 };
 
 constexpr uint32_t StencilTypeBitCount = 4;
 
 struct StencilInfo
 {
-    StencilType stencilType;
-    DrawContents drawContentsMask;
-    bool areDrawContentsValid = true;
+  StencilType stencilType;
+  DrawContents drawContentsMask;
+  bool areDrawContentsValid = true;
 };
 
 StencilInfo get_stencil_info(InterlockMode, DrawType, DrawContents);
@@ -1316,109 +1498,121 @@ constexpr static gpu::DrawContents kNestedClipUpdateMask =
 // Types of barriers that may be required between DrawBatches.
 enum class BarrierFlags : uint8_t
 {
-    none = 0,
+  none = 0,
 
-    // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure
-    // prior draws complete at each pixel before beginning new ones.
-    plsAtomic = 1 << 0,
-    plsAtomicPreResolve = 1 << 1, // Once before the final resolve.
+  // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure
+  // prior draws complete at each pixel before beginning new ones.
+  plsAtomic = 1 << 0,
+  plsAtomicPreResolve = 1 << 1, // Once before the final resolve.
 
-    // MSAA needs a special barrier (e.g., subpass transition) after manually
-    // loading the render target into the transient MSAA attachment.
-    msaaPostInit = 1 << 2,
+  // MSAA needs a special barrier (e.g., subpass transition) after manually
+  // loading the render target into the transient MSAA attachment.
+  msaaPostInit = 1 << 2,
 
-    // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
-    // only.) All "borrowed coverage" draws have now been issued. Ensure they
-    // complete at each pixel before beginning the "forward coverage" draws.
-    clockwiseBorrowedCoverage = 1 << 3,
+  // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
+  // only.) All "borrowed coverage" draws have now been issued. Ensure they
+  // complete at each pixel before beginning the "forward coverage" draws.
+  clockwiseBorrowedCoverage = 1 << 3,
 
-    // The next DrawBatch needs to perform an advanced blend, but the current
-    // hardware requires an implementation-dependent barrier before reading the
-    // dstColor (pipeline barrier for input attachments, KHR blend barrier, or
-    // even a full MSAA resolve & blit into a separate texture.)
-    dstBlend = 1 << 4,
+  // The next DrawBatch needs to perform an advanced blend, but the current
+  // hardware requires an implementation-dependent barrier before reading the
+  // dstColor (pipeline barrier for input attachments, KHR blend barrier, or
+  // even a full MSAA resolve & blit into a separate texture.)
+  dstBlend = 1 << 4,
 
-    // Special barrier (e.g., subpass transition) issued prior to a manual
-    // render pass resolve. (Only applicable with
-    // FlushDescriptor::manuallyResolved.)
-    preManualResolve = 1 << 5,
+  // Special barrier (e.g., subpass transition) issued prior to a manual
+  // render pass resolve. (Only applicable with
+  // FlushDescriptor::manuallyResolved.)
+  preManualResolve = 1 << 5,
 
-    // Only prevent future DrawBatches from being combined with the current
-    // drawList. (No GPU dependencies.)
-    drawBatchBreak = 1 << 6,
+  // Only prevent future DrawBatches from being combined with the current
+  // drawList. (No GPU dependencies.)
+  drawBatchBreak = 1 << 6,
 };
 
 // Low-level batch of geometry to submit to the GPU.
 struct DrawBatch
 {
-    DrawBatch(DrawType drawType_,
-              ShaderMiscFlags shaderMiscFlags_,
-              DrawContents drawContents_,
-              uint32_t elementCount_,
-              uint32_t baseElement_,
-              rive::BlendMode blendMode_,
-              rive::ImageSampler imageSampler_,
-              BarrierFlags barrierFlags_) :
-        drawType(drawType_),
-        shaderMiscFlags(shaderMiscFlags_),
-        drawContents(drawContents_),
-        elementCount(elementCount_),
-        baseElement(baseElement_),
-        firstBlendMode(blendMode_),
-        barriers(barrierFlags_),
-        imageSampler(imageSampler_)
-    {}
+  DrawBatch(
+      DrawType drawType_,
+      ShaderMiscFlags shaderMiscFlags_,
+      DrawContents drawContents_,
+      uint32_t elementCount_,
+      uint32_t baseElement_,
+      rive::BlendMode blendMode_,
+      rive::ImageSampler imageSampler_,
+      BarrierFlags barrierFlags_)
+      : drawType(drawType_)
+      , shaderMiscFlags(shaderMiscFlags_)
+      , drawContents(drawContents_)
+      , elementCount(elementCount_)
+      , baseElement(baseElement_)
+      , firstBlendMode(blendMode_)
+      , barriers(barrierFlags_)
+      , imageSampler(imageSampler_)
+  {}
 
-    const DrawType drawType;
-    ShaderMiscFlags shaderMiscFlags;
-    DrawContents drawContents;
-    // elementCount/baseElement are the "splice axis": the run that grows when
-    // adjacent batches combine. For instanced draws (paths, image draws) that
-    // is instances; for non-indexed triangle runs (interiorTriangulation,
-    // featherAtlasBlit, clipReset) it is vertices.
-    uint32_t elementCount; // Instance count, or vertex count for triangle runs.
-    uint32_t baseElement;  // Base instance, or base vertex for triangle runs.
-    // Geometry parameters for indexed-instanced types (paths and image draws).
-    uint32_t indexCountPerInstance = 0;
-    uint32_t baseIndex = 0;
-    rive::BlendMode firstBlendMode;
-    BarrierFlags barriers; // Barriers to execute before drawing this batch.
-    std::optional<AABBu16> scissorRect;
+  const DrawType drawType;
+  ShaderMiscFlags shaderMiscFlags;
+  DrawContents drawContents;
 
-    ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
+  // elementCount/baseElement are the "splice axis": the run that grows when
+  // adjacent batches combine. That is:
+  //   * Instances for instanced draws (paths, image draws).
+  //   * Vertices for non-indexed triangle runs (interiorTriangulation,
+  //     featherAtlasBlit, clipReset).
+  //   * For depthStencil index patterns, "Patches". (And baseElement is the
+  //     baseVertex.)
+  uint32_t elementCount;
+  uint32_t baseElement;
 
-    // DrawType::imageRect and DrawType::imageMesh.
-    Texture* imageTexture = nullptr;
-    ImageSampler imageSampler = ImageSampler::LinearClamp();
+  // Geometry parameters for indexed types (paths, including depthStencil, and
+  // image draws).
+  uint32_t indexCountPerInstance = 0;
+  // Backends that may see Adreno should bind the index buffer at
+  // "baseIndex * sizeof(uint16_t)" rather than using the draw call's
+  // "baseIndex" parameter. Using baseIndex on Adreno drops the depthStencil
+  // total framerate by 26%.
+  uint32_t baseIndex = 0;
 
-    // DrawType::imageMesh.
-    RenderBuffer* vertexBuffer;
-    RenderBuffer* uvBuffer;
-    RenderBuffer* indexBuffer;
+  rive::BlendMode firstBlendMode;
+  BarrierFlags barriers; // Barriers to execute before drawing this batch.
+  std::optional<AABBu16> scissorRect;
 
-    // When shaders don't have a mechanism to read the framebuffer (e.g.,
-    // WebGL msaa), this is a linked list of all the draws in the batch whose
-    // bounding boxes needs to be blitted to the "dstRead" texture before
-    // drawing.
-    const Draw* dstReadList = nullptr;
+  ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 
-    // Pointer to the next DrawBatchatch in the list that has a
-    // "BarrierFlags::dstBlend" barrier.
-    // When we need advanced blend but the underlying graphics API doesn't
-    // support reading the framebuffer, this can be helpful for breaking up the
-    // drawList into multiple render passes with framebuffer copies in between.
-    const DrawBatch* nextDstBlendBarrier = nullptr;
-    // Link to the next batch to render in the drawList. DrawBatch always exists
-    // in a linked list.
+  // DrawType::imageRect and DrawType::imageMesh.
+  Texture* imageTexture = nullptr;
+  ImageSampler imageSampler = ImageSampler::LinearClamp();
 
-    const DrawBatch* next = nullptr;
+  // DrawType::imageMesh.
+  RenderBuffer* vertexBuffer;
+  RenderBuffer* uvBuffer;
+  RenderBuffer* indexBuffer;
+
+  // When shaders don't have a mechanism to read the framebuffer (e.g.,
+  // WebGL msaa), this is a linked list of all the draws in the batch whose
+  // bounding boxes needs to be blitted to the "dstRead" texture before
+  // drawing.
+  const Draw* dstReadList = nullptr;
+
+  // Pointer to the next DrawBatchatch in the list that has a
+  // "BarrierFlags::dstBlend" barrier.
+  // When we need advanced blend but the underlying graphics API doesn't
+  // support reading the framebuffer, this can be helpful for breaking up the
+  // drawList into multiple render passes with framebuffer copies in between.
+  const DrawBatch* nextDstBlendBarrier = nullptr;
+  // Link to the next batch to render in the drawList. DrawBatch always exists
+  // in a linked list.
+
+  const DrawBatch* next = nullptr;
 };
 
 // Simple gradients only have 2 texels, so we write them to mapped texture
 // memory from the CPU instead of rendering them.
 struct TwoTexelRamp
 {
-    ColorInt color0, color1;
+  ColorInt color0, color1;
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
@@ -1426,10 +1620,10 @@ static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
 enum class SynthesizedFailureType
 {
-    none,
-    ubershaderLoad,
-    shaderCompilation,
-    pipelineCreation,
+  none,
+  ubershaderLoad,
+  shaderCompilation,
+  pipelineCreation,
 };
 
 #endif
@@ -1452,123 +1646,122 @@ enum class SynthesizedFailureType
 //
 struct FlushDescriptor
 {
-    RenderTarget* renderTarget = nullptr;
-    ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
-    InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
+  RenderTarget* renderTarget = nullptr;
+  ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
+  InterlockMode interlockMode = InterlockMode::rasterOrdering;
+  uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
 
-    LoadAction colorLoadAction = LoadAction::clear;
-    ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
-    uint32_t coverageClearValue = 0;
-    float depthClearValue = DEPTH_MIN;
-    uint8_t stencilClearValue = STENCIL_CLEAR;
+  LoadAction colorLoadAction = LoadAction::clear;
+  ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
+  uint32_t coverageClearValue = 0;
+  float depthClearValue = DEPTH_MIN;
+  uint8_t stencilClearValue = STENCIL_CLEAR;
 
-    IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
-                                    // loadAction == LoadAction::clear.
+  IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
+                                  // loadAction == LoadAction::clear.
 
-    // If nonzero, frames are split up into virtual tiles of this size.
-    //
-    // As of now, each tile gets drawn in a separate render pass. The purpose of
-    // these virtual tiles, for now, is to break the frame up into smaller
-    // chunks so that Rive can be pre-empted by other rendering processes. This
-    // is only supported on Vulkan/non-depthStencil.
-    //
-    // TODO: We could also explore a different type of virtual tiling that
-    // reduces barriers in atomic mode, but that is not how this feature works
-    // currently.
-    uint32_t virtualTileWidth = 0;
-    uint32_t virtualTileHeight = 0;
+  // If nonzero, frames are split up into virtual tiles of this size.
+  //
+  // As of now, each tile gets drawn in a separate render pass. The purpose of
+  // these virtual tiles, for now, is to break the frame up into smaller
+  // chunks so that Rive can be pre-empted by other rendering processes. This
+  // is only supported on Vulkan/non-depthStencil.
+  //
+  // TODO: We could also explore a different type of virtual tiling that
+  // reduces barriers in atomic mode, but that is not how this feature works
+  // currently.
+  uint32_t virtualTileWidth = 0;
+  uint32_t virtualTileHeight = 0;
 
-    // True if the drawList ends with a "renderPassResolve" draw, in which case
-    // the backend may need to perform special setup for a custom resolve.
-    bool manuallyResolved = false;
+  // True if the drawList ends with a "renderPassResolve" draw, in which case
+  // the backend may need to perform special setup for a custom resolve.
+  bool manuallyResolved = false;
 
-    // True if shaders will never read the color buffer, meaning, the render
-    // pass can use a more efficient setup that renders to a standard color
-    // attachment and handles all blending via built-in blend state.
-    // NOTE: This may be false even if all paints use srcOver because some
-    // rendering modes (e.g., rasterOrdering with evenOdd/nonZero) always read
-    // the color buffer, regardless of blend mode.
-    bool fixedFunctionColorOutput = false;
+  // True if shaders will never read the color buffer, meaning, the render
+  // pass can use a more efficient setup that renders to a standard color
+  // attachment and handles all blending via built-in blend state.
+  // NOTE: This may be false even if all paints use srcOver because some
+  // rendering modes (e.g., rasterOrdering with evenOdd/nonZero) always read
+  // the color buffer, regardless of blend mode.
+  bool fixedFunctionColorOutput = false;
 
-    // Physical size of the feather atlas texture.
-    uint16_t featherAtlasTextureWidth;
-    uint16_t featherAtlasTextureHeight;
+  // Physical size of the feather atlas texture.
+  uint16_t featherAtlasTextureWidth;
+  uint16_t featherAtlasTextureHeight;
 
-    // Boundaries of the content for this specific flush within the feather
-    // atlas texture.
-    uint16_t featherAtlasContentWidth;
-    uint16_t featherAtlasContentHeight;
+  // Boundaries of the content for this specific flush within the feather
+  // atlas texture.
+  uint16_t featherAtlasContentWidth;
+  uint16_t featherAtlasContentHeight;
 
-    // Monotonically increasing prefix that gets appended to the most
-    // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
-    // values.
-    //
-    // The coverage buffer is used in clockwiseAtomic mode.
-    //
-    // Increasing this prefix implicitly clears the entire coverage buffer to
-    // zero.
-    uint32_t coverageBufferPrefix = 0;
+  // Monotonically increasing prefix that gets appended to the most
+  // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
+  // values.
+  //
+  // The coverage buffer is used in clockwiseAtomic mode.
+  //
+  // Increasing this prefix implicitly clears the entire coverage buffer to
+  // zero.
+  uint32_t coverageBufferPrefix = 0;
 
-    // (clockwiseAtomic mode only.) We usually don't have to clear the coverage
-    // buffer because of coverageBufferPrefix, but when this value is true, the
-    // entire coverage buffer must be cleared to zero before rendering.
-    bool needsCoverageBufferClear = false;
+  // (clockwiseAtomic mode only.) We usually don't have to clear the coverage
+  // buffer because of coverageBufferPrefix, but when this value is true, the
+  // entire coverage buffer must be cleared to zero before rendering.
+  bool needsCoverageBufferClear = false;
 
-    size_t flushUniformDataOffsetInBytes = 0;
-    uint32_t pathCount = 0;
-    size_t firstPath = 0;
-    size_t firstPaint = 0;
-    size_t firstPaintAux = 0;
-    uint32_t contourCount = 0;
-    size_t firstContour = 0;
-    uint32_t gradSpanCount = 0;
-    size_t firstGradSpan = 0;
-    uint32_t tessVertexSpanCount = 0;
-    size_t firstTessVertexSpan = 0;
-    uint32_t gradDataHeight = 0;
-    uint32_t gradTextureHeight = 0;
-    uint32_t tessDataHeight = 0;
-    // Override path fill rules with "clockwise".
-    bool clockwiseFillOverride = false;
-    bool hasTriangleVertices = false;
-    bool wireframe = false;
-    DitherMode ditherMode;
+  size_t flushUniformDataOffsetInBytes = 0;
+  uint32_t pathCount = 0;
+  size_t firstPath = 0;
+  size_t firstPaint = 0;
+  size_t firstPaintAux = 0;
+  uint32_t contourCount = 0;
+  size_t firstContour = 0;
+  uint32_t gradSpanCount = 0;
+  size_t firstGradSpan = 0;
+  uint32_t tessVertexSpanCount = 0;
+  size_t firstTessVertexSpan = 0;
+  uint32_t gradDataHeight = 0;
+  uint32_t gradTextureHeight = 0;
+  uint32_t tessDataHeight = 0;
+  // Override path fill rules with "clockwise".
+  bool clockwiseFillOverride = false;
+  bool hasTriangleVertices = false;
+  bool wireframe = false;
+  DitherMode ditherMode;
 #ifdef WITH_RIVE_TOOLS
-    // Synthesize compilation failures to make sure the device handles them
-    // gracefully. (e.g., by falling back on an uber shader or at least not
-    // crashing.) Valid compilations may fail in the real world if the device is
-    // pressed for resources or in a bad state.
-    SynthesizedFailureType synthesizedFailureType =
-        SynthesizedFailureType::none;
+  // Synthesize compilation failures to make sure the device handles them
+  // gracefully. (e.g., by falling back on an uber shader or at least not
+  // crashing.) Valid compilations may fail in the real world if the device is
+  // pressed for resources or in a bad state.
+  SynthesizedFailureType synthesizedFailureType = SynthesizedFailureType::none;
 #endif
 
-    // Command buffer that rendering commands will be added to.
-    //  - VkCommandBuffer on Vulkan.
-    //  - id<MTLCommandBuffer> on Metal.
-    //  - Unused otherwise.
-    void* externalCommandBuffer = nullptr;
+  // Command buffer that rendering commands will be added to.
+  //  - VkCommandBuffer on Vulkan.
+  //  - id<MTLCommandBuffer> on Metal.
+  //  - Unused otherwise.
+  void* externalCommandBuffer = nullptr;
 
-    // List of feathered fills (if any) that must be rendered to the atlas
-    // before the main render pass.
-    const AtlasDrawBatch* featherAtlasFillBatches = nullptr;
-    size_t featherAtlasFillBatchCount = 0;
+  // List of feathered fills (if any) that must be rendered to the atlas
+  // before the main render pass.
+  const AtlasDrawBatch* featherAtlasFillBatches = nullptr;
+  size_t featherAtlasFillBatchCount = 0;
 
-    // List of feathered strokes (if any) that must be rendered to the atlas
-    // before the main render pass.
-    const AtlasDrawBatch* featherAtlasStrokeBatches = nullptr;
-    size_t featherAtlasStrokeBatchCount = 0;
+  // List of feathered strokes (if any) that must be rendered to the atlas
+  // before the main render pass.
+  const AtlasDrawBatch* featherAtlasStrokeBatches = nullptr;
+  size_t featherAtlasStrokeBatchCount = 0;
 
-    // List of draws in the main render pass. These are rendered directly to the
-    // renderTarget.
-    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
-    const DrawBatch* firstDstBlendBarrier = nullptr;
+  // List of draws in the main render pass. These are rendered directly to the
+  // renderTarget.
+  const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+  const DrawBatch* firstDstBlendBarrier = nullptr;
 
-    // This tracks any barriers that will not be handled by DrawBatches (e.g.,
-    // renderpass-specific barriers that won't be handled because the batch list
-    // is empty). The backend may need to issue these barriers before finishing
-    // the render pass.
-    BarrierFlags unresolvedBarriers = BarrierFlags::none;
+  // This tracks any barriers that will not be handled by DrawBatches (e.g.,
+  // renderpass-specific barriers that won't be handled because the batch list
+  // is empty). The backend may need to issue these barriers before finishing
+  // the render pass.
+  BarrierFlags unresolvedBarriers = BarrierFlags::none;
 };
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that
@@ -1582,8 +1775,8 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
 // by GLSL).
 RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
 {
-    return (riveColor & 0xff00ff00) |
-           (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
+  return (riveColor & 0xff00ff00) |
+         (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
 }
 
 // Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected
@@ -1600,78 +1793,79 @@ uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor);
 struct FlushUniforms
 {
 public:
-    FlushUniforms(const FlushDescriptor&, const PlatformFeatures&);
+  FlushUniforms(const FlushDescriptor&, const PlatformFeatures&);
 
-    FlushUniforms(const FlushUniforms& other) { *this = other; }
+  FlushUniforms(const FlushUniforms& other) { *this = other; }
 
-    void operator=(const FlushUniforms& rhs)
-    {
-        memcpy(static_cast<void*>(this),
-               &rhs,
-               sizeof(*this) - sizeof(m_padTo256Bytes));
-    }
+  void operator=(const FlushUniforms& rhs)
+  {
+    memcpy(
+        static_cast<void*>(this),
+        &rhs,
+        sizeof(*this) - sizeof(m_padTo256Bytes));
+  }
 
-    bool operator!=(const FlushUniforms& rhs) const
-    {
-        return memcmp(this, &rhs, sizeof(*this) - sizeof(m_padTo256Bytes)) != 0;
-    }
+  bool operator!=(const FlushUniforms& rhs) const
+  {
+    return memcmp(this, &rhs, sizeof(*this) - sizeof(m_padTo256Bytes)) != 0;
+  }
 
 private:
-    class InverseViewports
-    {
-    public:
-        InverseViewports() = default;
+  class InverseViewports
+  {
+  public:
+    InverseViewports() = default;
 
-        InverseViewports(const FlushDescriptor&, const PlatformFeatures&);
+    InverseViewports(const FlushDescriptor&, const PlatformFeatures&);
 
-    private:
-        // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
-        WRITEONLY float m_vals[4];
-    };
+  private:
+    // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
+    WRITEONLY float m_vals[4];
+  };
 
-    WRITEONLY InverseViewports m_inverseViewports;
-    WRITEONLY uint32_t m_renderTargetWidth;
-    WRITEONLY uint32_t m_renderTargetHeight;
-    // Only used if clears are implemented as draws.
-    WRITEONLY uint32_t m_colorClearValue;
-    // Only used if clears are implemented as draws.
-    WRITEONLY uint32_t m_coverageClearValue;
-    // drawBounds, or renderTargetBounds if there is a clear. (Used by the
-    // "@RESOLVE_PLS" step in InterlockMode::atomics.)
-    WRITEONLY IAABB m_renderTargetUpdateBounds;
-    WRITEONLY Vec2D m_featherAtlasTextureInverseSize; // 1 / [atlasWidth,Height]
-    WRITEONLY Vec2D
-        m_featherAtlasContentInverseViewport; // 2 / atlasContentBounds
-    // Monotonically increasing prefix that gets appended to the most
-    // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
-    // values. (clockwiseAtomic mode only.)
-    WRITEONLY uint32_t m_coverageBufferPrefix;
-    // GLSL doesn't appear to provide a lightweight, region-local barrier for
-    // memory ordering outside of memoryBarrier*(), which have severe
-    // consequences for tiling. When we are already relying on other API level
-    // barriers and only need to guard against instruction reordering, we can
-    // multiply by a tiny epsilon instead, and introduce artifical dependencies
-    // that enforce ordering but don't actually have an effect on the final
-    // outcome.
-    WRITEONLY float m_epsilonForPseudoMemoryBarrier;
-    // Spacing between adjacent path IDs (1 if IEEE compliant).
-    WRITEONLY uint32_t m_pathIDGranularity;
-    WRITEONLY float m_vertexDiscardValue;
-    WRITEONLY float m_mipMapLODBias;
-    WRITEONLY uint32_t m_maxPathId;
-    WRITEONLY float m_ditherScale;
-    WRITEONLY float m_ditherBias;
-    // Amount by which to multiply a computed dither value when storing as
-    // RGB10 (as opposed to writing it out to the framebuffer).
-    WRITEONLY float m_ditherConversionToRGB10;
-    WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
-    // Whether _fragCoord.y counts from the visual bottom of the target.
-    WRITEONLY uint32_t m_renderTargetBottomUp;
-    // Scale and bias to get V coord of gradient from integral row value
-    WRITEONLY float m_gradTextureYScale;
-    WRITEONLY float m_gradTextureYBias;
-    // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
+  WRITEONLY InverseViewports m_inverseViewports;
+  WRITEONLY uint32_t m_renderTargetWidth;
+  WRITEONLY uint32_t m_renderTargetHeight;
+  // Only used if clears are implemented as draws.
+  WRITEONLY uint32_t m_colorClearValue;
+  // Only used if clears are implemented as draws.
+  WRITEONLY uint32_t m_coverageClearValue;
+  // drawBounds, or renderTargetBounds if there is a clear. (Used by the
+  // "@RESOLVE_PLS" step in InterlockMode::atomics.)
+  WRITEONLY IAABB m_renderTargetUpdateBounds;
+  WRITEONLY Vec2D m_featherAtlasTextureInverseSize; // 1 / [atlasWidth,Height]
+  WRITEONLY Vec2D
+      m_featherAtlasContentInverseViewport; // 2 / atlasContentBounds
+  // Monotonically increasing prefix that gets appended to the most
+  // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
+  // values. (clockwiseAtomic mode only.)
+  WRITEONLY uint32_t m_coverageBufferPrefix;
+  // GLSL doesn't appear to provide a lightweight, region-local barrier for
+  // memory ordering outside of memoryBarrier*(), which have severe
+  // consequences for tiling. When we are already relying on other API level
+  // barriers and only need to guard against instruction reordering, we can
+  // multiply by a tiny epsilon instead, and introduce artifical dependencies
+  // that enforce ordering but don't actually have an effect on the final
+  // outcome.
+  WRITEONLY float m_epsilonForPseudoMemoryBarrier;
+  // Spacing between adjacent path IDs (1 if IEEE compliant).
+  WRITEONLY uint32_t m_pathIDGranularity;
+  WRITEONLY float m_vertexDiscardValue;
+  WRITEONLY float m_mipMapLODBias;
+  WRITEONLY uint32_t m_maxPathId;
+  WRITEONLY float m_ditherScale;
+  WRITEONLY float m_ditherBias;
+  // Amount by which to multiply a computed dither value when storing as
+  // RGB10 (as opposed to writing it out to the framebuffer).
+  WRITEONLY float m_ditherConversionToRGB10;
+  WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
+  // Whether _fragCoord.y counts from the visual bottom of the target.
+  WRITEONLY uint32_t m_renderTargetBottomUp;
+  // Scale and bias to get V coord of gradient from integral row value
+  WRITEONLY float m_gradTextureYScale;
+  WRITEONLY float m_gradTextureYBias;
+  // Uniform blocks must be multiples of 256 bytes in size.
+  WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1683,48 +1877,48 @@ static_assert(sizeof(FlushUniforms) == 256);
 // is layed on top of.
 enum StorageBufferStructure
 {
-    uint32x4,
-    uint32x2,
-    float32x4,
+  uint32x4,
+  uint32x2,
+  float32x4,
 };
 
 constexpr static uint32_t StorageBufferElementSizeInBytes(
     StorageBufferStructure bufferStructure)
 {
-    switch (bufferStructure)
-    {
-        case StorageBufferStructure::uint32x4:
-            return sizeof(uint32_t) * 4;
-        case StorageBufferStructure::uint32x2:
-            return sizeof(uint32_t) * 2;
-        case StorageBufferStructure::float32x4:
-            return sizeof(float) * 4;
-    }
-    RIVE_UNREACHABLE();
+  switch (bufferStructure)
+  {
+    case StorageBufferStructure::uint32x4:
+      return sizeof(uint32_t) * 4;
+    case StorageBufferStructure::uint32x2:
+      return sizeof(uint32_t) * 2;
+    case StorageBufferStructure::float32x4:
+      return sizeof(float) * 4;
+  }
+  RIVE_UNREACHABLE();
 }
 
 // Defines a transform from screen space into a region of an atlas.
 // The atlas may have a different scale factor than the screen.
 struct AtlasTransform
 {
-    float scaleFactor;
-    float translateX;
-    float translateY;
+  float scaleFactor;
+  float translateX;
+  float translateY;
 };
 
 // Defines a sub-allocation for a path's coverage data within the
 // renderContext's coverage buffer. (clockwiseAtomic mode only.)
 struct CoverageBufferRange
 {
-    // Index of the first pixel of this allocation within the coverage buffer.
-    // Must be a multiple of 32*32.
-    uint32_t offset;
-    // Line width in pixels of the image in this coverage allocation.
-    // Must be a multiple of 32.
-    uint32_t pitch;
-    // Offset from screen space to image coords within the coverage allocation.
-    float offsetX;
-    float offsetY;
+  // Index of the first pixel of this allocation within the coverage buffer.
+  // Must be a multiple of 32*32.
+  uint32_t offset;
+  // Line width in pixels of the image in this coverage allocation.
+  // Must be a multiple of 32.
+  uint32_t pitch;
+  // Offset from screen space to image coords within the coverage allocation.
+  float offsetX;
+  float offsetY;
 };
 
 // High level structure of the "path" storage buffer. Each path has a unique
@@ -1732,30 +1926,32 @@ struct CoverageBufferRange
 struct PathData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure =
-        StorageBufferStructure::uint32x4;
+  constexpr static StorageBufferStructure
+      kBufferStructure = StorageBufferStructure::uint32x4;
 
-    void set(const Mat2D&,
-             float strokeRadius,
-             float featherRadius,
-             uint32_t zIndex,
-             const AtlasTransform& featherAtlasTransform,
-             const CoverageBufferRange&);
+  void set(
+      const Mat2D&,
+      float strokeRadius,
+      float featherRadius,
+      uint32_t zIndex,
+      const AtlasTransform& featherAtlasTransform,
+      const CoverageBufferRange&);
 
 private:
-    WRITEONLY float m_matrix[6];
-    // "0" indicates that the path is filled, not stroked.
-    WRITEONLY float m_strokeRadius;
-    WRITEONLY float m_featherRadius;
-    // InterlockMode::depthStencil.
-    WRITEONLY uint32_t m_zIndex;
-    // Only used when rendering coverage via the atlas.
-    WRITEONLY AtlasTransform m_featherAtlasTransform;
-    // InterlockMode::clockwiseAtomic.
-    WRITEONLY CoverageBufferRange m_coverageBufferRange;
+  WRITEONLY float m_matrix[6];
+  // "0" indicates that the path is filled, not stroked.
+  WRITEONLY float m_strokeRadius;
+  WRITEONLY float m_featherRadius;
+  // InterlockMode::depthStencil.
+  WRITEONLY uint32_t m_zIndex;
+  // Only used when rendering coverage via the atlas.
+  WRITEONLY AtlasTransform m_featherAtlasTransform;
+  // InterlockMode::clockwiseAtomic.
+  WRITEONLY CoverageBufferRange m_coverageBufferRange;
 };
-static_assert(sizeof(PathData) ==
-              StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
+static_assert(
+    sizeof(PathData) ==
+    StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
 static_assert(256 % sizeof(PathData) == 0);
 constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 
@@ -1766,123 +1962,127 @@ constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 struct PaintData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure =
-        StorageBufferStructure::uint32x2;
+  constexpr static StorageBufferStructure
+      kBufferStructure = StorageBufferStructure::uint32x2;
 
-    void set(DrawContents singleDrawContents,
-             PaintType,
-             SimplePaintValue,
-             GradTextureLayout,
-             uint32_t clipID,
-             bool hasClipRect,
-             bool hasImage,
-             BlendMode,
-             bool solidUnmultiplied,
-             float additiveness,
-             bool isLayerMask = false,
-             LayerMaskMode layerMaskMode = LayerMaskMode::alpha);
+  void set(
+      DrawContents singleDrawContents,
+      PaintType,
+      SimplePaintValue,
+      uint32_t clipID,
+      bool hasClipRect,
+      bool hasImage,
+      BlendMode,
+      bool solidUnmultiplied,
+      float additiveness,
+      bool isLayerMask = false,
+      LayerMaskMode layerMaskMode = LayerMaskMode::alpha);
 
 private:
-    WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
-    union
-    {
-        WRITEONLY uint32_t m_color; // PaintType::solidColor
-        WRITEONLY float
-            m_gradTextureRowAndAdditiveness; // Paintype::linearGradient,
-                                             // Paintype::radialGradient
-                                             // Int part: gradient texture row
-                                             // Fraction: additiveness,
-                                             // pre-quantized to 0/256..255/256
-        WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
-    };
+  WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
+  union
+  {
+    WRITEONLY uint32_t m_color; // PaintType::solidColor, *Gradient
+    WRITEONLY float m_gradientAdditivenessComplement; // Paintype::*Gradient
+    WRITEONLY uint32_t m_shiftedClipReplacementID;    // PaintType::clipUpdate
+  };
 };
-static_assert(sizeof(PaintData) ==
-              StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
+static_assert(
+    sizeof(PaintData) ==
+    StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
 static_assert(256 % sizeof(PaintData) == 0);
-constexpr static size_t kPaintBufferAlignmentInElements =
-    256 / sizeof(PaintData);
+constexpr static size_t kPaintBufferAlignmentInElements = 256 /
+                                                          sizeof(PaintData);
 
 // Structure of the "paintAux" storage buffer. Gradients, images, and clipRects
 // store their details here, indexed by pathID.
 struct PaintAuxData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure =
-        StorageBufferStructure::float32x4;
+  constexpr static StorageBufferStructure
+      kBufferStructure = StorageBufferStructure::float32x4;
 
-    void set(const Mat2D& viewMatrix,
-             const Mat2D& imageMatrix,
-             PaintType,
-             SimplePaintValue,
-             const Gradient*,
-             const Texture*,
-             const ClipRectInverseMatrix*,
-             const RenderTarget*,
-             const gpu::PlatformFeatures&);
+  void set(
+      const Mat2D& viewMatrix,
+      const Mat2D& imageMatrix,
+      PaintType,
+      SimplePaintValue,
+      GradTextureLayout,
+      const Gradient*,
+      const Mat2D& inverseGradientTransform,
+      const Texture*,
+      const ClipRectInverseMatrix*,
+      const RenderTarget*,
+      const gpu::PlatformFeatures&);
 
 private:
-    WRITEONLY float m_paintMatrix[6]; // Maps _fragCoord to paint coordinates.
-    WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
-                                                    // Paintype::radialGradient
-    WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized
-                                                // clipRect coords.
-    WRITEONLY Vec2D m_inverseFwidth;  // -1 / fwidth(matrix * _fragCoord) -- for
-                                      // antialiasing.
-    WRITEONLY float m_imageMatrix[6]; // Maps _fragCoord to image coordinates.
-    WRITEONLY float m_imageTextureLOD;
-    WRITEONLY float
-        m_padding[9]; // Padding out to 128 bytes (to have 256 byte alignment)
+  WRITEONLY float m_paintMatrix[6]; // Maps _fragCoord to paint coordinates.
+  WRITEONLY float m_gradTextureX;   // Paintype::*Gradient, negative for a
+                                    // complex gradient
+  WRITEONLY float m_gradTextureY;   // Paintype::*Gradient
+  WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized
+                                              // clipRect coords.
+  WRITEONLY Vec2D m_inverseFwidth;  // -1 / fwidth(matrix * _fragCoord) -- for
+                                    // antialiasing.
+  WRITEONLY float m_imageMatrix[6]; // Maps _fragCoord to image coordinates.
+  WRITEONLY float m_imageTextureLOD;
+  WRITEONLY float
+      m_padding[9]; // Padding out to 128 bytes (to have 256 byte alignment)
 };
-static_assert(sizeof(PaintAuxData) ==
-              StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) *
-                  8);
+static_assert(
+    sizeof(PaintAuxData) ==
+    StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) * 8);
 static_assert(256 % sizeof(PaintAuxData) == 0);
-constexpr static size_t kPaintAuxBufferAlignmentInElements =
-    256 / sizeof(PaintAuxData);
+constexpr static size_t kPaintAuxBufferAlignmentInElements = 256 /
+                                                             sizeof(
+                                                                 PaintAuxData);
 
 // High level structure of the "contour" storage buffer. Each contour of every
 // path has a data record describing its info.
 struct ContourData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure =
-        StorageBufferStructure::uint32x4;
+  constexpr static StorageBufferStructure
+      kBufferStructure = StorageBufferStructure::uint32x4;
 
-    ContourData(Vec2D midpoint, uint32_t pathID, uint32_t vertexIndex0) :
-        m_midpoint(midpoint), m_pathID(pathID), m_vertexIndex0(vertexIndex0)
-    {}
+  ContourData(Vec2D midpoint, uint32_t pathID, uint32_t vertexIndex0)
+      : m_midpoint(midpoint)
+      , m_pathID(pathID)
+      , m_vertexIndex0(vertexIndex0)
+  {}
 
 private:
-    WRITEONLY Vec2D
-        m_midpoint; // Midpoint of the curve endpoints in just this contour.
-    WRITEONLY uint32_t m_pathID; // ID of the path this contour belongs to.
-    WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex
-                                       // of the contour.
+  WRITEONLY Vec2D
+      m_midpoint; // Midpoint of the curve endpoints in just this contour.
+  WRITEONLY uint32_t m_pathID;       // ID of the path this contour belongs to.
+  WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex
+                                     // of the contour.
 };
-static_assert(sizeof(ContourData) ==
-              StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
+static_assert(
+    sizeof(ContourData) ==
+    StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
 static_assert(256 % sizeof(ContourData) == 0);
-constexpr static size_t kContourBufferAlignmentInElements =
-    256 / sizeof(ContourData);
+constexpr static size_t kContourBufferAlignmentInElements = 256 /
+                                                            sizeof(ContourData);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex
 {
 public:
-    TriangleVertex() = default;
-    TriangleVertex(Vec2D point, int16_t weight, uint16_t pathID) :
-        m_point(point),
-        m_weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
-    {}
+  TriangleVertex() = default;
+  TriangleVertex(Vec2D point, int16_t weight, uint16_t pathID)
+      : m_point(point)
+      , m_weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
+  {}
 
 #ifdef TESTING
-    Vec2D testing_point() const { return {m_point.x, m_point.y}; }
-    int32_t testing_weight_pathID() const { return m_weight_pathID; }
+  Vec2D testing_point() const { return {m_point.x, m_point.y}; }
+  int32_t testing_weight_pathID() const { return m_weight_pathID; }
 #endif
 
 private:
-    WRITEONLY Vec2D m_point;
-    WRITEONLY int32_t m_weight_pathID; // [(weight << 16 | pathID]
+  WRITEONLY Vec2D m_point;
+  WRITEONLY int32_t m_weight_pathID; // [(weight << 16 | pathID]
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
@@ -1892,32 +2092,32 @@ constexpr static size_t kTriangleVertexGroupSize = 4;
 
 enum class BoundVertexInstanceType
 {
-    none,
-    imageRect,
-    imageMesh,
+  none,
+  imageRect,
+  imageMesh,
 };
 
 // TODO: This was intentionally made identical to the VertexFormat enum in Ore,
 // and they could/should be merged.
 enum class VertexElementFormat : uint8_t
 {
-    float1,
-    float2,
-    float3,
-    float4,
-    uint8x4,
-    sint8x4,
-    unorm8x4,
-    snorm8x4,
-    uint16x2,
-    sint16x2,
-    unorm16x2,
-    snorm16x2,
-    uint16x4,
-    sint16x4,
-    float16x2,
-    float16x4,
-    uint32,
+  float1,
+  float2,
+  float3,
+  float4,
+  uint8x4,
+  sint8x4,
+  unorm8x4,
+  snorm8x4,
+  uint16x2,
+  sint16x2,
+  unorm16x2,
+  snorm16x2,
+  uint16x4,
+  sint16x4,
+  float16x2,
+  float16x4,
+  uint32,
 };
 
 // NOTE: This would ideally contain the semantic names that D3D wants as well
@@ -1927,118 +2127,124 @@ enum class VertexElementFormat : uint8_t
 // the D3Ds have to handle the semantic themselves.
 struct VertexAttribute
 {
-    VertexElementFormat format;
-    uint32_t attributeIndex;
-    uint32_t byteOffset;
-    const char* semanticName;
+  VertexElementFormat format;
+  uint32_t attributeIndex;
+  uint32_t byteOffset;
+  const char* semanticName;
 };
 
 // Per-draw instanced attributes used by imageMeshes and imageRects.
 class ImageDrawInstanceBase
 {
 public:
-    static constexpr size_t FirstAttribIdx = 2;
-    static constexpr size_t AttributeCount = 7;
-    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+  static constexpr size_t FirstAttribIdx = 2;
+  static constexpr size_t AttributeCount = 7;
+  static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
-    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+  static const std::array<VertexAttribute, AttributeCount>& getAttributes();
 
-    ImageDrawInstanceBase() = default;
+  ImageDrawInstanceBase() = default;
 
-    ImageDrawInstanceBase(const Mat2D&,
-                          ColorInt color,
-                          const ClipRectInverseMatrix*,
-                          uint32_t clipID,
-                          BlendMode,
-                          uint32_t zIndex,
-                          float additiveness);
+  ImageDrawInstanceBase(
+      const Mat2D&,
+      ColorInt color,
+      const ClipRectInverseMatrix*,
+      uint32_t clipID,
+      BlendMode,
+      uint32_t zIndex,
+      float additiveness);
 
 private:
-    WRITEONLY float m_viewMatrix[4];
-    WRITEONLY float m_clipRectInverseMatrix[4];
+  WRITEONLY float m_viewMatrix[4];
+  WRITEONLY float m_clipRectInverseMatrix[4];
 
-    WRITEONLY float m_translate[2];
-    WRITEONLY float m_clipRectInverseTranslate[2];
+  WRITEONLY float m_translate[2];
+  WRITEONLY float m_clipRectInverseTranslate[2];
 
-    WRITEONLY uint32_t m_modulatedColor;
-    WRITEONLY uint32_t m_clipID;
-    WRITEONLY uint32_t m_blendMode;
-    WRITEONLY uint32_t m_zIndex;
+  WRITEONLY uint32_t m_modulatedColor;
+  WRITEONLY uint32_t m_clipID;
+  WRITEONLY uint32_t m_blendMode;
+  WRITEONLY uint32_t m_zIndex;
 };
 
 class ImageRectInstance
 {
 public:
-    constexpr static size_t FirstAttribIdx =
-        ImageDrawInstanceBase::FirstAttribIdx;
-    static constexpr size_t AttributeCount = 11;
-    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+  constexpr static size_t
+      FirstAttribIdx = ImageDrawInstanceBase::FirstAttribIdx;
+  static constexpr size_t AttributeCount = 11;
+  static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
-    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+  static const std::array<VertexAttribute, AttributeCount>& getAttributes();
 
-    ImageRectInstance() = default;
+  ImageRectInstance() = default;
 
-    ImageRectInstance(const Mat2D&,
-                      ColorInt color,
-                      const ClipRectInverseMatrix*,
-                      uint32_t clipID,
-                      BlendMode,
-                      uint32_t zIndex,
-                      const Mat2D& imageMatrix,
-                      const Mat2D& gradientMatrix,
-                      uint32_t gradientType,
-                      const float (&gradTextureHorizontalSpan)[2],
-                      float gradTextureY,
-                      float additiveness);
+  ImageRectInstance(
+      const Mat2D&,
+      ColorInt color,
+      const ClipRectInverseMatrix*,
+      uint32_t clipID,
+      BlendMode,
+      uint32_t zIndex,
+      const Mat2D& imageMatrix,
+      const Mat2D& gradientMatrix,
+      uint32_t gradientType,
+      int32_t gradTextureX, // sign used to indicate complex gradient
+      uint32_t gradTextureY,
+      float additiveness);
 
 private:
-    ImageDrawInstanceBase m_commons;
-    WRITEONLY float m_imageMatrix[4];
-    WRITEONLY float m_gradientMatrix[4];
-    WRITEONLY float m_imageTranslate[2];
-    WRITEONLY float m_gradientTranslate[2];
-    WRITEONLY float m_gradTextureHorizontalSpan[2];
-    WRITEONLY float m_gradTextureY;
-    WRITEONLY float m_gradientType;
+  ImageDrawInstanceBase m_commons;
+  WRITEONLY float m_imageMatrix[4];
+  WRITEONLY float m_gradientMatrix[4];
+  WRITEONLY float m_imageTranslate[2];
+  WRITEONLY float m_gradientTranslate[2];
+  WRITEONLY float m_gradTextureX;
+  WRITEONLY float m_gradTextureY;
+  WRITEONLY uint32_t m_gradientType;
+  WRITEONLY float m_padding;
 };
 
 class ImageMeshInstance
 {
 public:
-    constexpr static size_t FirstAttribIdx =
-        ImageDrawInstanceBase::FirstAttribIdx;
-    static constexpr size_t AttributeCount = 8;
-    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+  constexpr static size_t
+      FirstAttribIdx = ImageDrawInstanceBase::FirstAttribIdx;
+  static constexpr size_t AttributeCount = 8;
+  static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
-    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+  static const std::array<VertexAttribute, AttributeCount>& getAttributes();
 
-    ImageMeshInstance() = default;
+  ImageMeshInstance() = default;
 
-    ImageMeshInstance(const Mat2D&,
-                      ColorInt modulatedColor,
-                      const ClipRectInverseMatrix*,
-                      uint32_t clipID,
-                      BlendMode,
-                      uint32_t zIndex,
-                      float additiveness,
-                      Vec2D uvTranslate,
-                      Vec2D uvScale);
+  ImageMeshInstance(
+      const Mat2D&,
+      ColorInt modulatedColor,
+      const ClipRectInverseMatrix*,
+      uint32_t clipID,
+      BlendMode,
+      uint32_t zIndex,
+      float additiveness,
+      Vec2D uvTranslate,
+      Vec2D uvScale);
 
 private:
-    ImageDrawInstanceBase m_commons;
+  ImageDrawInstanceBase m_commons;
 
-    // Packed: uvTranslate (x,y), uvScale (x,y)
-    WRITEONLY float m_uvTransform[4];
+  // Packed: uvTranslate (x,y), uvScale (x,y)
+  WRITEONLY float m_uvTransform[4];
 };
 
 #undef WRITEONLY
 
-constexpr size_t MaxVertexAttributeCount =
-    std::max(ImageMeshInstance::LastAttribIdx,
-             ImageRectInstance::LastAttribIdx) +
-    1;
-constexpr size_t MaxImageDrawInstanceAttributeCount =
-    MaxVertexAttributeCount - ImageDrawInstanceBase::FirstAttribIdx;
+constexpr size_t
+    MaxVertexAttributeCount = std::max(
+                                  ImageMeshInstance::LastAttribIdx,
+                                  ImageRectInstance::LastAttribIdx) +
+                              1;
+constexpr size_t
+    MaxImageDrawInstanceAttributeCount = MaxVertexAttributeCount -
+                                         ImageDrawInstanceBase::FirstAttribIdx;
 
 // The maximum number of storage buffers we will ever use in a vertex or
 // fragment shader.
@@ -2047,25 +2253,27 @@ constexpr static size_t kMaxStorageBuffers = 4;
 // If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill
 // with textures. This function returns the dimensions to use for these
 // textures.
-std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
-                                                  StorageBufferStructure);
+std::tuple<uint32_t, uint32_t> StorageTextureSize(
+    size_t bufferSizeInBytes,
+    StorageBufferStructure);
 
 // If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill
 // with textures. The polyfill texture needs to be updated in entire rows at a
 // time, meaning, its transfer buffer might need to be larger than requested.
 // This function returns a size that is large enough to service a worst-case
 // texture update.
-size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
-                                StorageBufferStructure);
+size_t StorageTextureBufferSize(
+    size_t bufferSizeInBytes,
+    StorageBufferStructure);
 
 // Should the triangulator emit triangles with negative winding, positive
 // winding, or both?
 enum class WindingFaces
 {
-    none = 0,
-    negative = 1 << 0,
-    positive = 1 << 1,
-    all = negative | positive,
+  none = 0,
+  negative = 1 << 0,
+  positive = 1 << 1,
+  all = negative | positive,
 };
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive
@@ -2074,157 +2282,160 @@ enum class WindingFaces
 template <typename T> class WriteOnlyMappedMemory
 {
 public:
-    WriteOnlyMappedMemory() { reset(); }
-    WriteOnlyMappedMemory(T* ptr, size_t elementCount)
+  WriteOnlyMappedMemory() { reset(); }
+  WriteOnlyMappedMemory(T* ptr, size_t elementCount)
+  {
+    reset(ptr, elementCount);
+  }
+
+  void reset() { reset(nullptr, 0); }
+
+  void reset(T* ptr, size_t elementCount)
+  {
+    m_mappedMemory = ptr;
+    m_nextMappedItem = ptr;
+    m_mappingEnd = ptr + elementCount;
+  }
+
+  using MapResourceBufferFn =
+      void* (RenderContextImpl::*)(size_t mapSizeInBytes);
+  [[nodiscard]] bool mapElements(
+      RenderContextImpl* impl,
+      MapResourceBufferFn mapFn,
+      size_t elementCount)
+  {
+    assert(m_mappedMemory == nullptr);
+    void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
+    if (ptr == nullptr)
     {
-        reset(ptr, elementCount);
+      return false;
     }
 
-    void reset() { reset(nullptr, 0); }
+    reset(reinterpret_cast<T*>(ptr), elementCount);
+    return true;
+  }
 
-    void reset(T* ptr, size_t elementCount)
+  using UnmapResourceBufferFn =
+      void (RenderContextImpl::*)(size_t mapSizeInBytes);
+  void unmapElements(
+      RenderContextImpl* impl,
+      UnmapResourceBufferFn unmapFn,
+      size_t elementCount)
+  {
+    if (m_mappedMemory != nullptr)
     {
-        m_mappedMemory = ptr;
-        m_nextMappedItem = ptr;
-        m_mappingEnd = ptr + elementCount;
+      assert(m_mappingEnd - m_mappedMemory == elementCount);
+      (impl->*unmapFn)(elementCount * sizeof(T));
+      reset();
     }
+  }
 
-    using MapResourceBufferFn =
-        void* (RenderContextImpl::*)(size_t mapSizeInBytes);
-    [[nodiscard]] bool mapElements(RenderContextImpl* impl,
-                                   MapResourceBufferFn mapFn,
-                                   size_t elementCount)
-    {
-        assert(m_mappedMemory == nullptr);
-        void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
-        if (ptr == nullptr)
-        {
-            return false;
-        }
+  operator bool() const { return m_mappedMemory; }
 
-        reset(reinterpret_cast<T*>(ptr), elementCount);
-        return true;
-    }
+  // How many bytes have been written to the buffer?
+  size_t bytesWritten() const
+  {
+    return reinterpret_cast<uintptr_t>(m_nextMappedItem) -
+           reinterpret_cast<uintptr_t>(m_mappedMemory);
+  }
 
-    using UnmapResourceBufferFn =
-        void (RenderContextImpl::*)(size_t mapSizeInBytes);
-    void unmapElements(RenderContextImpl* impl,
-                       UnmapResourceBufferFn unmapFn,
-                       size_t elementCount)
-    {
-        if (m_mappedMemory != nullptr)
-        {
-            assert(m_mappingEnd - m_mappedMemory == elementCount);
-            (impl->*unmapFn)(elementCount * sizeof(T));
-            reset();
-        }
-    }
+  size_t elementsWritten() const { return bytesWritten() / sizeof(T); }
 
-    operator bool() const { return m_mappedMemory; }
+  // Is there room to push() itemCount items to the buffer?
+  bool hasRoomFor(size_t itemCount)
+  {
+    return m_nextMappedItem + itemCount <= m_mappingEnd;
+  }
 
-    // How many bytes have been written to the buffer?
-    size_t bytesWritten() const
+  // Append and write a new item to the buffer. In order to enforce the
+  // write-only requirement of a mapped buffer, these methods do not return
+  // any pointers to the client.
+  template <typename... Args>
+  RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
+  {
+    new (&push()) T(std::forward<Args>(args)...);
+  }
+  template <typename... Args> RIVE_ALWAYS_INLINE void set_back(Args&&... args)
+  {
+    push().set(std::forward<Args>(args)...);
+  }
+  void push_back_n(const T* values, size_t count)
+  {
+    T* dst = push(count);
+    if (values != nullptr)
     {
-        return reinterpret_cast<uintptr_t>(m_nextMappedItem) -
-               reinterpret_cast<uintptr_t>(m_mappedMemory);
+      memcpy(static_cast<void*>(dst), values, count * sizeof(T));
     }
-
-    size_t elementsWritten() const { return bytesWritten() / sizeof(T); }
-
-    // Is there room to push() itemCount items to the buffer?
-    bool hasRoomFor(size_t itemCount)
-    {
-        return m_nextMappedItem + itemCount <= m_mappingEnd;
-    }
-
-    // Append and write a new item to the buffer. In order to enforce the
-    // write-only requirement of a mapped buffer, these methods do not return
-    // any pointers to the client.
-    template <typename... Args>
-    RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
-    {
-        new (&push()) T(std::forward<Args>(args)...);
-    }
-    template <typename... Args> RIVE_ALWAYS_INLINE void set_back(Args&&... args)
-    {
-        push().set(std::forward<Args>(args)...);
-    }
-    void push_back_n(const T* values, size_t count)
-    {
-        T* dst = push(count);
-        if (values != nullptr)
-        {
-            memcpy(static_cast<void*>(dst), values, count * sizeof(T));
-        }
-    }
-    void skip_back() { push(); }
-    void zero_unwritten()
-    {
-        memset(static_cast<void*>(m_nextMappedItem),
-               0,
-               (m_mappingEnd - m_nextMappedItem) * sizeof(T));
-    }
+  }
+  void skip_back() { push(); }
+  void zero_unwritten()
+  {
+    memset(
+        static_cast<void*>(m_nextMappedItem),
+        0,
+        (m_mappingEnd - m_nextMappedItem) * sizeof(T));
+  }
 
 private:
-    RIVE_ALWAYS_INLINE T& push()
-    {
-        assert(hasRoomFor(1));
-        return *m_nextMappedItem++;
-    }
-    RIVE_ALWAYS_INLINE T* push(size_t count)
-    {
-        assert(hasRoomFor(count));
-        T* ret = m_nextMappedItem;
-        m_nextMappedItem += count;
-        return ret;
-    }
+  RIVE_ALWAYS_INLINE T& push()
+  {
+    assert(hasRoomFor(1));
+    return *m_nextMappedItem++;
+  }
+  RIVE_ALWAYS_INLINE T* push(size_t count)
+  {
+    assert(hasRoomFor(count));
+    T* ret = m_nextMappedItem;
+    m_nextMappedItem += count;
+    return ret;
+  }
 
-    T* m_mappedMemory;
-    T* m_nextMappedItem;
-    const T* m_mappingEnd;
+  T* m_mappedMemory;
+  T* m_nextMappedItem;
+  const T* m_mappingEnd;
 };
 
 // Utility for tracking booleans that may be unknown (e.g., lazily computed
 // values, GL state, etc.)
 enum class TriState
 {
-    no,
-    yes,
-    unknown
+  no,
+  yes,
+  unknown
 };
 
 enum class StencilOp : uint8_t
 {
-    keep,
-    replace,
-    zero,
-    decrClamp,
-    incrWrap,
-    decrWrap
+  keep,
+  replace,
+  zero,
+  decrClamp,
+  incrWrap,
+  decrWrap
 };
 
 enum class StencilCompareOp : uint8_t
 {
-    less,
-    equal,
-    lessOrEqual,
-    notEqual,
-    always,
+  less,
+  equal,
+  lessOrEqual,
+  notEqual,
+  always,
 };
 
 struct StencilFaceOps
 {
-    StencilOp stencilFailOp = StencilOp::keep;
-    StencilOp depthFailOp = StencilOp::keep;
-    StencilOp depthStencilPassOp = StencilOp::keep;
-    StencilCompareOp compareOp = StencilCompareOp::always;
+  StencilOp stencilFailOp = StencilOp::keep;
+  StencilOp depthFailOp = StencilOp::keep;
+  StencilOp depthStencilPassOp = StencilOp::keep;
+  StencilCompareOp compareOp = StencilCompareOp::always;
 };
 
 enum class CullFace : uint8_t
 {
-    none,
-    clockwise,
-    counterclockwise,
+  none,
+  clockwise,
+  counterclockwise,
 };
 
 constexpr uint32_t CullFaceBitCount = 2;
@@ -2234,131 +2445,151 @@ constexpr uint32_t CullFaceBitCount = 2;
 // use premultiplied alpha or not.
 enum class BlendEquation : uint8_t
 {
-    // Hardware blend is disabled.
-    none = 0,
+  // Hardware blend is disabled.
+  none = 0,
 
-    // Core hardware blend equations supported on all platforms.
-    srcOver = static_cast<int>(rive::BlendMode::srcOver),
-    plus = srcOver + 1,
-    min = srcOver + 2,
-    max = srcOver + 3,
+  // Core hardware blend equations supported on all platforms.
+  srcOver = static_cast<int>(rive::BlendMode::srcOver),
+  plus = srcOver + 1,
+  min = srcOver + 2,
+  max = srcOver + 3,
 
-    // "Advanced" hardware blend equations.
-    // PlatformFeatures::supportsKHRBlendEquations is required.
-    screen = static_cast<int>(rive::BlendMode::screen),
-    overlay = static_cast<int>(rive::BlendMode::overlay),
-    darken = static_cast<int>(rive::BlendMode::darken),
-    lighten = static_cast<int>(rive::BlendMode::lighten),
-    colorDodge = static_cast<int>(rive::BlendMode::colorDodge),
-    colorBurn = static_cast<int>(rive::BlendMode::colorBurn),
-    hardLight = static_cast<int>(rive::BlendMode::hardLight),
-    softLight = static_cast<int>(rive::BlendMode::softLight),
-    difference = static_cast<int>(rive::BlendMode::difference),
-    exclusion = static_cast<int>(rive::BlendMode::exclusion),
-    multiply = static_cast<int>(rive::BlendMode::multiply),
-    hue = static_cast<int>(rive::BlendMode::hue),
-    saturation = static_cast<int>(rive::BlendMode::saturation),
-    color = static_cast<int>(rive::BlendMode::color),
-    luminosity = static_cast<int>(rive::BlendMode::luminosity),
+  // dst * srcAlpha on every channel (src factor ZERO, dst factor SRC_ALPHA):
+  // a layer-mask apply in depthStencil mode, where the shader emits the mask
+  // factor as alpha. PlatformFeatures::supportsDepthStencilLayerMask is
+  // required.
+  layerMask = srcOver + 4,
+
+  // "Advanced" hardware blend equations.
+  // PlatformFeatures::supportsKHRBlendEquations is required.
+  screen = static_cast<int>(rive::BlendMode::screen),
+  overlay = static_cast<int>(rive::BlendMode::overlay),
+  darken = static_cast<int>(rive::BlendMode::darken),
+  lighten = static_cast<int>(rive::BlendMode::lighten),
+  colorDodge = static_cast<int>(rive::BlendMode::colorDodge),
+  colorBurn = static_cast<int>(rive::BlendMode::colorBurn),
+  hardLight = static_cast<int>(rive::BlendMode::hardLight),
+  softLight = static_cast<int>(rive::BlendMode::softLight),
+  difference = static_cast<int>(rive::BlendMode::difference),
+  exclusion = static_cast<int>(rive::BlendMode::exclusion),
+  multiply = static_cast<int>(rive::BlendMode::multiply),
+  hue = static_cast<int>(rive::BlendMode::hue),
+  saturation = static_cast<int>(rive::BlendMode::saturation),
+  color = static_cast<int>(rive::BlendMode::color),
+  luminosity = static_cast<int>(rive::BlendMode::luminosity),
 };
 
 struct DepthState
 {
-    bool depthTestEnabled;
-    bool depthWriteEnabled;
+  bool depthTestEnabled;
+  bool depthWriteEnabled;
 };
 
-DepthState get_depth_state(InterlockMode interlockMode,
-                           DrawType drawType,
-                           DrawContents drawContents);
+DepthState get_depth_state(
+    InterlockMode interlockMode,
+    DrawType drawType,
+    DrawContents drawContents);
 
 CullFace get_cull_face(DrawType drawType);
-bool get_color_write_enable(DrawType drawType,
-                            InterlockMode interlockMode,
-                            ShaderMiscFlags shaderMiscFlags,
-                            bool fixedFunctionColorOutput,
-                            DrawContents drawContents);
+bool get_color_write_enable(
+    DrawType drawType,
+    InterlockMode interlockMode,
+    ShaderMiscFlags shaderMiscFlags,
+    bool fixedFunctionColorOutput,
+    DrawContents drawContents);
 
 // Common pipeline state that applies to every Rive draw and every backend.
 struct PipelineState
 {
-    // Depth.
-    bool depthTestEnabled = false;
-    bool depthWriteEnabled = true;
+  // Depth.
+  bool depthTestEnabled = false;
+  bool depthWriteEnabled = true;
 
-    // Stencil.
-    bool stencilTestEnabled = false;
-    uint8_t stencilCompareMask = 0xff;
-    uint8_t stencilWriteMask = 0xff;
-    uint8_t stencilReference = 0;
-    StencilFaceOps stencilFrontOps;
-    StencilFaceOps stencilBackOps;
-    bool stencilDoubleSided = false; // Use stencilFrontOps for both faces?
+  // Stencil.
+  bool stencilTestEnabled = false;
+  uint8_t stencilCompareMask = 0xff;
+  uint8_t stencilWriteMask = 0xff;
+  uint8_t stencilReference = 0;
+  StencilFaceOps stencilFrontOps;
+  StencilFaceOps stencilBackOps;
+  bool stencilDoubleSided = false; // Use stencilFrontOps for both faces?
 
-    CullFace cullFace = CullFace::none;
-    BlendEquation blendEquation = BlendEquation::none;
-    bool colorWriteEnabled = true;
+  CullFace cullFace = CullFace::none;
+  BlendEquation blendEquation = BlendEquation::none;
+  bool colorWriteEnabled = true;
 };
 
 // Returns a unique value that can be used to key a whole pipeline.
-uint64_t getPipelineUniqueKey(DrawType,
-                              ShaderFeatures,
-                              InterlockMode,
-                              ShaderMiscFlags,
-                              DrawContents,
-                              bool fixedFunctionColorOutput,
-                              rive::BlendMode,
-                              const PlatformFeatures&);
+uint64_t getPipelineUniqueKey(
+    DrawType,
+    ShaderFeatures,
+    InterlockMode,
+    ShaderMiscFlags,
+    DrawContents,
+    bool fixedFunctionColorOutput,
+    rive::BlendMode,
+    const PlatformFeatures&);
 
 // getPipelineUniqueKey() is currently 40 bits. Be careful when adding to it
 // because some backends pack their own private state into keys, and still need
 // to fit in 64 bits.
-constexpr static uint32_t PipelineUniqueKeyBitCount =
-    ShaderUniqueKeyBitCount +
-    math::count_set_bits(uint32_t(DrawContentsForDepthStencilPipelineState)) +
-    BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
-    3 /*colorWrite, depthTest, depthWrite*/ + CullFaceBitCount;
-static_assert(PipelineUniqueKeyBitCount == 40);
+constexpr static uint32_t
+    PipelineUniqueKeyBitCount = ShaderUniqueKeyBitCount +
+                                math::count_set_bits(uint32_t(
+                                    DrawContentsForDepthStencilPipelineState)) +
+                                BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
+                                3 /*colorWrite, depthTest, depthWrite*/ +
+                                CullFaceBitCount;
+static_assert(PipelineUniqueKeyBitCount == 41);
 
-PipelineState get_pipeline_state(DrawType,
-                                 InterlockMode,
-                                 ShaderMiscFlags,
-                                 DrawContents,
-                                 bool fixedFunctionColorOutput,
-                                 rive::BlendMode,
-                                 const PlatformFeatures&);
+PipelineState get_pipeline_state(
+    DrawType,
+    InterlockMode,
+    ShaderMiscFlags,
+    DrawContents,
+    bool fixedFunctionColorOutput,
+    rive::BlendMode,
+    const PlatformFeatures&);
 
-void get_pipeline_state(const DrawBatch&,
-                        const FlushDescriptor&,
-                        const PlatformFeatures&,
-                        PipelineState*);
+void get_pipeline_state(
+    const DrawBatch&,
+    const FlushDescriptor&,
+    const PlatformFeatures&,
+    PipelineState*);
 
 // Default PipelineState values as specified in OpenGL.
 constexpr static PipelineState GL_DEFAULT_PIPELINE_STATE = {};
 
 // Helper to create PipelineState with no depth/stencil and custom blend/cull.
-constexpr inline PipelineState make_flat_pipeline_state(CullFace cull,
-                                                        BlendEquation blend)
+constexpr inline PipelineState make_flat_pipeline_state(
+    CullFace cull,
+    BlendEquation blend)
 {
-    PipelineState s{};
-    s.depthTestEnabled = false;
-    s.depthWriteEnabled = false;
-    s.stencilTestEnabled = false;
-    s.stencilWriteMask = 0;
-    s.cullFace = cull;
-    s.blendEquation = blend;
-    s.colorWriteEnabled = true;
-    return s;
+  PipelineState s{};
+  s.depthTestEnabled = false;
+  s.depthWriteEnabled = false;
+  s.stencilTestEnabled = false;
+  s.stencilWriteMask = 0;
+  s.cullFace = cull;
+  s.blendEquation = blend;
+  s.colorWriteEnabled = true;
+  return s;
 }
 
-constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE =
-    make_flat_pipeline_state(CullFace::none, BlendEquation::none);
+constexpr static PipelineState
+    COLOR_ONLY_PIPELINE_STATE = make_flat_pipeline_state(
+        CullFace::none,
+        BlendEquation::none);
 
-constexpr static PipelineState FEATHER_ATLAS_FILL_PIPELINE_STATE =
-    make_flat_pipeline_state(CullFace::none, BlendEquation::plus);
+constexpr static PipelineState
+    FEATHER_ATLAS_FILL_PIPELINE_STATE = make_flat_pipeline_state(
+        CullFace::none,
+        BlendEquation::plus);
 
-constexpr static PipelineState FEATHER_ATLAS_STROKE_PIPELINE_STATE =
-    make_flat_pipeline_state(CullFace::counterclockwise, BlendEquation::max);
+constexpr static PipelineState
+    FEATHER_ATLAS_STROKE_PIPELINE_STATE = make_flat_pipeline_state(
+        CullFace::counterclockwise,
+        BlendEquation::max);
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);
@@ -2378,21 +2609,19 @@ void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
 
-// Get the integer row in the gradient texture.
-uint32_t getGradientRow(ColorRampLocation, GradTextureLayout);
-
-// Get the Y coordinate in the gradient texture.
-float getGradientY(ColorRampLocation, GradTextureLayout);
-
 // Get the paint matrix and gradient texture horizontal span for a given
 // gradient.
-void getGradientMatrixAndSpan(const Gradient*,
-                              ColorRampLocation,
-                              const Mat2D& inverseViewMatrix,
-                              const RenderTarget*,
-                              const PlatformFeatures&,
-                              Mat2D& paintMatrixOut,
-                              float (&gradTextureHorizontalSpanOut)[2]);
+void getGradientMatrixAndCoord(
+    const Gradient*,
+    ColorRampLocation,
+    GradTextureLayout,
+    const Mat2D& inverseGradientTransform,
+    const Mat2D& viewMatrix,
+    const RenderTarget*,
+    const PlatformFeatures&,
+    Mat2D& paintMatrixOut,
+    int32_t& gradXOut,
+    uint32_t& gradYOut);
 
 float featherRadiusFromFeather(float feather);
 

@@ -7,13 +7,13 @@ using namespace rive;
 
 StatusCode TransitionComparator::import(ImportStack& importStack)
 {
-    auto transitionViewModelConditionImporter =
-        importStack.latest<TransitionViewModelConditionImporter>(
-            TransitionViewModelCondition::typeKey);
-    if (transitionViewModelConditionImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    transitionViewModelConditionImporter->setComparator(this);
-    return Super::import(importStack);
+  auto transitionViewModelConditionImporter = importStack.latest<
+      TransitionViewModelConditionImporter>(
+      TransitionViewModelCondition::typeKey);
+  if (transitionViewModelConditionImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  transitionViewModelConditionImporter->setComparator(this);
+  return Super::import(importStack);
 }
