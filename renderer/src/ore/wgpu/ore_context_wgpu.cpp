@@ -868,6 +868,7 @@ rcp<Pipeline> ContextWGPU::makePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perStage,
+            LayoutSlots::ignored,
             &err))
     {
       if (outError)

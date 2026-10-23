@@ -96,17 +96,8 @@ private:
   // Ore D3D12 pipeline owns its own per-pipeline root sig — RFC v5
   // §3.2.2). Weak ref; freed by the owning Pipeline.
   ID3D12RootSignature* m_d3dCurrentRootSig = nullptr;
-  // Bound groups whose tables aren't set: bound before a pipeline, dropped
-  // by a root sig change or heap swap, or too big for a heap.
-  uint8_t m_d3dUnappliedGroups = 0;
   // The context's heap generation when this pass last set a table.
   uint32_t m_d3dHeapGeneration = 0;
-  struct D3D12BoundOffsets
-  {
-    uint32_t values[kMaxDynamicOffsets] = {};
-    uint32_t count = 0;
-  };
-  D3D12BoundOffsets m_d3dBoundOffsets[kMaxBindGroups];
   // Pending descriptor state (accumulated per setPipeline/setBindGroup).
   D3D12_GPU_VIRTUAL_ADDRESS m_d3dPendingUBOs[8] = {};
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dPendingSrvHandles[8] = {};

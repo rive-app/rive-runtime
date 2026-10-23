@@ -858,6 +858,7 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perStage,
+            LayoutSlots::bound,
             &err))
     {
       if (outError)

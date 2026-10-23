@@ -219,6 +219,7 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
   validate();
   if (!checkPipelineCompat(pipeline))
     return;
+  m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
   m_currentPipeline = ref_rcp(pipeline);
   m_samplerBindingsDirty = true;
 
@@ -436,6 +437,12 @@ void RenderPassGL::setIndexBuffer(
   m_glIndexOffset = offset;
 }
 
+// GL numbers each kind once per program, so either stage's slot is the unit.
+static uint16_t glUnit(Pipeline::StageSlots slots)
+{
+  return slots.vs != BindingMap::kAbsent ? slots.vs : slots.fs;
+}
+
 void RenderPassGL::setBindGroup(
     uint32_t groupIndex,
     BindGroup* bg,
@@ -444,11 +451,17 @@ void RenderPassGL::setBindGroup(
 {
   validate();
   assert(bg != nullptr);
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+  m_samplerBindingsDirty = true;
+}
 
-  m_boundGroups[groupIndex] = ref_rcp(bg);
-
-  auto* glBg = lite_rtti_cast<BindGroupGL*>(bg);
+void RenderPassGL::applyBindGroup(uint32_t groupIndex)
+{
+  auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[groupIndex].get());
   assert(glBg);
+  const Pipeline* pipeline = m_currentPipeline.get();
+  const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
+  const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
   uint32_t dynIdx = 0;
 
   for (const auto& ubo : glBg->m_glUBOs)
@@ -459,26 +472,26 @@ void RenderPassGL::setBindGroup(
       offset += dynamicOffsets[dynIdx];
       ++dynIdx;
     }
-    glBindBufferRange(
-        GL_UNIFORM_BUFFER,
-        ubo.slot,
-        ubo.buffer,
-        offset,
-        ubo.size);
+    const uint16_t unit = glUnit(
+        pipeline->slots(groupIndex, ubo.binding, SlotSpace::buffer));
+    if (unit == BindingMap::kAbsent)
+      continue;
+    glBindBufferRange(GL_UNIFORM_BUFFER, unit, ubo.buffer, offset, ubo.size);
   }
 
   for (const auto& tex : glBg->m_glTextures)
   {
-    glActiveTexture(GL_TEXTURE0 + tex.slot);
+    const uint16_t unit = glUnit(
+        pipeline->slots(groupIndex, tex.binding, SlotSpace::texture));
+    if (unit == BindingMap::kAbsent)
+      continue;
+    glActiveTexture(GL_TEXTURE0 + unit);
     glBindTexture(tex.target, tex.texture);
 
-    if (!m_usedSamplers || tex.slot > m_maxSamplerSlot)
-      m_maxSamplerSlot = tex.slot;
+    if (!m_usedSamplers || unit > m_maxSamplerSlot)
+      m_maxSamplerSlot = unit;
     m_usedSamplers = true;
   }
-
-  // Samplers wait for the pipeline: it carries the pairing.
-  m_samplerBindingsDirty = true;
 }
 
 // GLSL folds a texture and its sampler into one uniform at the texture's unit,
@@ -514,11 +527,17 @@ void RenderPassGL::applySamplerBindings()
               m_boundGroups[pair.textureGroup].get());
           if (texBg == nullptr)
             continue;
+          const uint16_t unit = glUnit(m_currentPipeline->slots(
+              pair.textureGroup,
+              pair.textureBinding,
+              SlotSpace::texture));
+          if (unit == BindingMap::kAbsent)
+            continue;
           for (const auto& tex : texBg->m_glTextures)
           {
             if (tex.binding != pair.textureBinding)
               continue;
-            fn(tex.slot);
+            fn(unit);
             paired = true;
           }
         }
@@ -545,7 +564,12 @@ void RenderPassGL::applySamplerBindings()
         }
         else if (!forEachPairedUnit(group, samp.binding, [](uint32_t) {}))
         {
-          bindTo(samp.slot, samp.sampler);
+          const uint16_t unit = glUnit(m_currentPipeline->slots(
+              group,
+              samp.binding,
+              SlotSpace::sampler));
+          if (unit != BindingMap::kAbsent)
+            bindTo(unit, samp.sampler);
         }
       }
     }
@@ -616,6 +640,7 @@ void RenderPassGL::draw(
 {
   validate();
   assert(m_currentPipeline != nullptr);
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
   flushVertexBuffers();
   GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
@@ -639,6 +664,7 @@ void RenderPassGL::drawIndexed(
 {
   validate();
   assert(m_currentPipeline != nullptr);
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
   flushVertexBuffers();
   GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);

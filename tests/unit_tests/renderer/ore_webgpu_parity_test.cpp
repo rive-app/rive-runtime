@@ -391,7 +391,12 @@ TEST_CASE(
     desc.bindGroupLayouts = layouts;
     desc.bindGroupLayoutCount = 1;
     std::string error;
-    validatePipelineDesc(desc, BindingMap(), NativeSlotScope::perStage, &error);
+    validatePipelineDesc(
+        desc,
+        BindingMap(),
+        NativeSlotScope::perStage,
+        LayoutSlots::bound,
+        &error);
     return error;
   };
   CHECK(contains(

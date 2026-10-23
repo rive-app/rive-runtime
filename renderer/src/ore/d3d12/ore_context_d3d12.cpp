@@ -1300,6 +1300,7 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perKind,
+            LayoutSlots::bound,
             &err))
     {
       if (outError)

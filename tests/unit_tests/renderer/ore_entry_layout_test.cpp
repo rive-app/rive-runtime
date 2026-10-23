@@ -290,7 +290,12 @@ TEST_CASE("narrowing follows each stage's own module", "[ore][entry_layout]")
   desc.bindGroupLayouts = layouts;
   desc.bindGroupLayoutCount = 1;
   std::string error;
-  CHECK(validatePipelineDesc(desc, texture, NativeSlotScope::perStage, &error));
+  CHECK(validatePipelineDesc(
+      desc,
+      texture,
+      NativeSlotScope::perStage,
+      LayoutSlots::bound,
+      &error));
   CHECK(error.empty());
 }
 
@@ -418,6 +423,7 @@ TEST_CASE(
         desc,
         bindingMapForEntries(&shader, "vs_tri", &shader, fragmentEntry),
         NativeSlotScope::perStage,
+        LayoutSlots::bound,
         &error);
     return error;
   };
@@ -611,6 +617,7 @@ TEST_CASE(
         desc,
         bindingMapForEntries(vertex.get(), "main", fragment.get(), "main"),
         NativeSlotScope::perKind,
+        LayoutSlots::bound,
         &error);
     return error;
   };
@@ -693,7 +700,12 @@ TEST_CASE(
   auto validate = [&](const char* fragment) {
     desc.fragmentEntryPoint = fragment;
     std::string error;
-    validatePipelineDesc(desc, BindingMap(), NativeSlotScope::perStage, &error);
+    validatePipelineDesc(
+        desc,
+        BindingMap(),
+        NativeSlotScope::perStage,
+        LayoutSlots::bound,
+        &error);
     return error;
   };
   CHECK(validate("fs_load").empty());

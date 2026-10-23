@@ -21,20 +21,16 @@ public:
     uint32_t offset = 0;
     uint32_t binding = 0; // WGSL @binding, for sort
     bool hasDynamicOffset = false;
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t fsSlot = BindingMap::kAbsent;
   };
   struct MTLTextureBinding
   {
     id<MTLTexture> texture = nil;
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t fsSlot = BindingMap::kAbsent;
+    uint32_t binding = 0;
   };
   struct MTLSamplerBinding
   {
     id<MTLSamplerState> sampler = nil;
-    uint16_t vsSlot = BindingMap::kAbsent;
-    uint16_t fsSlot = BindingMap::kAbsent;
+    uint32_t binding = 0;
   };
 
   BindGroupMetal() = default;

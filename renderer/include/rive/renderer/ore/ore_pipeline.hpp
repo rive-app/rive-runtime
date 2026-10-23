@@ -34,6 +34,27 @@ public:
   // into one uniform at the texture's unit. Empty on other backends.
   std::vector<ShaderModule::TextureSamplerPair> m_textureSamplerPairs;
 
+  struct StageSlots
+  {
+    uint16_t vs = BindingMap::kAbsent;
+    uint16_t fs = BindingMap::kAbsent;
+    SlotSpace space = SlotSpace::none;
+    bool operator==(const StageSlots& o) const
+    {
+      return vs == o.vs && fs == o.fs && space == o.space;
+    }
+  };
+
+  // Where this pipeline's shaders read (group, binding), absent unless it is
+  // the same kind of resource here.
+  StageSlots slots(uint32_t group, uint32_t binding, SlotSpace space) const
+  {
+    const std::vector<StageSlots>& table = m_groupSlots[group];
+    return binding < table.size() && table[binding].space == space
+               ? table[binding]
+               : StageSlots{};
+  }
+
   // Layouts the pipeline was created with — one per `@group(N)`. Keeps
   // them alive (the per-backend native handles inside the layouts are
   // referenced by the pipeline's compiled state). Script lanes check each
@@ -63,6 +84,19 @@ protected:
         desc.fragmentModule,
         desc.fragmentEntryPoint);
     m_textureSamplerPairs = pipelineSamplerPairs(desc);
+    for (size_t i = 0; i < m_bindingMap.size(); ++i)
+    {
+      const BindingMap::Entry& e = m_bindingMap.at(i);
+      if (e.group >= kMaxBindGroups)
+        continue;
+      std::vector<StageSlots>& table = m_groupSlots[e.group];
+      if (table.size() <= e.binding)
+        table.resize(e.binding + 1u);
+      table[e.binding] = {
+          e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)],
+          e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)],
+          slotSpace(e.kind)};
+    }
 
     // Stash the user-supplied layouts. Backends overwrite NULL
     // entries (groups the shader doesn't bind) with a no-op
@@ -80,6 +114,9 @@ protected:
   PipelineDesc m_desc;
 
 private:
+  // Indexed by @binding.
+  std::vector<StageSlots> m_groupSlots[kMaxBindGroups];
+
   // The desc's vertex layout points into caller memory the deferred replay
   // frees right after makePipeline, so deep copy it into owned storage.
   std::vector<VertexBufferLayout> m_ownedVertexBuffers;

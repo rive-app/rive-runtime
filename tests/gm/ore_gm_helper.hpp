@@ -306,6 +306,8 @@ enum OreGMShader : uint32_t
   kDynamicUBOWitness = 11,
   kArray2DWitness = 12,
   kDepthSampleWitness = 13,
+  kLayoutSlotsLit = 14,
+  kLayoutSlotsShadow = 15,
 };
 
 struct OreGMShaderResult

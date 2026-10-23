@@ -109,6 +109,36 @@ protected:
   // them between setBindGroup() and finish(). Released in finish().
   rcp<BindGroup> m_boundGroups[kMaxBindGroups];
 
+  // Groups apply at the draw, against the pipeline's slots, so binds made
+  // before a pipeline or moved by a new one wait here.
+  uint32_t m_groupOffsets[kMaxBindGroups][kMaxDynamicOffsets] = {};
+  uint32_t m_groupOffsetCounts[kMaxBindGroups] = {};
+  uint8_t m_unappliedGroups = 0;
+  static_assert(kMaxBindGroups <= 8, "the unapplied mask is one byte");
+
+  inline void storeBindGroup(
+      uint32_t groupIndex,
+      BindGroup* group,
+      const uint32_t* offsets,
+      uint32_t offsetCount);
+
+  // Bound groups `next` numbers differently from `previous`.
+  inline uint8_t movedGroups(const Pipeline* previous, const Pipeline* next)
+      const;
+
+  template <typename Apply> void flushBindGroups(Apply&& apply)
+  {
+    for (uint32_t g = 0; m_unappliedGroups != 0; ++g)
+    {
+      if (m_unappliedGroups & (1u << g))
+      {
+        m_unappliedGroups &= static_cast<uint8_t>(~(1u << g));
+        if (m_boundGroups[g] != nullptr)
+          apply(g);
+      }
+    }
+  }
+
   // Vertex buffers may bind before the pipeline whose layout they need, so
   // the backends that read that layout at bind time keep the slots here
   // and apply the dirty ones at the next draw.
@@ -147,6 +177,7 @@ protected:
   {
     for (auto& bg : m_boundGroups)
       bg.reset();
+    m_unappliedGroups = 0;
     for (auto& slot : m_vertexBufferSlots)
       slot.buffer.reset();
     m_dirtyVertexSlots = 0;

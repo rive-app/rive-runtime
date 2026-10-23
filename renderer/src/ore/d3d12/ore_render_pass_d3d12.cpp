@@ -37,7 +37,6 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
     , m_d3dDevice(other.m_d3dDevice)
     , m_d3dContext(other.m_d3dContext)
     , m_d3dCurrentPipeline(std::move(other.m_d3dCurrentPipeline))
-    , m_d3dUnappliedGroups(other.m_d3dUnappliedGroups)
     , m_d3dHeapGeneration(other.m_d3dHeapGeneration)
     , m_d3dIndexFormat(other.m_d3dIndexFormat)
     , m_d3dIndexOffset(other.m_d3dIndexOffset)
@@ -54,9 +53,11 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
     m_d3dPendingSrvHandles[i] = other.m_d3dPendingSrvHandles[i];
     m_d3dPendingSamplerHandles[i] = other.m_d3dPendingSamplerHandles[i];
   }
+  m_unappliedGroups = other.m_unappliedGroups;
   for (int i = 0; i < 4; ++i)
   {
-    m_d3dBoundOffsets[i] = other.m_d3dBoundOffsets[i];
+    std::copy_n(other.m_groupOffsets[i], kMaxDynamicOffsets, m_groupOffsets[i]);
+    m_groupOffsetCounts[i] = other.m_groupOffsetCounts[i];
     m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
     m_d3dColorResources[i] = other.m_d3dColorResources[i];
     m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
@@ -86,7 +87,7 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     m_d3dDevice = other.m_d3dDevice;
     m_d3dContext = other.m_d3dContext;
     m_d3dCurrentPipeline = std::move(other.m_d3dCurrentPipeline);
-    m_d3dUnappliedGroups = other.m_d3dUnappliedGroups;
+    m_unappliedGroups = other.m_unappliedGroups;
     m_d3dHeapGeneration = other.m_d3dHeapGeneration;
     m_d3dIndexFormat = other.m_d3dIndexFormat;
     m_d3dIndexOffset = other.m_d3dIndexOffset;
@@ -102,7 +103,11 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     }
     for (int i = 0; i < 4; ++i)
     {
-      m_d3dBoundOffsets[i] = other.m_d3dBoundOffsets[i];
+      std::copy_n(
+          other.m_groupOffsets[i],
+          kMaxDynamicOffsets,
+          m_groupOffsets[i]);
+      m_groupOffsetCounts[i] = other.m_groupOffsetCounts[i];
       m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
       m_d3dColorResources[i] = other.m_d3dColorResources[i];
       m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
@@ -254,12 +259,7 @@ void RenderPassD3D12::setBindGroup(
   validate();
   auto bg = lite_rtti_cast<BindGroupD3D12*>(inBg);
   assert(bg != nullptr);
-  // Hold a strong reference so the BindGroup stays alive until finish().
-  m_boundGroups[groupIndex] = ref_rcp(bg);
-  D3D12BoundOffsets& offsets = m_d3dBoundOffsets[groupIndex];
-  offsets.count = std::min(dynamicOffsetCount, kMaxDynamicOffsets);
-  std::copy_n(dynamicOffsets, offsets.count, offsets.values);
-  m_d3dUnappliedGroups |= groupBit(groupIndex);
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
   // Applying needs a root sig, so without a pipeline the next draw does.
   if (m_d3dCurrentPipeline != nullptr)
   {
@@ -374,7 +374,7 @@ bool RenderPassD3D12::d3d12FlushBindGroups()
     generation = m_d3dContext->m_d3dGpuHeapGeneration;
     for (uint32_t g = 0; g < kMaxBindGroups; ++g)
     {
-      if (m_d3dUnappliedGroups & groups & groupBit(g))
+      if (m_unappliedGroups & groups & groupBit(g))
       {
         d3d12ApplyBindGroup(g);
       }
@@ -382,7 +382,7 @@ bool RenderPassD3D12::d3d12FlushBindGroups()
   } while (generation != m_d3dContext->m_d3dGpuHeapGeneration);
   // Groups never bound don't hold a draw back, since older bakes' layouts
   // name groups their entry points never read.
-  return (m_d3dUnappliedGroups & groups) == 0;
+  return (m_unappliedGroups & groups) == 0;
 #else
   return false;
 #endif
@@ -394,7 +394,7 @@ void RenderPassD3D12::d3d12MarkBoundGroupsUnapplied()
   {
     if (m_boundGroups[g] != nullptr)
     {
-      m_d3dUnappliedGroups |= groupBit(g);
+      m_unappliedGroups |= groupBit(g);
     }
   }
 }

@@ -154,6 +154,33 @@ bool validateLayoutsAgainstBindingMap(
     uint32_t layoutCount,
     std::string* outError);
 
+// Buffers, textures and samplers each number their native slots apart.
+enum class SlotSpace : uint8_t
+{
+  none,
+  buffer,
+  texture,
+  sampler,
+};
+SlotSpace slotSpace(BindingKind kind);
+SlotSpace slotSpace(ResourceKind kind);
+
+// Whether a backend binds at the layouts' native slots or resolves each
+// binding through the bound pipeline.
+enum class LayoutSlots : uint8_t
+{
+  bound,
+  ignored,
+};
+
+// A layout reflected from another shader may number its slots differently
+// from the pipeline's, which a backend binding layout slots cannot survive.
+bool validateLayoutSlots(
+    const BindingMap& bindingMap,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError);
+
 // How far a backend's native slot numbers reach. Metal / D3D11 give each
 // stage its own namespace; Vulkan numbers bindings within a descriptor set;
 // D3D12 and GL share one namespace per resource kind across the whole
@@ -175,6 +202,13 @@ bool validateSplitStageSlots(
     bool stagesCompiledApart,
     BindGroupLayout* const* layouts,
     uint32_t layoutCount,
+    NativeSlotScope scope,
+    std::string* outError);
+
+// The same check on the pipeline's map, for backends that bind through it.
+bool validateSplitStageSlots(
+    bool stagesCompiledApart,
+    const BindingMap& mergedMap,
     NativeSlotScope scope,
     std::string* outError);
 
@@ -202,11 +236,12 @@ bool validateStageLimits(
     std::string* outError);
 
 // Every backend's `makePipeline` runs the same checks on the pipeline's
-// `m_bindingMap`; only `scope` differs.
+// `m_bindingMap`; only `scope` and `layoutSlots` differ.
 bool validatePipelineDesc(
     const PipelineDesc& desc,
     const BindingMap& mergedMap,
     NativeSlotScope scope,
+    LayoutSlots layoutSlots,
     std::string* outError);
 
 // Every backend's `makeBindGroup` runs this before touching native objects,

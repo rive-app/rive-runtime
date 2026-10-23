@@ -285,6 +285,7 @@ rcp<Pipeline> ContextVulkan::makePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perGroup,
+            LayoutSlots::bound,
             &err))
     {
       if (outError)

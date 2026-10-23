@@ -71,6 +71,10 @@ private:
   // be set after the bind groups.
   void applySamplerBindings();
 
+  // Buffers and textures at the pipeline's units, which differ from the
+  // layout's when the layout came from another shader.
+  void applyBindGroup(uint32_t groupIndex);
+
   void applyVertexBuffer(uint32_t slot);
   void flushVertexBuffers();
 

@@ -634,7 +634,11 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(
   {
     std::string err;
     if (!validatePipelineDesc(
-            desc, pipeline->m_bindingMap, NativeSlotScope::perStage, &err))
+            desc,
+            pipeline->m_bindingMap,
+            NativeSlotScope::perStage,
+            LayoutSlots::ignored,
+            &err))
     {
       if (outError)
         *outError = err;
@@ -870,58 +874,6 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
   bg->m_layoutRef = ref_rcp(layout);
   bg->recordDynamicRanges(desc);
 
-  // Resolve per-stage Metal slots from the layout's pre-resolved
-  // nativeSlotVS/FS fields. The layout was built via
-  // `makeLayoutFromShader` (helper) which queried the shader's
-  // BindingMap. Both stage slots may differ (Metal has independent
-  // VS/FS argument tables); kNativeSlotAbsent skips the per-stage emit
-  // at setBindGroup time.
-  auto lookupStages = [&](uint32_t binding,
-                          BindingKind expected,
-                          uint16_t* outVS,
-                          uint16_t* outFS) -> bool {
-    const BindGroupLayoutEntry* le = layout->findEntry(binding);
-    if (le == nullptr)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) not declared "
-          "in BindGroupLayout",
-          groupIndex,
-          binding);
-      return false;
-    }
-    const bool kindOK = le->kind == expected ||
-                        ((le->kind == BindingKind::sampler ||
-                          le->kind == BindingKind::comparisonSampler) &&
-                         (expected == BindingKind::sampler ||
-                          expected == BindingKind::comparisonSampler));
-    if (!kindOK)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout kind "
-          "mismatch",
-          groupIndex,
-          binding);
-      return false;
-    }
-    *outVS = (le->nativeSlotVS == BindGroupLayoutEntry::kNativeSlotAbsent)
-                 ? BindingMap::kAbsent
-                 : static_cast<uint16_t>(le->nativeSlotVS);
-    *outFS = (le->nativeSlotFS == BindGroupLayoutEntry::kNativeSlotAbsent)
-                 ? BindingMap::kAbsent
-                 : static_cast<uint16_t>(le->nativeSlotFS);
-    if (*outVS == BindingMap::kAbsent && *outFS == BindingMap::kAbsent)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout has no "
-          "resolved native slot — call makeLayoutFromShader",
-          groupIndex,
-          binding);
-      return false;
-    }
-    return true;
-  };
-
   uint32_t nBufs = std::min(desc.uboCount, 8u);
   bg->m_mtlBuffers.reserve(nBufs);
   for (uint32_t i = 0; i < nBufs; i++)
@@ -933,12 +885,6 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     binding.src = buf;
     binding.offset = u.offset;
     binding.binding = u.slot;
-    if (!lookupStages(
-            u.slot,
-            BindingKind::uniformBuffer,
-            &binding.vsSlot,
-            &binding.fsSlot))
-      continue;
     binding.hasDynamicOffset = layout->hasDynamicOffset(u.slot);
     if (binding.hasDynamicOffset)
       bg->m_dynamicOffsetCount++;
@@ -964,12 +910,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     assert(view);
     BindGroupMetal::MTLTextureBinding binding;
     binding.texture = view->mtlTexture();
-    if (!lookupStages(
-            t.slot,
-            BindingKind::sampledTexture,
-            &binding.vsSlot,
-            &binding.fsSlot))
-      continue;
+    binding.binding = t.slot;
     bg->m_mtlTextures.push_back(binding);
     bg->m_retainedViews.push_back(ref_rcp(t.view));
   }
@@ -983,9 +924,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     assert(samp);
     BindGroupMetal::MTLSamplerBinding binding;
     binding.sampler = samp->m_mtlSampler;
-    if (!lookupStages(
-            s.slot, BindingKind::sampler, &binding.vsSlot, &binding.fsSlot))
-      continue;
+    binding.binding = s.slot;
     bg->m_mtlSamplers.push_back(binding);
     bg->m_retainedSamplers.push_back(ref_rcp(s.sampler));
   }

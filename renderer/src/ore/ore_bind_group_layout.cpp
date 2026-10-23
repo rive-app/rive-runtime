@@ -635,26 +635,140 @@ bool validateLayoutsAgainstBindingMap(
   return true;
 }
 
-namespace
+bool validateLayoutSlots(
+    const BindingMap& bindingMap,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError)
 {
-// GL / D3D12 give buffers, textures and samplers each their own numbering,
-// so a slot only clashes with another slot of the same kind.
-uint8_t slotKindBucket(BindingKind kind)
+  constexpr uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
+  for (size_t i = 0; i < bindingMap.size(); ++i)
+  {
+    const BindingMap::Entry& e = bindingMap.at(i);
+    if (e.group >= layoutCount || layouts[e.group] == nullptr)
+      continue;
+    const BindGroupLayoutEntry* le = layouts[e.group]->findEntry(e.binding);
+    if (le == nullptr)
+      continue;
+    const uint32_t layoutSlots[] = {le->nativeSlotVS, le->nativeSlotFS};
+    for (size_t stage = 0; stage < 2; ++stage)
+    {
+      const uint16_t shaderSlot = e.backendSlot[stage];
+      const uint32_t layoutSlot = layoutSlots[stage];
+      // A layout without slots falls back to the binding or is refused at
+      // makeBindGroup, so only a slot it names can disagree.
+      if (shaderSlot == BindingMap::kAbsent || layoutSlot == kAbsent ||
+          layoutSlot == shaderSlot)
+        continue;
+      if (outError != nullptr)
+        *outError = bindingTag(e.group, e.binding) +
+                    ": the layout binds it at native slot " +
+                    std::to_string(layoutSlot) +
+                    " but this pipeline's shader reads it from slot " +
+                    std::to_string(shaderSlot) +
+                    ". The layout was built from a shader that numbers its "
+                    "slots differently; build it from this pipeline's own "
+                    "shader";
+      return false;
+    }
+  }
+  return true;
+}
+
+SlotSpace slotSpace(BindingKind kind)
 {
   switch (kind)
   {
     case BindingKind::uniformBuffer:
     case BindingKind::storageBufferRO:
     case BindingKind::storageBufferRW:
-      return 0;
+      return SlotSpace::buffer;
     case BindingKind::sampledTexture:
     case BindingKind::storageTexture:
-      return 1;
+      return SlotSpace::texture;
     case BindingKind::sampler:
     case BindingKind::comparisonSampler:
-      return 2;
+      return SlotSpace::sampler;
   }
-  return 0;
+  return SlotSpace::none;
+}
+
+SlotSpace slotSpace(ResourceKind kind)
+{
+  return slotSpace(bindingKindFromResource(kind));
+}
+
+namespace
+{
+struct SlotUse
+{
+  uint32_t group;
+  uint32_t binding;
+  SlotSpace space;
+  uint32_t vs;
+  uint32_t fs;
+};
+
+bool checkSplitStageUses(
+    const std::vector<SlotUse>& uses,
+    NativeSlotScope scope,
+    std::string* outError)
+{
+  struct Claim
+  {
+    uint32_t scopeKey;
+    uint32_t slot;
+    uint8_t group;
+    uint8_t binding;
+  };
+  std::vector<Claim> claimed;
+  constexpr uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
+
+  for (const SlotUse& use : uses)
+  {
+    // A binding both stages read, numbered differently by each file.
+    // Only one number survives, so the other stage's compiled source reads
+    // whatever sits at the number it baked.
+    if (use.vs != kAbsent && use.fs != kAbsent && use.vs != use.fs)
+    {
+      if (outError != nullptr)
+        *outError = bindingTag(use.group, use.binding) +
+                    ": the vertex module put it on native slot " +
+                    std::to_string(use.vs) + " and the fragment module on " +
+                    std::to_string(use.fs) +
+                    ", and this backend shares one slot namespace between the "
+                    "stages. Declare the same bindings in both files, or "
+                    "compile both stages from one shader";
+      return false;
+    }
+    // Stage-sharing backends bind with the vertex slot when there is one.
+    const uint32_t slot = use.vs != kAbsent ? use.vs : use.fs;
+    if (slot == kAbsent)
+      continue;
+    const uint32_t scopeKey = scope == NativeSlotScope::perGroup
+                                  ? use.group
+                                  : static_cast<uint32_t>(use.space);
+    for (const Claim& c : claimed)
+    {
+      if (c.scopeKey != scopeKey || c.slot != slot)
+        continue;
+      if (outError != nullptr)
+        *outError = bindingTag(use.group, use.binding) + " and " +
+                    bindingTag(c.group, c.binding) +
+                    " both land on native slot " + std::to_string(slot) +
+                    ": the vertex and fragment modules were compiled apart, "
+                    "and this backend shares one slot namespace between them. "
+                    "Declare the same bindings in both, or compile both stages "
+                    "from one shader";
+      return false;
+    }
+    claimed.push_back(
+        {scopeKey,
+         slot,
+         static_cast<uint8_t>(use.group),
+         static_cast<uint8_t>(use.binding)});
+  }
+  return true;
 }
 } // namespace
 
@@ -667,74 +781,51 @@ bool validateSplitStageSlots(
 {
   if (!stagesCompiledApart || scope == NativeSlotScope::perStage)
     return true;
-
-  struct Claim
-  {
-    uint32_t scopeKey;
-    uint32_t slot;
-    uint8_t group;
-    uint8_t binding;
-  };
-  std::vector<Claim> claimed;
-  constexpr uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
-
-  // The layouts, not the pipeline's map, since stage-sharing backends bind
-  // every entry they list.
+  // The layouts, not the pipeline's map, since backends binding layout slots
+  // bind every entry they list.
+  std::vector<SlotUse> uses;
   for (uint32_t l = 0; l < layoutCount; ++l)
   {
     if (layouts[l] == nullptr)
       continue;
-    const uint32_t group = layouts[l]->groupIndex();
     for (const BindGroupLayoutEntry& e : layouts[l]->entries())
     {
-      // Mirror what every stage-sharing backend binds with: the vertex
-      // slot when there is one, otherwise the fragment's.
-      const uint32_t vs = e.nativeSlotVS;
-      const uint32_t fs = e.nativeSlotFS;
-      // A binding both stages read, numbered differently by each file.
-      // Only one number survives into the layout, so the other stage's
-      // compiled source reads whatever sits at the number it baked.
-      if (vs != kAbsent && fs != kAbsent && vs != fs)
-      {
-        if (outError != nullptr)
-          *outError = bindingTag(group, e.binding) +
-                      ": the vertex module put it on native slot " +
-                      std::to_string(vs) + " and the fragment module on " +
-                      std::to_string(fs) +
-                      ", and this backend shares one slot namespace between the "
-                      "stages. Declare the same bindings in both files, or "
-                      "compile both stages from one shader";
-        return false;
-      }
-      const uint32_t slot = vs != kAbsent ? vs : fs;
-      if (slot == kAbsent)
-        continue;
-      const uint32_t scopeKey = scope == NativeSlotScope::perGroup
-                                    ? group
-                                    : slotKindBucket(e.kind);
-      for (const Claim& c : claimed)
-      {
-        if (c.scopeKey != scopeKey || c.slot != slot)
-          continue;
-        if (outError != nullptr)
-          *outError =
-              bindingTag(group, e.binding) + " and " +
-              bindingTag(c.group, c.binding) + " both land on native slot " +
-              std::to_string(slot) +
-              ": the vertex and fragment modules were compiled apart, "
-              "and this backend shares one slot namespace between them. "
-              "Declare the same bindings in both, or compile both stages "
-              "from one shader";
-        return false;
-      }
-      claimed.push_back(
-          {scopeKey,
-           slot,
-           static_cast<uint8_t>(group),
-           static_cast<uint8_t>(e.binding)});
+      uses.push_back(
+          {layouts[l]->groupIndex(),
+           e.binding,
+           slotSpace(e.kind),
+           e.nativeSlotVS,
+           e.nativeSlotFS});
     }
   }
-  return true;
+  return checkSplitStageUses(uses, scope, outError);
+}
+
+bool validateSplitStageSlots(
+    bool stagesCompiledApart,
+    const BindingMap& mergedMap,
+    NativeSlotScope scope,
+    std::string* outError)
+{
+  if (!stagesCompiledApart || scope == NativeSlotScope::perStage)
+    return true;
+  auto widen = [](uint16_t slot) -> uint32_t {
+    return slot == BindingMap::kAbsent ? BindGroupLayoutEntry::kNativeSlotAbsent
+                                       : slot;
+  };
+  std::vector<SlotUse> uses;
+  uses.reserve(mergedMap.size());
+  for (size_t i = 0; i < mergedMap.size(); ++i)
+  {
+    const BindingMap::Entry& e = mergedMap.at(i);
+    uses.push_back(
+        {e.group,
+         e.binding,
+         slotSpace(e.kind),
+         widen(e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)]),
+         widen(e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)])});
+  }
+  return checkSplitStageUses(uses, scope, outError);
 }
 
 bool validateColorRequiresFragment(
@@ -969,6 +1060,7 @@ bool validatePipelineDesc(
     const PipelineDesc& desc,
     const BindingMap& mergedMap,
     NativeSlotScope scope,
+    LayoutSlots layoutSlots,
     std::string* outError)
 {
   const bool stagesCompiledApart = !stagesFromOneFile(
@@ -990,6 +1082,11 @@ bool validatePipelineDesc(
              desc.bindGroupLayouts,
              desc.bindGroupLayoutCount,
              outError) &&
+         (layoutSlots == LayoutSlots::ignored || validateLayoutSlots(
+                                                     mergedMap,
+                                                     desc.bindGroupLayouts,
+                                                     desc.bindGroupLayoutCount,
+                                                     outError)) &&
          validateStageLimits(
              desc.bindGroupLayouts,
              desc.bindGroupLayoutCount,
@@ -999,12 +1096,17 @@ bool validatePipelineDesc(
              desc.colorCount,
              desc.fragmentModule != nullptr,
              outError) &&
-         validateSplitStageSlots(
-             stagesCompiledApart,
-             desc.bindGroupLayouts,
-             desc.bindGroupLayoutCount,
-             scope,
-             outError);
+         (layoutSlots == LayoutSlots::bound ? validateSplitStageSlots(
+                                                  stagesCompiledApart,
+                                                  desc.bindGroupLayouts,
+                                                  desc.bindGroupLayoutCount,
+                                                  scope,
+                                                  outError)
+                                            : validateSplitStageSlots(
+                                                  stagesCompiledApart,
+                                                  mergedMap,
+                                                  scope,
+                                                  outError));
 }
 
 } // namespace rive::ore

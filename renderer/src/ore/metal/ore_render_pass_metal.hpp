@@ -50,11 +50,13 @@ public:
   RenderPassMetal() = default;
   RenderPassMetal(Context* context) : RenderPass(context) {}
   ~RenderPassMetal() override;
-  RenderPassMetal(RenderPassMetal&& other) noexcept;
-  RenderPassMetal& operator=(RenderPassMetal&&) noexcept;
 
 private:
   friend class ContextMetal;
+
+  // At the pipeline's slots, which differ from its layout's when the layout
+  // came from another shader.
+  void applyBindGroup(uint32_t groupIndex);
 
   id<MTLRenderCommandEncoder> m_mtlEncoder = nil;
   id<MTLCommandBuffer> m_mtlCommandBuffer = nil;

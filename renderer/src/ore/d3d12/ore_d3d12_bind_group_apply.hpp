@@ -36,8 +36,8 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
   assert(groupIndex < 4); // RFC v4 §9.1 / §14.2.
 
   auto bg = lite_rtti_cast<BindGroupD3D12*>(m_boundGroups[groupIndex].get());
-  const uint32_t* dynamicOffsets = m_d3dBoundOffsets[groupIndex].values;
-  const uint32_t dynamicOffsetCount = m_d3dBoundOffsets[groupIndex].count;
+  const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
+  const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
   PipelineD3D12* pipe = m_d3dCurrentPipeline.get();
   assert(
       pipe != nullptr && pipe->m_d3dRootSigOwned &&
@@ -72,10 +72,10 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
   {
     // The allocator set lastError. Draws skip while this group stays
     // unapplied.
-    m_d3dUnappliedGroups |= groupBit(groupIndex);
+    m_unappliedGroups |= groupBit(groupIndex);
     return;
   }
-  m_d3dUnappliedGroups &= static_cast<uint8_t>(~groupBit(groupIndex));
+  m_unappliedGroups &= static_cast<uint8_t>(~groupBit(groupIndex));
 
   // Merged CBV/SRV/UAV table.
   if (gp.cbvSrvUavRootParamIdx >= 0)

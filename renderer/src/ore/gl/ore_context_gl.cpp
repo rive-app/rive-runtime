@@ -884,6 +884,7 @@ rcp<Pipeline> ContextGL::makePipeline(
             desc,
             pipeline->m_bindingMap,
             NativeSlotScope::perKind,
+            LayoutSlots::ignored,
             &err))
     {
       if (outError)
@@ -989,54 +990,6 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
   bg->m_layoutRef = ref_rcp(layout);
   bg->recordDynamicRanges(desc);
 
-  // Native GL slot resolution: layout entries are pre-resolved by the
-  // GM/Lua helper (makeLayoutFromShader) using the shader's binding map.
-  // The v1 GLSL allocator's global-counter-per-kind ensures slots are
-  // unique across groups. Sampler entries carry the paired-texture's GL
-  // unit (combined-sampler fold-in), matching the GL link-side fixup.
-  auto nativeSlot =
-      [&](uint32_t binding, BindingKind expected, uint32_t* outSlot) -> bool {
-    const BindGroupLayoutEntry* le = layout->findEntry(binding);
-    if (le == nullptr)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) not declared "
-          "in BindGroupLayout",
-          groupIndex,
-          binding);
-      return false;
-    }
-    const bool kindOK = le->kind == expected ||
-                        ((le->kind == BindingKind::sampler ||
-                          le->kind == BindingKind::comparisonSampler) &&
-                         (expected == BindingKind::sampler ||
-                          expected == BindingKind::comparisonSampler));
-    if (!kindOK)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout kind "
-          "mismatch",
-          groupIndex,
-          binding);
-      return false;
-    }
-    uint32_t s = (le->nativeSlotVS != BindGroupLayoutEntry::kNativeSlotAbsent)
-                     ? le->nativeSlotVS
-                     : le->nativeSlotFS;
-    if (s == BindGroupLayoutEntry::kNativeSlotAbsent)
-    {
-      setLastError(
-          "makeBindGroup: (group=%u, binding=%u) layout has "
-          "no resolved native slot — call "
-          "makeLayoutFromShader",
-          groupIndex,
-          binding);
-      return false;
-    }
-    *outSlot = s;
-    return true;
-  };
-
   // UBO bindings.
   uint32_t nBufs = std::min(desc.uboCount, 8u);
   bg->m_glUBOs.reserve(nBufs);
@@ -1055,8 +1008,6 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     // the padded allocation from makeBuffer.
     binding.size = math::round_up_to_multiple_of<16>(size);
     binding.binding = entry.slot;
-    if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &binding.slot))
-      continue;
     binding.hasDynamicOffset = layout->hasDynamicOffset(entry.slot);
     if (binding.hasDynamicOffset)
       bg->m_dynamicOffsetCount++;
@@ -1083,8 +1034,6 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
                                                    : texGL->m_glTexture;
     binding.target = texGL->m_glTarget;
     binding.binding = entry.slot;
-    if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &binding.slot))
-      continue;
     bg->m_glTextures.push_back(binding);
     bg->m_retainedViews.push_back(ref_rcp(entry.view));
   }
@@ -1099,8 +1048,6 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     assert(samp);
     binding.sampler = samp->m_glSampler;
     binding.binding = entry.slot;
-    if (!nativeSlot(entry.slot, BindingKind::sampler, &binding.slot))
-      continue;
     bg->m_glSamplers.push_back(binding);
     bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
   }

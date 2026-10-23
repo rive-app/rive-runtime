@@ -87,40 +87,6 @@ RenderPassMetal::~RenderPassMetal()
     finish();
 }
 
-RenderPassMetal::RenderPassMetal(RenderPassMetal&& other) noexcept
-    : m_mtlEncoder(other.m_mtlEncoder)
-    , m_mtlCommandBuffer(other.m_mtlCommandBuffer)
-    , m_mtlIndexBuffer(other.m_mtlIndexBuffer)
-    , m_mtlIndexType(other.m_mtlIndexType)
-    , m_mtlIndexBufferOffset(other.m_mtlIndexBufferOffset)
-    , m_mtlPrimitiveType(other.m_mtlPrimitiveType)
-    , m_currentPipeline(std::move(other.m_currentPipeline))
-{
-  other.m_mtlEncoder = nil;
-  other.m_mtlCommandBuffer = nil;
-  other.m_mtlIndexBuffer = nil;
-}
-
-RenderPassMetal& RenderPassMetal::operator=(RenderPassMetal&& other) noexcept
-{
-  if (this != &other)
-  {
-    if (!m_finished && m_mtlEncoder != nil)
-      finish();
-    m_mtlEncoder = other.m_mtlEncoder;
-    m_mtlCommandBuffer = other.m_mtlCommandBuffer;
-    m_mtlIndexBuffer = other.m_mtlIndexBuffer;
-    m_mtlIndexType = other.m_mtlIndexType;
-    m_mtlIndexBufferOffset = other.m_mtlIndexBufferOffset;
-    m_mtlPrimitiveType = other.m_mtlPrimitiveType;
-    m_currentPipeline = std::move(other.m_currentPipeline);
-    other.m_mtlEncoder = nil;
-    other.m_mtlCommandBuffer = nil;
-    other.m_mtlIndexBuffer = nil;
-  }
-  return *this;
-}
-
 void RenderPassMetal::validate() const
 {
   assert(!m_finished && "RenderPassMetal already finished");
@@ -134,6 +100,7 @@ void RenderPassMetal::setPipeline(Pipeline* pipeline)
     return;
 
   auto* p = static_cast<PipelineMetal*>(pipeline);
+  m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
   [m_mtlEncoder setRenderPipelineState:p->m_mtlPipeline];
   [m_mtlEncoder setDepthStencilState:p->m_mtlDepthStencil];
 
@@ -181,37 +148,50 @@ void RenderPassMetal::setBindGroup(
     uint32_t dynamicOffsetCount)
 {
   validate();
-  m_boundGroups[groupIndex] = ref_rcp(bg);
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+}
 
-  auto* bgMetal = static_cast<BindGroupMetal*>(bg);
-  (void)groupIndex;
+void RenderPassMetal::applyBindGroup(uint32_t groupIndex)
+{
+  auto* bgMetal = static_cast<BindGroupMetal*>(m_boundGroups[groupIndex].get());
+  const Pipeline* pipeline = m_currentPipeline.get();
+  const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
+  const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
   uint32_t dynIdx = 0;
   for (auto& b : bgMetal->m_mtlBuffers)
   {
     uint32_t offset = b.offset;
     if (b.hasDynamicOffset && dynIdx < dynamicOffsetCount)
       offset += dynamicOffsets[dynIdx++];
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex, b.binding, SlotSpace::buffer);
+    if (slots.vs == BindingMap::kAbsent && slots.fs == BindingMap::kAbsent)
+      continue;
     // Resolve the live backing and mark it bound.
     b.src->markBound();
     id<MTLBuffer> mtlBuffer = b.src->current();
-    if (b.vsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setVertexBuffer:mtlBuffer offset:offset atIndex:b.vsSlot];
-    if (b.fsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setFragmentBuffer:mtlBuffer offset:offset atIndex:b.fsSlot];
+    if (slots.vs != BindingMap::kAbsent)
+      [m_mtlEncoder setVertexBuffer:mtlBuffer offset:offset atIndex:slots.vs];
+    if (slots.fs != BindingMap::kAbsent)
+      [m_mtlEncoder setFragmentBuffer:mtlBuffer offset:offset atIndex:slots.fs];
   }
   for (auto& t : bgMetal->m_mtlTextures)
   {
-    if (t.vsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setVertexTexture:t.texture atIndex:t.vsSlot];
-    if (t.fsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setFragmentTexture:t.texture atIndex:t.fsSlot];
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex, t.binding, SlotSpace::texture);
+    if (slots.vs != BindingMap::kAbsent)
+      [m_mtlEncoder setVertexTexture:t.texture atIndex:slots.vs];
+    if (slots.fs != BindingMap::kAbsent)
+      [m_mtlEncoder setFragmentTexture:t.texture atIndex:slots.fs];
   }
   for (auto& s : bgMetal->m_mtlSamplers)
   {
-    if (s.vsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setVertexSamplerState:s.sampler atIndex:s.vsSlot];
-    if (s.fsSlot != BindingMap::kAbsent)
-      [m_mtlEncoder setFragmentSamplerState:s.sampler atIndex:s.fsSlot];
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex, s.binding, SlotSpace::sampler);
+    if (slots.vs != BindingMap::kAbsent)
+      [m_mtlEncoder setVertexSamplerState:s.sampler atIndex:slots.vs];
+    if (slots.fs != BindingMap::kAbsent)
+      [m_mtlEncoder setFragmentSamplerState:s.sampler atIndex:slots.fs];
   }
 }
 
@@ -261,6 +241,7 @@ void RenderPassMetal::draw(
   {
     return; // setPipeline was rejected (see lastError), drawing would crash
   }
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   [m_mtlEncoder drawPrimitives:m_mtlPrimitiveType
                    vertexStart:firstVertex
                    vertexCount:vertexCount
@@ -280,6 +261,7 @@ void RenderPassMetal::drawIndexed(
   {
     return; // rejected pipeline or missing index buffer, see lastError
   }
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   assert(
       m_mtlIndexBuffer != nil && "Must call setIndexBuffer before drawIndexed");
 

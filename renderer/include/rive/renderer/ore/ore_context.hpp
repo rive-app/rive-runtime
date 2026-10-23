@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
@@ -582,6 +583,36 @@ inline void RenderPass::populateAttachmentMetadata(const RenderPassDesc& desc)
       m_sampleCount = desc.depthStencil.view->texture()->sampleCount();
     }
   }
+}
+
+inline void RenderPass::storeBindGroup(
+    uint32_t groupIndex,
+    BindGroup* group,
+    const uint32_t* offsets,
+    uint32_t offsetCount)
+{
+  m_boundGroups[groupIndex] = ref_rcp(group);
+  const uint32_t count = std::min(offsetCount, kMaxDynamicOffsets);
+  m_groupOffsetCounts[groupIndex] = count;
+  std::copy_n(offsets, count, m_groupOffsets[groupIndex]);
+  m_unappliedGroups |= static_cast<uint8_t>(1u << groupIndex);
+}
+
+inline uint8_t RenderPass::movedGroups(
+    const Pipeline* previous,
+    const Pipeline* next) const
+{
+  uint8_t moved = 0;
+  if (previous == next)
+    return moved;
+  for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+  {
+    if (m_boundGroups[g] != nullptr &&
+        (previous == nullptr ||
+         previous->m_groupSlots[g] != next->m_groupSlots[g]))
+      moved |= static_cast<uint8_t>(1u << g);
+  }
+  return moved;
 }
 
 inline bool RenderPass::checkPipelineCompat(const Pipeline* pipeline) const

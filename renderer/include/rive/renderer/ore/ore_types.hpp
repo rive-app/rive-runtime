@@ -22,6 +22,8 @@ namespace rive::ore
 // range, and Lua-side validation in `gpubindgroup_construct` /
 // `setBindGroup`.
 constexpr uint32_t kMaxBindGroups = 4;
+// The most dynamic offsets one setBindGroup takes.
+constexpr uint32_t kMaxDynamicOffsets = 8;
 constexpr uint32_t kMaxVertexBufferSlots = 8;
 
 // ============================================================================
@@ -601,14 +603,14 @@ struct BindGroupLayoutEntry
 
   // Pre-resolved native slots, per-stage. Populated by the caller from
   // the shader's binding map (typically via
-  // `makeBindGroupLayoutFromShader(ctx, shader, group)`). Used by
-  // backends with no native layout object (Metal: buffer index; D3D11:
-  // per-stage register; GL: global slot). Vulkan and WebGPU ignore — those
-  // backends use `binding` directly (per-set namespace).
+  // `makeBindGroupLayoutFromShader(ctx, shader, group)`). Backends that
+  // bind at the layout's slots (D3D11, D3D12, Vulkan) reject a pipeline
+  // whose shader numbers them differently; Metal and GL resolve them
+  // through the bound pipeline, and WebGPU uses `binding` directly.
   //
   // 0xFFFFFFFF = `kAbsent` (binding not visible to that stage). Default
   // is "absent in all stages" so a layout-without-shader-resolution
-  // works on Vulkan/WebGPU but fails loudly on Metal/D3D11/GL.
+  // works on Metal/GL/Vulkan/WebGPU but fails loudly on D3D11/D3D12.
   static constexpr uint32_t kNativeSlotAbsent = 0xFFFFFFFFu;
   uint32_t nativeSlotVS = kNativeSlotAbsent;
   uint32_t nativeSlotFS = kNativeSlotAbsent;

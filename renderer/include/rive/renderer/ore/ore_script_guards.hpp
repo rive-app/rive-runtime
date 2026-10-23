@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rive/renderer/ore/ore_types.hpp"
+
 #include <cstdint>
 #include <string>
 
@@ -14,8 +16,6 @@ enum class TextureFormat : uint8_t;
 
 constexpr char
     kGuardSetPipelineBeforeDraw[] = "setPipeline must be called before draw";
-// The most dynamic offsets one setBindGroup takes.
-constexpr uint32_t kMaxDynamicOffsets = 8;
 constexpr char kGuardDynamicOffsetCountFormat
     [] = "setBindGroup: dynamicOffsets count %u exceeds maximum of %u";
 constexpr char kGuardVertexSlotRangeFormat
