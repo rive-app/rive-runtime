@@ -3,63 +3,119 @@
 
 using namespace rive;
 
+namespace
+{
+struct DestructorTest
+{
+  ~DestructorTest() { s_destructCount++; }
+
+  static inline uint32_t s_destructCount = 0;
+};
+} // namespace
+
 TEST_CASE("lite rtti behaves correctly", "[lite_rtti]")
 {
   // make sure strings that only differ by 1 value
   // at the end or begnining are result in
   // different hashed values
-  CHECK(CONST_ID(abcd) != CONST_ID(abcc));
-  CHECK(CONST_ID(abcd) != CONST_ID(bbcd));
+  static_assert(CONST_ID(abcd) != CONST_ID(abcc));
+  static_assert(CONST_ID(abcd) != CONST_ID(bbcd));
+
+  class NotRTTI
+  {};
 
   class A : public ENABLE_LITE_RTTI(A)
   {};
   A a;
-  CHECK(CONST_ID(A) == a.liteTypeID());
+  CHECK(A::TypeIDForRTTI == CONST_ID(A));
 
   class B : public LITE_RTTI_OVERRIDE(A, B)
   {};
   B b;
-  CHECK(CONST_ID(B) != CONST_ID(A));
-  CHECK(b.liteTypeID() != a.liteTypeID());
-  CHECK(b.liteTypeID() == CONST_ID(B));
+  CHECK(B::TypeIDForRTTI == CONST_ID(B));
+  CHECK(B::TypeIDForRTTI != A::TypeIDForRTTI);
 
   class C : public LITE_RTTI_OVERRIDE(B, C)
   {};
-  const C c;
-  CHECK(CONST_ID(C) != CONST_ID(A));
-  CHECK(CONST_ID(C) != CONST_ID(B));
-  CHECK(c.liteTypeID() != a.liteTypeID());
-  CHECK(c.liteTypeID() != b.liteTypeID());
-  CHECK(c.liteTypeID() == CONST_ID(C));
+  C c;
+  CHECK(C::TypeIDForRTTI == CONST_ID(C));
+  CHECK(C::TypeIDForRTTI != B::TypeIDForRTTI);
+  CHECK(C::TypeIDForRTTI != A::TypeIDForRTTI);
+
+  class J : public LITE_RTTI_OVERRIDE(A, J)
+  {};
+
+  J j;
 
   A* pA = &a;
   A* pA_b = &b;
-  const A* pA_c = &c;
+  A* pA_c = &c;
+  A* pA_j = &j;
 
   CHECK(lite_rtti_cast<B*>(pA) == nullptr);
+  CHECK(lite_rtti_cast<C*>(pA) == nullptr);
+  CHECK(lite_rtti_cast<J*>(pA) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(pA) == nullptr);
   CHECK(lite_rtti_cast<const C*>(pA) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(pA) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(const_cast<const A*>(pA)) == nullptr);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const A*>(pA)) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(const_cast<const A*>(pA)) == nullptr);
 
-  CHECK(lite_rtti_cast<const B*>(pA_b) == &b);
+  CHECK(lite_rtti_cast<B*>(pA_b) == &b);
   CHECK(lite_rtti_cast<C*>(pA_b) == nullptr);
+  CHECK(lite_rtti_cast<J*>(pA_b) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(pA_b) == &b);
+  CHECK(lite_rtti_cast<const C*>(pA_b) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(pA_b) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(const_cast<const A*>(pA_b)) == &b);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const A*>(pA_b)) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(const_cast<const A*>(pA_b)) == nullptr);
 
-  CHECK(lite_rtti_cast<const B*>(pA_c) == nullptr);
-  CHECK(lite_rtti_cast<C*>(const_cast<A*>(pA_c)) == &c);
+  CHECK(lite_rtti_cast<B*>(pA_c) == &c);
+  CHECK(lite_rtti_cast<C*>(pA_c) == &c);
+  CHECK(lite_rtti_cast<J*>(pA_c) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(pA_c) == &c);
+  CHECK(lite_rtti_cast<const C*>(pA_c) == &c);
+  CHECK(lite_rtti_cast<const J*>(pA_c) == nullptr);
+  CHECK(lite_rtti_cast<const B*>(const_cast<const A*>(pA_c)) == &c);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const A*>(pA_c)) == &c);
+  CHECK(lite_rtti_cast<const J*>(const_cast<const A*>(pA_c)) == nullptr);
 
-  const B* pB_c = &c;
-  CHECK(lite_rtti_cast<B*>(const_cast<B*>(pB_c)) == nullptr);
+  CHECK(lite_rtti_cast<B*>(pA_j) == nullptr);
+  CHECK(lite_rtti_cast<C*>(pA_j) == nullptr);
+  CHECK(lite_rtti_cast<J*>(pA_j) == &j);
+  CHECK(lite_rtti_cast<const B*>(pA_j) == nullptr);
+  CHECK(lite_rtti_cast<const C*>(pA_j) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(pA_j) == &j);
+  CHECK(lite_rtti_cast<const B*>(const_cast<const A*>(pA_j)) == nullptr);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const A*>(pA_j)) == nullptr);
+  CHECK(lite_rtti_cast<const J*>(const_cast<const A*>(pA_j)) == &j);
+
+  B* pB = &b;
+  B* pB_c = &c;
+
+  CHECK(lite_rtti_cast<C*>(pB) == nullptr);
+  CHECK(lite_rtti_cast<const C*>(pB) == nullptr);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const B*>(pB)) == nullptr);
+
+  CHECK(lite_rtti_cast<C*>(pB_c) == &c);
   CHECK(lite_rtti_cast<const C*>(pB_c) == &c);
+  CHECK(lite_rtti_cast<const C*>(const_cast<const B*>(pB_c)) == &c);
 
   A* nil = nullptr;
   CHECK(lite_rtti_cast<B*>(nil) == nullptr);
   CHECK(lite_rtti_cast<const C*>(nil) == nullptr);
 
-  // Check constructor arguments.
+  // Check constructor arguments and destructors.
   struct D : public ENABLE_LITE_RTTI(D)
   {
     D() = delete;
     D(float x_, int y_) : x(x_), y(y_) {}
+    virtual ~D() = default;
     float x;
     int y;
+    DestructorTest dt;
   };
 
   struct E : public LITE_RTTI_OVERRIDE(D, E)
@@ -67,17 +123,21 @@ TEST_CASE("lite rtti behaves correctly", "[lite_rtti]")
     E(float x_, int y_) : lite_rtti_override(x_, y_) {}
   };
 
+  CHECK(DestructorTest::s_destructCount == 0);
   D* pD_e = new E(4.5f, 6);
   E* pE = lite_rtti_cast<E*>(pD_e);
-  CHECK(pD_e->liteTypeID() == CONST_ID(E));
   REQUIRE(pE != nullptr);
   CHECK(pE->x == 4.5f);
   CHECK(pE->y == 6);
   delete pD_e;
+  CHECK(DestructorTest::s_destructCount == 1);
 
   // Check rcp
   class F : public RefCnt<F>, public ENABLE_LITE_RTTI(F)
-  {};
+  {
+  public:
+    virtual ~F() = default;
+  };
   class G : public LITE_RTTI_OVERRIDE(F, G)
   {};
   class H : public LITE_RTTI_OVERRIDE(F, H)
