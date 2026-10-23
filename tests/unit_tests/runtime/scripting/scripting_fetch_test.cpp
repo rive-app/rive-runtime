@@ -323,12 +323,76 @@ TEST_CASE(
       "policy: scripts cannot set the 'Cookie' header");
 }
 
-TEST_CASE("fetch rejects past the in-flight limit", "[scripting][fetch]")
+TEST_CASE(
+    "fetch queues past the in-flight limit and starts in order",
+    "[scripting][fetch]")
 {
   MockNetwork network;
   ScriptingTest test(R"(
+        local state = { rejected = 0, settled = 0 }
+        for i = 1, 10 do
+            fetch("https://example.com/" .. i):andThen(function()
+                state.settled += 1
+            end, function()
+                state.rejected += 1
+            end)
+        end
+        return state
+    )");
+  ScriptState state(test.state());
+  CHECK(network.provider->starts.size() == 8);
+  rive_pollAsyncWork();
+  CHECK(network.provider->starts.size() == 8);
+  CHECK(state.number("rejected") == 0);
+
+  // A slot frees when the transport answers, before the script hears.
+  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
+  scriptnet::complete(network.provider->starts[1].id, textResponse(200, "b"));
+  rive_pollAsyncWork();
+  REQUIRE(network.provider->starts.size() == 10);
+  CHECK(network.provider->starts[8].request.url == "https://example.com/9");
+  CHECK(network.provider->starts[9].request.url == "https://example.com/10");
+  CHECK(state.number("settled") == 2);
+  CHECK(state.number("rejected") == 0);
+}
+
+TEST_CASE(
+    "a per-minute limit holds requests rather than rejecting",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxRequestsPerMinutePerOwner = 2;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        local state = { rejected = false }
+        for i = 1, 3 do
+            fetch("https://example.com/" .. i):catch(function(err)
+                state.rejected = true
+            end)
+        end
+        return state
+    )");
+  ScriptState state(test.state());
+  CHECK(network.provider->starts.size() == 2);
+  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
+  rive_pollAsyncWork();
+  // The slot is free but the minute is not over.
+  CHECK(network.provider->starts.size() == 2);
+  CHECK_FALSE(state.boolean("rejected"));
+  CHECK(scriptnet::hasPendingWork());
+}
+
+TEST_CASE("fetch rejects once its queue is full", "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  limits.maxQueuedPerOwner = 2;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
         local state = { rejected = 0 }
-        for i = 1, 9 do
+        for i = 1, 4 do
             fetch("https://example.com/" .. i):catch(function(err)
                 state.rejected += 1
                 state.error = err
@@ -337,33 +401,58 @@ TEST_CASE("fetch rejects past the in-flight limit", "[scripting][fetch]")
         return state
     )");
   ScriptState state(test.state());
-  CHECK(network.provider->starts.size() == 8);
+  CHECK(network.provider->starts.size() == 1);
   rive_pollAsyncWork();
   CHECK(state.number("rejected") == 1);
-  CHECK(state.string("error") == "rateLimited: more than 8 requests in flight");
+  CHECK(state.string("error") == "rateLimited: more than 2 requests waiting");
 }
 
-TEST_CASE("fetch rejects past the per-minute limit", "[scripting][fetch]")
+TEST_CASE(
+    "a queued fetch cancelled before it starts never reaches the transport",
+    "[scripting][fetch]")
 {
   MockNetwork network;
   scriptnet::NetLimits limits;
-  limits.maxRequestsPerMinutePerOwner = 2;
+  limits.maxInFlightPerOwner = 1;
   scriptnet::setLimits(limits);
   ScriptingTest test(R"(
         local state = {}
-        for i = 1, 3 do
-            fetch("https://example.com/" .. i):catch(function(err)
-                state.error = err
-            end)
-        end
+        fetch("https://example.com/first")
+        local queued = fetch("https://example.com/queued")
+        fetch("https://example.com/last")
+        queued:cancel()
+        state.status = queued:getStatus()
         return state
     )");
   ScriptState state(test.state());
-  CHECK(network.provider->starts.size() == 2);
+  CHECK(state.string("status") == "Cancelled");
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
   rive_pollAsyncWork();
-  CHECK(
-      state.string("error") ==
-      "rateLimited: more than 2 requests in the last minute");
+  REQUIRE(network.provider->starts.size() == 2);
+  CHECK(network.provider->starts[1].request.url == "https://example.com/last");
+  CHECK(network.provider->aborts.empty());
+}
+
+TEST_CASE(
+    "closing the VM drops its queued fetches unstarted",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  scriptnet::setLimits(limits);
+  {
+    ScriptingTest test(R"(
+            fetch("https://example.com/a")
+            fetch("https://example.com/b")
+            return 0
+        )");
+    REQUIRE(network.provider->starts.size() == 1);
+  }
+  CHECK_FALSE(scriptnet::hasPendingWork());
+  CHECK(scriptnet::poll() == 0);
+  CHECK(network.provider->starts.size() == 1);
 }
 
 TEST_CASE("fetch rejects a response over the size limit", "[scripting][fetch]")

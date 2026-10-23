@@ -48,7 +48,7 @@ enum class NetErrorCode : uint8_t
   Disabled,
   /// NetPolicy refused the request: scheme, host, method, header or size.
   Policy,
-  /// Too many requests in flight, or too many in the last minute.
+  /// The script's queue of requests waiting to start is full.
   RateLimited,
   /// No response within the timeout.
   Timeout,

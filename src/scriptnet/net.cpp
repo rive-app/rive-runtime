@@ -76,8 +76,15 @@ struct Outstanding
   std::thread::id thread;
   rcp<FetchListener> listener;
   Clock::time_point deadline;
-  // Handed to the provider, as opposed to refused up front.
+  // Waiting in its owner's queue for a slot; the request is kept here
+  // until it starts.
+  bool queued = false;
+  HttpRequest request;
+  // Handed to the provider, as opposed to refused up front or queued.
   bool started = false;
+  // Holding one of its owner's in-flight slots, from its start until the
+  // transport answers.
+  bool counted = false;
   // An outcome is queued; any later one is dropped.
   bool settled = false;
   // The transport that started it, and so the one to abort it, even after
@@ -92,10 +99,13 @@ struct Outstanding
 
 struct Owner
 {
-  // Started requests still in outstanding, for the in-flight limit.
+  // Requests the transport has yet to answer, for the in-flight limit.
   uint32_t inFlight = 0;
   // Start times in the last minute, for the rate limit.
   std::deque<Clock::time_point> recentStarts;
+  // Requests waiting for a slot, oldest first, and their bodies' bytes.
+  std::deque<RequestId> waiting;
+  size_t waitingBodyBytes = 0;
 };
 
 struct Outcome
@@ -133,16 +143,41 @@ public:
 
   void erase(std::unordered_map<RequestId, Outstanding>::iterator it)
   {
-    if (it->second.started)
+    release(it->second);
+    if (it->second.queued)
     {
       auto owner = owners.find(it->second.ownerId);
-      if (owner != owners.end() && owner->second.inFlight > 0)
+      if (owner != owners.end())
       {
-        owner->second.inFlight--;
+        std::deque<RequestId>& waiting = owner->second.waiting;
+        for (auto at = waiting.begin(); at != waiting.end(); ++at)
+        {
+          if (*at == it->first)
+          {
+            waiting.erase(at);
+            break;
+          }
+        }
+        owner->second.waitingBodyBytes -= it->second.request.body.size();
       }
     }
     outstanding.erase(it);
     outstandingCount.store(outstanding.size(), std::memory_order_relaxed);
+  }
+
+  // Frees the entry's in-flight slot, once.
+  void release(Outstanding& entry)
+  {
+    if (!entry.counted)
+    {
+      return;
+    }
+    entry.counted = false;
+    auto owner = owners.find(entry.ownerId);
+    if (owner != owners.end() && owner->second.inFlight > 0)
+    {
+      owner->second.inFlight--;
+    }
   }
 
   RequestId allocateId()
@@ -164,6 +199,7 @@ public:
   void settle(RequestId id, Outstanding& entry, NetError&& error)
   {
     entry.settled = true;
+    release(entry);
     Outcome outcome;
     outcome.id = id;
     outcome.error = std::move(error);
@@ -201,8 +237,8 @@ public:
     return false;
   }
 
-  // Policy and limits; fills `error` and returns false to refuse.
-  bool admit(uint64_t ownerId, HttpRequest& request, NetError* error)
+  // The host and the policy; fills `error` and returns false to refuse.
+  bool allow(HttpRequest& request, NetError* error)
   {
     if (provider == nullptr)
     {
@@ -210,39 +246,108 @@ public:
       error->message = "network access is not enabled for scripts in this host";
       return false;
     }
-    if (!NetPolicy::check(request, limits, error))
-    {
-      return false;
-    }
-    Owner& owner = owners[ownerId];
+    return NetPolicy::check(request, limits, error);
+  }
+
+  // Whether `owner` has a slot free and, with a rate limit set, room in
+  // the last minute.
+  bool canStart(Owner& owner, Clock::time_point now)
+  {
     if (owner.inFlight >= limits.maxInFlightPerOwner)
     {
-      error->code = NetErrorCode::RateLimited;
-      error->message = "more than " +
-                       std::to_string(limits.maxInFlightPerOwner) +
-                       " requests in flight";
       return false;
     }
-    Clock::time_point now = Clock::now();
+    if (limits.maxRequestsPerMinutePerOwner == 0)
+    {
+      return true;
+    }
     std::deque<Clock::time_point>& starts = owner.recentStarts;
     while (!starts.empty() && now - starts.front() >= std::chrono::minutes(1))
     {
       starts.pop_front();
     }
-    if (starts.size() >= limits.maxRequestsPerMinutePerOwner)
+    return starts.size() < limits.maxRequestsPerMinutePerOwner;
+  }
+
+  // Takes a slot for the entry about to be handed to the provider.
+  void begin(Owner& owner, Outstanding& entry, uint32_t timeoutMs)
+  {
+    Clock::time_point now = Clock::now();
+    if (limits.maxRequestsPerMinutePerOwner != 0)
+    {
+      owner.recentStarts.push_back(now);
+    }
+    owner.inFlight++;
+    entry.counted = true;
+    entry.started = true;
+    entry.starting = true;
+    entry.provider = provider;
+    entry.deadline = now + std::chrono::milliseconds(timeoutMs) +
+                     std::chrono::milliseconds(limits.watchdogGraceMs);
+  }
+
+  // Queues the request behind its owner's others; false with `error` set
+  // when the queue is full.
+  bool enqueue(
+      Owner& owner,
+      RequestId id,
+      Outstanding& entry,
+      HttpRequest&& request,
+      NetError* error)
+  {
+    size_t bytes = request.body.size();
+    if (owner.waiting.size() >= limits.maxQueuedPerOwner)
+    {
+      error->code = NetErrorCode::RateLimited;
+      error->message = "more than " + std::to_string(limits.maxQueuedPerOwner) +
+                       " requests waiting";
+      return false;
+    }
+    if (owner.waitingBodyBytes + bytes > limits.maxQueuedBodyBytesPerOwner)
     {
       error->code = NetErrorCode::RateLimited;
       error->message = "more than " +
-                       std::to_string(limits.maxRequestsPerMinutePerOwner) +
-                       " requests in the last minute";
+                       std::to_string(limits.maxQueuedBodyBytesPerOwner) +
+                       " bytes of request bodies waiting";
       return false;
     }
-    starts.push_back(now);
-    owner.inFlight++;
+    entry.queued = true;
+    entry.request = std::move(request);
+    owner.waiting.push_back(id);
+    owner.waitingBodyBytes += bytes;
     return true;
   }
 };
 } // namespace
+
+// Hands `request` to `provider` with the lock released, then aborts it if
+// the script cancelled it meanwhile.
+static void startRequest(
+    Net& net,
+    RequestId id,
+    const HttpRequest& request,
+    rcp<Provider> provider)
+{
+  provider->start(id, request);
+  bool abortNow = false;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    auto it = net.outstanding.find(id);
+    if (it != net.outstanding.end())
+    {
+      it->second.starting = false;
+      if (it->second.cancelled)
+      {
+        abortNow = !it->second.settled;
+        net.erase(it);
+      }
+    }
+  }
+  if (abortNow)
+  {
+    provider->abort(id);
+  }
+}
 
 void setProvider(rcp<Provider> provider)
 {
@@ -291,38 +396,26 @@ RequestId fetch(
     entry.thread = std::this_thread::get_id();
     entry.listener = std::move(listener);
     NetError error;
-    if (!net.admit(ownerId, request, &error))
+    if (!net.allow(request, &error))
     {
       net.settle(id, entry, std::move(error));
       return id;
     }
-    entry.started = true;
-    entry.starting = true;
-    entry.provider = net.provider;
-    entry.deadline = Clock::now() +
-                     std::chrono::milliseconds(request.timeoutMs) +
-                     std::chrono::milliseconds(net.limits.watchdogGraceMs);
+    // Past the limits a request waits its turn, as a browser holds those
+    // past its connection limit.
+    Owner& owner = net.owners[ownerId];
+    if (!owner.waiting.empty() || !net.canStart(owner, Clock::now()))
+    {
+      if (!net.enqueue(owner, id, entry, std::move(request), &error))
+      {
+        net.settle(id, entry, std::move(error));
+      }
+      return id;
+    }
+    net.begin(owner, entry, request.timeoutMs);
     provider = net.provider;
   }
-  provider->start(id, request);
-  bool abortNow = false;
-  {
-    std::lock_guard<std::mutex> lock(net.mutex);
-    auto it = net.outstanding.find(id);
-    if (it != net.outstanding.end())
-    {
-      it->second.starting = false;
-      if (it->second.cancelled)
-      {
-        abortNow = !it->second.settled;
-        net.erase(it);
-      }
-    }
-  }
-  if (abortNow)
-  {
-    provider->abort(id);
-  }
+  startRequest(net, id, request, provider);
   return id;
 }
 
@@ -415,11 +508,48 @@ uint32_t poll(uint32_t maxDeliveries)
   {
     return 0;
   }
+  std::thread::id thread = std::this_thread::get_id();
   std::vector<std::pair<RequestId, rcp<Provider>>> overdue;
+  std::vector<std::pair<RequestId, HttpRequest>> ready;
+  rcp<Provider> provider;
   uint64_t before;
   {
     std::lock_guard<std::mutex> lock(net.mutex);
     Clock::time_point now = Clock::now();
+    // Queued requests start once slots free, on the thread that queued
+    // them, as fetch() would have started them.
+    provider = net.provider;
+    for (auto& [ownerId, owner] : net.owners)
+    {
+      while (!owner.waiting.empty())
+      {
+        auto it = net.outstanding.find(owner.waiting.front());
+        if (it == net.outstanding.end())
+        {
+          owner.waiting.pop_front();
+          continue;
+        }
+        if (it->second.thread != thread || !net.canStart(owner, now))
+        {
+          break;
+        }
+        owner.waiting.pop_front();
+        Outstanding& entry = it->second;
+        owner.waitingBodyBytes -= entry.request.body.size();
+        entry.queued = false;
+        if (provider == nullptr)
+        {
+          net.settle(
+              it->first,
+              entry,
+              {NetErrorCode::Disabled,
+               "network access is not enabled for scripts in this host"});
+          continue;
+        }
+        net.begin(owner, entry, entry.request.timeoutMs);
+        ready.push_back({it->first, std::move(entry.request)});
+      }
+    }
     for (auto& entry : net.outstanding)
     {
       if (entry.second.started && !entry.second.settled &&
@@ -435,14 +565,17 @@ uint32_t poll(uint32_t maxDeliveries)
     // Outcomes queued while this poll delivers wait for the next one.
     before = net.nextSequence;
   }
-  for (auto& [id, provider] : overdue)
+  for (auto& [id, overdueProvider] : overdue)
   {
-    if (provider != nullptr)
+    if (overdueProvider != nullptr)
     {
-      provider->abort(id);
+      overdueProvider->abort(id);
     }
   }
-  std::thread::id thread = std::this_thread::get_id();
+  for (auto& [id, request] : ready)
+  {
+    startRequest(net, id, request, provider);
+  }
   uint32_t delivered = 0;
   // One outcome per lock, so a listener that cancels a request still due
   // this poll reaches it before it is delivered.
@@ -531,6 +664,7 @@ void complete(RequestId id, HttpResponse&& response)
     return;
   }
   it->second.settled = true;
+  net.release(it->second);
   Outcome outcome;
   outcome.id = id;
   outcome.ok = true;

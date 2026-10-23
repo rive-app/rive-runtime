@@ -67,10 +67,11 @@ bool hasProvider();
 void setLimits(const NetLimits& limits);
 NetLimits limits();
 
-/// Runs the policy and `ownerId`'s limits, then hands the request to the
-/// provider. Always returns a nonzero id: refusals settle through poll() like
-/// every other outcome, so a script never sees its promise settle during the
-/// fetch() call.
+/// Runs the policy, then hands the request to the provider, or queues it
+/// behind `ownerId`'s others while its limits are reached; poll() starts it
+/// once they allow. Always returns a nonzero id: refusals settle through
+/// poll() like every other outcome, so a script never sees its promise
+/// settle during the fetch() call.
 RequestId fetch(
     uint64_t ownerId,
     HttpRequest request,
@@ -84,8 +85,9 @@ bool cancel(RequestId id);
 /// state closes.
 void cancelAllForOwner(uint64_t ownerId);
 
-/// Times out overdue requests, then delivers up to `maxDeliveries` outcomes of
-/// requests this thread started. Returns how many it delivered.
+/// Times out overdue requests, starts queued ones this thread made as limits
+/// allow, then delivers up to `maxDeliveries` outcomes of requests this
+/// thread started. Returns how many it delivered.
 uint32_t poll(uint32_t maxDeliveries = 16);
 
 /// True while a request this thread started is outstanding or awaiting
