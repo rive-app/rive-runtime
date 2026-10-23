@@ -91,6 +91,22 @@ SLICE=(--until "worker slice done"
     --expect "worker slice done" --expect "pending async work no")
 node run.mjs $HARNESS fixture/worker_slice.riv "${SLICE[@]}"
 node run.mjs $HARNESS fixture/worker_slice.riv --sync "${SLICE[@]}"
+# Workers meet at a barrier whose participant count changes, and a break or a
+# stop settles every call false, as the native lane asserts.
+BARRIER=(--until "barrier worker 0 met" --until "barrier worker 1 met"
+    --until "barrier worker 2 met" --until "barrier worker 3 met"
+    --until "barrier break settled" --until "barrier stop settled"
+    --until "barrier stop settles a lone participant"
+    --expect "barrier worker 0 met 1056 rounds, 0 wrong"
+    --expect "barrier worker 1 met 1056 rounds, 0 wrong"
+    --expect "barrier worker 2 met 432 rounds, 0 wrong"
+    --expect "barrier worker 3 met 432 rounds, 0 wrong"
+    --expect "barrier break settled 3 waits, 1 at a gate, and 3 later calls false"
+    --expect "barrier stop settled 3 waits, 1 at a gate, false"
+    --expect "barrier stop settles a lone participant false"
+    --expect "barrier released settles false")
+node run.mjs $HARNESS fixture/barrier.riv "${BARRIER[@]}"
+node run.mjs $HARNESS fixture/barrier.riv --sync "${BARRIER[@]}"
 # Only advances step a worker without threads, so its timed wait keeps a host
 # that settles advancing until it wakes.
 node run.mjs $HARNESS fixture/worker_timed.riv --while-pending \
@@ -235,6 +251,7 @@ done
 node run.mjs $THREADED fixture/workers.riv "${WORKERS[@]}"
 node run.mjs $THREADED fixture/worker_stops.riv "${STOPS[@]}"
 node run.mjs $THREADED fixture/worker_slice.riv "${SLICE[@]}"
+node run.mjs $THREADED fixture/barrier.riv "${BARRIER[@]}"
 node run.mjs $THREADED fixture/awaits.riv "${AWAITS[@]}"
 # A worker on its own pthread answers while the page's thread waits.
 node run.mjs $THREADED fixture/ports.riv "${PORTS[@]}" \
