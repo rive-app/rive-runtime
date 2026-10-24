@@ -6,11 +6,12 @@ cd "$(dirname "$0")"
 
 # The link does not track its --pre-js input, so a changed bundle would
 # otherwise be silently left out.
-BUNDLE=../../src/wasm/web/rive_scripting_pre.js
-for LINKED in out/wasm{,_threads}_debug/web_scripting_{harness,page}; do
-    if [[ $BUNDLE -nt $LINKED.mjs ]]; then
-        rm -f $LINKED.mjs $LINKED.wasm
-    fi
+for BUNDLE in ../../src/wasm/web/rive_{scripting,audio_worklet}_pre.js; do
+    for LINKED in out/wasm{,_threads}_debug/web_scripting_{harness,page}; do
+        if [[ $BUNDLE -nt $LINKED.mjs ]]; then
+            rm -f $LINKED.mjs $LINKED.wasm
+        fi
+    done
 done
 
 # A lane that never ends holds node's event loop, so a run that would wait on
@@ -607,6 +608,10 @@ for BROWSER in "${BROWSERS[@]}"; do
         page $PAGE fixture/$FIXTURE.riv $STEADY --hash 16 \
             --expect "worklet rendered 16 blocks $SAME_SAMPLES"
     done
+    # A page that names no worklet and serves none of its files renders the
+    # same samples on the one the threaded build carries.
+    page $PAGE fixture/determinism.riv $STEADY --hash 16 --carried-worklet \
+        --expect "worklet rendered 16 blocks $SAME_SAMPLES"
     # Jobs on browser workers, and a page thread that cannot sleep spinning
     # while it waits on a worker.
     page $PAGE fixture/jobs.riv "${JOBS[@]:2}"

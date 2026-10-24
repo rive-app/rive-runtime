@@ -6675,6 +6675,24 @@ function installRiveScripting(Module) {
     const nrdp = () => globalThis['nrdp'];
     const onNrdp = () => nrdp()?.['audio']?.['output'] !== undefined;
 
+    // The worklet a host serves, else the one a threaded build carries, which
+    // needs nothing served beside the runtime. NRDP only runs its own bundle.
+    let carriedWorklet = null;
+    function workletUrl() {
+        const given = runner['audioWorkletUrl'];
+        if (typeof given === 'string') {
+            return given;
+        }
+        const source = Module['riveAudioWorkletSource'];
+        if (onNrdp() || typeof source !== 'string') {
+            return null;
+        }
+        carriedWorklet ??= URL.createObjectURL(
+            new Blob([source], { type: 'text/javascript' })
+        );
+        return carriedWorklet;
+    }
+
     // Null when processors can run in real time, else why not.
     function audioRefusal() {
         if (!onNrdp() && globalThis.crossOriginIsolated !== true) {
@@ -6687,7 +6705,7 @@ function installRiveScripting(Module) {
         ) {
             return 'real time audio needs librive built with threads';
         }
-        if (typeof runner['audioWorkletUrl'] !== 'string') {
+        if (workletUrl() === null) {
             return 'real time audio needs riveScripting.audioWorkletUrl';
         }
         if (typeof AudioContext === 'undefined') {
@@ -6904,7 +6922,7 @@ function installRiveScripting(Module) {
             }
         });
         context.audioWorklet
-            .addModule(runner['audioWorkletUrl'])
+            .addModule(workletUrl())
             .then(() => {
                 node = new AudioWorkletNode(
                     context,

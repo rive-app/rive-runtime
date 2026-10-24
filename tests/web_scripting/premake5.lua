@@ -52,6 +52,12 @@ local function harness(name, environment)
             '-sEXPORTED_FUNCTIONS=_malloc,_free',
             '-sEXPORTED_RUNTIME_METHODS=HEAPU8',
         })
+        if _OPTIONS['web_threads'] then
+            -- As threaded runtimes do, so a page can leave the worklet unnamed.
+            linkoptions({
+                '--pre-js ' .. path.join(runtime, 'src/wasm/web/rive_audio_worklet_pre.js'),
+            })
+        end
     end
 end
 

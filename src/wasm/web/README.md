@@ -66,6 +66,9 @@ returns their leak warnings for `console.warn`.
 - `rive_scripting_pre.js`, generated from the two files above. One plain
   script for emscripten's `--pre-js`. It installs itself as
   `Module.riveScripting`. This is what hosts link.
+- `rive_audio_worklet_pre.js`, generated. The browser audio worklet and the
+  lane modules it imports as one script's source, for builds with threads to
+  link beside the bundle above.
 
 Regenerate with `python3 src/wasm/idl/generate.py`. Never edit the generated
 files. `generate.py --check` fails when they are stale, and that includes a
@@ -199,7 +202,9 @@ needs librive built with threads and, in a browser, cross origin isolation.
   so the host serves these four next to it as well: `rive_lane.mjs`,
   `rive_lane_imports.mjs`, `rive_shared_lane.mjs` and
   `rive_shared_layout.mjs`. The NRDP script is one bundle and needs nothing
-  beside it.
+  beside it. A build with threads that names no URL uses the browser worklet
+  it carries, linked as `rive_audio_worklet_pre.js`, from a `blob:` URL, so
+  the JS runtime serves nothing for it.
 - The host may hand over its own `AudioContext` as
   `riveScripting.audioContext`, and should resume it on the user's first
   gesture. Without one, the runner makes a context as the first processor

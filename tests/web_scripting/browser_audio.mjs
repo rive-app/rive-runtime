@@ -3,6 +3,7 @@
 // checks the page's console for lines.
 //   node browser_audio.mjs <harness out dir> <file.riv> [--browser <name>]
 //                          [--no-isolation] [--runner-context]
+//                          [--carried-worklet]
 //                          [--offline <blocks>] [--hash <blocks>]
 //                          [--hard-blocks <n>] [--expect <line>]...
 // --browser is chrome, the default, run from the binary CHROME names or else
@@ -11,7 +12,8 @@
 // serves the page without cross origin isolation, which only a build
 // without threads loads on. --runner-context hands the runner no
 // AudioContext, so it makes its own, and firefox and webkit click only once
-// the page logs a warning. --offline renders that many blocks through each
+// the page logs a warning. --carried-worklet names no worklet and serves none
+// of its files, so the runner starts the one the build carries. --offline renders that many blocks through each
 // processor on the page, as run.mjs's --audio does, and --hash logs a hash of
 // the first that many blocks the worklet renders, as harness_audio does.
 // --hard-blocks sets the audio hard limit, as run.mjs's does.
@@ -28,6 +30,7 @@ const expected = rest.filter((arg, i) => rest[i - 1] === '--expect');
 const browserName = valueOf('--browser') ?? 'chrome';
 const isolated = !rest.includes('--no-isolation');
 const runnerContext = rest.includes('--runner-context');
+const carriedWorklet = rest.includes('--carried-worklet');
 const offline = Number(valueOf('--offline') ?? 0);
 const hash = Number(valueOf('--hash') ?? 0);
 const hardBlocks = valueOf('--hard-blocks');
@@ -40,7 +43,7 @@ const sources = {
     'file.riv': rivPath,
     'worklet_tap.mjs': join(here, 'worklet_tap.mjs'),
 };
-for (const name of [
+for (const name of carriedWorklet ? [] : [
     'rive_audio_worklet.mjs',
     'rive_lane_imports.mjs',
     'rive_shared_layout.mjs',
@@ -66,7 +69,9 @@ const hardBlocks = ${JSON.stringify(hardBlocks)};
 if (hardBlocks !== undefined) {
     Module._harness_audio_hard_blocks(Number(hardBlocks));
 }
-Module.riveScripting.audioWorkletUrl = 'rive_audio_worklet.mjs';
+if (!${carriedWorklet}) {
+    Module.riveScripting.audioWorkletUrl = 'rive_audio_worklet.mjs';
+}
 Module.riveScripting.audioContext = context;
 const hash = ${hash};
 if (hash > 0) {

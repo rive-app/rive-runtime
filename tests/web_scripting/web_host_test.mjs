@@ -15,6 +15,7 @@ import {
     kLaneEntryPrefixes,
     kProcessorInitMs,
     kProcessorInitOverran,
+    kProcessorNode,
     kProcessorOverran,
     processorBlockBudgetMs,
 } from '../../src/wasm/web/rive_lane_imports.mjs';
@@ -666,17 +667,19 @@ async function until(done, ms) {
 
 // A runner with real time audio on a page with threads, and the processor
 // events it reports to librive.
-function audioRunner(context) {
+function audioRunner(context, { module = {}, workletUrl = 'rive_audio_worklet.mjs' } = {}) {
     const memory = { buffer: new SharedArrayBuffer(1 << 16) };
     const events = [];
-    const runner = installRiveScripting({});
+    const runner = installRiveScripting(module);
     runner.attach({
         memory: () => memory,
         exports: { _rive_shared_table: () => 1024 },
         processorEvent: (owner, kind, text) => events.push([owner, kind, text]),
         heapU8: () => new Uint8Array(memory.buffer),
     });
-    runner['audioWorkletUrl'] = 'rive_audio_worklet.mjs';
+    if (workletUrl !== null) {
+        runner['audioWorkletUrl'] = workletUrl;
+    }
     runner['audioContext'] = context;
     const format = { sampleRate: 48000, maxFrames: 128, channels: 2 };
     const start = (owner, moduleId) =>
@@ -718,6 +721,44 @@ globalThis.AudioWorkletNode = class {
     }
 };
 const kFailed = 3;
+
+// A build that carries the worklet starts it from a blob when the host
+// serves none; one that carries none still asks the host for it.
+{
+    nodes.length = 0;
+    const context = new PageContext();
+    const added = [];
+    context.audioWorklet = { addModule: async (url) => added.push(url) };
+    const { runner, start } = audioRunner(context, {
+        module: { riveAudioWorkletSource: 'registerProcessor()' },
+        workletUrl: null,
+    });
+    assert.equal(runner['audioRefusal'](), null);
+    start(11, 5);
+    await until(() => nodes.length === 1, 1000);
+    assert.match(added[0], /^blob:/);
+    context.close();
+    assert.equal(
+        audioRunner(new PageContext(), { workletUrl: null }).runner['audioRefusal'](),
+        'real time audio needs riveScripting.audioWorkletUrl'
+    );
+}
+
+// The worklet a threaded build carries runs on its own and adds the node the
+// runner makes.
+{
+    const carried = {};
+    new Function(
+        'Module',
+        readFileSync(new URL('../../src/wasm/web/rive_audio_worklet_pre.js', import.meta.url), 'utf8')
+    )(carried);
+    const registered = [];
+    new Function('AudioWorkletProcessor', 'registerProcessor', carried['riveAudioWorkletSource'])(
+        class {},
+        (name) => registered.push(name)
+    );
+    assert.deepEqual(registered, [kProcessorNode]);
+}
 
 // A worklet that lost a module's bytes gets them again, unless the processor
 // asking already stopped. Closing the host's context fails what it ran.
