@@ -447,6 +447,17 @@ inline rcp<Buffer> ContextMetal::mtlMakeBuffer(const BufferDesc& desc)
   return buffer;
 }
 
+// Shared textures are only allowed on Apple family GPUs. Intel/discrete Macs
+// need Managed, an enum that doesn't exist on iOS.
+static MTLStorageMode uploadableTextureStorageMode(id<MTLDevice> device)
+{
+#if defined(RIVE_MACOSX)
+  if (![device supportsFamily:MTLGPUFamilyApple1])
+    return MTLStorageModeManaged;
+#endif
+  return MTLStorageModeShared;
+}
+
 inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
 {
   // Metal has no BC formats before iOS 16.4, and some devices lack them
@@ -466,11 +477,11 @@ inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
   td.height = desc.height;
   td.mipmapLevelCount = isMSAA ? 1 : desc.numMipmaps;
   td.sampleCount = desc.sampleCount;
-  // Private storage is GPU-only — replaceRegion (CPU upload) is undefined.
-  // Use Shared for uploadable textures so upload() works on all Metal
-  // devices. Render-target-only textures stay Private.
-  td.storageMode = desc.renderTarget ? MTLStorageModePrivate
-                                     : MTLStorageModeShared;
+  td.storageMode = desc.renderTarget
+                       // Render-target-only textures use Private storage.
+                       // "replaceRegion" (CPU upload) is undefined there.
+                       ? MTLStorageModePrivate
+                       : uploadableTextureStorageMode(m_mtlDevice);
   td.usage = MTLTextureUsageShaderRead;
 
   if (desc.type == TextureType::texture3D)
