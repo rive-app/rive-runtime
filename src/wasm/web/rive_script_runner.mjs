@@ -1035,6 +1035,12 @@ export function installRiveScripting(Module) {
     // Browsers start audio only after a gesture, so a context only the runner
     // holds resumes on the page's first one, and warns once while it waits.
     function ownContext() {
+        // iOS mutes the default ambient session at the silent switch, which
+        // video plays through.
+        const session = globalThis.navigator?.['audioSession'];
+        if (session?.['type'] === 'auto') {
+            session['type'] = 'playback';
+        }
         const context = new AudioContext();
         const gestures = ['pointerdown', 'pointerup', 'keydown', 'touchend'];
         const resume = () => context.resume();

@@ -822,8 +822,15 @@ const kFailed = 3;
 
 // A context only the runner holds resumes on the page's first gesture, and
 // warns once if the browser has not started it by then. A host's own context
-// is the host's to resume.
+// is the host's to resume. Only the runner's own plays as playback, through
+// iOS's silent switch.
 {
+    const session = { type: 'auto' };
+    const navigator = globalThis.navigator;
+    Object.defineProperty(globalThis, 'navigator', {
+        value: { audioSession: session },
+        configurable: true,
+    });
     const page = new EventTarget();
     globalThis.addEventListener = page.addEventListener.bind(page);
     globalThis.removeEventListener = page.removeEventListener.bind(page);
@@ -854,7 +861,9 @@ const kFailed = 3;
     globalThis.AudioContext = WaitingContext;
     const hosts = new WaitingContext();
     audioRunner(hosts).start(11, 5);
+    assert.equal(session.type, 'auto');
     audioRunner(undefined).start(12, 5);
+    assert.equal(session.type, 'playback');
     audioRunner(undefined).start(13, 5);
     const [, waiting, started] = made;
     started.start();
@@ -867,6 +876,7 @@ const kFailed = 3;
     made.forEach((context) => context.close());
     console.warn = warn;
     globalThis.AudioContext = PageContext;
+    Object.defineProperty(globalThis, 'navigator', { value: navigator, configurable: true });
 }
 
 // NRDP has no statechange event, so its output notices a closed context by

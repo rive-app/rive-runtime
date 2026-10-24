@@ -210,7 +210,9 @@ needs librive built with threads and, in a browser, cross origin isolation.
   gesture. Without one, the runner makes a context as the first processor
   starts, and resumes it on the page's first click, tap or key press, since
   browsers start audio only after a gesture. If that context has not started
-  a second after it was made, the runner warns once on the console.
+  a second after it was made, the runner warns once on the console. It also
+  sets an `auto` `navigator.audioSession` to `playback`, so iOS plays it
+  through the silent switch as it does video.
 - The worklet counts every block it renders. When that stops while
   processors run, every processor fails. On NRDP that takes 100 ms, and the
   runner ends the worklet thread. A browser cannot end it, and Chrome's
