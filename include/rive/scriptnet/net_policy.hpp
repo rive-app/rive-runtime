@@ -25,6 +25,13 @@ struct NetLimits
   /// hold together; past either, a request is rejected.
   uint32_t maxQueuedPerOwner = 1024;
   uint32_t maxQueuedBodyBytesPerOwner = 32 * 1024 * 1024;
+  /// Answers one VM may have that poll() has yet to deliver, counting those
+  /// in flight, and their body bytes; while either is reached, its requests
+  /// wait to start. A body's size is known only once it arrives, so the
+  /// bytes held can exceed the cap by what is in flight, at most
+  /// maxInFlightPerOwner times maxResponseBodyBytes.
+  uint32_t maxUndeliveredPerOwner = 64;
+  uint32_t maxUndeliveredBytesPerOwner = 64 * 1024 * 1024;
   uint32_t maxRequestBodyBytes = 8 * 1024 * 1024;
   uint32_t maxResponseBodyBytes = 16 * 1024 * 1024;
   uint32_t defaultTimeoutMs = 30 * 1000;

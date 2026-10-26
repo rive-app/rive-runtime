@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -28,11 +29,17 @@ public:
   };
   std::vector<Start> starts;
   std::vector<scriptnet::RequestId> aborts;
+  // Runs inside start(), as a transport that answers or re-enters at once.
+  std::function<void(scriptnet::RequestId)> onStart;
 
   void start(scriptnet::RequestId id, const scriptnet::HttpRequest& request)
       override
   {
     starts.push_back({id, request});
+    if (onStart)
+    {
+      onStart(id);
+    }
   }
   void abort(scriptnet::RequestId id) override { aborts.push_back(id); }
 };
@@ -432,6 +439,112 @@ TEST_CASE(
   REQUIRE(network.provider->starts.size() == 2);
   CHECK(network.provider->starts[1].request.url == "https://example.com/last");
   CHECK(network.provider->aborts.empty());
+}
+
+TEST_CASE(
+    "a queued fetch cancelled while its batch starts is never sent",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 2;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        for _, name in { "a", "b", "c", "d" } do
+            fetch("https://example.com/" .. name)
+        end
+        return 0
+    )");
+  REQUIRE(network.provider->starts.size() == 2);
+  // c and d start in one batch; c's start cancels d, made just after it.
+  network.provider->onStart = [](scriptnet::RequestId id) {
+    scriptnet::cancel(id + 1);
+  };
+  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
+  scriptnet::complete(network.provider->starts[1].id, textResponse(200, "b"));
+  rive_pollAsyncWork();
+  REQUIRE(network.provider->starts.size() == 3);
+  CHECK(network.provider->starts[2].request.url == "https://example.com/c");
+  CHECK(network.provider->aborts.empty());
+}
+
+TEST_CASE(
+    "answers poll has yet to deliver hold back new requests",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  limits.maxUndeliveredPerOwner = 3;
+  scriptnet::setLimits(limits);
+  network.provider->onStart = [](scriptnet::RequestId id) {
+    scriptnet::complete(id, textResponse(200, "now"));
+  };
+  ScriptingTest test(R"(
+        local state = { settled = 0 }
+        for i = 1, 6 do
+            fetch("https://example.com/" .. i):andThen(function()
+                state.settled += 1
+            end)
+        end
+        return state
+    )");
+  ScriptState state(test.state());
+  // Each answers inside start(), so only the budget stops the next.
+  CHECK(network.provider->starts.size() == 3);
+  rive_pollAsyncWork();
+  CHECK(state.number("settled") == 3);
+  CHECK(network.provider->starts.size() == 3);
+  rive_pollAsyncWork();
+  CHECK(network.provider->starts.size() == 6);
+  rive_pollAsyncWork();
+  CHECK(state.number("settled") == 6);
+}
+
+TEST_CASE(
+    "requests in flight hold their place among undelivered answers",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 4;
+  limits.maxUndeliveredPerOwner = 2;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        for i = 1, 4 do
+            fetch("https://example.com/" .. i)
+        end
+        return 0
+    )");
+  CHECK(network.provider->starts.size() == 2);
+}
+
+TEST_CASE(
+    "a fetch dropped before it is sent gives back its rate limit start",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 2;
+  limits.maxRequestsPerMinutePerOwner = 4;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        for _, name in { "a", "b", "c", "d", "e" } do
+            fetch("https://example.com/" .. name)
+        end
+        return 0
+    )");
+  REQUIRE(network.provider->starts.size() == 2);
+  network.provider->onStart = [](scriptnet::RequestId id) {
+    scriptnet::cancel(id + 1);
+  };
+  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
+  scriptnet::complete(network.provider->starts[1].id, textResponse(200, "b"));
+  rive_pollAsyncWork();
+  // c was sent and d dropped, so e still fits in the minute.
+  REQUIRE(network.provider->starts.size() == 4);
+  CHECK(network.provider->starts[2].request.url == "https://example.com/c");
+  CHECK(network.provider->starts[3].request.url == "https://example.com/e");
 }
 
 TEST_CASE(
