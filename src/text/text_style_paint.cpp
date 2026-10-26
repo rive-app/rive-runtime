@@ -118,10 +118,6 @@ Component* TextStylePaint::pathBuilder() { return parent(); }
 Core* TextStylePaint::clone() const
 {
   TextStylePaint* twin = TextStylePaintBase::clone()->as<TextStylePaint>();
-  if (m_fileAsset != nullptr)
-  {
-    twin->setAsset(m_fileAsset);
-  }
-
+  cloneFontInto(twin);
   return twin;
 }

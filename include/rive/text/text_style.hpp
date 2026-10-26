@@ -16,6 +16,7 @@ class Renderer;
 class RenderPath;
 class RenderPaint;
 
+class File;
 class TextVariationHelper;
 class TextStyleAxis;
 class TextStyleFeature;
@@ -63,7 +64,10 @@ protected:
   void fontSizeChanged() override;
   void lineHeightChanged() override;
   void letterSpacingChanged() override;
+  void fontAssetIdChanged() override;
   FontAsset* fontAsset() const { return (FontAsset*)m_fileAsset.get(); }
+  /// Gives a clone this style's font and the file its keys name fonts in.
+  void cloneFontInto(TextStyle* twin) const;
 
 private:
   void metricsChanged();
@@ -91,6 +95,9 @@ private:
   mutable std::vector<Font::Feature> m_features;
   TextInterface* m_text = nullptr;
   TextStyleOwner* m_owner = nullptr;
+  /// The file this style was imported from: a keyframe names its font by
+  /// index into that file's assets. Instances never outlive their file.
+  File* m_file = nullptr;
 };
 } // namespace rive
 

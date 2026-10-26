@@ -8,6 +8,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/text/text.hpp"
 #include "rive/artboard.hpp"
+#include "rive/file.hpp"
 
 using namespace rive;
 
@@ -200,10 +201,48 @@ void TextStyle::setAsset(rcp<FileAsset> asset)
     // reshape the text. Mirror FontAsset::font()'s dirtying so onDirty
     // marks the text shape dirty and rebuilds any variable font. Guard for
     // the clone/import case where the style isn't wired to its Text yet.
-    if (m_text != nullptr)
+    // A global style's paint has no Text; onDirty tells its owner instead.
+    if (m_text != nullptr || m_owner != nullptr)
     {
       addDirt(ComponentDirt::TextShape);
     }
+  }
+}
+
+// A keyframe moved the style to another font. Data binding swaps the asset
+// itself (see DataBindContextValueAssetFont); a key only sets the id.
+void TextStyle::fontAssetIdChanged()
+{
+  rcp<FileAsset> asset;
+#ifdef WITH_RIVE_EDITOR
+  if (m_file != nullptr)
+  {
+    // Loaded from a .riv: the id is an index into the file's assets.
+    asset = m_file->asset(fontAssetId().object);
+  }
+  else if (auto* ab = artboard())
+  {
+    // Coop-delivered: the full editor Id of the FontAsset. Ask the resolver
+    // directly, Artboard::resolve would find a component at a small index.
+    if (auto* resolver = ab->editorResolver())
+    {
+      auto* core = resolver->resolve(fontAssetId());
+      if (core != nullptr && core->is<FileAsset>())
+      {
+        asset = ref_rcp(core->as<FileAsset>());
+      }
+    }
+  }
+#else
+  if (m_file != nullptr)
+  {
+    asset = m_file->asset(fontAssetId());
+  }
+#endif
+  // A font the export dropped (out of range) keeps the current one.
+  if (asset != nullptr && asset->is<FontAsset>())
+  {
+    setAsset(asset);
   }
 }
 
@@ -213,6 +252,12 @@ StatusCode TextStyle::import(ImportStack& importStack)
   if (result != StatusCode::Ok)
   {
     return result;
+  }
+  auto backboardImporter = importStack.latest<BackboardImporter>(
+      Backboard::typeKey);
+  if (backboardImporter != nullptr)
+  {
+    m_file = backboardImporter->file();
   }
   return Super::import(importStack);
 }
@@ -242,12 +287,17 @@ void TextStyle::letterSpacingChanged() { metricsChanged(); }
 Core* TextStyle::clone() const
 {
   TextStyle* twin = TextStyleBase::clone()->as<TextStyle>();
+  cloneFontInto(twin);
+  return twin;
+}
+
+void TextStyle::cloneFontInto(TextStyle* twin) const
+{
+  twin->m_file = m_file;
   if (m_fileAsset != nullptr)
   {
     twin->setAsset(m_fileAsset);
   }
-
-  return twin;
 }
 
 bool TextStyle::validate(CoreContext* context)
