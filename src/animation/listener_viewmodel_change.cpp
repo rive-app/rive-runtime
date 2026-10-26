@@ -175,6 +175,16 @@ bool ListenerViewModelChange::applyInputValue(
   return false;
 }
 
+// A view model value set to "My ViewModel" is stored as a to-target bind whose
+// source path holds only the root view model id, as transition comparands do
+// (see ConditionComparandViewModelBindable).
+static bool isMyViewModel(DataBind* dataBindToTarget)
+{
+  return dataBindToTarget != nullptr &&
+         dataBindToTarget->is<DataBindContext>() &&
+         dataBindToTarget->as<DataBindContext>()->sourcePathLength() == 1;
+}
+
 // Note: perform works the same way whether the value comes from a direct value
 // assignment or from another view model. In the case of coming from another
 // view model, the state machine instance method "updataDataBinds" will handle
@@ -206,8 +216,12 @@ void ListenerViewModelChange::perform(
       bindableInstance);
   if (dataBind != nullptr)
   {
+    // A view model value from another property is already in the bindable,
+    // written by its to-target bind. "My ViewModel" resolves to no property,
+    // so write the data context's own instance for it.
     if (dataBind->target() != nullptr &&
-        dataBind->target()->is<BindablePropertyViewModel>())
+        dataBind->target()->is<BindablePropertyViewModel>() &&
+        isMyViewModel(dataBindToTarget))
     {
       auto targetValue = dataBind->target()->as<BindablePropertyViewModel>();
       auto context = stateMachineInstance->dataContext();

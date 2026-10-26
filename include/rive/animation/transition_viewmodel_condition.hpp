@@ -509,12 +509,10 @@ public:
       {
         if (dataBind->is<DataBindContext>())
         {
-          const auto& sourcePathIds = dataBind->as<DataBindContext>()
-                                          ->sourcePathIds();
           // A root-only source path marks "My ViewModel" for
           // transition comparands. Resolve it from the state machine
           // data context.
-          if (sourcePathIds.size() == 1)
+          if (dataBind->as<DataBindContext>()->sourcePathLength() == 1)
           {
             auto dataContext = stateMachineInstance->dataContext();
             if (dataContext != nullptr &&

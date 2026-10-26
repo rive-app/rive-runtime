@@ -29,6 +29,18 @@ public:
   {
     return m_SourcePathIdsBuffer;
   }
+  // The source path's length. A path the editor hydrated is kept apart and
+  // leaves sourcePathIds empty.
+  size_t sourcePathLength() const
+  {
+#ifdef WITH_RIVE_EDITOR
+    if (m_hasEditorSourcePath)
+    {
+      return m_editorSourcePath.size();
+    }
+#endif
+    return m_SourcePathIdsBuffer.size();
+  }
 
 private:
   void resolvePath();
