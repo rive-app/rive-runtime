@@ -1,0 +1,103 @@
+From: rive
+Subject: [PATCH 0038] grow a linear memory without copying it
+
+Our build compiles the generic os_mremap on every platform, which maps a new
+region, copies the whole memory into it and unmaps the old one. Each time a
+memory outgrew its reservation the frame stalled for as long as the copy took,
+about 14 ms at 256 MB and 60 ms at 1 GB on an M4 Pro. Apple now extends the
+mapping in place when the addresses after it are free, else remaps the pages
+into a larger region without copying; Linux and Android use mremap. On macOS
+os_mmap marks every map MAP_JIT for code, and the kernel refuses to remap JIT
+pages, so linear memories now map plainly there. Thread sanitizer builds keep
+the copy, since the sanitizer does not see pages move.
+
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1520,8 +1520,18 @@
+         new_mem = os_mremap(mapped_mem, old_size, new_size);
+     }
+     else {
++#if defined(__APPLE__)
++        /* rive patch: os_mmap adds MAP_JIT on macOS for code, and the kernel
++           will not remap JIT pages, so a linear memory maps plainly */
++        new_mem = mmap(NULL, new_size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1,
++                       0);
++        if (new_mem == MAP_FAILED) {
++            new_mem = NULL;
++        }
++#else
+         new_mem = os_mmap(NULL, new_size, MMAP_PROT_NONE, MMAP_MAP_NONE,
+                           os_get_invalid_handle());
++#endif
+     }
+     if (!new_mem) {
+         return NULL;
+--- a/core/shared/platform/common/memory/mremap.c
++++ b/core/shared/platform/common/memory/mremap.c
+@@ -3,10 +3,66 @@
+  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+  */
+ 
++/* rive patch: glibc declares mremap only with _GNU_SOURCE */
++#if defined(__linux__) && !defined(_GNU_SOURCE)
++#define _GNU_SOURCE
++#endif
++
+ #include "platform_api_vmcore.h"
+ 
++/* rive patch: thread sanitizer misses pages that move, then reports races
++   between memories that only reused an address */
++#if defined(__SANITIZE_THREAD__)
++#define RIVE_COPY_ON_GROW 1
++#elif defined(__has_feature)
++#if __has_feature(thread_sanitizer)
++#define RIVE_COPY_ON_GROW 1
++#endif
++#endif
++
++#if defined(__APPLE__) && !defined(RIVE_COPY_ON_GROW)
++#include <mach/mach.h>
++#include <sys/mman.h>
++#elif defined(__linux__) && !defined(RIVE_COPY_ON_GROW)
++#include <sys/mman.h>
++#endif
++
++/* rive patch: a copy stalls a frame in proportion to the memory's size, so
++   extend in place or move the pages, copying only when both are refused */
+ void *
+ os_mremap(void *old_addr, size_t old_size, size_t new_size)
+ {
++#if defined(__APPLE__) && !defined(RIVE_COPY_ON_GROW)
++    vm_address_t tail = (vm_address_t)old_addr + old_size;
++    vm_address_t moved = 0, head;
++    vm_prot_t cur_prot, max_prot;
++
++    if (vm_allocate(mach_task_self(), &tail, new_size - old_size,
++                    VM_FLAGS_FIXED)
++        == KERN_SUCCESS) {
++        return old_addr;
++    }
++    if (vm_allocate(mach_task_self(), &moved, new_size, VM_FLAGS_ANYWHERE)
++        == KERN_SUCCESS) {
++        head = moved;
++        /* copy into this plain map, not os_mremap_slow's JIT one, so later
++           growth can still remap */
++        if (vm_remap(mach_task_self(), &head, old_size, 0,
++                     VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE, mach_task_self(),
++                     (vm_address_t)old_addr, FALSE, &cur_prot, &max_prot,
++                     VM_INHERIT_DEFAULT)
++            != KERN_SUCCESS) {
++            memcpy((void *)moved, old_addr, old_size);
++        }
++        munmap(old_addr, old_size);
++        return (void *)moved;
++    }
++#elif defined(__linux__) && !defined(RIVE_COPY_ON_GROW)
++    void *moved = mremap(old_addr, old_size, new_size, MREMAP_MAYMOVE);
++
++    if (moved != MAP_FAILED) {
++        return moved;
++    }
++#endif
+     return os_mremap_slow(old_addr, old_size, new_size);
+ }

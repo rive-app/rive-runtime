@@ -433,6 +433,57 @@ TEST_CASE("registry ids check kind, owner and generation", "[shared]")
   CHECK(SharedRegistry::find<SharedSignal>(reused, owner) == nullptr);
 }
 
+TEST_CASE("recent regions answer only what the registry would", "[shared]")
+{
+  uint64_t owner = SharedRegistry::nextOwner();
+  uint64_t other = SharedRegistry::nextOwner();
+  auto region = make_rcp<SharedRegion>(8);
+  int32_t refs = region->debugging_refcnt();
+  uint32_t id = SharedRegistry::add(region, owner);
+  // The first lookup keeps the region, the second takes it from the cache.
+  CHECK(sharedRecentRegion(id, owner) == region.get());
+  CHECK(sharedRecentRegion(id, owner) == region.get());
+  CHECK(sharedRecentRegion(id, other) == nullptr);
+  // A released id misses although the cache still names it.
+  SharedRegistry::release(id, owner);
+  CHECK(sharedRecentRegion(id, owner) == nullptr);
+  CHECK(region->debugging_refcnt() == refs);
+  // A reused slot answers only its new id.
+  uint32_t reused = SharedRegistry::add(make_rcp<SharedRegion>(8), owner);
+  CHECK(sharedRecentRegion(reused, owner) != nullptr);
+  CHECK(sharedRecentRegion(id, owner) == nullptr);
+  auto kept = make_rcp<SharedRegion>(8);
+  int32_t keptRefs = kept->debugging_refcnt();
+  uint32_t keptId = SharedRegistry::add(kept, owner);
+  CHECK(sharedRecentRegion(keptId, owner) == kept.get());
+  SharedRegistry::release(keptId, owner);
+  forgetRecentRegions();
+  CHECK(kept->debugging_refcnt() == keptRefs);
+  // A slot reused until its id comes round again answers with its new region.
+  auto old = make_rcp<SharedRegion>(8);
+  uint32_t oldId = SharedRegistry::add(old, owner);
+  CHECK(sharedRecentRegion(oldId, owner) == old.get());
+  SharedRegistry::release(oldId, owner);
+  rcp<SharedRegion> fresh;
+  for (int i = 0; i < 20000 && fresh == nullptr; i++)
+  {
+    auto next = make_rcp<SharedRegion>(8);
+    uint32_t nextId = SharedRegistry::add(next, owner);
+    if (nextId == oldId)
+    {
+      fresh = next;
+    }
+    else
+    {
+      SharedRegistry::release(nextId, owner);
+    }
+  }
+  REQUIRE(fresh != nullptr);
+  CHECK(sharedRecentRegion(oldId, owner) == fresh.get());
+  forgetRecentRegions();
+  SharedRegistry::releaseOwner(owner);
+}
+
 TEST_CASE("each hold keeps a registry object until the last goes", "[shared]")
 {
   uint64_t owner = SharedRegistry::nextOwner();

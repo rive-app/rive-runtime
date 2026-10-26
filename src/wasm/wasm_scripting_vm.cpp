@@ -1757,7 +1757,8 @@ double rtNowImpl(WasmScriptingVM* vm)
 {
   // Same dev hook as dateNow: clock() feeds Luau's default RNG seed. A
   // pinned clock also parks the module's execution budget.
-  if (getenv("RIVE_WASM_FIXED_DATE") != nullptr)
+  static const bool fixed = getenv("RIVE_WASM_FIXED_DATE") != nullptr;
+  if (fixed)
   {
     return 0;
   }
@@ -10158,7 +10159,7 @@ double sharedAtomic(
     uint32_t offset,
     Use use)
 {
-  auto found = sharedFind<SharedRegion>(vm, region);
+  SharedRegion* found = sharedRecentRegion(region, sharedHolder(vm));
   std::atomic<uint32_t>* word = found != nullptr ? found->word(offset)
                                                  : nullptr;
   return word != nullptr ? (double)use(*word) : -1.0;

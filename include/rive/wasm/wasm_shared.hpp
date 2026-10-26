@@ -433,6 +433,11 @@ uint32_t sharedHeldRegion();
 /// The held region when id names it, else null.
 SharedRegion* sharedHeld(uint32_t id);
 void setSharedHeldRegion(uint32_t id, rcp<SharedRegion> region);
+/// The region id names for owner, kept alive until this thread forgets its
+/// recent regions; null when the id names no region of that owner.
+SharedRegion* sharedRecentRegion(uint32_t id, uint64_t owner);
+/// Drops what sharedRecentRegion keeps, at the end of each call or lane step.
+void forgetRecentRegions();
 /// After a call trapped: unlock and poison a region the trap left held.
 void releaseTrappedRegion();
 /// Sets this thread's held region aside, so a call into another VM can

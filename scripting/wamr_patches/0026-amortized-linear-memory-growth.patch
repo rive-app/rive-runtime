@@ -1,5 +1,5 @@
 diff --git a/core/iwasm/common/wasm_memory.c b/core/iwasm/common/wasm_memory.c
-index f78d76e..b955fdc 100644
+index f78d76e..3e2ad69 100644
 --- a/core/iwasm/common/wasm_memory.c
 +++ b/core/iwasm/common/wasm_memory.c
 @@ -1477,6 +1477,28 @@ wasm_munmap_linear_memory(void *mapped_mem, uint64 commit_size, uint64 map_size)
@@ -66,22 +66,42 @@ index f78d76e..b955fdc 100644
      }
  #else
      map_size = 8 * (uint64)BH_GB;
-@@ -1952,7 +1985,8 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+@@ -1939,6 +1972,7 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+                             uint64 *memory_data_size)
+ {
+     uint64 map_size, page_size;
++    bool commit_map = false;
+ 
+     bh_assert(data);
+     bh_assert(memory_data_size);
+@@ -1952,7 +1986,11 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
      else
  #endif
      {
 -        map_size = init_page_count * num_bytes_per_page;
 +        map_size = linear_memory_map_size(num_bytes_per_page, init_page_count,
 +                                          max_page_count);
++        /* rive patch: growth inside the map reuses it without committing,
++           while hw bounds rely on the uncommitted rest to trap */
++        commit_map = true;
      }
  #else  /* else of OS_ENABLE_HW_BOUND_CHECK */
      /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
-@@ -1980,7 +2014,7 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+@@ -1972,6 +2010,7 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+     if (map_size > 0) {
+ #if WASM_MEM_ALLOC_WITH_USAGE != 0
+         (void)wasm_mmap_linear_memory;
++        (void)commit_map;
+         if (!(*data = malloc_func(Alloc_For_LinearMemory,
+ #if WASM_MEM_ALLOC_WITH_USER_DATA != 0
+                                   allocator_user_data,
+@@ -1980,7 +2019,8 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
              return BHT_ERROR;
          }
  #else
 -        if (!(*data = wasm_mmap_linear_memory(map_size, *memory_data_size))) {
-+        if (!(*data = wasm_mmap_linear_memory(map_size, map_size))) {
++        if (!(*data = wasm_mmap_linear_memory(
++                  map_size, commit_map ? map_size : *memory_data_size))) {
              return BHT_ERROR;
          }
  #endif

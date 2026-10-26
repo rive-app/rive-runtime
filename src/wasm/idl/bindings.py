@@ -276,7 +276,8 @@ NAMESPACES = [
         op('error', [string('message', 'length')], boot='script threw'),
         # Milliseconds. now is monotonic and times the execution budget and
         # os.clock; date_now is the wall clock since the epoch, for os.time.
-        op('now', ret='f64', web_js='performance.now()'),
+        op('now', ret='f64', boot=True, web_js='performance.now()',
+           lanes=('job', 'worker')),
         op('date_now', ret='f64', web_js='Date.now()'),
         # Line probes a debug bake plants: function entry and exit keep a
         # shadow call stack, and each line asks whether to stop. line

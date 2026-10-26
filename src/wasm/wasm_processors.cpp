@@ -205,6 +205,11 @@ void WasmProcessor::render(float* out, uint32_t frames, uint64_t startFrame)
   {
     releaseTrappedRegion();
   }
+  else
+  {
+    // A kept region could outlive its file and be freed on the audio thread.
+    forgetRecentRegions();
+  }
   memset(
       out + (size_t)done * channels,
       0,

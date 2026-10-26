@@ -808,7 +808,7 @@ std::string ModuleTierLadder::keyedCacheDir()
   // it whenever species flags change or stale artifacts get served on a
   // cache hit.
   const std::string& version = wamrcVersion();
-  return m_cacheDir + "/" + version + "-r13" + (m_wamrcTunes ? "t" : "");
+  return m_cacheDir + "/" + version + "-r14" + (m_wamrcTunes ? "t" : "");
 }
 
 // Device artifacts sit apart from this machine's, which share their names.

@@ -27,6 +27,7 @@ inline const char* laneImportRefusal(uint32_t kind,
         const char* refusal;
     };
     static constexpr Rule kRules[] = {
+        {"rive_rt_v1", "now", 0x3, nullptr},
         {"rive_lanes_v1", "wait_within", 0x0, "blocks on a signal, which only the main lane may; a worker awaits Signal.next or Port.receive instead"},
         {"rive_shared_v1", "region_lock", 0x3, "locks a shared region, which the audio thread may not wait on; share through atomics, rings and snapshots instead"},
         {"rive_shared_v1", "read_done", 0x0, nullptr},

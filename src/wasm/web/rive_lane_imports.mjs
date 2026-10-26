@@ -16,6 +16,7 @@ export const kLaneConsole = [
 // [module, name or null for all of it, kinds, refusal or null], the
 // first match deciding.
 const kLaneImportRules = [
+    ['rive_rt_v1', 'now', ['job', 'worker'], null],
     ['rive_lanes_v1', 'wait_within', [], 'blocks on a signal, which only the main lane may; a worker awaits Signal.next or Port.receive instead'],
     ['rive_shared_v1', 'region_lock', ['job', 'worker'], 'locks a shared region, which the audio thread may not wait on; share through atomics, rings and snapshots instead'],
     ['rive_shared_v1', 'read_done', [], null],

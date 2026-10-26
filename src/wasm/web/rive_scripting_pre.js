@@ -4759,6 +4759,7 @@ const kLaneConsole = [
 // [module, name or null for all of it, kinds, refusal or null], the
 // first match deciding.
 const kLaneImportRules = [
+    ['rive_rt_v1', 'now', ['job', 'worker'], null],
     ['rive_lanes_v1', 'wait_within', [], 'blocks on a signal, which only the main lane may; a worker awaits Signal.next or Port.receive instead'],
     ['rive_shared_v1', 'region_lock', ['job', 'worker'], 'locks a shared region, which the audio thread may not wait on; share through atomics, rings and snapshots instead'],
     ['rive_shared_v1', 'read_done', [], null],
@@ -5557,7 +5558,8 @@ function laneConsole(memory, log, timers = new Map()) {
 const noFuelCheck = () => {};
 
 // An instance of lane.module whose imports reach the lane's own natives, log,
-// timers and fuel check. Returns { exports, memory, failure } or { error }.
+// timers, clock and fuel check. Returns { exports, memory, failure } or
+// { error }.
 function instantiateLane(lane) {
     let memory = null;
     let thrown = null;
@@ -5565,6 +5567,8 @@ function instantiateLane(lane) {
     const imports = {
         'env': laneConsole(() => memory, lane.log, lane.timers),
         'rive_shared_v1': lane.shared(() => memory),
+        // A worker's clock counts from its own start, so it times durations.
+        'rive_rt_v1': { 'now': monotonicNow },
         'rive_lane_v1': {
             'error': (ptr, byteLength) => {
                 thrown = utf16Text(memory.buffer, ptr, byteLength);

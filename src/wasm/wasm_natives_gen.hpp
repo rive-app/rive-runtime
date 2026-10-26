@@ -611,7 +611,7 @@ void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
 }
 double rtNow(wasm_exec_env_t env)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = bootVmFromEnv(env);
     return rtNowImpl(vm);
 }
 double rtDateNow(wasm_exec_env_t env)

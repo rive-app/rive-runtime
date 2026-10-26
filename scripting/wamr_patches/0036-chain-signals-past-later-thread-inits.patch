@@ -1,0 +1,65 @@
+From: rive
+Subject: [PATCH 0036] install the signal handler once per process
+
+Signal dispositions are process wide but every thread env init installed the
+handler again and saved what it replaced, so from the second thread on wamr
+chained to itself, or put itself back over a handler added since. A fault
+outside wasm then recursed until the stack overflowed with the signals
+masked, and the crash never reached a crash reporter or ART's sigchain user
+handler. Only hw bounds builds install the handler.
+
+--- a/core/shared/platform/common/posix/posix_thread.c
++++ b/core/shared/platform/common/posix/posix_thread.c
+@@ -654,10 +654,30 @@ signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
+     }
+ }
+ 
++/* rive patch: dispositions are process wide, so they are installed and the
++   handlers they replace saved once, not again by every thread */
++static pthread_once_t signal_install_once = PTHREAD_ONCE_INIT;
++static bool signal_installed = false;
++
++static void
++install_signal_handler(void)
++{
++    struct sigaction sig_act;
++
++    sig_act.sa_sigaction = signal_callback;
++    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
++#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
++    sig_act.sa_flags |= SA_ONSTACK;
++#endif
++    sigemptyset(&sig_act.sa_mask);
++    signal_installed =
++        sigaction(SIGSEGV, &sig_act, &prev_sig_act_SIGSEGV) == 0
++        && sigaction(SIGBUS, &sig_act, &prev_sig_act_SIGBUS) == 0;
++}
++
+ int
+ os_thread_signal_init(os_signal_handler handler)
+ {
+-    struct sigaction sig_act;
+ #if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+     stack_t sigalt_stack_info;
+     uint32 map_size = SIG_ALT_STACK_SIZE;
+@@ -693,18 +713,8 @@ os_thread_signal_init(os_signal_handler handler)
+     }
+ #endif
+ 
+-    memset(&prev_sig_act_SIGSEGV, 0, sizeof(struct sigaction));
+-    memset(&prev_sig_act_SIGBUS, 0, sizeof(struct sigaction));
+-
+-    /* Install signal handler */
+-    sig_act.sa_sigaction = signal_callback;
+-    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
+-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+-    sig_act.sa_flags |= SA_ONSTACK;
+-#endif
+-    sigemptyset(&sig_act.sa_mask);
+-    if (sigaction(SIGSEGV, &sig_act, &prev_sig_act_SIGSEGV) != 0
+-        || sigaction(SIGBUS, &sig_act, &prev_sig_act_SIGBUS) != 0) {
++    pthread_once(&signal_install_once, install_signal_handler);
++    if (!signal_installed) {
+         os_printf("Failed to register signal handler\n");
+         goto fail3;
+     }

@@ -399,6 +399,23 @@ const kOddText = 67;
 const kHighText = 2 ** 31 + 64;
 const kMarkText = 128;
 
+// A job or worker lane that reads the clock instantiates, and its clock moves
+// forward.
+{
+    const clockModule = new WebAssembly.Module(moduleOf(
+        section(1, vector([[0x60, 0, 1, 0x7c]])),
+        section(2, vector([[...named('rive_rt_v1'), ...named('now'), 0, 0]])),
+        section(3, vector([[0]])),
+        section(5, vector([[0x00, 1]])),
+        section(7, vector([[...named('memory'), 2, 0], [...named('now'), 0, 1]])),
+        section(10, vector([[4, 0, 0x10, 0, 0x0b]]))
+    ));
+    const instance = instantiateLane({ module: clockModule, shared: () => ({}), log: () => {} });
+    assert.equal(instance.error, undefined);
+    const first = instance.exports['now']();
+    assert.ok(instance.exports['now']() >= first);
+}
+
 // What a lane logs and fails with for the string at ptr: "odd" sits at an
 // odd address, "high" past 2 GiB, and "mark" opens with a byte order mark.
 function speak(entry, ptr, byteLength = 0) {

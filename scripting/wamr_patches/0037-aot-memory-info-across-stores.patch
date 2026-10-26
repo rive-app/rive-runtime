@@ -1,0 +1,291 @@
+From: rive
+Subject: [PATCH 0037] keep the memory base and bound across linear stores
+
+A function that calls reloaded the memory base and bound from the instance
+after every linear store, since nothing told LLVM a linear store cannot
+write the instance. Such functions now keep them in locals refreshed after
+each call, and linear, memory info and global accesses carry distinct TBAA.
+
+--- a/core/iwasm/compilation/aot_compiler.c
++++ b/core/iwasm/compilation/aot_compiler.c
+@@ -4024,7 +4024,9 @@ aot_compile_wasm(AOTCompContext *comp_ctx)
+ 
+     bh_print_time("Begin to compile WASM bytecode to LLVM IR");
+     for (i = 0; i < comp_ctx->func_ctx_count; i++) {
+-        if (!aot_compile_func(comp_ctx, i)) {
++        if (!aot_compile_func(comp_ctx, i)
++            || !aot_refresh_cached_memory_info(comp_ctx,
++                                               comp_ctx->func_ctxes[i])) {
+             return false;
+         }
+     }
+--- a/core/iwasm/compilation/aot_emit_memory.c
++++ b/core/iwasm/compilation/aot_emit_memory.c
+@@ -122,6 +122,11 @@ get_memory_check_bound(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         aot_set_last_error("llvm build load failed.");
+         return NULL;
+     }
++#if WASM_ENABLE_SHARED_MEMORY != 0
++    /* rive patch: another thread may grow a shared memory at any time */
++    if (!(comp_ctx->comp_data->memories[0].flags & SHARED_MEMORY_FLAG))
++#endif
++        aot_set_tbaa(comp_ctx, mem_check_bound, comp_ctx->tbaa_mem_info);
+     return mem_check_bound;
+ }
+ 
+@@ -628,6 +633,7 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+             aot_set_last_error("llvm build load failed.");
+             goto fail;
+         }
++        aot_set_tbaa(comp_ctx, mem_base_addr, comp_ctx->tbaa_mem_info);
+     }
+ 
+     aot_value_top =
+@@ -887,6 +893,7 @@ fail:
+             goto fail;                                                    \
+         }                                                                 \
+         LLVMSetAlignment(value, known_align);                             \
++        aot_set_tbaa(comp_ctx, value, comp_ctx->tbaa_linear);             \
+     } while (0)
+ 
+ #define BUILD_STORE()                                                   \
+@@ -897,6 +904,7 @@ fail:
+             goto fail;                                                  \
+         }                                                               \
+         LLVMSetAlignment(res, known_align);                             \
++        aot_set_tbaa(comp_ctx, res, comp_ctx->tbaa_linear);             \
+     } while (0)
+ 
+ #define BUILD_SIGN_EXT(dst_type)                                        \
+--- a/core/iwasm/compilation/aot_emit_variable.c
++++ b/core/iwasm/compilation/aot_emit_variable.c
+@@ -243,6 +243,7 @@ compile_global(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         }
+         /* All globals' data is 4-byte aligned */
+         LLVMSetAlignment(global, 4);
++        aot_set_tbaa(comp_ctx, global, comp_ctx->tbaa_global);
+         PUSH(global, global_type);
+     }
+     else {
+@@ -310,6 +311,7 @@ compile_global(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         }
+         /* All globals' data is 4-byte aligned */
+         LLVMSetAlignment(res, 4);
++        aot_set_tbaa(comp_ctx, res, comp_ctx->tbaa_global);
+     }
+ 
+     return true;
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -1208,6 +1208,87 @@ create_local_variables(const AOTCompData *comp_data,
+     return true;
+ }
+ 
++/* rive patch: a memory that is not shared moves only inside a call, so a
++   function that calls keeps its memory info in locals between calls */
++static bool
++cache_memory_info(const AOTCompContext *comp_ctx, AOTFuncContext *func_ctx)
++{
++    AOTMemInfo *info = &func_ctx->mem_info[0];
++    LLVMTypeRef bound_type =
++        comp_ctx->pointer_size == sizeof(uint64) ? I64_TYPE : I32_TYPE;
++    LLVMValueRef *fields[8] = {
++        &info->mem_base_addr,           &info->mem_data_size_addr,
++        &info->mem_cur_page_count_addr, &info->mem_bound_check_1byte,
++        &info->mem_bound_check_2bytes,  &info->mem_bound_check_4bytes,
++        &info->mem_bound_check_8bytes,  &info->mem_bound_check_16bytes
++    };
++    LLVMTypeRef types[8] = { OPQ_PTR_TYPE, I64_TYPE,   I32_TYPE,   bound_type,
++                             bound_type,   bound_type, bound_type, bound_type };
++    uint32 i;
++
++    for (i = 0; i < 8; i++) {
++        LLVMValueRef src = *fields[i], slot, value;
++        if (!src)
++            continue;
++        if (!(slot = LLVMBuildAlloca(comp_ctx->builder, types[i], "mem_cache"))
++            || !(value = LLVMBuildLoad2(comp_ctx->builder, types[i], src,
++                                        "mem_info"))
++            || !LLVMBuildStore(comp_ctx->builder, value, slot)) {
++            aot_set_last_error("llvm build memory info cache failed.");
++            return false;
++        }
++        func_ctx->mem_cache_src[func_ctx->mem_cache_count] = src;
++        func_ctx->mem_cache_slot[func_ctx->mem_cache_count] = slot;
++        func_ctx->mem_cache_type[func_ctx->mem_cache_count] = types[i];
++        func_ctx->mem_cache_count++;
++        *fields[i] = slot;
++    }
++    return true;
++}
++
++bool
++aot_refresh_cached_memory_info(AOTCompContext *comp_ctx,
++                               AOTFuncContext *func_ctx)
++{
++    LLVMBasicBlockRef block;
++    LLVMValueRef inst, next, callee;
++    size_t name_len;
++    const char *name;
++    uint32 i;
++
++    if (func_ctx->mem_cache_count == 0)
++        return true;
++
++    for (block = LLVMGetFirstBasicBlock(func_ctx->func); block;
++         block = LLVMGetNextBasicBlock(block)) {
++        for (inst = LLVMGetFirstInstruction(block); inst; inst = next) {
++            next = LLVMGetNextInstruction(inst);
++            if (!LLVMIsACallInst(inst) || !next)
++                continue;
++            callee = LLVMGetCalledValue(inst);
++            if (callee && LLVMIsAFunction(callee)) {
++                name = LLVMGetValueName2(callee, &name_len);
++                if (name_len > 5 && !strncmp(name, "llvm.", 5))
++                    continue;
++            }
++            LLVMPositionBuilderBefore(comp_ctx->builder, next);
++            for (i = 0; i < func_ctx->mem_cache_count; i++) {
++                LLVMValueRef value = LLVMBuildLoad2(
++                    comp_ctx->builder, func_ctx->mem_cache_type[i],
++                    func_ctx->mem_cache_src[i], "mem_info");
++                if (!value
++                    || !LLVMBuildStore(comp_ctx->builder, value,
++                                       func_ctx->mem_cache_slot[i])) {
++                    aot_set_last_error(
++                        "llvm build memory info refresh failed.");
++                    return false;
++                }
++            }
++        }
++    }
++    return true;
++}
++
+ static bool
+ create_memory_info(const AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                    LLVMTypeRef int8_ptr_type, uint32 func_index)
+@@ -1537,6 +1618,14 @@ create_memory_info(const AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         }
+     }
+ 
++#if WASM_ENABLE_SHARED_MEMORY != 0
++    if (is_shared_memory)
++        return true;
++#endif
++    /* rive patch: unoptimized code keeps the locals in memory, a cost with no
++       gain */
++    if (!mem_space_unchanged && comp_ctx->opt_level > 0)
++        return cache_memory_info(comp_ctx, func_ctx);
+     return true;
+ }
+ 
+@@ -2728,6 +2817,39 @@ aot_target_keeps_frame_records(const char *triple_norm, const char *user_triple,
+ #endif
+ }
+ 
++static LLVMValueRef
++create_tbaa_tag(LLVMContextRef context, LLVMMetadataRef root, const char *name)
++{
++    LLVMMetadataRef zero = LLVMValueAsMetadata(
++        LLVMConstInt(LLVMInt64TypeInContext(context), 0, false));
++    LLVMMetadataRef type_ops[3] = {
++        LLVMMDStringInContext2(context, name, strlen(name)), root, zero
++    };
++    LLVMMetadataRef type = LLVMMDNodeInContext2(context, type_ops, 3);
++    LLVMMetadataRef tag_ops[3] = { type, type, zero };
++    return LLVMMetadataAsValue(context,
++                               LLVMMDNodeInContext2(context, tag_ops, 3));
++}
++
++static void
++create_tbaa_tags(AOTCompContext *comp_ctx)
++{
++    LLVMContextRef context = comp_ctx->context;
++    LLVMMetadataRef root_name = LLVMMDStringInContext2(context, "wamr tbaa", 9);
++    LLVMMetadataRef root = LLVMMDNodeInContext2(context, &root_name, 1);
++    comp_ctx->tbaa_kind = LLVMGetMDKindIDInContext(context, "tbaa", 4);
++    comp_ctx->tbaa_linear = create_tbaa_tag(context, root, "linear memory");
++    comp_ctx->tbaa_mem_info = create_tbaa_tag(context, root, "memory info");
++    comp_ctx->tbaa_global = create_tbaa_tag(context, root, "global");
++}
++
++void
++aot_set_tbaa(AOTCompContext *comp_ctx, LLVMValueRef inst, LLVMValueRef tag)
++{
++    if (tag != NULL)
++        LLVMSetMetadata(inst, comp_ctx->tbaa_kind, tag);
++}
++
+ AOTCompContext *
+ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+ {
+@@ -2773,6 +2895,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+         goto fail;
+     }
+ 
++    create_tbaa_tags(comp_ctx);
++
+     /* Create LLVM module for each jit function, note:
+        different from non ORC JIT mode, no need to dispose it,
+        it will be disposed when the thread safe context is disposed */
+--- a/core/iwasm/compilation/aot_llvm.h
++++ b/core/iwasm/compilation/aot_llvm.h
+@@ -226,6 +226,11 @@ typedef struct AOTMemInfo {
+ 
+ typedef struct AOTFuncContext {
+     AOTFunc *aot_func;
++    /* rive patch: memory info cached in locals, refreshed only after calls */
++    uint32 mem_cache_count;
++    LLVMValueRef mem_cache_src[8];
++    LLVMValueRef mem_cache_slot[8];
++    LLVMTypeRef mem_cache_type[8];
+     LLVMValueRef func;
+     LLVMValueRef precheck_func;
+     LLVMTypeRef func_type;
+@@ -550,6 +555,13 @@ typedef struct AOTCompContext {
+ 
+     /* Current frame information for translation */
+     AOTCompFrame *aot_frame;
++
++    /* rive patch: linear memory never overlaps the instance, so these tags
++       let LLVM keep the memory base, bound and globals across linear stores */
++    unsigned tbaa_kind;
++    LLVMValueRef tbaa_linear;
++    LLVMValueRef tbaa_mem_info;
++    LLVMValueRef tbaa_global;
+ } AOTCompContext;
+ 
+ enum {
+@@ -571,6 +583,13 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option);
+ void
+ aot_destroy_comp_context(AOTCompContext *comp_ctx);
+ 
++void
++aot_set_tbaa(AOTCompContext *comp_ctx, LLVMValueRef inst, LLVMValueRef tag);
++
++bool
++aot_refresh_cached_memory_info(AOTCompContext *comp_ctx,
++                               AOTFuncContext *func_ctx);
++
+ /* rive: whether float arithmetic lowers to constrained intrinsics. Wasm
+    fixes round to nearest and raises no fp exceptions, which is LLVM's
+    default environment, so arm and x86 use plain IR ops: the constrained
+--- a/core/iwasm/compilation/simd/simd_load_store.c
++++ b/core/iwasm/compilation/simd/simd_load_store.c
+@@ -36,6 +36,7 @@ simd_load(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx, uint32 align,
+     }
+ 
+     LLVMSetAlignment(data, 1);
++    aot_set_tbaa(comp_ctx, data, comp_ctx->tbaa_linear);
+ 
+     return data;
+ }
+@@ -302,6 +303,7 @@ simd_store(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx, uint32 align,
+     }
+ 
+     LLVMSetAlignment(result, 1);
++    aot_set_tbaa(comp_ctx, result, comp_ctx->tbaa_linear);
+ 
+     return true;
+ }

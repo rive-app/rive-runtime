@@ -664,6 +664,8 @@ WasmWorker::Step WasmWorker::run()
   {
     result = step();
   }
+  // The next step may run on another runner thread.
+  forgetRecentRegions();
   if (result == Step::done)
   {
     // Only the stepping thread can hold what its trap left locked.

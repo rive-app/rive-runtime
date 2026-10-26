@@ -1,0 +1,93 @@
+From: rive
+Subject: [PATCH 0034] keep frame records on aarch64 and on Apple x86_64
+
+wamrc only forms ELF style triples, for which LLVM keeps no frame records
+unless asked, so AOT code compiled on a Mac used x29 as a plain register.
+Every unwinder that follows the frame chain, such as sample, Instruments,
+crash reports, perf and simpleperf, then lost all frames through script
+code, and the arm64 ABIs of Apple and Windows require the chain. Turn on
+emit_frame_pointer, which puts frame-pointer=all on every function body,
+for every aarch64 artifact and for x86_64 artifacts built on a Mac or for
+Apple: an explicit user triple decides, otherwise the host wamrc runs on,
+so Android x86_64 artifacts get them only when built on a Mac. Windows
+x64 unwinds by tables and stays as it was. On the box2d bench this costs
+0.2 percent more instructions, with wall time within noise, and a 0.7
+percent larger artifact. Frames grow by up to 32 bytes, so deep recursion
+reaches the stack guard a little sooner.
+
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -2674,6 +2674,13 @@ aot_set_unlikely_branch(const AOTCompContext *comp_ctx, LLVMValueRef br,
+         LLVMMetadataAsValue(ctx, LLVMMDNodeInContext2(ctx, ops, 3)));
+ }
+ 
++static bool
++aot_triple_names_apple(const char *triple)
++{
++    return strstr(triple, "apple") || strstr(triple, "darwin")
++           || strstr(triple, "macos") || strstr(triple, "ios");
++}
++
+ /* x18 is the platform register on Apple systems, clobbered by the kernel
+    on interrupts, and the TEB pointer on Windows; code that runs on those
+    hosts must never allocate it. An explicit user triple decides; without
+@@ -2687,8 +2694,7 @@ aot_target_reserves_x18(const char *triple_norm, const char *user_triple,
+         || (!strstr(triple_norm, "aarch64") && !strstr(triple_norm, "arm64")))
+         return false;
+     if (user_triple)
+-        return strstr(user_triple, "apple") || strstr(user_triple, "darwin")
+-               || strstr(user_triple, "macos") || strstr(user_triple, "ios")
++        return aot_triple_names_apple(user_triple)
+                || strstr(user_triple, "windows") || strstr(user_triple, "msvc");
+     if (built_triple && strstr(built_triple, "windows"))
+         return true;
+@@ -2699,6 +2705,29 @@ aot_target_reserves_x18(const char *triple_norm, const char *user_triple,
+ #endif
+ }
+ 
++/* Profilers and crash reports walk frame records, which cost little on
++   aarch64 and which Apple's tools also expect on x86_64. */
++static bool
++aot_target_keeps_frame_records(const char *triple_norm, const char *user_triple,
++                               const char *built_triple)
++{
++    if (!triple_norm)
++        return false;
++    if (strstr(triple_norm, "aarch64") || strstr(triple_norm, "arm64"))
++        return true;
++    if (!strstr(triple_norm, "x86_64"))
++        return false;
++    if (user_triple)
++        return aot_triple_names_apple(user_triple);
++    if (built_triple && strstr(built_triple, "windows"))
++        return false;
++#if defined(__APPLE__) || defined(__MACH__)
++    return true;
++#else
++    return false;
++#endif
++}
++
+ AOTCompContext *
+ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+ {
+@@ -3318,12 +3347,13 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+         else
+             code_model = LLVMCodeModelSmall;
+ 
+-        if (aot_target_reserves_x18(
+-                triple_norm,
+-                option->target_arch && strstr(option->target_arch, "-")
+-                    ? option->target_arch
+-                    : NULL,
+-                triple)) {
++        const char *user_triple =
++            option->target_arch && strstr(option->target_arch, "-")
++                ? option->target_arch
++                : NULL;
++        if (aot_target_keeps_frame_records(triple_norm, user_triple, triple))
++            comp_ctx->emit_frame_pointer = true;
++        if (aot_target_reserves_x18(triple_norm, user_triple, triple)) {
+             const char *reserve = "+reserve-x18";
+             size_t len =
+                 (features ? strlen(features) : 0) + strlen(reserve) + 2;
