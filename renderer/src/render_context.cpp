@@ -1192,7 +1192,11 @@ void RenderContext::flush(const FlushResources& flushResources)
 
   // Drop all memory that was allocated for this frame using
   // TrivialBlockAllocator.
-  m_perFrameAllocator.reset();
+  m_perFrameAllocator = m_impl->recyclePerFrameAllocator(
+      flushResources,
+      std::move(m_perFrameAllocator));
+  assert(m_perFrameAllocator != nullptr);
+  assert(m_perFrameAllocator->empty());
   m_numChopsAllocator.reset();
   m_chopVerticesAllocator.reset();
   m_tangentPairsAllocator.reset();
@@ -2499,8 +2503,10 @@ void RenderContext::LogicalFlush::writeResources()
         0,
         m_flushDesc.featherAtlasContentWidth,
         m_flushDesc.featherAtlasContentHeight};
-    gpu::AtlasDrawBatch* currentBatch = m_ctx->m_perFrameAllocator.makePODArray<
-        gpu::AtlasDrawBatch>(m_pendingFeatherAtlasDraws.size());
+    gpu::AtlasDrawBatch* currentBatch = m_ctx->perFrameAllocator()
+                                            .makePODArray<gpu::AtlasDrawBatch>(
+                                                m_pendingFeatherAtlasDraws
+                                                    .size());
     // Iterate the atlas draws 4 times so we can sort by fill / stroke /
     // scissored / not, and batch together the draws that don't have
     // scissor.

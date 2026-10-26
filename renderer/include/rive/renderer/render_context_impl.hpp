@@ -243,6 +243,14 @@ public:
   // Called after all logical flushes in a frame have completed.
   virtual void postFlush(const RenderContext::FlushResources&) {}
 
+  virtual std::unique_ptr<TrivialBlockAllocator> recyclePerFrameAllocator(
+      const RenderContext::FlushResources&,
+      std::unique_ptr<TrivialBlockAllocator> allocator)
+  {
+    allocator->reset();
+    return allocator;
+  }
+
   // Called after replayed Ore passes, before the renderer draws again. Ore
   // leaves behind state a backend's own cache does not track, which the
   // next flush would then skip updating and render black.

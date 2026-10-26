@@ -90,6 +90,9 @@ using PathDrawUniquePtr = std::unique_ptr<PathDraw, DrawReleaseRefs>;
 class RenderContext : public RiveRenderFactory
 {
 public:
+  constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 *
+                                                               1024; // 1 MiB.
+
   RenderContext(std::unique_ptr<RenderContextImpl>);
   ~RenderContext();
 
@@ -311,7 +314,7 @@ public:
   TrivialBlockAllocator& perFrameAllocator()
   {
     assert(m_didBeginFrame);
-    return m_perFrameAllocator;
+    return *m_perFrameAllocator;
   }
 
   // Allocators for intermediate path processing buffers.
@@ -389,7 +392,7 @@ public:
   template <typename T, typename... Args> T* make(Args&&... args)
   {
     assert(m_didBeginFrame);
-    return m_perFrameAllocator.make<T>(std::forward<Args>(args)...);
+    return m_perFrameAllocator->make<T>(std::forward<Args>(args)...);
   }
 
   // Backend-specific RiveRenderFactory implementation.
@@ -585,9 +588,9 @@ private:
   // Simple allocator for trivially-destructible data that needs to persist
   // until the current frame has completed. All memory in this allocator is
   // dropped at the end of the every frame.
-  constexpr static size_t kPerFlushAllocatorInitialBlockSize = 1024 *
-                                                               1024; // 1 MiB.
-  TrivialBlockAllocator m_perFrameAllocator{kPerFlushAllocatorInitialBlockSize};
+  std::unique_ptr<TrivialBlockAllocator>
+      m_perFrameAllocator = std::make_unique<TrivialBlockAllocator>(
+          kPerFlushAllocatorInitialBlockSize);
 
   // Allocators for intermediate path processing buffers.
   constexpr static size_t
