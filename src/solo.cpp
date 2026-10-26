@@ -44,6 +44,21 @@ Component* Solo::activeComponent()
 }
 
 #ifdef WITH_RIVE_LAYOUT
+bool Solo::optionsReachLayout()
+{
+  // Asked on every switch rather than cached, so Solo doesn't grow and an
+  // edited hierarchy is always seen. It walks only this Solo's options, where
+  // a re-collection walks the owning layout's whole tree.
+  for (Component* child : children())
+  {
+    if (reachesLayoutProvider(child))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 void Solo::recollectOwningLayout()
 {
   // We are not a LayoutComponent, so walk up for the layout that owns the
@@ -96,8 +111,12 @@ void Solo::activeComponentIdChanged()
   propagateCollapse(isCollapsed());
 #ifdef WITH_RIVE_LAYOUT
   // Only the active child is exposed to layout, so a swap changes the owning
-  // layout's child set.
-  recollectOwningLayout();
+  // layout's child set -- unless no option leads to a provider, when that set
+  // is the same before and after.
+  if (optionsReachLayout())
+  {
+    recollectOwningLayout();
+  }
 #endif
 }
 
@@ -123,8 +142,12 @@ StatusCode Solo::onAddedClean(CoreContext* context)
     propagateCollapse(isCollapsed());
 #ifdef WITH_RIVE_LAYOUT
     // Parent chain + active child are resolved now; make sure the owning
-    // layout has collected the active child.
-    recollectOwningLayout();
+    // layout has collected the active child, when any option is something it
+    // would collect.
+    if (optionsReachLayout())
+    {
+      recollectOwningLayout();
+    }
 #endif
   }
   return StatusCode::Ok;

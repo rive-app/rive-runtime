@@ -57,6 +57,26 @@ bool rive::joinsLayoutThroughContainer(Component* component)
          DrawableFlag::ParticipatesInLayout;
 }
 
+bool rive::reachesLayoutProvider(Component* component)
+{
+  if (LayoutNodeProvider::from(component) != nullptr)
+  {
+    return true;
+  }
+  if (!isTransparentLayoutContainer(component))
+  {
+    return false;
+  }
+  for (auto* child : component->as<ContainerComponent>()->children())
+  {
+    if (reachesLayoutProvider(child))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 namespace
 {
 // Whether content-sizing stops here. Narrower than

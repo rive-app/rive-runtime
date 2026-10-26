@@ -36,6 +36,11 @@ bool isTransparentLayoutContainer(Component* component);
 // constraint. It joins only when explicitly flagged.
 bool joinsLayoutThroughContainer(Component* component);
 
+// Whether `component` can put a layout provider in front of a layout: it is a
+// provider, or a transparent container holding one. Every option of a Solo
+// counts, active or not, so the answer doesn't change when a Solo switches.
+bool reachesLayoutProvider(Component* component);
+
 // Boolean state of a LayoutComponent, packed into one word instead of a dozen
 // separate bytes. Gains the bitwise operators + rive::enums helpers for free by
 // having a None == 0 member (see rive/enums.hpp).

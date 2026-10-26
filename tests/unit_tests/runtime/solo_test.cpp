@@ -146,6 +146,47 @@ TEST_CASE(
   CHECK(scene.blue->worldTransform()[4] == Approx(blueX + 20.0f));
 }
 
+TEST_CASE(
+    "switching a solo with no layout content leaves the layout clean",
+    "[solo]")
+{
+  // None of this Solo's options is, or holds, a layout provider, so a switch
+  // can't change what the artboard's layout collects. It used to re-collect
+  // and dirty the artboard's layout on every switch anyway.
+  auto file = ReadRiveFile("assets/solo_test.riv");
+  auto artboard = file->artboard()->instance();
+  artboard->advance(0.0f);
+  REQUIRE(!artboard->hasDirtyLayout());
+
+  auto solo = artboard->find<rive::Solo>()[0];
+  auto green = solo->children()[1]->as<rive::Shape>();
+  solo->activeComponentId(artboard->idOf(green));
+  CHECK(!green->isCollapsed());
+  CHECK(!artboard->hasDirtyLayout());
+}
+
+TEST_CASE(
+    "switching a solo whose options join the layout re-collects it",
+    "[solo]")
+{
+  // The control: this Solo's options are layout participants, so a switch
+  // changes the artboard's layout children and must dirty it.
+  auto file = ReadRiveFile("assets/layout/solo_participant.riv");
+  auto artboard = file->artboard()->instance();
+  // The first solve sizes the participants, which dirties the layout once
+  // more; let it settle before switching.
+  for (int i = 0; i < 10 && (i == 0 || artboard->hasDirtyLayout()); i++)
+  {
+    artboard->advance(0.0f);
+  }
+  REQUIRE(!artboard->hasDirtyLayout());
+
+  auto solo = artboard->find<rive::Solo>()[0];
+  solo->updateByIndex(1);
+  REQUIRE(solo->getActiveChildIndex() == 1);
+  CHECK(artboard->hasDirtyLayout());
+}
+
 TEST_CASE("nested solos work", "[solo]")
 {
   auto file = ReadRiveFile("assets/nested_solo.riv");

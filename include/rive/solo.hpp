@@ -21,6 +21,9 @@ public:
   // of its own; the layout above descends into the active child.
 #ifdef WITH_RIVE_LAYOUT
   void recollectOwningLayout();
+  // Whether switching can change what the layout above collects: some option
+  // is a layout provider or leads to one (see reachesLayoutProvider).
+  bool optionsReachLayout();
 #endif
 
 private:
