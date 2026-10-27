@@ -1416,8 +1416,29 @@ void Text::runStateMachines(std::vector<StateMachineInstance*>& out)
 void Text::styleReferenceDidChange()
 {
   // A handle now shows a different style: list runs that matched it by
-  // style may need another handle or an on-demand style instead.
+  // style, and runs bound to one, may need another handle or an on-demand
+  // style instead.
   resolveListRunStyles();
+  for (auto run : m_runs)
+  {
+    if (run->isStyleBound())
+    {
+      run->resolveStyle();
+    }
+  }
+  pruneOnDemandStyles();
+  markShapeDirty();
+}
+
+TextStyleReference* Text::boundRunStyle(
+    ViewModelInstanceArtboard* value,
+    const TextValueRun* run)
+{
+  return globalStyleReference(value, nullptr, run);
+}
+
+void Text::runStyleChanged()
+{
   pruneOnDemandStyles();
   markShapeDirty();
 }
@@ -1459,7 +1480,8 @@ TextStyleReference* Text::resolveListRunStyle(ViewModelInstance* instance)
 
 TextStyleReference* Text::globalStyleReference(
     ViewModelInstanceArtboard* value,
-    ViewModelInstance* item)
+    ViewModelInstance* item,
+    const TextValueRun* owner)
 {
   // The style artboard the value names: a runtime-set BindableArtboard
   // (normalized to its file-owned source), else a file artboard index.
@@ -1490,8 +1512,9 @@ TextStyleReference* Text::globalStyleReference(
   }
 
   // A style with a state machine keeps state of its own: each list item
-  // gets an instance of its own, which reads that item (see
-  // syncStyleListItems). Other styles are shared by the runs naming them.
+  // (and each run bound to it) gets an instance of its own, which reads that
+  // item (see syncStyleListItems). Other styles are shared by the runs
+  // naming them.
   TextStyleShareInfo info = crossFile == nullptr && m_file != nullptr
                                 ? m_file->textStyleShares().info(source)
                                 : TextStyleShareCache::analyze(
@@ -1499,6 +1522,7 @@ TextStyleReference* Text::globalStyleReference(
                                       crossFile.get());
   rcp<ViewModelInstance> perItem = info.hasStateMachine ? ref_rcp(item)
                                                         : nullptr;
+  const TextValueRun* perRun = info.hasStateMachine ? owner : nullptr;
 
   auto bound = value->boundViewModelInstance();
   // The values an item's own instance copies.
@@ -1514,7 +1538,7 @@ TextStyleReference* Text::globalStyleReference(
           child->as<TextStyleGlobal>()->instanceSource() == source)
       {
         auto handle = child->as<TextStyleGlobal>();
-        if (perItem == nullptr)
+        if (perItem == nullptr && perRun == nullptr)
         {
           return handle;
         }
@@ -1528,7 +1552,7 @@ TextStyleReference* Text::globalStyleReference(
   {
     if (style->source() == source &&
         style->boundViewModelInstance() == bound.get() &&
-        style->item() == perItem.get())
+        style->item() == perItem.get() && style->owner() == perRun)
     {
       return style.get();
     }
@@ -1543,7 +1567,8 @@ TextStyleReference* Text::globalStyleReference(
       host != nullptr ? host->dataContext() : nullptr,
       this,
       perItem,
-      handleValues));
+      handleValues,
+      perRun));
   return m_onDemandStyles.back().get();
 }
 
@@ -1615,6 +1640,11 @@ void Text::pruneOnDemandStyles()
     return;
   }
   std::unordered_set<const TextStyleReference*> used;
+  // Runs bound to a style draw one too.
+  for (auto run : m_runs)
+  {
+    used.insert(run->styleReference());
+  }
   for (auto listener : m_valueRunListeners)
   {
     auto run = listener->textValueRun();

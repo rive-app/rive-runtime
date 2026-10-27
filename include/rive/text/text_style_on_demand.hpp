@@ -16,6 +16,7 @@ class File;
 class Text;
 class TextStyleInstance;
 class TextStylePaint;
+class TextValueRun;
 class ViewModelInstance;
 
 /// A global text style a [Text] uses for its list-driven runs when an item
@@ -35,7 +36,8 @@ public:
   /// [parent] is the hosting artboard's data context. A list [item]'s own
   /// instance copies [valuesSource] (the Text's handle values for the
   /// style), keeping its exposed inputs in step (see
-  /// TextStyleInstance::copyValuesFrom).
+  /// TextStyleInstance::copyValuesFrom); so does the instance of the run
+  /// [owner] that's bound to the style.
   TextStyleOnDemand(
       const Artboard* source,
       rcp<ViewModelInstance> boundViewModelInstance,
@@ -45,7 +47,8 @@ public:
       rcp<DataContext> parent,
       Text* text,
       rcp<ViewModelInstance> item = nullptr,
-      rcp<ViewModelInstance> valuesSource = nullptr);
+      rcp<ViewModelInstance> valuesSource = nullptr,
+      const TextValueRun* owner = nullptr);
   ~TextStyleOnDemand() override;
 
   const Artboard* source() const { return m_source; }
@@ -57,6 +60,10 @@ public:
   /// machine keeps one instance per item), or null when every list run
   /// naming the style shares it.
   const ViewModelInstance* item() const { return m_item.get(); }
+  /// The run whose styleId is bound to this style that this instance was
+  /// made for alone (a style with a state machine keeps one instance per
+  /// bound run), or null.
+  const TextValueRun* owner() const { return m_owner; }
   bool isShared() const { return (bool)m_shared; }
   /// This style's own instance, unless it draws the shared one.
   TextStyleInstance* instance() const { return m_instance.get(); }
@@ -86,6 +93,8 @@ private:
   rcp<ViewModelInstance> m_boundViewModelInstance;
   // See item(); part of this style's identity.
   rcp<ViewModelInstance> m_item;
+  // See owner(); part of this style's identity. Never dereferenced.
+  const TextValueRun* m_owner = nullptr;
   std::unique_ptr<TextStyleInstance> m_instance;
   SharedTextStyleLease m_shared;
   TextStylePaint* m_paint = nullptr;

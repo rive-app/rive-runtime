@@ -378,6 +378,17 @@ public:
   /// textStyle name, else the first style. Null when the item has neither
   /// style symbol.
   TextStyleReference* resolveListRunStyle(ViewModelInstance* instance);
+  /// The style a run whose styleId is data bound to [value] draws: the one a
+  /// list run naming that style would (a handle showing it, else one
+  /// instanced on demand), except that a style with a state machine gets an
+  /// instance of its own per bound run. Null when [value] names no text
+  /// style.
+  TextStyleReference* boundRunStyle(
+      ViewModelInstanceArtboard* value,
+      const TextValueRun* run);
+  /// A run now draws another style: drops the on-demand styles no run draws
+  /// any more and re-shapes.
+  void runStyleChanged();
   /// Whether a run of this Text may use a style that listens to its runs
   /// (see TextStyleShareInfo::listensToRuns), so the state machines of
   /// this Text's artboard forward pointers to those styles' state machines.
@@ -515,7 +526,8 @@ private:
   /// style [value] holds (see resolveListRunStyle).
   TextStyleReference* globalStyleReference(
       ViewModelInstanceArtboard* value,
-      ViewModelInstance* item);
+      ViewModelInstance* item,
+      const TextValueRun* owner = nullptr);
   TextStyleReference* styleReferenceNamed(const std::string& name);
   TextStyleReference* firstStyleReference();
   void resolveListRunStyles();

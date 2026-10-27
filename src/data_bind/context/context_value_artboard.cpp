@@ -4,6 +4,7 @@
 #include "rive/generated/core_registry.hpp"
 #include "rive/file.hpp"
 #include "rive/artboard_referencer.hpp"
+#include "rive/text/text_value_run.hpp"
 
 using namespace rive;
 
@@ -21,6 +22,15 @@ void DataBindContextValueArtboard::apply(
   auto source = dataBind->source();
   if (source != nullptr && source->is<ViewModelInstanceArtboard>())
   {
+    // A run's styleId bound to a text style resolves the style the value
+    // names, not an object id.
+    if (target->is<TextValueRun>() &&
+        propertyKey == TextValueRunBase::styleIdPropertyKey)
+    {
+      target->as<TextValueRun>()->bindStyle(
+          source->as<ViewModelInstanceArtboard>());
+      return;
+    }
     auto artboardReferencer = ArtboardReferencer::from(target);
     if (artboardReferencer)
     {

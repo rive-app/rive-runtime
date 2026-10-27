@@ -5,6 +5,7 @@
 #include "rive/artboard.hpp"
 #include "rive/hittest_command_path.hpp"
 #include "rive/importers/artboard_importer.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 
 using namespace rive;
 
@@ -58,13 +59,54 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
   return StatusCode::Ok;
 }
 
-void TextValueRun::styleIdChanged()
+TextValueRun::TextValueRun() {}
+TextValueRun::~TextValueRun() {}
+
+TextStyleReference* TextValueRun::authoredStyle() const
 {
-  auto coreObject = artboard()->resolve(styleId());
-  if (coreObject != nullptr && coreObject->is<TextStyleReference>())
+  auto host = artboard();
+  auto coreObject = host != nullptr ? host->resolve(styleId()) : nullptr;
+  return coreObject != nullptr && coreObject->is<TextStyleReference>()
+             ? static_cast<TextStyleReference*>(coreObject)
+             : nullptr;
+}
+
+// A bind on styleId wins over the authored style, keyframed or not.
+void TextValueRun::styleIdChanged() { resolveStyle(); }
+
+void TextValueRun::bindStyle(ViewModelInstanceArtboard* value)
+{
+  m_boundStyleValue = ref_rcp(value);
+  resolveStyle();
+}
+
+void TextValueRun::resolveStyle()
+{
+  Text* text = textComponent();
+  TextStyleReference* style = nullptr;
+#ifdef WITH_RIVE_TEXT
+  if (m_boundStyleValue != nullptr && text != nullptr)
   {
-    m_styleReference = static_cast<TextStyleReference*>(coreObject);
-    textComponent()->markShapeDirty();
+    style = text->boundRunStyle(m_boundStyleValue.get(), this);
+  }
+#endif
+  if (style == nullptr)
+  {
+    style = authoredStyle();
+  }
+  // An id naming no style keeps the current one.
+  if (style == nullptr || style == m_styleReference)
+  {
+    return;
+  }
+  m_styleReference = style;
+  if (text != nullptr)
+  {
+#ifdef WITH_RIVE_TEXT
+    text->runStyleChanged();
+#else
+    text->markShapeDirty();
+#endif
   }
 }
 

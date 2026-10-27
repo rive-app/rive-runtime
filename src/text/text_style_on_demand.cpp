@@ -19,11 +19,13 @@ TextStyleOnDemand::TextStyleOnDemand(
     rcp<DataContext> parent,
     Text* text,
     rcp<ViewModelInstance> item,
-    rcp<ViewModelInstance> valuesSource)
+    rcp<ViewModelInstance> valuesSource,
+    const TextValueRun* owner)
     : m_source(source)
     , m_crossFile(std::move(crossFile))
     , m_boundViewModelInstance(std::move(boundViewModelInstance))
     , m_item(std::move(item))
+    , m_owner(owner)
 {
   // View model ids are per file: the style's view model lives in the file
   // that owns the style artboard.

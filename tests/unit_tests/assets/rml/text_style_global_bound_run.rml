@@ -1,0 +1,147 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/text_style_global_bound_run.riv. Not an editor
+      export: rebuild the .riv from this file with the CLI, from a directory
+      holding this scene.rml, a rive.yaml naming it (main: "Main") and
+      Inter.ttf (a copy of assets/fonts/Inter_18pt-Regular.ttf), then copy
+      build/text_style_global_bound_run.riv into assets/.
+
+          rive . --once
+    -->
+    <Artboard defaultStateMachineId="1:7" viewModelId="1:14" viewModelInstanceId="1:15" width="500" height="500" styleId="1:5" name="Main" id="1:2">
+        <Text sizingValue="2" width="400" height="117" x="20" y="44" name="Runs" exportName="true" id="1:17">
+            <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" name="Local" id="1:18">
+                <Fill fillRule="2" id="1:19">
+                    <SolidColor colorValue="FFFFFFFF" id="1:20"/>
+                </Fill>
+            </TextStylePaint>
+            <TextStyleGlobal artboardId="3:4" name="Plain" id="1:21">
+                <ViewModelInstance viewModelId="3:2" exports="true" name="Plain Instance" id="1:22"/>
+            </TextStyleGlobal>
+            <!-- A and B: styleA (Stateful). C: styleB (Plain). D: unbound. -->
+            <TextValueRun styleId="1:18" text="aaa " name="A" id="1:40">
+                <DataBindContext sourcePathIds="1:14-1:30" propertyKey="272" id="1:41"/>
+            </TextValueRun>
+            <TextValueRun styleId="1:18" text="bbb " name="B" id="1:42">
+                <DataBindContext sourcePathIds="1:14-1:30" propertyKey="272" id="1:43"/>
+            </TextValueRun>
+            <TextValueRun styleId="1:18" text="ccc " name="C" id="1:44">
+                <DataBindContext sourcePathIds="1:14-1:32" propertyKey="272" id="1:45"/>
+            </TextValueRun>
+            <TextValueRun styleId="1:18" text="ddd" name="D" id="1:46"/>
+        </Text>
+        <Fill fillRule="2" id="1:3">
+            <SolidColor colorValue="FF282828" id="1:4"/>
+        </Fill>
+        <LayoutComponentStyle id="1:5"/>
+        <StateMachine name="State Machine 1" id="1:7">
+            <StateMachineLayer name="Layer 1" id="1:8">
+                <AnyState x="400" id="1:9"/>
+                <ExitState x="480" id="1:10"/>
+                <EntryState id="1:11">
+                    <StateTransition stateToId="1:12" id="1:13"/>
+                </EntryState>
+                <AnimationState animationId="1:6" x="160" id="1:12"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation name="Timeline 1" id="1:6"/>
+    </Artboard>
+    <!-- Red until pressed, then blue. A target-less down listener sets
+         `pressed` on the style's own values. -->
+    <Artboard defaultStateMachineId="2:23" viewModelId="2:2" viewModelInstanceId="2:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="2:5" x="600" name="Stateful" id="2:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="2:6">
+            <Fill fillRule="2" id="2:7">
+                <SolidColor id="2:8"/>
+            </Fill>
+        </TextStylePaint>
+        <LayoutComponentStyle id="2:5"/>
+        <LinearAnimation name="idle" id="2:22">
+            <KeyedObject objectId="2:8" id="2:61">
+                <KeyedProperty propertyKey="37" id="2:62">
+                    <KeyFrameColor value="FFB40000" interpolationType="1" id="2:63"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="pressed" id="2:33">
+            <KeyedObject objectId="2:8" id="2:64">
+                <KeyedProperty propertyKey="37" id="2:65">
+                    <KeyFrameColor value="FF0000FF" interpolationType="1" id="2:66"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="State Machine 1" id="2:23">
+            <StateMachineLayer name="Layer 1" id="2:24">
+                <AnyState x="358" y="29" id="2:25"/>
+                <ExitState x="480" id="2:26"/>
+                <EntryState id="2:27">
+                    <StateTransition stateToId="2:28" id="2:29"/>
+                </EntryState>
+                <AnimationState animationId="2:22" x="160" id="2:28">
+                    <StateTransition stateToId="2:34" id="2:35">
+                        <TransitionViewModelCondition id="2:56">
+                            <TransitionPropertyViewModelComparator id="2:57">
+                                <BindablePropertyBoolean id="2:58">
+                                    <DataBindContext sourcePathIds="2:2-2:90" propertyKey="634" id="2:59"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true" id="2:60"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="2:33" x="282" y="-91" id="2:34"/>
+            </StateMachineLayer>
+            <!-- No target: listens to the runs the style is drawn for. -->
+            <StateMachineListener name="Press" id="2:91">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="2:2-2:90" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+    <!-- Green; the Text has a handle for it. -->
+    <Artboard viewModelId="3:2" viewModelInstanceId="3:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="3:5" x="900" name="Plain" id="3:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="3:6">
+            <Fill fillRule="2" id="3:7">
+                <SolidColor colorValue="FF00B400" id="3:8"/>
+            </Fill>
+        </TextStylePaint>
+        <LayoutComponentStyle id="3:5"/>
+    </Artboard>
+    <!-- Yellow; no handle. -->
+    <Artboard viewModelId="4:2" viewModelInstanceId="4:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="4:5" x="1200" name="Plain2" id="4:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="4:6">
+            <Fill fillRule="2" id="4:7">
+                <SolidColor colorValue="FFFFC800" id="4:8"/>
+            </Fill>
+        </TextStylePaint>
+        <LayoutComponentStyle id="4:5"/>
+    </Artboard>
+    <!-- Not a text style: no text style paint. -->
+    <Artboard isComponent="true" width="100" height="100" styleId="5:5" x="1500" name="Empty" id="5:4">
+        <LayoutComponentStyle id="5:5"/>
+    </Artboard>
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="1:16"/>
+    <ViewModel defaultInstanceId="1:15" name="ViewModel1" id="1:14">
+        <ViewModelPropertyTextStyle name="styleA" id="1:30"/>
+        <ViewModelPropertyTextStyle name="styleB" id="1:32"/>
+        <ViewModelInstance exports="true" id="1:15">
+            <ViewModelInstanceTextStyle propertyValue="2:4" viewModelPropertyId="1:30" id="1:31"/>
+            <ViewModelInstanceTextStyle propertyValue="3:4" viewModelPropertyId="1:32" id="1:33"/>
+        </ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="2:3" viewModelType="3" name="Stateful" id="2:2">
+        <ViewModelPropertyBoolean name="pressed" id="2:90"/>
+        <ViewModelInstance exports="true" id="2:3">
+            <ViewModelInstanceBoolean viewModelPropertyId="2:90" id="2:92"/>
+        </ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="3:3" viewModelType="3" name="Plain" id="3:2">
+        <ViewModelInstance exports="true" id="3:3"/>
+    </ViewModel>
+    <ViewModel defaultInstanceId="4:3" viewModelType="3" name="Plain2" id="4:2">
+        <ViewModelInstance exports="true" id="4:3"/>
+    </ViewModel>
+</Rive>
