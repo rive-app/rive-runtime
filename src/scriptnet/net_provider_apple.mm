@@ -94,6 +94,30 @@ std::string toString(NSString* value)
   return utf8 != nullptr ? std::string(utf8) : std::string();
 }
 
+// HEAD answers and null body statuses carry no body, whatever their
+// Content-Length says about the resource.
+bool expectsBody(NSURLSessionTask* task, NSURLResponse* response)
+{
+  if ([task.currentRequest.HTTPMethod isEqualToString:@"HEAD"])
+  {
+    return false;
+  }
+  if (![response isKindOfClass:[NSHTTPURLResponse class]])
+  {
+    return true;
+  }
+  switch (((NSHTTPURLResponse*)response).statusCode)
+  {
+    case 101:
+    case 103:
+    case 204:
+    case 205:
+    case 304:
+      return false;
+  }
+  return true;
+}
+
 struct TaskState
 {
   RequestId id = 0;
@@ -235,7 +259,11 @@ struct TaskState
      completionHandler:
          (void (^)(NSURLSessionResponseDisposition))completionHandler
 {
-  long long expected = response.expectedContentLength;
+  // Without a body to expect, the length is no reason to stop or reserve;
+  // didReceiveData still counts what does arrive.
+  long long expected = expectsBody(dataTask, response)
+                           ? response.expectedContentLength
+                           : NSURLResponseUnknownLength;
   uint32_t maxBodyBytes = 0;
   {
     std::lock_guard<std::mutex> lock(_mutex);

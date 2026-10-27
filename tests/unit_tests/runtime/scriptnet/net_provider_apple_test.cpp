@@ -359,6 +359,58 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "the Apple provider answers a HEAD for a resource over the size limit",
+    "[scriptnet][apple]")
+{
+  // The Content-Length of a HEAD answer describes the resource, which never
+  // follows.
+  LoopbackServer server({{"HTTP/1.1 200 OK\r\n"
+                          "Content-Length: 100\r\n"
+                          "Connection: close\r\n\r\n"}});
+  LoopbackNetwork network(server.port());
+  scriptnet::NetLimits limits;
+  limits.maxResponseBodyBytes = 8;
+  scriptnet::setLimits(limits);
+
+  scriptnet::HttpRequest request = get("/large");
+  request.method = "HEAD";
+  auto listener = fetchAndWait(std::move(request));
+  REQUIRE(listener->done);
+  REQUIRE(listener->ok);
+  CHECK(listener->response.status == 200);
+  CHECK(listener->response.body.empty());
+  bool sawLength = false;
+  for (const scriptnet::HttpHeader& header : listener->response.headers)
+  {
+    sawLength = sawLength || (lowered(header.name) == "content-length" &&
+                              header.value == "100");
+  }
+  CHECK(sawLength);
+}
+
+TEST_CASE(
+    "the Apple provider answers a 304 for a resource over the size limit",
+    "[scriptnet][apple]")
+{
+  // A 304 may name the Content-Length of the representation it stands for.
+  LoopbackServer server({{"HTTP/1.1 304 Not Modified\r\n"
+                          "Content-Length: 100\r\n"
+                          "Connection: close\r\n\r\n"}});
+  LoopbackNetwork network(server.port());
+  scriptnet::NetLimits limits;
+  limits.maxResponseBodyBytes = 8;
+  scriptnet::setLimits(limits);
+
+  scriptnet::HttpRequest request = get("/cached");
+  request.headers = {{"If-None-Match", "\"v1\""}};
+  auto listener = fetchAndWait(std::move(request));
+  REQUIRE(listener->done);
+  REQUIRE(listener->ok);
+  CHECK(listener->response.status == 304);
+  CHECK(listener->response.body.empty());
+}
+
+TEST_CASE(
     "the Apple provider enforces the script's total timeout",
     "[scriptnet][apple]")
 {
