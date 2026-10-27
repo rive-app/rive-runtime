@@ -114,7 +114,11 @@ public:
     obscured = 1 << 4,
     // measure() has run, so the layout's width is known.
     measured = 1 << 5,
-    hugsWidth = 1 << 6
+    hugsWidth = 1 << 6,
+    // Shaped since update() last built the paths. Shaping clears
+    // shapeDirty, and editing shapes on demand, so this is what tells
+    // update() its paths are out of date.
+    shaped = 1 << 7
   };
 
   Flags update(Factory* factory);

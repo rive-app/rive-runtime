@@ -469,6 +469,7 @@ void RawTextInput::ensureShape()
         m_alignWidth,
         m_verticalAlign,
         m_alignHeight);
+    flag(Flags::shaped);
   }
 }
 
@@ -480,10 +481,12 @@ RawTextInput::Flags RawTextInput::update(Factory* factory)
     return updated;
   }
   bool updateTextPath = false;
-  if (flagged(Flags::shapeDirty))
+  ensureShape();
+  // Whether shaped just now or by an edit since the last update -- a select
+  // or a caret move shapes the text it needs at once.
+  if (unflag(Flags::shaped))
   {
     updated |= Flags::shapeDirty;
-    ensureShape();
     updateTextPath = true;
   }
   if (unflag(Flags::selectionDirty))

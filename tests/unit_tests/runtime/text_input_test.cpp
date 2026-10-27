@@ -1336,6 +1336,37 @@ TEST_CASE(
   CHECK(textInput->rawTextInput()->selectedText() != "hello world");
   stateMachine->pointerUp(pressPosition);
 }
+
+// The widest glyph run drawn, selected or not: a selection can move the
+// glyphs to their own path.
+static float drawnTextWidth(RawTextInput* raw)
+{
+  return std::max(
+      raw->textPath()->rawPath()->bounds().width(),
+      raw->selectedTextPath()->rawPath()->bounds().width());
+}
+
+TEST_CASE("text shaped ahead of the update still draws", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  textInput->text("i");
+  artboard->advance(0.0f);
+  float narrow = drawnTextWidth(textInput->rawTextInput());
+  REQUIRE(narrow > 0.0f);
+
+  // Selecting shapes the new text at once, before the update that builds
+  // what is drawn; that update must still build it from the new shape.
+  textInput->text("mmmmmmmm");
+  textInput->rawTextInput()->selectAll();
+  artboard->advance(0.0f);
+  CHECK(drawnTextWidth(textInput->rawTextInput()) > narrow * 4.0f);
+}
+
 TEST_CASE("the caret hides while text is selected", "[text_input]")
 {
   auto file = ReadRiveFile("assets/text_input.riv");
