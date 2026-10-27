@@ -53,6 +53,7 @@
 #include "rive/scriptnet/http.hpp"
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <unordered_map>
@@ -1955,6 +1956,39 @@ public:
   // the error on top.
   virtual void onModuleError(lua_State* moduleThread) {}
 
+  // A module top level runs on its own thread and is not under pCall, so
+  // an interrupt is the only thing that can end a loop in it. Module
+  // execution takes the host's own script timeout raised to at least
+  // this, so a host that sets none, or sets 0 for "unlimited", still gets
+  // a bound on a plain non-terminating loop, and one that asks for longer
+  // keeps it.
+  //
+  // 1000ms is what the rest of this codebase means by "one unit of script
+  // work should be done": DartExposedScriptingContext's default and the
+  // default of the editor's executionTimeoutMs setting. 200ms is a frame
+  // budget and 2000ms is the line at which a thread is treated as wedged;
+  // neither fits a module top level, which builds tables and closures once
+  // per compile. The 46-module box2d corpus executes all its top levels in
+  // tens of microseconds in a debug build; 1000ms leaves room for one that
+  // precomputes.
+  //
+  // Too low and a module that does real work at its top level stops
+  // registering, so a file that worked silently loses the methods that
+  // module provided. Too high and a caller whose module is a plain
+  // non-terminating loop holds the thread that long, once per module.
+  //
+  // interruptCPP, which CPPRuntimeScriptingContext installs, does not stop a
+  // module that swallows the raise with pcall or that spins inside a C
+  // function such as a table.sort comparator or a string pattern match. The
+  // interrupt in rive_luau_binding.cpp has neither gap.
+  static constexpr int moduleExecutionTimeoutMs = 1000;
+
+  // Arms a bound around a module top level and restores what it replaced.
+  // A host that runs script code must override both; the default leaves a
+  // module top level unbounded.
+  virtual void startModuleExecution(lua_State* moduleThread) {}
+  virtual void endModuleExecution(lua_State* moduleThread) {}
+
   // Add a module to be registered later via performRegistration()
   void addModule(ModuleDetails* moduleDetails);
   // Perform registration of all added modules, handling dependencies and
@@ -2835,6 +2869,8 @@ public:
   virtual ~CPPRuntimeScriptingContext() = default;
 
   std::chrono::time_point<std::chrono::steady_clock> executionTime;
+  // The last timed execution ran past timeoutMs, so its error is ours.
+  bool budgetExceeded = false;
 
   int timeoutMs() const { return m_timeoutMs; }
   void setTimeoutMs(int ms) { m_timeoutMs = ms; }
@@ -2923,6 +2959,7 @@ public:
 
   void startTimedExecution(lua_State* state)
   {
+    budgetExceeded = false;
     if (m_timeoutMs == 0)
     {
       return;
@@ -2948,6 +2985,23 @@ public:
     cb->interrupt = --m_timedDepth == 0 ? m_outerInterrupt : interruptCPP;
   }
 
+  void startModuleExecution(lua_State* state) override
+  {
+    m_timeoutBeforeModule = m_timeoutMs;
+    // Raises a bound, never lowers one: a host that asked for longer than
+    // the module floor keeps what it asked for.
+    m_timeoutMs = std::max(m_timeoutMs, moduleExecutionTimeoutMs);
+    startTimedExecution(state);
+  }
+
+  void endModuleExecution(lua_State* state) override
+  {
+    // Ends before restoring: endTimedExecution returns early when
+    // m_timeoutMs is 0, which would leave the interrupt and depth armed.
+    endTimedExecution(state);
+    m_timeoutMs = m_timeoutBeforeModule;
+  }
+
 #ifdef WITH_RIVE_TOOLS
   // Console buffer access for editor
   Span<uint8_t> consoleMemory() { return m_consoleBuffer.memory(); }
@@ -2963,6 +3017,8 @@ public:
 
 private:
   int m_timeoutMs = 200;
+  // A module top level cannot reach executeModule, so this never nests.
+  int m_timeoutBeforeModule = 0;
   int m_timedDepth = 0;
   void (*m_outerInterrupt)(lua_State* L, int gc) = nullptr;
 #ifdef WITH_RIVE_TOOLS
@@ -3037,6 +3093,7 @@ static void interruptCPP(lua_State* L, int gc)
           timeoutMs,
           timeoutMs == 1 ? "" : "s");
     }
+    context->budgetExceeded = true;
     luaL_error(L, "%s", errorMsg);
   }
 }

@@ -398,7 +398,10 @@ bool ScriptingVM::executeModule(
     return false;
   }
 
+  auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  context->startModuleExecution(ML);
   int status = lua_resume(ML, L, 0);
+  context->endModuleExecution(ML);
   if (status == 0)
   {
     if (lua_gettop(ML) == 0)
