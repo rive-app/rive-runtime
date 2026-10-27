@@ -306,20 +306,21 @@ TEST_CASE(
 
   int frames = (int)(0.25f / 0.016f);
   float yPos = 400.0f;
+  float time = 0.0f;
   for (int i = 0; i < frames; i++)
   {
     silver.addFrame();
+    time += 0.016f;
     stateMachine->pointerMove(
         rive::Vec2D(artboard->width() / 2.0f, yPos),
-        0.016f);
+        time);
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
     yPos -= 40.0f;
   }
   silver.addFrame();
-  stateMachine->pointerMove(
-      rive::Vec2D(artboard->width() / 2.0f, yPos),
-      0.016f);
+  time += 0.016f;
+  stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, yPos), time);
   stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, yPos));
   stateMachine->advanceAndApply(0.016f);
   artboard->draw(renderer.get());

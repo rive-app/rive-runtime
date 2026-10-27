@@ -25,10 +25,14 @@ enum class ScrollPhysicsType : uint8_t
 class ScrollPhysics : public ScrollPhysicsBase
 {
 private:
-  long long m_lastTime = std::chrono::duration_cast<std::chrono::microseconds>(
-                             std::chrono::high_resolution_clock::now()
-                                 .time_since_epoch())
-                             .count();
+  static long long steadyMicros()
+  {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+  // Microseconds in both modes.
+  long long m_lastTime = steadyMicros();
   bool m_isRunning = false;
 
 protected:

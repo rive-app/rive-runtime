@@ -1,6 +1,8 @@
+#include "rive/constraints/scrolling/clamped_scroll_physics.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout_component.hpp"
 #include "utils/no_op_factory.hpp"
+#include "deterministic_clock.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -10,6 +12,7 @@ TEST_CASE(
     "ScrollConstraint velocity and scrollActive during drag",
     "[layoutscroll]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -31,7 +34,7 @@ TEST_CASE(
   REQUIRE(scroll->scrollActive() == false);
 
   // Hover over the scroll area.
-  smi->pointerMove(rive::Vec2D(50.0f, 250.0f));
+  smi->pointerMove(rive::Vec2D(50.0f, 250.0f), clock.next());
 
   // Pointer down: starts drag.
   smi->pointerDown(rive::Vec2D(50.0f, 250.0f));
@@ -43,7 +46,7 @@ TEST_CASE(
   REQUIRE(scroll->velocityY() == 0.0f);
 
   // Drag upward 200px.
-  smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
+  smi->pointerMove(rive::Vec2D(50.0f, 50.0f), clock.next());
   smi->advanceAndApply(0.0f);
 
   // Velocity should be non-zero after movement.
@@ -68,6 +71,7 @@ TEST_CASE(
     "ScrollConstraint velocity resets after physics settles",
     "[layoutscroll]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -84,11 +88,11 @@ TEST_CASE(
   artboardInstance->advance(0.0f);
 
   // Swipe: down → move → up.
-  smi->pointerMove(rive::Vec2D(50.0f, 250.0f));
+  smi->pointerMove(rive::Vec2D(50.0f, 250.0f), clock.next());
   smi->pointerDown(rive::Vec2D(50.0f, 250.0f));
   smi->advanceAndApply(0.1f);
 
-  smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
+  smi->pointerMove(rive::Vec2D(50.0f, 50.0f), clock.next());
   smi->advanceAndApply(0.0f);
 
   smi->pointerUp(rive::Vec2D(50.0f, 50.0f));
@@ -118,6 +122,7 @@ TEST_CASE(
 
 TEST_CASE("ScrollConstraint horizontal velocity", "[layoutscroll]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_horizontal.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -133,12 +138,12 @@ TEST_CASE("ScrollConstraint horizontal velocity", "[layoutscroll]")
 
   artboardInstance->advance(0.0f);
 
-  smi->pointerMove(rive::Vec2D(250.0f, 50.0f));
+  smi->pointerMove(rive::Vec2D(250.0f, 50.0f), clock.next());
   smi->pointerDown(rive::Vec2D(250.0f, 50.0f));
   smi->advanceAndApply(0.1f);
 
   // Drag left 200px.
-  smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
+  smi->pointerMove(rive::Vec2D(50.0f, 50.0f), clock.next());
   smi->advanceAndApply(0.0f);
 
   // Horizontal velocity should be non-zero, vertical should be ~0.
@@ -149,6 +154,18 @@ TEST_CASE("ScrollConstraint horizontal velocity", "[layoutscroll]")
   smi->pointerUp(rive::Vec2D(50.0f, 50.0f));
 
   delete smi;
+}
+
+TEST_CASE(
+    "Deterministic velocity measures fractions of a second",
+    "[layoutscroll]")
+{
+  DeterministicClock clock;
+  rive::ClampedScrollPhysics physics;
+  physics.reset();
+  physics.accumulate(rive::Vec2D(0.0f, -10.0f), 1.5f);
+  physics.accumulate(rive::Vec2D(0.0f, -10.0f), 1.75f);
+  REQUIRE(physics.speed().y == Approx(-40.0f));
 }
 
 TEST_CASE("ScrollConstraint scrollActive false when idle", "[layoutscroll]")

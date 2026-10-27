@@ -6,6 +6,7 @@
 #include "rive/scroll_event.hpp"
 #include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
+#include "deterministic_clock.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -191,6 +192,7 @@ TEST_CASE(
 
 TEST_CASE("Trackpad flings on release", "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -202,22 +204,25 @@ TEST_CASE("Trackpad flings on release", "[scrollinput]")
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   // A zero-delta begin claims nothing; the first directional update opens
   // the gesture.
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
   REQUIRE(scroll->scrollActive() == false);
 
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
   REQUIRE(scroll->scrollActive() == true);
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
   REQUIRE(scroll->offsetY() == -80.0f);
 
   // Unlike a wheel, a precise gesture accumulates velocity to fling from.
   // The opening delta primes the clock, so the second one sets the speed.
   REQUIRE(scroll->velocityY() != 0.0f);
 
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::end, 0, 0));
+  send(trackpad(rive::ScrollPhase::end, 0, 0));
   REQUIRE(scroll->physics()->isRunning() == true);
 
   delete smi;
@@ -225,6 +230,7 @@ TEST_CASE("Trackpad flings on release", "[scrollinput]")
 
 TEST_CASE("Platform momentum never starts a fling", "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -236,16 +242,19 @@ TEST_CASE("Platform momentum never starts a fling", "[scrollinput]")
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   // A host whose platform generates its own momentum sends the tail as
   // momentum deltas. They land directly; flinging on top would double them.
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::momentum, 0, -20.0f));
+  send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+  send(trackpad(rive::ScrollPhase::momentum, 0, -20.0f));
 
   REQUIRE(scroll->offsetY() == -50.0f);
   REQUIRE(scroll->physics()->isRunning() == false);
   // The coast is tracked like a finger, so it reports its speed.
-  REQUIRE(scroll->velocityY() <= 0.0f);
+  REQUIRE(scroll->velocityY() < 0.0f);
 
   delete smi;
 }
@@ -593,8 +602,7 @@ TEST_CASE(
     "Momentum crossing an end releases at the coast's speed",
     "[scrollinput]")
 {
-  // Wall-clock velocity, as in the other velocity tests here: in
-  // deterministic mode the clock truncates sub-second stamps to zero.
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -607,7 +615,9 @@ TEST_CASE(
   REQUIRE(scroll->maxOffsetY() == -610.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
-  auto send = [&](rive::ScrollEvent event) { smi->pointerScroll(over, event); };
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   // macOS: begin, updates, then its own momentum; never an end. The coast
   // reaches the end and keeps going, and like a finger it stretches the
@@ -660,6 +670,7 @@ TEST_CASE(
 
 TEST_CASE("Momentum landing exactly on an end still releases", "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -671,7 +682,9 @@ TEST_CASE("Momentum landing exactly on an end still releases", "[scrollinput]")
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
-  auto send = [&](rive::ScrollEvent event) { smi->pointerScroll(over, event); };
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   send(trackpad(rive::ScrollPhase::begin, 0, 0));
   send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
@@ -742,6 +755,7 @@ TEST_CASE(
     "A no-begin gesture does not derive velocity from its first delta",
     "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -753,18 +767,21 @@ TEST_CASE(
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   // Wayland and the editor send no begin, so this delta both primes physics
   // and carries movement. prepare() seeds the velocity clock to now, so
   // measuring this delta against it would divide by microseconds -- the
   // speed, and the acceleration derived from it, would be astronomical and
   // the eventual fling wild.
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
   REQUIRE(scroll->offsetY() == -40.0f);
   REQUIRE(scroll->velocityY() == 0.0f);
 
   // The next delta has a real interval behind it, so it establishes speed.
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
   REQUIRE(scroll->offsetY() == -80.0f);
   REQUIRE(scroll->velocityY() != 0.0f);
 
@@ -773,6 +790,7 @@ TEST_CASE(
 
 TEST_CASE("A no-begin drag takes control from a running fling", "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -784,12 +802,15 @@ TEST_CASE("A no-begin drag takes control from a running fling", "[scrollinput]")
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
 
   // Throw it, so a fling is running.
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::begin, 0, 0));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::end, 0, 0));
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::end, 0, 0));
   REQUIRE(scroll->physics()->isRunning() == true);
   smi->advanceAndApply(0.016f);
 
@@ -797,7 +818,7 @@ TEST_CASE("A no-begin drag takes control from a running fling", "[scrollinput]")
   // to take the view over: otherwise the simulation keeps running and the
   // next advance overwrites whatever the drag just did.
   float before = scroll->offsetY();
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -25.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -25.0f));
   REQUIRE(scroll->physics()->isRunning() == false);
   REQUIRE(scroll->offsetY() == Approx(before - 25.0f));
 
@@ -840,6 +861,7 @@ TEST_CASE(
     "A clamped view keeps accumulating trackpad velocity",
     "[scrollinput]")
 {
+  DeterministicClock clock;
   auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
   auto artboard = file->artboard();
   auto artboardInstance = artboard->instance();
@@ -856,9 +878,12 @@ TEST_CASE(
   smi->advanceAndApply(0.0f);
 
   rive::Vec2D over(50.0f, 250.0f);
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
-  smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
   REQUIRE(scroll->offsetY() == -120.0f);
   // Only the opening delta primes the clock; every later one sets the speed.
   REQUIRE(scroll->velocityY() != 0.0f);

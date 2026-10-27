@@ -226,8 +226,7 @@ TEST_CASE("Carousel snap swipe right settles past index 0", "[silver]")
   float startX = artboard->width() / 2.0f;
   float dt = 0.016f;
 
-  // Swipe right: use whole-second timestamps so they survive long long
-  // truncation in the physics accumulator.
+  // Swipe right.
   float swipeDistance = 1500.0f;
   float time = 1.0f;
 
@@ -504,8 +503,6 @@ void runVerticalSnapPaddingSwipe(
 
   // Swipe up: content fills the viewport so a 1500px drag over-shoots even
   // the tallest fixture artboard (~1600px content in a 500px viewport).
-  // Whole-second timestamps survive long-long truncation in the physics
-  // accumulator under deterministic mode.
   float swipeDistance = 1500.0f;
   float time = 1.0f;
 
@@ -964,11 +961,11 @@ TEST_CASE("Viewport release triggers fling", "[layoutscroll]")
   }
 
   // Check immediately after release, BEFORE any advance. Whole-second
-  // timestamps (truncation-safe in deterministic mode) make accelerations
-  // small relative to the helper's >5 momentum threshold — the fling
-  // would settle to rest on the very first advance. Checking pre-advance
-  // verifies pointerUp triggered the fling setup: m_isRunning is set on
-  // the helpers and m_speed still holds the last drag's accumulated value.
+  // timestamps make accelerations small relative to the helper's >5
+  // momentum threshold — the fling would settle to rest on the very first
+  // advance. Checking pre-advance verifies pointerUp triggered the fling
+  // setup: m_isRunning is set on the helpers and m_speed still holds the
+  // last drag's accumulated value.
   smi->pointerUp(rive::Vec2D(dragX, startY - 400.0f));
   CHECK(scroll->physics()->isRunning());
   CHECK(scroll->velocityY() != 0.0f);
