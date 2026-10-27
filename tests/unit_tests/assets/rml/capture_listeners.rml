@@ -1,0 +1,316 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/capture_listeners.riv. Not an editor export:
+      rebuild the .riv from this file with the CLI, from a directory holding
+      this scene.rml, a rive.yaml naming it and label_font.ttf (copied from
+      packages/rive-cli/assets), then copy build/capture_listeners.riv into
+      assets/.
+
+          rive . --once
+
+      Every listener here is in the normal phase. The tests flip the ones
+      they need to the capture phase (StateMachineListener::phaseValue)
+      before building a state machine instance, which reads the phase once
+      when it registers its listeners.
+
+      "Field" is the shape of the bundled text input library component: a
+      Viewport layout whose down listener focuses the input, and a TextInput
+      whose FocusData carries a match-any keyboard + text listener that opts
+      it into keys. Field's machine also has a second match-any listener on
+      the input, a filtered Enter listener, an Up listener, and enter/exit/up
+      listeners on the Viewport, each setting a bool so a test can see it
+      ran.
+
+      "Host" stacks two slots in a column, each a fixed layout with a
+      non-focusable FocusData around a nested Field, so each field's focus
+      node sits under its slot's. Each slot has Up / Down keyboard listeners
+      that traverse focus previous / next, a down listener and a move
+      listener. Slot A also has a drag listener, and Slot B an Enter listener
+      that fires on the key's release only and a secondary-button down
+      listener. "Overlay" is an absolutely positioned, opaque layout
+      with a down listener of its own, covering the right half of Slot B.
+      It is Host's first child because siblings draw first-on-top.
+
+      label_font covers digits and uppercase only, so text stays uppercase.
+
+      Layout, in Host's space: the column has 20pt padding and a 20pt gap.
+          Slot A    x 20..240, y 20..68    Field A fills it
+          Slot B    x 20..240, y 88..136   Field B fills it
+          Overlay   x 130..240, y 88..136  over Slot B's right half
+    -->
+    <Artboard clip="true" width="300" height="200" styleId="0:2" defaultStateMachineId="0:60" name="Host" id="0:1">
+        <LayoutComponentStyle flexDirectionValue="column" paddingLeft="20" paddingTop="20" paddingRight="20" paddingBottom="20" gapVertical="20" name="Host Style" id="0:2"/>
+        <LayoutComponent isTargetOpaque="true" width="110" height="48" styleId="0:31" name="Overlay" id="0:30">
+            <LayoutComponentStyle positionTypeValue="absolute" positionLeft="130" positionTop="88" positionLeftUnitsValue="points" positionTopUnitsValue="points" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Overlay Style" id="0:31"/>
+            <Fill name="Overlay Fill"><SolidColor colorValue="80FFAC33"/></Fill>
+        </LayoutComponent>
+        <LayoutComponent width="220" height="48" styleId="0:11" name="Slot A" id="0:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Slot A Style" id="0:11"/>
+            <FocusData canFocus="false" name="Slot A Focus" id="0:12"/>
+            <NestedArtboard artboardId="0:100" name="Field A" id="0:13">
+                <NestedStateMachine animationId="0:160" name="Field A Machine"/>
+            </NestedArtboard>
+            <Fill name="Slot A Fill"><SolidColor colorValue="FF263445"/></Fill>
+        </LayoutComponent>
+        <LayoutComponent width="220" height="48" styleId="0:21" name="Slot B" id="0:20">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Slot B Style" id="0:21"/>
+            <FocusData canFocus="false" name="Slot B Focus" id="0:22"/>
+            <NestedArtboard artboardId="0:100" name="Field B" id="0:23">
+                <NestedStateMachine animationId="0:160" name="Field B Machine"/>
+            </NestedArtboard>
+            <Fill name="Slot B Fill"><SolidColor colorValue="FF263445"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Host Machine" id="0:60">
+            <StateMachineBool name="slotAPressed" id="0:70"/>
+            <StateMachineBool name="slotBPressed" id="0:71"/>
+            <StateMachineBool name="slotAMoved" id="0:72"/>
+            <StateMachineBool name="slotBMoved" id="0:73"/>
+            <StateMachineBool name="slotBEnterReleased" id="0:74"/>
+            <StateMachineBool name="overlayPressed" id="0:75"/>
+            <StateMachineBool name="slotADragged" id="0:76"/>
+            <StateMachineBool name="slotBSecondaryPressed" id="0:77"/>
+            <StateMachineListener targetId="0:10" name="Slot A Up" id="0:80">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="up" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <FocusActionTraversal traversalKind="previous"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:10" name="Slot A Down" id="0:81">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="down" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <FocusActionTraversal traversalKind="next"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Up" id="0:82">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="up" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <FocusActionTraversal traversalKind="previous"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Down" id="0:83">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="down" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <FocusActionTraversal traversalKind="next"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Enter Release" id="0:84">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="enter" keyPhase="4"/></ListenerInputTypeKeyboard>
+                <ListenerBoolChange value="true" inputId="0:74"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:10" name="Slot A Press" id="0:85">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:70"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Press" id="0:86">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:71"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:10" name="Slot A Move" id="0:87">
+                <ListenerInputType listenerTypeValue="move"/>
+                <ListenerBoolChange value="true" inputId="0:72"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Move" id="0:88">
+                <ListenerInputType listenerTypeValue="move"/>
+                <ListenerBoolChange value="true" inputId="0:73"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:30" name="Overlay Press" id="0:89">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:75"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:10" name="Slot A Drag" id="0:91">
+                <ListenerInputType listenerTypeValue="drag"/>
+                <ListenerBoolChange value="true" inputId="0:76"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Slot B Secondary Press" id="0:92">
+                <ListenerInputTypePointerButton listenerTypeValue="down" pointerButtonValue="secondary"/>
+                <ListenerBoolChange value="true" inputId="0:77"/>
+            </StateMachineListener>
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard isComponent="true" clip="true" width="220" height="48" x="400" styleId="0:102" defaultStateMachineId="0:160" name="Field" id="0:100">
+        <LayoutComponentStyle name="Field Style" id="0:102"/>
+        <LayoutComponent clip="true" width="220" height="48" styleId="0:111" name="Viewport" id="0:110">
+            <LayoutComponentStyle layoutAlignmentType="centerLeft" paddingLeft="10" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="0:111"/>
+            <LayoutComponent clip="false" styleId="0:121" name="Text Container" id="0:120">
+                <LayoutComponentStyle intrinsicallySizedValue="true" layoutWidthScaleType="hug" layoutHeightScaleType="hug" name="Container Style" id="0:121"/>
+                <TextInput text="AB" multiline="false" name="Input" id="0:130">
+                    <TextStyle fontSize="20" fontAssetId="0:90" name="Input Style"/>
+                    <TextInputText name="Text"><Fill name="Fill"><SolidColor colorValue="FFF4F6FA"/></Fill></TextInputText>
+                    <TextInputSelection name="Selection"><Fill name="Fill"><SolidColor colorValue="80FFAC33"/></Fill></TextInputSelection>
+                    <TextInputCursor name="Cursor"><Fill name="Fill"><SolidColor colorValue="FFFFAC33"/></Fill></TextInputCursor>
+                    <FocusData name="Input Focus" id="0:131"/>
+                </TextInput>
+            </LayoutComponent>
+            <Fill name="Viewport Fill"><SolidColor colorValue="FF1B2430"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Field Machine" id="0:160">
+            <StateMachineBool name="fieldUp" id="0:170"/>
+            <StateMachineBool name="fieldEnter" id="0:171"/>
+            <StateMachineBool name="fieldHovered" id="0:172"/>
+            <StateMachineBool name="fieldReleased" id="0:173"/>
+            <StateMachineListener targetId="0:130" name="Focus Listener" id="0:180">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"/>
+                <ListenerInputTypeText listenerTypeValue="textInput"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:130" name="Second Focus Listener" id="0:181">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"/>
+                <ListenerInputTypeText listenerTypeValue="textInput"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:130" name="Field Enter" id="0:182">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="enter" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <ListenerBoolChange value="true" inputId="0:171"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:130" name="Field Up" id="0:183">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="up" keyPhase="1"/></ListenerInputTypeKeyboard>
+                <ListenerBoolChange value="true" inputId="0:170"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:110" name="Viewport Down" id="0:184">
+                <ListenerInputType listenerTypeValue="down"/>
+                <FocusActionTarget targetId="0:130"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:110" name="Viewport Enter" id="0:185">
+                <ListenerInputType listenerTypeValue="enter"/>
+                <ListenerBoolChange value="true" inputId="0:172"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:110" name="Viewport Exit" id="0:186">
+                <ListenerInputType listenerTypeValue="exit"/>
+                <ListenerBoolChange value="false" inputId="0:172"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:110" name="Viewport Up" id="0:187">
+                <ListenerInputType listenerTypeValue="up"/>
+                <ListenerBoolChange value="true" inputId="0:173"/>
+            </StateMachineListener>
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!--
+      "List Host" is the same shape for a component list's rows: List Slot
+      holds a list of one Row, whose machine tracks its hover, and has a down
+      listener of its own. The opaque List Overlay covers the row's right
+      half; it is the first child, so it draws on top.
+          List Slot     x 20..240, y 20..68
+          List Overlay  x 130..240, y 20..68
+    -->
+    <Artboard clip="true" width="300" height="100" styleId="0:202" defaultStateMachineId="0:260" viewModelId="0:290" name="List Host" id="0:201">
+        <LayoutComponentStyle flexDirectionValue="column" paddingLeft="20" paddingTop="20" paddingRight="20" paddingBottom="20" name="List Host Style" id="0:202"/>
+        <LayoutComponent isTargetOpaque="true" width="110" height="48" styleId="0:211" name="List Overlay" id="0:210">
+            <LayoutComponentStyle positionTypeValue="absolute" positionLeft="130" positionTop="20" positionLeftUnitsValue="points" positionTopUnitsValue="points" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="List Overlay Style" id="0:211"/>
+            <Fill name="List Overlay Fill"><SolidColor colorValue="80FFAC33"/></Fill>
+        </LayoutComponent>
+        <LayoutComponent width="220" height="48" styleId="0:221" name="List Slot" id="0:220">
+            <LayoutComponentStyle flexDirectionValue="column" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="List Slot Style" id="0:221"/>
+            <ArtboardComponentList name="Rows" id="0:222">
+                <DataBindContext sourcePathIds="0:290-0:291" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="List Host Machine" id="0:260">
+            <StateMachineBool name="listSlotPressed" id="0:270"/>
+            <StateMachineBool name="listOverlayPressed" id="0:271"/>
+            <StateMachineListener targetId="0:220" name="List Slot Press" id="0:280">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:270"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:210" name="List Overlay Press" id="0:281">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:271"/>
+            </StateMachineListener>
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard isComponent="true" clip="true" width="220" height="48" x="400" y="200" styleId="0:302" defaultStateMachineId="0:360" viewModelId="0:390" name="Row" id="0:300">
+        <LayoutComponentStyle name="Row Style" id="0:302"/>
+        <LayoutComponent width="220" height="48" styleId="0:311" name="Row Body" id="0:310">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Body Style" id="0:311"/>
+            <Fill name="Row Fill"><SolidColor colorValue="FF1B2430"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Row Machine" id="0:360">
+            <StateMachineBool name="rowHovered" id="0:370"/>
+            <StateMachineListener targetId="0:310" name="Row Enter" id="0:380">
+                <ListenerInputType listenerTypeValue="enter"/>
+                <ListenerBoolChange value="true" inputId="0:370"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:310" name="Row Exit" id="0:381">
+                <ListenerInputType listenerTypeValue="exit"/>
+                <ListenerBoolChange value="false" inputId="0:370"/>
+            </StateMachineListener>
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <ComponentAsset artboardId="0:300" name="Row"/>
+
+    <ViewModel defaultInstanceId="0:392" name="Row" id="0:390">
+        <ViewModelPropertyNumber name="n" id="0:391"/>
+        <ViewModelInstance exports="true" name="One" id="0:392">
+            <ViewModelInstanceNumber propertyValue="1" viewModelPropertyId="0:391"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:293" name="List Host" id="0:290">
+        <ViewModelPropertyList name="rows" id="0:291"/>
+        <ViewModelInstance exports="true" name="Default" id="0:293">
+            <ViewModelInstanceList viewModelPropertyId="0:291">
+                <ViewModelInstanceListItem viewModelId="0:390" viewModelInstanceId="0:392"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <!--
+      "Claims" nests three layouts in one machine, for claims that overlap:
+      Outer has a secondary-button down listener, Inner a down listener,
+      Leaf a move listener.
+          Outer  x 20..240, y 20..80
+          Inner  x 20..220, y 20..60
+          Leaf   x 20..120, y 20..40
+    -->
+    <Artboard clip="true" width="300" height="100" x="0" y="400" styleId="0:402" defaultStateMachineId="0:460" name="Claims" id="0:401">
+        <LayoutComponentStyle paddingLeft="20" paddingTop="20" name="Claims Style" id="0:402"/>
+        <LayoutComponent width="220" height="60" styleId="0:411" name="Outer" id="0:410">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Outer Style" id="0:411"/>
+            <LayoutComponent width="200" height="40" styleId="0:421" name="Inner" id="0:420">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Inner Style" id="0:421"/>
+                <LayoutComponent width="100" height="20" styleId="0:431" name="Leaf" id="0:430">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Leaf Style" id="0:431"/>
+                    <Fill name="Leaf Fill"><SolidColor colorValue="FFFFAC33"/></Fill>
+                </LayoutComponent>
+                <Fill name="Inner Fill"><SolidColor colorValue="FF263445"/></Fill>
+            </LayoutComponent>
+            <Fill name="Outer Fill"><SolidColor colorValue="FF1B2430"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Claims Machine" id="0:460">
+            <StateMachineBool name="outerPressed" id="0:470"/>
+            <StateMachineBool name="innerPressed" id="0:471"/>
+            <StateMachineBool name="leafMoved" id="0:472"/>
+            <StateMachineListener targetId="0:410" name="Outer Secondary Press" id="0:480">
+                <ListenerInputTypePointerButton listenerTypeValue="down" pointerButtonValue="secondary"/>
+                <ListenerBoolChange value="true" inputId="0:470"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:420" name="Inner Press" id="0:481">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerBoolChange value="true" inputId="0:471"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:430" name="Leaf Move" id="0:482">
+                <ListenerInputType listenerTypeValue="move"/>
+                <ListenerBoolChange value="true" inputId="0:472"/>
+            </StateMachineListener>
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <FontAsset file="label_font.ttf" name="Label" id="0:90"/>
+</Rive>

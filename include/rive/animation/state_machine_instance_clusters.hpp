@@ -23,6 +23,7 @@
 #include "rive/animation/semantic_listener_group.hpp"
 #include "rive/event_report.hpp"
 #include "rive/input/gamepad_snapshot.hpp"
+#include "rive/pointer_button.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 
 #include <cstdint>
@@ -37,7 +38,11 @@ class BindableProperty;
 class BindablePropertyNumber;
 class Core;
 class DataBind;
+class Component;
 class FocusListenerGroup;
+class HitComponent;
+class HitDrawable;
+class ListenerGroup;
 class ListenerViewModel;
 class ScriptedDrawable;
 class ScriptedObject;
@@ -234,6 +239,35 @@ struct QueuedSemanticEvent
   SemanticActionType actionType;
 };
 
+/// A capture-phase pointer listener on one of the hit drawables its target
+/// resolves to: a group's listener flattens to its leaf shapes, one each.
+struct CaptureHit
+{
+  HitDrawable* hit;
+  ListenerGroup* group;
+  /// The listener's target (a layout, not its proxy), which is what a claim
+  /// covers.
+  Component* target;
+  /// How deep target sits under the artboard. Capture runs shallow first.
+  uint32_t depth;
+  /// hit's place in the hit components, topmost first. Breaks depth ties,
+  /// and tells what is drawn above it.
+  size_t drawIndex;
+};
+
+/// A press a capture listener claimed, held until that pointer's release.
+struct PointerClaim
+{
+  int pointerId;
+  PointerButton button;
+  /// The claiming listener's target.
+  Component* scope;
+  /// What the claim turned off: hit components under scope (whole nested
+  /// machines included), and capture listeners on targets under it.
+  std::vector<HitComponent*> hits;
+  std::vector<ListenerGroup*> captureGroups;
+};
+
 /// Everything driven by focus, keyboard, gamepad, or accessibility rather than
 /// by pointer events. Allocated when the file declares a focus/blur, keyboard,
 /// textInput, gamepad, or semanticAction listener, when a script wants keyboard
@@ -260,6 +294,19 @@ struct SMIInputExtras
   /// Queued for deferred execution during advance().
   std::vector<QueuedFocusEvent> queuedFocusEvents;
   std::vector<QueuedSemanticEvent> queuedSemanticEvents;
+
+  /// Capture-phase pointer listeners. Their groups are kept apart from the
+  /// instance's listener groups, which the normal phase resets on every
+  /// event. Allocated with the rest of this cluster when the machine has
+  /// one, so a machine without stays on the null-sidecar path.
+  std::vector<std::unique_ptr<ListenerGroup>> captureGroups;
+  /// In capture order: shallowest target first, then topmost first.
+  std::vector<CaptureHit> captureHits;
+  std::vector<PointerClaim> pointerClaims;
+  /// treeHasCaptureListeners' answer, and the capture topology epoch it
+  /// was computed at (0: never).
+  uint32_t captureTreeEpoch = 0;
+  bool captureTreeHas = false;
 };
 
 /// Per-instance clones of the state machine's scripted objects. Allocated only

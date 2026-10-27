@@ -34,6 +34,15 @@ public:
       KeyModifiers modifiers,
       bool isPressed,
       bool isRepeat);
+  /// Whether the listener names this key exactly: one of its keyboard
+  /// inputs filters for this key (not 'any') with exactly these modifiers.
+  /// The key phase is ignored, so a listener that owns a key owns its
+  /// press, repeats and release alike. A listener with no keyboard input,
+  /// or only 'any' ones, owns nothing.
+  static bool keyboardListenerOwnsKey(
+      const StateMachineListener* listener,
+      Key key,
+      KeyModifiers modifiers);
 
 private:
   std::vector<KeyboardInput*> m_keyboardInputs;

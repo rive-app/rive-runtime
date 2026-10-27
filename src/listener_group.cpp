@@ -42,6 +42,13 @@ _PointerData* ListenerGroup::pointerData(int id)
 void ListenerGroup::hover(int id)
 {
   auto pointer = pointerData(id);
+  // A disabled group's hover stays what its listeners last saw, as reset
+  // leaves it, so the move that turns it back on can report what changed
+  // meanwhile, enters included.
+  if (pointer->phase == GestureClickPhase::disabled)
+  {
+    return;
+  }
   pointer->isHovered = true;
 }
 
@@ -132,6 +139,11 @@ void ListenerGroup::releaseEvent(int pointerId)
   {
     // Reset pointer data before caching it
     auto pointerData = m_pointers[pointerId];
+    if (pointerData->phase == GestureClickPhase::disabled &&
+        m_disabledPointers > 0)
+    {
+      m_disabledPointers--;
+    }
     pointerData->isHovered = false;
     pointerData->isPrevHovered = false;
     pointerData->hasDragged = false;
@@ -156,12 +168,20 @@ void ListenerGroup::releaseAllPointers()
 void ListenerGroup::enable(int pointerId)
 {
   auto pointer = pointerData(pointerId);
+  if (pointer->phase == GestureClickPhase::disabled && m_disabledPointers > 0)
+  {
+    m_disabledPointers--;
+  }
   pointer->phase = GestureClickPhase::out;
 }
 
 void ListenerGroup::disable(int pointerId)
 {
   auto pointer = pointerData(pointerId);
+  if (pointer->phase != GestureClickPhase::disabled)
+  {
+    m_disabledPointers++;
+  }
   pointer->phase = GestureClickPhase::disabled;
   consume();
 }

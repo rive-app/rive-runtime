@@ -16,14 +16,27 @@ KeyboardListenerGroup::KeyboardListenerGroup(
     : m_focusData(focusData)
     , m_listener(listener)
     , m_stateMachineInstance(stateMachineInstance)
+    ,
+    // Read once: the editor can change the phase while this group lives, and
+    // the destructor has to unregister from the list it registered with.
+    m_capturesKeys(listener != nullptr && listener->isCapture())
 {
   // Register ourselves as a listener on the FocusData
   if (m_listener)
   {
     if (m_listener->hasListener(ListenerType::keyboard))
     {
-      m_focusData->addKeyboardListener(this);
+      if (m_capturesKeys)
+      {
+        m_focusData->addCaptureKeyboardListener(this);
+      }
+      else
+      {
+        m_focusData->addKeyboardListener(this);
+      }
     }
+    // Characters have no capture phase yet: a capture listener's text
+    // input runs with the target's like any other.
     if (m_listener->hasListener(ListenerType::textInput))
     {
       m_focusData->addTextInputListener(this);
@@ -59,7 +72,14 @@ KeyboardListenerGroup::~KeyboardListenerGroup()
 
     if (m_listener->hasListener(ListenerType::keyboard))
     {
-      m_focusData->removeKeyboardListener(this);
+      if (m_capturesKeys)
+      {
+        m_focusData->removeCaptureKeyboardListener(this);
+      }
+      else
+      {
+        m_focusData->removeKeyboardListener(this);
+      }
     }
     if (m_listener->hasListener(ListenerType::textInput))
     {
@@ -95,20 +115,14 @@ bool KeyboardListenerGroup::keyInput(
     bool isPressed,
     bool isRepeat)
 {
-  // Special case for text inputs.
-  // TODO: @hernan consider moving it into a special internal TextInput
-  // listener action.
-  if (m_focusData && m_focusData->parent())
-  {
-
-    auto parent = m_focusData->parent();
-    if (parent->is<TextInput>())
-    {
-      return parent->as<TextInput>()
-          ->keyInput(key, modifiers, isPressed, isRepeat);
-    }
+  // A TextInput's own editing runs from FocusData::keyInput, once per key,
+  // ahead of the listeners on it. Each listener here only runs its own
+  // actions.
 #ifdef WITH_RIVE_SCRIPTING
-    else if (parent->is<ScriptedDrawable>() && !listener())
+  if (m_focusData && m_focusData->parent() && !listener())
+  {
+    auto parent = m_focusData->parent();
+    if (parent->is<ScriptedDrawable>())
     {
       auto scriptedObject = ScriptedObject::from(parent);
       if (scriptedObject->wantsKeyboardInput())
@@ -118,8 +132,8 @@ bool KeyboardListenerGroup::keyInput(
             ->keyInput(key, modifiers, isPressed, isRepeat);
       }
     }
-#endif
   }
+#endif
   if (listener())
   {
     if (!ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(
@@ -134,6 +148,20 @@ bool KeyboardListenerGroup::keyInput(
     listener()->performChanges(
         m_stateMachineInstance,
         ListenerInvocation::keyboard(key, modifiers, isPressed, isRepeat));
+    // On a TextInput, a listener that takes every key only watches them
+    // go by. Claiming would swallow what the input itself leaves alone --
+    // Tab, Escape, a single line's Enter -- which has to keep bubbling to
+    // the traversal around it. Whether the input used the key is its own
+    // answer, which FocusData::keyInput already reports.
+    if (m_focusData && m_focusData->parent() &&
+        m_focusData->parent()->is<TextInput>() &&
+        !ListenerInputTypeKeyboard::keyboardListenerOwnsKey(
+            listener(),
+            key,
+            modifiers))
+    {
+      return false;
+    }
     // The listener asked for this exact key and its changes have run, so
     // the keystroke is spent: FocusManager::keyInput stops bubbling to
     // ancestors, and the host learns the scene consumed it rather than
@@ -143,6 +171,37 @@ bool KeyboardListenerGroup::keyInput(
     return true;
   }
   return false;
+}
+
+bool KeyboardListenerGroup::captureKeyInput(
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
+{
+  if (!m_capturesKeys)
+  {
+    return false;
+  }
+  if (ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(
+          listener(),
+          key,
+          modifiers,
+          isPressed,
+          isRepeat))
+  {
+    listener()->performChanges(
+        m_stateMachineInstance,
+        ListenerInvocation::keyboard(key, modifiers, isPressed, isRepeat));
+  }
+  // A key named exactly is claimed in every phase, including the ones the
+  // listener doesn't act on: an "up" listener that let the press through
+  // would hand the target half a keystroke. A listener that takes any key
+  // only observes, or it would swallow every key under it.
+  return ListenerInputTypeKeyboard::keyboardListenerOwnsKey(
+      listener(),
+      key,
+      modifiers);
 }
 
 bool KeyboardListenerGroup::textInput(const std::string& text)

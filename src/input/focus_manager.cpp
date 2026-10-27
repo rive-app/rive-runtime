@@ -1115,6 +1115,10 @@ bool FocusManager::keyInput(
     bool isRepeat)
 {
   dropFocusIfFocusTargetHidden();
+  if (captureKeyInput(key, modifiers, isPressed, isRepeat))
+  {
+    return true;
+  }
   // Bubble up through focus tree until someone handles the input
   FocusNode* node = m_primaryFocus.get();
   while (node != nullptr)
@@ -1124,6 +1128,44 @@ bool FocusManager::keyInput(
       return true;
     }
     node = node->parent();
+  }
+  return false;
+}
+
+bool FocusManager::captureKeyInput(
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
+{
+  // Most trees have nothing in the capture phase, and for them this walk
+  // only reads one flag per ancestor.
+  FocusNode* node = m_primaryFocus.get();
+  while (node != nullptr && !node->capturesKeyInput())
+  {
+    node = node->parent();
+  }
+  if (node == nullptr)
+  {
+    return false;
+  }
+  // The capture phase runs outermost first, so collect the nodes that take
+  // part and walk them back down. Held by reference: a listener's actions
+  // can tear down part of the tree before the walk reaches it.
+  std::vector<rcp<FocusNode>> path;
+  for (; node != nullptr; node = node->parent())
+  {
+    if (node->capturesKeyInput())
+    {
+      path.push_back(ref_rcp(node));
+    }
+  }
+  for (auto itr = path.rbegin(); itr != path.rend(); ++itr)
+  {
+    if ((*itr)->captureKeyInput(key, modifiers, isPressed, isRepeat))
+    {
+      return true;
+    }
   }
   return false;
 }

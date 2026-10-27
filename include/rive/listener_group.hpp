@@ -61,6 +61,26 @@ public:
       std::vector<std::pair<int, PointerButton>>& dragEnded);
   virtual void enable(int pointerId = 0);
   virtual void disable(int pointerId = 0);
+  /// Whether disable() has turned this group off for pointerId. Checked per
+  /// pointer: the consumed flag disable() also sets is shared by every
+  /// pointer, so another pointer's next event clears it.
+  bool isPointerDisabled(int pointerId)
+  {
+    // Checked for every group on every event, and almost always none of
+    // them is disabled: skip the lookup then.
+    if (m_disabledPointers == 0)
+    {
+      return false;
+    }
+    auto pointer = findPointerData(pointerId);
+    return pointer != nullptr && pointer->phase == GestureClickPhase::disabled;
+  }
+  /// Whether pointerId is over this group, as of its last processed event.
+  bool isPointerHovered(int pointerId)
+  {
+    auto pointer = findPointerData(pointerId);
+    return pointer != nullptr && pointer->isHovered;
+  }
   bool isConsumed() { return m_isConsumed; }
   virtual bool canEarlyOut(Component* drawable);
   virtual bool needsDownListener(Component* drawable);
@@ -90,6 +110,11 @@ protected:
 private:
   // Consumed listeners aren't processed again in the current frame
   bool m_isConsumed = false;
+  // How many pointers disable() has turned off, counted as they go in and
+  // out of the disabled phase through disable(), enable() and
+  // releaseEvent(). Another write that replaces the phase leaves it high,
+  // which only costs isPointerDisabled its shortcut.
+  uint32_t m_disabledPointers = 0;
   const StateMachineListener* m_listener;
   std::unordered_map<int, _PointerData*> m_pointers;
   std::vector<_PointerData*> m_pointersPool;

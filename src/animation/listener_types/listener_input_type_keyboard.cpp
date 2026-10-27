@@ -116,3 +116,35 @@ bool ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(
   }
   return false;
 }
+
+bool ListenerInputTypeKeyboard::keyboardListenerOwnsKey(
+    const StateMachineListener* listener,
+    Key key,
+    KeyModifiers modifiers)
+{
+  if (listener == nullptr)
+  {
+    return false;
+  }
+  const uint32_t keyValue = static_cast<uint32_t>(key);
+  for (size_t i = 0; i < listener->listenerInputTypeCount(); ++i)
+  {
+    const ListenerInputType* lit = listener->listenerInputType(i);
+    if (lit == nullptr || !lit->is<ListenerInputTypeKeyboard>())
+    {
+      continue;
+    }
+    const ListenerInputTypeKeyboard*
+        litk = lit->as<ListenerInputTypeKeyboard>();
+    for (size_t j = 0; j < litk->keyboardInputCount(); ++j)
+    {
+      const KeyboardInput* ki = litk->keyboardInput(j);
+      if (ki != nullptr && ki->keyType() == keyValue &&
+          ki->modifiers() == static_cast<uint32_t>(modifiers))
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}

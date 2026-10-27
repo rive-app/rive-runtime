@@ -2,6 +2,7 @@
 #define _RIVE_STATE_MACHINE_LISTENER_HPP_
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/generated/animation/state_machine_listener_base.hpp"
+#include "rive/listener_phase.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/pointer_button.hpp"
 #include "rive/span.hpp"
@@ -32,6 +33,17 @@ public:
   bool hasListeners(Span<const ListenerType> listenerTypes) const;
   // True if any listener type hit-tests a pointer against the target.
   bool hasPointerListeners() const;
+  ListenerPhase phase() const
+  {
+    return phaseValue() == (uint32_t)ListenerPhase::capture
+               ? ListenerPhase::capture
+               : ListenerPhase::normal;
+  }
+  bool isCapture() const { return phase() == ListenerPhase::capture; }
+  // True if a press of button starts a gesture this listener follows: a
+  // down, up, click or any drag type. A capture listener with one claims the
+  // gesture from normal handling inside its target.
+  bool claimsPress(PointerButton button) const;
   size_t actionCount() const
   {
 #ifdef WITH_RIVE_EDITOR

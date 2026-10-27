@@ -182,6 +182,19 @@ public:
       bool isRepeat) = 0;
   virtual bool textInput(const std::string& text) = 0;
 
+  /// The capture phase of a key event, offered root first along the path to
+  /// the primary focus before keyInput bubbles back out. Returning true
+  /// claims the key: nothing deeper sees its capture phase and the bubble
+  /// never runs. Only reached on nodes flagged capturesKeyInput.
+  virtual bool captureKeyInput(
+      Key value,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat)
+  {
+    return false;
+  }
+
   /// Fills outText with the currently selected text within this focusable.
   /// Returns true when this focusable handled the request and the focus
   /// lookup stops here, even with outText left empty (how an obscured

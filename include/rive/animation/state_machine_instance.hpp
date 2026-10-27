@@ -21,6 +21,7 @@
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 #include "rive/sidecar.hpp"
 
@@ -53,6 +54,9 @@ class BindableProperty;
 class ViewModelInstanceValue;
 class StateInstance;
 class HitDrawable;
+class HitNestedArtboard;
+class HitComponentList;
+class HostDispatchScope;
 class DraggableProxy;
 class ListenerViewModel;
 class ScriptedListenerAction;
@@ -80,6 +84,9 @@ class StateMachineInstance : public Scene,
   friend class SMIInput;
   friend class KeyedProperty;
   friend class HitComponent;
+  friend class HitNestedArtboard;
+  friend class HitComponentList;
+  friend class HostDispatchScope;
   friend class StateMachineLayerInstance;
 
 private:
@@ -113,12 +120,38 @@ private:
   // main view model and for every global view model in the file, creating
   // (completing) any that are missing before the context is applied.
   void completeViewModelInstances();
+  /// With captureHits, the hit drawables the target resolves to are
+  /// collected there instead of taking listenerGroup as a normal listener.
   void addToHitLookup(
       Component* target,
       bool isLayoutComponent,
       std::unordered_map<Component*, HitDrawable*>& hitLookup,
       ListenerGroup* listenerGroup,
-      bool isOpaque);
+      bool isOpaque,
+      std::vector<HitDrawable*>* captureHits = nullptr);
+  /// This machine's own capture listeners, see capturePointer.
+  HitResult captureLocalPointer(
+      Vec2D position,
+      ListenerType hitType,
+      int pointerId,
+      float timeStamp,
+      PointerButton button,
+      bool collapsed);
+  /// A capture listener on scope took a press: turns off, for pointerId,
+  /// everything under scope until that pointer's release.
+  void claimPointer(Component* scope, int pointerId, PointerButton button);
+  /// Lets go of pointerId's claims here (only those taken with button,
+  /// unless anyButton), turning back on what they turned off. True if
+  /// there were any.
+  bool releasePointerClaims(
+      int pointerId,
+      PointerButton button,
+      bool anyButton);
+  /// Turns off again what pointerId's claims still hold, after something
+  /// turned on more than a released claim had (enablePointerEvents, or a
+  /// claim on the same scope for another button). Everything, while the
+  /// pointer is off from outside (isPointerDisabled).
+  void applyPointerClaims(int pointerId);
 
 public:
   StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -236,6 +269,46 @@ public:
   /// its own use wherever nothing in the scene wants it.
   bool listensToButtonAt(Vec2D position, PointerButton button);
 
+  /// The capture phase of a pointer event: this machine's capture listeners
+  /// and then those of every machine nested in it, outermost first, all
+  /// ahead of the normal phase. A capture listener that includes a press
+  /// type and is hovered on a down claims that pointer's gesture: until its
+  /// release, normal handling under the listener's target -- its hit
+  /// components and whole nested machines -- is off for that pointer.
+  /// A capture target under an opaque hit drawn above it, from outside its
+  /// own target, doesn't fire.
+  ///
+  /// The pointer methods run this themselves, once, at the root of the
+  /// dispatch; a host only calls it when it runs the top level's normal
+  /// phase itself (see captureRunByHost). Returns hit when a capture
+  /// listener was under the pointer.
+  HitResult capturePointer(
+      Vec2D position,
+      ListenerType hitType,
+      int pointerId = 0,
+      float timeStamp = 0,
+      PointerButton button = PointerButton::primary);
+  /// Whether this machine, or one nested in it, has a capture-phase
+  /// pointer listener.
+  bool hasCaptureListeners();
+  /// Whether an opaque hit under position hides what lies below it from
+  /// capture listeners, looking through nested artboards.
+  bool pointerOccludedAt(Vec2D position);
+  /// For a host that runs this machine's capture phase from its own top
+  /// level, as the editor does from Dart: the pointer methods then never
+  /// start one here.
+  void captureRunByHost(bool value) { m_captureRunByHost = value; }
+  /// Live instances, process-wide, with a capture-phase pointer listener of
+  /// their own. While it is 0 no machine runs a capture phase, so a host
+  /// running its own can skip reaching into nested machines.
+  static uint32_t liveCaptureMachines();
+  /// Tells every machine that the trees holding capture listeners may have
+  /// changed, so the next dispatch from a root asks its tree again. Building
+  /// or destroying a machine with one already does this; a host that puts
+  /// an existing machine back into a tree (a list reusing a pooled row) has
+  /// to.
+  static void captureTopologyChanged();
+
   bool tryChangeState();
   /// Makes this (a text style's state machine, instanced for one Text)
   /// serve the runs of [text] drawn with [style]: its pointer listeners
@@ -254,6 +327,10 @@ public:
 
 private:
   bool hitTestInternal(Vec2D position, bool bounded) const;
+  /// hasCaptureListeners for the root of a dispatch, cached until
+  /// captureTopologyChanged: the uncached walk visits every machine in the
+  /// tree, on every pointer event.
+  bool treeHasCaptureListeners();
 
 public:
   float durationSeconds() const override { return -1; }
@@ -506,9 +583,21 @@ public:
   // The subset of those resting on a pose whose values were already in place
   // (each one verified against the artboard).
   static uint64_t sm_frozenPoseAdvances;
+  // Machines visited by capturePointer, across every instance. Stays put
+  // while nothing in the process has a capture listener.
+  static uint64_t sm_capturePassVisits;
 #endif
   void enablePointerEvents(int pointerId = 0);
   void disablePointerEvents(int pointerId = 0);
+  /// Whether disablePointerEvents turned pointerId off from outside this
+  /// machine (a host's drag or capture claim, or the embedder), and
+  /// nothing has turned it back on.
+  bool isPointerDisabled(int pointerId) const;
+  /// The exit a host sends when something it draws above this machine's
+  /// contents covers the pointer, which hasn't left. Unlike pointerExit, it
+  /// leaves the pointer off if it was: the drag or claim that turned it off
+  /// still holds.
+  HitResult hoverExit(Vec2D position, int pointerId = 0);
   void dispose();
 
 private:
@@ -535,6 +624,11 @@ private:
   // Pointer positions arrive in the space of the Text this state machine
   // serves (see serveTextStyle), not mapped into the artboard's content.
   bool m_hostSpacePointers : 1;
+  // Set while a host machine forwards a pointer event here: the host already
+  // ran the capture phase over this machine, so updateListeners doesn't.
+  bool m_hostDispatching : 1;
+  // See captureRunByHost.
+  bool m_captureRunByHost : 1;
   // The artboard's changeSerial() when the last advance started. A layer
   // resting on a pose re-applies it only if the serial moved since then
   // (see StateMachineLayerInstance::isFrozen).
@@ -544,6 +638,9 @@ private:
   // Owns the in-flight scroll gesture. Latched for the whole gesture:
   // re-picking per event would hand a flick's tail to the outer view.
   HitComponent* m_scrollLatch = nullptr;
+  // Pointers disablePointerEvents turned off. A hover exit keeps them off;
+  // a real exit forgets them, as it does every other per-pointer state.
+  LazyVector<int> m_disabledPointerIds;
   StateMachineInstance* m_parentStateMachineInstance = nullptr;
   NestedArtboard* m_parentNestedArtboard = nullptr;
 
@@ -679,6 +776,26 @@ public:
       int pointerId)
   {
     return HitResult::none;
+  }
+  /// Whether a machine this hosts, or one nested in it, has a capture
+  /// listener: the capture phase only descends where one does.
+  virtual bool hasCaptureListeners() { return false; }
+  /// The capture phase, for hit components that host other machines.
+  virtual HitResult capturePointer(
+      Vec2D position,
+      ListenerType hitType,
+      int pointerId,
+      float timeStamp,
+      PointerButton button)
+  {
+    return HitResult::none;
+  }
+  /// Whether an opaque hit under position hides capture listeners drawn
+  /// below it. Unlike occludesPointer it looks into nested artboards, whose
+  /// opaque contents (a text input, say) cover what lies under them too.
+  virtual bool blocksCapture(Vec2D position)
+  {
+    return occludesPointer(position);
   }
 #ifdef TESTING
   int earlyOutCount = 0;

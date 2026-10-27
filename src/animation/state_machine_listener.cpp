@@ -125,6 +125,25 @@ bool StateMachineListener::listensToButton(PointerButton button) const
   return false;
 }
 
+bool StateMachineListener::claimsPress(PointerButton button) const
+{
+  // Enter, exit and move only watch the pointer go by.
+  for (auto type :
+       {ListenerType::down,
+        ListenerType::up,
+        ListenerType::click,
+        ListenerType::drag,
+        ListenerType::dragStart,
+        ListenerType::dragEnd})
+  {
+    if (hasListener(type, button))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool StateMachineListener::hasListeners(
     Span<const ListenerType> listenerTypes) const
 {

@@ -234,7 +234,19 @@ public:
 
   // === Input Routing ===
 
+  /// Routes a key event to the primary focus. Nodes flagged
+  /// capturesKeyInput are offered it first, root first (see
+  /// captureKeyInput); unless one of them claims it, it then bubbles from
+  /// the primary focus up through its ancestors until one handles it.
   bool keyInput(Key key, KeyModifiers modifiers, bool isPressed, bool isRepeat);
+  /// The capture phase of keyInput on its own: offers the key to the nodes
+  /// on the focus path flagged capturesKeyInput, outermost first, stopping
+  /// at the first that claims it.
+  bool captureKeyInput(
+      Key key,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat);
   bool textInput(const std::string& text);
 
   /// The selected text of the focused element (bubbling up like textInput

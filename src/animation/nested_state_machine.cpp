@@ -33,6 +33,13 @@ void NestedStateMachine::initializeAnimation(
     std::unique_ptr<StateMachineInstance> instance)
 {
   m_StateMachineInstance = std::move(instance);
+  // A machine handed over already built joins this tree without being
+  // constructed into it.
+  if (m_StateMachineInstance != nullptr &&
+      m_StateMachineInstance->hasCaptureListeners())
+  {
+    StateMachineInstance::captureTopologyChanged();
+  }
   if (m_StateMachineInstance != nullptr)
   {
     // Share parent's focus manager and build nested focus tree.

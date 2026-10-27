@@ -100,6 +100,13 @@ public:
   bool canTouch() const { return m_flags & Flag::kCanTouch; }
   void canTouch(bool value) { setFlag(Flag::kCanTouch, value); }
 
+  // Whether this node's focusable takes part in the capture phase of key
+  // events. FocusManager::keyInput only runs the capture phase when a node
+  // on the focus path says so, which keeps the plain bubble as cheap as it
+  // was for every tree without capture listeners.
+  bool capturesKeyInput() const { return m_flags & Flag::kCapturesKeys; }
+  void capturesKeyInput(bool value) { setFlag(Flag::kCapturesKeys, value); }
+
   // Included in tab traversal
   bool canTraverse() const { return m_flags & Flag::kCanTraverse; }
   void canTraverse(bool value) { setFlag(Flag::kCanTraverse, value); }
@@ -177,6 +184,18 @@ public:
                : false;
   }
 
+  bool captureKeyInput(
+      Key key,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat)
+  {
+    return m_focusable
+               ? m_focusable
+                     ->captureKeyInput(key, modifiers, isPressed, isRepeat)
+               : false;
+  }
+
   bool textInput(const std::string& text)
   {
     return m_focusable ? m_focusable->textInput(text) : false;
@@ -227,6 +246,7 @@ private:
     // bits 3-4: EdgeBehavior (2 bits)
     kHasFocus = 1 << 5,     // true if this node or descendant has focus
     kHadFocusable = 1 << 6, // sticky: was ever backed by a Focusable
+    kCapturesKeys = 1 << 7, // see capturesKeyInput()
   };
   static constexpr uint8_t edgeBehaviorShift = 3;
   static constexpr uint8_t edgeBehaviorMask = 0x3;

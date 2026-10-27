@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cmath>
 #include "rive/animation/animation_reset.hpp"
 #include "rive/animation/animation_reset_factory.hpp"
@@ -1091,6 +1092,80 @@ private:
   bool m_settled : 1;
 };
 
+// Instances with a capture-phase pointer listener of their own. While there are
+// none, no dispatch anywhere runs the capture phase, so files without capture
+// listeners keep exactly the single pass they always had.
+static std::atomic<uint32_t> s_liveCaptureMachines{0};
+// Moves whenever the set of trees that hold a capture listener may have
+// changed, see StateMachineInstance::captureTopologyChanged.
+static std::atomic<uint32_t> s_captureEpoch{1};
+
+static HitResult combineHitResults(HitResult a, HitResult b)
+{
+  if (a == HitResult::hitOpaque || b == HitResult::hitOpaque)
+  {
+    return HitResult::hitOpaque;
+  }
+  if (a == HitResult::hit || b == HitResult::hit)
+  {
+    return HitResult::hit;
+  }
+  return HitResult::none;
+}
+
+// Whether component is scope or sits under it in the artboard's hierarchy.
+static bool componentWithin(const Component* component, const Component* scope)
+{
+  for (auto c = component; c != nullptr; c = c->parent())
+  {
+    if (c == scope)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The component a hit component stands for in the hierarchy: a layout's
+// listeners hit through its proxy, which isn't part of the hierarchy itself.
+static Component* hierarchyComponent(HitComponent* hitComponent)
+{
+  auto component = hitComponent->component();
+  if (component != nullptr && component->is<Drawable>() &&
+      component->as<Drawable>()->isProxy())
+  {
+    return component->as<Drawable>()->hittableComponent();
+  }
+  return component;
+}
+
+/// Marks a machine as receiving a pointer event from the machine hosting it,
+/// which ran the capture phase over it already.
+class HostDispatchScope
+{
+public:
+  HostDispatchScope(StateMachineInstance* stateMachineInstance)
+      : m_stateMachineInstance(stateMachineInstance)
+  {
+    if (m_stateMachineInstance != nullptr)
+    {
+      m_previous = m_stateMachineInstance->m_hostDispatching;
+      m_stateMachineInstance->m_hostDispatching = true;
+    }
+  }
+  ~HostDispatchScope()
+  {
+    if (m_stateMachineInstance != nullptr)
+    {
+      m_stateMachineInstance->m_hostDispatching = m_previous;
+    }
+  }
+
+private:
+  StateMachineInstance* m_stateMachineInstance;
+  bool m_previous = false;
+};
+
 /// Representation of a Component from the Artboard Instance and all the
 /// listeners it triggers. Allows tracking hover and performing hit detection
 /// only once on components that trigger multiple listeners.
@@ -1295,7 +1370,10 @@ public:
     // // iterate all listeners associated with this hit shape
     for (auto listenerGroup : listeners)
     {
-      if (listenerGroup->isConsumed())
+      // Disabled is per pointer (a drag, or a capture listener's claim);
+      // consumed is shared, so another pointer's event clears it.
+      if (listenerGroup->isConsumed() ||
+          listenerGroup->isPointerDisabled(pointerId))
       {
         continue;
       }
@@ -1405,6 +1483,34 @@ public:
   {
     return m_component->hitTestPoint(position, false, true);
   }
+};
+
+// The pointers a host turned off (its capture claim, or a drag above it) for
+// the machines a hit component hosts. Those machines can change while one is
+// off -- a list realizes or adds a row, a nested artboard swaps its machine --
+// so each is turned off as an event reaches it, not only when the host turned
+// the pointer off.
+class HostedPointersOff
+{
+public:
+  void add(int pointerId) { m_ids.pushUnique(pointerId); }
+  void remove(int pointerId) { m_ids.eraseAll(pointerId); }
+  bool has(int pointerId) const
+  {
+    const auto& ids = m_ids.view();
+    return std::find(ids.begin(), ids.end(), pointerId) != ids.end();
+  }
+  void keepOff(StateMachineInstance* machine, int pointerId) const
+  {
+    if (machine != nullptr && has(pointerId) &&
+        !machine->isPointerDisabled(pointerId))
+    {
+      machine->disablePointerEvents(pointerId);
+    }
+  }
+
+private:
+  LazyVector<int> m_ids;
 };
 
 class HitNestedArtboard : public HitComponent
@@ -1704,6 +1810,11 @@ public:
   {
     auto nestedArtboard = m_component->as<NestedArtboard>();
     HitResult hitResult = HitResult::none;
+    if (hitType == ListenerType::exit)
+    {
+      // The pointer left: the machines below forget it, and so does this.
+      m_pointersOff.remove(pointerId);
+    }
     if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
         nestedArtboard->isPaused())
     {
@@ -1721,6 +1832,10 @@ public:
       if (nestedAnimation->is<NestedStateMachine>())
       {
         auto nestedStateMachine = nestedAnimation->as<NestedStateMachine>();
+        m_pointersOff.keepOff(
+            nestedStateMachine->stateMachineInstance(),
+            pointerId);
+        HostDispatchScope dispatch(nestedStateMachine->stateMachineInstance());
         if (canHit)
         {
           switch (hitType)
@@ -1743,13 +1858,22 @@ public:
                   timeStamp,
                   pointerId);
               break;
+            // A machine this host turned off (its capture claim, or a drag
+            // above) sits the host's drags out: their end would turn it
+            // back on from below, inside the claim.
             case ListenerType::dragStart:
-              nestedStateMachine
-                  ->dragStart(nestedPosition, timeStamp, pointerId, button);
+              if (!m_pointersOff.has(pointerId))
+              {
+                nestedStateMachine
+                    ->dragStart(nestedPosition, timeStamp, pointerId, button);
+              }
               break;
             case ListenerType::dragEnd:
-              nestedStateMachine
-                  ->dragEnd(nestedPosition, timeStamp, pointerId, button);
+              if (!m_pointersOff.has(pointerId))
+              {
+                nestedStateMachine
+                    ->dragEnd(nestedPosition, timeStamp, pointerId, button);
+              }
               break;
             case ListenerType::exit:
               hitResult = nestedStateMachine->pointerExit(
@@ -1778,6 +1902,13 @@ public:
             case ListenerType::down:
             case ListenerType::up:
             case ListenerType::move:
+              // Something drawn above covers the pointer, which hasn't
+              // left: a drag or claim here that turned it off still holds.
+              if (auto smi = nestedStateMachine->stateMachineInstance())
+              {
+                smi->hoverExit(nestedPosition, pointerId);
+              }
+              break;
             case ListenerType::exit:
               nestedStateMachine->pointerExit(nestedPosition, pointerId);
               break;
@@ -1805,6 +1936,112 @@ public:
   void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
       override
   {}
+
+  // A drag or a capture listener's claim turns off a pointer for the
+  // nested machines too, not just for the host's own hit components.
+  void enablePointerEvents(int pointerId) override
+  {
+    m_pointersOff.remove(pointerId);
+    forEachStateMachine([pointerId](StateMachineInstance* smi) {
+      smi->enablePointerEvents(pointerId);
+    });
+  }
+
+  void disablePointerEvents(int pointerId) override
+  {
+    m_pointersOff.add(pointerId);
+    forEachStateMachine([pointerId](StateMachineInstance* smi) {
+      smi->disablePointerEvents(pointerId);
+    });
+  }
+
+  bool hasCaptureListeners() override
+  {
+    bool has = false;
+    forEachStateMachine([&](StateMachineInstance* smi) {
+      if (!has && smi->hasCaptureListeners())
+      {
+        has = true;
+      }
+    });
+    return has;
+  }
+
+  bool blocksCapture(Vec2D position) override
+  {
+    auto nestedArtboard = m_component->as<NestedArtboard>();
+    if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+        nestedArtboard->isPaused())
+    {
+      return false;
+    }
+    Vec2D nestedPosition;
+    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    {
+      return false;
+    }
+    bool blocks = false;
+    forEachStateMachine([&](StateMachineInstance* smi) {
+      if (!blocks && smi->pointerOccludedAt(nestedPosition))
+      {
+        blocks = true;
+      }
+    });
+    return blocks;
+  }
+
+  HitResult capturePointer(
+      Vec2D position,
+      ListenerType hitType,
+      int pointerId,
+      float timeStamp,
+      PointerButton button) override
+  {
+    auto nestedArtboard = m_component->as<NestedArtboard>();
+    if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+        nestedArtboard->isPaused())
+    {
+      return HitResult::none;
+    }
+    Vec2D nestedPosition;
+    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    {
+      return HitResult::none;
+    }
+    HitResult result = HitResult::none;
+    forEachStateMachine([&](StateMachineInstance* smi) {
+      m_pointersOff.keepOff(smi, pointerId);
+      result = combineHitResults(
+          result,
+          smi->capturePointer(
+              nestedPosition,
+              hitType,
+              pointerId,
+              timeStamp,
+              button));
+    });
+    return result;
+  }
+
+private:
+  HostedPointersOff m_pointersOff;
+
+  template <typename F> void forEachStateMachine(F&& visit)
+  {
+    auto nestedArtboard = m_component->as<NestedArtboard>();
+    for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+    {
+      if (!nestedAnimation->is<NestedStateMachine>())
+      {
+        continue;
+      }
+      if (auto smi = nestedAnimation->as<NestedStateMachine>()
+                         ->stateMachineInstance())
+      {
+        visit(smi);
+      }
+    }
+  }
 };
 
 class HitComponentList : public HitComponent
@@ -2128,6 +2365,11 @@ public:
     auto componentList = m_component->as<ArtboardComponentList>();
     HitResult hitResult = HitResult::none;
     bool runningCanHit = canHit;
+    if (hitType == ListenerType::exit)
+    {
+      // See HitNestedArtboard::processEvent.
+      m_pointersOff.remove(pointerId);
+    }
     if (componentList->isCollapsed() || componentList->isHidden())
     {
       return hitResult;
@@ -2145,6 +2387,8 @@ public:
       auto stateMachine = componentList->stateMachineInstance(i);
       if (stateMachine != nullptr)
       {
+        m_pointersOff.keepOff(stateMachine, pointerId);
+        HostDispatchScope dispatch(stateMachine);
         HitResult itemHitResult = HitResult::none;
         if (runningCanHit)
         {
@@ -2173,11 +2417,19 @@ public:
                   listPosition,
                   pointerId);
               break;
+            // See HitNestedArtboard::processEvent.
             case ListenerType::dragStart:
-              stateMachine->dragStart(listPosition, 0, true, pointerId, button);
+              if (!m_pointersOff.has(pointerId))
+              {
+                stateMachine
+                    ->dragStart(listPosition, 0, true, pointerId, button);
+              }
               break;
             case ListenerType::dragEnd:
-              stateMachine->dragEnd(listPosition, 0, pointerId, button);
+              if (!m_pointersOff.has(pointerId))
+              {
+                stateMachine->dragEnd(listPosition, 0, pointerId, button);
+              }
               break;
             case ListenerType::enter:
             case ListenerType::event:
@@ -2201,6 +2453,10 @@ public:
             case ListenerType::down:
             case ListenerType::up:
             case ListenerType::move:
+              // Covered by an item or something drawn above, not left: see
+              // HitNestedArtboard::processEvent.
+              stateMachine->hoverExit(listPosition, pointerId);
+              break;
             case ListenerType::exit:
               stateMachine->pointerExit(listPosition, pointerId);
               break;
@@ -2282,6 +2538,133 @@ public:
   void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
       override
   {}
+
+  void enablePointerEvents(int pointerId) override
+  {
+    m_pointersOff.remove(pointerId);
+    auto componentList = m_component->as<ArtboardComponentList>();
+    for (int i : componentList->orderedListIndices())
+    {
+      if (auto stateMachine = componentList->stateMachineInstance(i))
+      {
+        stateMachine->enablePointerEvents(pointerId);
+      }
+    }
+  }
+
+  void disablePointerEvents(int pointerId) override
+  {
+    m_pointersOff.add(pointerId);
+    auto componentList = m_component->as<ArtboardComponentList>();
+    for (int i : componentList->orderedListIndices())
+    {
+      if (auto stateMachine = componentList->stateMachineInstance(i))
+      {
+        stateMachine->disablePointerEvents(pointerId);
+      }
+    }
+  }
+
+  bool hasCaptureListeners() override
+  {
+    auto componentList = m_component->as<ArtboardComponentList>();
+    for (int i : componentList->orderedListIndices())
+    {
+      auto stateMachine = componentList->stateMachineInstance(i);
+      if (stateMachine != nullptr && stateMachine->hasCaptureListeners())
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool blocksCapture(Vec2D position) override
+  {
+    auto componentList = m_component->as<ArtboardComponentList>();
+    if (componentList->isCollapsed() || componentList->isHidden())
+    {
+      return false;
+    }
+    for (int i : componentList->orderedListIndices())
+    {
+      Vec2D listPosition;
+      if (!componentList->worldToLocal(position, &listPosition, i))
+      {
+        continue;
+      }
+      auto stateMachine = componentList->stateMachineInstance(i);
+      if (stateMachine != nullptr &&
+          stateMachine->pointerOccludedAt(listPosition))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Items run top-most first, and an opaque item hides the items behind
+  // it, which then only see the pointer leave -- as in processEvent. Only
+  // items with a capture listener somewhere inside are visited, and the
+  // items above them only tested as far as needed.
+  HitResult capturePointer(
+      Vec2D position,
+      ListenerType hitType,
+      int pointerId,
+      float timeStamp,
+      PointerButton button) override
+  {
+    auto componentList = m_component->as<ArtboardComponentList>();
+    if (componentList->isCollapsed() || componentList->isHidden())
+    {
+      return HitResult::none;
+    }
+    HitResult result = HitResult::none;
+    bool occluded = false;
+    const auto& order = componentList->orderedListIndices();
+    const size_t count = order.size();
+    // Items are counted top-most first; this many have been tested.
+    size_t tested = 0;
+    for (size_t item = 0; item < count; item++)
+    {
+      const int i = order[count - 1 - item];
+      auto stateMachine = componentList->stateMachineInstance(i);
+      if (stateMachine == nullptr || !stateMachine->hasCaptureListeners())
+      {
+        continue;
+      }
+      Vec2D listPosition;
+      if (!componentList->worldToLocal(position, &listPosition, i))
+      {
+        continue;
+      }
+      for (; !occluded && tested < item; tested++)
+      {
+        const int above = order[count - 1 - tested];
+        auto aboveMachine = componentList->stateMachineInstance(above);
+        Vec2D abovePosition;
+        if (aboveMachine != nullptr &&
+            componentList->worldToLocal(position, &abovePosition, above) &&
+            aboveMachine->pointerOccludedAt(abovePosition))
+        {
+          occluded = true;
+        }
+      }
+      m_pointersOff.keepOff(stateMachine, pointerId);
+      result = combineHitResults(
+          result,
+          stateMachine->capturePointer(
+              listPosition,
+              occluded ? ListenerType::exit : hitType,
+              pointerId,
+              timeStamp,
+              button));
+    }
+    return result;
+  }
+
+private:
+  HostedPointersOff m_pointersOff;
 };
 
 #ifdef WITH_RIVE_TEXT
@@ -2723,6 +3106,39 @@ HitResult StateMachineInstance::updateListeners(
     float timeStamp,
     PointerButton button)
 {
+  const Vec2D hostPosition = position;
+  // A primary press may take focus from the focused component when it lands
+  // outside it (FocusManager::pressEnded). Only the root sees every press in
+  // root space; a nested instance gets a press in its own space, and only
+  // when it lands inside it. It begins ahead of the capture phase, whose
+  // listeners can move focus too: focus a press moved is not blurred by it.
+  FocusManager* pressFocusManager = nullptr;
+  if (hitType == ListenerType::down && button == PointerButton::primary &&
+      m_artboardInstance != nullptr && m_artboardInstance->isRoot())
+  {
+    pressFocusManager = focusManager();
+  }
+  if (pressFocusManager != nullptr)
+  {
+    pressFocusManager->pressBegan();
+  }
+  // The capture phase runs once per event, from the root of the dispatch,
+  // over every machine in the tree; the machines it reaches through the
+  // normal phase below must not run it again. Skipped outright while
+  // nothing anywhere has a capture listener.
+  HitResult captureResult = HitResult::none;
+  if (!m_hostDispatching && !m_captureRunByHost &&
+      s_liveCaptureMachines.load(std::memory_order_relaxed) != 0 &&
+      treeHasCaptureListeners())
+  {
+    captureResult = capturePointer(
+        position,
+        hitType,
+        pointerId,
+        timeStamp,
+        button);
+  }
+
   // Listener hit-testing runs in content space, so undo the frame origin and
   // the artboard's own rotation/scale first.
   //
@@ -2770,20 +3186,6 @@ HitResult StateMachineInstance::updateListeners(
       hitShape->prepareEvent(position, hitType, pointerId);
     }
   }
-  // A primary press may take focus from the focused component when it lands
-  // outside it (FocusManager::pressEnded). Only the root sees every press in
-  // root space; a nested instance gets a press in its own space, and only
-  // when it lands inside it.
-  FocusManager* pressFocusManager = nullptr;
-  if (hitType == ListenerType::down && button == PointerButton::primary &&
-      m_artboardInstance != nullptr && m_artboardInstance->isRoot())
-  {
-    pressFocusManager = focusManager();
-  }
-  if (pressFocusManager != nullptr)
-  {
-    pressFocusManager->pressBegan();
-  }
   bool hitSomething = false;
   bool hitOpaque = false;
   // Process the events
@@ -2821,10 +3223,446 @@ HitResult StateMachineInstance::updateListeners(
     {
       listenerGroup.get()->releaseEvent(pointerId);
     }
+    // A pointer that left is forgotten everywhere here: the capture groups
+    // too, which a host's capture pass reached first, and whatever turned
+    // it off from outside. hoverExit turns it back off for a pointer that
+    // only passed under something drawn above.
+    if (auto* extras = inputExtras())
+    {
+      for (const auto& group : extras->captureGroups)
+      {
+        group->releaseEvent(pointerId);
+      }
+    }
+    m_disabledPointerIds.eraseAll(pointerId);
+  }
+  // A claimed gesture ends with its release, which the pass above has just
+  // kept from the claimed targets. They come back on now, and a move puts
+  // their hover back where the pointer is, as dragEnd does.
+  if ((hitType == ListenerType::up || hitType == ListenerType::exit) &&
+      releasePointerClaims(pointerId, button, hitType == ListenerType::exit) &&
+      hitType == ListenerType::up)
+  {
+    pointerMove(hostPosition, timeStamp, pointerId);
   }
 
-  return hitSomething ? hitOpaque ? HitResult::hitOpaque : HitResult::hit
-                      : HitResult::none;
+  return combineHitResults(
+      captureResult,
+      hitSomething ? hitOpaque ? HitResult::hitOpaque : HitResult::hit
+                   : HitResult::none);
+}
+
+HitResult StateMachineInstance::capturePointer(
+    Vec2D position,
+    ListenerType hitType,
+    int pointerId,
+    float timeStamp,
+    PointerButton button)
+{
+  if (s_liveCaptureMachines.load(std::memory_order_relaxed) == 0)
+  {
+    return HitResult::none;
+  }
+#ifdef TESTING
+  sm_capturePassVisits++;
+#endif
+  auto* extras = inputExtras();
+  const bool hasLocal = extras != nullptr && !extras->captureHits.empty();
+  if (!hasLocal && m_artboardInstance->nestedArtboards().empty() &&
+      m_artboardInstance->artboardComponentLists().empty())
+  {
+    return HitResult::none;
+  }
+  // Collapsed contents hit nothing; the pass still runs so hover unwinds.
+  const bool collapsed = !mapToContentSpace(position);
+  HitResult result = HitResult::none;
+  if (hasLocal)
+  {
+    result = captureLocalPointer(
+        position,
+        hitType,
+        pointerId,
+        timeStamp,
+        button,
+        collapsed);
+  }
+  // Then the nested machines, which only come after every capture listener
+  // here: a host's capture listener runs before any of its contents'. Only
+  // hosts with a capture listener somewhere inside are visited, and what is
+  // drawn above them only tested as far as the lowest of those. One under an
+  // opaque hit drawn above it only sees the pointer leave, as in the normal
+  // phase.
+  bool occluded = collapsed;
+  size_t tested = 0;
+  for (size_t i = 0; i < m_hitComponents.size(); i++)
+  {
+    auto hitComponent = m_hitComponents[i].get();
+    if (!hitComponent->hasCaptureListeners())
+    {
+      continue;
+    }
+    for (; !occluded && tested < i; tested++)
+    {
+      if (m_hitComponents[tested]->blocksCapture(position))
+      {
+        occluded = true;
+      }
+    }
+    result = combineHitResults(
+        result,
+        hitComponent->capturePointer(
+            position,
+            occluded ? ListenerType::exit : hitType,
+            pointerId,
+            timeStamp,
+            button));
+  }
+  return result;
+}
+
+HitResult StateMachineInstance::captureLocalPointer(
+    Vec2D position,
+    ListenerType hitType,
+    int pointerId,
+    float timeStamp,
+    PointerButton button,
+    bool collapsed)
+{
+  auto& extras = *inputExtras();
+  // A claim lasts until its release. One still here at the next press of
+  // its button lost its release on the way (the machine wasn't reached for
+  // it), so it goes before this press can take a new one. A press of
+  // another button says nothing about it: both can be held.
+  if (hitType == ListenerType::down)
+  {
+    releasePointerClaims(pointerId, button, false);
+  }
+  for (const auto& group : extras.captureGroups)
+  {
+    group->reset(pointerId);
+  }
+  std::vector<std::pair<int, PointerButton>> dragEnded;
+  if (collapsed)
+  {
+    // As in updateListeners: contents that are gone can't hold a press.
+    for (const auto& group : extras.captureGroups)
+    {
+      group->cancelPointers(position, timeStamp, dragEnded);
+    }
+  }
+  else if (hitType != ListenerType::exit)
+  {
+    for (const auto& captureHit : extras.captureHits)
+    {
+      if (!captureHit.group->isPointerDisabled(pointerId) &&
+          captureHit.hit->hitTest(position))
+      {
+        captureHit.group->hover(pointerId);
+      }
+    }
+  }
+
+  // What is drawn above each capture target and opaque under the pointer.
+  // A target's own contents don't count: a layout's children always draw
+  // over it, and an opaque one among them is part of what it captures for.
+  struct Occluder
+  {
+    size_t drawIndex;
+    Component* component;
+  };
+  std::vector<Occluder> occluders;
+  if (!collapsed && hitType != ListenerType::exit)
+  {
+    size_t lowest = 0;
+    for (const auto& captureHit : extras.captureHits)
+    {
+      lowest = std::max(lowest, captureHit.drawIndex);
+    }
+    for (size_t i = 0; i < lowest && i < m_hitComponents.size(); i++)
+    {
+      auto hitComponent = m_hitComponents[i].get();
+      if (hitComponent->blocksCapture(position))
+      {
+        occluders.push_back({i, hierarchyComponent(hitComponent)});
+      }
+    }
+  }
+
+  HitResult result = HitResult::none;
+  for (size_t i = 0; i < extras.captureHits.size(); i++)
+  {
+    // By index: a listener's actions can claim, which only grows
+    // pointerClaims, but nothing here may hold on to a reference across
+    // them.
+    auto captureHit = extras.captureHits[i];
+    auto group = captureHit.group;
+    if (group->isConsumed() || group->isPointerDisabled(pointerId))
+    {
+      continue;
+    }
+    bool canHit = !collapsed;
+    for (const auto& occluder : occluders)
+    {
+      if (occluder.drawIndex < captureHit.drawIndex &&
+          !componentWithin(occluder.component, captureHit.target))
+      {
+        canHit = false;
+        break;
+      }
+    }
+    group->processEvent(
+        captureHit.hit->component(),
+        position,
+        pointerId,
+        hitType,
+        button,
+        canHit,
+        timeStamp,
+        this);
+    if (canHit && group->isPointerHovered(pointerId))
+    {
+      result = HitResult::hit;
+      if (hitType == ListenerType::down &&
+          group->listener()->claimsPress(button))
+      {
+        claimPointer(captureHit.target, pointerId, button);
+      }
+    }
+  }
+  for (auto& ended : dragEnded)
+  {
+    dragEnd(position, timeStamp, ended.first, ended.second);
+  }
+  if (hitType == ListenerType::exit)
+  {
+    for (const auto& group : extras.captureGroups)
+    {
+      group->releaseEvent(pointerId);
+    }
+  }
+  return result;
+}
+
+void StateMachineInstance::claimPointer(
+    Component* scope,
+    int pointerId,
+    PointerButton button)
+{
+  auto& extras = ensureInputExtras();
+  const PointerClaim* otherButton = nullptr;
+  for (const auto& claim : extras.pointerClaims)
+  {
+    if (claim.pointerId != pointerId || claim.scope != scope)
+    {
+      continue;
+    }
+    // Peers on one target, or one listener over several of its shapes.
+    if (claim.button == button)
+    {
+      return;
+    }
+    otherButton = &claim;
+  }
+  PointerClaim claim;
+  claim.pointerId = pointerId;
+  claim.button = button;
+  claim.scope = scope;
+  if (otherButton != nullptr)
+  {
+    // The same scope, already off: it holds the same things, so that
+    // whichever button lets go first leaves them off for the other.
+    claim.hits = otherButton->hits;
+    claim.captureGroups = otherButton->captureGroups;
+    extras.pointerClaims.push_back(std::move(claim));
+    return;
+  }
+  for (const auto& hitComponent : m_hitComponents)
+  {
+    if (componentWithin(hierarchyComponent(hitComponent.get()), scope))
+    {
+      hitComponent->disablePointerEvents(pointerId);
+      claim.hits.push_back(hitComponent.get());
+    }
+  }
+  // Capture listeners deeper inside it too: the outermost claim wins, as
+  // it does for keys. Peers on the same target keep running. One already
+  // off still counts: an inner claim for another button may hold it, and
+  // when that one lets go, this one keeps it off.
+  for (const auto& captureHit : extras.captureHits)
+  {
+    if (captureHit.target != scope &&
+        componentWithin(captureHit.target, scope) &&
+        std::find(
+            claim.captureGroups.begin(),
+            claim.captureGroups.end(),
+            captureHit.group) == claim.captureGroups.end())
+    {
+      captureHit.group->disable(pointerId);
+      claim.captureGroups.push_back(captureHit.group);
+    }
+  }
+  extras.pointerClaims.push_back(std::move(claim));
+}
+
+bool StateMachineInstance::releasePointerClaims(
+    int pointerId,
+    PointerButton button,
+    bool anyButton)
+{
+  auto* extras = inputExtras();
+  if (extras == nullptr || extras->pointerClaims.empty())
+  {
+    return false;
+  }
+  bool released = false;
+  auto& claims = extras->pointerClaims;
+  for (size_t i = 0; i < claims.size();)
+  {
+    if (claims[i].pointerId != pointerId ||
+        (!anyButton && claims[i].button != button))
+    {
+      i++;
+      continue;
+    }
+    PointerClaim claim = std::move(claims[i]);
+    claims.erase(claims.begin() + i);
+    for (auto hitComponent : claim.hits)
+    {
+      hitComponent->enablePointerEvents(pointerId);
+    }
+    for (auto group : claim.captureGroups)
+    {
+      group->enable(pointerId);
+    }
+    released = true;
+  }
+  if (released)
+  {
+    // Another claim of the pointer's may hold some of the same things.
+    applyPointerClaims(pointerId);
+  }
+  return released;
+}
+
+void StateMachineInstance::applyPointerClaims(int pointerId)
+{
+  auto* extras = inputExtras();
+  if (isPointerDisabled(pointerId))
+  {
+    // Turned off from outside (a host's claim or drag), which still holds:
+    // everything goes back off, not just what the claims here cover.
+    for (const auto& hitShape : m_hitComponents)
+    {
+      hitShape->disablePointerEvents(pointerId);
+    }
+    if (extras != nullptr)
+    {
+      for (const auto& group : extras->captureGroups)
+      {
+        group->disable(pointerId);
+      }
+    }
+    return;
+  }
+  if (extras == nullptr)
+  {
+    return;
+  }
+  for (const auto& claim : extras->pointerClaims)
+  {
+    if (claim.pointerId != pointerId)
+    {
+      continue;
+    }
+    for (auto hitComponent : claim.hits)
+    {
+      hitComponent->disablePointerEvents(pointerId);
+    }
+    for (auto group : claim.captureGroups)
+    {
+      group->disable(pointerId);
+    }
+  }
+}
+
+uint32_t StateMachineInstance::liveCaptureMachines()
+{
+  return s_liveCaptureMachines.load(std::memory_order_relaxed);
+}
+
+void StateMachineInstance::captureTopologyChanged()
+{
+  // Never 0, which marks a cache that was never filled.
+  if (s_captureEpoch.fetch_add(1, std::memory_order_relaxed) + 1 == 0)
+  {
+    s_captureEpoch.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+bool StateMachineInstance::treeHasCaptureListeners()
+{
+  const uint32_t epoch = s_captureEpoch.load(std::memory_order_relaxed);
+  auto& extras = ensureInputExtras();
+  if (extras.captureTreeEpoch != epoch)
+  {
+    extras.captureTreeHas = hasCaptureListeners();
+    extras.captureTreeEpoch = epoch;
+  }
+  return extras.captureTreeHas;
+}
+
+bool StateMachineInstance::hasCaptureListeners()
+{
+  auto* extras = inputExtras();
+  if (extras != nullptr && !extras->captureHits.empty())
+  {
+    return true;
+  }
+  for (auto nestedArtboard : m_artboardInstance->nestedArtboards())
+  {
+    for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+    {
+      if (!nestedAnimation->is<NestedStateMachine>())
+      {
+        continue;
+      }
+      auto smi = nestedAnimation->as<NestedStateMachine>()
+                     ->stateMachineInstance();
+      if (smi != nullptr && smi->hasCaptureListeners())
+      {
+        return true;
+      }
+    }
+  }
+  for (auto componentList : m_artboardInstance->artboardComponentLists())
+  {
+    for (int i : componentList->orderedListIndices())
+    {
+      auto smi = componentList->stateMachineInstance(i);
+      if (smi != nullptr && smi->hasCaptureListeners())
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool StateMachineInstance::pointerOccludedAt(Vec2D position)
+{
+  if (!mapToContentSpace(position))
+  {
+    // Collapsed contents hit nothing, so they hide nothing either.
+    return false;
+  }
+  for (const auto& hitComponent : m_hitComponents)
+  {
+    if (hitComponent->blocksCapture(position))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool StateMachineInstance::hitTest(Vec2D position) const
@@ -3108,6 +3946,18 @@ bool StateMachineInstance::listensToButtonAt(
   {
     return false;
   }
+  // Capture listeners hear the press before anything else does.
+  if (auto* extras = inputExtras())
+  {
+    for (const auto& captureHit : extras->captureHits)
+    {
+      if (captureHit.group->listener()->listensToButton(button) &&
+          captureHit.hit->hitTest(position))
+      {
+        return true;
+      }
+    }
+  }
   for (const auto& hitShape : m_hitComponents)
   {
     if (hitShape->listensToButtonAt(position, button))
@@ -3161,6 +4011,7 @@ bool StateMachineInstance::hasScrollLatch()
 
 #ifdef TESTING
 uint64_t StateMachineInstance::sm_settledLayerSkips = 0;
+uint64_t StateMachineInstance::sm_capturePassVisits = 0;
 uint64_t StateMachineInstance::sm_frozenLayerAdvances = 0;
 uint64_t StateMachineInstance::sm_frozenPoseAdvances = 0;
 
@@ -3191,8 +4042,22 @@ void StateMachineInstance::addToHitLookup(
     bool isLayoutComponent,
     std::unordered_map<Component*, HitDrawable*>& hitLookup,
     ListenerGroup* listenerGroup,
-    bool isOpaque)
+    bool isOpaque,
+    std::vector<HitDrawable*>* captureHits)
 {
+  // A capture listener's hit drawable is shared with the normal listeners
+  // on the same target, but doesn't take the listener: the capture phase
+  // drives it from the outside.
+  auto addListener = [&](HitDrawable* hitDrawable) {
+    if (captureHits != nullptr)
+    {
+      captureHits->push_back(hitDrawable);
+    }
+    else
+    {
+      hitDrawable->addListener(listenerGroup);
+    }
+  };
   // target could either be a LayoutComponent or a DrawableProxy
   if (isLayoutComponent)
   {
@@ -3211,7 +4076,7 @@ void StateMachineInstance::addToHitLookup(
     {
       hitLayout = static_cast<HitLayout*>(itr->second);
     }
-    hitLayout->addListener(listenerGroup);
+    addListener(hitLayout);
     if (isOpaque)
     {
       hitLayout->isOpaque = true;
@@ -3236,7 +4101,7 @@ void StateMachineInstance::addToHitLookup(
     {
       hitShape = static_cast<HitExpandable*>(itr->second);
     }
-    hitShape->addListener(listenerGroup);
+    addListener(hitShape);
     return;
   }
 
@@ -3256,7 +4121,7 @@ void StateMachineInstance::addToHitLookup(
     {
       hitTextRun = static_cast<HitTextRun*>(itr->second);
     }
-    hitTextRun->addListener(listenerGroup);
+    addListener(hitTextRun);
     return;
   }
 
@@ -3268,7 +4133,8 @@ void StateMachineInstance::addToHitLookup(
           child->is<LayoutComponent>(),
           hitLookup,
           listenerGroup,
-          isOpaque);
+          isOpaque,
+          captureHits);
       return false;
     });
     return;
@@ -3285,6 +4151,8 @@ StateMachineInstance::StateMachineInstance(
     , m_anySettled(false)
     , m_destroying(false)
     , m_hostSpacePointers(false)
+    , m_hostDispatching(false)
+    , m_captureRunByHost(false)
 {
   const auto count = machine->inputCount();
   m_inputInstances.resize(count);
@@ -3531,7 +4399,43 @@ StateMachineInstance::StateMachineInstance(
       }
     }
 
-    if (listener->hasPointerListeners())
+    if (listener->hasPointerListeners() && listener->isCapture())
+    {
+      auto listenerGroup = std::make_unique<ListenerGroup>(listener);
+      auto target = m_artboardInstance->resolve(listener->targetId());
+      if (target != nullptr && target->is<Component>())
+      {
+        auto scope = target->as<Component>();
+        uint32_t depth = 0;
+        for (auto p = scope->parent(); p != nullptr; p = p->parent())
+        {
+          depth++;
+        }
+        bool isLayoutComponent = false;
+        Component* hitTarget = scope;
+        if (scope->is<LayoutComponent>())
+        {
+          isLayoutComponent = true;
+          hitTarget = scope->as<LayoutComponent>()->proxy();
+        }
+        std::vector<HitDrawable*> hits;
+        addToHitLookup(
+            hitTarget,
+            isLayoutComponent,
+            hitLookup,
+            listenerGroup.get(),
+            false,
+            &hits);
+        auto& extras = ensureInputExtras();
+        for (auto hit : hits)
+        {
+          extras.captureHits.push_back(
+              {hit, listenerGroup.get(), scope, depth, 0});
+        }
+      }
+      ensureInputExtras().captureGroups.push_back(std::move(listenerGroup));
+    }
+    else if (listener->hasPointerListeners())
     {
       auto listenerGroup = std::make_unique<ListenerGroup>(listener);
       auto target = m_artboardInstance->resolve(listener->targetId());
@@ -3768,6 +4672,11 @@ StateMachineInstance::StateMachineInstance(
     }
   }
   sortHitComponents();
+  if (inputExtras() != nullptr && !inputExtras()->captureHits.empty())
+  {
+    s_liveCaptureMachines.fetch_add(1, std::memory_order_relaxed);
+    captureTopologyChanged();
+  }
 }
 
 FocusManager* StateMachineInstance::focusManager()
@@ -3830,6 +4739,11 @@ ScriptedObject* StateMachineInstance::scriptedObject(
 StateMachineInstance::~StateMachineInstance()
 {
   m_destroying = true;
+  if (inputExtras() != nullptr && !inputExtras()->captureHits.empty())
+  {
+    s_liveCaptureMachines.fetch_sub(1, std::memory_order_relaxed);
+    captureTopologyChanged();
+  }
 
   // Clean up semantic tree BEFORE the internal SemanticManager is destroyed.
   // Only needed when we own the manager; if external, the parent cleans up.
@@ -3999,6 +4913,34 @@ void StateMachineInstance::sortHitComponents()
       break;
     }
   }
+
+  auto* extras = inputExtras();
+  if (extras == nullptr || extras->captureHits.empty())
+  {
+    return;
+  }
+  for (auto& captureHit : extras->captureHits)
+  {
+    for (size_t i = 0; i < m_hitComponents.size(); i++)
+    {
+      if (m_hitComponents[i].get() == captureHit.hit)
+      {
+        captureHit.drawIndex = i;
+        break;
+      }
+    }
+  }
+  // Ancestors before descendants, then topmost first.
+  std::stable_sort(
+      extras->captureHits.begin(),
+      extras->captureHits.end(),
+      [](const CaptureHit& a, const CaptureHit& b) {
+        if (a.depth != b.depth)
+        {
+          return a.depth < b.depth;
+        }
+        return a.drawIndex < b.drawIndex;
+      });
 }
 
 bool StateMachineInstance::tryChangeState()
@@ -5225,18 +6167,56 @@ void StateMachineInstance::notifyEventListeners(
 
 void StateMachineInstance::enablePointerEvents(int pointerId)
 {
+  m_disabledPointerIds.eraseAll(pointerId);
   for (const auto& hitShape : m_hitComponents)
   {
     hitShape->enablePointerEvents(pointerId);
   }
+  if (auto* extras = inputExtras())
+  {
+    for (const auto& group : extras->captureGroups)
+    {
+      group->enable(pointerId);
+    }
+  }
+  // A drag ending turns everything back on, but a capture claim here still
+  // holds until its own release.
+  applyPointerClaims(pointerId);
 }
 
 void StateMachineInstance::disablePointerEvents(int pointerId)
 {
+  m_disabledPointerIds.pushUnique(pointerId);
   for (const auto& hitShape : m_hitComponents)
   {
     hitShape->disablePointerEvents(pointerId);
   }
+  if (auto* extras = inputExtras())
+  {
+    for (const auto& group : extras->captureGroups)
+    {
+      group->disable(pointerId);
+    }
+  }
+}
+
+bool StateMachineInstance::isPointerDisabled(int pointerId) const
+{
+  const auto& ids = m_disabledPointerIds.view();
+  return std::find(ids.begin(), ids.end(), pointerId) != ids.end();
+}
+
+HitResult StateMachineInstance::hoverExit(Vec2D position, int pointerId)
+{
+  const bool disabled = isPointerDisabled(pointerId);
+  // The exit releases every group's state for the pointer, the disabled
+  // phase among them, so what turned the pointer off has to again.
+  HitResult result = pointerExit(position, pointerId);
+  if (disabled)
+  {
+    disablePointerEvents(pointerId);
+  }
+  return result;
 }
 
 BindableProperty* StateMachineInstance::bindablePropertyInstance(

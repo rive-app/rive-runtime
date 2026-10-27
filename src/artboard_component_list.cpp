@@ -1997,6 +1997,12 @@ void ArtboardComponentList::addArtboardAt(
         linkStateMachineToArtboard(sm, artboardInstance);
         stateMachineInstance = sm;
         smPool.pop_back();
+        // Back in the tree without being rebuilt, so a root that
+        // cached its tree as capture-free has to look again.
+        if (sm->hasCaptureListeners())
+        {
+          StateMachineInstance::captureTopologyChanged();
+        }
       }
     }
     if (stateMachineInstance == nullptr)
