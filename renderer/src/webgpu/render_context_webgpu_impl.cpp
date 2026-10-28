@@ -493,24 +493,6 @@ public:
                 },
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
-                    .binding = PAINT_BUFFER_IDX,
-                    .visibility = paintStorageVisibility,
-                    .texture =
-                        {
-                            .sampleType = wgpu::TextureSampleType::Uint,
-                            .viewDimension = wgpu::TextureViewDimension::e2D,
-                        },
-                } :
-                wgpu::BindGroupLayoutEntry{
-                    .binding = PAINT_BUFFER_IDX,
-                    .visibility = paintStorageVisibility,
-                    .buffer =
-                        {
-                            .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                        },
-                },
-            impl->m_capabilities.polyfillVertexStorageBuffers ?
-                wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_AUX_BUFFER_IDX,
                     .visibility = paintStorageVisibility,
                     .texture =
@@ -593,7 +575,7 @@ public:
                     },
             },
         }};
-    static_assert(DRAW_BINDINGS_COUNT == 10);
+    static_assert(DRAW_BINDINGS_COUNT == 9);
 
     wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
         .entryCount = DRAW_BINDINGS_COUNT,
@@ -4367,11 +4349,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
           desc.pathCount,
           desc.firstPath,
           commandEncoder);
-      update_webgpu_storage_texture<gpu::PaintData>(
-          paintBufferRing(),
-          desc.pathCount,
-          desc.firstPaint,
-          commandEncoder);
       update_webgpu_storage_texture<gpu::PaintAuxData>(
           paintAuxBufferRing(),
           desc.pathCount,
@@ -4403,16 +4380,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .binding = PATH_BUFFER_IDX,
                 .buffer = webgpu_buffer(pathBufferRing()),
                 .offset = desc.firstPath * sizeof(gpu::PathData),
-            },
-        m_capabilities.polyfillVertexStorageBuffers ?
-            wgpu::BindGroupEntry{
-                .binding = PAINT_BUFFER_IDX,
-                .textureView = webgpu_storage_texture_view(paintBufferRing()),
-            } :
-            wgpu::BindGroupEntry{
-                .binding = PAINT_BUFFER_IDX,
-                .buffer = webgpu_buffer(paintBufferRing()),
-                .offset = desc.firstPaint * sizeof(gpu::PaintData),
             },
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{

@@ -144,11 +144,11 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
                           max(contourID, 1u) - 1u)
                           .z
                     : 0u;
-  uint4 pathData = pathID != 0u
-                       ? STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u)
-                       : uint4(0u, 0u, 0u, 0u);
-  float strokeRadius = uintBitsToFloat(pathData.z);
-  float featherRadius = uintBitsToFloat(pathData.w);
+  uint4 pathData2 = pathID != 0u
+                        ? STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u)
+                        : uint4(0u, 0u, 0u, 0u);
+  float strokeRadius = uintBitsToFloat(pathData2.x);
+  float featherRadius = uintBitsToFloat(pathData2.y);
 
   if (featherRadius != .0 && strokeRadius == .0)
   {

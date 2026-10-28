@@ -444,7 +444,7 @@ private:
   // LogicalFlush::LayoutCounters.
   struct ResourceAllocationCounts
   {
-    constexpr static int NUM_ELEMENTS = 20;
+    constexpr static int NUM_ELEMENTS = 19;
     using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
     RIVE_ALWAYS_INLINE VecType toVec() const
@@ -468,7 +468,6 @@ private:
 
     size_t flushUniformBufferCount = 0;
     size_t pathBufferCount = 0;
-    size_t paintBufferCount = 0;
     size_t paintAuxBufferCount = 0;
     size_t contourBufferCount = 0;
     size_t gradSpanBufferCount = 0;
@@ -576,7 +575,6 @@ private:
 
   WriteOnlyMappedMemory<gpu::FlushUniforms> m_flushUniformData;
   WriteOnlyMappedMemory<gpu::PathData> m_pathData;
-  WriteOnlyMappedMemory<gpu::PaintData> m_paintData;
   WriteOnlyMappedMemory<gpu::PaintAuxData> m_paintAuxData;
   WriteOnlyMappedMemory<gpu::ContourData> m_contourData;
   WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
@@ -748,7 +746,6 @@ private:
     struct LayoutCounters
     {
       uint32_t pathPaddingCount = 0;
-      uint32_t paintPaddingCount = 0;
       uint32_t paintAuxPaddingCount = 0;
       uint32_t contourPaddingCount = 0;
       uint32_t gradSpanCount = 0;
@@ -846,10 +843,7 @@ private:
     // This method does not add the path to the draw list. The caller must
     // define that draw specifically with a separate call to
     // pushMidpointFanDraw() or pushOuterCubicsDraw().
-    [[nodiscard]] uint32_t pushPath(
-        const PathDraw* draw,
-        gpu::DrawContents,
-        uint32_t zIndex);
+    [[nodiscard]] uint32_t pushPath(const PathDraw* draw, uint32_t zIndex);
 
     // Pushes a contour record to the GPU that references the given path.
     //
@@ -1024,7 +1018,6 @@ private:
 
     // State computed during layout.
     uint32_t m_pathPaddingCount;
-    uint32_t m_paintPaddingCount;
     uint32_t m_paintAuxPaddingCount;
     uint32_t m_contourPaddingCount;
     uint32_t m_gradSpanPaddingCount;

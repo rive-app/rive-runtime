@@ -116,12 +116,7 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
           .binding = PATH_BUFFER_IDX,
           .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
           .descriptorCount = 1,
-          .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-      },
-      {
-          .binding = PAINT_BUFFER_IDX,
-          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-          .descriptorCount = 1,
+          // Atomic mode reads the path buffer from the fragment shader.
           .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
                         VK_SHADER_STAGE_FRAGMENT_BIT,
       },
@@ -129,6 +124,7 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
           .binding = PAINT_AUX_BUFFER_IDX,
           .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
           .descriptorCount = 1,
+          // Atomic mode reads the paintAux buffer from the fragment shader.
           .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
                         VK_SHADER_STAGE_FRAGMENT_BIT,
       },

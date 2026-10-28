@@ -142,9 +142,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
       uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
   uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
   float2 translate = uintBitsToFloat(pathData.xy);
-  float strokeRadius = uintBitsToFloat(pathData.z);
-  uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
-  ushort pathZIndex = cast_uint_to_ushort(pathData2.x);
+  ushort pathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
+  float strokeRadius = .0;
+  if (isPolarStroke)
+  {
+    strokeRadius = uintBitsToFloat(
+        STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u).x);
+  }
 
   // Fix the tessellation vertex if we fetched the wrong one in order to
   // guarantee we got the correct contour ID and flags, or if we belong to a
@@ -365,13 +369,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   }
   else
   {
-    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
-    uint paintType = paintData.x & 0xfu;
+    uint paintType = pathData.z & 0xfu;
     bool paintHasAdvancedBlend = false;
   #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-      uint blendMode = (paintData.x >> 4) & 0xfu;
+      uint blendMode = (pathData.z >> 4) & 0xfu;
       v_blendMode = float(blendMode);
       paintHasAdvancedBlend = blendMode != BLEND_SRC_OVER;
     }
@@ -380,7 +383,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
-      v_paint = unpackUnorm4x8(paintData.y);
+      v_paint = unpackUnorm4x8(pathData.w);
       if (paintHasAdvancedBlend)
       {
         // Advanced blends take an unmultiplied color, so coverage only
@@ -402,7 +405,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
           @paintAuxBuffer,
           pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
 
-      float additivenessComplement = uintBitsToFloat(paintData.y);
+      float additivenessComplement = uintBitsToFloat(pathData.w);
       v_paint = packGradientData(
           fragCoord,
           paintMatrix,
@@ -414,7 +417,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     }
 
   #ifdef @ENABLE_MODULATED_IMAGE
-    if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
+    if (@ENABLE_MODULATED_IMAGE && (pathData.z & PAINT_FLAG_HAS_IMAGE) != 0u)
     {
       float2x2 imageMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
           @paintAuxBuffer,
@@ -427,11 +430,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
       // Add 1 to the LOD because a z value of 0 means "we don't have an
       // image"
       float imageZ = 1. + paintTranslateAndLOD.z;
-      if ((paintData.x & PAINT_FLAG_LAYER_MASK) != 0u)
+      if ((pathData.z & PAINT_FLAG_LAYER_MASK) != 0u)
       {
         // A layer-mask apply. Same sentinel as draw_path.vert: a negative z
         // with the mode packed into it (see the comment there).
-        uint mode = (paintData.x & PAINT_LAYER_MASK_MODE_MASK) >>
+        uint mode = (pathData.z & PAINT_LAYER_MASK_MODE_MASK) >>
                     PAINT_LAYER_MASK_MODE_SHIFT;
         imageZ = -(1. + float(mode));
       }

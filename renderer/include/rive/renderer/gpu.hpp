@@ -43,6 +43,7 @@ class RenderBuffer;
 namespace rive::gpu
 {
 class Draw;
+class PathDraw;
 class Gradient;
 class RenderContextImpl;
 class RenderTarget;
@@ -1712,7 +1713,6 @@ struct FlushDescriptor
   size_t flushUniformDataOffsetInBytes = 0;
   uint32_t pathCount = 0;
   size_t firstPath = 0;
-  size_t firstPaint = 0;
   size_t firstPaintAux = 0;
   uint32_t contourCount = 0;
   size_t firstContour = 0;
@@ -1929,70 +1929,44 @@ public:
   constexpr static StorageBufferStructure
       kBufferStructure = StorageBufferStructure::uint32x4;
 
-  void set(
-      const Mat2D&,
-      float strokeRadius,
-      float featherRadius,
+  PathData(
+      const PathDraw&,
       uint32_t zIndex,
-      const AtlasTransform& featherAtlasTransform,
-      const CoverageBufferRange&);
+      InterlockMode,
+      const PlatformFeatures&);
+
+  // clearColor pseudo-path (pathID 0 in atomic mode). The shader only reads the
+  // paint, so most of the record stays uninitialized.
+  explicit PathData(ColorInt clearColor);
 
 private:
+  // First & second uint32x4s.
   WRITEONLY float m_matrix[6];
-  // "0" indicates that the path is filled, not stroked.
-  WRITEONLY float m_strokeRadius;
+  WRITEONLY uint32_t m_params; // [clipID|zIndex, flags, blendMode, paintType]
+  union
+  {
+    WRITEONLY uint32_t m_color;                       // SOLID_COLOR_PAINT_TYPE
+    WRITEONLY float m_gradientAdditivenessComplement; // *_GRADIENT_PAINT_TYPE
+    WRITEONLY uint32_t m_shiftedClipReplacementID;    // CLIP_UPDATE_PAINT_TYPE
+  };
+
+  // Third uint32x4. Only loaded when PAINT_FLAG_IS_STROKE_OR_FEATHER is set.
+  WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled.
   WRITEONLY float m_featherRadius;
-  // InterlockMode::depthStencil.
-  WRITEONLY uint32_t m_zIndex;
-  // Only used when rendering coverage via the atlas.
-  WRITEONLY AtlasTransform m_featherAtlasTransform;
-  // InterlockMode::clockwiseAtomic.
-  WRITEONLY CoverageBufferRange m_coverageBufferRange;
+  WRITEONLY uint32_t m_unused[2];
+
+  // Fourth uint32x4. Only loaded for @FEATHER_ATLAS_BLIT or clockwiseAtomic.
+  union
+  {
+    WRITEONLY AtlasTransform m_featherAtlasTransform;
+    WRITEONLY CoverageBufferRange m_coverageBufferRange;
+  };
 };
 static_assert(
     sizeof(PathData) ==
     StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
 static_assert(256 % sizeof(PathData) == 0);
 constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
-
-// High level structure of the "paint" storage buffer. Each path also has a data
-// small record describing its paint at a high level. Complex paints (gradients,
-// images, or any path with a clipRect) store additional rendering info in the
-// PaintAuxData buffer.
-struct PaintData
-{
-public:
-  constexpr static StorageBufferStructure
-      kBufferStructure = StorageBufferStructure::uint32x2;
-
-  void set(
-      DrawContents singleDrawContents,
-      PaintType,
-      SimplePaintValue,
-      uint32_t clipID,
-      bool hasClipRect,
-      bool hasImage,
-      BlendMode,
-      bool solidUnmultiplied,
-      float additiveness,
-      bool isLayerMask = false,
-      LayerMaskMode layerMaskMode = LayerMaskMode::alpha);
-
-private:
-  WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
-  union
-  {
-    WRITEONLY uint32_t m_color; // PaintType::solidColor, *Gradient
-    WRITEONLY float m_gradientAdditivenessComplement; // Paintype::*Gradient
-    WRITEONLY uint32_t m_shiftedClipReplacementID;    // PaintType::clipUpdate
-  };
-};
-static_assert(
-    sizeof(PaintData) ==
-    StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
-static_assert(256 % sizeof(PaintData) == 0);
-constexpr static size_t kPaintBufferAlignmentInElements = 256 /
-                                                          sizeof(PaintData);
 
 // Structure of the "paintAux" storage buffer. Gradients, images, and clipRects
 // store their details here, indexed by pathID.

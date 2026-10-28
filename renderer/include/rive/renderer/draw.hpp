@@ -88,6 +88,18 @@ public:
         m_combinedDrawContents,
         gpu::DrawContents::clipUpdate);
   }
+  bool isNonZeroFill() const
+  {
+    return enums::is_flag_set(
+        m_combinedDrawContents,
+        gpu::DrawContents::nonZeroFill);
+  }
+  bool isEvenOddFill() const
+  {
+    return enums::is_flag_set(
+        m_combinedDrawContents,
+        gpu::DrawContents::evenOddFill);
+  }
   bool hasActiveClip() const
   {
     return enums::is_flag_set(

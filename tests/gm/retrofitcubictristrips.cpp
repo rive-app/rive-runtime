@@ -138,7 +138,7 @@ public:
     if (tessVertexCount > 0)
     {
       gpu::DrawContents drawContents = subpassDrawContents(signedSubpassIdx);
-      m_pathID = flush->pushPath(this, drawContents, zIndex);
+      m_pathID = flush->pushPath(this, zIndex);
 
       uint32_t tessLocation = flush->allocateOuterCubicTessVertices(
           tessVertexCount);

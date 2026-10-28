@@ -2,10 +2,15 @@
  * Copyright 2024 Rive
  */
 
+#include "common/render_context_null.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/renderer/draw.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive_render_paint.hpp"
+#include "rive_render_path.hpp"
 #include "shaders/constants.glsl"
 #include <catch.hpp>
+#include <cstring>
 #include <map>
 #include <set>
 
@@ -255,22 +260,37 @@ TEST_CASE("shader_unique_keys_do_not_collide", "[gpu]")
 
 TEST_CASE("layer_mask_mode_stays_out_of_the_clip_id", "[gpu]")
 {
-  auto params = [](LayerMaskMode mode) {
-    gpu::PaintData data;
-    data.set(
-        gpu::DrawContents::none,
-        gpu::PaintType::solidColor,
-        gpu::SimplePaintValue{},
-        /*clipID=*/2,
-        /*hasClipRect=*/false,
-        /*hasImage=*/true,
-        BlendMode::srcOver,
-        /*solidUnmultiplied=*/false,
-        /*additiveness=*/0.f,
-        /*isLayerMask=*/true,
-        mode);
+  auto ctx = RenderContextNULL::MakeContext();
+  ctx->beginFrame({.renderTargetWidth = 64, .renderTargetHeight = 64});
+  auto path = ctx->makeEmptyRenderPath();
+  path->moveTo(8, 8);
+  path->lineTo(56, 8);
+  path->lineTo(56, 56);
+  path->lineTo(8, 56);
+  path->close();
+
+  // The paint's params word, which follows the 6-float matrix in the record.
+  auto params = [&](LayerMaskMode mode) {
+    RiveRenderPaint paint;
+    paint.layerMask(nullptr, mode);
+    gpu::DrawUniquePtr draw = gpu::PathDraw::Make(
+        ctx.get(),
+        Mat2D(),
+        nullptr,
+        static_rcp_cast<RiveRenderPath>(path),
+        FillRule::nonZero,
+        &paint,
+        /*modulatedOpacity=*/1.f,
+        /*modulatedColor=*/0xffffffff);
+    REQUIRE(draw != nullptr);
+    draw->setClipID(2);
+    gpu::PathData data(
+        *static_cast<const gpu::PathDraw*>(draw.get()),
+        /*zIndex=*/0,
+        ctx->frameInterlockMode(),
+        ctx->platformFeatures());
     uint32_t out;
-    memcpy(&out, &data, sizeof(out));
+    memcpy(&out, reinterpret_cast<const char*>(&data) + 24, sizeof(out));
     return out;
   };
 
@@ -284,6 +304,11 @@ TEST_CASE("layer_mask_mode_stays_out_of_the_clip_id", "[gpu]")
   // low bit of the clipID.
   uint32_t outOfRange = params(static_cast<LayerMaskMode>(8));
   CHECK((outOfRange >> 16) == 2);
+
+  auto target = ctx->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
+      64,
+      64);
+  ctx->flush({.renderTarget = target.get()});
 }
 
 } // namespace rive

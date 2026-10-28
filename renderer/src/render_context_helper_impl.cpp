@@ -26,13 +26,6 @@ void RenderContextHelperImpl::resizePathBuffer(
   m_pathBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void RenderContextHelperImpl::resizePaintBuffer(
-    size_t sizeInBytes,
-    gpu::StorageBufferStructure bufferStructure)
-{
-  m_paintBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
-}
-
 void RenderContextHelperImpl::resizePaintAuxBuffer(
     size_t sizeInBytes,
     gpu::StorageBufferStructure bufferStructure)
@@ -82,11 +75,6 @@ void* RenderContextHelperImpl::mapPathBuffer(size_t mapSizeInBytes)
   return m_pathBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void* RenderContextHelperImpl::mapPaintBuffer(size_t mapSizeInBytes)
-{
-  return m_paintBuffer->mapBuffer(mapSizeInBytes);
-}
-
 void* RenderContextHelperImpl::mapPaintAuxBuffer(size_t mapSizeInBytes)
 {
   return m_paintAuxBuffer->mapBuffer(mapSizeInBytes);
@@ -132,12 +120,6 @@ void RenderContextHelperImpl::unmapPathBuffer(size_t mapSizeInBytes)
 {
   assert(m_pathBuffer->mapSizeInBytes() == mapSizeInBytes);
   m_pathBuffer->unmapAndSubmitBuffer();
-}
-
-void RenderContextHelperImpl::unmapPaintBuffer(size_t mapSizeInBytes)
-{
-  assert(m_paintBuffer->mapSizeInBytes() == mapSizeInBytes);
-  m_paintBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapPaintAuxBuffer(size_t mapSizeInBytes)

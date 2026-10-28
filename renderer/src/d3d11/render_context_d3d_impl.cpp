@@ -1935,13 +1935,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 math::lossless_numeric_cast<UINT>(desc.firstPath))
           : nullptr,
       desc.pathCount > 0
-          ? flush_structured_buffer<gpu::PaintData>(
-                m_gpuContext.Get(),
-                paintBufferRing(),
-                desc.pathCount,
-                math::lossless_numeric_cast<UINT>(desc.firstPaint))
-          : nullptr,
-      desc.pathCount > 0
           ? flush_structured_buffer<gpu::PaintAuxData>(
                 m_gpuContext.Get(),
                 paintAuxBufferRing(),
@@ -1956,8 +1949,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 math::lossless_numeric_cast<UINT>(desc.firstContour))
           : nullptr,
   };
-  static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
-  static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
+  static_assert(PAINT_AUX_BUFFER_IDX == PATH_BUFFER_IDX + 1);
   static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
   m_gpuContext->VSSetShaderResources(
       PATH_BUFFER_IDX,
@@ -1965,11 +1957,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
       storageBufferBufferSRVs);
   if (desc.interlockMode == gpu::InterlockMode::atomics)
   {
-    // Atomic mode accesses the paint buffers from the pixel shader.
+    // Atomic mode reads the path and paintAux buffers from the pixel shader.
     m_gpuContext->PSSetShaderResources(
-        PAINT_BUFFER_IDX,
+        PATH_BUFFER_IDX,
         2,
-        storageBufferBufferSRVs + 1);
+        storageBufferBufferSRVs);
   }
 
   // All programs use the same gaussian integral texture.

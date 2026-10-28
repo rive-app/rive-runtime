@@ -123,9 +123,6 @@ public:
   virtual void resizePathBuffer(
       size_t sizeInBytes,
       gpu::StorageBufferStructure) = 0;
-  virtual void resizePaintBuffer(
-      size_t sizeInBytes,
-      gpu::StorageBufferStructure) = 0;
   virtual void resizePaintAuxBuffer(
       size_t sizeInBytes,
       gpu::StorageBufferStructure) = 0;
@@ -175,7 +172,6 @@ public:
   // GPU pipeline. See RenderContextBufferRingImpl.)
   virtual void* mapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;
-  virtual void* mapPaintBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapContourBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
@@ -187,7 +183,6 @@ public:
   // Unmap GPU buffers. All buffers will be unmapped before flush().
   virtual void unmapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapPathBuffer(size_t mapSizeInBytes) = 0;
-  virtual void unmapPaintBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapContourBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapGradSpanBuffer(size_t mapSizeInBytes) = 0;

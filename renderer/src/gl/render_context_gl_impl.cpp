@@ -1995,15 +1995,13 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
   }
   if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
   {
-    // Our GL driver doesn't support storage buffers. We polyfill these
-    // buffers as textures.
-    if (isPaintDraw)
-    {
-      glutils::Uniform1iByName(m_id, GLSL_pathBuffer, PATH_BUFFER_IDX);
-    }
+    // Our GL driver doesn't support storage buffers. We polyfill these buffers
+    // as textures.
+    // Since atomic mode emits the color of the *previous* path, it always needs
+    // the path and paintAux textures bound.
     if (isPaintDraw || interlockMode == gpu::InterlockMode::atomics)
     {
-      glutils::Uniform1iByName(m_id, GLSL_paintBuffer, PAINT_BUFFER_IDX);
+      glutils::Uniform1iByName(m_id, GLSL_pathBuffer, PATH_BUFFER_IDX);
       glutils::Uniform1iByName(m_id, GLSL_paintAuxBuffer, PAINT_AUX_BUFFER_IDX);
     }
     if (isTessellationDraw)
@@ -2323,15 +2321,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         PATH_BUFFER_IDX,
         desc.pathCount * sizeof(gpu::PathData),
         desc.firstPath * sizeof(gpu::PathData),
-        polyfillBufferTextureSlot,
-        reallocatePolyfillBufferTextures);
-
-    bind_storage_buffer(
-        m_capabilities,
-        paintBufferRing(),
-        PAINT_BUFFER_IDX,
-        desc.pathCount * sizeof(gpu::PaintData),
-        desc.firstPaint * sizeof(gpu::PaintData),
         polyfillBufferTextureSlot,
         reallocatePolyfillBufferTextures);
 

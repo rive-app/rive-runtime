@@ -17,8 +17,6 @@ public:
   void resizeFlushUniformBuffer(size_t sizeInBytes) override;
   void resizePathBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
       override;
-  void resizePaintBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
-      override;
   void resizePaintAuxBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
       override;
   void resizeContourBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
@@ -31,7 +29,6 @@ public:
 
   void* mapFlushUniformBuffer(size_t mapSizeInBytes) override;
   void* mapPathBuffer(size_t mapSizeInBytes) override;
-  void* mapPaintBuffer(size_t mapSizeInBytes) override;
   void* mapPaintAuxBuffer(size_t mapSizeInBytes) override;
   void* mapContourBuffer(size_t mapSizeInBytes) override;
   void* mapGradSpanBuffer(size_t mapSizeInBytes) override;
@@ -42,7 +39,6 @@ public:
 
   void unmapFlushUniformBuffer(size_t mapSizeInBytes) override;
   void unmapPathBuffer(size_t mapSizeInBytes) override;
-  void unmapPaintBuffer(size_t mapSizeInBytes) override;
   void unmapPaintAuxBuffer(size_t mapSizeInBytes) override;
   void unmapContourBuffer(size_t mapSizeInBytes) override;
   void unmapGradSpanBuffer(size_t mapSizeInBytes) override;
@@ -60,7 +56,6 @@ public:
 protected:
   BufferRing* flushUniformBufferRing() { return m_flushUniformBuffer.get(); }
   BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
-  BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
   BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
   BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
   BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
@@ -86,7 +81,6 @@ protected:
 private:
   std::unique_ptr<BufferRing> m_flushUniformBuffer;
   std::unique_ptr<BufferRing> m_pathBuffer;
-  std::unique_ptr<BufferRing> m_paintBuffer;
   std::unique_ptr<BufferRing> m_paintAuxBuffer;
   std::unique_ptr<BufferRing> m_contourBuffer;
   std::unique_ptr<BufferRing> m_gradSpanBuffer;

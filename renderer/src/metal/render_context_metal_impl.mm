@@ -1354,9 +1354,9 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                      atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
     if (flushDesc.interlockMode == gpu::InterlockMode::atomics)
     {
-      [encoder setFragmentBuffer:mtl_buffer(paintBufferRing())
-                          offset:flushDesc.firstPaint * sizeof(gpu::PaintData)
-                         atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
+      [encoder setFragmentBuffer:mtl_buffer(pathBufferRing())
+                          offset:flushDesc.firstPath * sizeof(gpu::PathData)
+                         atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
       [encoder
           setFragmentBuffer:mtl_buffer(paintAuxBufferRing())
                      offset:flushDesc.firstPaintAux * sizeof(gpu::PaintAuxData)
@@ -1364,9 +1364,6 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
     }
     else
     {
-      [encoder setVertexBuffer:mtl_buffer(paintBufferRing())
-                        offset:flushDesc.firstPaint * sizeof(gpu::PaintData)
-                       atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
       [encoder
           setVertexBuffer:mtl_buffer(paintAuxBufferRing())
                    offset:flushDesc.firstPaintAux * sizeof(gpu::PaintAuxData)
@@ -1582,9 +1579,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
       [atlasEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
                              offset:desc.firstPath * sizeof(gpu::PathData)
                             atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
-      [atlasEncoder setVertexBuffer:mtl_buffer(paintBufferRing())
-                             offset:desc.firstPaint * sizeof(gpu::PaintData)
-                            atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
       [atlasEncoder
           setVertexBuffer:mtl_buffer(paintAuxBufferRing())
                    offset:desc.firstPaintAux * sizeof(gpu::PaintAuxData)

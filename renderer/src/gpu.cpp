@@ -6,6 +6,7 @@
 #include "rive/shapes/paint/paint_outset.hpp"
 #include "rive/math/bitwise.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/draw.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_target.hpp"
 #include "rive/renderer/rive_render_paint.hpp"
@@ -1236,109 +1237,119 @@ static void writeTranslate(volatile float* dst, const Mat2D& matrix)
   dst[1] = vals[5];
 }
 
-void PathData::set(
-    const Mat2D& m,
-    float strokeRadius,
-    float featherRadius,
+PathData::PathData(
+    const PathDraw& draw,
     uint32_t zIndex,
-    const AtlasTransform& featherAtlasTransform,
-    const CoverageBufferRange& coverageBufferRange)
+    InterlockMode interlockMode,
+    const PlatformFeatures& platformFeatures)
 {
-  write_matrix(m_matrix, m);
-  m_strokeRadius = strokeRadius; // 0 if the path is filled.
-  m_zIndex = zIndex;
-  m_featherRadius = featherRadius;
-  m_featherAtlasTransform.scaleFactor = featherAtlasTransform.scaleFactor;
-  m_featherAtlasTransform.translateX = featherAtlasTransform.translateX;
-  m_featherAtlasTransform.translateY = featherAtlasTransform.translateY;
-  m_coverageBufferRange.offset = coverageBufferRange.offset;
-  m_coverageBufferRange.pitch = coverageBufferRange.pitch;
-  m_coverageBufferRange.offsetX = coverageBufferRange.offsetX;
-  m_coverageBufferRange.offsetY = coverageBufferRange.offsetY;
-}
+  assert(zIndex < (1u << 16));
 
-void PaintData::set(
-    DrawContents singleDrawContents,
-    PaintType paintType,
-    SimplePaintValue simplePaintValue,
-    uint32_t clipID,
-    bool hasClipRect,
-    bool hasImage,
-    BlendMode blendMode,
-    bool solidUnmultiplied,
-    float additiveness,
-    bool isLayerMask,
-    LayerMaskMode layerMaskMode)
-{
-  uint32_t shiftedClipID = clipID << 16;
-  uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
-  uint32_t localParams = paint_type_to_glsl_id(paintType);
+  // First & second uint32x4s.
+  write_matrix(m_matrix, draw.paintMatrix());
 
-  assert(additiveness >= 0.f && additiveness <= 1.f); // Draw clamps it.
-  // GPU wants 1.0 - additiveness as this is used to scale the final alpha
-  // Input of 0.0 leads to GPU using 1.0 which is no scale.
-  // Input of 1.0 leads to GPU using 0.0 which is full scale
-  float complementAdditiveness = blendMode != BlendMode::srcOver
-                                     ? 1.f
-                                     : 1.f - additiveness;
-  switch (paintType)
+  uint32_t localParams = paint_type_to_glsl_id(draw.paintType()) |
+                         (ConvertBlendModeToPLSBlendMode(draw.blendMode())
+                          << 4);
+  if (draw.isNonZeroFill())
+    localParams |= PAINT_FLAG_NON_ZERO_FILL;
+  else if (draw.isEvenOddFill())
+    localParams |= PAINT_FLAG_EVEN_ODD_FILL;
+  if (draw.hasClipRect())
+    localParams |= PAINT_FLAG_HAS_CLIP_RECT;
+  if (draw.hasImageTexture())
+    localParams |= PAINT_FLAG_HAS_IMAGE;
+  if (draw.strokeRadius() != 0 || draw.featherRadius() != 0)
+    localParams |= PAINT_FLAG_IS_STROKE_OR_FEATHER;
+  if (draw.isLayerMask())
+  {
+    localParams |= PAINT_FLAG_LAYER_MASK;
+    // Masked so an unknown mode can't spill into the clipID bits above.
+    localParams |= (static_cast<uint32_t>(draw.layerMaskMode())
+                    << PAINT_LAYER_MASK_MODE_SHIFT) &
+                   PAINT_LAYER_MASK_MODE_MASK;
+  }
+  // depthStencil uses a zIndex instead of clipIDs. depthStencil does clipping
+  // in the stencil buffer.
+  if (interlockMode == InterlockMode::depthStencil)
+    localParams |= zIndex << 16;
+  else if (draw.paintType() == PaintType::clipUpdate)
+    localParams |= draw.simplePaintValue().outerClipID << 16;
+  else
+    localParams |= draw.clipID() << 16;
+  m_params = localParams;
+
+  switch (draw.paintType())
   {
     case PaintType::solidColor:
     {
-      // Swizzle the riveColor to little-endian RGBA (the order expected
-      // by GLSL).
-      // Advanced-blend draws take unmultiplied color and ignore
-      // additiveness. srcOver draws are premultiplied with additiveness
-      // baked into alpha. The KHR fixed-function blend path is
-      // premultiplied with no additiveness.
-      m_color = solidUnmultiplied
-                    ? SwizzleRiveColorToRGBA(simplePaintValue.color)
-                    : swizzleRiveColorToRGBAPremulAdditive(
-                          simplePaintValue.color,
-                          complementAdditiveness);
-      localParams |= shiftedClipID | shiftedBlendMode;
+      // GLSL expects little-endian RGBA.
+      if (draw.blendMode() == BlendMode::srcOver)
+      {
+        // srcOver draws are premultiplied with additiveness baked into alpha.
+        m_color = swizzleRiveColorToRGBAPremulAdditive(
+            draw.simplePaintValue().color,
+            1.f - draw.additiveness());
+      }
+      else if (
+          interlockMode == InterlockMode::depthStencil &&
+          platformFeatures.supportsBlendAdvancedKHR)
+      {
+        // KHR-blend draws take premultiplied alpha and ignore additiveness.
+        m_color = SwizzleRiveColorToRGBAPremul(draw.simplePaintValue().color);
+      }
+      else
+      {
+        // Advanced-blend draws take unmultiplied color and ignore additiveness.
+        m_color = SwizzleRiveColorToRGBA(draw.simplePaintValue().color);
+      }
       break;
     }
+
     case PaintType::linearGradient:
     case PaintType::radialGradient:
     case PaintType::angularGradient:
     {
-      m_gradientAdditivenessComplement = 1.0f - additiveness;
-      localParams |= shiftedClipID | shiftedBlendMode;
+      m_gradientAdditivenessComplement = 1.0f - draw.additiveness();
       break;
     }
+
     case PaintType::clipUpdate:
     {
-      m_shiftedClipReplacementID = shiftedClipID;
-      localParams |= simplePaintValue.outerClipID << 16;
+      m_shiftedClipReplacementID = draw.clipID() << 16;
       break;
     }
   }
-  if (enums::is_flag_set(singleDrawContents, DrawContents::nonZeroFill))
+
+  // Third uint32x4.
+  m_strokeRadius = draw.strokeRadius(); // 0 if the path is filled.
+  m_featherRadius = draw.featherRadius();
+
+  // Fourth uint32x4. A draw may allocate either a coverage buffer range or a
+  // feather atlas region.
+  if (draw.coverageType() == PathDraw::CoverageType::clockwiseAtomic)
   {
-    localParams |= PAINT_FLAG_NON_ZERO_FILL;
+    const CoverageBufferRange& range = draw.coverageBufferRange();
+    m_coverageBufferRange.offset = range.offset;
+    m_coverageBufferRange.pitch = range.pitch;
+    m_coverageBufferRange.offsetX = range.offsetX;
+    m_coverageBufferRange.offsetY = range.offsetY;
   }
-  else if (enums::is_flag_set(singleDrawContents, DrawContents::evenOddFill))
+  else if (draw.coverageType() == PathDraw::CoverageType::featherAtlas)
   {
-    localParams |= PAINT_FLAG_EVEN_ODD_FILL;
+    const AtlasTransform& atlasTransform = draw.featherAtlasTransform();
+    m_featherAtlasTransform.scaleFactor = atlasTransform.scaleFactor;
+    m_featherAtlasTransform.translateX = atlasTransform.translateX;
+    m_featherAtlasTransform.translateY = atlasTransform.translateY;
   }
-  if (hasClipRect)
-  {
-    localParams |= PAINT_FLAG_HAS_CLIP_RECT;
-  }
-  if (hasImage)
-  {
-    localParams |= PAINT_FLAG_HAS_IMAGE;
-  }
-  if (isLayerMask)
-  {
-    localParams |= PAINT_FLAG_LAYER_MASK;
-    // Masked so an unknown mode can't spill into the clipID bits above.
-    localParams |= (static_cast<uint32_t>(layerMaskMode)
-                    << PAINT_LAYER_MASK_MODE_SHIFT) &
-                   PAINT_LAYER_MASK_MODE_MASK;
-  }
-  m_params = localParams;
+}
+
+PathData::PathData(ColorInt clearColor)
+{
+  // A premultiplied srcOver solid color with no clip.
+  m_params = paint_type_to_glsl_id(PaintType::solidColor) |
+             (ConvertBlendModeToPLSBlendMode(BlendMode::srcOver) << 4);
+  m_color = swizzleRiveColorToRGBAPremulAdditive(clearColor, 1.f);
 }
 
 void getGradientMatrixAndCoord(

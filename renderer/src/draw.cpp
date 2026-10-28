@@ -2103,7 +2103,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
   if (m_pathID == 0)
   {
     // Reserve our pathID and write out a path record.
-    m_pathID = flush->pushPath(this, subpassDrawContents, zIndex);
+    m_pathID = flush->pushPath(this, zIndex);
   }
 
   switch (m_coverageType)

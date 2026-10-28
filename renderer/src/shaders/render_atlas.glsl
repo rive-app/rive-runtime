@@ -34,8 +34,8 @@ VERTEX_MAIN(@atlasVertexMain, Attrs, attrs, _vertexID, _instanceID)
           v_coverages VERTEX_CONTEXT_UNPACK))
   {
     // Offset from on-screen coordinates to atlas coordinates.
-    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
-    float3 atlasTransform = uintBitsToFloat(pathData2.yzw);
+    uint4 pathData3 = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
+    float3 atlasTransform = uintBitsToFloat(pathData3.xyz);
     vertexPosition = vertexPosition * atlasTransform.x + atlasTransform.yz;
 
     pos = pixel_coord_to_clip_coord(

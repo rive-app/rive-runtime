@@ -40,7 +40,6 @@ VERTEX_TEXTURE_BLOCK_END
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
-STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
@@ -372,8 +371,14 @@ INLINE bool unpack_tessellated_path_vertex(
       uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
   uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
   float2 translate = uintBitsToFloat(pathData.xy);
-  float strokeRadius = uintBitsToFloat(pathData.z);
-  float featherRadius = uintBitsToFloat(pathData.w);
+  float strokeRadius = .0;
+  float featherRadius = .0;
+  if ((pathData.z & PAINT_FLAG_IS_STROKE_OR_FEATHER) != 0u)
+  {
+    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
+    strokeRadius = uintBitsToFloat(pathData2.x);
+    featherRadius = uintBitsToFloat(pathData2.y);
+  }
 
   // Fix the tessellation vertex if we fetched the wrong one in order to
   // guarantee we got the correct contour ID and flags, or if we belong to a
@@ -824,8 +829,7 @@ INLINE bool unpack_tessellated_path_vertex(
   outVertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
 
   #ifdef @RENDER_MODE_DEPTH_STENCIL
-  uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-  outPathZIndex = cast_uint_to_ushort(pathData2.r);
+  outPathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
   #else
   // Force coverage to solid when wireframe is enabled so we can see the
   // triangles.
@@ -853,9 +857,9 @@ INLINE float2 unpack_interior_triangle_vertex(
         VERTEX_CONTEXT_DECL)
 {
   outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
+  uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
   #ifdef @RENDER_MODE_DEPTH_STENCIL
-  uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-  outPathZIndex = cast_uint_to_ushort(pathData2.x);
+  outPathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
   #else
   outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
   #endif
@@ -863,7 +867,6 @@ INLINE float2 unpack_interior_triangle_vertex(
   // FEATHER_ATLAS_BLIT draws vertices in screen space.
   float2x2 M = make_float2x2(
       uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
-  uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
   float2 translate = uintBitsToFloat(pathData.xy);
   vertexPos = MUL(M, vertexPos) + translate;
   return vertexPos;
@@ -880,14 +883,15 @@ INLINE float2 unpack_atlas_coverage_vertex(
     OUT(float2) outAtlasCoord VERTEX_CONTEXT_DECL)
 {
   outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
-  uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
   #ifdef @RENDER_MODE_DEPTH_STENCIL
-  outPathZIndex = cast_uint_to_ushort(pathData2.x);
+  outPathZIndex = cast_uint_to_ushort(
+      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u).z >> 16u);
   #endif
   float2 vertexPos = triangleVertex.xy;
   // outAtlasCoord tells the fragment shader where to fetch coverage from the
   // atlas, when using atlas coverage.
-  float3 atlasTransform = uintBitsToFloat(pathData2.yzw);
+  float3 atlasTransform = uintBitsToFloat(
+      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 3u).xyz);
   outAtlasCoord = (vertexPos * atlasTransform.x + atlasTransform.yz) *
                   uniforms.atlasTextureInverseSize;
   return vertexPos;

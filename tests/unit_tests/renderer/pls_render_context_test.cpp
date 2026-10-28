@@ -22,7 +22,7 @@ class RenderContextNULLTestImplForMapFail : public RenderContextNULL
   using Super = RenderContextNULL;
 
 public:
-  static constexpr auto MAP_COUNT = 10u;
+  static constexpr auto MAP_COUNT = 9u;
 
   RenderContextNULLTestImplForMapFail(uint32_t failingMapIndex)
       : Super()
@@ -60,14 +60,13 @@ public:
 
   MAKE_MAP_UNMAP(0, FlushUniformBuffer)
   MAKE_MAP_UNMAP(1, PathBuffer)
-  MAKE_MAP_UNMAP(2, PaintBuffer)
-  MAKE_MAP_UNMAP(3, PaintAuxBuffer)
-  MAKE_MAP_UNMAP(4, ContourBuffer)
-  MAKE_MAP_UNMAP(5, GradSpanBuffer)
-  MAKE_MAP_UNMAP(6, TessVertexSpanBuffer)
-  MAKE_MAP_UNMAP(7, TriangleVertexBuffer)
-  MAKE_MAP_UNMAP(8, ImageRectInstanceBuffer)
-  MAKE_MAP_UNMAP(9, ImageMeshInstanceBuffer)
+  MAKE_MAP_UNMAP(2, PaintAuxBuffer)
+  MAKE_MAP_UNMAP(3, ContourBuffer)
+  MAKE_MAP_UNMAP(4, GradSpanBuffer)
+  MAKE_MAP_UNMAP(5, TessVertexSpanBuffer)
+  MAKE_MAP_UNMAP(6, TriangleVertexBuffer)
+  MAKE_MAP_UNMAP(7, ImageRectInstanceBuffer)
+  MAKE_MAP_UNMAP(8, ImageMeshInstanceBuffer)
 
 #undef MAKE_MAP_UNMAP
 

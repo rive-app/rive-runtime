@@ -171,7 +171,6 @@ public:
 
   IMPLEMENT_RIVE_BUFFER(FlushUniformBuffer, m_flushUniformBuffer)
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(PathBuffer, m_pathBuffer)
-  IMPLEMENT_RIVE_STRUCTURED_BUFFER(PaintBuffer, m_paintBuffer)
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBuffer)
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(ContourBuffer, m_contourBuffer)
   IMPLEMENT_RIVE_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
@@ -256,7 +255,6 @@ private:
   // RenderContextVulkanImpl is already synchronized.
   D3D12VolatileBufferPool m_flushUniformBufferPool;
   D3D12VolatileBufferPool m_pathBufferPool;
-  D3D12VolatileBufferPool m_paintBufferPool;
   D3D12VolatileBufferPool m_paintAuxBufferPool;
   D3D12VolatileBufferPool m_contourBufferPool;
   D3D12VolatileBufferPool m_gradSpanBufferPool;
@@ -273,7 +271,6 @@ private:
   // When the frame ends, these get recycled back in their respective pools.
   rcp<D3D12VolatileBuffer> m_flushUniformBuffer;
   rcp<D3D12VolatileBuffer> m_pathBuffer;
-  rcp<D3D12VolatileBuffer> m_paintBuffer;
   rcp<D3D12VolatileBuffer> m_paintAuxBuffer;
   rcp<D3D12VolatileBuffer> m_contourBuffer;
   rcp<D3D12VolatileBuffer> m_gradSpanBuffer;

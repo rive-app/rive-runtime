@@ -159,7 +159,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     #endif
   #endif // !DRAW_INTERIOR_TRIANGLES
 
-  uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
+  // The paint lives in the second half of the path record's second uint4.
+  uint2 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u).zw;
 
   #if !defined(@FEATHER_ATLAS_BLIT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
   // Encode the integral pathID as a "half" that we know the hardware will see

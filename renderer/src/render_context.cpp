@@ -329,7 +329,6 @@ void RenderContext::LogicalFlush::rewind()
   m_combinedDrawContents = gpu::DrawContents::none;
 
   m_pathPaddingCount = 0;
-  m_paintPaddingCount = 0;
   m_paintAuxPaddingCount = 0;
   m_contourPaddingCount = 0;
   m_gradSpanPaddingCount = 0;
@@ -794,7 +793,7 @@ bool RenderContext::LogicalFlush::allocateGradient(
       m_pendingGradSpanCount += spanCount;
     }
     // Store the row relative to the first complex gradient for now.
-    // PaintData::set() will offset this value by the number of simple
+    // PathData::set() will offset this value by the number of simple
     // gradient rows once its final value is known.
     colorRampLocation->row = row;
     colorRampLocation->col = ColorRampLocation::kComplexGradientMarker;
@@ -934,8 +933,6 @@ void RenderContext::flush(const FlushResources& flushResources)
       .flushUniformBufferCount = m_logicalFlushes.size(),
       .pathBufferCount = totalFrameResourceCounts.pathCount +
                          layoutCounts.pathPaddingCount,
-      .paintBufferCount = totalFrameResourceCounts.pathCount +
-                          layoutCounts.paintPaddingCount,
       .paintAuxBufferCount = totalFrameResourceCounts.pathCount +
                              layoutCounts.paintAuxPaddingCount,
       .contourBufferCount = totalFrameResourceCounts.contourCount +
@@ -1022,7 +1019,6 @@ void RenderContext::flush(const FlushResources& flushResources)
   constexpr static ResourceAllocationCounts OVERALLOC_x4 = {
       .flushUniformBufferCount = 5,        // 125%
       .pathBufferCount = 5,                // 125%
-      .paintBufferCount = 5,               // 125%
       .paintAuxBufferCount = 5,            // 125%
       .contourBufferCount = 5,             // 125%
       .gradSpanBufferCount = 5,            // 125%
@@ -1076,7 +1072,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     constexpr static ResourceAllocationCounts SHRINK_THRESHOLD_x3 = {
         .flushUniformBufferCount = 2,        // 66.7%
         .pathBufferCount = 2,                // 66.7%
-        .paintBufferCount = 2,               // 66.7%
         .paintAuxBufferCount = 2,            // 66.7%
         .contourBufferCount = 2,             // 66.7%
         .gradSpanBufferCount = 2,            // 66.7%
@@ -1147,9 +1142,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(
         m_pathData.elementsWritten() ==
         totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount);
-    assert(
-        m_paintData.elementsWritten() ==
-        totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount);
     assert(
         m_paintAuxData.elementsWritten() ==
         totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount);
@@ -1306,8 +1298,6 @@ void RenderContext::LogicalFlush::layoutResources(
   // Storage buffer offsets are required to be aligned on multiples of 256.
   m_pathPaddingCount = math::padding_to_align_up<
       gpu::kPathBufferAlignmentInElements>(m_resourceCounts.pathCount);
-  m_paintPaddingCount = math::padding_to_align_up<
-      gpu::kPaintBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_paintAuxPaddingCount = math::padding_to_align_up<
       gpu::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_contourPaddingCount = math::padding_to_align_up<
@@ -1495,8 +1485,6 @@ void RenderContext::LogicalFlush::layoutResources(
       m_resourceCounts.pathCount);
   m_flushDesc.firstPath = runningFrameResourceCounts->pathCount +
                           runningFrameLayoutCounts->pathPaddingCount;
-  m_flushDesc.firstPaint = runningFrameResourceCounts->pathCount +
-                           runningFrameLayoutCounts->paintPaddingCount;
   m_flushDesc.firstPaintAux = runningFrameResourceCounts->pathCount +
                               runningFrameLayoutCounts->paintAuxPaddingCount;
   m_flushDesc.contourCount = math::lossless_numeric_cast<uint32_t>(
@@ -1525,7 +1513,6 @@ void RenderContext::LogicalFlush::layoutResources(
   POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
   runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
-  runningFrameLayoutCounts->paintPaddingCount += m_paintPaddingCount;
   runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
   runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
   runningFrameLayoutCounts->gradSpanCount += m_pendingGradSpanCount;
@@ -1552,7 +1539,6 @@ void RenderContext::LogicalFlush::layoutResources(
       runningFrameLayoutCounts->maxCoverageBufferLength);
 
   assert(m_flushDesc.firstPath % gpu::kPathBufferAlignmentInElements == 0);
-  assert(m_flushDesc.firstPaint % gpu::kPaintBufferAlignmentInElements == 0);
   assert(
       m_flushDesc.firstPaintAux % gpu::kPaintAuxBufferAlignmentInElements == 0);
   assert(
@@ -1601,7 +1587,6 @@ void RenderContext::LogicalFlush::writeResources()
   const gpu::PlatformFeatures& platformFeatures = m_ctx->platformFeatures();
   assert(m_hasDoneLayout);
   assert(m_flushDesc.firstPath == m_ctx->m_pathData.elementsWritten());
-  assert(m_flushDesc.firstPaint == m_ctx->m_paintData.elementsWritten());
   assert(m_flushDesc.firstPaintAux == m_ctx->m_paintAuxData.elementsWritten());
 
   // Wait until here before we record these texture sizes; they aren't decided
@@ -1714,19 +1699,7 @@ void RenderContext::LogicalFlush::writeResources()
 
   // Write a path record for the clearColor paint (used by atomic mode).
   // This also allows us to index the storage buffers directly by pathID.
-  gpu::SimplePaintValue clearColorValue;
-  clearColorValue.color = m_ctx->frameDescriptor().clearColor;
-  m_ctx->m_pathData.skip_back();
-  m_ctx->m_paintData.set_back(
-      gpu::DrawContents::none,
-      PaintType::solidColor,
-      clearColorValue,
-      /*clipID =*/0,
-      /*hasClipRect =*/false,
-      /*hasImage =*/false,
-      BlendMode::srcOver,
-      /*solidUnmultiplied =*/false,
-      /*additiveness =*/0);
+  m_ctx->m_pathData.emplace_back(m_ctx->frameDescriptor().clearColor);
   m_ctx->m_paintAuxData.skip_back();
 
   // Render padding vertices in the tessellation texture.
@@ -2588,7 +2561,6 @@ void RenderContext::LogicalFlush::writeResources()
 
   // Pad our buffers to 256-byte alignment.
   m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
-  m_ctx->m_paintData.push_back_n(nullptr, m_paintPaddingCount);
   m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
   m_ctx->m_contourData.push_back_n(nullptr, m_contourPaddingCount);
   m_ctx->m_gradSpanData.push_back_n(nullptr, m_gradSpanPaddingCount);
@@ -2596,10 +2568,6 @@ void RenderContext::LogicalFlush::writeResources()
   assert(
       m_ctx->m_pathData.elementsWritten() ==
       m_flushDesc.firstPath + m_resourceCounts.pathCount + m_pathPaddingCount);
-  assert(
-      m_ctx->m_paintData.elementsWritten() == m_flushDesc.firstPaint +
-                                                  m_resourceCounts.pathCount +
-                                                  m_paintPaddingCount);
   assert(
       m_ctx->m_paintAuxData.elementsWritten() ==
       m_flushDesc.firstPaintAux + m_resourceCounts.pathCount +
@@ -2910,16 +2878,6 @@ void RenderContext::setResourceSizes(
         gpu::PathData::kBufferStructure);
   }
 
-  LOG_BUFFER_RING_SIZE(paintBufferCount, sizeof(gpu::PaintData));
-  if (allocs.paintBufferCount !=
-          m_currentResourceAllocations.paintBufferCount ||
-      forceRealloc)
-  {
-    m_impl->resizePaintBuffer(
-        allocs.paintBufferCount * sizeof(gpu::PaintData),
-        gpu::PaintData::kBufferStructure);
-  }
-
   LOG_BUFFER_RING_SIZE(paintAuxBufferCount, sizeof(gpu::PaintAuxData));
   if (allocs.paintAuxBufferCount !=
           m_currentResourceAllocations.paintAuxBufferCount ||
@@ -3132,15 +3090,6 @@ bool RenderContext::mapResourceBuffers(
   }
   assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
 
-  if (mapCounts.paintBufferCount > 0)
-  {
-    HANDLE_MAP_FAILURE(m_paintData.mapElements(
-        m_impl.get(),
-        &RenderContextImpl::mapPaintBuffer,
-        mapCounts.paintBufferCount));
-  }
-  assert(m_paintData.hasRoomFor(mapCounts.paintBufferCount));
-
   if (mapCounts.paintAuxBufferCount > 0)
   {
     HANDLE_MAP_FAILURE(m_paintAuxData.mapElements(
@@ -3227,13 +3176,6 @@ void RenderContext::unmapResourceBuffers(
         m_impl.get(),
         &RenderContextImpl::unmapPathBuffer,
         mapCounts.pathBufferCount);
-  }
-  if (m_paintData)
-  {
-    m_paintData.unmapElements(
-        m_impl.get(),
-        &RenderContextImpl::unmapPaintBuffer,
-        mapCounts.paintBufferCount);
   }
   if (m_paintAuxData)
   {
@@ -3328,7 +3270,6 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
 
 uint32_t RenderContext::LogicalFlush::pushPath(
     const PathDraw* draw,
-    gpu::DrawContents drawContents,
     uint32_t zIndex)
 {
   RIVE_PROF_SCOPE_L(2)
@@ -3337,29 +3278,11 @@ uint32_t RenderContext::LogicalFlush::pushPath(
   ++m_currentPathID;
   assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
 
-  m_ctx->m_pathData.set_back(
-      draw->paintMatrix(),
-      draw->strokeRadius(),
-      draw->featherRadius(),
+  m_ctx->m_pathData.emplace_back(
+      *draw,
       zIndex,
-      draw->featherAtlasTransform(),
-      draw->coverageBufferRange());
-  m_ctx->m_paintData.set_back(
-      drawContents,
-      draw->paintType(),
-      draw->simplePaintValue(),
-      draw->clipID(),
-      draw->hasClipRect(),
-      draw->hasImageTexture(),
-      draw->blendMode(),
-      // Solid paints are unmultiplied for advanced-blend draws, except
-      // when depthStencil uses KHR_blend_equation_advanced
-      draw->blendMode() != BlendMode::srcOver &&
-          !(m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
-            m_ctx->platformFeatures().supportsBlendAdvancedKHR),
-      draw->additiveness(),
-      draw->isLayerMask(),
-      draw->layerMaskMode());
+      m_ctx->frameInterlockMode(),
+      m_ctx->platformFeatures());
   m_ctx->m_paintAuxData.set_back(
       draw->paintMatrix(),
       draw->imageMatrix(),
@@ -3376,9 +3299,6 @@ uint32_t RenderContext::LogicalFlush::pushPath(
   assert(
       m_flushDesc.firstPath + m_currentPathID + 1 ==
       m_ctx->m_pathData.elementsWritten());
-  assert(
-      m_flushDesc.firstPaint + m_currentPathID + 1 ==
-      m_ctx->m_paintData.elementsWritten());
   assert(
       m_flushDesc.firstPaintAux + m_currentPathID + 1 ==
       m_ctx->m_paintAuxData.elementsWritten());

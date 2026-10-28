@@ -544,7 +544,7 @@ PLS_DECLUI_UAV(COVERAGE_PLANE_IDX, coverageAtomicBuffer);
 PLS_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
-STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
+STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
@@ -608,7 +608,7 @@ INLINE void resolve_paint(
   #endif
         FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL)
 {
-  uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
+  uint2 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u).zw;
   half coverage = coverageCount;
   if ((paintData.x & (PAINT_FLAG_NON_ZERO_FILL | PAINT_FLAG_EVEN_ODD_FILL)) !=
       0u)
