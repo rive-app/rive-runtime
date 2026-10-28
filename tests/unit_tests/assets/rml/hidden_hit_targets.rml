@@ -5,7 +5,7 @@
       with the CLI, from a directory holding this scene.rml and a rive.yaml
       naming it, then copy build/hidden_hit_targets.riv into assets/.
 
-          rive . --once
+          rive . --unsigned-riv
 
       What it is for: a hidden hit target must not swallow pointer events.
       Two hosts, one per hit-component kind that owns its own visibility

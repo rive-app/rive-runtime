@@ -5,7 +5,7 @@
       nested four deep; every semantic node under it must come back on show,
       except the ones hidden for a reason of their own. No fonts: every node
       carries an explicit label, so the build stays a few KB. Rebuild with
-      `rive assets/rml/semantic_nested_collapse --once` and copy
+      `rive assets/rml/semantic_nested_collapse --unsigned-riv` and copy
       assets/rml/semantic_nested_collapse/build/semantic_nested_collapse.riv
       over assets/semantic/nested_collapse.riv.
       Ids: 0:* converters, 1:* Collapse, 2:* Outer, 3:* Middle, 4:* Inner,

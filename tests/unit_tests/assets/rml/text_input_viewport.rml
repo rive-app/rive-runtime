@@ -6,7 +6,7 @@
       packages/rive-cli/assets), then copy build/text_input_viewport.riv into
       assets/.
 
-          rive . --once
+          rive . --unsigned-riv
 
       What it is for: the TextInput library component's layout, which the
       editor exports as Viewport -> Scroll Content (+ScrollConstraint) ->

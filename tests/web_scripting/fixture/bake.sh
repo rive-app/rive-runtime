@@ -43,7 +43,7 @@ for NAME in "${NAMES[@]}"; do
         cat "$HERE/$NAME/rive.yaml" 2>/dev/null || true
     } > "$WORK/$NAME/rive.yaml"
     if RIVE_DEV_SKIP_AUTH=1 "$CLI" "$WORK/$NAME" \
-        --once $RIVE_BAKE_FLAGS $(cat "$HERE/$NAME/flags" 2>/dev/null); then
+        --unsigned-riv $RIVE_BAKE_FLAGS $(cat "$HERE/$NAME/flags" 2>/dev/null); then
         cp "$WORK/$NAME/build/app.riv" "$DEST/$NAME.riv"
     else
         FAILED+=("$NAME")

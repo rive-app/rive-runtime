@@ -5,7 +5,7 @@
       a rive.yaml naming it, then copy build/list_item_parent_trigger.riv into
       assets/.
 
-          rive . --once
+          rive . --unsigned-riv
 
       What it is for: a list whose rows' state machines transition on a
       trigger of the view model that hosts the list (Root.play), not of their

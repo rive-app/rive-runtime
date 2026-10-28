@@ -6,7 +6,7 @@
       packages/rive-cli/assets), then copy build/capture_listeners.riv into
       assets/.
 
-          rive . --once
+          rive . --unsigned-riv
 
       Every listener here is in the normal phase. The tests flip the ones
       they need to the capture phase (StateMachineListener::phaseValue)

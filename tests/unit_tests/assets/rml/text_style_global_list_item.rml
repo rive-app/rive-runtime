@@ -7,7 +7,7 @@
       assets/fonts/Inter_18pt-Regular.ttf), then copy
       build/text_style_global_list_item.riv into assets/.
 
-          rive . --once
+          rive . --unsigned-riv
     -->
     <Artboard defaultStateMachineId="1:7" viewModelId="1:14" viewModelInstanceId="1:15" width="500" height="500" styleId="1:5" name="Main" id="1:2">
         <Text sizingValue="2" width="400" height="117" x="20" y="44" name="List" exportName="true" id="1:17">
