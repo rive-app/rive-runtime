@@ -1588,6 +1588,13 @@ static bool converterRunsScript(DataConverter* converter)
       }
     }
   }
+  for (auto* dataBind : converter->dataBinds())
+  {
+    if (converterRunsScript(dataBind->converter()))
+    {
+      return true;
+    }
+  }
   return false;
 }
 

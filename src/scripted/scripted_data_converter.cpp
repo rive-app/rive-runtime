@@ -10,6 +10,8 @@
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 
+#include <algorithm>
+
 using namespace rive;
 
 ScriptedDataConverter::~ScriptedDataConverter()
@@ -114,15 +116,17 @@ void ScriptedDataConverter::bindFromContext(
 {
   Super::bindFromContext(dataContext, dataBind);
   reinit();
+  // Input binds join the converter's binds (addDataBindFromScriptedObject), so
+  // they were bound above. Binding one again binds its converter again,
+  // doubling the work at every scripted converter nested below it.
+  const auto& binds = dataBinds();
   for (auto prop : m_customProperties)
   {
     auto input = ScriptInput::from(prop);
-    if (input != nullptr)
+    if (input != nullptr && input->dataBind() != nullptr &&
+        std::find(binds.begin(), binds.end(), input->dataBind()) == binds.end())
     {
-      if (input->dataBind() != nullptr)
-      {
-        input->dataBind()->as<DataBindContext>()->bindFromContext(dataContext);
-      }
+      input->dataBind()->as<DataBindContext>()->bindFromContext(dataContext);
     }
   }
 }
@@ -140,17 +144,17 @@ bool ScriptedDataConverter::advanceComponent(
 
 bool ScriptedDataConverter::advance(float elapsedSeconds)
 {
-
+  bool didAdvanceBinds = Super::advance(elapsedSeconds);
   if (elapsedSeconds == 0)
   {
-    return false;
+    return didAdvanceBinds;
   }
   auto needsAdvance = scriptAdvance(elapsedSeconds);
   if (needsAdvance)
   {
     markConverterDirty();
   }
-  return needsAdvance;
+  return needsAdvance || didAdvanceBinds;
 }
 
 void ScriptedDataConverter::addProperty(CustomProperty* prop)

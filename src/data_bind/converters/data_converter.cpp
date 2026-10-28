@@ -62,15 +62,19 @@ void DataConverter::copy(const DataConverter& object)
   auto dataBinds = object.dataBinds();
   for (auto dataBind : dataBinds)
   {
-    auto dataBindClone = dataBind->clone()->as<DataBind>();
-    dataBindClone->target(this);
-    dataBindClone->file(dataBind->file());
-    addDataBind(dataBindClone);
+    // Binds on a converter's properties can use converters of their own, so
+    // each clone takes a clone of its bind's converter along.
+    addDataBind(dataBind->cloneWithTarget(this));
   }
   DataConverterBase::copy(object);
 }
 
-bool DataConverter::advance(float elapsedTime) { return false; }
+bool DataConverter::advance(float elapsedTime)
+{
+  return advanceDataBinds(elapsedTime);
+}
+
+bool DataConverter::mayAdvance() const { return mayAdvanceDataBinds(); }
 
 #ifdef WITH_RIVE_EDITOR
 void DataConverter::editorPrepareForDestruction()

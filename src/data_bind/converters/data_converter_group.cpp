@@ -127,12 +127,12 @@ bool DataConverterGroup::mayAdvance() const
       return true;
     }
   }
-  return false;
+  return Super::mayAdvance();
 }
 
 bool DataConverterGroup::advance(float elapsedSeconds)
 {
-  bool didUpdate = false;
+  bool didUpdate = Super::advance(elapsedSeconds);
   for (auto& item : m_items)
   {
     auto converter = item->converter();

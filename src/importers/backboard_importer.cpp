@@ -11,6 +11,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/file.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
@@ -24,34 +25,13 @@ using namespace rive;
 
 namespace
 {
-// Flags each referencer whose reference lies on a nested artboard cycle, which
-// would make instancing recurse without end. The editor never exports those.
-std::vector<bool> closesNestedArtboardCycle(
-    const std::vector<ArtboardReferencer*>& referencers,
-    const std::unordered_map<int, Artboard*>& artboards)
+// Iterative Tarjan: the strongly connected component of each node. Components
+// complete in reverse topological order, so an edge between two components
+// always runs from the higher number to the lower one. Recursing could
+// overflow on large files.
+std::vector<int> stronglyConnectedComponents(
+    const std::vector<std::vector<int>>& edges)
 {
-  std::unordered_map<Artboard*, int> nodes;
-  auto node = [&](Artboard* artboard) {
-    return nodes.emplace(artboard, (int)nodes.size()).first->second;
-  };
-  std::vector<std::pair<int, int>> references(referencers.size(), {-1, -1});
-  std::vector<std::vector<int>> edges;
-  for (size_t i = 0; i < referencers.size(); i++)
-  {
-    Artboard* nesting = referencers[i]->nestingArtboard();
-    auto nested = artboards.find(referencers[i]->referencedArtboardId());
-    if (nesting == nullptr || nested == artboards.end() ||
-        nested->second == nullptr)
-    {
-      continue;
-    }
-    references[i] = {node(nesting), node(nested->second)};
-    edges.resize(nodes.size());
-    edges[references[i].first].push_back(references[i].second);
-  }
-
-  // Iterative Tarjan: a reference closes a cycle when both its ends share a
-  // strongly connected component. Recursing could overflow on large files.
   const size_t count = edges.size();
   std::vector<int> order(count, -1);
   std::vector<int> lowLink(count, 0);
@@ -107,7 +87,37 @@ std::vector<bool> closesNestedArtboardCycle(
       }
     }
   }
+  return component;
+}
 
+// Flags each referencer whose reference lies on a nested artboard cycle, which
+// would make instancing recurse without end. The editor never exports those.
+std::vector<bool> closesNestedArtboardCycle(
+    const std::vector<ArtboardReferencer*>& referencers,
+    const std::unordered_map<int, Artboard*>& artboards)
+{
+  std::unordered_map<Artboard*, int> nodes;
+  auto node = [&](Artboard* artboard) {
+    return nodes.emplace(artboard, (int)nodes.size()).first->second;
+  };
+  std::vector<std::pair<int, int>> references(referencers.size(), {-1, -1});
+  std::vector<std::vector<int>> edges;
+  for (size_t i = 0; i < referencers.size(); i++)
+  {
+    Artboard* nesting = referencers[i]->nestingArtboard();
+    auto nested = artboards.find(referencers[i]->referencedArtboardId());
+    if (nesting == nullptr || nested == artboards.end() ||
+        nested->second == nullptr)
+    {
+      continue;
+    }
+    references[i] = {node(nesting), node(nested->second)};
+    edges.resize(nodes.size());
+    edges[references[i].first].push_back(references[i].second);
+  }
+
+  // A reference closes a cycle when both its ends share a component.
+  auto component = stronglyConnectedComponents(edges);
   std::vector<bool> closesCycle(referencers.size(), false);
   for (size_t i = 0; i < referencers.size(); i++)
   {
@@ -116,6 +126,81 @@ std::vector<bool> closesNestedArtboardCycle(
                          component[references[i].second];
   }
   return closesCycle;
+}
+
+// Gives each bind on a file level converter (on its properties, formula tokens,
+// template arguments or script inputs) a clone of the converter it uses. Every
+// bind that uses a converter clones it, so a converter's own binds have to
+// resolve before anything clones the converter. Binds whose converter leads
+// back to the converter they sit on are left without one: cloning it would
+// recurse without end. The editor never exports those. Returns the binds it
+// handled.
+std::unordered_set<DataBind*> resolveConverterDataBinds(
+    const std::vector<DataConverter*>& converters)
+{
+  const size_t count = converters.size();
+  std::unordered_map<DataConverter*, int> indices;
+  for (size_t i = 0; i < count; i++)
+  {
+    indices.emplace(converters[i], (int)i);
+  }
+  auto converterIndex = [&](DataBind* dataBind) {
+    auto index = (size_t)dataBind->converterId();
+    return index < count ? (int)index : -1;
+  };
+  std::vector<std::vector<int>> edges(count);
+  for (size_t i = 0; i < count; i++)
+  {
+    for (auto dataBind : converters[i]->dataBinds())
+    {
+      int to = converterIndex(dataBind);
+      if (to != -1)
+      {
+        edges[i].push_back(to);
+      }
+    }
+    // A group clones the converters of its items, which brings their binds.
+    if (converters[i]->is<DataConverterGroup>())
+    {
+      for (auto item : converters[i]->as<DataConverterGroup>()->items())
+      {
+        auto itr = indices.find(item->converter());
+        if (itr != indices.end())
+        {
+          edges[i].push_back(itr->second);
+        }
+      }
+    }
+  }
+
+  // Lower components never use higher ones, so resolving in component order
+  // finishes every converter before a bind clones it.
+  auto component = stronglyConnectedComponents(edges);
+  std::vector<int> order(count);
+  for (size_t i = 0; i < count; i++)
+  {
+    order[i] = (int)i;
+  }
+  std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
+    return component[a] < component[b];
+  });
+  std::unordered_set<DataBind*> resolved;
+  for (int i : order)
+  {
+    for (auto dataBind : converters[i]->dataBinds())
+    {
+      resolved.insert(dataBind);
+      int to = converterIndex(dataBind);
+      // Already set when a partial import re-resolves the file's converters.
+      if (to == -1 || component[to] == component[i] ||
+          dataBind->converter() != nullptr)
+      {
+        continue;
+      }
+      dataBind->converter(converters[to]->clone()->as<DataConverter>());
+    }
+  }
+  return resolved;
 }
 } // namespace
 
@@ -240,8 +325,13 @@ StatusCode BackboardImporter::resolve()
     // incomplete
     referencer->converter(m_DataConverters[index]);
   }
+  auto converterDataBinds = resolveConverterDataBinds(m_DataConverters);
   for (auto referencer : m_DataConverterReferencers)
   {
+    if (converterDataBinds.count(referencer) != 0)
+    {
+      continue;
+    }
     auto index = (size_t)referencer->converterId();
     if (index >= m_DataConverters.size() || index < 0)
     {

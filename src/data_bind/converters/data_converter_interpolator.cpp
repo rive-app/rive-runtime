@@ -181,6 +181,7 @@ void DataConverterInterpolator::interpolator(KeyFrameInterpolator* interpolator)
 
 bool DataConverterInterpolator::advance(float elapsedTime)
 {
+  bool didAdvanceBinds = Super::advance(elapsedTime);
   // Advance can be called multiple times in a single frame.
   // We want to make sure that two advances with time > 0 have elapsed before
   // considering the state as second frame.
@@ -192,7 +193,7 @@ bool DataConverterInterpolator::advance(float elapsedTime)
   {
     return true;
   }
-  return m_advancer.advance(elapsedTime);
+  return m_advancer.advance(elapsedTime) || didAdvanceBinds;
 }
 
 DataValue* DataConverterInterpolator::convert(
