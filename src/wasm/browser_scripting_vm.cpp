@@ -16,9 +16,11 @@ EM_JS_DEPS(riveWebScripting,
            "$UTF8ToString,$stringToUTF8,$stringToNewUTF8,"
            "$stackSave,$stackAlloc,$stackRestore,$wasmTable,malloc,free");
 
+EM_JS(double, riveWebTimeOrigin, (), { return performance.timeOrigin; });
+
 // The runner is web/rive_script_runner.mjs, installed on each thread; only
 // librive sees its heap and exports, so they are handed over here.
-EM_JS(int, riveWebAttach, (), {
+EM_JS(int, riveWebAttachRunner, (double pageOrigin), {
     const runner = Module['riveScripting'];
     if (!runner)
     {
@@ -54,6 +56,7 @@ EM_JS(int, riveWebAttach, (), {
             const text = _rive_web_lane_fuel(lane);
             return text === 0 ? null : UTF8ToString(text);
         },
+        pageOrigin: pageOrigin,
     });
     return 1;
 });
@@ -118,6 +121,11 @@ EM_JS(uint32_t, riveWebMemoryPages, (uint32_t vm), {
     return Module['riveScripting'].pages(vm);
 });
 // clang-format on
+
+// Static init runs only on the page's thread, so pool threads see its origin.
+static const double s_pageOrigin = riveWebTimeOrigin();
+
+extern "C" int riveWebAttach() { return riveWebAttachRunner(s_pageOrigin); }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_module_export(
     uint32_t vm,

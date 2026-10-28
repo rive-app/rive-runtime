@@ -337,6 +337,9 @@ export function installRiveScripting(Module) {
     // Primitives over the librive heap and exports, handed over by librive
     // itself on first use because only code inside it can see them.
     let host = null;
+    // A pool thread's own clock starts late, so lanes read the page's, as
+    // native lanes share one steady clock.
+    let laneNow = monotonicNow;
     const vms = new Map();
     // Bridge traffic, tallied only while a page measures it.
     const counters = {
@@ -680,6 +683,7 @@ export function installRiveScripting(Module) {
                 shared: sharedImports(),
                 log: (line) => host.laneLog(job.lane, line),
                 timers: job.timers,
+                now: laneNow,
                 fuel: () => laneFuel(job.lane),
             })
         );
@@ -754,6 +758,7 @@ export function installRiveScripting(Module) {
             onThrow: (text) => host.laneFail(lane, text),
             shared: sharedImports(),
             log: (line) => host.laneLog(lane, line),
+            now: laneNow,
             fuel: () => laneFuel(lane),
             prefix: kLaneEntryPrefixes['worker'],
             entry,
@@ -1309,7 +1314,13 @@ export function installRiveScripting(Module) {
 
     const runner = {
         attach(primitives) {
-            host ??= primitives;
+            if (host !== null) {
+                return;
+            }
+            host = primitives;
+            // Zero where the engine has no timeOrigin.
+            const offset = performance.timeOrigin - host.pageOrigin || 0;
+            laneNow = () => performance.now() + offset;
         },
 
         attachThreads(workers) {

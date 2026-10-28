@@ -580,6 +580,9 @@ for BROWSER in "${BROWSERS[@]}"; do
     page $PAGE fixture/feed.riv $STEADY --expect "feed received 4096 sum 8386560.0"
     page $PAGE fixture/processor_holds.riv $STEADY "${HOLDS[@]:3}"
     page $PAGE fixture/blob.riv $STEADY --expect "sampler played 4096 sum 4193280.0"
+    # A browser worker's own clock starts after the page's, unlike node's.
+    page $PAGE fixture/lane_clock.riv \
+        --expect "lane clock job agrees yes" --expect "lane clock worker agrees yes"
     # A processor's null string does not end it on a real worklet either.
     page $PAGE fixture/lane_console_null.riv $STEADY \
         --expect "processor after the null log"

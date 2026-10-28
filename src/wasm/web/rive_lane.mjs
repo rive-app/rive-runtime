@@ -68,8 +68,7 @@ export function instantiateLane(lane) {
     const imports = {
         'env': laneConsole(() => memory, lane.log, lane.timers),
         'rive_shared_v1': lane.shared(() => memory),
-        // A worker's clock counts from its own start, so it times durations.
-        'rive_rt_v1': { 'now': monotonicNow },
+        'rive_rt_v1': { 'now': lane.now ?? monotonicNow },
         'rive_lane_v1': {
             'error': (ptr, byteLength) => {
                 thrown = utf16Text(memory.buffer, ptr, byteLength);

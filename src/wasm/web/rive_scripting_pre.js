@@ -5683,8 +5683,7 @@ function instantiateLane(lane) {
     const imports = {
         'env': laneConsole(() => memory, lane.log, lane.timers),
         'rive_shared_v1': lane.shared(() => memory),
-        // A worker's clock counts from its own start, so it times durations.
-        'rive_rt_v1': { 'now': monotonicNow },
+        'rive_rt_v1': { 'now': lane.now ?? monotonicNow },
         'rive_lane_v1': {
             'error': (ptr, byteLength) => {
                 thrown = utf16Text(memory.buffer, ptr, byteLength);
@@ -6283,6 +6282,9 @@ function installRiveScripting(Module) {
     // Primitives over the librive heap and exports, handed over by librive
     // itself on first use because only code inside it can see them.
     let host = null;
+    // A pool thread's own clock starts late, so lanes read the page's, as
+    // native lanes share one steady clock.
+    let laneNow = monotonicNow;
     const vms = new Map();
     // Bridge traffic, tallied only while a page measures it.
     const counters = {
@@ -6626,6 +6628,7 @@ function installRiveScripting(Module) {
                 shared: sharedImports(),
                 log: (line) => host.laneLog(job.lane, line),
                 timers: job.timers,
+                now: laneNow,
                 fuel: () => laneFuel(job.lane),
             })
         );
@@ -6700,6 +6703,7 @@ function installRiveScripting(Module) {
             onThrow: (text) => host.laneFail(lane, text),
             shared: sharedImports(),
             log: (line) => host.laneLog(lane, line),
+            now: laneNow,
             fuel: () => laneFuel(lane),
             prefix: kLaneEntryPrefixes['worker'],
             entry,
@@ -7255,7 +7259,13 @@ function installRiveScripting(Module) {
 
     const runner = {
         attach(primitives) {
-            host ??= primitives;
+            if (host !== null) {
+                return;
+            }
+            host = primitives;
+            // Zero where the engine has no timeOrigin.
+            const offset = performance.timeOrigin - host.pageOrigin || 0;
+            laneNow = () => performance.now() + offset;
         },
 
         attachThreads(workers) {
