@@ -111,17 +111,6 @@ public:
 
   uint32_t sampleRate() { return (uint32_t)m_decoder.outputSampleRate; }
 
-  uint64_t lengthInFrames()
-  {
-    ma_uint64 length;
-    if (ma_data_source_get_length_in_pcm_frames(&m_decoder, &length) !=
-        MA_SUCCESS)
-    {
-      return 0;
-    }
-    return (uint64_t)length;
-  }
-
 private:
   ma_decoder m_decoder;
 };
@@ -162,13 +151,14 @@ float AudioSource::duration()
     }
     return m_duration = (float)bufferedSamples().size() / (float)(ch * sr);
   }
-  AudioSourceDecoder audioDecoder(m_fileBytes);
-  uint32_t sr = audioDecoder.sampleRate();
-  if (sr == 0)
+  // A reader's seek table corrects an MP3 header that miscounts its frames.
+  auto reader = makeReader(0, 0);
+  if (reader == nullptr || reader->sampleRate() == 0)
   {
     return m_duration = 0.0f;
   }
-  return m_duration = (float)audioDecoder.lengthInFrames() / (float)sr;
+  return m_duration = (float)reader->lengthInFrames() /
+                      (float)reader->sampleRate();
 }
 
 AudioFormat AudioSource::format() const

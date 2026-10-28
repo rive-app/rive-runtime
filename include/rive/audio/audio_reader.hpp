@@ -5,7 +5,6 @@
 #include "miniaudio.h"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
-#include <atomic>
 #include <vector>
 
 namespace rive
@@ -26,12 +25,11 @@ public:
   bool seek(uint64_t frame, uint64_t* landed = nullptr);
   // Back to the start without resetting the resampler, so a loop is seamless.
   bool rewind();
-  // The rest of the source into out, stopping once past maxFrames; false on a
-  // decoder error or once stop is set.
-  bool readAll(
-      uint64_t maxFrames,
-      std::vector<float>& out,
-      const std::atomic<bool>* stop = nullptr);
+  // A block of the source onto out, done once it ends or out passes
+  // maxFrames; false on a decoder error.
+  bool readBlock(uint64_t maxFrames, std::vector<float>& out, bool& done);
+  // The rest of the source into out, as readBlock does.
+  bool readAll(uint64_t maxFrames, std::vector<float>& out);
   ~AudioReader();
   uint32_t channels() const;
   uint32_t sampleRate() const;

@@ -12241,24 +12241,41 @@ public:
   // What the main lane charged its owner up front, refunded as it settles.
   uint64_t charged = 0;
   uint64_t owner = 0;
+  // The main lane decodes it a slice per poll instead, as a pool with no
+  // threads runs a job to its end.
+  bool sliced = false;
 
-protected:
-  void run() override
+  // True once it is done, else it stopped at until.
+  bool decodeUntil(Clock::time_point until)
   {
 #ifdef WITH_RIVE_AUDIO
-    std::vector<float> samples;
-    if (!m_reader->readAll(m_maxFrames, samples, &m_stop))
+    bool done = false;
+    do
     {
-      return;
+      if (m_stop.load(std::memory_order_relaxed) ||
+          !m_reader->readBlock(m_maxFrames, m_samples, done))
+      {
+        m_samples = {};
+        return true;
+      }
+    } while (!done && Clock::now() < until);
+    if (!done)
+    {
+      return false;
     }
-    bytes = samples.size() * sizeof(float);
+    bytes = m_samples.size() * sizeof(float);
     if (bytes != 0 && bytes <= kSharedMaxBytes)
     {
       blob = make_rcp<SharedBlob>(
-          Span<const uint8_t>((const uint8_t*)samples.data(), bytes));
+          Span<const uint8_t>((const uint8_t*)m_samples.data(), bytes));
     }
+    m_samples = {};
 #endif
+    return true;
   }
+
+protected:
+  void run() override { decodeUntil(Clock::time_point::max()); }
 
   void interrupt() override { m_stop.store(true, std::memory_order_relaxed); }
 
@@ -12267,6 +12284,7 @@ private:
 #ifdef WITH_RIVE_AUDIO
   rcp<AudioReader> m_reader;
   uint64_t m_maxFrames;
+  std::vector<float> m_samples;
 #endif
 };
 
@@ -12298,7 +12316,11 @@ uint32_t WasmScriptingVM::startAudioDecode(
   auto decode = make_rcp<WasmAudioDecode>(std::move(reader), maxFrames);
   decode->charged = estimate;
   decode->owner = owner;
-  WasmJobs::pool().submit(decode);
+  decode->sliced = WasmJobs::pool().threadCount() == 0;
+  if (!decode->sliced)
+  {
+    WasmJobs::pool().submit(decode);
+  }
   m_mainWaits.push_back({SignalWait(token), 0, std::move(decode)});
   return token;
 #else
@@ -12369,9 +12391,7 @@ void WasmScriptingVM::cancelMainWait(uint32_t token)
       m_mainWaits.end());
 }
 
-#if RIVE_PROCESSOR_AUDIO()
 static constexpr double kOfflineDecodeSeconds = 10;
-#endif
 
 // The blob's id or why not, -1 when nothing decoded.
 static double settleAudioDecode(WasmScriptingVM* vm, WasmAudioDecode& decode)
@@ -12393,6 +12413,8 @@ static double settleAudioDecode(WasmScriptingVM* vm, WasmAudioDecode& decode)
 void WasmScriptingVM::settleMainWaits()
 {
   auto now = std::chrono::steady_clock::now();
+  auto sliceEnd = now +
+                  std::chrono::milliseconds(lane_timing::kCooperativeSliceMs);
   size_t resultBytes = 0;
   for (auto it = m_mainWaits.begin(); it != m_mainWaits.end();)
   {
@@ -12400,14 +12422,25 @@ void WasmScriptingVM::settleMainWaits()
     bool fire = false;
     if (it->decode != nullptr)
     {
-#if RIVE_PROCESSOR_AUDIO()
       // Offline renders outrun real time, so one waits on what it decodes.
-      if (WasmProcessors::renderOffline())
-      {
-        WasmJobs::pool().join(it->decode.get(), kOfflineDecodeSeconds);
-      }
+#if RIVE_PROCESSOR_AUDIO()
+      bool offline = WasmProcessors::renderOffline();
+#else
+      bool offline = false;
 #endif
-      fire = it->decode->finished();
+      if (it->decode->sliced)
+      {
+        fire = it->decode->decodeUntil(
+            offline ? Clock::time_point::max() : sliceEnd);
+      }
+      else
+      {
+        if (offline)
+        {
+          WasmJobs::pool().join(it->decode.get(), kOfflineDecodeSeconds);
+        }
+        fire = it->decode->finished();
+      }
       if (fire)
       {
         value = settleAudioDecode(this, *it->decode);

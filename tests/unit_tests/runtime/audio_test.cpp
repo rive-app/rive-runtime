@@ -15,7 +15,6 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include <algorithm>
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -836,6 +835,43 @@ TEST_CASE("an mp3 reader seeks to the frames a whole decode has", "[audio]")
   REQUIRE(reader->readInto(tail.data(), 16, framesRead));
   REQUIRE(framesRead == 0);
 }
+
+// iTunes counts its Xing frame in the header's frame count.
+TEST_CASE(
+    "an mp3 whose header counts a frame too many reports what decodes",
+    "[audio]")
+{
+  auto file = loadFile("assets/audio/song.mp3");
+  std::vector<float> whole;
+  REQUIRE(rcp<AudioSource>(new AudioSource(Span<uint8_t>(file)))
+              ->makeReader(0, 0)
+              ->readAll(UINT64_MAX, whole));
+
+  const uint8_t info[] = {'I', 'n', 'f', 'o'};
+  auto tag = std::search(file.begin(), file.end(), info, info + 4);
+  REQUIRE(tag != file.end());
+  REQUIRE((tag[7] & 1) != 0);
+  uint8_t* count = &tag[8];
+  uint32_t frames = (uint32_t)count[0] << 24 | (uint32_t)count[1] << 16 |
+                    (uint32_t)count[2] << 8 | count[3];
+  frames++;
+  for (int i = 0; i < 4; i++)
+  {
+    count[i] = (uint8_t)(frames >> (24 - i * 8));
+  }
+
+  rcp<AudioSource> audioSource = rcp<AudioSource>(
+      new AudioSource(Span<uint8_t>(file)));
+  auto reader = audioSource->makeReader(0, 0);
+  REQUIRE(reader != nullptr);
+  std::vector<float> decoded;
+  REQUIRE(reader->readAll(UINT64_MAX, decoded));
+  REQUIRE(decoded.size() == whole.size());
+  REQUIRE(reader->lengthInFrames() == whole.size() / reader->channels());
+  REQUIRE(
+      audioSource->duration() ==
+      (float)reader->lengthInFrames() / (float)reader->sampleRate());
+}
 #endif
 
 TEST_CASE("a resampled reader filters as a resampling decoder does", "[audio]")
@@ -864,7 +900,7 @@ TEST_CASE("a resampled reader filters as a resampling decoder does", "[audio]")
   }
 }
 
-TEST_CASE("an audio decode stops past its cap or when asked", "[audio]")
+TEST_CASE("an audio decode stops past its cap", "[audio]")
 {
   auto file = loadFile("assets/audio/what.wav");
   rcp<AudioSource> audioSource = rcp<AudioSource>(
@@ -874,10 +910,6 @@ TEST_CASE("an audio decode stops past its cap or when asked", "[audio]")
   // It stops at the first chunk past the cap, which the caller refuses.
   REQUIRE(samples.size() > 1000);
   REQUIRE(samples.size() <= 1000 + 4096);
-  std::atomic<bool> stop{true};
-  REQUIRE_FALSE(
-      audioSource->makeReader(1, 0)->readAll(UINT64_MAX, samples, &stop));
-  REQUIRE(samples.empty());
 }
 
 // TODO check if sound->stop calls completed callback!!!

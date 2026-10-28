@@ -204,39 +204,41 @@ bool AudioReader::seek(uint64_t frame, uint64_t* landed)
   return true;
 }
 
-bool AudioReader::readAll(
+bool AudioReader::readBlock(
     uint64_t maxFrames,
     std::vector<float>& out,
-    const std::atomic<bool>* stop)
+    bool& done)
 {
   uint32_t frameSamples = channels();
-  uint64_t maxSamples = maxFrames > UINT64_MAX / frameSamples
-                            ? UINT64_MAX
-                            : maxFrames * frameSamples;
-  out.clear();
-  out.reserve((size_t)std::min<uint64_t>(
-      (std::min(lengthInFrames(), maxFrames) + kInputFrames) * frameSamples,
-      SIZE_MAX / sizeof(float)));
-  // Sized by what decodes, as an MP3's length is only an estimate.
-  while (out.size() <= maxSamples)
+  if (out.empty())
   {
-    if (stop != nullptr && stop->load(std::memory_order_relaxed))
+    out.reserve((size_t)std::min<uint64_t>(
+        (std::min(lengthInFrames(), maxFrames) + kInputFrames) * frameSamples,
+        SIZE_MAX / sizeof(float)));
+  }
+  size_t at = out.size();
+  out.resize(at + kInputFrames * frameSamples);
+  uint64_t read = 0;
+  if (!readInto(out.data() + at, kInputFrames, read))
+  {
+    return false;
+  }
+  out.resize(at + read * frameSamples);
+  // Sized by what decodes, as an MP3's length is only an estimate.
+  done = read == 0 || out.size() / frameSamples > maxFrames;
+  return true;
+}
+
+bool AudioReader::readAll(uint64_t maxFrames, std::vector<float>& out)
+{
+  out.clear();
+  bool done = false;
+  while (!done)
+  {
+    if (!readBlock(maxFrames, out, done))
     {
       out.clear();
       return false;
-    }
-    size_t at = out.size();
-    out.resize(at + kInputFrames * frameSamples);
-    uint64_t read = 0;
-    if (!readInto(out.data() + at, kInputFrames, read))
-    {
-      out.clear();
-      return false;
-    }
-    out.resize(at + read * frameSamples);
-    if (read == 0)
-    {
-      break;
     }
   }
   return true;
