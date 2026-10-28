@@ -5,10 +5,20 @@
 
 using namespace rive;
 
+long long ScrollPhysics::clockMicros(float timeStamp)
+{
+  return File::deterministicMode ? (long long)(timeStamp * 1000000.0f)
+                                 : steadyMicros();
+}
+
+void ScrollPhysics::markTime(float timeStamp)
+{
+  m_lastTime = clockMicros(timeStamp);
+}
+
 void ScrollPhysics::accumulate(Vec2D delta, float timeStamp)
 {
-  long long now = File::deterministicMode ? (long long)(timeStamp * 1000000.0f)
-                                          : steadyMicros();
+  long long now = clockMicros(timeStamp);
   float elapsedSeconds = (float)(now - m_lastTime) / 1000000.0f;
   m_lastTime = now;
   if (elapsedSeconds > 0)

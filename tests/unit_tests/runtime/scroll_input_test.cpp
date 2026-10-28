@@ -219,11 +219,54 @@ TEST_CASE("Trackpad flings on release", "[scrollinput]")
   REQUIRE(scroll->offsetY() == -80.0f);
 
   // Unlike a wheel, a precise gesture accumulates velocity to fling from.
-  // The opening delta primes the clock, so the second one sets the speed.
-  REQUIRE(scroll->velocityY() != 0.0f);
+  // The opening delta primes the clock, so the second one sets the speed,
+  // measured over one frame rather than from the start of the replay.
+  REQUIRE(scroll->velocityY() == Approx(-40.0f * 60.0f).epsilon(0.001));
 
   send(trackpad(rive::ScrollPhase::end, 0, 0));
   REQUIRE(scroll->physics()->isRunning() == true);
+
+  delete smi;
+}
+
+TEST_CASE(
+    "A directional trackpad begin starts the velocity clock",
+    "[scrollinput]")
+{
+  DeterministicClock clock;
+  auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+  auto artboard = file->artboard();
+  auto artboardInstance = artboard->instance();
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  rive::StateMachineInstance* smi = new rive::StateMachineInstance(
+      stateMachine,
+      artboardInstance.get());
+  auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+  smi->advanceAndApply(0.0f);
+
+  rive::Vec2D over(50.0f, 250.0f);
+
+  // Well into the replay, so a clock left at zero would show.
+  for (int i = 0; i < 10; i++)
+  {
+    clock.next();
+  }
+
+  // A begin with a direction is taken, and primes the clock at its stamp.
+  REQUIRE(
+      smi->pointerScroll(
+          over,
+          trackpad(rive::ScrollPhase::begin, 0, -40.0f),
+          clock.next()) != rive::HitResult::none);
+  REQUIRE(scroll->offsetY() == 0.0f);
+
+  // So the first update, a frame later, is measured over that frame.
+  smi->pointerScroll(
+      over,
+      trackpad(rive::ScrollPhase::update, 0, -40.0f),
+      clock.next());
+  REQUIRE(scroll->offsetY() == -40.0f);
+  REQUIRE(scroll->velocityY() == Approx(-40.0f * 60.0f).epsilon(0.001));
 
   delete smi;
 }

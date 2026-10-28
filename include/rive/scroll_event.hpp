@@ -35,7 +35,9 @@ struct ScrollEvent
   /// Distance the content moves, in artboard-space pixels -- the same sense
   /// as ScrollConstraint::dragView, so revealing later content is negative.
   /// Hosts normalize; the runtime never sees platform units.
-  Vec2D delta;
+  /// Zero unless set: Vec2D leaves its fields uninitialized, and a stray
+  /// delta on a begin would claim a view the gesture never picked.
+  Vec2D delta = Vec2D(0.0f, 0.0f);
 
   ScrollPhase phase = ScrollPhase::update;
 

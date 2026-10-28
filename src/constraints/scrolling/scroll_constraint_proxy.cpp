@@ -136,6 +136,11 @@ bool ViewportDraggableProxy::scroll(const ScrollEvent& event, float timeStamp)
     case ScrollPhase::begin:
       m_constraint->beginScrollGesture();
       m_constraint->primePhysics();
+      // The first update measures from here, not from the reset clock.
+      if (m_constraint->physics() != nullptr)
+      {
+        m_constraint->physics()->markTime(timeStamp);
+      }
       return true;
     case ScrollPhase::update:
       if (event.precise)

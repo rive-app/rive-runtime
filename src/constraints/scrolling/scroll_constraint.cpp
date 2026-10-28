@@ -678,6 +678,10 @@ void ScrollConstraint::dragView(
     {
       m_physics->accumulate(scaledDelta, timeStamp);
     }
+    else
+    {
+      m_physics->markTime(timeStamp);
+    }
     scrollOffsetX(offsetX() + scaledDelta.x);
     scrollOffsetY(offsetY() + scaledDelta.y);
     return;

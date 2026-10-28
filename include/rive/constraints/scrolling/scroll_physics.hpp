@@ -31,6 +31,7 @@ private:
                std::chrono::steady_clock::now().time_since_epoch())
         .count();
   }
+  static long long clockMicros(float timeStamp);
   // Microseconds in both modes.
   long long m_lastTime = steadyMicros();
   bool m_isRunning = false;
@@ -59,6 +60,10 @@ public:
   // Moves the simulation by delta, for content that moved under it.
   virtual void shift(Vec2D delta) {}
   virtual void accumulate(Vec2D delta, float timeStamp);
+  // Starts the clock at timeStamp without measuring a delta, so the next
+  // accumulate measures from here. reset() can't: in deterministic mode it
+  // has no stamp, and a sample measured from zero spans the whole replay.
+  void markTime(float timeStamp);
   virtual void run(
       Vec2D rangeMin,
       Vec2D rangeMax,
