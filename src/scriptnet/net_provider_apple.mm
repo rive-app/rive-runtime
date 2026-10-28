@@ -25,69 +25,6 @@ using namespace rive::scriptnet;
 
 namespace
 {
-// NSURLSession hides the server's reason phrase, so report the standard one.
-const char* reasonPhrase(NSInteger status)
-{
-  switch (status)
-  {
-    case 200:
-      return "OK";
-    case 201:
-      return "Created";
-    case 202:
-      return "Accepted";
-    case 204:
-      return "No Content";
-    case 206:
-      return "Partial Content";
-    case 301:
-      return "Moved Permanently";
-    case 302:
-      return "Found";
-    case 303:
-      return "See Other";
-    case 304:
-      return "Not Modified";
-    case 307:
-      return "Temporary Redirect";
-    case 308:
-      return "Permanent Redirect";
-    case 400:
-      return "Bad Request";
-    case 401:
-      return "Unauthorized";
-    case 403:
-      return "Forbidden";
-    case 404:
-      return "Not Found";
-    case 405:
-      return "Method Not Allowed";
-    case 409:
-      return "Conflict";
-    case 410:
-      return "Gone";
-    case 413:
-      return "Content Too Large";
-    case 415:
-      return "Unsupported Media Type";
-    case 422:
-      return "Unprocessable Content";
-    case 429:
-      return "Too Many Requests";
-    case 500:
-      return "Internal Server Error";
-    case 501:
-      return "Not Implemented";
-    case 502:
-      return "Bad Gateway";
-    case 503:
-      return "Service Unavailable";
-    case 504:
-      return "Gateway Timeout";
-  }
-  return "";
-}
-
 std::string toString(NSString* value)
 {
   const char* utf8 = value.UTF8String;
@@ -381,7 +318,8 @@ struct TaskState
   }
   HttpResponse response;
   response.status = (uint16_t)http.statusCode;
-  response.statusText = reasonPhrase(http.statusCode);
+  // NSURLSession hides the server's reason phrase.
+  response.statusText = standardReasonPhrase(response.status);
   response.url = toString(http.URL.absoluteString);
   HttpHeaders* headers = &response.headers;
   [http.allHeaderFields
@@ -464,7 +402,8 @@ public:
 
       // Not yet done (see NetPolicy): resolving the host on a background
       // queue before this resume, and before each redirect, to refuse
-      // local and private addresses.
+      // local and private addresses through NetPolicy::checkAddress, as
+      // the Windows transport does.
 
       // The request's timeoutInterval is an idle timeout; the script's
       // timeout covers the whole exchange.

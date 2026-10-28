@@ -76,4 +76,9 @@ const char* netErrorCodeName(NetErrorCode code);
 /// Inverse of netErrorCodeName; unknown names map to Network.
 NetErrorCode netErrorCodeFromName(const char* name, size_t length);
 
+/// The standard reason phrase for `status` ("OK", "Not Found"), or "" for
+/// one without. Transports report it where the server's own is hidden from
+/// them, as NSURLSession does, or absent, as over HTTP/2.
+const char* standardReasonPhrase(uint16_t status);
+
 } // namespace rive::scriptnet

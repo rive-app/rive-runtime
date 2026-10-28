@@ -3,7 +3,9 @@
 #include "catch.hpp"
 #include "rive/scriptnet/net_policy.hpp"
 
+#include <initializer_list>
 #include <string>
+#include <vector>
 
 using namespace rive::scriptnet;
 
@@ -144,6 +146,138 @@ TEST_CASE(
   CHECK(urlRefusal("https://nas.lan/") == kLocalHost);
 }
 
+// The reason checkAddress() gives for an address, or "" when it passes.
+std::string addressRefusal(std::initializer_list<int> bytes)
+{
+  std::vector<uint8_t> address;
+  for (int byte : bytes)
+  {
+    address.push_back((uint8_t)byte);
+  }
+  std::string reason;
+  if (NetPolicy::checkAddress(address.data(), address.size(), &reason))
+  {
+    return "";
+  }
+  return reason;
+}
+
+// An IPv6 address from its eight groups.
+std::string v6Refusal(std::initializer_list<int> groups)
+{
+  std::vector<uint8_t> address;
+  for (int group : groups)
+  {
+    address.push_back((uint8_t)(group >> 8));
+    address.push_back((uint8_t)group);
+  }
+  std::string reason;
+  if (NetPolicy::checkAddress(address.data(), address.size(), &reason))
+  {
+    return "";
+  }
+  return reason;
+}
+
+const char* kLoopback = "the host resolves to a loopback address";
+const char* kPrivate = "the host resolves to a private address";
+const char* kLinkLocal = "the host resolves to a link-local address";
+const char* kReserved = "the host resolves to a reserved address";
+
+TEST_CASE("NetPolicy lets public IPv4 addresses through", "[scriptnet]")
+{
+  CHECK(addressRefusal({93, 184, 216, 34}) == "");
+  CHECK(addressRefusal({1, 1, 1, 1}) == "");
+  CHECK(addressRefusal({8, 8, 8, 8}) == "");
+  // The neighbours of the refused blocks.
+  CHECK(addressRefusal({11, 0, 0, 1}) == "");
+  CHECK(addressRefusal({172, 15, 255, 255}) == "");
+  CHECK(addressRefusal({172, 32, 0, 1}) == "");
+  CHECK(addressRefusal({192, 167, 255, 255}) == "");
+  CHECK(addressRefusal({192, 169, 0, 1}) == "");
+  CHECK(addressRefusal({100, 63, 255, 255}) == "");
+  CHECK(addressRefusal({100, 128, 0, 1}) == "");
+  CHECK(addressRefusal({169, 253, 0, 1}) == "");
+  CHECK(addressRefusal({192, 0, 1, 1}) == "");
+  CHECK(addressRefusal({192, 0, 3, 1}) == "");
+  CHECK(addressRefusal({198, 17, 255, 255}) == "");
+  CHECK(addressRefusal({198, 20, 0, 1}) == "");
+  CHECK(addressRefusal({223, 255, 255, 255}) == "");
+}
+
+TEST_CASE(
+    "NetPolicy refuses local, private and reserved IPv4 addresses",
+    "[scriptnet]")
+{
+  CHECK(addressRefusal({127, 0, 0, 1}) == kLoopback);
+  CHECK(addressRefusal({127, 255, 255, 255}) == kLoopback);
+  CHECK(addressRefusal({10, 0, 0, 1}) == kPrivate);
+  CHECK(addressRefusal({172, 16, 0, 1}) == kPrivate);
+  CHECK(addressRefusal({172, 31, 255, 255}) == kPrivate);
+  CHECK(addressRefusal({192, 168, 1, 1}) == kPrivate);
+  // Carrier-grade NAT's shared space.
+  CHECK(addressRefusal({100, 64, 0, 1}) == kPrivate);
+  CHECK(addressRefusal({100, 127, 255, 255}) == kPrivate);
+  // Where cloud instance metadata lives.
+  CHECK(addressRefusal({169, 254, 169, 254}) == kLinkLocal);
+  CHECK(addressRefusal({0, 0, 0, 0}) == kReserved);
+  CHECK(addressRefusal({0, 1, 2, 3}) == kReserved);
+  CHECK(addressRefusal({192, 0, 0, 1}) == kReserved);
+  CHECK(addressRefusal({192, 0, 2, 1}) == kReserved);
+  CHECK(addressRefusal({198, 51, 100, 1}) == kReserved);
+  CHECK(addressRefusal({203, 0, 113, 1}) == kReserved);
+  CHECK(addressRefusal({198, 18, 0, 1}) == kReserved);
+  CHECK(addressRefusal({198, 19, 255, 255}) == kReserved);
+  CHECK(addressRefusal({224, 0, 0, 1}) == kReserved);
+  CHECK(addressRefusal({240, 0, 0, 1}) == kReserved);
+  CHECK(addressRefusal({255, 255, 255, 255}) == kReserved);
+}
+
+TEST_CASE("NetPolicy judges IPv6 addresses", "[scriptnet]")
+{
+  CHECK(v6Refusal({0x2606, 0x4700, 0, 0, 0, 0, 0, 1}) == "");
+  CHECK(v6Refusal({0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x8888}) == "");
+  CHECK(v6Refusal({0x2001, 0x0db9, 0, 0, 0, 0, 0, 1}) == "");
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0, 0, 1}) == kLoopback);
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0, 0, 0}) == kReserved);
+  CHECK(v6Refusal({0xfe80, 0, 0, 0, 0, 0, 0, 1}) == kLinkLocal);
+  CHECK(v6Refusal({0xfebf, 0, 0, 0, 0, 0, 0, 1}) == kLinkLocal);
+  CHECK(v6Refusal({0xfc00, 0, 0, 0, 0, 0, 0, 1}) == kPrivate);
+  CHECK(v6Refusal({0xfd12, 0x3456, 0, 0, 0, 0, 0, 1}) == kPrivate);
+  CHECK(v6Refusal({0xfec0, 0, 0, 0, 0, 0, 0, 1}) == kPrivate);
+  CHECK(v6Refusal({0xff02, 0, 0, 0, 0, 0, 0, 1}) == kReserved);
+  CHECK(v6Refusal({0x0100, 0, 0, 0, 0, 0, 0, 1}) == kReserved);
+  CHECK(v6Refusal({0x2001, 0x0db8, 0, 0, 0, 0, 0, 1}) == kReserved);
+}
+
+TEST_CASE(
+    "NetPolicy judges an IPv6 address carrying an IPv4 one by that address",
+    "[scriptnet]")
+{
+  // Mapped: ::ffff:a.b.c.d.
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0xffff, 0x7f00, 0x0001}) == kLoopback);
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0xffff, 0x0a00, 0x0001}) == kPrivate);
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0xffff, 0x0101, 0x0101}) == "");
+  // The deprecated compatible form: ::a.b.c.d.
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0, 0xc0a8, 0x0001}) == kPrivate);
+  CHECK(v6Refusal({0, 0, 0, 0, 0, 0, 0x0101, 0x0101}) == "");
+  // NAT64: 64:ff9b::a.b.c.d, and the local-use 64:ff9b:1::/48.
+  CHECK(v6Refusal({0x0064, 0xff9b, 0, 0, 0, 0, 0x0a00, 0x0001}) == kPrivate);
+  CHECK(v6Refusal({0x0064, 0xff9b, 0, 0, 0, 0, 0x0101, 0x0101}) == "");
+  CHECK(v6Refusal({0x0064, 0xff9b, 1, 0, 0, 0, 0x0101, 0x0101}) == kPrivate);
+  // 6to4: 2002:abcd::/16 with a.b.c.d right after the prefix.
+  CHECK(v6Refusal({0x2002, 0x0a00, 0x0001, 0, 0, 0, 0, 1}) == kPrivate);
+  CHECK(v6Refusal({0x2002, 0xa9fe, 0x0001, 0, 0, 0, 0, 1}) == kLinkLocal);
+  CHECK(v6Refusal({0x2002, 0x0101, 0x0101, 0, 0, 0, 0, 1}) == "");
+}
+
+TEST_CASE("NetPolicy refuses an address of another size", "[scriptnet]")
+{
+  const char* unknown = "the host resolves to an address of an unknown kind";
+  CHECK(addressRefusal({1, 2, 3}) == unknown);
+  CHECK(addressRefusal({1, 2, 3, 4, 5}) == unknown);
+}
+
 TEST_CASE("NetPolicy refuses Rive's own hosts", "[scriptnet]")
 {
   CHECK(urlRefusal("https://rive.app/") == kRiveHost);
@@ -276,6 +410,247 @@ TEST_CASE("NetPolicy defaults and clamps the timeout", "[scriptnet]")
   request.timeoutMs = limits.maxTimeoutMs * 10;
   CHECK(refusal(request, limits).empty());
   CHECK(request.timeoutMs == limits.maxTimeoutMs);
+}
+
+namespace
+{
+// A request as a transport last sent it: through check(), with `headers`.
+HttpRequest sentRequest(
+    const std::string& url,
+    const std::string& method = "GET",
+    HttpHeaders headers = {},
+    std::vector<uint8_t> body = {})
+{
+  HttpRequest request;
+  request.url = url;
+  request.method = method;
+  request.headers = std::move(headers);
+  request.body = std::move(body);
+  REQUIRE(refusal(request).empty());
+  return request;
+}
+
+// The URL a redirect lands on, or the refusal.
+std::string hopUrl(
+    const std::string& from,
+    uint16_t status,
+    const std::string& location)
+{
+  HttpRequest request = sentRequest(from);
+  NetError error;
+  if (!NetPolicy::redirect(request, status, location, 0, NetLimits(), &error))
+  {
+    return "refused: " + error.message;
+  }
+  return request.url;
+}
+
+bool hasHeader(const HttpRequest& request, const char* name)
+{
+  for (const HttpHeader& header : request.headers)
+  {
+    if (lowerAscii(header.name) == name)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace
+
+TEST_CASE(
+    "NetPolicy::redirect resolves the Location against the request's URL",
+    "[scriptnet]")
+{
+  const std::string from = "https://example.com/a/b?y=1";
+  CHECK(
+      hopUrl(from, 302, "https://other.example.com/x") ==
+      "https://other.example.com/x");
+  CHECK(
+      hopUrl(from, 302, "//cdn.example.com/a") == "https://cdn.example.com/a");
+  CHECK(hopUrl(from, 302, "/root?q=1") == "https://example.com/root?q=1");
+  CHECK(hopUrl(from, 302, "c") == "https://example.com/a/c");
+  CHECK(hopUrl(from, 302, "?x=2") == "https://example.com/a/b?x=2");
+  CHECK(hopUrl(from, 302, "#section") == "https://example.com/a/b?y=1");
+  // Raw UTF-8, spaces and backslashes are percent-encoded, as browsers do;
+  // what is already encoded stays.
+  CHECK(
+      hopUrl(from, 302, "/caf\xC3\xA9 menu\\%20x") ==
+      "https://example.com/caf%C3%A9%20menu%5C%20x");
+
+  CHECK(hopUrl(from, 302, "  /spaced  ") == "https://example.com/spaced");
+  CHECK(hopUrl(from, 302, "/p#frag") == "https://example.com/p");
+  CHECK(
+      hopUrl("https://example.com/a/b/", 302, "../d") ==
+      "https://example.com/a/d");
+  CHECK(
+      hopUrl("https://example.com/a/b/", 302, "./") ==
+      "https://example.com/a/b/");
+  CHECK(hopUrl("https://example.com", 302, "x") == "https://example.com/x");
+  CHECK(
+      hopUrl(from, 302, "") ==
+      "refused: the Location header could not be resolved");
+}
+
+TEST_CASE(
+    "NetPolicy::redirect continues as a GET where browsers do",
+    "[scriptnet]")
+{
+  HttpHeaders headers = {
+      {"Content-Type", "text/plain"},
+      {"X-Keep", "1"},
+  };
+  std::vector<uint8_t> body = {'p', 'i', 'n', 'g'};
+  NetError error;
+
+  HttpRequest seeOther = sentRequest(
+      "https://example.com/",
+      "PUT",
+      headers,
+      body);
+  REQUIRE(NetPolicy::redirect(seeOther, 303, "/next", 0, NetLimits(), &error));
+  CHECK(seeOther.method == "GET");
+  CHECK(seeOther.body.empty());
+  CHECK_FALSE(hasHeader(seeOther, "content-type"));
+  CHECK(hasHeader(seeOther, "x-keep"));
+
+  HttpRequest found = sentRequest(
+      "https://example.com/",
+      "POST",
+      headers,
+      body);
+  REQUIRE(NetPolicy::redirect(found, 302, "/next", 0, NetLimits(), &error));
+  CHECK(found.method == "GET");
+  CHECK(found.body.empty());
+
+  HttpRequest put = sentRequest("https://example.com/", "PUT", headers, body);
+  REQUIRE(NetPolicy::redirect(put, 302, "/next", 0, NetLimits(), &error));
+  CHECK(put.method == "PUT");
+  CHECK(put.body == body);
+  CHECK(hasHeader(put, "content-type"));
+
+  HttpRequest temporary = sentRequest(
+      "https://example.com/",
+      "POST",
+      headers,
+      body);
+  REQUIRE(NetPolicy::redirect(temporary, 307, "/next", 0, NetLimits(), &error));
+  CHECK(temporary.method == "POST");
+  CHECK(temporary.body == body);
+}
+
+TEST_CASE(
+    "NetPolicy::redirect drops Authorization once the hop leaves the origin",
+    "[scriptnet]")
+{
+  HttpHeaders headers = {
+      {"Authorization", "Bearer secret"},
+      {"X-Keep", "1"},
+  };
+  NetError error;
+
+  HttpRequest sameOrigin = sentRequest("https://example.com/a", "GET", headers);
+  REQUIRE(NetPolicy::redirect(sameOrigin, 302, "/b", 0, NetLimits(), &error));
+  CHECK(hasHeader(sameOrigin, "authorization"));
+
+  HttpRequest defaultPort = sentRequest(
+      "https://example.com:443/a",
+      "GET",
+      headers);
+  REQUIRE(NetPolicy::redirect(
+      defaultPort,
+      302,
+      "https://example.com/b",
+      0,
+      NetLimits(),
+      &error));
+  CHECK(hasHeader(defaultPort, "authorization"));
+
+  // The port counts by value, as check() keeps it as written.
+  HttpRequest zeroPadded = sentRequest(
+      "https://example.com:0443/a",
+      "GET",
+      headers);
+  REQUIRE(NetPolicy::redirect(
+      zeroPadded,
+      302,
+      "https://example.com/b",
+      0,
+      NetLimits(),
+      &error));
+  CHECK(hasHeader(zeroPadded, "authorization"));
+
+  HttpRequest samePort = sentRequest(
+      "https://example.com:08443/a",
+      "GET",
+      headers);
+  REQUIRE(NetPolicy::redirect(
+      samePort,
+      302,
+      "https://example.com:8443/b",
+      0,
+      NetLimits(),
+      &error));
+  CHECK(hasHeader(samePort, "authorization"));
+
+  HttpRequest otherHost = sentRequest("https://example.com/a", "GET", headers);
+  REQUIRE(NetPolicy::redirect(
+      otherHost,
+      302,
+      "https://other.example.com/b",
+      0,
+      NetLimits(),
+      &error));
+  CHECK_FALSE(hasHeader(otherHost, "authorization"));
+  CHECK(hasHeader(otherHost, "x-keep"));
+
+  HttpRequest otherPort = sentRequest("https://example.com/a", "GET", headers);
+  REQUIRE(NetPolicy::redirect(
+      otherPort,
+      302,
+      "https://example.com:8443/b",
+      0,
+      NetLimits(),
+      &error));
+  CHECK_FALSE(hasHeader(otherPort, "authorization"));
+}
+
+TEST_CASE(
+    "NetPolicy::redirect refuses hops the policy would, and past the limit",
+    "[scriptnet]")
+{
+  const std::string from = "https://example.com/";
+  CHECK(
+      hopUrl(from, 302, "http://example.com/") ==
+      "refused: http: URLs are not allowed; use https:");
+  CHECK(
+      hopUrl(from, 302, "https://api.rive.app/") ==
+      std::string("refused: ") + kRiveHost);
+  CHECK(
+      hopUrl(from, 302, "https://10.0.0.1/") ==
+      std::string("refused: ") + kIpHost);
+
+  HttpRequest request = sentRequest(from);
+  NetLimits limits;
+  NetError error;
+  CHECK(NetPolicy::redirect(
+      request,
+      302,
+      "/a",
+      limits.maxRedirects - 1,
+      limits,
+      &error));
+  CHECK_FALSE(NetPolicy::redirect(
+      request,
+      302,
+      "/b",
+      limits.maxRedirects,
+      limits,
+      &error));
+  CHECK(error.code == NetErrorCode::Network);
+  CHECK(error.message == "more than 20 redirects");
+  // Refused hops leave the request as it was.
+  CHECK(request.url == "https://example.com/a");
 }
 
 #endif // WITH_RIVE_SCRIPTNET
