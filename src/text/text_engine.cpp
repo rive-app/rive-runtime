@@ -281,7 +281,7 @@ float OrderedLine::buildEllipsisRuns(
   for (uint32_t i = line.startRunIndex; i < line.endRunIndex + 1; i++)
   {
     const GlyphRun& run = glyphRuns[i];
-    if (run.font != ellipsisFont && run.size != ellipsisFontSize)
+    if (run.font != ellipsisFont || run.size != ellipsisFontSize)
     {
       // Track the latest we've checked (even if we discard it so we don't
       // try to do this again for this ellipsis).

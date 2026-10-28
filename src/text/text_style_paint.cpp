@@ -49,6 +49,53 @@ void TextStylePaint::drawGeometry(
       shapePaint->blendMode(text->blendMode(), text->additiveAmount());
     }
 
+    auto drawPooled =
+        [&](ShapePaintPath* path, float opacity, uint32_t paintIndex) {
+          RenderPaint* renderPaint = geometry.pooledPaint(paintIndex);
+          shapePaint->applyTo(renderPaint, opacity * opacityModifier);
+          // Pooled paints are shared across shape paints; always set
+          // feather and blend mode so one paint's settings don't leak into
+          // the others. Pooled draws take the shape paint's own mode (a
+          // global style's paint has no Text to inherit from).
+          auto feather = shapePaint->feather();
+          renderPaint->feather(feather != nullptr ? feather->strength() : 0.0f);
+          if (!owned)
+          {
+            BlendMode mode = shapePaint->inheritsBlendMode()
+                                 ? BlendMode::srcOver
+                                 : shapePaint->blendMode();
+            renderPaint->blendMode(mode);
+            renderPaint->additiveness(
+                additivenessFor(mode, shapePaint->additiveAmount()));
+          }
+          shapePaint->draw(renderer, path, worldTransform, true, renderPaint);
+        };
+
+    // An effect (dash, trim...) is built from every glyph and replaces
+    // whichever bucket's path ShapePaint::draw is handed, so drawing it per
+    // bucket would stack the whole outline once per opacity. Draw it once,
+    // at the highest opacity any glyph has. The effect's output can't be
+    // traced back to glyphs, so fainter glyphs it keeps draw at that opacity
+    // too.
+    if (shapePaint->lastEffectPath(shapePaint) != nullptr)
+    {
+      if (opacityPaths.empty())
+      {
+        continue;
+      }
+      float opacity = opacityPaths.rbegin()->first;
+      if (owned && opacity == 1.0f)
+      {
+        shapePaint->draw(renderer, geometry.path(), worldTransform, true);
+      }
+      else
+      {
+        geometry.reservePaints(artboard()->factory());
+        drawPooled(geometry.path(), opacity, 0);
+      }
+      continue;
+    }
+
     // For blend modes to work, opaque paths render first
     auto itr = opacityPaths.find(1.0f);
     if (owned && itr != opacityPaths.end())
@@ -67,25 +114,7 @@ void TextStylePaint::drawGeometry(
       {
         continue;
       }
-      RenderPaint* renderPaint = geometry.pooledPaint(paintIndex++);
-      shapePaint->applyTo(renderPaint, itr->first * opacityModifier);
-      // Pooled paints are shared across shape paints; always set feather
-      // and blend mode so one paint's settings don't leak into the
-      // others. Pooled draws take the shape paint's own mode (a global
-      // style's paint has no Text to inherit from).
-      auto feather = shapePaint->feather();
-      renderPaint->feather(feather != nullptr ? feather->strength() : 0.0f);
-      if (!owned)
-      {
-        BlendMode mode = shapePaint->inheritsBlendMode()
-                             ? BlendMode::srcOver
-                             : shapePaint->blendMode();
-        renderPaint->blendMode(mode);
-        renderPaint->additiveness(
-            additivenessFor(mode, shapePaint->additiveAmount()));
-      }
-      ShapePaintPath& path = itr->second;
-      shapePaint->draw(renderer, &path, worldTransform, true, renderPaint);
+      drawPooled(&itr->second, itr->first, paintIndex++);
     }
   }
 }

@@ -416,3 +416,61 @@ TEST_CASE("DecodeFile returns null rather than failing hard", "[text]")
   REQUIRE(HBFont::ProbeFile(emptyPath) == nullptr);
   remove(emptyPath);
 }
+
+// Shapes "ab " in [first] then a long word in [second], all on one line, and
+// returns the ellipsis that cutting it at [lineWidth] produces.
+static GlyphRun ellipsisFor(
+    const TextRun& first,
+    const TextRun& second,
+    float lineWidth)
+{
+  std::vector<Unichar> unichars;
+  std::vector<TextRun> runs;
+  runs.push_back(append(&unichars, first.font, first.size, "ab "));
+  runs.push_back(
+      append(&unichars, second.font, second.size, "cdefghijklmnopqrstuvwxyz"));
+  auto shape = first.font->shapeText(unichars, runs);
+  REQUIRE(shape.size() == 1);
+  auto lines = GlyphLine::BreakLines(shape[0].runs, 10000.0f);
+  REQUIRE(lines.size() == 1);
+
+  GlyphRun ellipsisRun = {};
+  OrderedLine line(
+      shape[0],
+      lines[0],
+      lineWidth,
+      TextAlign::left,
+      true,
+      true,
+      &ellipsisRun,
+      0);
+  REQUIRE(ellipsisRun.font != nullptr);
+  return ellipsisRun;
+}
+
+// The line is cut inside the second run, where an ellipsis in that run's font
+// and size still fits, so the ellipsis takes them. A run that changes only one
+// of the two must still reshape it.
+TEST_CASE("ellipsis follows a run that changes only its size", "[text]")
+{
+  auto font = loadFont("assets/RobotoFlex.ttf");
+  REQUIRE(font != nullptr);
+  auto ellipsis = ellipsisFor(
+      {font, 10.0f, -1.0f, 0.0f, 0, 0},
+      {font, 30.0f, -1.0f, 0.0f, 0, 0},
+      120.0f);
+  CHECK(ellipsis.size == 30.0f);
+}
+
+TEST_CASE("ellipsis follows a run that changes only its font", "[text]")
+{
+  auto roboto = loadFont("assets/RobotoFlex.ttf");
+  auto inter = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(roboto != nullptr);
+  REQUIRE(inter != nullptr);
+  auto ellipsis = ellipsisFor(
+      {roboto, 20.0f, -1.0f, 0.0f, 0, 0},
+      {inter, 20.0f, -1.0f, 0.0f, 0, 0},
+      120.0f);
+  CHECK(ellipsis.font == inter);
+}

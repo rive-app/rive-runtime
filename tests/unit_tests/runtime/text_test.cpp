@@ -7,6 +7,8 @@
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/text_modifier_range.hpp"
 #include "utils/no_op_renderer.hpp"
+#include "utils/no_op_factory.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/text/text_variation_modifier.hpp"
@@ -304,6 +306,32 @@ TEST_CASE("ellipsis is shown", "[text]")
   REQUIRE(lookup.count(2) == 2); // - ligates > to ->
   REQUIRE(lookup.count(4) == 1); // space
   REQUIRE(lookup.count(5) == 1); // b
+}
+
+TEST_CASE("a paint-only rebuild keeps one ordered line per line", "[text]")
+{
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+
+  artboard->advance(0.0f);
+  REQUIRE(text->orderedLines().size() == 1);
+
+  // An animating modifier dirties paint every frame; each rebuild lays the
+  // same lines out again.
+  for (int i = 0; i < 3; i++)
+  {
+    text->markPaintDirty();
+    artboard->advance(0.0f);
+    CHECK(text->orderedLines().size() == 1);
+  }
+
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
+  REQUIRE(text->orderedLines().size() == 2);
+  text->markPaintDirty();
+  artboard->advance(0.0f);
+  CHECK(text->orderedLines().size() == 2);
 }
 
 TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
@@ -707,6 +735,75 @@ TEST_CASE("can load and run opacity modifiers", "[text]")
   artboard->advance(0.0f);
   rive::NoOpRenderer renderer;
   artboard->draw(&renderer);
+}
+
+namespace
+{
+// Remembers the last color pushed, so a draw can tell which opacity it used.
+class ColorRecordingPaint : public rive::RenderPaint
+{
+public:
+  rive::ColorInt lastColor = 0;
+
+  void style(rive::RenderPaintStyle) override {}
+  void color(rive::ColorInt value) override { lastColor = value; }
+  void thickness(float) override {}
+  void join(rive::StrokeJoin) override {}
+  void cap(rive::StrokeCap) override {}
+  void blendMode(rive::BlendMode) override {}
+  void shader(rive::rcp<rive::RenderShader>) override {}
+  void shaderTransform(const rive::Mat2D&) override {}
+  void invalidateStroke() override {}
+};
+
+class ColorRecordingFactory : public rive::NoOpFactory
+{
+public:
+  rive::rcp<rive::RenderPaint> makeRenderPaint() override
+  {
+    return rive::make_rcp<ColorRecordingPaint>();
+  }
+};
+
+// Records the alpha of every draw's paint.
+class DrawCountingRenderer : public rive::NoOpRenderer
+{
+public:
+  void drawPath(rive::RenderPath*, rive::RenderPaint* paint) override
+  {
+    alphas.push_back(
+        rive::colorAlpha(static_cast<ColorRecordingPaint*>(paint)->lastColor));
+  }
+  std::vector<unsigned int> alphas;
+};
+} // namespace
+
+TEST_CASE("a text paint's effect draws once across opacity buckets", "[text]")
+{
+  // Two texts, "afafafaf" each, whose modifier fades the first half to 0.5,
+  // so their glyphs sit in two opacity buckets. WithTrim's fill also trims.
+  ColorRecordingFactory factory;
+  auto file = ReadRiveFile("assets/text_effect_opacity_buckets.riv", &factory);
+  auto artboard = file->artboard();
+  artboard->advance(0.0f);
+  auto noTrim = artboard->find<rive::Text>("NoTrim");
+  auto withTrim = artboard->find<rive::Text>("WithTrim");
+  REQUIRE(noTrim != nullptr);
+  REQUIRE(withTrim != nullptr);
+
+  DrawCountingRenderer plain;
+  noTrim->draw(&plain);
+  REQUIRE(plain.alphas.size() == 2);
+  CHECK(plain.alphas[0] == 255);
+  CHECK(plain.alphas[1] < 255);
+
+  // The trim is built from every glyph whichever bucket is drawing, so
+  // drawing it per bucket would stack the same outline twice. It draws once,
+  // at the highest opacity a glyph has.
+  DrawCountingRenderer trimmed;
+  withTrim->draw(&trimmed);
+  REQUIRE(trimmed.alphas.size() == 1);
+  CHECK(trimmed.alphas[0] == 255);
 }
 
 TEST_CASE("Zero width spaces are used to break words", "[text]")

@@ -658,8 +658,10 @@ LineIter Text::shouldDrawLine(
 
 void Text::buildRenderStyles()
 {
-  // Step 1: reset stuff
+  // Step 1: reset stuff. Every build lays the lines out again, so a
+  // paint-only rebuild must not append to the last build's lines.
   clearRenderStyles();
+  m_orderedLines.clear();
 
   if (m_shape.empty())
   {
@@ -2005,7 +2007,6 @@ void Text::update(ComponentDirt value)
       m_lines = SimpleArray<SimpleArray<GlyphLine>>();
       m_glyphLookup.clear();
     }
-    m_orderedLines.clear();
     m_ellipsisRun = {};
     m_emojiImageCache.clear();
 
