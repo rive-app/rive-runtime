@@ -1,4 +1,6 @@
 #include "rive/shapes/paint/trim_path.hpp"
+#include <algorithm>
+#include <cmath>
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/profiler/profiler_macros.h"
 using namespace rive;
@@ -60,11 +62,17 @@ void TrimPath::trimPath(
         endLength = swap;
       }
 
-      if (startLength > totalLength)
+      if (totalLength > 0.0f && startLength > totalLength)
       {
-        startLength -= totalLength;
-        endLength -= totalLength;
+        float wrapped = std::fmod(startLength, totalLength);
+        endLength -= startLength - wrapped;
+        startLength = wrapped;
       }
+      // A span past one full loop draws nothing more, and walking it would
+      // take a pass over the contours per loop.
+      endLength = std::min(
+          endLength,
+          std::max(startLength, 0.0f) + totalLength);
 
       int i = 0, subPathCount = (int)contours.size();
       std::vector<int> indices;

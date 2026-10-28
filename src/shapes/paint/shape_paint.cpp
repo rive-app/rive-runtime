@@ -69,8 +69,9 @@ void ShapePaint::update(ComponentDirt value)
   {
     auto container = ShapePaintContainer::from(parent());
     // Hidden paints are re-invalidated when shown (see renderOpacity), so
-    // measuring now is wasted, unless a clip still reads the result.
-    if (renderOpacity() == 0 &&
+    // measuring now is wasted, unless a clip still reads the result. One
+    // without a color or gradient never shows.
+    if ((m_PaintMutator == nullptr || renderOpacity() == 0) &&
         (container->pathFlags() & PathFlags::clipping) == PathFlags::none)
     {
       m_effectsDeferred = true;
@@ -78,6 +79,11 @@ void ShapePaint::update(ComponentDirt value)
     }
     m_effectsDeferred = false;
     auto path = pickPath(container);
+    // Nothing to apply them to yet, like a text whose font has not loaded.
+    if (path == nullptr)
+    {
+      return;
+    }
     for (auto& effect : *shapeEffects)
     {
       effect->updateEffect(this, path, this);

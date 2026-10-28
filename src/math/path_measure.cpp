@@ -19,10 +19,13 @@ PathMeasure::PathMeasure(const RawPath* path, float tol) : m_length(0.0f)
 ContourMeasure::PosTanDistance PathMeasure::atDistance(float distance) const
 {
   float currentDistance = distance;
-  for (auto contour : m_contours)
+  for (size_t i = 0; i < m_contours.size(); i++)
   {
+    const auto& contour = m_contours[i];
     float contourLength = contour->length();
-    if (currentDistance - contourLength <= 0)
+    // The last contour also takes a distance rounding left just past its
+    // end, as 100% can; getPosTan clamps it to the end.
+    if (currentDistance - contourLength <= 0 || i + 1 == m_contours.size())
     {
       return ContourMeasure::PosTanDistance(
           contour->getPosTan(currentDistance),

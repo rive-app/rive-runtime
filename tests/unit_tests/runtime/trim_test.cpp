@@ -5,6 +5,7 @@
 #include <rive/shapes/paint/stroke.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/paint/stroke_effect.hpp>
+#include <rive/shapes/paint/trim_path.hpp>
 #include <rive/shapes/paint/color.hpp>
 #include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
@@ -255,5 +256,82 @@ TEST_CASE("Hidden stroke picks up path changes once shown", "[trim]")
   {
     CHECK(after[i].x == Approx(expected[i].x));
     CHECK(after[i].y == Approx(expected[i].y));
+  }
+}
+
+TEST_CASE("A trim spanning many loops finishes", "[trim]")
+{
+  auto file = ReadRiveFile("assets/trim.riv");
+  auto artboard = file->artboard();
+  int trims = 0;
+  for (auto object : artboard->objects())
+  {
+    if (object != nullptr && object->is<rive::TrimPath>())
+    {
+      auto trim = object->as<rive::TrimPath>();
+      trim->modeValue((uint32_t)rive::TrimPathMode::sequential);
+      trim->start(1e12f);
+      trim->end(1e13f);
+      trims++;
+    }
+  }
+  REQUIRE(trims > 0);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
+}
+
+// The file's SolidColor is retyped to a key no runtime knows, which leaves
+// the trimmed stroke with nothing to paint with.
+TEST_CASE("A trimmed stroke without a color loads and draws", "[trim]")
+{
+  auto file = ReadRiveFile("assets/paintless_trim.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  artboard->advance(0.0f);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
+}
+
+static void trimRange(rive::Artboard* artboard, float start, float end)
+{
+  auto shape = artboard->find<rive::Shape>("clipped-rect");
+  for (auto& child : shape->children())
+  {
+    if (!child->is<rive::Stroke>())
+    {
+      continue;
+    }
+    for (auto& effect : child->as<rive::Stroke>()->children())
+    {
+      if (effect->is<rive::TrimPath>())
+      {
+        auto trim = effect->as<rive::TrimPath>();
+        trim->modeValue((uint32_t)rive::TrimPathMode::sequential);
+        trim->offset(0.0f);
+        trim->start(start);
+        trim->end(end);
+      }
+    }
+  }
+}
+
+TEST_CASE("A trim starting before the path draws all of it", "[trim]")
+{
+  auto file = ReadRiveFile("assets/trim_path.riv");
+  auto artboard = file->artboard("artboard-2")->instance();
+  auto control = file->artboard("artboard-2")->instance();
+  trimRange(artboard.get(), -0.5f, 1.0f);
+  trimRange(control.get(), 0.0f, 1.0f);
+  artboard->advance(0.0f);
+  control->advance(0.0f);
+  auto points = trimPoints(artboard.get(), "clipped-rect");
+  auto expected = trimPoints(control.get(), "clipped-rect");
+  REQUIRE(!expected.empty());
+  REQUIRE(points.size() == expected.size());
+  for (size_t i = 0; i < points.size(); i++)
+  {
+    CHECK(points[i].x == Approx(expected[i].x));
+    CHECK(points[i].y == Approx(expected[i].y));
   }
 }
