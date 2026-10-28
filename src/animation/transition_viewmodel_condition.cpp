@@ -1100,7 +1100,16 @@ void TransitionViewModelCondition::useInLayer(
 {
   if (leftComparator() != nullptr)
   {
-    return leftComparator()->useInLayer(stateMachineInstance, layerInstance);
+    leftComparator()->useInLayer(stateMachineInstance, layerInstance);
+  }
+  // A trigger on the right moves a layer once per fire too: with
+  // `go != other`, a fire of `other` alone takes one step, not two.
+  auto right = rightComparator();
+  if (right != nullptr && right->is<TransitionPropertyViewModelComparator>())
+  {
+    right->as<TransitionPropertyViewModelComparator>()->useTriggerFireInLayer(
+        stateMachineInstance,
+        layerInstance);
   }
 }
 
@@ -1336,9 +1345,10 @@ uint32_t ConditionComparandTriggerBindable::valueForLayer(
   auto dataBind = stateMachineInstance->bindableDataBindToTarget(
       bindableInstance);
   auto source = dataBind == nullptr ? nullptr : dataBind->source();
-  return source != nullptr && stateMachineInstance->changePending(
-                                  source->changeSequence(),
-                                  layer)
+  // Like the "fired" condition, one fire moves a layer once: a fire it
+  // already took a transition on reads 0.
+  return source != nullptr &&
+                 stateMachineInstance->viewModelValueChanged(source, layer)
              ? 1
              : 0;
 }

@@ -947,3 +947,62 @@ TEST_CASE(
       scene.states() ==
       std::vector<std::string>{"early_one", "waiting", "late_one"});
 }
+
+TEST_CASE(
+    "a view model trigger compared with another moves a layer once per fire",
+    "[data binding]")
+{
+  // trigger_vs_trigger.riv (built by packages/rive_core/test/
+  // generate_trigger_vs_trigger_riv_test.dart): "Main"'s layer steps
+  // idle -> one -> two on `go != other`.
+  auto file = ReadRiveFile("assets/trigger_vs_trigger.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto machine = artboard->stateMachineAt(0);
+  REQUIRE(machine != nullptr);
+  auto viewModel = file->createViewModelInstance(artboard->viewModelId(), 0);
+  REQUIRE(viewModel != nullptr);
+  machine->bindViewModelInstance(viewModel);
+  machine->advanceAndApply(0.0f);
+  REQUIRE(layerStateName(machine.get(), 0) == "idle");
+
+  // The fire takes idle -> one, but not one -> two as well.
+  trigger(viewModel, "go")->trigger();
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "one");
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "one");
+
+  // The next fire takes the next step.
+  trigger(viewModel, "go")->trigger();
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "two");
+}
+
+TEST_CASE(
+    "a trigger on the right of a comparison moves a layer once per fire",
+    "[data binding]")
+{
+  // trigger_vs_trigger.riv: "Main"'s layer steps idle -> one -> two on
+  // `go != other`, here with only `other` firing.
+  auto file = ReadRiveFile("assets/trigger_vs_trigger.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto machine = artboard->stateMachineAt(0);
+  REQUIRE(machine != nullptr);
+  auto viewModel = file->createViewModelInstance(artboard->viewModelId(), 0);
+  REQUIRE(viewModel != nullptr);
+  machine->bindViewModelInstance(viewModel);
+  machine->advanceAndApply(0.0f);
+  REQUIRE(layerStateName(machine.get(), 0) == "idle");
+
+  trigger(viewModel, "other")->trigger();
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "one");
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "one");
+
+  trigger(viewModel, "other")->trigger();
+  machine->advanceAndApply(0.016f);
+  CHECK(layerStateName(machine.get(), 0) == "two");
+}

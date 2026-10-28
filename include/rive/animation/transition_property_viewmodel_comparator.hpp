@@ -29,6 +29,12 @@ public:
   void useInLayer(
       const StateMachineInstance* stateMachineInstance,
       StateMachineLayerInstance* layerInstance) const override;
+  // Notes that the layer took a transition on this view model trigger's
+  // fire, if one is pending for it. For a trigger on a condition's right,
+  // which useInLayer isn't called for.
+  void useTriggerFireInLayer(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const;
   BindableProperty* bindableProperty() { return m_bindableProperty; }
 #ifdef WITH_RIVE_EDITOR
   void setBindablePropertyForEditor(BindableProperty* value)
@@ -39,6 +45,9 @@ public:
 #endif
 
 protected:
+  // The view model value bound to this comparator's bindable, if any.
+  ViewModelInstanceValue* source(
+      const StateMachineInstance* stateMachineInstance) const;
   BindableProperty* m_bindableProperty = nullptr;
 #ifdef WITH_RIVE_EDITOR
   bool m_editorBindable = false;

@@ -50,25 +50,45 @@ StatusCode TransitionPropertyViewModelComparator::import(
   return Super::import(importStack);
 }
 
-void TransitionPropertyViewModelComparator::useInLayer(
-    const StateMachineInstance* stateMachineInstance,
-    StateMachineLayerInstance* layerInstance) const
+ViewModelInstanceValue* TransitionPropertyViewModelComparator::source(
+    const StateMachineInstance* stateMachineInstance) const
 {
-
   auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
       m_bindableProperty);
   if (bindableInstance == nullptr)
   {
-    return;
+    return nullptr;
   }
   auto dataBind = stateMachineInstance->bindableDataBindToTarget(
       bindableInstance);
-  if (dataBind == nullptr)
+  return dataBind == nullptr ? nullptr : dataBind->source();
+}
+
+void TransitionPropertyViewModelComparator::useInLayer(
+    const StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+  auto source = this->source(stateMachineInstance);
+  if (source != nullptr)
+  {
+    stateMachineInstance->useViewModelValue(source, layerInstance);
+  }
+}
+
+void TransitionPropertyViewModelComparator::useTriggerFireInLayer(
+    const StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+  if (m_bindableProperty == nullptr ||
+      !m_bindableProperty->is<BindablePropertyTrigger>())
   {
     return;
   }
-  auto source = dataBind->source();
-  if (source != nullptr)
+  auto source = this->source(stateMachineInstance);
+  // Only a fire the layer could read: noting a trigger that hasn't fired
+  // would hide a fire later in the frame.
+  if (source != nullptr &&
+      stateMachineInstance->viewModelValueChanged(source, layerInstance))
   {
     stateMachineInstance->useViewModelValue(source, layerInstance);
   }

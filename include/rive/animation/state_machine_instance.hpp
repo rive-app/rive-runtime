@@ -402,10 +402,9 @@ public:
       const ViewModelInstanceValue* trigger) const;
   /// Whether a change at `changeSequence` (ViewModelInstanceValue's change
   /// sequence) is still pending for `layer`'s transitions: the frame window
-  /// of viewModelValueChanged, without its per-layer use. How a trigger
-  /// compared as a number in a condition (a component's trigger, or a view
-  /// model trigger against one) reads as fired. Without a layer, the window
-  /// of the instance's earliest layer.
+  /// of viewModelValueChanged, without its per-layer use. How a component's
+  /// trigger compared as a number in a condition reads as fired. Without a
+  /// layer, the window of the instance's earliest layer.
   bool changePending(
       uint64_t changeSequence,
       const StateMachineLayerInstance* layer = nullptr) const;
