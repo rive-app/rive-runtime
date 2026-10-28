@@ -1,0 +1,24 @@
+From: rive
+Subject: [PATCH 0048] add the rel32 addend COFF keeps in the field
+
+COFF has no explicit addends, so LLVM leaves each IMAGE_REL_AMD64_REL32
+addend in the field it relocates. The addend is -1 when an immediate byte
+follows the displacement, as in cmpsd, blendpd and vblendvpd, and 4N where
+function N reads its aot_stack_sizes slot. wamrc copies the field and emits
+an addend of 0, and the Windows loader overwrote the field, so those float
+constants were read one byte late and every stack check read the first
+slot. The loader now adds the field, as its ADDR32 and ADDR64 cases already
+do, so artifacts from earlier wamrcs load right.
+
+--- a/core/iwasm/aot/arch/aot_reloc_x86_64.c
++++ b/core/iwasm/aot/arch/aot_reloc_x86_64.c
+@@ -259,6 +259,9 @@
+             }
+ 
+ #if defined(BH_PLATFORM_WINDOWS)
++            /* COFF keeps the addend in the field, such as -1 when an
++               immediate byte follows the displacement. */
++            target_addr += *(int32 *)(target_section_addr + reloc_offset);
+             target_addr -= sizeof(int32);
+ #endif
+             if ((int32)target_addr != target_addr) {
