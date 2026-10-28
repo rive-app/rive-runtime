@@ -116,7 +116,7 @@ public:
   template <typename F> void forEachGlyph(uint32_t line, F&& visit)
   {
     const OrderedLine& orderedLine = orderedLines()[line];
-    float x = orderedLine.glyphLine().startX;
+    float x = orderedLine.startX();
     float y = orderedLine.y();
     for (auto [run, glyphIndex] : orderedLine)
     {

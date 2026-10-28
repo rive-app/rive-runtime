@@ -589,7 +589,7 @@ void RawTextInput::buildTextPaths(Factory* factory)
       }
 
       const OrderedLine& orderedLine = orderedLines[lineIndex];
-      float x = line.startX;
+      float x = orderedLine.startX();
       float renderY = y + line.baseline;
       for (auto glyphItr : orderedLine)
       {

@@ -162,6 +162,7 @@ void FullyShapedText::shape(
           paragraph,
           line,
           maxWidth,
+          alignment,
           ellipsisLine == lineIndex,
           isEllipsisLineLast,
           &m_ellipsisRun,

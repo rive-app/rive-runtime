@@ -47,6 +47,7 @@ OrderedLine::OrderedLine(
     const Paragraph& paragraph,
     const GlyphLine& line,
     float lineWidth,
+    TextAlign align,
     bool wantEllipsis,
     bool isEllipsisLineLast,
     GlyphRun* ellipsisRun,
@@ -54,18 +55,40 @@ OrderedLine::OrderedLine(
     : m_startGlyphIndex(line.startGlyphIndex)
     , m_endGlyphIndex(line.endGlyphIndex)
     , m_glyphLine(&line)
+    , m_startX(line.startX)
     , m_y(y)
 {
   std::vector<const GlyphRun*> logicalRuns;
   const SimpleArray<GlyphRun>& glyphRuns = paragraph.runs;
 
-  if (!wantEllipsis || !buildEllipsisRuns(
-                           logicalRuns,
-                           paragraph,
-                           line,
-                           lineWidth,
-                           isEllipsisLineLast,
-                           ellipsisRun))
+  float ellipsizedWidth = wantEllipsis ? buildEllipsisRuns(
+                                             logicalRuns,
+                                             paragraph,
+                                             line,
+                                             lineWidth,
+                                             isEllipsisLineLast,
+                                             ellipsisRun)
+                                       : -1.0f;
+  if (ellipsizedWidth >= 0.0f)
+  {
+    // The line breaker aligned the full line, which overflows the box when
+    // it doesn't wrap. Shift by however much the ellipsis changed its width
+    // so right and center aligned lines sit inside the box again.
+    float fullWidth = glyphRuns[line.endRunIndex].xpos[line.endGlyphIndex] -
+                      glyphRuns[line.startRunIndex].xpos[line.startGlyphIndex];
+    switch (align)
+    {
+      case TextAlign::right:
+        m_startX += fullWidth - ellipsizedWidth;
+        break;
+      case TextAlign::center:
+        m_startX += (fullWidth - ellipsizedWidth) / 2.0f;
+        break;
+      case TextAlign::left:
+        break;
+    }
+  }
+  else
   {
     for (uint32_t i = line.startRunIndex; i < line.endRunIndex + 1; i++)
     {
@@ -200,7 +223,7 @@ GlyphItr& GlyphItr::operator++()
   return *this;
 }
 
-bool OrderedLine::buildEllipsisRuns(
+float OrderedLine::buildEllipsisRuns(
     std::vector<const GlyphRun*>& logicalRuns,
     const Paragraph& paragraph,
     const GlyphLine& line,
@@ -238,7 +261,7 @@ bool OrderedLine::buildEllipsisRuns(
     if (fits)
     {
       // It fits, just get the regular glyphs.
-      return false;
+      return -1.0f;
     }
   }
 
@@ -276,9 +299,13 @@ bool OrderedLine::buildEllipsisRuns(
           0, // default, TextRun.script
           run.styleId,
       }};
+      // Shape in the paragraph's direction so the ellipsis resolves to the
+      // paragraph's level and reorders to its end edge (the left of a right
+      // to left paragraph), instead of always flowing left to right.
       auto nextEllipsisShape = ellipsisFont->shapeText(
           ellipsisCodePoints,
-          Span<TextRun>(ellipsisRuns, 1));
+          Span<TextRun>(ellipsisRuns, 1),
+          paragraph.level & 1);
 
       // Hard assumption one run and para
       const Paragraph& para = nextEllipsisShape[0];
@@ -335,7 +362,7 @@ bool OrderedLine::buildEllipsisRuns(
   m_startLogical = storedEllipsisRun == logicalRuns.front()
                        ? nullptr
                        : logicalRuns.front();
-  return true;
+  return x + ellipsisWidth;
 }
 
 float OrderedLine::bottom() const

@@ -775,12 +775,13 @@ void Text::buildRenderStyles()
           paragraph,
           line,
           effectiveWidth(),
+          align(),
           ellipsisLine == lineIndex,
           isEllipsisLineLast,
           &m_ellipsisRun,
           renderY));
 
-      float curX = line.startX;
+      float curX = m_orderedLines.back().startX();
       minX = std::min(curX, minX);
       for (auto glyphItr : m_orderedLines.back())
       {

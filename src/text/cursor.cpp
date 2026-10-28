@@ -29,8 +29,7 @@ CursorVisualPosition CursorPosition::visualPosition(
   }
   const OrderedLine& orderedLine = orderedLines[m_lineIndex];
 
-  const GlyphLine& line = orderedLine.glyphLine();
-  float x = line.startX;
+  float x = orderedLine.startX();
 
   // Iterate each glyph and see if it's the one we're looking for.
   bool haveFirstIndex = false;
@@ -76,7 +75,7 @@ CursorVisualPosition CursorPosition::visualPosition(
   return CursorVisualPosition(
       absDiffUint(m_codePointIndex, firstTextIndex) <
               absDiffUint(m_codePointIndex, lastTextIndex)
-          ? line.startX
+          ? orderedLine.startX()
           : x,
       orderedLine.y() + font->ascent(run->size),
       orderedLine.y() + font->descent(run->size));
@@ -123,7 +122,7 @@ CursorPosition CursorPosition::fromOrderedLine(
     return CursorPosition(lineIndex, breakIndex).clamped(shape);
   }
 
-  float x = orderedLine.glyphLine().startX;
+  float x = orderedLine.startX();
   /// Iterate each glyph and see if it's the one we're looking for.
   auto end = orderedLine.end();
   GlyphItr lastGlyphItr = orderedLine.begin();
@@ -283,8 +282,7 @@ void Cursor::selectionRects(
   for (uint32_t lineIndex = firstLine; lineIndex <= lastLine; lineIndex++)
   {
     const OrderedLine& orderedLine = orderedLines[lineIndex];
-    const GlyphLine& glyphLine = orderedLine.glyphLine();
-    float x = glyphLine.startX;
+    float x = orderedLine.startX();
     for (auto glyphItr : orderedLine)
     {
       const GlyphRun* run = std::get<0>(glyphItr);

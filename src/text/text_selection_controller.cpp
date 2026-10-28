@@ -57,7 +57,7 @@ static bool finite(Vec2D position)
 
 static AABB lineBounds(const OrderedLine& line)
 {
-  float x = line.glyphLine().startX;
+  float x = line.startX();
   auto bounds = AABB::forExpansion();
   for (auto glyph : line)
   {

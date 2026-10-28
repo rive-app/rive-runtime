@@ -425,6 +425,7 @@ void RawText::update()
             paragraph,
             line,
             m_maxWidth,
+            align,
             ellipsisLine == lineIndex,
             isEllipsisLineLast,
             &m_ellipsisRun,
@@ -434,7 +435,7 @@ void RawText::update()
       const OrderedLine& orderedLine = m_orderedLines[lineIndex];
       m_lineDirections.push_back((uint8_t)paragraph.baseDirection());
       uint32_t lineGlyphs = 0;
-      float x = line.startX;
+      float x = orderedLine.startX();
 
       for (auto glyphItr : orderedLine)
       {

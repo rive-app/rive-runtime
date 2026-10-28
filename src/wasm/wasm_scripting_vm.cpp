@@ -8749,7 +8749,7 @@ void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
          (uint32_t)text.lineDirection(line),
          orderedLine.firstCodePointIndex(lookup),
          orderedLine.lastCodePointIndex(lookup),
-         floatBits(orderedLine.glyphLine().startX),
+         floatBits(orderedLine.startX()),
          floatBits(text.lineTop(line)),
          floatBits(orderedLine.y()),
          floatBits(orderedLine.bottom())});

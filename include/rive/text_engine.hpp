@@ -548,12 +548,15 @@ public:
       const Paragraph& paragraph,
       const GlyphLine& line,
       float lineWidth, // for ellipsis
+      TextAlign align, // re-aligns a line the ellipsis shortened
       bool wantEllipsis,
       bool isEllipsisLineLast,
       GlyphRun* ellipsisRun,
       float y);
 
-  bool buildEllipsisRuns(
+  // Returns the width of the ellipsized line, or a negative value when the
+  // line didn't need one.
+  float buildEllipsisRuns(
       std::vector<const GlyphRun*>& logicalRuns,
       const Paragraph& paragraph,
       const GlyphLine& line,
@@ -579,6 +582,9 @@ public:
   }
 
   const GlyphLine& glyphLine() const { return *m_glyphLine; }
+  // Where the line's first visual glyph starts. Matches glyphLine().startX
+  // unless an ellipsis changed the line's width.
+  float startX() const { return m_startX; }
   float y() const { return m_y; }
   float bottom() const;
 
@@ -603,6 +609,7 @@ private:
   uint32_t m_endGlyphIndex;
   std::vector<const GlyphRun*> m_runs;
   const GlyphLine* m_glyphLine;
+  float m_startX;
   float m_y;
 
 public:

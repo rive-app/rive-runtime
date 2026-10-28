@@ -403,14 +403,13 @@ int line_index(lua_State* L)
   }
   auto line = lua_torive<ScriptedTextLine>(L, 1);
   const OrderedLine& orderedLine = checkLine(L, line);
-  const GlyphLine& glyphLine = orderedLine.glyphLine();
   switch (atom)
   {
     case (int)LuaAtoms::index:
       lua_pushinteger(L, line->index + 1);
       return 1;
     case (int)LuaAtoms::x:
-      lua_pushnumber(L, glyphLine.startX);
+      lua_pushnumber(L, orderedLine.startX());
       return 1;
     case (int)LuaAtoms::top:
       lua_pushnumber(L, line->layout->text.lineTop(line->index));
@@ -553,7 +552,7 @@ int line_iter(lua_State* L)
   cursor->line = line->index;
   cursor->itr = orderedLine.begin();
   cursor->end = orderedLine.end();
-  cursor->x = orderedLine.glyphLine().startX;
+  cursor->x = orderedLine.startX();
   lua_pushinteger(L, 0);
   return 3;
 }
