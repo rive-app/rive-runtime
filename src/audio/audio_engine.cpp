@@ -364,6 +364,7 @@ rcp<AudioSound> AudioEngine::internalPlaySound(
         ma_format_f32,
         channels(),
         sampleRate());
+    config.seekPointCount = AudioSource::kDecoderSeekPoints;
     auto sourceBytes = source->bytes();
     if (ma_decoder_init_memory(
             sourceBytes.data(),

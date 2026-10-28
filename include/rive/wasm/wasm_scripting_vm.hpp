@@ -28,6 +28,9 @@ class WasmJobs;
 class WasmWorkers;
 class WasmProcessors;
 class WasmLane;
+class WasmAudioDecode;
+struct HostAudioStream;
+class AudioSource;
 struct VMPollList;
 class SharedRegion;
 
@@ -128,6 +131,7 @@ public:
       node,
       audioSource,
       audioSound,
+      audioStream,
       drawable,
       text,
       transitionChild,
@@ -331,11 +335,22 @@ public:
   /// The main lane's awaits, settled at a poll through host_lane_wake with
   /// the token they answer.
   uint32_t watchLane(uint32_t lane);
+  /// Settled with the stream's handle once its first records are queued.
+  uint32_t watchStream(uint32_t stream);
   uint32_t waitOnMain(uint32_t signal, double after, double timeoutSeconds);
   /// Drops the await token answers, whose promise was cancelled.
   void cancelMainWait(uint32_t token);
+  /// Decodes source on a job, settled at a poll through host_lane_wake with
+  /// the blob's id, a Create code, or -1 when it did not decode.
+  uint32_t startAudioDecode(
+      rcp<AudioSource> source,
+      uint32_t sampleRate,
+      uint32_t channels);
   /// Owns the shared objects this VM creates, released with it.
   uint64_t sharedOwner();
+  /// The audio streams each poll tops up, released ones a reader still holds
+  /// included.
+  std::vector<HostAudioStream*>& audioStreams() { return m_audioStreams; }
   /// The holds a ring or snapshot read carried, kept until the std has
   /// decoded the value or, when decoding threw, until the frame ends.
   void keepReadHolds(Span<const uint32_t> ids);
@@ -852,10 +867,18 @@ private:
     SignalWait wait;
     // The watched lane's handle, 0 for a signal wait.
     uint32_t lane;
+    rcp<WasmAudioDecode> decode = nullptr;
+    // The handle of a stream that is not ready yet, released on a cancel.
+    uint32_t stream = 0;
   };
+  /// Stops what a wait no one will settle still runs or holds.
+  void abandonWait(const MainWait& wait);
   std::vector<MainWait> m_mainWaits;
+  std::vector<HostAudioStream*> m_audioStreams;
+  bool streaming() const;
   uint32_t m_nextMainWait = 1;
   void settleMainWaits();
+  void wakeMain(uint32_t token, double value);
   std::unique_ptr<BudgetSlot> m_budgetSlot;
   std::unique_ptr<WasmJobs> m_jobs;
   std::unique_ptr<WasmWorkers> m_workers;

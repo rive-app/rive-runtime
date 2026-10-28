@@ -463,6 +463,26 @@ RIVE_BINDING_IMPORT("rive_audio_v1", "source_sample_rate")
 uint32_t rive_audio_source_sample_rate(uint32_t source);
 RIVE_BINDING_IMPORT("rive_audio_v1", "source_channels")
 uint32_t rive_audio_source_channels(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "source_to_blob")
+uint32_t rive_audio_source_to_blob(uint32_t source, uint32_t sampleRate, uint32_t channels);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream")
+uint32_t rive_audio_stream(uint32_t source, uint32_t sampleRate, uint32_t channels, uint32_t chunkFrames, uint32_t bufferFrames);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_ring")
+uint32_t rive_audio_stream_ring(uint32_t stream);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_seeks")
+uint32_t rive_audio_stream_seeks(uint32_t stream);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_channels")
+uint32_t rive_audio_stream_channels(uint32_t stream);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_sample_rate")
+uint32_t rive_audio_stream_sample_rate(uint32_t stream);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_seek_frame")
+uint32_t rive_audio_stream_seek_frame(uint32_t stream, double frame);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_set_loop")
+void rive_audio_stream_set_loop(uint32_t stream, uint32_t loop);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_ended")
+uint32_t rive_audio_stream_ended(uint32_t stream);
+RIVE_BINDING_IMPORT("rive_audio_v1", "stream_release")
+void rive_audio_stream_release(uint32_t stream);
 RIVE_BINDING_IMPORT("rive_audio_v1", "play")
 uint32_t rive_audio_play(uint32_t source);
 RIVE_BINDING_IMPORT("rive_audio_v1", "play_at_time")
@@ -479,6 +499,10 @@ RIVE_BINDING_IMPORT("rive_audio_v1", "time_frame")
 double rive_audio_time_frame(void);
 RIVE_BINDING_IMPORT("rive_audio_v1", "sample_rate")
 uint32_t rive_audio_sample_rate(void);
+RIVE_BINDING_IMPORT("rive_audio_v1", "processor_sample_rate")
+uint32_t rive_audio_processor_sample_rate(void);
+RIVE_BINDING_IMPORT("rive_audio_v1", "processor_channels")
+uint32_t rive_audio_processor_channels(void);
 RIVE_BINDING_IMPORT("rive_audio_v1", "sound_release")
 void rive_audio_sound_release(uint32_t sound);
 RIVE_BINDING_IMPORT("rive_audio_v1", "sound_play")

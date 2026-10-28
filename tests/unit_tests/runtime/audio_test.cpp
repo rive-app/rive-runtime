@@ -15,6 +15,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <string>
@@ -310,6 +311,19 @@ TEST_CASE("a sound stopped during the block it starts in fades out", "[audio]")
   engine->detachRenderer(node);
 }
 
+TEST_CASE("a sound that seeks plays none of what it read ahead", "[audio]")
+{
+  rcp<AudioEngine> engine = engineWithBuffer(128);
+  // Starting inside a block leaves frames read ahead past it.
+  rcp<AudioSound> sound = engine->play(ramp(200000), 50, 0, 0);
+  REQUIRE(sound != nullptr);
+  mix(engine.get(), 1280);
+  REQUIRE(sound->seek(0));
+  std::vector<float> out = mix(engine.get(), 128);
+  CHECK(out[0] == 1.0f / 200000);
+  CHECK(out[2] == 2.0f / 200000);
+}
+
 TEST_CASE("a scheduled sound completes in the block it ends in", "[audio]")
 {
   rcp<AudioEngine> engine = engineWithBuffer(4096);
@@ -400,12 +414,13 @@ TEST_CASE("audio source can be opened", "[audio]")
   {
     auto reader = audioSource->makeReader(1, 48000);
     REQUIRE(reader != nullptr);
-    REQUIRE(reader->lengthInFrames() == 10544);
+    // The frames that decode.
+    REQUIRE(reader->lengthInFrames() == 10545);
   }
   {
     auto reader = audioSource->makeReader(2, 32000);
     REQUIRE(reader != nullptr);
-    REQUIRE(reader->lengthInFrames() == 7029);
+    REQUIRE(reader->lengthInFrames() == 7030);
   }
 
   float channels[2] = {0, 0};
@@ -768,5 +783,101 @@ TEST_CASE("audio source duration mp3", "[audio]")
   REQUIRE(audioSource->duration() == duration);
 }
 #endif
+
+#ifndef MA_NO_MP3
+// Our miniaudio carries dr_libs' seek table fixes, which its releases lacked.
+TEST_CASE("an mp3 reader seeks to the frames a whole decode has", "[audio]")
+{
+  auto file = loadFile("assets/audio/song.mp3");
+  rcp<AudioSource> audioSource = rcp<AudioSource>(
+      new AudioSource(Span<uint8_t>(file)));
+  std::vector<float> whole;
+  REQUIRE(audioSource->makeReader(0, 0)->readAll(UINT64_MAX, whole));
+  auto reader = audioSource->makeReader(0, 0);
+  REQUIRE(reader != nullptr);
+  uint32_t channels = reader->channels();
+  uint64_t total = whole.size() / channels;
+  REQUIRE(total > 100000);
+  // Backwards too, and before the first seek point.
+  for (uint64_t frame : {total * 3 / 4, total / 3, (uint64_t)12345})
+  {
+    INFO("frame " << frame);
+    REQUIRE(reader->seek(frame));
+    std::vector<float> read(4096 * channels);
+    uint64_t framesRead = 0;
+    REQUIRE(reader->readInto(read.data(), 4096, framesRead));
+    REQUIRE(framesRead == 4096);
+    for (size_t i = 0; i < read.size(); i++)
+    {
+      REQUIRE(read[i] == whole[frame * channels + i]);
+    }
+  }
+  // Just past where a first read leaves the decoder, in frames that count
+  // its encoder delay of 1105.
+  {
+    auto fresh = audioSource->makeReader(0, 0);
+    std::vector<float> first(4096 * channels);
+    uint64_t framesRead = 0;
+    REQUIRE(fresh->readInto(first.data(), 4096, framesRead));
+    REQUIRE(fresh->seek(4096 + 1105));
+    REQUIRE(fresh->readInto(first.data(), 4096, framesRead));
+    REQUIRE(framesRead == 4096);
+    for (size_t i = 0; i < first.size(); i++)
+    {
+      REQUIRE(first[i] == whole[(4096 + 1105) * channels + i]);
+    }
+  }
+  // Past the end it lands at the end, with nothing more to read.
+  uint64_t landed = 0;
+  REQUIRE(reader->seek(total + 1000, &landed));
+  REQUIRE(landed == total);
+  std::vector<float> tail(16 * channels);
+  uint64_t framesRead = 1;
+  REQUIRE(reader->readInto(tail.data(), 16, framesRead));
+  REQUIRE(framesRead == 0);
+}
+#endif
+
+TEST_CASE("a resampled reader filters as a resampling decoder does", "[audio]")
+{
+  auto file = loadFile("assets/audio/what.wav");
+  rcp<AudioSource> audioSource = rcp<AudioSource>(
+      new AudioSource(Span<uint8_t>(file)));
+  ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 1, 16000);
+  ma_decoder decoder;
+  REQUIRE(
+      ma_decoder_init_memory(file.data(), file.size(), &config, &decoder) ==
+      MA_SUCCESS);
+  std::vector<float> expected(2048);
+  ma_uint64 decoded = 0;
+  ma_decoder_read_pcm_frames(&decoder, expected.data(), 2048, &decoded);
+  ma_decoder_uninit(&decoder);
+  auto reader = audioSource->makeReader(1, 16000);
+  std::vector<float> read(2048);
+  uint64_t framesRead = 0;
+  REQUIRE(reader->readInto(read.data(), 2048, framesRead));
+  REQUIRE(framesRead == decoded);
+  for (size_t i = 0; i < read.size(); i++)
+  {
+    INFO("frame " << i);
+    REQUIRE(read[i] == Approx(expected[i]).margin(1e-6));
+  }
+}
+
+TEST_CASE("an audio decode stops past its cap or when asked", "[audio]")
+{
+  auto file = loadFile("assets/audio/what.wav");
+  rcp<AudioSource> audioSource = rcp<AudioSource>(
+      new AudioSource(Span<uint8_t>(file)));
+  std::vector<float> samples;
+  REQUIRE(audioSource->makeReader(1, 0)->readAll(1000, samples));
+  // It stops at the first chunk past the cap, which the caller refuses.
+  REQUIRE(samples.size() > 1000);
+  REQUIRE(samples.size() <= 1000 + 4096);
+  std::atomic<bool> stop{true};
+  REQUIRE_FALSE(
+      audioSource->makeReader(1, 0)->readAll(UINT64_MAX, samples, &stop));
+  REQUIRE(samples.empty());
+}
 
 // TODO check if sound->stop calls completed callback!!!

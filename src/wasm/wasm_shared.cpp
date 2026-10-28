@@ -1117,22 +1117,39 @@ rcp<SharedObject> SharedRegistry::find(
   return found;
 }
 
+// What id names for owner, called under the table's lock; else null.
+static SharedObject* ownedObject(SharedSlot* slot, uint32_t id, uint64_t owner)
+{
+  if (slot == nullptr ||
+      !names(slot->state.load(std::memory_order_relaxed), id) ||
+      slot->owner.load(std::memory_order_relaxed) != owner)
+  {
+    return nullptr;
+  }
+  return slot->object.load(std::memory_order_relaxed);
+}
+
 bool SharedRegistry::retain(uint32_t id, uint64_t owner)
 {
   SharedTable& table = sharedTable();
   SharedSlot* slot = slotOf(table, id);
-  if (slot == nullptr)
-  {
-    return false;
-  }
   WordGuard guard(table.lock);
-  if (!names(slot->state.load(std::memory_order_relaxed), id) ||
-      slot->owner.load(std::memory_order_relaxed) != owner)
+  SharedObject* object = ownedObject(slot, id, owner);
+  if (object == nullptr)
   {
     return false;
   }
-  slot->object.load(std::memory_order_relaxed)->holds++;
+  object->holds++;
   return true;
+}
+
+uint32_t SharedRegistry::holds(uint32_t id, uint64_t owner)
+{
+  SharedTable& table = sharedTable();
+  SharedSlot* slot = slotOf(table, id);
+  WordGuard guard(table.lock);
+  SharedObject* object = ownedObject(slot, id, owner);
+  return object != nullptr ? object->holds : 0;
 }
 
 void SharedRegistry::release(uint32_t id, uint64_t owner)

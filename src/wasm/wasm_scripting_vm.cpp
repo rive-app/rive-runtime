@@ -42,6 +42,7 @@
 #ifdef WITH_RIVE_AUDIO
 #include "rive/assets/audio_asset.hpp"
 #include "rive/audio/audio_engine.hpp"
+#include "rive/audio/audio_reader.hpp"
 #include "rive/audio/audio_sound.hpp"
 #include "rive/audio/audio_source.hpp"
 #endif
@@ -161,6 +162,14 @@
 #include <time.h>
 
 using namespace rive;
+
+// Streams only feed audio processors, so builds that refuse those leave them
+// out, answering as a build without audio.
+#if defined(WITH_RIVE_AUDIO) && RIVE_PROCESSOR_AUDIO()
+#define RIVE_AUDIO_STREAMS() 1
+#else
+#define RIVE_AUDIO_STREAMS() 0
+#endif
 
 namespace
 {
@@ -9511,6 +9520,372 @@ uint32_t audioSourceChannelsImpl(WasmScriptingVM* vm, uint32_t handle)
 #endif
 }
 
+// Settles through the main lane's waits with the blob a job decoded.
+uint32_t audioSourceToBlobImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t sampleRate,
+    uint32_t channels)
+{
+#ifdef WITH_RIVE_AUDIO
+  auto host = resolveAudioSource(vm, handle);
+  if (host == nullptr)
+  {
+    return 0;
+  }
+  return vm->startAudioDecode(host->source, sampleRate, channels);
+#else
+  return 0;
+#endif
+}
+
+#if RIVE_AUDIO_STREAMS()
+bool isSharedId(uint32_t id);
+
+// The fewest chunks a poll decodes per stream, well ahead of a frame's worth.
+static constexpr uint32_t kStreamChunksPerPump = 16;
+
+// Leads each stream record. Our std's AudioStreamReader reads it in place,
+// and published files carry that reader, so it never changes.
+struct StreamRecordHeader
+{
+  // The seeks before it, which the processor drops records older than.
+  uint32_t seek;
+  uint32_t flags;
+  // Its first frame's place in the source, at the stream's rate.
+  double frame;
+};
+static_assert(sizeof(StreamRecordHeader) == 16, "the std reads 16 bytes");
+static constexpr size_t kRecordHeaderFloats = sizeof(StreamRecordHeader) /
+                                              sizeof(float);
+static constexpr uint32_t kRecordLast = 1;
+// A seek dropped the frames before it; a loop's wrap is seamless, so is not.
+static constexpr uint32_t kRecordDiscontinuity = 2;
+
+} // namespace
+
+// Keeps a ring a processor drains topped up with records of decoded frames.
+struct rive::HostAudioStream
+{
+  rcp<AudioReader> reader;
+  rcp<SharedRing> ring;
+  uint32_t ringId = 0;
+  rcp<SharedSignal> seeks;
+  uint32_t seeksId = 0;
+  uint64_t owner = 0;
+  // 0 once released, after which it decodes on while a reader holds the ring.
+  uint32_t handle = 0;
+  uint32_t chunkFrames = 0;
+  bool discontinuity = false;
+  double position = 0;
+  // The record in chunk that has not fit the ring yet, 0 when none.
+  uint32_t queuedBytes = 0;
+  // The ring's bytes after the last top up, so a poll sees what was played.
+  uint32_t usedAfterFill = 0;
+  uint32_t fullRecordBytes = 0;
+  bool queuedLast = false;
+  bool loop = false;
+  bool ended = false;
+  // A header, then chunkFrames frames.
+  std::vector<float> chunk;
+
+  ~HostAudioStream()
+  {
+    SharedRegistry::release(ringId, owner);
+    SharedRegistry::release(seeksId, owner);
+  }
+
+  void fill(uint32_t maxChunks)
+  {
+    for (uint32_t chunks = 0; !ended && chunks < maxChunks; chunks++)
+    {
+      if (queuedBytes == 0)
+      {
+        decodeRecord();
+      }
+      if (!ring->write(
+              Span<const uint8_t>((const uint8_t*)chunk.data(), queuedBytes)))
+      {
+        break;
+      }
+      queuedBytes = 0;
+      ended = queuedLast;
+    }
+    usedAfterFill = ring->used();
+  }
+
+  // Twice what was played since the last poll, so a processor reading
+  // faster than real time keeps up.
+  void pump()
+  {
+    uint32_t used = ring->used();
+    uint32_t played = usedAfterFill > used ? usedAfterFill - used : 0;
+    fill(std::max(kStreamChunksPerPump, 2 * (played / fullRecordBytes) + 1));
+  }
+
+  void decodeRecord()
+  {
+    float* samples = chunk.data() + kRecordHeaderFloats;
+    uint64_t read = 0;
+    bool decoded = reader->readInto(samples, chunkFrames, read);
+    // Rewound once a pass, so a source with no frames ends rather than spins.
+    if (decoded && read == 0 && loop && reader->rewind())
+    {
+      position = 0;
+      decoded = reader->readInto(samples, chunkFrames, read);
+    }
+    queuedLast = !decoded || read == 0;
+    // The signal's own count, so a notify the host did not make drops nothing.
+    StreamRecordHeader header = {
+        (uint32_t)seeks->seq(),
+        (discontinuity ? kRecordDiscontinuity : 0) |
+            (queuedLast ? kRecordLast : 0),
+        position};
+    memcpy(chunk.data(), &header, sizeof(header));
+    discontinuity = false;
+    position += (double)read;
+    queuedBytes = (uint32_t)(sizeof(header) +
+                             read * reader->channels() * sizeof(float));
+  }
+
+  // Drops what the processor has not played, so it hears frame next.
+  bool restart(uint64_t frame)
+  {
+    uint64_t landed = 0;
+    if (!reader->seek(frame, &landed))
+    {
+      return false;
+    }
+    // Before the drain, so the processor drops what it already took too.
+    seeks->notify();
+    uint32_t capacity = (uint32_t)(chunk.size() * sizeof(float));
+    while (ring->read((uint8_t*)chunk.data(), capacity) != 0)
+    {
+    }
+    queuedBytes = 0;
+    ended = false;
+    position = (double)landed;
+    discontinuity = true;
+    fill(kStreamChunksPerPump);
+    return true;
+  }
+
+  // Answers whether its first records are queued.
+  bool ready() { return ended || ring->used() != 0; }
+};
+
+namespace
+{
+
+HostAudioStream* resolveAudioStream(WasmScriptingVM* vm, uint32_t handle)
+{
+  if (vm == nullptr)
+  {
+    return nullptr;
+  }
+  return static_cast<HostAudioStream*>(vm->handles().resolve(
+      handle,
+      WasmScriptingVM::HandleTable::Tag::audioStream));
+}
+
+void pumpAudioStreams(WasmScriptingVM* vm)
+{
+  auto& streams = vm->audioStreams();
+  for (auto it = streams.begin(); it != streams.end();)
+  {
+    HostAudioStream* stream = *it;
+    if (stream->handle == 0 &&
+        (stream->ended ||
+         SharedRegistry::holds(stream->ringId, stream->owner) <= 1))
+    {
+      delete stream;
+      it = streams.erase(it);
+      continue;
+    }
+    stream->pump();
+    ++it;
+  }
+}
+
+// Another hold on id for the caller, which answers it; else 0.
+uint32_t retainedId(uint32_t id, uint64_t owner)
+{
+  return SharedRegistry::retain(id, owner) ? id : 0;
+}
+#endif
+
+uint32_t audioStreamImpl(
+    WasmScriptingVM* vm,
+    uint32_t source,
+    uint32_t sampleRate,
+    uint32_t channels,
+    uint32_t chunkFrames,
+    uint32_t bufferFrames)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto host = resolveAudioSource(vm, source);
+  if (host == nullptr || chunkFrames == 0)
+  {
+    return 0;
+  }
+  auto reader = host->source->makeReader(channels, sampleRate);
+  if (reader == nullptr)
+  {
+    return 0;
+  }
+  uint64_t chunkBytes = sizeof(StreamRecordHeader) +
+                        (uint64_t)chunkFrames * reader->channels() * 4;
+  if (chunkBytes > shared_layout::kSharedMaxBytes)
+  {
+    return 0;
+  }
+  uint64_t records = std::max<uint64_t>(
+      1,
+      ((uint64_t)bufferFrames + chunkFrames - 1) / chunkFrames);
+  uint64_t recordBytes = SharedRing::recordBytes((size_t)chunkBytes, 0);
+  uint64_t capacity = records * recordBytes;
+  if (capacity > shared_layout::kSharedMaxBytes)
+  {
+    return 0;
+  }
+  uint32_t ringId = sharedRingCreateImpl(vm, (uint32_t)capacity);
+  if (!isSharedId(ringId))
+  {
+    return 0;
+  }
+  uint64_t owner = vm->sharedOwner();
+  uint32_t seeksId = sharedSignalCreateImpl(vm);
+  if (!isSharedId(seeksId))
+  {
+    SharedRegistry::release(ringId, owner);
+    return 0;
+  }
+  auto stream = new HostAudioStream();
+  stream->owner = owner;
+  stream->ring = SharedRegistry::find<SharedRing>(ringId, owner);
+  stream->ringId = ringId;
+  stream->seeks = SharedRegistry::find<SharedSignal>(seeksId, owner);
+  stream->seeksId = seeksId;
+  stream->chunkFrames = chunkFrames;
+  stream->fullRecordBytes = (uint32_t)recordBytes;
+  stream->chunk.resize(
+      kRecordHeaderFloats + (size_t)chunkFrames * reader->channels());
+  stream->reader = std::move(reader);
+  stream->fill(kStreamChunksPerPump);
+  stream->handle = vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::audioStream,
+      stream);
+  vm->audioStreams().push_back(stream);
+  vm->watchLanes();
+  return vm->watchStream(stream->handle);
+#else
+  return 0;
+#endif
+}
+
+uint32_t audioStreamRingImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr ? retainedId(stream->ringId, stream->owner) : 0;
+#else
+  return 0;
+#endif
+}
+
+uint32_t audioStreamSeeksImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr ? retainedId(stream->seeksId, stream->owner) : 0;
+#else
+  return 0;
+#endif
+}
+
+uint32_t audioStreamChannelsImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr ? stream->reader->channels() : 0;
+#else
+  return 0;
+#endif
+}
+
+uint32_t audioStreamSampleRateImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr ? stream->reader->sampleRate() : 0;
+#else
+  return 0;
+#endif
+}
+
+uint32_t audioStreamSeekFrameImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    double frame)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr &&
+                 stream->restart(
+                     frame > 0 ? (uint64_t)std::min(frame, 1.8e19) : 0)
+             ? 1
+             : 0;
+#else
+  return 0;
+#endif
+}
+
+void audioStreamSetLoopImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t loop)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  if (stream == nullptr)
+  {
+    return;
+  }
+  stream->loop = loop != 0;
+  if (!stream->loop)
+  {
+    return;
+  }
+  // A stream that ran out starts over, after what is queued.
+  if (stream->ended && stream->reader->rewind())
+  {
+    stream->ended = false;
+    stream->position = 0;
+    stream->fill(kStreamChunksPerPump);
+  }
+  // Its last record waits for room, so the next decode loops instead.
+  else if (
+      stream->queuedLast && stream->queuedBytes == sizeof(StreamRecordHeader))
+  {
+    stream->queuedBytes = 0;
+  }
+#endif
+}
+
+uint32_t audioStreamEndedImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  auto stream = resolveAudioStream(vm, handle);
+  return stream != nullptr && stream->ended ? 1 : 0;
+#else
+  return 0;
+#endif
+}
+
+void audioStreamReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#if RIVE_AUDIO_STREAMS()
+  releaseHostHandle(vm, handle, WasmScriptingVM::HandleTable::Tag::audioStream);
+#endif
+}
+
 uint32_t audioPlayImpl(WasmScriptingVM* vm, uint32_t source)
 {
 #ifdef WITH_RIVE_AUDIO
@@ -9598,6 +9973,16 @@ double audioTimeFrameImpl(WasmScriptingVM* vm)
 #else
   return 0.0;
 #endif
+}
+
+uint32_t audioProcessorSampleRateImpl(WasmScriptingVM* vm)
+{
+  return WasmProcessors::format().sampleRate;
+}
+
+uint32_t audioProcessorChannelsImpl(WasmScriptingVM* vm)
+{
+  return WasmProcessors::format().channels;
 }
 
 uint32_t audioSampleRateImpl(WasmScriptingVM* vm)
@@ -11005,6 +11390,12 @@ void deleteHostObject(
     case Tag::audioSound:
       delete static_cast<HostAudioSound*>(object);
       break;
+    case Tag::audioStream:
+#if RIVE_AUDIO_STREAMS()
+      // Its poll frees it, once no reader holds the ring.
+      static_cast<HostAudioStream*>(object)->handle = 0;
+#endif
+      break;
 #endif
 #ifdef RIVE_CANVAS
     case Tag::canvas:
@@ -11193,6 +11584,10 @@ WasmScriptingVM::~WasmScriptingVM()
   // First, so no poll reaches it while it goes.
   VMPollList::leave(m_laneList, this);
   VMPollList::leave(m_holdingList, this);
+  for (const MainWait& wait : m_mainWaits)
+  {
+    abandonWait(wait);
+  }
   // Workers and jobs may hold this VM's shared memory; they stop first.
   m_processors.reset();
   m_workers.reset();
@@ -11279,6 +11674,12 @@ WasmScriptingVM::~WasmScriptingVM()
     slot.object = nullptr;
     deleteHostObject(this, tag, object);
   }
+#if RIVE_AUDIO_STREAMS()
+  for (HostAudioStream* stream : m_audioStreams)
+  {
+    delete stream;
+  }
+#endif
 #ifndef __EMSCRIPTEN__
   // Last, as the stats call above can still arm and register a slot.
   if (m_budgetSlot != nullptr)
@@ -11820,9 +12221,96 @@ void WasmScriptingVM::watchLanes()
   VMPollList::join(m_laneList, t_laneVMs, this);
 }
 
+// Decodes on a job thread into a blob the main lane registers as it settles.
+class rive::WasmAudioDecode : public JobTask
+{
+public:
+#ifdef WITH_RIVE_AUDIO
+  WasmAudioDecode(rcp<AudioReader> reader, uint64_t maxFrames)
+      : m_reader(std::move(reader))
+      , m_maxFrames(maxFrames)
+  {}
+#endif
+  // Bytes 0 when it did not decode; blob null when they cannot be one.
+  uint64_t bytes = 0;
+  rcp<SharedBlob> blob;
+  // What the main lane charged its owner up front, refunded as it settles.
+  uint64_t charged = 0;
+  uint64_t owner = 0;
+
+protected:
+  void run() override
+  {
+#ifdef WITH_RIVE_AUDIO
+    std::vector<float> samples;
+    if (!m_reader->readAll(m_maxFrames, samples, &m_stop))
+    {
+      return;
+    }
+    bytes = samples.size() * sizeof(float);
+    if (bytes != 0 && bytes <= kSharedMaxBytes)
+    {
+      blob = make_rcp<SharedBlob>(
+          Span<const uint8_t>((const uint8_t*)samples.data(), bytes));
+    }
+#endif
+  }
+
+  void interrupt() override { m_stop.store(true, std::memory_order_relaxed); }
+
+private:
+  std::atomic<bool> m_stop{false};
+#ifdef WITH_RIVE_AUDIO
+  rcp<AudioReader> m_reader;
+  uint64_t m_maxFrames;
+#endif
+};
+
+uint32_t WasmScriptingVM::startAudioDecode(
+    rcp<AudioSource> source,
+    uint32_t sampleRate,
+    uint32_t channels)
+{
+#ifdef WITH_RIVE_AUDIO
+  // Made here, as the source caches its format lazily and unguarded.
+  auto reader = source->makeReader(channels, sampleRate);
+  if (reader == nullptr)
+  {
+    return 0;
+  }
+  watchLanes();
+  uint64_t frameBytes = sizeof(float) * (uint64_t)reader->channels();
+  uint64_t maxFrames = kSharedMaxBytes / frameBytes;
+  // Charged now, so decodes running at once cannot outgrow the budget.
+  uint64_t estimate = std::min(reader->lengthInFrames(), maxFrames) *
+                      frameBytes;
+  uint64_t owner = sharedOwner();
+  uint32_t token = m_nextMainWait++;
+  if (!SharedRegistry::charge(owner, estimate))
+  {
+    wakeMain(token, shared_layout::kCreateNoMemory);
+    return token;
+  }
+  auto decode = make_rcp<WasmAudioDecode>(std::move(reader), maxFrames);
+  decode->charged = estimate;
+  decode->owner = owner;
+  WasmJobs::pool().submit(decode);
+  m_mainWaits.push_back({SignalWait(token), 0, std::move(decode)});
+  return token;
+#else
+  return 0;
+#endif
+}
+
 uint32_t WasmScriptingVM::watchLane(uint32_t lane)
 {
   m_mainWaits.push_back({SignalWait(m_nextMainWait), lane});
+  return m_nextMainWait++;
+}
+
+uint32_t WasmScriptingVM::watchStream(uint32_t stream)
+{
+  m_mainWaits.push_back({SignalWait(m_nextMainWait), 0, nullptr, stream});
   return m_nextMainWait++;
 }
 
@@ -11846,14 +12334,56 @@ uint32_t WasmScriptingVM::waitOnMain(
   return m_nextMainWait++;
 }
 
+void WasmScriptingVM::abandonWait(const MainWait& wait)
+{
+  if (wait.decode != nullptr)
+  {
+    WasmJobs::pool().cancel(wait.decode.get());
+    SharedRegistry::refund(wait.decode->owner, wait.decode->charged);
+  }
+#if RIVE_AUDIO_STREAMS()
+  releaseHostHandle(this, wait.stream, HandleTable::Tag::audioStream);
+#endif
+}
+
 void WasmScriptingVM::cancelMainWait(uint32_t token)
 {
+  for (const MainWait& wait : m_mainWaits)
+  {
+    if (wait.wait.id == token)
+    {
+      abandonWait(wait);
+      // A promise that parked it still takes one wake, which says it went.
+      wakeMain(token, 0);
+    }
+  }
   m_mainWaits.erase(
       std::remove_if(
           m_mainWaits.begin(),
           m_mainWaits.end(),
           [token](const MainWait& wait) { return wait.wait.id == token; }),
       m_mainWaits.end());
+}
+
+#if RIVE_PROCESSOR_AUDIO()
+static constexpr double kOfflineDecodeSeconds = 10;
+#endif
+
+// The blob's id or why not, -1 when nothing decoded.
+static double settleAudioDecode(WasmScriptingVM* vm, WasmAudioDecode& decode)
+{
+  SharedRegistry::refund(decode.owner, decode.charged);
+  if (decode.bytes == 0)
+  {
+    return -1;
+  }
+  uint32_t answer = 0;
+  uint64_t owner = sharedCreator(vm, decode.bytes, false, true, answer);
+  if (owner == 0)
+  {
+    return answer;
+  }
+  return sharedCreated(vm, owner, decode.bytes, std::move(decode.blob));
 }
 
 void WasmScriptingVM::settleMainWaits()
@@ -11864,7 +12394,30 @@ void WasmScriptingVM::settleMainWaits()
   {
     double value = 0;
     bool fire = false;
-    if (it->lane != 0)
+    if (it->decode != nullptr)
+    {
+#if RIVE_PROCESSOR_AUDIO()
+      // Offline renders outrun real time, so one waits on what it decodes.
+      if (WasmProcessors::renderOffline())
+      {
+        WasmJobs::pool().join(it->decode.get(), kOfflineDecodeSeconds);
+      }
+#endif
+      fire = it->decode->finished();
+      if (fire)
+      {
+        value = settleAudioDecode(this, *it->decode);
+      }
+    }
+#if RIVE_AUDIO_STREAMS()
+    else if (it->stream != 0)
+    {
+      HostAudioStream* stream = resolveAudioStream(this, it->stream);
+      fire = stream == nullptr || stream->ready();
+      value = stream != nullptr ? it->stream : 0;
+    }
+#endif
+    else if (it->lane != 0)
     {
       WasmLane* lane = resolveLane(this, it->lane);
       LaneState state = lane != nullptr ? lane->state() : LaneState::stopped;
@@ -11894,13 +12447,18 @@ void WasmScriptingVM::settleMainWaits()
     }
     uint32_t token = it->wait.id;
     it = m_mainWaits.erase(it);
-    // Held even outside a call, so an await always resumes at a poll.
-    holdOutcome([this, token, value] {
-      double args[3] = {(double)m_L, (double)token, value};
-      double unused = 0;
-      callF64("host_lane_wake", args, 3, &unused);
-    });
+    wakeMain(token, value);
   }
+}
+
+void WasmScriptingVM::wakeMain(uint32_t token, double value)
+{
+  // Held even outside a call, so an await always resumes at a poll.
+  holdOutcome([this, token, value] {
+    double args[3] = {(double)m_L, (double)token, value};
+    double unused = 0;
+    callF64("host_lane_wake", args, 3, &unused);
+  });
 }
 
 void WasmScriptingVM::deliverLaneOutput(WasmLane* lane)
@@ -11934,6 +12492,9 @@ void WasmScriptingVM::deliverLaneOutput(WasmLane* lane)
 void WasmScriptingVM::deliverLaneOutput()
 {
   settleMainWaits();
+#if RIVE_AUDIO_STREAMS()
+  pumpAudioStreams(this);
+#endif
   auto deliver = [this](auto* set) {
     if (set == nullptr)
     {
@@ -11959,7 +12520,22 @@ bool WasmScriptingVM::hasPendingAsyncWork() const
          !m_heldOutcomes.empty() || !m_mainWaits.empty() ||
          (m_jobs != nullptr && m_jobs->hasUnfinished()) ||
          (m_workers != nullptr && m_workers->due()) ||
-         (m_processors != nullptr && m_processors->starting());
+         (m_processors != nullptr && m_processors->starting()) || streaming();
+}
+
+bool WasmScriptingVM::streaming() const
+{
+#if RIVE_AUDIO_STREAMS()
+  // Only a poll tops a stream up, so one still decoding keeps hosts ticking.
+  for (const HostAudioStream* stream : m_audioStreams)
+  {
+    if (!stream->ended)
+    {
+      return true;
+    }
+  }
+#endif
+  return false;
 }
 
 uint64_t WasmScriptingVM::sharedOwner()
@@ -12826,6 +13402,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
       return "audioSource";
     case Tag::audioSound:
       return "audioSound";
+    case Tag::audioStream:
+      return "audioStream";
     case Tag::drawable:
       return "drawable";
     case Tag::riveFile:

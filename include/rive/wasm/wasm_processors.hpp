@@ -145,6 +145,9 @@ public:
 #endif
   /// Whether a processor's init has yet to run.
   bool starting() const;
+  /// The format a processor started now renders in, all 0 when it would not
+  /// play.
+  static ProcessorFormat format();
 };
 
 } // namespace rive

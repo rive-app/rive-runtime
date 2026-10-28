@@ -575,6 +575,30 @@ NAMESPACES = [
         op('source_duration', [handle('source')], ret='f32'),
         op('source_sample_rate', [handle('source')], ret='u32'),
         op('source_channels', [handle('source')], ret='u32'),
+        # Decodes on a job into a new shared blob of interleaved f32 frames,
+        # 0 keeping the source's rate or channels: a token host_lane_wake
+        # settles with the blob id, a Create code, or -1; 0 without audio.
+        op('source_to_blob', [handle('source'), u32('sampleRate'),
+                              u32('channels')], ret='u32'),
+        # A stream that keeps a new ring topped up with records of a 16 byte
+        # header and up to chunkFrames interleaved f32 frames, holding about
+        # bufferFrames. A token, settled with the stream's handle once its
+        # first records are queued; 0 without audio processors or when the
+        # source does not decode.
+        op('stream', [handle('source'), u32('sampleRate'), u32('channels'),
+                      u32('chunkFrames'), u32('bufferFrames')], ret='u32'),
+        # The stream's ring and seek signal, each with a hold of the caller's
+        # own.
+        op('stream_ring', [handle('stream')], ret='u32'),
+        op('stream_seeks', [handle('stream')], ret='u32'),
+        op('stream_channels', [handle('stream')], ret='u32'),
+        op('stream_sample_rate', [handle('stream')], ret='u32'),
+        # Drops the queued records and decodes on from frame; 1 on success.
+        op('stream_seek_frame', [handle('stream'), f64('frame')], ret='u32'),
+        op('stream_set_loop', [handle('stream'), u32('loop')]),
+        # 1 once the source ran out and every record was written.
+        op('stream_ended', [handle('stream')], ret='u32'),
+        op('stream_release', [handle('stream')]),
         # Each returns a new sound handle, 0 without an engine or source.
         op('play', [handle('source')], ret='u32'),
         op('play_at_time', [handle('source'), f32('seconds')], ret='u32'),
@@ -584,6 +608,10 @@ NAMESPACES = [
         op('time', ret='f32'),
         op('time_frame', ret='f64'),
         op('sample_rate', ret='u32'),
+        # The rate and channels a processor started now renders in, 0 when
+        # none would play.
+        op('processor_sample_rate', ret='u32'),
+        op('processor_channels', ret='u32'),
         op('sound_release', [handle('sound')]),
         op('sound_play', [handle('sound')]),
         op('sound_pause', [handle('sound')]),

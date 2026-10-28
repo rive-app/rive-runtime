@@ -35,6 +35,9 @@ public:
       uint32_t sampleRate);
 
 #ifdef WITH_RIVE_AUDIO
+  // An MP3 decoder that seeks builds these, so a seek jumps near its frame
+  // instead of decoding from the start.
+  static constexpr uint32_t kDecoderSeekPoints = 256;
   rcp<AudioReader> makeReader(uint32_t numChannels, uint32_t sampleRate);
 #endif
 

@@ -3,7 +3,7 @@
 #include "rive/audio/audio_engine.hpp"
 #include "rive/audio/audio_sound.hpp"
 #include "rive/audio/audio_reader.hpp"
-#include "rive/audio/audio_reader.hpp"
+#include <algorithm>
 #endif
 
 using namespace rive;
@@ -222,33 +222,28 @@ rcp<AudioReader> AudioSource::makeReader(
     uint32_t numChannels,
     uint32_t sampleRate)
 {
-  if (m_isBuffered)
-  {
-    return nullptr;
-  }
-
   rive::rcp<rive::AudioSource> rcSource = rive::rcp<rive::AudioSource>(this);
   rcSource->ref();
-  auto reader = rcp<AudioReader>(new AudioReader(rcSource, numChannels));
-
-  ma_decoder_config config = ma_decoder_config_init(
-      ma_format_f32,
-      numChannels,
-      sampleRate);
-
-  if (ma_decoder_init_memory(
-          m_fileBytes.data(),
-          m_fileBytes.size(),
-          &config,
-          reader->decoder()) != MA_SUCCESS)
+  auto reader = rcp<AudioReader>(new AudioReader(rcSource));
+  if (!m_isBuffered)
   {
-    fprintf(
-        stderr,
-        "AudioSource::makeReader - Failed to initialize decoder.\n");
-    return nullptr;
+    // Native format, so the reader's own converter carries across a loop.
+    ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
+    config.seekPointCount = kDecoderSeekPoints;
+    if (ma_decoder_init_memory(
+            m_fileBytes.data(),
+            m_fileBytes.size(),
+            &config,
+            &reader->m_decoder) != MA_SUCCESS)
+    {
+      fprintf(
+          stderr,
+          "AudioSource::makeReader - Failed to initialize decoder.\n");
+      return nullptr;
+    }
+    reader->m_decoding = true;
   }
-
-  return reader;
+  return reader->init(numChannels, sampleRate) ? reader : nullptr;
 }
 #else
 rcp<AudioSource> AudioSource::MakeAudioSource(rive::Span<uint8_t> fileBytes)

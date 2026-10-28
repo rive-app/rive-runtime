@@ -569,6 +569,71 @@ bool WasmProcessors::starting() const
 #endif
 }
 
+namespace
+{
+// Where a processor started now would run, resolved on the VM's thread.
+struct ProcessorTarget
+{
+  ProcessorFormat format;
+  bool offline = false;
+  // The page's worklet runs it, so init happens there.
+  bool worklet = false;
+#if defined(WITH_RIVE_AUDIO) && !defined(__EMSCRIPTEN__)
+  rcp<AudioEngine> engine;
+#endif
+  std::string refusal = "real time audio has no audio engine";
+
+  bool plays() const
+  {
+#if defined(WITH_RIVE_AUDIO) && !defined(__EMSCRIPTEN__)
+    return offline || engine != nullptr;
+#else
+    return offline || worklet;
+#endif
+  }
+};
+
+ProcessorTarget processorTarget()
+{
+  ProcessorTarget target;
+  OfflineRender offlineRender = offlineState();
+  target.offline = offlineRender.on;
+  if (target.offline)
+  {
+    target.format = offlineRender.format;
+    return target;
+  }
+#ifdef __EMSCRIPTEN__
+  // A refused worklet is final: the page's own engine has no block limit.
+  if (riveWebAttach())
+  {
+    char* why = riveWebAudioRefusal();
+    if (why != nullptr)
+    {
+      target.refusal = why;
+      free(why);
+    }
+#if RIVE_PROCESSOR_AUDIO()
+    else
+    {
+      target.worklet = true;
+      target.format.sampleRate = (uint32_t)riveWebAudioSampleRate();
+      target.format.maxFrames = 128;
+    }
+#endif
+  }
+#elif defined(WITH_RIVE_AUDIO)
+  target.engine = AudioEngine::RuntimeEngine();
+  if (target.engine != nullptr)
+  {
+    target.format.sampleRate = target.engine->sampleRate();
+    target.format.channels = target.engine->channels();
+  }
+#endif
+  return target;
+}
+} // namespace
+
 rcp<WasmProcessor> WasmProcessors::start(
     uint32_t entry,
     std::vector<uint8_t> input,
@@ -578,69 +643,33 @@ rcp<WasmProcessor> WasmProcessors::start(
   {
     return nullptr;
   }
-  OfflineRender offlineRender = offlineState();
-  bool offline = offlineRender.on;
-  ProcessorFormat format;
-  if (offline)
+  ProcessorTarget target = processorTarget();
+  if (target.offline)
   {
-    format = offlineRender.format;
     // Nothing plays it live, so no block of it can run late.
     hardBlocks = 0;
   }
-  std::string refusal = "real time audio has no audio engine";
-#ifdef __EMSCRIPTEN__
-  // A refused worklet is final: the page's own engine has no block limit.
-  if (!offline && riveWebAttach())
-  {
-    char* why = riveWebAudioRefusal();
-#if RIVE_PROCESSOR_AUDIO()
-    // The page's worklet runs it, so init happens there.
-    if (why == nullptr)
-    {
-      format.sampleRate = (uint32_t)riveWebAudioSampleRate();
-      format.maxFrames = 128;
-      auto processor = add(make_rcp<WasmProcessor>(
-          m_module,
-          entry,
-          std::move(input),
-          format,
-          hardBlocks));
-      processor->startRealtime();
-      return processor;
-    }
-#endif
-    if (why != nullptr)
-    {
-      refusal = why;
-      free(why);
-    }
-  }
-#elif defined(WITH_RIVE_AUDIO)
-  // Resolved here, on the VM's thread, since init runs on the pool.
-  rcp<AudioEngine> engine = offline ? nullptr : AudioEngine::RuntimeEngine();
-  if (engine != nullptr)
-  {
-    format.sampleRate = engine->sampleRate();
-    format.channels = engine->channels();
-  }
-#endif
   auto processor = make_rcp<WasmProcessor>(
       m_module,
       entry,
       std::move(input),
-      format,
+      target.format,
       hardBlocks);
-#if defined(WITH_RIVE_AUDIO) && !defined(__EMSCRIPTEN__)
-  bool device = engine != nullptr;
-  processor->m_engine = std::move(engine);
-#else
-  bool device = false;
-#endif
   add(processor);
-  // Nothing would pull its blocks, so it would only seem to play.
-  if (!device && !offline)
+#if defined(__EMSCRIPTEN__) && RIVE_PROCESSOR_AUDIO()
+  if (target.worklet)
   {
-    processor->fail(refusal);
+    processor->startRealtime();
+    return processor;
+  }
+#endif
+#if defined(WITH_RIVE_AUDIO) && !defined(__EMSCRIPTEN__)
+  processor->m_engine = target.engine;
+#endif
+  // Nothing would pull its blocks, so it would only seem to play.
+  if (!target.plays())
+  {
+    processor->fail(target.refusal);
     processor->settle(LaneState::failed);
     return processor;
   }
@@ -651,6 +680,12 @@ rcp<WasmProcessor> WasmProcessors::start(
   initPool().submit(processor);
 #endif
   return processor;
+}
+
+ProcessorFormat WasmProcessors::format()
+{
+  ProcessorTarget target = processorTarget();
+  return target.plays() ? target.format : ProcessorFormat{0, 0, 0};
 }
 
 #if RIVE_PROCESSOR_AUDIO()

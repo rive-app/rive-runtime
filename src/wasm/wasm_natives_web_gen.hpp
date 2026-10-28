@@ -664,6 +664,56 @@ uint32_t rive_web_audio_source_channels(uint32_t vmHandle, uint32_t source)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return audioSourceChannelsImpl(vm, source);
 }
+uint32_t rive_web_audio_source_to_blob(uint32_t vmHandle, uint32_t source, uint32_t sampleRate, uint32_t channels)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioSourceToBlobImpl(vm, source, sampleRate, channels);
+}
+uint32_t rive_web_audio_stream(uint32_t vmHandle, uint32_t source, uint32_t sampleRate, uint32_t channels, uint32_t chunkFrames, uint32_t bufferFrames)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamImpl(vm, source, sampleRate, channels, chunkFrames, bufferFrames);
+}
+uint32_t rive_web_audio_stream_ring(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamRingImpl(vm, stream);
+}
+uint32_t rive_web_audio_stream_seeks(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamSeeksImpl(vm, stream);
+}
+uint32_t rive_web_audio_stream_channels(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamChannelsImpl(vm, stream);
+}
+uint32_t rive_web_audio_stream_sample_rate(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamSampleRateImpl(vm, stream);
+}
+uint32_t rive_web_audio_stream_seek_frame(uint32_t vmHandle, uint32_t stream, double frame)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamSeekFrameImpl(vm, stream, frame);
+}
+void rive_web_audio_stream_set_loop(uint32_t vmHandle, uint32_t stream, uint32_t loop)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    audioStreamSetLoopImpl(vm, stream, loop);
+}
+uint32_t rive_web_audio_stream_ended(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioStreamEndedImpl(vm, stream);
+}
+void rive_web_audio_stream_release(uint32_t vmHandle, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    audioStreamReleaseImpl(vm, stream);
+}
 uint32_t rive_web_audio_play(uint32_t vmHandle, uint32_t source)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -703,6 +753,16 @@ uint32_t rive_web_audio_sample_rate(uint32_t vmHandle)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return audioSampleRateImpl(vm);
+}
+uint32_t rive_web_audio_processor_sample_rate(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioProcessorSampleRateImpl(vm);
+}
+uint32_t rive_web_audio_processor_channels(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return audioProcessorChannelsImpl(vm);
 }
 void rive_web_audio_sound_release(uint32_t vmHandle, uint32_t sound)
 {
@@ -1936,6 +1996,16 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_audio_source_duration,
     (void*)rive_web_audio_source_sample_rate,
     (void*)rive_web_audio_source_channels,
+    (void*)rive_web_audio_source_to_blob,
+    (void*)rive_web_audio_stream,
+    (void*)rive_web_audio_stream_ring,
+    (void*)rive_web_audio_stream_seeks,
+    (void*)rive_web_audio_stream_channels,
+    (void*)rive_web_audio_stream_sample_rate,
+    (void*)rive_web_audio_stream_seek_frame,
+    (void*)rive_web_audio_stream_set_loop,
+    (void*)rive_web_audio_stream_ended,
+    (void*)rive_web_audio_stream_release,
     (void*)rive_web_audio_play,
     (void*)rive_web_audio_play_at_time,
     (void*)rive_web_audio_play_in_time,
@@ -1944,6 +2014,8 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_audio_time,
     (void*)rive_web_audio_time_frame,
     (void*)rive_web_audio_sample_rate,
+    (void*)rive_web_audio_processor_sample_rate,
+    (void*)rive_web_audio_processor_channels,
     (void*)rive_web_audio_sound_release,
     (void*)rive_web_audio_sound_play,
     (void*)rive_web_audio_sound_pause,

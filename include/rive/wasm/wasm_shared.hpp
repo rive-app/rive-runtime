@@ -403,6 +403,8 @@ public:
   }
   /// Another hold on what owner's VM made; false once it is gone.
   static bool retain(uint32_t id, uint64_t owner);
+  /// The holds on what owner's VM made, 0 once it is gone.
+  static uint32_t holds(uint32_t id, uint64_t owner);
   /// Gives back one hold on what owner's VM made; the last frees the slot
   /// and a ring's signals, once no lookup still holds it.
   static void release(uint32_t id, uint64_t owner);

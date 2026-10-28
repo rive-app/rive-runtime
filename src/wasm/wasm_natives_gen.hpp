@@ -320,6 +320,16 @@ void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t source);
 float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t source);
 uint32_t audioSourceSampleRateImpl(WasmScriptingVM* vm, uint32_t source);
 uint32_t audioSourceChannelsImpl(WasmScriptingVM* vm, uint32_t source);
+uint32_t audioSourceToBlobImpl(WasmScriptingVM* vm, uint32_t source, uint32_t sampleRate, uint32_t channels);
+uint32_t audioStreamImpl(WasmScriptingVM* vm, uint32_t source, uint32_t sampleRate, uint32_t channels, uint32_t chunkFrames, uint32_t bufferFrames);
+uint32_t audioStreamRingImpl(WasmScriptingVM* vm, uint32_t stream);
+uint32_t audioStreamSeeksImpl(WasmScriptingVM* vm, uint32_t stream);
+uint32_t audioStreamChannelsImpl(WasmScriptingVM* vm, uint32_t stream);
+uint32_t audioStreamSampleRateImpl(WasmScriptingVM* vm, uint32_t stream);
+uint32_t audioStreamSeekFrameImpl(WasmScriptingVM* vm, uint32_t stream, double frame);
+void audioStreamSetLoopImpl(WasmScriptingVM* vm, uint32_t stream, uint32_t loop);
+uint32_t audioStreamEndedImpl(WasmScriptingVM* vm, uint32_t stream);
+void audioStreamReleaseImpl(WasmScriptingVM* vm, uint32_t stream);
 uint32_t audioPlayImpl(WasmScriptingVM* vm, uint32_t source);
 uint32_t audioPlayAtTimeImpl(WasmScriptingVM* vm, uint32_t source, float seconds);
 uint32_t audioPlayInTimeImpl(WasmScriptingVM* vm, uint32_t source, float seconds);
@@ -328,6 +338,8 @@ uint32_t audioPlayInFrameImpl(WasmScriptingVM* vm, uint32_t source, double frame
 float audioTimeImpl(WasmScriptingVM* vm);
 double audioTimeFrameImpl(WasmScriptingVM* vm);
 uint32_t audioSampleRateImpl(WasmScriptingVM* vm);
+uint32_t audioProcessorSampleRateImpl(WasmScriptingVM* vm);
+uint32_t audioProcessorChannelsImpl(WasmScriptingVM* vm);
 void audioSoundReleaseImpl(WasmScriptingVM* vm, uint32_t sound);
 void audioSoundPlayImpl(WasmScriptingVM* vm, uint32_t sound);
 void audioSoundPauseImpl(WasmScriptingVM* vm, uint32_t sound);
@@ -1286,6 +1298,56 @@ uint32_t audioSourceChannels(wasm_exec_env_t env, uint32_t source)
     WasmScriptingVM* vm = vmFromEnv(env);
     return audioSourceChannelsImpl(vm, source);
 }
+uint32_t audioSourceToBlob(wasm_exec_env_t env, uint32_t source, uint32_t sampleRate, uint32_t channels)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSourceToBlobImpl(vm, source, sampleRate, channels);
+}
+uint32_t audioStream(wasm_exec_env_t env, uint32_t source, uint32_t sampleRate, uint32_t channels, uint32_t chunkFrames, uint32_t bufferFrames)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamImpl(vm, source, sampleRate, channels, chunkFrames, bufferFrames);
+}
+uint32_t audioStreamRing(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamRingImpl(vm, stream);
+}
+uint32_t audioStreamSeeks(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamSeeksImpl(vm, stream);
+}
+uint32_t audioStreamChannels(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamChannelsImpl(vm, stream);
+}
+uint32_t audioStreamSampleRate(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamSampleRateImpl(vm, stream);
+}
+uint32_t audioStreamSeekFrame(wasm_exec_env_t env, uint32_t stream, double frame)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamSeekFrameImpl(vm, stream, frame);
+}
+void audioStreamSetLoop(wasm_exec_env_t env, uint32_t stream, uint32_t loop)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioStreamSetLoopImpl(vm, stream, loop);
+}
+uint32_t audioStreamEnded(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioStreamEndedImpl(vm, stream);
+}
+void audioStreamRelease(wasm_exec_env_t env, uint32_t stream)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioStreamReleaseImpl(vm, stream);
+}
 uint32_t audioPlay(wasm_exec_env_t env, uint32_t source)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1325,6 +1387,16 @@ uint32_t audioSampleRate(wasm_exec_env_t env)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return audioSampleRateImpl(vm);
+}
+uint32_t audioProcessorSampleRate(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioProcessorSampleRateImpl(vm);
+}
+uint32_t audioProcessorChannels(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioProcessorChannelsImpl(vm);
 }
 void audioSoundRelease(wasm_exec_env_t env, uint32_t sound)
 {
@@ -2695,6 +2767,16 @@ NativeSymbol kAudioNatives[] = {
     {"source_duration", (void*)audioSourceDuration, "(i)f", nullptr},
     {"source_sample_rate", (void*)audioSourceSampleRate, "(i)i", nullptr},
     {"source_channels", (void*)audioSourceChannels, "(i)i", nullptr},
+    {"source_to_blob", (void*)audioSourceToBlob, "(iii)i", nullptr},
+    {"stream", (void*)audioStream, "(iiiii)i", nullptr},
+    {"stream_ring", (void*)audioStreamRing, "(i)i", nullptr},
+    {"stream_seeks", (void*)audioStreamSeeks, "(i)i", nullptr},
+    {"stream_channels", (void*)audioStreamChannels, "(i)i", nullptr},
+    {"stream_sample_rate", (void*)audioStreamSampleRate, "(i)i", nullptr},
+    {"stream_seek_frame", (void*)audioStreamSeekFrame, "(iF)i", nullptr},
+    {"stream_set_loop", (void*)audioStreamSetLoop, "(ii)", nullptr},
+    {"stream_ended", (void*)audioStreamEnded, "(i)i", nullptr},
+    {"stream_release", (void*)audioStreamRelease, "(i)", nullptr},
     {"play", (void*)audioPlay, "(i)i", nullptr},
     {"play_at_time", (void*)audioPlayAtTime, "(if)i", nullptr},
     {"play_in_time", (void*)audioPlayInTime, "(if)i", nullptr},
@@ -2703,6 +2785,8 @@ NativeSymbol kAudioNatives[] = {
     {"time", (void*)audioTime, "()f", nullptr},
     {"time_frame", (void*)audioTimeFrame, "()F", nullptr},
     {"sample_rate", (void*)audioSampleRate, "()i", nullptr},
+    {"processor_sample_rate", (void*)audioProcessorSampleRate, "()i", nullptr},
+    {"processor_channels", (void*)audioProcessorChannels, "()i", nullptr},
     {"sound_release", (void*)audioSoundRelease, "(i)", nullptr},
     {"sound_play", (void*)audioSoundPlay, "(i)", nullptr},
     {"sound_pause", (void*)audioSoundPause, "(i)", nullptr},
