@@ -8,10 +8,10 @@
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_target.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
 #include "image_draw_attributes.hpp"
-#include "rive_render_paint.hpp"
 
 #include <cmath>
 #include <limits>

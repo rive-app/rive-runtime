@@ -7,12 +7,12 @@
 #include "gr_inner_fan_triangulator.hpp"
 #include "intersection_board.hpp"
 #include "gradient.hpp"
-#include "rive_render_paint.hpp"
 #include "rive/renderer/draw.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
 #endif
 #include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/gpu_texture_format.hpp"
 #include "rive/renderer/stack_vector.hpp"

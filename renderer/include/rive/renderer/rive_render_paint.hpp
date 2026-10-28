@@ -32,7 +32,7 @@ class RiveRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, RiveRenderPaint)
 {
 public:
   RiveRenderPaint();
-  ~RiveRenderPaint();
+  virtual ~RiveRenderPaint();
 
   void style(RenderPaintStyle style) override
   {

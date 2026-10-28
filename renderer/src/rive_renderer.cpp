@@ -5,11 +5,11 @@
 #include "rive/renderer/rive_renderer.hpp"
 
 #include "gradient.hpp"
-#include "rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive/profiler/profiler_macros.h"
 
 namespace rive

@@ -8,9 +8,9 @@
 #include "rive/file.hpp"
 #include "rive/scene.hpp"
 #include "assets/paper.riv.hpp"
-#include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/render_context.hpp"
-#include "rive_render_paint.hpp"
+#include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 
 using namespace rive;

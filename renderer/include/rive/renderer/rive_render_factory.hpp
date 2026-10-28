@@ -49,6 +49,4 @@ public:
 // (asserts on incorrect type).
 RiveRenderPath* asRiveRenderPath(RenderPath*);
 const RiveRenderPath* asRiveRenderPath(const RenderPath*);
-RiveRenderPaint* asRiveRenderPaint(RenderPaint*);
-const RiveRenderPaint* asRiveRenderPaint(const RenderPaint*);
 } // namespace rive

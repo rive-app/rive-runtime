@@ -6,11 +6,11 @@
 
 #include "gr_inner_fan_triangulator.hpp"
 #include "rive_render_path.hpp"
-#include "rive_render_paint.hpp"
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
@@ -749,6 +749,21 @@ IAABB PathDraw::calculatePixelBounds(
   if (paint->getIsStroked())
   {
     stroke = paint->getStrokeParams();
+    switch (stroke->position)
+    {
+      case StrokePosition::inside:
+        // Measure these as if not stroked
+        stroke = std::nullopt;
+        break;
+      case StrokePosition::center:
+        // center is already good
+        break;
+      case StrokePosition::outside:
+        // Measure these with a double-width centered stroke
+        stroke->position = StrokePosition::center;
+        stroke->thickness *= 2.0f;
+        break;
+    }
   }
   return path->calculatePixelBounds(
       paintMatrix,

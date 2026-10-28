@@ -11,7 +11,7 @@
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/shape.hpp>
 
-#include "rive_render_paint.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
 #endif

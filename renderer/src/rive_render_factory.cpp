@@ -4,9 +4,9 @@
 
 #include "rive/renderer/rive_render_factory.hpp"
 #include "gradient.hpp"
-#include "rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 
 namespace rive
 {
@@ -68,13 +68,4 @@ const RiveRenderPath* asRiveRenderPath(const RenderPath* path)
   return lite_rtti_cast_or_assert<const RiveRenderPath*>(path);
 }
 
-RiveRenderPaint* asRiveRenderPaint(RenderPaint* paint)
-{
-  return lite_rtti_cast_or_assert<RiveRenderPaint*>(paint);
-}
-
-const RiveRenderPaint* asRiveRenderPaint(const RenderPaint* paint)
-{
-  return lite_rtti_cast_or_assert<const RiveRenderPaint*>(paint);
-}
 } // namespace rive

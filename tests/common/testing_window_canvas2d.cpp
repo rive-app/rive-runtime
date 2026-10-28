@@ -162,6 +162,9 @@ struct JSEnums
   JSEnum paintStyle{"RenderPaintStyle"};
   JSEnum strokeCap{"StrokeCap"};
   JSEnum strokeJoin{"StrokeJoin"};
+  JSEnum strokePosition{"StrokePosition"};
+  JSEnum imageFilter{"ImageFilter"};
+  JSEnum imageWrap{"ImageWrap"};
 };
 
 // Built on first use, which must come after the
@@ -294,6 +297,23 @@ private:
   float m_radius;
 };
 
+class JSAngularGradientShader : public JSGradientShader
+{
+public:
+  JSAngularGradientShader(
+      const ColorInt colors[],
+      const float stops[],
+      size_t count)
+      : JSGradientShader(colors, stops, count)
+  {}
+
+  void applyToPaint(const emscripten::val& jsPaint) const override
+  {
+    jsPaint.call<void>("angularGradient");
+    applyStopsToPaint(jsPaint);
+  }
+};
+
 class JSRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, JSRenderPath)
 {
 public:
@@ -377,6 +397,30 @@ private:
   emscripten::val m_jsPath;
 };
 
+class JSRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, JSRenderImage)
+{
+public:
+  JSRenderImage(emscripten::val&& jsImage)
+      : m_jsImage(std::forward<emscripten::val>(jsImage))
+  {
+    // On load, renderer.js calls size() on the RenderImage it created,
+    // setting the dimensions on the wrapper in canvas_advanced's heap. This
+    // is a separate rive::RenderImage with its own m_Width/m_Height, which
+    // rive core reads, so copy them across.
+    emscripten::val testUtils = canvasAdvancedModule()["Canvas2DTestUtilities"];
+    m_Width = testUtils.call<int>("imageWidth", m_jsImage);
+    m_Height = testUtils.call<int>("imageHeight", m_jsImage);
+  }
+
+  ~JSRenderImage() override { m_jsImage.call<void>("deleteLater"); }
+
+  emscripten::val& js() { return m_jsImage; }
+  const emscripten::val& js() const { return m_jsImage; }
+
+private:
+  emscripten::val m_jsImage;
+};
+
 class JSRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, JSRenderPaint)
 {
 public:
@@ -406,6 +450,11 @@ public:
   void cap(StrokeCap value) override
   {
     m_jsPaint.call<void>("cap", jsEnums().strokeCap(value));
+  }
+
+  void strokePosition(StrokePosition value) override
+  {
+    m_jsPaint.call<void>("strokePosition", jsEnums().strokePosition(value));
   }
 
   void feather(float value) override { m_jsPaint.call<void>("feather", value); }
@@ -441,35 +490,31 @@ public:
 
   void invalidateStroke() override {}
 
+  void modulatedImage(
+      const RenderImage* image,
+      ImageSampler sampler,
+      const Mat2D& xform) override
+  {
+    auto* jsImage = rive::lite_rtti_cast_or_assert<const JSRenderImage*>(image);
+    m_jsPaint.call<void>(
+        "modulatedImage",
+        jsImage->js(),
+        jsEnums().imageFilter(sampler.filter),
+        jsEnums().imageWrap(sampler.wrapX),
+        jsEnums().imageWrap(sampler.wrapY),
+        xform[0],
+        xform[1],
+        xform[2],
+        xform[3],
+        xform[4],
+        xform[5]);
+  }
+
   emscripten::val& js() { return m_jsPaint; }
   const emscripten::val& js() const { return m_jsPaint; }
 
 private:
   emscripten::val m_jsPaint;
-};
-
-class JSRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, JSRenderImage)
-{
-public:
-  JSRenderImage(emscripten::val&& jsImage)
-      : m_jsImage(std::forward<emscripten::val>(jsImage))
-  {
-    // On load, renderer.js calls size() on the RenderImage it created,
-    // setting the dimensions on the wrapper in canvas_advanced's heap. This
-    // is a separate rive::RenderImage with its own m_Width/m_Height, which
-    // rive core reads, so copy them across.
-    emscripten::val testUtils = canvasAdvancedModule()["Canvas2DTestUtilities"];
-    m_Width = testUtils.call<int>("imageWidth", m_jsImage);
-    m_Height = testUtils.call<int>("imageHeight", m_jsImage);
-  }
-
-  ~JSRenderImage() override { m_jsImage.call<void>("deleteLater"); }
-
-  emscripten::val& js() { return m_jsImage; }
-  const emscripten::val& js() const { return m_jsImage; }
-
-private:
-  emscripten::val m_jsImage;
 };
 
 class JSRenderFactory : public rive::Factory
@@ -511,6 +556,14 @@ public:
   {
     return rcp<RenderShader>(
         new JSRadialGradientShader(colors, stops, count, cx, cy, radius));
+  }
+
+  rcp<RenderShader> makeAngularGradient(
+      const ColorInt colors[],
+      const float stops[],
+      size_t count) override
+  {
+    return rcp<RenderShader>(new JSAngularGradientShader(colors, stops, count));
   }
 
   rcp<RenderPath> makeRenderPath(RawPath& rawPath, FillRule fillRule) override

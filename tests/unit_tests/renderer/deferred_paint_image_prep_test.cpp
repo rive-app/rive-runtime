@@ -13,7 +13,7 @@
 #include "rive/renderer/cmd/deferred_replayer.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
 #include "rive/renderer/render_context.hpp"
-#include "rive_render_paint.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "utils/no_op_renderer.hpp"
 
 #include <catch.hpp>

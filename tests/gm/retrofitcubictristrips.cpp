@@ -9,7 +9,7 @@
 #include "rive/renderer.hpp"
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/render_context.hpp"
-#include "../src/rive_render_paint.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "../src/rive_render_path.hpp"
 #include "../src/shaders/constants.glsl"
 
