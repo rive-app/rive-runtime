@@ -225,7 +225,7 @@ void WasmProcessor::run() {}
 #ifndef __EMSCRIPTEN__
 bool WasmProcessor::startInstance()
 {
-  ensureLaneThreadEnv();
+  ensureWasmThreadEnv();
   if (!instantiate(kProcessorStack))
   {
     return false;
@@ -278,7 +278,7 @@ bool WasmProcessor::startInstance()
 bool WasmProcessor::process(float* out, uint32_t frames, uint64_t startFrame)
 {
   // The thread pulling audio can change, as when a device reroutes.
-  ensureLaneThreadEnv();
+  ensureWasmThreadEnv();
   auto env = (wasm_exec_env_t)m_execEnv;
   uint32_t budgetMs = lane_layout::processorBlockBudgetMs(
       m_hardBlocks,

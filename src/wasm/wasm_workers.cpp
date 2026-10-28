@@ -190,7 +190,7 @@ private:
   void runnerMain(Runner* runner)
   {
 #ifndef __EMSCRIPTEN__
-    ensureLaneThreadEnv();
+    ensureWasmThreadEnv();
 #endif
     Clock::time_point idleSince = Clock::now();
     std::unique_lock<std::mutex> lock(m_mutex);

@@ -1,0 +1,45 @@
+From: rive
+Subject: [PATCH 0043] skip the signal state in setjmp on Darwin
+
+Darwin's setjmp saves the signal mask and the alt stack state, two syscalls
+that cost about 170 ns, and hardware bounds builds setjmp on every call
+into wasm, so a host to wasm call took about 186 ns instead of 8. _setjmp
+and _longjmp leave both alone. The trap path already unmasks SIGSEGV and
+SIGBUS after a longjmp; it now also resets the alt stack state on Apple
+whatever the stack check mode, since _longjmp out of a handler that ran on
+an alt stack leaves that stack marked in use.
+
+--- a/core/shared/platform/common/posix/posix_thread.c
++++ b/core/shared/platform/common/posix/posix_thread.c
+@@ -780,7 +780,8 @@ os_signal_unmask()
+ void
+ os_sigreturn()
+ {
+-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
++    /* rive patch: _longjmp out of a handler that ran on an alt stack leaves
++       the stack marked in use, whatever the stack check mode */
+ #if defined(__APPLE__)
+ #define UC_RESET_ALT_STACK 0x80000000
+     extern int __sigreturn(void *, int);
+@@ -789,6 +790,5 @@ os_sigreturn()
+        after exiting the signal handler. */
+     __sigreturn(NULL, UC_RESET_ALT_STACK);
+ #endif
+-#endif
+ }
+ #endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+--- a/core/shared/platform/darwin/platform_internal.h
++++ b/core/shared/platform/darwin/platform_internal.h
+@@ -78,8 +78,10 @@ typedef sem_t korp_sem;
+ 
+ typedef jmp_buf korp_jmpbuf;
+ 
+-#define os_setjmp setjmp
+-#define os_longjmp longjmp
++/* rive patch: setjmp also saves the signal mask and alt stack state, two
++   syscalls on every call into wasm; a trap restores both itself */
++#define os_setjmp _setjmp
++#define os_longjmp _longjmp
+ #define os_alloca alloca
+ 
+ typedef void (*os_signal_handler)(void *sig_addr);

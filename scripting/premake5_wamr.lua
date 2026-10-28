@@ -1,8 +1,9 @@
 -- WAMR for the wasm scripting backend. Flags proven by the luau_wasm EH
 -- spike: sw-bounds artifacts must never unwind through hardware traps
--- (the longjmp skips the sjlj glue's native frames). Bounds checks default
--- sw; wasm_hw_bounds below. libc-wasi stays on: it makes WAMR leave the Luau
--- blob's __wasm_call_ctors to the host, off it also runs them at instantiate.
+-- (the longjmp skips the sjlj glue's native frames). Bounds checks are hw
+-- where premake5_v2.lua's wasmHwBounds says so, else sw. libc-wasi stays on:
+-- it makes WAMR leave the Luau blob's __wasm_call_ctors to the host, off it
+-- also runs them at instantiate.
 local dependency = require('dependency')
 -- The patch set carries the rive fast-interp fixes (linear_mem_size
 -- refreshes around growth, gated OOB diagnostics); a clone without them is
@@ -36,12 +37,12 @@ local wamrConfigDefines = {
     'BH_MALLOC=wasm_runtime_malloc',
     'BH_FREE=wasm_runtime_free',
 }
--- Opt-in hw bounds serve AOT artifacts compiled --bounds-checks=0 only:
--- patch 0009 keeps the interpreter sw-checked and patch 0010 keeps sw
--- artifacts unwinding by checked returns, so the Luau lane never takes
--- a hardware trap. Native stack checks stay sw everywhere (artifacts
--- must carry --stack-bounds-checks=1).
-if not _OPTIONS['wasm_hw_bounds'] then
+-- Hw bounds serve AOT artifacts compiled --bounds-checks=0 only: patch 0009
+-- keeps the interpreter sw-checked and patch 0010 keeps sw artifacts
+-- unwinding by checked returns, so the Luau lane never takes a hardware
+-- trap. Native stack checks stay sw everywhere (artifacts must carry
+-- --stack-bounds-checks=1).
+if not wasmHwBounds then
     table.insert(wamrConfigDefines, 'WASM_DISABLE_HW_BOUND_CHECK=1')
 end
 -- Nintendo cross builds set this from packages/runtime_switch and run on a

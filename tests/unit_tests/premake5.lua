@@ -128,6 +128,12 @@ do
     do
         links({ 'dl', 'pthread' })
     end
+    -- Catch2 puts its own SIGSEGV handler over WAMR's for every test without
+    -- chaining, and Linux raises guard page traps as SIGSEGV.
+    if wasmHwBounds then
+        filter('system:linux')
+        defines({ 'CATCH_CONFIG_NO_POSIX_SIGNALS' })
+    end
     filter({ 'options:not no-harfbuzz-renames' })
     do
         includedirs({

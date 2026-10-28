@@ -401,8 +401,9 @@ private:
   std::chrono::steady_clock::time_point m_outer;
 };
 #else
-/// Hardware bounds checks trap through a per thread signal handler.
-void ensureLaneThreadEnv();
+/// Hardware bounds checks trap through WAMR's per thread signal state, so
+/// every thread sets it up before it first runs wasm.
+void ensureWasmThreadEnv();
 /// The 32 bit cells a WAMR function's parameters take, or ~0u when its
 /// parameters or results would not fit in limit cells, at most 8.
 uint32_t wasmCallCells(void* instance, void* function, uint32_t limit);

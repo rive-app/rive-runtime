@@ -1057,6 +1057,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
   }
   bool ok;
   {
+    ensureWasmThreadEnv();
     WamrState::CallStateScope callState(*m_state);
     // Runtime services, the collector among them, must never be cut off.
     ScriptCallScope callScope(this, strncmp(name, "__rive", 6) != 0);
@@ -1124,6 +1125,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callF64(
   wasm_val_t ret[1];
   bool ok;
   {
+    ensureWasmThreadEnv();
     WamrState::CallStateScope callState(*m_state);
     ScriptCallScope callScope(this);
     ok = wasm_runtime_call_wasm_a(
@@ -12968,15 +12970,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
           }
           if (begin)
           {
-            // A start nested in an outer call can run on that call's
-            // env, whose own armed watchdog then bounds it.
-            WasmScriptingVM* outer = vmFromEnv(env);
-            bool outerBounds = outer != nullptr && outer->m_budgetArmed &&
-                               outer->m_budgetSlot->env == env;
             // Trusted modules run their top level unbounded, like their
             // calls.
-            if (vm->m_hostBudget && !outerBounds && !vm->m_budgetArmed &&
-                vm->boundsCalls())
+            if (vm->m_hostBudget && !vm->m_budgetArmed && vm->boundsCalls())
             {
               vm->armWatchdog(env);
             }
@@ -13021,6 +13017,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
   // level that trapped inside exclusive must not leave its region held.
   uint32_t outerRegionId;
   SharedRegion* outerRegion = stashHeldRegion(&outerRegionId);
+  ensureWasmThreadEnv();
   m_state->instance = wasm_runtime_instantiate(
       m_state->module,
       512 * 1024,

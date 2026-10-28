@@ -806,7 +806,7 @@ void* rive::wasmAppBytes(void* instance, uint32_t appAddr, uint32_t size)
              : nullptr;
 }
 
-void rive::ensureLaneThreadEnv()
+void rive::ensureWasmThreadEnv()
 {
 #ifdef RIVE_WASM_HW_BOUNDS
   struct ThreadEnv

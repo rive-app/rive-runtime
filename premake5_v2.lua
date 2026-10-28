@@ -40,6 +40,19 @@ end
 -- WAMR has no emscripten platform layer. On the web script modules run on
 -- the browser's own wasm engine, so the backend stays on and only WAMR is out.
 local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
+-- Global so premake5_wamr.lua and test harnesses agree. Windows, Android and
+-- iOS wait on the fixes listed in the rasc site's execution-lanes page.
+wasmHwBounds = wamrBuildable
+    and _OPTIONS['with_rive_scripting'] ~= nil
+    and (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
+    and not _OPTIONS['wasm_sw_bounds']
+    and (
+        _OPTIONS['wasm_hw_bounds'] ~= nil
+        or (rive_target_os == 'macosx' or rive_target_os == 'linux')
+            and _OPTIONS['_nx_platform'] == nil
+            and _OPTIONS['arch'] ~= 'x86'
+            and _OPTIONS['arch'] ~= 'arm'
+    )
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
 if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
@@ -49,12 +62,8 @@ then
         defines({ 'WITH_RIVE_SCRIPTING_WASM' })
     end
     filter({})
-    if _OPTIONS['wasm_hw_bounds'] then
-        filter({ 'options:with_rive_scripting' })
-        do
-            defines({ 'RIVE_WASM_HW_BOUNDS' })
-        end
-        filter({})
+    if wasmHwBounds then
+        defines({ 'RIVE_WASM_HW_BOUNDS' })
     end
 end
 filter({ 'options:with_rive_test_signature' })
@@ -395,10 +404,18 @@ newoption({
 
 newoption({
     trigger = 'wasm_hw_bounds',
-    description = 'WAMR hardware bounds checks for wasm modules compiled '
-        .. 'without sw bounds (AnimaScript); Luau artifacts stay sw. '
-        .. '64-bit desktop/mobile only: reserves 8GB address space per '
-        .. 'module memory and installs a SIGSEGV/SIGBUS handler.',
+    description = 'WAMR hardware bounds checks for compiled AnimaScript '
+        .. 'modules on platforms where they are not the default (the '
+        .. 'default on 64-bit macOS and Linux). 64-bit only: reserves 8GB '
+        .. 'address space per module memory and installs a SIGSEGV/SIGBUS '
+        .. 'handler.',
+})
+
+newoption({
+    trigger = 'wasm_sw_bounds',
+    description = 'WAMR software bounds checks everywhere: compiled modules '
+        .. 'compare every load and store against the memory size instead '
+        .. 'of relying on guard pages.',
 })
 
 newoption({

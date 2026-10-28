@@ -268,7 +268,7 @@ WasmJob* WasmJob::current() { return WasmLane::currentOf<WasmJob>(); }
 void WasmJob::run()
 {
 #ifndef __EMSCRIPTEN__
-  ensureLaneThreadEnv();
+  ensureWasmThreadEnv();
 #endif
   WasmLane* outerLane = WasmLane::setCurrent(this);
   bool ok = execute();

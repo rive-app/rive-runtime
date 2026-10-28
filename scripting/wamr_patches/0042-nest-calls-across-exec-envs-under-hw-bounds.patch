@@ -1,0 +1,202 @@
+From: rive
+Subject: [PATCH 0042] nest calls from other exec envs under hw bounds
+
+With hardware bounds checks the signal handler finds the running call
+through a per thread exec env, and a call on any other exec env while one
+was running on the thread was refused as "invalid exec env". Natives run
+other instances inside a call: a job joined on the calling thread, a file a
+script decodes, a lane booted from a call. Software bounds builds have no
+such limit. A call now makes its exec env the thread's for its duration and
+puts the outer one back when it returns, trapped or not, so a fault unwinds
+to the innermost call. The stack overflow check now runs before the exec env
+is published, so its early return leaves nothing stale behind.
+
+Starting an instance, and its malloc and free exports, reused whatever exec
+env was running on the thread, swapping its instance for the call. Restoring
+it passed the inner instance's trap on to the outer one, failing a call that
+software bounds builds keep. Starting an instance now always makes its own
+exec env, and malloc and free reuse only one of the same instance, as
+software bounds builds do.
+
+--- a/core/iwasm/aot/aot_runtime.c
++++ b/core/iwasm/aot/aot_runtime.c
+@@ -1771,9 +1771,8 @@ execute_post_instantiate_functions(AOTModuleInstance *module_inst,
+     }
+     else {
+         /* Try using the existing exec_env */
+-#ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
+-#endif
++        /* rive patch: not the running call's, which belongs to another
++           instance and whose restore would pass this one's trap on to it */
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+             exec_env = wasm_clusters_search_exec_env(
+@@ -2438,22 +2437,16 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+ #endif
+     bool ret;
+ 
+-    if (!exec_env_tls) {
+-        if (!os_thread_signal_inited()) {
+-            aot_set_exception(module_inst, "thread signal env not inited");
+-            return false;
+-        }
++    if (!exec_env_tls && !os_thread_signal_inited()) {
++        aot_set_exception(module_inst, "thread signal env not inited");
++        return false;
++    }
+ 
++    /* rive patch: this call may nest in another exec env's call on this
++       thread, as when a native runs a second instance; restored on return */
++    if (exec_env_tls != exec_env) {
+         /* Set thread handle and stack boundary if they haven't been set */
+         wasm_exec_env_set_thread_info(exec_env);
+-
+-        wasm_runtime_set_exec_env_tls(exec_env);
+-    }
+-    else {
+-        if (exec_env_tls != exec_env) {
+-            aot_set_exception(module_inst, "invalid exec env");
+-            return false;
+-        }
+     }
+ 
+     /* Check native stack overflow firstly to ensure we have enough
+@@ -2463,6 +2456,7 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+         return false;
+     }
+ 
++    wasm_runtime_set_exec_env_tls(exec_env);
+     wasm_exec_env_push_jmpbuf(exec_env, &jmpbuf_node);
+ 
+     if (os_setjmp(jmpbuf_node.jmpbuf) == 0) {
+@@ -2501,9 +2495,7 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+ 
+     jmpbuf_node_pop = wasm_exec_env_pop_jmpbuf(exec_env);
+     bh_assert(&jmpbuf_node == jmpbuf_node_pop);
+-    if (!exec_env->jmpbuf_stack_top) {
+-        wasm_runtime_set_exec_env_tls(NULL);
+-    }
++    wasm_runtime_set_exec_env_tls(exec_env_tls);
+     if (!ret) {
+         os_sigreturn();
+         os_signal_unmask();
+@@ -2889,7 +2881,12 @@ execute_malloc_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
+     else {
+         /* Try using the existing exec_env */
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
++        /* rive patch: never another instance's env, whose restore would
++           pass this instance's trap on to it */
++        if (exec_env_tls
++            && exec_env_tls->module_inst
++                   == (WASMModuleInstanceCommon *)module_inst)
++            exec_env = exec_env_tls;
+ #endif
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+@@ -2979,7 +2976,12 @@ execute_free_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
+     else {
+         /* Try using the existing exec_env */
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
++        /* rive patch: never another instance's env, whose restore would
++           pass this instance's trap on to it */
++        if (exec_env_tls
++            && exec_env_tls->module_inst
++                   == (WASMModuleInstanceCommon *)module_inst)
++            exec_env = exec_env_tls;
+ #endif
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+--- a/core/iwasm/interpreter/wasm_runtime.c
++++ b/core/iwasm/interpreter/wasm_runtime.c
+@@ -1712,9 +1712,8 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
+     }
+     else {
+         /* Try using the existing exec_env */
+-#ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
+-#endif
++        /* rive patch: not the running call's, which belongs to another
++           instance and whose restore would pass this one's trap on to it */
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+             exec_env = wasm_clusters_search_exec_env(
+@@ -1839,7 +1838,12 @@ execute_malloc_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
+     else {
+         /* Try using the existing exec_env */
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
++        /* rive patch: never another instance's env, whose restore would
++           pass this instance's trap on to it */
++        if (exec_env_tls
++            && exec_env_tls->module_inst
++                   == (WASMModuleInstanceCommon *)module_inst)
++            exec_env = exec_env_tls;
+ #endif
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+@@ -1929,7 +1933,12 @@ execute_free_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
+     else {
+         /* Try using the existing exec_env */
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+-        exec_env = exec_env_tls;
++        /* rive patch: never another instance's env, whose restore would
++           pass this instance's trap on to it */
++        if (exec_env_tls
++            && exec_env_tls->module_inst
++                   == (WASMModuleInstanceCommon *)module_inst)
++            exec_env = exec_env_tls;
+ #endif
+ #if WASM_ENABLE_THREAD_MGR != 0
+         if (!exec_env)
+@@ -3590,22 +3599,16 @@ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+ #endif
+     bool ret = true;
+ 
+-    if (!exec_env_tls) {
+-        if (!os_thread_signal_inited()) {
+-            wasm_set_exception(module_inst, "thread signal env not inited");
+-            return;
+-        }
++    if (!exec_env_tls && !os_thread_signal_inited()) {
++        wasm_set_exception(module_inst, "thread signal env not inited");
++        return;
++    }
+ 
++    /* rive patch: this call may nest in another exec env's call on this
++       thread, as when a native runs a second instance; restored on return */
++    if (exec_env_tls != exec_env) {
+         /* Set thread handle and stack boundary if they haven't been set */
+         wasm_exec_env_set_thread_info(exec_env);
+-
+-        wasm_runtime_set_exec_env_tls(exec_env);
+-    }
+-    else {
+-        if (exec_env_tls != exec_env) {
+-            wasm_set_exception(module_inst, "invalid exec env");
+-            return;
+-        }
+     }
+ 
+     /* Check native stack overflow firstly to ensure we have enough
+@@ -3615,6 +3618,7 @@ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+         return;
+     }
+ 
++    wasm_runtime_set_exec_env_tls(exec_env);
+     wasm_exec_env_push_jmpbuf(exec_env, &jmpbuf_node);
+ 
+     if (os_setjmp(jmpbuf_node.jmpbuf) == 0) {
+@@ -3659,9 +3663,7 @@ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+ 
+     jmpbuf_node_pop = wasm_exec_env_pop_jmpbuf(exec_env);
+     bh_assert(&jmpbuf_node == jmpbuf_node_pop);
+-    if (!exec_env->jmpbuf_stack_top) {
+-        wasm_runtime_set_exec_env_tls(NULL);
+-    }
++    wasm_runtime_set_exec_env_tls(exec_env_tls);
+     if (!ret) {
+         os_sigreturn();
+         os_signal_unmask();

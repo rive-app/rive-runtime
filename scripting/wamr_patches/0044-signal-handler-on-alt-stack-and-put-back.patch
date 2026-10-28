@@ -1,0 +1,94 @@
+From: rive
+Subject: [PATCH 0044] run the signal handler on the alt stack and put it back
+
+The handler was installed without SA_ONSTACK, so it ran on the faulting
+thread's own stack. When a host stack overflow faulted with a crash reporter
+below wamr that had set up an alt stack for exactly that, wamr's handler had
+no stack to run on and the process died without a report. It now runs on the
+thread's alt stack when there is one, and passes the fault on from there.
+
+Patch 0036 installs the handler once per process. A host that saved a
+handler and later put it back, as Catch2 does around every test, removed
+wamr's for good, and guard page faults then reached the host's handler as
+crashes. When a thread sets up its signal state and finds the handler wamr
+replaced, or the default, back in place, wamr's goes back on top and saves
+what it found. A handler installed since wamr's is left alone: it may pass
+faults on to wamr's, which would pass them back to it in a loop.
+
+--- a/core/shared/platform/common/posix/posix_thread.c
++++ b/core/shared/platform/common/posix/posix_thread.c
+@@ -656,23 +656,45 @@ signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
+ 
+ /* rive patch: dispositions are process wide, so they are installed and the
+    handlers they replace saved once, not again by every thread */
+-static pthread_once_t signal_install_once = PTHREAD_ONCE_INIT;
++static pthread_mutex_t signal_install_lock = PTHREAD_MUTEX_INITIALIZER;
+ static bool signal_installed = false;
+ 
+-static void
+-install_signal_handler(void)
++static bool
++install_signal_handler(int sig_num, struct sigaction *prev_sig_act)
+ {
+     struct sigaction sig_act;
+ 
+     sig_act.sa_sigaction = signal_callback;
+-    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
+-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+-    sig_act.sa_flags |= SA_ONSTACK;
+-#endif
++    /* rive patch: a host's alt stack is what lets a host stack overflow
++       reach the handlers wamr passes it on to */
++    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
+     sigemptyset(&sig_act.sa_mask);
+-    signal_installed =
+-        sigaction(SIGSEGV, &sig_act, &prev_sig_act_SIGSEGV) == 0
+-        && sigaction(SIGBUS, &sig_act, &prev_sig_act_SIGBUS) == 0;
++    return sigaction(sig_num, &sig_act, prev_sig_act) == 0;
++}
++
++static void *
++handler_of(const struct sigaction *sig_act)
++{
++    return (sig_act->sa_flags & SA_SIGINFO) ? (void *)sig_act->sa_sigaction
++                                            : (void *)sig_act->sa_handler;
++}
++
++/* rive patch: a host that put back the handler wamr replaced, or the
++   default, removed wamr's for good, so it goes back on top. A handler
++   installed since stays, as it may pass faults back to wamr's. */
++static void
++reinstall_signal_handler(int sig_num, struct sigaction *prev_sig_act)
++{
++    struct sigaction cur_sig_act;
++    void *cur;
++
++    if (sigaction(sig_num, NULL, &cur_sig_act) != 0)
++        return;
++    cur = handler_of(&cur_sig_act);
++    if (cur != (void *)signal_callback
++        && (cur == (void *)SIG_DFL || cur == (void *)SIG_IGN
++            || cur == handler_of(prev_sig_act)))
++        install_signal_handler(sig_num, prev_sig_act);
+ }
+ 
+ int
+@@ -713,7 +735,17 @@ os_thread_signal_init(os_signal_handler handler)
+     }
+ #endif
+ 
+-    pthread_once(&signal_install_once, install_signal_handler);
++    pthread_mutex_lock(&signal_install_lock);
++    if (!signal_installed) {
++        signal_installed =
++            install_signal_handler(SIGSEGV, &prev_sig_act_SIGSEGV)
++            && install_signal_handler(SIGBUS, &prev_sig_act_SIGBUS);
++    }
++    else {
++        reinstall_signal_handler(SIGSEGV, &prev_sig_act_SIGSEGV);
++        reinstall_signal_handler(SIGBUS, &prev_sig_act_SIGBUS);
++    }
++    pthread_mutex_unlock(&signal_install_lock);
+     if (!signal_installed) {
+         os_printf("Failed to register signal handler\n");
+         goto fail3;
