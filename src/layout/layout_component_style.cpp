@@ -76,6 +76,13 @@ void LayoutComponentStyle::applyItemStyle(
   style.positionType() = positionType();
   style.aspectRatio() = YGFloatOptional(
       aspectRatio() > 0 ? aspectRatio() : NAN);
+  // A data binding can write any value. Out of range reads as auto, so the
+  // flex, absolute and grid paths agree on it instead of each reading the
+  // stray bits its own way.
+  const auto axisValue = aspectRatioAxisValue();
+  style.aspectRatioAxis() = axisValue <= YGAspectRatioAxisHeight
+                                ? YGAspectRatioAxis(axisValue)
+                                : YGAspectRatioAxisAuto;
 
   const auto startEdge = context.isLTR ? YGEdgeLeft : YGEdgeRight;
   const auto endEdge = context.isLTR ? YGEdgeRight : YGEdgeLeft;
@@ -468,6 +475,10 @@ void LayoutComponentStyle::flexWrapValueChanged() { markLayoutNodeDirty(); }
 
 void LayoutComponentStyle::flexBasisChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::aspectRatioChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::aspectRatioAxisValueChanged()
+{
+  markLayoutNodeDirty();
+}
 void LayoutComponentStyle::gapHorizontalChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::gapVerticalChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::maxWidthChanged() { markLayoutNodeDirty(); }

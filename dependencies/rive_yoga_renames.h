@@ -78,6 +78,7 @@
 // _YG*
 #define YGNodeClone rive_YGNodeClone
 #define YGAlignToString rive_YGAlignToString
+#define YGAspectRatioAxisToString rive_YGAspectRatioAxisToString
 #define YGDimensionToString rive_YGDimensionToString
 #define YGDirectionToString rive_YGDirectionToString
 #define YGDisplayToString rive_YGDisplayToString
@@ -203,6 +204,8 @@
 #define YGNodeStyleSetAlignItems rive_YGNodeStyleSetAlignItems
 #define YGNodeStyleSetAlignSelf rive_YGNodeStyleSetAlignSelf
 #define YGNodeStyleSetAspectRatio rive_YGNodeStyleSetAspectRatio
+#define YGNodeStyleSetAspectRatioAxis rive_YGNodeStyleSetAspectRatioAxis
+#define YGNodeStyleGetAspectRatioAxis rive_YGNodeStyleGetAspectRatioAxis
 #define YGNodeStyleSetBorder rive_YGNodeStyleSetBorder
 #define YGNodeStyleSetDirection rive_YGNodeStyleSetDirection
 #define YGNodeStyleSetDisplay rive_YGNodeStyleSetDisplay

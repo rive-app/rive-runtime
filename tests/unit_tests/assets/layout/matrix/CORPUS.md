@@ -1,6 +1,6 @@
 # Layout matrix corpus
 
-Generated. 573 fixtures.
+Generated. 621 fixtures.
 
 | Fixture | Slice | Container | Wrapper | Subject | Sizing | Origin | Constraint | Collected | Known defect |
 |---|---|---|---|---|---|---|---|---|---|
@@ -577,6 +577,54 @@ Generated. 573 fixtures.
 | `s22__stack__none__text__participant__hug__al-bottom-left__k-max-over-host__over__unbounded` | s22 | stack | none | text | hug | sourceArtboard | none | yes |  |
 | `s22__stack__none__text__participant__fill__y-hug__al-top-left__k-max-over-host__over__unbounded` | s22 | stack | none | text | fill | sourceArtboard | none | yes |  |
 | `s22__stack__none__text__participant__fill__y-hug__al-center__k-max-over-host__over__unbounded` | s22 | stack | none | text | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__ar-2` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__ar-2` | s23 | flexRow | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__hug__ar-2` | s23 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fixed__ar-2` | s23 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__ar-2` | s23 | flexColumn | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__hug__ar-2` | s23 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__auto__ar-2` | s23 | grid | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__fixed__auto__ar-2` | s23 | grid | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__stack__none__layout-component__ar-2` | s23 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__stack__none__layout-component__fixed__ar-2` | s23 | stack | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__absolute__ar-2` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__hug__absolute__ar-2` | s23 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-width` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fill__y-fixed__ar-2__lock-width` | s23 | flexRow | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-fill__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__hug__y-fixed__ar-2__lock-width` | s23 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-hug__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-width` | s23 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-height` | s23 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fill__y-fixed__ar-2__lock-width` | s23 | flexColumn | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fixed__y-fill__ar-2__lock-height` | s23 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__hug__y-fixed__ar-2__lock-width` | s23 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__layout-component__fixed__y-hug__ar-2__lock-height` | s23 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fill__y-fixed__sibling-fills__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-fixed__k-max-computed__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__auto__ar-2__lock-width` | s23 | grid | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__auto__ar-2__lock-height` | s23 | grid | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__fixed__auto__ar-2__lock-width` | s23 | grid | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__fixed__auto__ar-2__lock-height` | s23 | grid | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__grid__none__layout-component__hug__y-fixed__auto__ar-2__lock-width` | s23 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s23__stack__none__layout-component__ar-2__lock-width` | s23 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__stack__none__layout-component__ar-2__lock-height` | s23 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-width` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2__lock-height` | s23 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__fixed__ar-2` | s23 | flexRow | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width` | s23 | flexRow | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height` | s23 | flexRow | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width` | s23 | flexRow | none | nestedArtboardLayout | fill | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height` | s23 | flexRow | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__nested-artboard-layout__fixed__ar-2` | s23 | flexColumn | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width` | s23 | flexColumn | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height` | s23 | flexColumn | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width` | s23 | flexColumn | none | nestedArtboardLayout | fill | sourceArtboard | none | yes |  |
+| `s23__flex-column__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height` | s23 | flexColumn | none | nestedArtboardLayout | fixed | sourceArtboard | none | yes |  |
+| `s23__flex-row__none__nested-artboard-layout__hug__y-fixed__ar-2__lock-width` | s23 | flexRow | none | nestedArtboardLayout | hug | sourceArtboard | none | yes |  |
 
 ## Skipped as illegal
 

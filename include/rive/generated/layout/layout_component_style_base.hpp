@@ -80,6 +80,7 @@ public:
   static const uint16_t positionBottomUnitsValuePropertyKey = 624;
   static const uint16_t flexBasisPropertyKey = 523;
   static const uint16_t aspectRatioPropertyKey = 524;
+  static const uint16_t aspectRatioAxisValuePropertyKey = 546;
   static const uint16_t interpolatorIdPropertyKey = 591;
   static const uint16_t interpolationTimePropertyKey = 592;
   static const uint16_t flexBasisUnitsValuePropertyKey = 705;
@@ -163,6 +164,7 @@ protected:
 #endif
   float m_FlexBasis = 0.0f;
   float m_AspectRatio = 0.0f;
+  uint8_t m_AspectRatioAxisValue = 0;
   Id m_InterpolatorId = kEmptyId;
   float m_InterpolationTime = 0.0f;
   uint8_t m_FlexBasisUnitsValue = 3;
@@ -770,6 +772,22 @@ public:
     m_AspectRatio = value;
     RIVE_EDITOR_CHANGED(aspectRatioChanged());
     notifyPropertyChanged(aspectRatioPropertyKey);
+  }
+
+  inline uint8_t aspectRatioAxisValue() const { return m_AspectRatioAxisValue; }
+  void aspectRatioAxisValue(uint8_t value)
+  {
+    if (m_AspectRatioAxisValue == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_CHANGING(
+        aspectRatioAxisValuePropertyKey,
+        &m_AspectRatioAxisValue,
+        &value);
+    m_AspectRatioAxisValue = value;
+    RIVE_EDITOR_CHANGED(aspectRatioAxisValueChanged());
+    notifyPropertyChanged(aspectRatioAxisValuePropertyKey);
   }
 
   inline Id interpolatorId() const { return m_InterpolatorId; }
@@ -1515,6 +1533,7 @@ public:
 #endif
     m_FlexBasis = object.m_FlexBasis;
     m_AspectRatio = object.m_AspectRatio;
+    m_AspectRatioAxisValue = object.m_AspectRatioAxisValue;
     m_InterpolatorId = object.m_InterpolatorId;
     m_InterpolationTime = object.m_InterpolationTime;
     m_FlexBasisUnitsValue = object.m_FlexBasisUnitsValue;
@@ -1711,6 +1730,9 @@ public:
       case aspectRatioPropertyKey:
         m_AspectRatio = CoreDoubleType::deserialize(reader);
         return true;
+      case aspectRatioAxisValuePropertyKey:
+        m_AspectRatioAxisValue = CoreUintType::deserialize(reader);
+        return true;
       case interpolatorIdPropertyKey:
         m_InterpolatorId = CoreIdType::runtimeDeserialize(reader);
         return true;
@@ -1885,6 +1907,7 @@ protected:
   virtual void positionBottomUnitsValueChanged() {}
   virtual void flexBasisChanged() {}
   virtual void aspectRatioChanged() {}
+  virtual void aspectRatioAxisValueChanged() {}
   virtual void interpolationTimeChanged() {}
   virtual void layoutAlignmentTypeChanged() {}
   virtual void positionTypeValueChanged() {}

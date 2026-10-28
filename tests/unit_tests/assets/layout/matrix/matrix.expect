@@ -6816,3 +6816,915 @@ C Subject computedWorld 100.0000 60.0000
 C Subject computedRoot 100.0000 60.0000
 C Subject computedLocal 100.0000 60.0000
 C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__layout-component__fixed__ar-2
+F s23__flex-row__none__layout-component__fixed__ar-2
+A s23__flex-row__none__layout-component__fixed__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 60.0000 0.0000 60.0000 30.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 60.0000 30.0000
+# s23__flex-row__none__layout-component__ar-2
+F s23__flex-row__none__layout-component__ar-2
+A s23__flex-row__none__layout-component__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 140.0000 70.0000
+C Subject localBounds 0.0000 0.0000 140.0000 70.0000
+C Subject worldBounds 60.0000 0.0000 140.0000 70.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 140.0000 70.0000
+# s23__flex-row__none__layout-component__hug__ar-2
+F s23__flex-row__none__layout-component__hug__ar-2
+A s23__flex-row__none__layout-component__hug__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 30.0000 15.0000
+C Subject localBounds 0.0000 0.0000 30.0000 15.0000
+C Subject worldBounds 60.0000 0.0000 30.0000 15.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 30.0000 15.0000
+# s23__flex-column__none__layout-component__fixed__ar-2
+F s23__flex-column__none__layout-component__fixed__ar-2
+A s23__flex-column__none__layout-component__fixed__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 0.0000 40.0000 80.0000 40.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 80.0000 40.0000
+# s23__flex-column__none__layout-component__ar-2
+F s23__flex-column__none__layout-component__ar-2
+A s23__flex-column__none__layout-component__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 160.0000 80.0000
+C Subject localBounds 0.0000 0.0000 160.0000 80.0000
+C Subject worldBounds 0.0000 40.0000 160.0000 80.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 160.0000 80.0000
+# s23__flex-column__none__layout-component__hug__ar-2
+F s23__flex-column__none__layout-component__hug__ar-2
+A s23__flex-column__none__layout-component__hug__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 40.0000 20.0000
+C Subject localBounds 0.0000 0.0000 40.0000 20.0000
+C Subject worldBounds 0.0000 40.0000 40.0000 20.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 40.0000 20.0000
+# s23__grid__none__layout-component__auto__ar-2
+F s23__grid__none__layout-component__auto__ar-2
+A s23__grid__none__layout-component__auto__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 80.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 80.0000 40.0000
+# s23__grid__none__layout-component__fixed__auto__ar-2
+F s23__grid__none__layout-component__fixed__auto__ar-2
+A s23__grid__none__layout-component__fixed__auto__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 40.0000
+C Subject localBounds 0.0000 0.0000 60.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 60.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 60.0000 40.0000
+# s23__stack__none__layout-component__ar-2
+F s23__stack__none__layout-component__ar-2
+A s23__stack__none__layout-component__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject layoutBounds 0.0000 0.0000 240.0000 120.0000
+C Subject localBounds 0.0000 0.0000 240.0000 120.0000
+C Subject worldBounds 0.0000 0.0000 240.0000 120.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 240.0000 120.0000
+# s23__stack__none__layout-component__fixed__ar-2
+F s23__stack__none__layout-component__fixed__ar-2
+A s23__stack__none__layout-component__fixed__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject layoutBounds 0.0000 0.0000 60.0000 40.0000
+C Subject localBounds 0.0000 0.0000 60.0000 40.0000
+C Subject worldBounds 0.0000 0.0000 60.0000 40.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 60.0000 40.0000
+# s23__flex-row__none__layout-component__fixed__absolute__ar-2
+F s23__flex-row__none__layout-component__fixed__absolute__ar-2
+A s23__flex-row__none__layout-component__fixed__absolute__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 60.0000 40.0000
+C Subject localBounds 0.0000 0.0000 60.0000 40.0000
+C Subject worldBounds 40.0000 25.0000 60.0000 40.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 60.0000 40.0000
+# s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2
+F s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2
+A s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 40.0000 25.0000 60.0000 30.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 60.0000 30.0000
+# s23__flex-row__none__layout-component__hug__absolute__ar-2
+F s23__flex-row__none__layout-component__hug__absolute__ar-2
+A s23__flex-row__none__layout-component__hug__absolute__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 30.0000 20.0000
+C Subject localBounds 0.0000 0.0000 30.0000 20.0000
+C Subject worldBounds 40.0000 25.0000 30.0000 20.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 30.0000 20.0000
+# s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-width
+F s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-width
+A s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 60.0000 0.0000 60.0000 30.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 60.0000 30.0000
+# s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__y-fixed__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 80.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 80.0000 40.0000
+# s23__flex-row__none__layout-component__fill__y-fixed__ar-2__lock-width
+F s23__flex-row__none__layout-component__fill__y-fixed__ar-2__lock-width
+A s23__flex-row__none__layout-component__fill__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 140.0000 70.0000
+C Subject localBounds 0.0000 0.0000 140.0000 70.0000
+C Subject worldBounds 60.0000 0.0000 140.0000 70.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 140.0000 70.0000
+# s23__flex-row__none__layout-component__fixed__y-fill__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__y-fill__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__y-fill__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 240.0000 120.0000
+C Subject localBounds 0.0000 0.0000 240.0000 120.0000
+C Subject worldBounds 60.0000 0.0000 240.0000 120.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 240.0000 120.0000
+# s23__flex-row__none__layout-component__hug__y-fixed__ar-2__lock-width
+F s23__flex-row__none__layout-component__hug__y-fixed__ar-2__lock-width
+A s23__flex-row__none__layout-component__hug__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 30.0000 15.0000
+C Subject localBounds 0.0000 0.0000 30.0000 15.0000
+C Subject worldBounds 60.0000 0.0000 30.0000 15.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 30.0000 15.0000
+# s23__flex-row__none__layout-component__fixed__y-hug__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__y-hug__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__y-hug__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 40.0000 20.0000
+C Subject localBounds 0.0000 0.0000 40.0000 20.0000
+C Subject worldBounds 60.0000 0.0000 40.0000 20.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 40.0000 20.0000
+# s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-width
+F s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-width
+A s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 0.0000 40.0000 60.0000 30.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 60.0000 30.0000
+# s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-height
+F s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-height
+A s23__flex-column__none__layout-component__fixed__y-fixed__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 0.0000 40.0000 80.0000 40.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 80.0000 40.0000
+# s23__flex-column__none__layout-component__fill__y-fixed__ar-2__lock-width
+F s23__flex-column__none__layout-component__fill__y-fixed__ar-2__lock-width
+A s23__flex-column__none__layout-component__fill__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 200.0000 100.0000
+C Subject localBounds 0.0000 0.0000 200.0000 100.0000
+C Subject worldBounds 0.0000 40.0000 200.0000 100.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 200.0000 100.0000
+# s23__flex-column__none__layout-component__fixed__y-fill__ar-2__lock-height
+F s23__flex-column__none__layout-component__fixed__y-fill__ar-2__lock-height
+A s23__flex-column__none__layout-component__fixed__y-fill__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 160.0000 80.0000
+C Subject localBounds 0.0000 0.0000 160.0000 80.0000
+C Subject worldBounds 0.0000 40.0000 160.0000 80.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 160.0000 80.0000
+# s23__flex-column__none__layout-component__hug__y-fixed__ar-2__lock-width
+F s23__flex-column__none__layout-component__hug__y-fixed__ar-2__lock-width
+A s23__flex-column__none__layout-component__hug__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 30.0000 15.0000
+C Subject localBounds 0.0000 0.0000 30.0000 15.0000
+C Subject worldBounds 0.0000 40.0000 30.0000 15.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 30.0000 15.0000
+# s23__flex-column__none__layout-component__fixed__y-hug__ar-2__lock-height
+F s23__flex-column__none__layout-component__fixed__y-hug__ar-2__lock-height
+A s23__flex-column__none__layout-component__fixed__y-hug__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 40.0000
+C Subject layoutBounds 0.0000 40.0000 40.0000 20.0000
+C Subject localBounds 0.0000 0.0000 40.0000 20.0000
+C Subject worldBounds 0.0000 40.0000 40.0000 20.0000
+C Subject computedWorld 0.0000 40.0000
+C Subject computedRoot 0.0000 40.0000
+C Subject computedLocal 0.0000 40.0000
+C Subject computedSize 40.0000 20.0000
+# s23__flex-row__none__layout-component__fill__y-fixed__sibling-fills__ar-2__lock-height
+F s23__flex-row__none__layout-component__fill__y-fixed__sibling-fills__ar-2__lock-height
+A s23__flex-row__none__layout-component__fill__y-fixed__sibling-fills__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 120.0000 0.0000
+C Subject layoutBounds 120.0000 0.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 120.0000 0.0000 80.0000 40.0000
+C Subject computedWorld 120.0000 0.0000
+C Subject computedRoot 120.0000 0.0000
+C Subject computedLocal 120.0000 0.0000
+C Subject computedSize 80.0000 40.0000
+# s23__flex-row__none__layout-component__fixed__y-fixed__k-max-computed__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__y-fixed__k-max-computed__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__y-fixed__k-max-computed__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 40.0000 40.0000
+C Subject localBounds 0.0000 0.0000 40.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 40.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 40.0000 40.0000
+# s23__grid__none__layout-component__auto__ar-2__lock-width
+F s23__grid__none__layout-component__auto__ar-2__lock-width
+A s23__grid__none__layout-component__auto__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 140.0000 70.0000
+C Subject localBounds 0.0000 0.0000 140.0000 70.0000
+C Subject worldBounds 60.0000 0.0000 140.0000 70.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 140.0000 70.0000
+# s23__grid__none__layout-component__auto__ar-2__lock-height
+F s23__grid__none__layout-component__auto__ar-2__lock-height
+A s23__grid__none__layout-component__auto__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 80.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 80.0000 40.0000
+# s23__grid__none__layout-component__fixed__auto__ar-2__lock-width
+F s23__grid__none__layout-component__fixed__auto__ar-2__lock-width
+A s23__grid__none__layout-component__fixed__auto__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 60.0000 0.0000 60.0000 30.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 60.0000 30.0000
+# s23__grid__none__layout-component__fixed__auto__ar-2__lock-height
+F s23__grid__none__layout-component__fixed__auto__ar-2__lock-height
+A s23__grid__none__layout-component__fixed__auto__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 60.0000 0.0000 80.0000 40.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 80.0000 40.0000
+# s23__grid__none__layout-component__hug__y-fixed__auto__ar-2__lock-width
+F s23__grid__none__layout-component__hug__y-fixed__auto__ar-2__lock-width
+A s23__grid__none__layout-component__hug__y-fixed__auto__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 60.0000 0.0000
+C Subject layoutBounds 60.0000 0.0000 30.0000 15.0000
+C Subject localBounds 0.0000 0.0000 30.0000 15.0000
+C Subject worldBounds 60.0000 0.0000 30.0000 15.0000
+C Subject computedWorld 60.0000 0.0000
+C Subject computedRoot 60.0000 0.0000
+C Subject computedLocal 60.0000 0.0000
+C Subject computedSize 30.0000 15.0000
+# s23__stack__none__layout-component__ar-2__lock-width
+F s23__stack__none__layout-component__ar-2__lock-width
+A s23__stack__none__layout-component__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject layoutBounds 0.0000 0.0000 200.0000 100.0000
+C Subject localBounds 0.0000 0.0000 200.0000 100.0000
+C Subject worldBounds 0.0000 0.0000 200.0000 100.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 100.0000
+# s23__stack__none__layout-component__ar-2__lock-height
+F s23__stack__none__layout-component__ar-2__lock-height
+A s23__stack__none__layout-component__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject layoutBounds 0.0000 0.0000 240.0000 120.0000
+C Subject localBounds 0.0000 0.0000 240.0000 120.0000
+C Subject worldBounds 0.0000 0.0000 240.0000 120.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 240.0000 120.0000
+# s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-width
+F s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-width
+A s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 60.0000 30.0000
+C Subject localBounds 0.0000 0.0000 60.0000 30.0000
+C Subject worldBounds 40.0000 25.0000 60.0000 30.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 60.0000 30.0000
+# s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__absolute__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 80.0000 40.0000
+C Subject localBounds 0.0000 0.0000 80.0000 40.0000
+C Subject worldBounds 40.0000 25.0000 80.0000 40.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 80.0000 40.0000
+# s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2__lock-height
+F s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2__lock-height
+A s23__flex-row__none__layout-component__fixed__y-hug__absolute__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 25.0000
+C Subject layoutBounds 40.0000 25.0000 40.0000 20.0000
+C Subject localBounds 0.0000 0.0000 40.0000 20.0000
+C Subject worldBounds 40.0000 25.0000 40.0000 20.0000
+C Subject computedWorld 40.0000 25.0000
+C Subject computedRoot 40.0000 25.0000
+C Subject computedLocal 40.0000 25.0000
+C Subject computedSize 40.0000 20.0000
+# s23__flex-row__none__nested-artboard-layout__fixed__ar-2
+F s23__flex-row__none__nested-artboard-layout__fixed__ar-2
+A s23__flex-row__none__nested-artboard-layout__fixed__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 30.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 75.0000 22.5000
+C Subject computedWorld 75.0000 22.5000
+C Subject computedRoot 75.0000 22.5000
+C Subject computedLocal 75.0000 22.5000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+F s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+A s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 60.0000 30.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 75.0000 22.5000
+C Subject computedWorld 75.0000 22.5000
+C Subject computedRoot 75.0000 22.5000
+C Subject computedLocal 75.0000 22.5000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+F s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+A s23__flex-row__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 80.0000 40.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 80.0000 30.0000
+C Subject computedWorld 80.0000 30.0000
+C Subject computedRoot 80.0000 30.0000
+C Subject computedLocal 80.0000 30.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+F s23__flex-row__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+A s23__flex-row__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 140.0000 70.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 95.0000 52.5000
+C Subject computedWorld 95.0000 52.5000
+C Subject computedRoot 95.0000 52.5000
+C Subject computedLocal 95.0000 52.5000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+F s23__flex-row__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+A s23__flex-row__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 240.0000 120.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 120.0000 90.0000
+C Subject computedWorld 120.0000 90.0000
+C Subject computedRoot 120.0000 90.0000
+C Subject computedLocal 120.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-column__none__nested-artboard-layout__fixed__ar-2
+F s23__flex-column__none__nested-artboard-layout__fixed__ar-2
+A s23__flex-column__none__nested-artboard-layout__fixed__ar-2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 0.0000 40.0000 80.0000 40.0000
+C Subject isRow 0.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 20.0000 70.0000
+C Subject computedWorld 20.0000 70.0000
+C Subject computedRoot 20.0000 70.0000
+C Subject computedLocal 20.0000 70.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+F s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+A s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 0.0000 40.0000 60.0000 30.0000
+C Subject isRow 0.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 15.0000 62.5000
+C Subject computedWorld 15.0000 62.5000
+C Subject computedRoot 15.0000 62.5000
+C Subject computedLocal 15.0000 62.5000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+F s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+A s23__flex-column__none__nested-artboard-layout__fixed__y-fixed__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 0.0000 40.0000 80.0000 40.0000
+C Subject isRow 0.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 20.0000 70.0000
+C Subject computedWorld 20.0000 70.0000
+C Subject computedRoot 20.0000 70.0000
+C Subject computedLocal 20.0000 70.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-column__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+F s23__flex-column__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+A s23__flex-column__none__nested-artboard-layout__fill__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 0.0000 40.0000 200.0000 100.0000
+C Subject isRow 0.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 50.0000 115.0000
+C Subject computedWorld 50.0000 115.0000
+C Subject computedRoot 50.0000 115.0000
+C Subject computedLocal 50.0000 115.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-column__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+F s23__flex-column__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+A s23__flex-column__none__nested-artboard-layout__fixed__y-fill__ar-2__lock-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 0.0000 40.0000 160.0000 80.0000
+C Subject isRow 0.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 40.0000 100.0000
+C Subject computedWorld 40.0000 100.0000
+C Subject computedRoot 40.0000 100.0000
+C Subject computedLocal 40.0000 100.0000
+C Subject computedSize 0.0000 0.0000
+# s23__flex-row__none__nested-artboard-layout__hug__y-fixed__ar-2__lock-width
+F s23__flex-row__none__nested-artboard-layout__hug__y-fixed__ar-2__lock-width
+A s23__flex-row__none__nested-artboard-layout__hug__y-fixed__ar-2__lock-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject layoutBounds 60.0000 0.0000 30.0000 15.0000
+C Subject isRow 1.0000
+C Subject isStack 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 67.5000 11.2500
+C Subject computedWorld 67.5000 11.2500
+C Subject computedRoot 67.5000 11.2500
+C Subject computedLocal 67.5000 11.2500
+C Subject computedSize 0.0000 0.0000

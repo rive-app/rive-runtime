@@ -1491,6 +1491,9 @@ public:
       case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
         object->as<LayoutComponentStyleBase>()->positionBottomUnitsValue(value);
         break;
+      case LayoutComponentStyleBase::aspectRatioAxisValuePropertyKey:
+        object->as<LayoutComponentStyleBase>()->aspectRatioAxisValue(value);
+        break;
       case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
         object->as<LayoutComponentStyleBase>()->flexBasisUnitsValue(value);
         break;
@@ -3681,6 +3684,8 @@ public:
       case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
         return object->as<LayoutComponentStyleBase>()
             ->positionBottomUnitsValue();
+      case LayoutComponentStyleBase::aspectRatioAxisValuePropertyKey:
+        return object->as<LayoutComponentStyleBase>()->aspectRatioAxisValue();
       case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
         return object->as<LayoutComponentStyleBase>()->flexBasisUnitsValue();
       case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -5088,6 +5093,7 @@ public:
       case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
       case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
       case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
+      case LayoutComponentStyleBase::aspectRatioAxisValuePropertyKey:
       case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
       case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
       case LayoutComponentStyleBase::animationStyleTypePropertyKey:
@@ -5985,6 +5991,8 @@ public:
       case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
         return LayoutComponentStyleBase::typeKey;
       case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
+        return LayoutComponentStyleBase::typeKey;
+      case LayoutComponentStyleBase::aspectRatioAxisValuePropertyKey:
         return LayoutComponentStyleBase::typeKey;
       case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
         return LayoutComponentStyleBase::typeKey;

@@ -99,6 +99,7 @@ public:
   void flexWrapValueChanged() override;
   void flexBasisChanged() override;
   void aspectRatioChanged() override;
+  void aspectRatioAxisValueChanged() override;
   void gapHorizontalChanged() override;
   void gapVerticalChanged() override;
   void maxWidthChanged() override;
