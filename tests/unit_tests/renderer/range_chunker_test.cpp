@@ -4,6 +4,8 @@
 
 #include <catch.hpp>
 #include "rive/renderer/range_chunker.hpp"
+#include <algorithm>
+#include <iterator>
 #include <vector>
 
 using namespace rive;
@@ -124,8 +126,10 @@ static uint32_t patchIndexCount(DrawType drawType)
   switch (drawType)
   {
     case DrawType::stencilMidpointFans:
+    case DrawType::stencilDynamicMidpointFans:
       return DSMidpointFanFillPatchIndexCount;
     case DrawType::stencilOuterCubics:
+    case DrawType::stencilDynamicOuterCubics:
       return DSOuterCubicFillPatchIndexCount;
     case DrawType::depthStrokes:
       return DSStrokePatchIndexCount;
@@ -141,6 +145,7 @@ static int32_t patchFlags(DrawType drawType)
   switch (drawType)
   {
     case DrawType::stencilOuterCubics:
+    case DrawType::stencilDynamicOuterCubics:
       return DSVertexFlag_OuterCubicFill;
     case DrawType::depthAAStrokes:
       return DSVertexFlag_AAPolarStroke;
@@ -179,6 +184,17 @@ static DrawBatch makeBatch(
   return batch;
 }
 
+// A range appended to a batch's list (base premultiplied like makeBatch()).
+static DrawBatch::ElementRange makeRange(
+    DrawType drawType,
+    uint32_t patchCount,
+    uint32_t firstPatch)
+{
+  return DrawBatch::ElementRange(
+      patchCount,
+      (firstPatch << dsPatchStrideLog2(drawType)) | patchFlags(drawType));
+}
+
 static void checkDraw(
     DSIndexRangeChunker::Draw draw,
     DrawType drawType,
@@ -197,7 +213,8 @@ TEST_CASE("one chunk", "[DSIndexRangeChunker]")
 {
   for (DrawType drawType : DSDrawTypes)
   {
-    DSIndexRangeChunker iter(makeBatch(drawType, 3, 7));
+    const DrawBatch batch = makeBatch(drawType, 3, 7);
+    auto iter = DSIndexRangeChunker::drawsForBatch(batch);
     auto it = iter.begin();
     for (int32_t flags : passFlags(drawType))
     {
@@ -213,7 +230,8 @@ TEST_CASE("base patch zero", "[DSIndexRangeChunker]")
 {
   for (DrawType drawType : DSDrawTypes)
   {
-    DSIndexRangeChunker iter(makeBatch(drawType, 1, 0));
+    const DrawBatch batch = makeBatch(drawType, 1, 0);
+    auto iter = DSIndexRangeChunker::drawsForBatch(batch);
     auto it = iter.begin();
     for (int32_t flags : passFlags(drawType))
     {
@@ -231,7 +249,8 @@ TEST_CASE("empty batch", "[DSIndexRangeChunker]")
 {
   for (DrawType drawType : DSDrawTypes)
   {
-    DSIndexRangeChunker iter(makeBatch(drawType, 0, 4));
+    const DrawBatch batch = makeBatch(drawType, 0, 4);
+    auto iter = DSIndexRangeChunker::drawsForBatch(batch);
     CHECK(iter.begin() == iter.end());
   }
 }
@@ -242,7 +261,8 @@ TEST_CASE("splits at the buffer's rep count", "[DSIndexRangeChunker]")
   {
     const uint32_t maxReps = dsPatchMaxReps(drawType);
     const uint32_t tail = 13;
-    DSIndexRangeChunker iter(makeBatch(drawType, maxReps + tail, 0));
+    const DrawBatch batch = makeBatch(drawType, maxReps + tail, 0);
+    auto iter = DSIndexRangeChunker::drawsForBatch(batch);
     auto it = iter.begin();
     for (int32_t flags : passFlags(drawType))
     {
@@ -259,28 +279,41 @@ TEST_CASE("splits at the buffer's rep count", "[DSIndexRangeChunker]")
   }
 }
 
-TEST_CASE("carries the color-write flag", "[DSIndexRangeChunker]")
+TEST_CASE(
+    "dynamic fill subpasses carry the color-write flag",
+    "[DSIndexRangeChunker]")
 {
-  for (DrawType drawType : DSDrawTypes)
+  for (DrawType drawType :
+       {DrawType::stencilDynamicMidpointFans,
+        DrawType::stencilDynamicOuterCubics})
   {
-    DSIndexRangeChunker iter(
-        makeBatch(drawType, 2, 5),
-        DSVertexFlag_DisableColorWrite);
-    auto it = iter.begin();
-    for (int32_t flags : passFlags(drawType))
+    const DrawBatch batch = makeBatch(drawType, 2, 5);
+    for (bool colorWriteEnabled : {false, true})
     {
+      PipelineState subpassState;
+      subpassState.colorWriteEnabled = colorWriteEnabled;
+      auto iter = DSIndexRangeChunker::drawsForDynamicFillSubpass(
+          batch,
+          batch.elementRange,
+          subpassState);
+      auto it = iter.begin();
       REQUIRE(it != iter.end());
-      checkDraw(*it, drawType, 2, 5, flags | DSVertexFlag_DisableColorWrite);
-      CHECK(((*it).baseVertex & DSVertexFlag_DisableColorWrite) != 0);
+      checkDraw(
+          *it,
+          drawType,
+          2,
+          5,
+          colorWriteEnabled ? 0 : DSVertexFlag_DisableColorWrite);
       ++it;
+      CHECK(it == iter.end());
     }
-    CHECK(it == iter.end());
   }
 }
 
 TEST_CASE("AA strokes draw depth before color", "[DSIndexRangeChunker]")
 {
-  DSIndexRangeChunker iter(makeBatch(DrawType::depthAAStrokes, 4, 2));
+  const DrawBatch batch = makeBatch(DrawType::depthAAStrokes, 4, 2);
+  auto iter = DSIndexRangeChunker::drawsForBatch(batch);
   auto it = iter.begin();
   REQUIRE(it != iter.end());
   CHECK(((*it).baseVertex & DSVertexFlag_StrokeDepthPass) != 0);
@@ -304,13 +337,108 @@ TEST_CASE(
     const size_t passCount = passFlags(drawType).size();
     uint32_t totalIndices = 0;
     uint32_t draws = 0;
+    // The chunker points into the batch, so the batch must outlive the loop.
+    const DrawBatch batch = makeBatch(drawType, patchCount, 0);
     for (auto [indexCount, baseVertex] :
-         DSIndexRangeChunker(makeBatch(drawType, patchCount, 0)))
+         DSIndexRangeChunker::drawsForBatch(batch))
     {
       totalIndices += indexCount;
       ++draws;
     }
     CHECK(draws == 3 * passCount);
     CHECK(totalIndices == passCount * patchCount * patchIndexCount(drawType));
+  }
+}
+
+// Range lists only exist for strokes, hairlines, and dynamic fills.
+constexpr static DrawType DSListDrawTypes[] = {
+    DrawType::depthStrokes,
+    DrawType::depthAAStrokes,
+};
+
+TEST_CASE(
+    "each range runs every pass before the next range",
+    "[DSIndexRangeChunker]")
+{
+  for (DrawType drawType : DSListDrawTypes)
+  {
+    const uint32_t maxReps = dsPatchMaxReps(drawType);
+    // {patchCount, firstPatch}: empty ranges at the front, middle, and end,
+    // and one range that spans two chunks.
+    const uint32_t spec[][2] = {
+        {0, 1},
+        {3, 10},
+        {0, 50},
+        {maxReps + 5, 100},
+        {2, 7},
+        {0, 9},
+    };
+    DrawBatch batch = makeBatch(drawType, spec[0][0], spec[0][1]);
+    std::vector<DrawBatch::ElementRange> ranges;
+    ranges.reserve(std::size(spec) - 1);
+    DrawBatch::ElementRange* tail = &batch.elementRange;
+    for (size_t i = 1; i < std::size(spec); ++i)
+    {
+      ranges.push_back(makeRange(drawType, spec[i][0], spec[i][1]));
+      tail->next = &ranges.back();
+      tail = tail->next;
+    }
+
+    auto iter = DSIndexRangeChunker::drawsForBatch(batch);
+    auto it = iter.begin();
+    for (const auto& [patchCount, firstPatch] : spec)
+    {
+      for (int32_t flags : passFlags(drawType))
+      {
+        for (uint32_t done = 0; done < patchCount;)
+        {
+          const uint32_t chunk = std::min(patchCount - done, maxReps);
+          REQUIRE(it != iter.end());
+          checkDraw(*it, drawType, chunk, firstPatch + done, flags);
+          ++it;
+          done += chunk;
+        }
+      }
+    }
+    CHECK(it == iter.end());
+  }
+}
+
+TEST_CASE(
+    "a dynamic fill subpass stops at the next range",
+    "[DSIndexRangeChunker]")
+{
+  for (DrawType drawType :
+       {DrawType::stencilDynamicMidpointFans,
+        DrawType::stencilDynamicOuterCubics})
+  {
+    const uint32_t maxReps = dsPatchMaxReps(drawType);
+    DrawBatch batch = makeBatch(drawType, 2, 5);
+    DrawBatch::ElementRange second = makeRange(drawType, maxReps + 1, 40);
+    batch.elementRange.next = &second;
+    const PipelineState subpassState;
+
+    auto first = DSIndexRangeChunker::drawsForDynamicFillSubpass(
+        batch,
+        batch.elementRange,
+        subpassState);
+    auto it = first.begin();
+    REQUIRE(it != first.end());
+    checkDraw(*it, drawType, 2, 5);
+    ++it;
+    CHECK(it == first.end());
+
+    auto rest = DSIndexRangeChunker::drawsForDynamicFillSubpass(
+        batch,
+        second,
+        subpassState);
+    it = rest.begin();
+    REQUIRE(it != rest.end());
+    checkDraw(*it, drawType, maxReps, 40);
+    ++it;
+    REQUIRE(it != rest.end());
+    checkDraw(*it, drawType, 1, 40 + maxReps);
+    ++it;
+    CHECK(it == rest.end());
   }
 }

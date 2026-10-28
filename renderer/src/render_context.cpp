@@ -2180,13 +2180,17 @@ void RenderContext::LogicalFlush::writeResources()
 
       case gpu::InterlockMode::depthStencil:
       {
-        // depthStencil mode can't batch draws that overlap because they both
-        // rely on the stencil buffer across subpasses. Stop batching every time
-        // the drawGroupIdx changes.
-        int64_t needsBreakMask = keyBuilder.mask(SortEntry::drawGroup);
+        // depthStencil can't splice draws that overlap because they rely on the
+        // depth/stencil buffer across subpasses.
+        // Instead, start a new ElementRange every time the drawGroupIdx
+        // changes. (Each range runs all of its passes before the next begins.)
+        // TODO: depthStencil should still allow imageMeshes to overlap.
+        barriersForKeyDiffs.push_back(
+            {keyBuilder.mask(SortEntry::drawGroup),
+             BarrierFlags::elementRangeBreak});
         // depthStencil mode draws clips, strokes, fills, and even/odd with
         // different stencil settings, so these can't be batched.
-        needsBreakMask |= keyBuilder.mask(SortEntry::drawContents);
+        int64_t needsBreakMask = keyBuilder.mask(SortEntry::drawContents);
         if (platformFeatures.supportsBlendAdvancedKHR)
         {
           // If using KHR_blend_equation_advanced, we also need to stop batching
@@ -4030,32 +4034,86 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
   return batch;
 }
 
-static bool drawTypeIsBatchable(gpu::DrawType drawType)
+// drawTypes whose impls are equipped to handle a list of ElementRanges.
+static bool drawTypeSupportsElementRangeList(gpu::DrawType drawType)
 {
   switch (drawType)
   {
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      return true;
+
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubics:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::renderPassResolve:
+      return false;
+  }
+  RIVE_UNREACHABLE();
+}
+
+static bool drawTypeIsBatchable(
+    gpu::DrawType drawType,
+    BarrierFlags pendingBarriers)
+{
+  // NOTE: Generally, two nonoverlapping draws with different barriers should be
+  // able to merge together and combine barriers. This is why we only check the
+  // pseudo barriers "drawBatchBreak" and "elementRangeBreak" here.
+  switch (drawType)
+  {
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      // Depth strokes and dynamic-state fills are equipped to handle an
+      // entire list of ElementRanges.
+      assert(drawTypeSupportsElementRangeList(drawType));
+      return !enums::is_flag_set(
+          pendingBarriers,
+          gpu::BarrierFlags::drawBatchBreak);
+
     case DrawType::midpointFanPatches:
     case DrawType::midpointFanCenterAAPatches:
     case DrawType::outerCurvePatches:
     case DrawType::interiorTriangulation:
     case DrawType::featherAtlasBlit:
     case DrawType::stencilMidpointFanBorrowedCoverage:
-    case DrawType::stencilDynamicMidpointFans:
     case DrawType::stencilMidpointFans:
     case DrawType::stencilMidpointFanReset:
     case DrawType::stencilMidpointFanWinding:
     case DrawType::stencilMidpointFanCover:
     case DrawType::stencilOuterCubicBorrowedCoverage:
-    case DrawType::stencilDynamicOuterCubics:
     case DrawType::stencilOuterCubics:
     case DrawType::stencilOuterCubicReset:
     case DrawType::stencilOuterCubicWinding:
     case DrawType::stencilOuterCubicCover:
     case DrawType::clipReset:
-    case DrawType::depthStrokes:
-    case DrawType::depthAAStrokes:
-    case DrawType::depthAAOuterHairline:
-      return true;
+      // Most drawTypes only support one ElementRange per batch.
+      assert(!drawTypeSupportsElementRangeList(drawType));
+      return enums::no_flags_set(
+          pendingBarriers,
+          gpu::BarrierFlags::drawBatchBreak |
+              gpu::BarrierFlags::elementRangeBreak);
 
     // Image draws can't be combined for now because they each have their
     // own unique uniforms.
@@ -4063,6 +4121,7 @@ static bool drawTypeIsBatchable(gpu::DrawType drawType)
     case DrawType::imageMesh:
     case DrawType::renderPassInitialize:
     case DrawType::renderPassResolve:
+      assert(!drawTypeSupportsElementRangeList(drawType));
       return false;
   }
   RIVE_UNREACHABLE();
@@ -4379,8 +4438,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
   }
 
   DrawBatch* batch = nullptr;
-  if (drawTypeIsBatchable(drawType) && !m_drawList.empty() &&
-      !enums::is_flag_set(m_pendingBarriers, gpu::BarrierFlags::drawBatchBreak))
+  if (drawTypeIsBatchable(drawType, m_pendingBarriers) && !m_drawList.empty())
   {
     DrawBatch* currentBatch = m_drawList.tail();
     if (currentBatch->drawType == drawType &&
@@ -4396,30 +4454,49 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         (!m_ctx->platformFeatures().supportsClipScissor ||
          currentBatch->scissorRect == draw->scissorRect()))
     {
-      if (currentBatch->baseElement +
-              (currentBatch->elementCount << elementStrideLog2) ==
-          baseElement)
+      auto* elementRangeTail = currentBatch->elementRangeTail;
+      assert(elementRangeTail->next == nullptr);
+
+      if (!enums::is_flag_set(
+              m_pendingBarriers,
+              gpu::BarrierFlags::elementRangeBreak))
       {
-        // We are immediately after currentBatch.
-        batch = currentBatch;
+        if (elementRangeTail->base +
+                (elementRangeTail->count << elementStrideLog2) ==
+            baseElement)
+        {
+          // Splice immediately after elementRangeTail.
+          batch = currentBatch;
+          elementRangeTail->count += elementCount;
+        }
+        else if (
+            baseElement + (elementCount << elementStrideLog2) ==
+            elementRangeTail->base)
+        {
+          // Splice immediately before elementRangeTail.
+          batch = currentBatch;
+          elementRangeTail->count += elementCount;
+          elementRangeTail->base = baseElement;
+        }
       }
-      else if (
-          baseElement + (elementCount << elementStrideLog2) ==
-          currentBatch->baseElement)
-      {
-        // We are immediately before currentBatch.
-        batch = currentBatch;
-        batch->baseElement = baseElement;
-      }
-      else
+
+      if (batch == nullptr && drawTypeSupportsElementRangeList(drawType))
       {
         // In depthStencil mode, multiple subpasses reference the same
         // tessellation data (e.g., a hairline subpass reuses its fill's
-        // tessellation, and an opaque fill allocates during prepasses).
-        // So depthStencil can't guarantee that mergeable batches will
-        // always have contiguous tessellation patches like the other
-        // modes do.
+        // tessellation, and an opaque fill allocates during prepasses). So
+        // depthStencil can't guarantee that mergeable batches will always have
+        // contiguous tessellation patches like the other modes do.
         assert(m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil);
+
+        // Merge this draw in by growing the ElementRange list.
+        batch = currentBatch;
+        elementRangeTail->next = m_ctx->m_perFrameAllocator
+                                     ->make<DrawBatch::ElementRange>(
+                                         elementCount,
+                                         baseElement,
+                                         nullptr);
+        batch->elementRangeTail = elementRangeTail->next;
       }
     }
   }
@@ -4441,9 +4518,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
   }
   else
   {
-    // We combined with the previous batch. Update elementCount.
-    batch->elementCount += elementCount;
-
     // clockwise doesn't mix regular draws and clip updates.
     assert(
         m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
@@ -4461,7 +4535,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         m_ctx->frameInterlockMode() != gpu::InterlockMode::depthStencil ||
         batch->drawContents == drawContents);
 
-    // Update flags after asserts.
+    // We combined with the previous batch. Update flags after asserts.
     batch->shaderMiscFlags |= shaderMiscFlags;
     batch->drawContents |= drawContents;
     batch->barriers |= m_pendingBarriers;

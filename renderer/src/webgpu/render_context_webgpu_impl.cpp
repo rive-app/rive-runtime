@@ -4928,7 +4928,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             wgpu::IndexFormat::Uint16,
             batch.baseIndex * sizeof(uint16_t));
         for (auto [chunkIndexCount, chunkBaseVertex] :
-             gpu::DSIndexRangeChunker(batch))
+             gpu::DSIndexRangeChunker::drawsForBatch(batch))
         {
           drawEncoder.DrawIndexed(chunkIndexCount, 1, 0, chunkBaseVertex, 0);
         }
@@ -4946,25 +4946,24 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             m_pathPatchIndexBuffer,
             wgpu::IndexFormat::Uint16,
             batch.baseIndex * sizeof(uint16_t));
-        for (uint32_t i = 0; i < drawPipeline.passCount(); ++i)
+        for (const auto& range : batch.elementRanges())
         {
-          // Pass 0 was already bound above with everything else.
-          if (i != 0)
+          for (uint32_t i = 0; i < drawPipeline.passCount(); ++i)
           {
-            drawPipeline.bind(drawEncoder, i);
-          }
-          for (auto [chunkIndexCount, chunkBaseVertex] :
-               gpu::DSIndexRangeChunker(
-                   batch,
-                   // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
-                   // even though the WebGPU pipeline already masks
-                   // color. The flag lets the vertex shader skip
-                   // paint fetches.
-                   !drawPipeline.pipelineState(i).colorWriteEnabled
-                       ? VERTEX_FLAG_DISABLE_COLOR_WRITE
-                       : 0))
-          {
-            drawEncoder.DrawIndexed(chunkIndexCount, 1, 0, chunkBaseVertex, 0);
+            // The first range's pass 0 was already bound above.
+            if (&range != &batch.elementRange || i != 0)
+            {
+              drawPipeline.bind(drawEncoder, i);
+            }
+            for (auto [chunkIndexCount, chunkBaseVertex] :
+                 gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                     batch,
+                     range,
+                     drawPipeline.pipelineState(i)))
+            {
+              drawEncoder
+                  .DrawIndexed(chunkIndexCount, 1, 0, chunkBaseVertex, 0);
+            }
           }
         }
         break;
@@ -4981,10 +4980,10 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             wgpu::IndexFormat::Uint16);
         drawEncoder.DrawIndexed(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
 
@@ -4993,7 +4992,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
       case DrawType::featherAtlasBlit:
       {
         drawEncoder.SetVertexBuffer(0, webgpu_buffer(triangleBufferRing()));
-        drawEncoder.Draw(batch.elementCount, 1, batch.baseElement);
+        drawEncoder.Draw(batch.elementCount(), 1, batch.baseElement());
         break;
       }
 
@@ -5008,13 +5007,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         drawEncoder.SetVertexBuffer(
             1,
             webgpu_buffer(imageRectInstanceBufferRing()),
-            batch.baseElement * sizeof(gpu::ImageRectInstance));
+            batch.baseElement() * sizeof(gpu::ImageRectInstance));
         drawEncoder.SetIndexBuffer(
             m_imageRectIndexBuffer,
             wgpu::IndexFormat::Uint16);
         drawEncoder.DrawIndexed(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
             0);
@@ -5038,13 +5037,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         drawEncoder.SetVertexBuffer(
             2,
             webgpu_buffer(imageMeshInstanceBufferRing()),
-            batch.baseElement * sizeof(gpu::ImageMeshInstance));
+            batch.baseElement() * sizeof(gpu::ImageMeshInstance));
         drawEncoder.SetIndexBuffer(
             indexBuffer->submittedBuffer(),
             wgpu::IndexFormat::Uint16);
         drawEncoder.DrawIndexed(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
             0);

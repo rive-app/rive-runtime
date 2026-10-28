@@ -13,6 +13,7 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/layer_mask_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include "rive/renderer/next_ptr_range.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 
@@ -1501,8 +1502,8 @@ enum class BarrierFlags : uint8_t
 {
   none = 0,
 
-  // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure
-  // prior draws complete at each pixel before beginning new ones.
+  // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure prior
+  // draws complete at each pixel before beginning new ones.
   plsAtomic = 1 << 0,
   plsAtomicPreResolve = 1 << 1, // Once before the final resolve.
 
@@ -1510,9 +1511,9 @@ enum class BarrierFlags : uint8_t
   // loading the render target into the transient MSAA attachment.
   msaaPostInit = 1 << 2,
 
-  // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
-  // only.) All "borrowed coverage" draws have now been issued. Ensure they
-  // complete at each pixel before beginning the "forward coverage" draws.
+  // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode only.)
+  // All "borrowed coverage" draws have now been issued. Ensure they complete at
+  // each pixel before beginning the "forward coverage" draws.
   clockwiseBorrowedCoverage = 1 << 3,
 
   // The next DrawBatch needs to perform an advanced blend, but the current
@@ -1521,14 +1522,20 @@ enum class BarrierFlags : uint8_t
   // even a full MSAA resolve & blit into a separate texture.)
   dstBlend = 1 << 4,
 
-  // Special barrier (e.g., subpass transition) issued prior to a manual
-  // render pass resolve. (Only applicable with
-  // FlushDescriptor::manuallyResolved.)
+  // Special barrier (e.g., subpass transition) issued prior to a manual render
+  // pass resolve. (Only applicable with FlushDescriptor::manuallyResolved.)
   preManualResolve = 1 << 5,
 
   // Only prevent future DrawBatches from being combined with the current
   // drawList. (No GPU dependencies.)
   drawBatchBreak = 1 << 6,
+
+  // The next draw can be merged into the current DrawBatch, but only as a new
+  // ElementRange. (Not by splicing elementCount/baseElement.)
+  // Used for non-contiguous ranges as well as overlapping multi-pass draws,
+  // which can't just splice their ranges because each range has to run all of
+  // its subpasses before moving on to the next one.
+  elementRangeBreak = 1 << 7,
 };
 
 // Low-level batch of geometry to submit to the GPU.
@@ -1538,16 +1545,15 @@ struct DrawBatch
       DrawType drawType_,
       ShaderMiscFlags shaderMiscFlags_,
       DrawContents drawContents_,
-      uint32_t elementCount_,
-      uint32_t baseElement_,
+      uint32_t elementCount,
+      uint32_t baseElement,
       rive::BlendMode blendMode_,
       rive::ImageSampler imageSampler_,
       BarrierFlags barrierFlags_)
       : drawType(drawType_)
       , shaderMiscFlags(shaderMiscFlags_)
       , drawContents(drawContents_)
-      , elementCount(elementCount_)
-      , baseElement(baseElement_)
+      , elementRange(elementCount, baseElement)
       , firstBlendMode(blendMode_)
       , barriers(barrierFlags_)
       , imageSampler(imageSampler_)
@@ -1557,15 +1563,47 @@ struct DrawBatch
   ShaderMiscFlags shaderMiscFlags;
   DrawContents drawContents;
 
-  // elementCount/baseElement are the "splice axis": the run that grows when
-  // adjacent batches combine. That is:
+  // ElementRange is the "splice axis": the range that grows when adjacent
+  // batches combine. That is:
   //   * Instances for instanced draws (paths, image draws).
   //   * Vertices for non-indexed triangle runs (interiorTriangulation,
   //     featherAtlasBlit, clipReset).
-  //   * For depthStencil index patterns, "Patches". (And baseElement is the
+  //   * For depthStencil index patterns, "Patches". (And "base" is the
   //     baseVertex.)
-  uint32_t elementCount;
-  uint32_t baseElement;
+  //
+  // In cases where we can't splice, it may still be possible to combine batches
+  // by building up a list of ElementRanges instead.
+  struct ElementRange
+  {
+    ElementRange(uint32_t count_, uint32_t base_, ElementRange* next_ = nullptr)
+        : count(count_)
+        , base(base_)
+        , next(next_)
+    {}
+
+    uint32_t count;
+    uint32_t base;
+    ElementRange* next;
+  };
+  ElementRange elementRange;
+  ElementRange* elementRangeTail = &elementRange;
+
+  NextPtrRange<const ElementRange> elementRanges() const
+  {
+    return NextPtrRange<const ElementRange>(&elementRange);
+  }
+
+  // Simple getters for most draws, which only support one ElementRange.
+  uint32_t elementCount() const
+  {
+    assert(elementRange.next == nullptr);
+    return elementRange.count;
+  }
+  uint32_t baseElement() const
+  {
+    assert(elementRange.next == nullptr);
+    return elementRange.base;
+  }
 
   // Geometry parameters for indexed types (paths, including depthStencil, and
   // image draws).
@@ -2530,6 +2568,34 @@ void get_pipeline_state(
     const FlushDescriptor&,
     const PlatformFeatures&,
     PipelineState*);
+
+// Ordered list of PipelineStates for each pass that a dynamic-state fill draws.
+// (stencilDynamicMidpointFans or stencilDynamicOuterCubics.)
+class DSDynamicFillPipelineStates
+{
+public:
+  constexpr static DrawType PassDrawTypes[] = {
+      // The outer-cubic passes use identical state to their midpoint-fan
+      // counterparts, so both are driven from the midpoint-fan types.
+      DrawType::stencilMidpointFanBorrowedCoverage,
+      DrawType::stencilMidpointFans,
+      DrawType::stencilMidpointFanReset,
+  };
+  constexpr static size_t PassCount = std::size(PassDrawTypes);
+
+  DSDynamicFillPipelineStates(
+      const FlushDescriptor&,
+      const DrawBatch&,
+      ShaderMiscFlags,
+      const PlatformFeatures&);
+
+  const PipelineState& operator[](size_t i) const { return m_states[i]; }
+  const PipelineState* begin() const { return m_states; }
+  const PipelineState* end() const { return m_states + PassCount; }
+
+private:
+  PipelineState m_states[PassCount];
+};
 
 // Default PipelineState values as specified in OpenGL.
 constexpr static PipelineState GL_DEFAULT_PIPELINE_STATE = {};

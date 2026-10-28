@@ -36,7 +36,7 @@ public:
       if (batch.drawType == DrawType::imageMesh)
       {
         ++meshBatches;
-        meshElements += batch.elementCount;
+        meshElements += batch.elementCount();
       }
     }
   }

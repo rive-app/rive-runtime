@@ -5,7 +5,8 @@
 // Inkbleed hairlines reuse the tessellation of their fill's first pass. If the
 // draw sort ever orders a hairline's subpass differently from its fill's
 // passes, the hairlines' patches stop being contiguous and they stop batching,
-// which still renders correctly. These tests count batches instead of pixels.
+// which still renders correctly. These tests count batches and their
+// ElementRanges instead of pixels.
 
 #include "common/render_context_null.hpp"
 #include "rive/renderer/rive_renderer.hpp"
@@ -37,17 +38,34 @@ public:
     for (const DrawBatch& batch : *desc.drawList)
     {
       ++m_batchCounts[batch.drawType];
+      for ([[maybe_unused]] const auto& range : batch.elementRanges())
+      {
+        ++m_rangeCounts[batch.drawType];
+      }
     }
   }
 
   size_t count(DrawType drawType) const
   {
-    auto it = m_batchCounts.find(drawType);
-    return it != m_batchCounts.end() ? it->second : 0;
+    return find(m_batchCounts, drawType);
+  }
+
+  size_t rangeCount(DrawType drawType) const
+  {
+    return find(m_rangeCounts, drawType);
   }
 
 private:
+  static size_t find(
+      const std::map<DrawType, size_t>& counts,
+      DrawType drawType)
+  {
+    auto it = counts.find(drawType);
+    return it != counts.end() ? it->second : 0;
+  }
+
   std::map<DrawType, size_t> m_batchCounts;
+  std::map<DrawType, size_t> m_rangeCounts;
 };
 
 constexpr uint32_t TargetSize = 256;
@@ -126,11 +144,15 @@ TEST_CASE(
   CapturingRenderContext* capture;
   auto ctx = drawRects(/*supportsPipelineDynamicState=*/true, &capture);
 
-  const size_t fills = capture->count(DrawType::stencilDynamicMidpointFans);
-  const size_t hairlines = capture->count(DrawType::depthAAOuterHairline);
+  // Dynamic fills and hairlines each merge into one batch with a list of
+  // ranges, and the hairlines' ranges line up with the fills'.
+  CHECK(capture->count(DrawType::stencilDynamicMidpointFans) == 1);
+  CHECK(capture->count(DrawType::depthAAOuterHairline) == 1);
+  const size_t fills = capture->rangeCount(
+      DrawType::stencilDynamicMidpointFans);
+  const size_t hairlines = capture->rangeCount(DrawType::depthAAOuterHairline);
   CHECK(fills > 1);
   CHECK(fills < PathCount);
-  CHECK(hairlines < PathCount);
   CHECK(hairlines == fills);
 }
 
@@ -145,11 +167,12 @@ TEST_CASE(
       DrawType::stencilMidpointFanBorrowedCoverage);
   const size_t fans = capture->count(DrawType::stencilMidpointFans);
   const size_t resets = capture->count(DrawType::stencilMidpointFanReset);
-  const size_t hairlines = capture->count(DrawType::depthAAOuterHairline);
   CHECK(fans > 1);
   CHECK(fans < PathCount);
   CHECK(borrowedCoverage == fans);
   CHECK(resets == fans);
-  CHECK(hairlines < PathCount);
-  CHECK(hairlines == fans);
+  // Static fills can't hold a list of ranges, but hairlines can: they merge
+  // into one batch with a range per fan batch.
+  CHECK(capture->count(DrawType::depthAAOuterHairline) == 1);
+  CHECK(capture->rangeCount(DrawType::depthAAOuterHairline) == fans);
 }

@@ -1909,7 +1909,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [encoder setCullMode:MTLCullModeBack];
         // Don't use baseInstance in order to run on Apple GPU Family 2.
         // TODO: Use baseInstance instead once we deprecate Apple2.
-        [encoder setVertexBytes:&batch.baseElement
+        uint32_t baseInstance = batch.baseElement();
+        [encoder setVertexBytes:&baseInstance
                          length:sizeof(uint32_t)
                         atIndex:METAL_BUFFER_IDX(
                                     PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
@@ -1918,7 +1919,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                              indexType:MTLIndexTypeUInt16
                            indexBuffer:m_pathPatchIndexBuffer
                      indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
-                         instanceCount:batch.elementCount];
+                         instanceCount:batch.elementCount()];
         break;
       }
       case DrawType::interiorTriangulation:
@@ -1930,8 +1931,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                          atIndex:0];
         [encoder setCullMode:MTLCullModeBack];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                    vertexStart:batch.baseElement
-                    vertexCount:batch.elementCount];
+                    vertexStart:batch.baseElement()
+                    vertexCount:batch.elementCount()];
         break;
       }
       case DrawType::imageRect:
@@ -1939,7 +1940,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [encoder setRenderPipelineState:drawPipelineState];
         [encoder
             setVertexBuffer:mtl_buffer(imageRectInstanceBufferRing())
-                     offset:batch.baseElement * sizeof(gpu::ImageRectInstance)
+                     offset:batch.baseElement() * sizeof(gpu::ImageRectInstance)
                     atIndex:2];
         [encoder setCullMode:MTLCullModeNone];
         assert(desc.interlockMode == gpu::InterlockMode::atomics);
@@ -1949,7 +1950,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                              indexType:MTLIndexTypeUInt16
                            indexBuffer:m_imageRectIndexBuffer
                      indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
-                         instanceCount:batch.elementCount];
+                         instanceCount:batch.elementCount()];
         break;
       }
       case DrawType::imageMesh:
@@ -1957,7 +1958,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [encoder setRenderPipelineState:drawPipelineState];
         [encoder
             setVertexBuffer:mtl_buffer(imageMeshInstanceBufferRing())
-                     offset:batch.baseElement * sizeof(gpu::ImageMeshInstance)
+                     offset:batch.baseElement() * sizeof(gpu::ImageMeshInstance)
                     atIndex:2];
         [encoder setCullMode:MTLCullModeNone];
         LITE_RTTI_CAST_OR_BREAK(
@@ -1977,7 +1978,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                              indexType:MTLIndexTypeUInt16
                            indexBuffer:indexBuffer->submittedBuffer()
                      indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
-                         instanceCount:batch.elementCount];
+                         instanceCount:batch.elementCount()];
         break;
       }
       case DrawType::renderPassInitialize:

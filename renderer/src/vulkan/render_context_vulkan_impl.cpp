@@ -2145,15 +2145,13 @@ namespace descriptor_pool_limits
 constexpr static uint32_t kMaxUniformUpdates = 3;
 constexpr static uint32_t kMaxDynamicUniformUpdates = 1;
 constexpr static uint32_t kMaxImageTextureUpdates = 256;
+// grad, tess, feather atlas + image textures.
 constexpr static uint32_t
-    kMaxCombinedImageSamplerUpdates = 3 +
-                                      kMaxImageTextureUpdates; // grad + feather
-                                                               // + feather
-                                                               // atlas + images
-constexpr static uint32_t kMaxSampledImageUpdates = 1;         // tess
-constexpr static uint32_t
-    kMaxStorageImageUpdates = 4; // color/coverage/clip/scratch
-                                 // in clockwise mode.
+    kMaxCombinedImageSamplerUpdates = 3 + kMaxImageTextureUpdates;
+// tess
+constexpr static uint32_t kMaxSampledImageUpdates = 1;
+// color, coverage, clip, scratch in clockwise mode.
+constexpr static uint32_t kMaxStorageImageUpdates = 4;
 constexpr static uint32_t
     kMaxStorageBufferUpdates = 7 + // path/paint/uniform buffers
                                1;  // coverage buffer in clockwiseAtomic mode
@@ -2535,7 +2533,7 @@ void RenderContextVulkanImpl::DrawRenderPass::restart(
 
 void RenderContextVulkanImpl::DrawRenderPass::interruptIfNeeded(
     uint32_t nextTessPatchCount,
-    uint32_t pendingTessPatchCount)
+    uint32_t pendingInstanceCount)
 {
   const DriverWorkarounds& workarounds = m_impl->m_workarounds;
   assert(nextTessPatchCount <= workarounds.maxInstancesPerRenderPass);
@@ -2558,7 +2556,7 @@ void RenderContextVulkanImpl::DrawRenderPass::interruptIfNeeded(
         RenderPassOptionsVulkan::manuallyResolved));
 
     renderPassOptions |= RenderPassOptionsVulkan::rasterOrderingResume;
-    if (pendingTessPatchCount <= workarounds.maxInstancesPerRenderPass)
+    if (pendingInstanceCount <= workarounds.maxInstancesPerRenderPass)
     {
       renderPassOptions &= ~RenderPassOptionsVulkan::
                                rasterOrderingInterruptible;
@@ -2622,7 +2620,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
       commandBuffer);
   m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
 
-  uint32_t pendingTessPatchCount = 0;
+  uint32_t pendingInstanceCount = 0;
   for (const DrawBatch& batch : *desc.drawList)
   {
     // Apply pending image texture updates.
@@ -2638,6 +2636,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
       case DrawType::midpointFanPatches:
       case DrawType::midpointFanCenterAAPatches:
       case DrawType::outerCurvePatches:
+        pendingInstanceCount += batch.elementCount();
+        break;
       case DrawType::stencilOuterCubicBorrowedCoverage:
       case DrawType::stencilOuterCubicReset:
       case DrawType::stencilOuterCubicWinding:
@@ -2653,8 +2653,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
       case DrawType::depthStrokes:
       case DrawType::depthAAStrokes:
       case DrawType::depthAAOuterHairline:
-        pendingTessPatchCount += batch.elementCount;
-        break;
       case DrawType::clipReset:
       case DrawType::interiorTriangulation:
       case DrawType::featherAtlasBlit:
@@ -2666,7 +2664,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
   }
   if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-      pendingTessPatchCount > m_workarounds.maxInstancesPerRenderPass)
+      pendingInstanceCount > m_workarounds.maxInstancesPerRenderPass)
   {
     // Some early Android tilers are known to crash when a render pass is
     // too complex. Make this render pass interruptible so we can break it
@@ -3771,7 +3769,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
           desc,
           &descriptorSetAllocator,
           &drawRenderPass,
-          pendingTessPatchCount);
+          pendingInstanceCount);
     }
   }
 
@@ -3968,7 +3966,7 @@ void RenderContextVulkanImpl::submitDrawList(
     const FlushDescriptor& desc,
     DescriptorSetAllocator* descriptorSetAllocator,
     DrawRenderPass* drawRenderPass,
-    uint32_t pendingTessPatchCount)
+    uint32_t pendingInstanceCount)
 {
   const auto commandBuffer = reinterpret_cast<VkCommandBuffer>(
       desc.externalCommandBuffer);
@@ -3982,7 +3980,6 @@ void RenderContextVulkanImpl::submitDrawList(
   // Submit the DrawList.
   for (const DrawBatch& batch : *desc.drawList)
   {
-    assert(batch.elementCount > 0);
     const DrawType drawType = batch.drawType;
 
     if (batch.imageTexture != nullptr)
@@ -4176,14 +4173,14 @@ void RenderContextVulkanImpl::submitDrawList(
             commandBuffer,
             *m_pathPatchIndexBuffer);
         for (auto [chunkPatchCount, chunkFirstPatch] : RangeChunker(
-                 batch.elementCount,
-                 batch.baseElement,
+                 batch.elementCount(),
+                 batch.baseElement(),
                  m_workarounds.maxInstancesPerRenderPass))
         {
           drawRenderPass->interruptIfNeeded(
               chunkPatchCount,
-              pendingTessPatchCount);
-          pendingTessPatchCount -= chunkPatchCount;
+              pendingInstanceCount);
+          pendingInstanceCount -= chunkPatchCount;
           if (drawPipeline != nullptr)
           {
             m_vk->CmdDrawIndexed(
@@ -4213,7 +4210,6 @@ void RenderContextVulkanImpl::submitDrawList(
       case DrawType::depthAAOuterHairline:
       {
         assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
-        pendingTessPatchCount -= batch.elementCount;
         if (drawPipeline == nullptr)
         {
           break;
@@ -4227,7 +4223,7 @@ void RenderContextVulkanImpl::submitDrawList(
         // data from gl_VertexID.)
 
         for (auto [chunkIndexCount, chunkBaseVertex] :
-             gpu::DSIndexRangeChunker(batch))
+             gpu::DSIndexRangeChunker::drawsForBatch(batch))
         {
           m_vk->CmdDrawIndexed(
               commandBuffer,
@@ -4243,7 +4239,6 @@ void RenderContextVulkanImpl::submitDrawList(
       case DrawType::stencilDynamicMidpointFans:
       case DrawType::stencilDynamicOuterCubics:
       {
-        pendingTessPatchCount -= batch.elementCount;
         if (drawPipeline == nullptr)
         {
           break;
@@ -4270,38 +4265,31 @@ void RenderContextVulkanImpl::submitDrawList(
         // The outer-cubic passes use identical dynamic state to their
         // midpoint-fan counterparts, so drive both modes from the
         // midpoint-fan types.
-        for (DrawType pass :
-             {DrawType::stencilMidpointFanBorrowedCoverage,
-              DrawType::stencilMidpointFans,
-              DrawType::stencilMidpointFanReset})
+        assert(gpu::drawTypeHasPipelineDynamicState(drawType));
+        const gpu::DSDynamicFillPipelineStates passStates(
+            desc,
+            batch,
+            shaderMiscFlags,
+            m_platformFeatures);
+        for (const auto& range : batch.elementRanges())
         {
-          gpu::PipelineState pipelineState = gpu::get_pipeline_state(
-              pass,
-              desc.interlockMode,
-              shaderMiscFlags,
-              batch.drawContents,
-              desc.fixedFunctionColorOutput,
-              batch.firstBlendMode,
-              m_platformFeatures);
-          assert(gpu::drawTypeHasPipelineDynamicState(drawType));
-          pipelineBinder.setDynamicState(commandBuffer, pipelineState);
-          for (auto [chunkIndexCount, chunkBaseVertex] :
-               gpu::DSIndexRangeChunker(
-                   batch,
-                   // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
-                   // even when using VK_EXT_color_write_enable. The
-                   // flag lets the vertex shader skip paint fetches.
-                   !pipelineState.colorWriteEnabled
-                       ? VERTEX_FLAG_DISABLE_COLOR_WRITE
-                       : 0))
+          for (const gpu::PipelineState& pipelineState : passStates)
           {
-            m_vk->CmdDrawIndexed(
-                commandBuffer,
-                chunkIndexCount,
-                1,
-                0,
-                chunkBaseVertex,
-                0);
+            pipelineBinder.setDynamicState(commandBuffer, pipelineState);
+            for (auto [chunkIndexCount, chunkBaseVertex] :
+                 gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                     batch,
+                     range,
+                     pipelineState))
+            {
+              m_vk->CmdDrawIndexed(
+                  commandBuffer,
+                  chunkIndexCount,
+                  1,
+                  0,
+                  chunkBaseVertex,
+                  0);
+            }
           }
         }
         break;
@@ -4316,9 +4304,9 @@ void RenderContextVulkanImpl::submitDrawList(
         {
           m_vk->CmdDraw(
               commandBuffer,
-              batch.elementCount,
+              batch.elementCount(),
               1,
-              batch.baseElement,
+              batch.baseElement(),
               0);
         }
         break;
@@ -4343,10 +4331,10 @@ void RenderContextVulkanImpl::submitDrawList(
           m_vk->CmdDrawIndexed(
               commandBuffer,
               batch.indexCountPerInstance,
-              batch.elementCount,
+              batch.elementCount(),
               batch.baseIndex,
               0,
-              batch.baseElement);
+              batch.baseElement());
         }
         break;
       }
@@ -4385,10 +4373,10 @@ void RenderContextVulkanImpl::submitDrawList(
           m_vk->CmdDrawIndexed(
               commandBuffer,
               batch.indexCountPerInstance,
-              batch.elementCount,
+              batch.elementCount(),
               batch.baseIndex,
               0,
-              batch.baseElement);
+              batch.baseElement());
         }
         break;
       }
@@ -4415,7 +4403,7 @@ void RenderContextVulkanImpl::submitDrawList(
     m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
   }
 
-  assert(pendingTessPatchCount == 0);
+  assert(pendingInstanceCount == 0);
 } // namespace rive::gpu
 
 void RenderContextVulkanImpl::postFlush(const RenderContext::FlushResources&)

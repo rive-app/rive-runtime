@@ -2533,6 +2533,26 @@ void get_pipeline_state(
       platformFeatures);
 }
 
+DSDynamicFillPipelineStates::DSDynamicFillPipelineStates(
+    const FlushDescriptor& flushDesc,
+    const DrawBatch& batch,
+    ShaderMiscFlags shaderMiscFlags,
+    const PlatformFeatures& platformFeatures)
+{
+  assert(drawTypeHasPipelineDynamicState(batch.drawType));
+  for (size_t i = 0; i < PassCount; ++i)
+  {
+    m_states[i] = get_pipeline_state(
+        PassDrawTypes[i],
+        flushDesc.interlockMode,
+        shaderMiscFlags,
+        batch.drawContents,
+        flushDesc.fixedFunctionColorOutput,
+        batch.firstBlendMode,
+        platformFeatures);
+  }
+}
+
 PipelineState get_pipeline_state(
     DrawType drawType,
     InterlockMode interlockMode,

@@ -6,7 +6,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/gpu.hpp"
-#include "rive_render_paint.hpp"
+#include "rive/renderer/rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "shaders/constants.glsl"
 #include <catch.hpp>

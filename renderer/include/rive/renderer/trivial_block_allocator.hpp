@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/math/math_types.hpp"
+#include "rive/renderer/next_ptr_range.hpp"
 #include <cassert>
 #include <memory>
 #include <vector>
@@ -187,24 +188,14 @@ public:
     m_count = 0;
   }
 
-  template <typename U> class Iter
+  NextPtrIterator<const T> begin() const
   {
-  public:
-    Iter(T* current) : m_current(current) {}
-    bool operator!=(const Iter& other) const
-    {
-      return m_current != other.m_current;
-    }
-    void operator++() { m_current = m_current->next; }
-    U& operator*() { return *m_current; }
-
-  private:
-    const T* m_current;
-  };
-  Iter<T> begin() { return {m_head}; }
-  Iter<T> end() { return {nullptr}; }
-  Iter<const T> begin() const { return {m_head}; }
-  Iter<const T> end() const { return {nullptr}; }
+    return NextPtrIterator<const T>(m_head);
+  }
+  NextPtrIterator<const T> end() const
+  {
+    return NextPtrIterator<const T>(nullptr);
+  }
 
 private:
   T* m_head = nullptr;

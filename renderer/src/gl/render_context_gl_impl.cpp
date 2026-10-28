@@ -2961,8 +2961,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             GL_TRIANGLES,
             batch.indexCountPerInstance,
             batch.baseIndex,
-            batch.elementCount,
-            batch.baseElement,
+            batch.elementCount(),
+            batch.baseElement(),
             drawProgram->baseInstanceUniformLocation(),
             &flushInjector);
         break;
@@ -2985,7 +2985,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
         m_state->bindVAO(m_drawVAO);
         for (auto [chunkIndexCount, chunkBaseVertex] :
-             gpu::DSIndexRangeChunker(batch))
+             gpu::DSIndexRangeChunker::drawsForBatch(batch))
         {
           const uintptr_t indexOffset = batch.baseIndex * sizeof(uint16_t);
           // GL doesn't have a base vertex for indexed draws, so
@@ -3011,44 +3011,36 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         // passes use identical state to their midpoint-fan
         // counterparts, so drive both from the midpoint-fan types.
         m_state->bindVAO(m_drawVAO);
-        for (DrawType pass :
-             {DrawType::stencilMidpointFanBorrowedCoverage,
-              DrawType::stencilMidpointFans,
-              DrawType::stencilMidpointFanReset})
+        const gpu::DSDynamicFillPipelineStates passStates(
+            desc,
+            batch,
+            shaderMiscFlags,
+            m_platformFeatures);
+        for (const auto& range : batch.elementRanges())
         {
-          gpu::PipelineState passState = gpu::get_pipeline_state(
-              pass,
-              desc.interlockMode,
-              shaderMiscFlags,
-              batch.drawContents,
-              desc.fixedFunctionColorOutput,
-              batch.firstBlendMode,
-              m_platformFeatures);
-          // The scissor was already decided before the switch, so
-          // don't let a per-pass state change disturb it.
-          m_state->setPipelineState(passState, ScissorAction::ignore);
-          for (auto [chunkIndexCount, chunkBaseVertex] :
-               gpu::DSIndexRangeChunker(
-                   batch,
-                   // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
-                   // even though glColorMask() already masks color.
-                   // The flag lets the vertex shader skip paint
-                   // fetches.
-                   !passState.colorWriteEnabled
-                       ? VERTEX_FLAG_DISABLE_COLOR_WRITE
-                       : 0))
+          for (const gpu::PipelineState& passState : passStates)
           {
-            const uintptr_t indexOffset = batch.baseIndex * sizeof(uint16_t);
-            // GL doesn't have a base vertex for indexed draws, so
-            // emulate it with a uniform.
-            glUniform1i(
-                drawProgram->baseVertexUniformLocation(),
-                chunkBaseVertex);
-            glDrawElements(
-                GL_TRIANGLES,
-                chunkIndexCount,
-                GL_UNSIGNED_SHORT,
-                reinterpret_cast<const void*>(indexOffset));
+            // The scissor was already decided before the switch, so don't let a
+            // per-pass state change disturb it.
+            m_state->setPipelineState(passState, ScissorAction::ignore);
+            for (auto [chunkIndexCount, chunkBaseVertex] :
+                 gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                     batch,
+                     range,
+                     passState))
+            {
+              const uintptr_t indexOffset = batch.baseIndex * sizeof(uint16_t);
+              // GL doesn't have a base vertex for indexed draws, so emulate it
+              // with a uniform.
+              glUniform1i(
+                  drawProgram->baseVertexUniformLocation(),
+                  chunkBaseVertex);
+              glDrawElements(
+                  GL_TRIANGLES,
+                  chunkIndexCount,
+                  GL_UNSIGNED_SHORT,
+                  reinterpret_cast<const void*>(indexOffset));
+            }
           }
         }
         break;
@@ -3057,7 +3049,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
       case gpu::DrawType::clipReset:
       {
         m_state->bindVAO(m_trianglesVAO);
-        glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
+        glDrawArrays(GL_TRIANGLES, batch.baseElement(), batch.elementCount());
         break;
       }
 
@@ -3076,7 +3068,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
               desc,
               drawType != gpu::DrawType::interiorTriangulation);
         }
-        glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
+        glDrawArrays(GL_TRIANGLES, batch.baseElement(), batch.elementCount());
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
             drawType != gpu::DrawType::featherAtlasBlit)
         {
@@ -3100,13 +3092,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             GL_ARRAY_BUFFER,
             gl_buffer_id(imageRectInstanceBufferRing()));
         setInstanceAttribs<ImageRectInstance>(
-            batch.baseElement * sizeof(gpu::ImageRectInstance));
+            batch.baseElement() * sizeof(gpu::ImageRectInstance));
         glDrawElementsInstanced(
             GL_TRIANGLES,
             batch.indexCountPerInstance,
             GL_UNSIGNED_SHORT,
             reinterpret_cast<const void*>(batch.baseIndex * sizeof(uint16_t)),
-            batch.elementCount);
+            batch.elementCount());
         break;
       }
 
@@ -3130,7 +3122,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             GL_ARRAY_BUFFER,
             gl_buffer_id(imageMeshInstanceBufferRing()));
         setInstanceAttribs<ImageMeshInstance>(
-            batch.baseElement * sizeof(gpu::ImageMeshInstance));
+            batch.baseElement() * sizeof(gpu::ImageMeshInstance));
         m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->bufferID());
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
         {
@@ -3141,7 +3133,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             batch.indexCountPerInstance,
             GL_UNSIGNED_SHORT,
             reinterpret_cast<const void*>(batch.baseIndex * sizeof(uint16_t)),
-            batch.elementCount);
+            batch.elementCount());
         break;
       }
 

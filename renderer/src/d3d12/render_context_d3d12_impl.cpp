@@ -1881,8 +1881,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
   auto boundVertexInstanceType = BoundVertexInstanceType::none;
   for (const DrawBatch& batch : *desc.drawList)
   {
-    assert(batch.elementCount != 0);
-
     DrawType drawType = batch.drawType;
     auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                               ? desc.combinedShaderFeatures
@@ -2162,14 +2160,14 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         cmdList->IASetIndexBuffer(&IBV);
         cmdList->SetGraphicsRoot32BitConstant(
             VERTEX_DRAW_UNIFORM_SIG_INDEX,
-            batch.baseElement,
+            batch.baseElement(),
             0);
         cmdList->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::interiorTriangulation:
@@ -2177,7 +2175,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
       {
         RIVE_PROF_GPUNAME_L(2, "interiorTriangulation||featherAtlasBlit");
         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        cmdList->DrawInstanced(batch.elementCount, 1, batch.baseElement, 0);
+        cmdList->DrawInstanced(batch.elementCount(), 1, batch.baseElement(), 0);
         break;
       }
       case DrawType::imageRect:
@@ -2190,10 +2188,10 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
         cmdList->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::imageMesh:
@@ -2232,10 +2230,10 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
         cmdList->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::renderPassResolve:
@@ -2268,7 +2266,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         auto IBV = m_pathPatchIndexBuffer->indexBufferView();
         cmdList->IASetIndexBuffer(&IBV);
         for (auto [chunkIndexCount, chunkBaseVertex] :
-             gpu::DSIndexRangeChunker(batch))
+             gpu::DSIndexRangeChunker::drawsForBatch(batch))
         {
           cmdList->SetGraphicsRoot32BitConstant(
               VERTEX_DRAW_UNIFORM_SIG_INDEX,
@@ -2291,57 +2289,58 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         // the stencil reset into one batch. D3D12 bakes the state into
         // the PSO, so each pass needs its own pipeline. Despite this,
         // we are still faster in dynamic state mode by about 5%.
-        for (DrawType pass :
-             {DrawType::stencilMidpointFanBorrowedCoverage,
-              DrawType::stencilMidpointFans,
-              DrawType::stencilMidpointFanReset})
+        constexpr auto PassCount = gpu::DSDynamicFillPipelineStates::PassCount;
+        const gpu::DSDynamicFillPipelineStates passStates(
+            desc,
+            batch,
+            shaderMiscFlags,
+            m_platformFeatures);
+        const D3D12Pipeline* passPipelines[PassCount];
+        for (size_t i = 0; i < PassCount; ++i)
         {
-          auto* passPipeline = m_pipelineManager.tryGetPipeline(
-              {
-                  .drawType = pass,
-                  .shaderFeatures = shaderFeatures,
-                  .interlockMode = desc.interlockMode,
-                  .shaderMiscFlags = shaderMiscFlags,
-                  .drawContents = batch.drawContents,
-                  .fixedFunctionColorOutput = desc.fixedFunctionColorOutput,
-                  .blendMode = batch.firstBlendMode,
-                  .wireframe = desc.wireframe,
+          passPipelines[i] = m_pipelineManager.tryGetPipeline(
+              {.drawType = gpu::DSDynamicFillPipelineStates::PassDrawTypes[i],
+               .shaderFeatures = shaderFeatures,
+               .interlockMode = desc.interlockMode,
+               .shaderMiscFlags = shaderMiscFlags,
+               .drawContents = batch.drawContents,
+               .fixedFunctionColorOutput = desc.fixedFunctionColorOutput,
+               .blendMode = batch.firstBlendMode,
+               .wireframe = desc.wireframe,
 #ifdef WITH_RIVE_TOOLS
-                  .synthesizedFailureType = desc.synthesizedFailureType,
+               .synthesizedFailureType = desc.synthesizedFailureType
 #endif
               },
               m_platformFeatures);
-          if (passPipeline == nullptr)
+        }
+        for (const auto& range : batch.elementRanges())
+        {
+          for (size_t i = 0; i < PassCount; ++i)
           {
-            continue;
-          }
-          cmdList->SetPipelineState(passPipeline->m_d3dPipelineState.Get());
-          gpu::PipelineState passState = gpu::get_pipeline_state(
-              pass,
-              desc.interlockMode,
-              shaderMiscFlags,
-              batch.drawContents,
-              desc.fixedFunctionColorOutput,
-              batch.firstBlendMode,
-              m_platformFeatures);
-          cmdList->OMSetStencilRef(passState.stencilReference);
-          for (auto [chunkIndexCount, chunkBaseVertex] :
-               gpu::DSIndexRangeChunker(
-                   batch,
-                   passState.colorWriteEnabled
-                       ? 0
-                       : VERTEX_FLAG_DISABLE_COLOR_WRITE))
-          {
-            cmdList->SetGraphicsRoot32BitConstant(
-                VERTEX_DRAW_UNIFORM_SIG_INDEX,
-                static_cast<UINT>(chunkBaseVertex),
-                1);
-            cmdList->DrawIndexedInstanced(
-                chunkIndexCount,
-                1,
-                batch.baseIndex,
-                0,
-                0);
+            if (passPipelines[i] == nullptr)
+            {
+              continue;
+            }
+            cmdList->SetPipelineState(
+                passPipelines[i]->m_d3dPipelineState.Get());
+            cmdList->OMSetStencilRef(passStates[i].stencilReference);
+            for (auto [chunkIndexCount, chunkBaseVertex] :
+                 gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                     batch,
+                     range,
+                     passStates[i]))
+            {
+              cmdList->SetGraphicsRoot32BitConstant(
+                  VERTEX_DRAW_UNIFORM_SIG_INDEX,
+                  static_cast<UINT>(chunkBaseVertex),
+                  1);
+              cmdList->DrawIndexedInstanced(
+                  chunkIndexCount,
+                  1,
+                  batch.baseIndex,
+                  0,
+                  0);
+            }
           }
         }
         break;
@@ -2355,7 +2354,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             VERTEX_DRAW_UNIFORM_SIG_INDEX,
             0,
             1);
-        cmdList->DrawInstanced(batch.elementCount, 1, batch.baseElement, 0);
+        cmdList->DrawInstanced(batch.elementCount(), 1, batch.baseElement(), 0);
         break;
       }
       case DrawType::renderPassInitialize:

@@ -2536,7 +2536,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             DXGI_FORMAT_R16_UINT,
             0);
         m_gpuContext->RSSetState(m_backCulledRasterState[desc.wireframe].Get());
-        DrawUniforms drawUniforms(batch.baseElement);
+        DrawUniforms drawUniforms(batch.baseElement());
         m_gpuContext->UpdateSubresource(
             m_drawUniforms.Get(),
             0,
@@ -2547,10 +2547,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         RIVE_PROF_GPUNAME_L(2, "Patches");
         m_gpuContext->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::interiorTriangulation:
@@ -2563,7 +2563,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             2,
             drawType == DrawType::featherAtlasBlit ? "featherAtlasBlit"
                                                    : "interiorTriangulation");
-        m_gpuContext->Draw(batch.elementCount, batch.baseElement);
+        m_gpuContext->Draw(batch.elementCount(), batch.baseElement());
         break;
       }
       case DrawType::imageRect:
@@ -2580,10 +2580,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             m_doubleSidedRasterState[desc.wireframe].Get());
         m_gpuContext->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::imageMesh:
@@ -2621,10 +2621,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             m_doubleSidedRasterState[desc.wireframe].Get());
         m_gpuContext->DrawIndexedInstanced(
             batch.indexCountPerInstance,
-            batch.elementCount,
+            batch.elementCount(),
             batch.baseIndex,
             0,
-            batch.baseElement);
+            batch.baseElement());
         break;
       }
       case DrawType::renderPassResolve:
@@ -2692,7 +2692,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             DXGI_FORMAT_R16_UINT,
             0);
         for (auto [chunkIndexCount, chunkBaseVertex] :
-             gpu::DSIndexRangeChunker(batch))
+             gpu::DSIndexRangeChunker::drawsForBatch(batch))
         {
           DrawUniforms drawUniforms(0, static_cast<uint32_t>(chunkBaseVertex));
           m_gpuContext->UpdateSubresource(
@@ -2717,38 +2717,34 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             m_patchIndexBuffer.Get(),
             DXGI_FORMAT_R16_UINT,
             0);
-        for (DrawType pass :
-             {DrawType::stencilMidpointFanBorrowedCoverage,
-              DrawType::stencilMidpointFans,
-              DrawType::stencilMidpointFanReset})
+        const gpu::DSDynamicFillPipelineStates passStates(
+            desc,
+            batch,
+            shaderMiscFlags,
+            m_platformFeatures);
+        for (const auto& range : batch.elementRanges())
         {
-          gpu::PipelineState passState = gpu::get_pipeline_state(
-              pass,
-              desc.interlockMode,
-              batch.shaderMiscFlags,
-              batch.drawContents,
-              desc.fixedFunctionColorOutput,
-              batch.firstBlendMode,
-              m_platformFeatures);
-          applyDepthStencilPipelineState(passState, desc.wireframe);
-          for (auto [chunkIndexCount, chunkBaseVertex] :
-               gpu::DSIndexRangeChunker(
-                   batch,
-                   passState.colorWriteEnabled
-                       ? 0
-                       : VERTEX_FLAG_DISABLE_COLOR_WRITE))
+          for (const gpu::PipelineState& passState : passStates)
           {
-            DrawUniforms drawUniforms(
-                0,
-                static_cast<uint32_t>(chunkBaseVertex));
-            m_gpuContext->UpdateSubresource(
-                m_drawUniforms.Get(),
-                0,
-                NULL,
-                &drawUniforms,
-                0,
-                0);
-            m_gpuContext->DrawIndexed(chunkIndexCount, batch.baseIndex, 0);
+            applyDepthStencilPipelineState(passState, desc.wireframe);
+            for (auto [chunkIndexCount, chunkBaseVertex] :
+                 gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                     batch,
+                     range,
+                     passState))
+            {
+              DrawUniforms drawUniforms(
+                  0,
+                  static_cast<uint32_t>(chunkBaseVertex));
+              m_gpuContext->UpdateSubresource(
+                  m_drawUniforms.Get(),
+                  0,
+                  NULL,
+                  &drawUniforms,
+                  0,
+                  0);
+              m_gpuContext->DrawIndexed(chunkIndexCount, batch.baseIndex, 0);
+            }
           }
         }
         break;
@@ -2767,7 +2763,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             &drawUniforms,
             0,
             0);
-        m_gpuContext->Draw(batch.elementCount, batch.baseElement);
+        m_gpuContext->Draw(batch.elementCount(), batch.baseElement());
         break;
       }
       case DrawType::renderPassInitialize:
