@@ -38,10 +38,10 @@ local wamrConfigDefines = {
     'BH_FREE=wasm_runtime_free',
 }
 -- Hw bounds serve AOT artifacts compiled --bounds-checks=0 only: patch 0009
--- keeps the interpreter sw-checked and patch 0010 keeps sw artifacts
--- unwinding by checked returns, so the Luau lane never takes a hardware
--- trap. Native stack checks stay sw everywhere (artifacts must carry
--- --stack-bounds-checks=1).
+-- keeps the interpreter sw-checked, patch 0010 keeps sw artifacts unwinding
+-- by checked returns, so the Luau lane never takes a hardware trap, and
+-- patch 0047 maps only hw artifacts' memories with guard pages. Native stack
+-- checks stay sw everywhere (artifacts must carry --stack-bounds-checks=1).
 if not wasmHwBounds then
     table.insert(wamrConfigDefines, 'WASM_DISABLE_HW_BOUND_CHECK=1')
 end

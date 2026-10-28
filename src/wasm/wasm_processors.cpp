@@ -330,7 +330,7 @@ bool WasmProcessor::process(float* out, uint32_t frames, uint64_t startFrame)
           sizeof(overran),
           "%s on %s",
           lane_layout::kProcessorOverran,
-          m_module->tier.c_str());
+          m_module->currentTier().c_str());
     }
     failTrap(overran);
     return false;

@@ -24,6 +24,11 @@ struct ScriptingLimits
   /// to the device; read when each pool is made.
   uint32_t jobThreads = 0;
   uint32_t workerThreads = 0;
+  /// As many as fit in half the device's address space.
+  static constexpr uint32_t kHardwareBoundsDefault = UINT32_MAX;
+  /// How many script memories may use hardware bounds at once, each reserving
+  /// 4 GB of address space but no RAM. 0 turns them off. Native only.
+  uint32_t hardwareBoundsMemories = kHardwareBoundsDefault;
 
   /// Safe from any thread.
   static void set(const ScriptingLimits& limits);

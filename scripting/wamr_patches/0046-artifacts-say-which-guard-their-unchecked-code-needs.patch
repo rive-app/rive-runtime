@@ -1,0 +1,307 @@
+From: rive
+Subject: [PATCH 0046] artifacts say which guard their unchecked code needs
+
+Code compiled without bounds checks relied on the runtime reserving 8 GB per
+memory, the most a wasm32 index plus a 32 bit offset can reach. wamrc now
+leaves unchecked only an access whose offset and size fit a guard past 4 GB,
+64 KB unless --rive-hw-guard says otherwise, and checks the end of any other
+access against that reservation, a compare with a constant. Every artifact
+records whether its code checks bounds and, if not, the guard it needs; the
+loader refuses an artifact that records neither, and a guard other than the
+runtime's. The artifact now also decides whether its traps unwind through the
+guard page, which the embedder used to set.
+
+diff --git a/core/iwasm/aot/aot_loader.c b/core/iwasm/aot/aot_loader.c
+index 78dde4a..822128d 100644
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -519,6 +519,43 @@ check_feature_flags(char *error_buf, uint32 error_buf_size,
+     return true;
+ }
+ 
++/* rive patch: code that skips bounds checks is safe only over the
++   reservation it was compiled for */
++static bool
++check_rive_bounds(AOTModule *module, uint64 bounds, char *error_buf,
++                  uint32 error_buf_size)
++{
++    uint64 guard =
++        bounds & ~(RIVE_AOT_BOUNDS_KNOWN | RIVE_AOT_BOUNDS_UNCHECKED);
++
++    if (!(bounds & RIVE_AOT_BOUNDS_KNOWN)) {
++        set_error_buf(error_buf, error_buf_size,
++                      "artifact records nothing about its bounds; compile it "
++                      "again with a current wamrc");
++        return false;
++    }
++    if (!(bounds & RIVE_AOT_BOUNDS_UNCHECKED))
++        return true;
++#ifdef OS_ENABLE_HW_BOUND_CHECK
++    if (guard == WASM_RIVE_HW_GUARD_SIZE) {
++        module->rive_hw_bounds = true;
++        return true;
++    }
++    set_error_buf_v(error_buf, error_buf_size,
++                    "artifact skips bounds checks within a %" PRIu64
++                    " byte guard, this runtime reserves %u; compile it again "
++                    "with a current wamrc",
++                    guard, (uint32)WASM_RIVE_HW_GUARD_SIZE);
++#else
++    (void)module;
++    (void)guard;
++    set_error_buf(error_buf, error_buf_size,
++                  "artifact skips bounds checks, which this build cannot "
++                  "trap; compile it with --bounds-checks=1");
++#endif
++    return false;
++}
++
+ #if WASM_ENABLE_GC != 0
+ static WASMRefType *
+ reftype_set_insert(HashMap *ref_type_set, const WASMRefType *ref_type,
+@@ -550,7 +587,7 @@ load_target_info_section(const uint8 *buf, const uint8 *buf_end,
+     read_uint32(p, p_end, target_info.e_version);
+     read_uint32(p, p_end, target_info.e_flags);
+     read_uint64(p, p_end, target_info.feature_flags);
+-    read_uint64(p, p_end, target_info.reserved);
++    read_uint64(p, p_end, target_info.rive_bounds);
+     read_byte_array(p, p_end, target_info.arch, sizeof(target_info.arch));
+ 
+     if (target_info.arch[sizeof(target_info.arch) - 1] != '\0') {
+@@ -620,6 +657,11 @@ load_target_info_section(const uint8 *buf, const uint8 *buf_end,
+     module->feature_flags = target_info.feature_flags;
+ #endif
+ 
++    if (!check_rive_bounds(module, target_info.rive_bounds, error_buf,
++                           error_buf_size)) {
++        return false;
++    }
++
+     /* Finally, check feature flags */
+     return check_feature_flags(error_buf, error_buf_size,
+                                target_info.feature_flags);
+diff --git a/core/iwasm/aot/aot_runtime.h b/core/iwasm/aot/aot_runtime.h
+index ce6bf62..a94b5ce 100644
+--- a/core/iwasm/aot/aot_runtime.h
++++ b/core/iwasm/aot/aot_runtime.h
+@@ -36,6 +36,12 @@ extern "C" {
+ #define WASM_FEATURE_FRAME_PER_FUNCTION (1 << 12)
+ #define WASM_FEATURE_FRAME_NO_FUNC_IDX (1 << 13)
+ 
++/* rive: target info's rive_bounds says how the code bounds memory accesses;
++   artifacts from before it carry 0 there and are refused */
++#define RIVE_AOT_BOUNDS_KNOWN ((uint64)1 << 63)
++/* with the guard past 4 GB that unchecked accesses reach in the low bits */
++#define RIVE_AOT_BOUNDS_UNCHECKED ((uint64)1 << 62)
++
+ typedef enum AOTSectionType {
+     AOT_SECTION_TYPE_TARGET_INFO = 0,
+     AOT_SECTION_TYPE_INIT_DATA = 1,
+@@ -349,11 +355,8 @@ typedef struct AOTModule {
+     /* Whether the underlying wasm binary buffer can be freed */
+     bool is_binary_freeable;
+ 
+-    /* rive patch: artifact compiled without sw bounds checks, so exceptions
+-       unwind through the exce_check guard page; sw artifacts unwind by
+-       checked returns and must never take that longjmp. Set by the embedder
+-       via wasm_runtime_set_module_hw_bounds; the file format records
+-       nothing. */
++    /* rive patch: the artifact says its code skips bounds checks, so its
++       memories reserve the guarded range and traps unwind through it */
+     bool rive_hw_bounds;
+ 
+     /* `.data` sections merged into one mmaped to reduce the tlb cache miss */
+@@ -392,8 +395,8 @@ typedef struct AOTTargetInfo {
+     uint32 e_flags;
+     /* Specify wasm features supported */
+     uint64 feature_flags;
+-    /* Reserved */
+-    uint64 reserved;
++    /* rive: RIVE_AOT_BOUNDS_* */
++    uint64 rive_bounds;
+     /* Arch name */
+     char arch[16];
+ } AOTTargetInfo;
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+index 434271d..182d6fd 100644
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -2367,17 +2367,15 @@ wasm_runtime_set_instruction_count_limit(WASMExecEnv *exec_env,
+ }
+ #endif
+ 
+-void
+-wasm_runtime_set_module_hw_bounds(WASMModuleCommon *module, bool hw_bounds)
++bool
++wasm_runtime_rive_module_hw_bounds(WASMModuleCommon *module)
+ {
+ #if WASM_ENABLE_AOT != 0
+-    if (module && module->module_type == Wasm_Module_AoT) {
+-        ((AOTModule *)module)->rive_hw_bounds = hw_bounds;
+-    }
+-#else
+-    (void)module;
++    if (module && module->module_type == Wasm_Module_AoT)
++        return ((AOTModule *)module)->rive_hw_bounds;
+ #endif
+-    (void)hw_bounds;
++    (void)module;
++    return false;
+ }
+ 
+ WASMFuncType *
+diff --git a/core/iwasm/compilation/aot_emit_aot_file.c b/core/iwasm/compilation/aot_emit_aot_file.c
+index 1274930..e8f994a 100644
+--- a/core/iwasm/compilation/aot_emit_aot_file.c
++++ b/core/iwasm/compilation/aot_emit_aot_file.c
+@@ -1745,7 +1745,7 @@ aot_emit_target_info_section(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
+     EMIT_U32(target_info->e_version);
+     EMIT_U32(target_info->e_flags);
+     EMIT_U64(target_info->feature_flags);
+-    EMIT_U64(target_info->reserved);
++    EMIT_U64(target_info->rive_bounds);
+     EMIT_BUF(target_info->arch, sizeof(target_info->arch));
+ 
+     if (offset - *p_offset != section_size + sizeof(uint32) * 2) {
+@@ -4513,6 +4513,11 @@ aot_obj_data_create(AOTCompContext *comp_ctx)
+     if (!comp_ctx->call_stack_features.func_idx) {
+         obj_data->target_info.feature_flags |= WASM_FEATURE_FRAME_NO_FUNC_IDX;
+     }
++    obj_data->target_info.rive_bounds = comp_ctx->enable_bound_check
++                                            ? RIVE_AOT_BOUNDS_KNOWN
++                                            : RIVE_AOT_BOUNDS_KNOWN
++                                                  | RIVE_AOT_BOUNDS_UNCHECKED
++                                                  | comp_ctx->rive_hw_guard;
+ 
+     bh_print_time("Begin to resolve object file info");
+ 
+diff --git a/core/iwasm/compilation/aot_emit_memory.c b/core/iwasm/compilation/aot_emit_memory.c
+index 0f42df5..2c80243 100644
+--- a/core/iwasm/compilation/aot_emit_memory.c
++++ b/core/iwasm/compilation/aot_emit_memory.c
+@@ -832,6 +832,25 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         }
+     }
+ 
++    /* rive patch: the runtime reserves only the guard past 4 GB, so an
++       unchecked access whose offset could reach beyond it checks its end */
++    if (!comp_ctx->enable_bound_check && is_target_64bit && !is_memory64
++        && (uint64)offset + bytes > comp_ctx->rive_hw_guard) {
++        LLVMValueRef reserve_bound =
++            I64_CONST(4 * (uint64)BH_GB + comp_ctx->rive_hw_guard - bytes);
++
++        CHECK_LLVM_CONST(reserve_bound);
++        BUILD_ICMP(LLVMIntUGT, offset1, reserve_bound, cmp, "cmp_reserve");
++        ADD_BASIC_BLOCK(check_succ, "check_reserve_succ");
++        LLVMMoveBasicBlockAfter(check_succ, block_curr);
++        if (!aot_emit_exception(comp_ctx, func_ctx,
++                                EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp,
++                                check_succ)) {
++            goto fail;
++        }
++        SET_BUILD_POS(check_succ);
++    }
++
+     if (!enable_segue) {
+         /* maddr = mem_base_addr + offset1 */
+         if (!(maddr =
+diff --git a/core/iwasm/compilation/aot_llvm.c b/core/iwasm/compilation/aot_llvm.c
+index f419073..92cb45a 100644
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -2958,6 +2958,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+     if (option->rive_interrupt)
+         comp_ctx->rive_interrupt = true;
+ 
++    comp_ctx->rive_hw_guard = option->rive_hw_guard;
++
+     comp_ctx->tune_cpu = option->tune_cpu;
+ 
+     if (option->enable_tail_call)
+diff --git a/core/iwasm/compilation/aot_llvm.h b/core/iwasm/compilation/aot_llvm.h
+index d0adc55..aac6a6f 100644
+--- a/core/iwasm/compilation/aot_llvm.h
++++ b/core/iwasm/compilation/aot_llvm.h
+@@ -451,6 +451,9 @@ typedef struct AOTCompContext {
+     /* rive: loop back-edges trap on the host watchdog's terminate flag */
+     bool rive_interrupt;
+ 
++    /* rive: without bounds checks, the reach past 4 GB left unchecked */
++    uint64 rive_hw_guard;
++
+     /* rive: tune-cpu attribute for every function, or NULL */
+     const char *tune_cpu;
+ 
+diff --git a/core/iwasm/include/aot_comp_option.h b/core/iwasm/include/aot_comp_option.h
+index 95ee3da..018d8c3 100644
+--- a/core/iwasm/include/aot_comp_option.h
++++ b/core/iwasm/include/aot_comp_option.h
+@@ -99,6 +99,8 @@ typedef struct AOTCompOption {
+     const char *builtin_intrinsics;
+     /* rive: loop back-edges trap on the host watchdog's terminate flag */
+     bool rive_interrupt;
++    /* rive: without bounds checks, the reach past 4 GB left unchecked */
++    uint64_t rive_hw_guard;
+     /* rive: scheduling model for every function, leaving the cpu's
+        instruction set baseline alone */
+     const char *tune_cpu;
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+index 3c08264..68dfbdd 100644
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -2333,12 +2333,13 @@ wasm_runtime_set_module_name(wasm_module_t module, const char *name,
+ WASM_RUNTIME_API_EXTERN const char *
+ wasm_runtime_get_module_name(wasm_module_t module);
+ 
+-/* rive patch: mark an AOT module as compiled without sw bounds checks
+-   (wamrc --bounds-checks=0) so runtime exceptions unwind through the hw
+-   trap guard page. Default false: sw artifacts unwind by checked returns.
+-   The AOT file format records nothing, so the embedder must know. */
+-WASM_RUNTIME_API_EXTERN void
+-wasm_runtime_set_module_hw_bounds(wasm_module_t module, bool hw_bounds);
++/* rive: a hardware bounds memory reserves 4 GB and this, and compiled code
++   checks only an access whose offset and size pass it */
++#define WASM_RIVE_HW_GUARD_SIZE (64 * 1024)
++
++/* rive: whether module's code skips bounds checks, as its artifact says */
++WASM_RUNTIME_API_EXTERN bool
++wasm_runtime_rive_module_hw_bounds(wasm_module_t module);
+ 
+ /*
+  * wasm_runtime_detect_native_stack_overflow
+diff --git a/wamr-compiler/main.c b/wamr-compiler/main.c
+index 18351e6..1a53a01 100644
+--- a/wamr-compiler/main.c
++++ b/wamr-compiler/main.c
+@@ -148,6 +148,9 @@ print_help()
+     printf("                            CAVEAT: --bounds-checks=0 enables some optimizations\n");
+     printf("                              which make the compiled AOT module incompatible\n");
+     printf("                              with a runtime without the hardware bounds checks.\n");
++    printf("  --rive-hw-guard=<bytes>   With --bounds-checks=0, check only accesses whose offset and size\n");
++    printf("                              pass this guard after 4 GB, which the runtime reserves (default %u)\n",
++           (unsigned)WASM_RIVE_HW_GUARD_SIZE);
+     printf("  --stack-bounds-checks=1/0 Enable or disable the bounds checks for native stack:\n");
+     printf("                              if the option isn't set, the status is same as `--bounds-check`,\n");
+     printf("                              if the option is set, the status is same as the option value\n");
+@@ -420,6 +423,7 @@ main(int argc, char *argv[])
+     option.bounds_checks = 2;
+     /* default value, enable or disable depends on the platform */
+     option.stack_bounds_checks = 2;
++    option.rive_hw_guard = WASM_RIVE_HW_GUARD_SIZE;
+     option.enable_simd = true;
+     option.enable_aux_stack_check = true;
+     option.enable_bulk_memory = true;
+@@ -503,6 +507,13 @@ main(int argc, char *argv[])
+         else if (!strncmp(argv[0], "--bounds-checks=", 16)) {
+             option.bounds_checks = (atoi(argv[0] + 16) == 1) ? 1 : 0;
+         }
++        else if (!strncmp(argv[0], "--rive-hw-guard=", 16)) {
++            char *end;
++            option.rive_hw_guard = strtoull(argv[0] + 16, &end, 10);
++            if (end == argv[0] + 16 || *end != '\0'
++                || option.rive_hw_guard > 4 * (uint64)BH_GB)
++                PRINT_HELP_AND_EXIT();
++        }
+         else if (!strncmp(argv[0], "--stack-bounds-checks=", 22)) {
+             option.stack_bounds_checks = (atoi(argv[0] + 22) == 1) ? 1 : 0;
+         }

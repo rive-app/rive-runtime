@@ -79,12 +79,29 @@ public:
   void park(Instance instance);
   /// A parked instance, or an empty one when there is none.
   Instance unpark();
+  /// The module on code that checks its bounds, loaded the first time an
+  /// instance finds no address space for a hardware bounds memory.
+  void* fallbackModule(const char* what);
+  /// The tier its lanes run on, as a host's log names it, the fallback's
+  /// once one loaded.
+  const std::string& currentTier() const
+  {
+    return m_fellBack.load(std::memory_order_acquire) ? m_fallbackTier : tier;
+  }
+  bool runsCompiled() const
+  {
+    return m_fellBack.load(std::memory_order_acquire) ? m_fallbackCompiled
+                                                      : compiled;
+  }
+  /// Whether its lanes run code that leaves bounds to guard pages, false
+  /// once a fallback loaded.
+  bool hardwareBounds() const;
 
   /// A lease on the WAMR module, which keeps it loaded.
   std::shared_ptr<void> module;
   /// Exports the reset that lets one job run in another's instance.
   bool resets = false;
-  /// The tier its lanes run on, as a host's log names it.
+  /// The tier the module loaded on.
   std::string tier;
 #endif
   bool compiled = false;
@@ -104,6 +121,12 @@ private:
   // Whichever thread runs the next job takes one.
   std::mutex m_parkedMutex;
   std::vector<Instance> m_parked;
+  std::mutex m_fallbackMutex;
+  std::shared_ptr<void> m_fallback;
+  std::string m_fallbackTier;
+  bool m_fallbackCompiled = false;
+  // Set once the fields above are written.
+  std::atomic<bool> m_fellBack{false};
 #endif
 };
 
@@ -339,11 +362,14 @@ public:
   /// The VM whose shared memory its lanes hold.
   void setSharedOwner(uint64_t owner) { m_sharedOwner = owner; }
   uint32_t entryCount() const { return m_module->entryCount; }
-  /// True when its lanes run compiled code rather than the interpreter.
-  bool compiled() const { return m_module->compiled; }
 #ifndef __EMSCRIPTEN__
+  /// True when its lanes run compiled code rather than the interpreter.
+  bool compiled() const { return m_module->runsCompiled(); }
   /// The tier its lanes run on, as a host's log names it.
-  const std::string& tier() const { return m_module->tier; }
+  const std::string& tier() const { return m_module->currentTier(); }
+  bool hardwareBounds() const { return m_module->hardwareBounds(); }
+#else
+  bool compiled() const { return m_module->compiled; }
 #endif
   /// Drops lanes that are over and that no script holds, once their
   /// output is out.

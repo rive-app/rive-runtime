@@ -330,6 +330,8 @@ struct SharedWasmModule
   WasmScriptingVM::ExecutionTier tier = WasmScriptingVM::ExecutionTier::interp;
   // No device run covers unloading prelinked code.
   bool pinned = false;
+  // The wasm behind code that skips bounds checks, for a fallback.
+  std::vector<uint8_t> hardwareBoundsWasm;
   // Orders the idle ones, so the least recently leased unloads first.
   uint64_t lastLeased = 0;
 
@@ -12622,7 +12624,8 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
     Span<const uint8_t> bytes,
     ExecutionTier& tier,
     std::string& interpReason,
-    std::string& outError)
+    std::string& outError,
+    bool checkedBounds)
 {
   if (!ensureRuntime())
   {
@@ -12664,7 +12667,7 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
         cacheDir,
         aotArtifactName(plainKey, ".hw").c_str());
     struct stat hwAotStat;
-    haveHwAot = stat(aotPath, &hwAotStat) == 0;
+    haveHwAot = !checkedBounds && stat(aotPath, &hwAotStat) == 0;
 #endif
     if (!haveHwAot)
     {
@@ -12705,6 +12708,10 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
   const char* tierEnv = getenv("RIVE_WASM_AOT_SYNC");
   bool wantInterp = tierEnv != nullptr && strcmp(tierEnv, "interp") == 0;
   TierSpecies species = bootTierSpecies();
+  if (checkedBounds && species == TierSpecies::hw)
+  {
+    species = TierSpecies::o3;
+  }
   bool ladderArtifact = false;
   if (!haveAot && !haveHwAot)
   {
@@ -12856,11 +12863,11 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
     }
     if (loaded != nullptr)
     {
-      if (haveHwAot)
-      {
-        wasm_runtime_set_module_hw_bounds(loaded, true);
-      }
       auto entry = std::make_shared<SharedWasmModule>();
+      if (wasm_runtime_rive_module_hw_bounds(loaded))
+      {
+        entry->hardwareBoundsWasm.assign(bytes.begin(), bytes.end());
+      }
       entry->bytes = std::move(moduleBytes);
       entry->module = loaded;
       entry->tier = tier;
@@ -12895,6 +12902,56 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
     interpReason.clear();
   }
   return lease;
+}
+
+std::shared_ptr<void> WasmScriptingVM::loadFallbackModule(
+    Span<const uint8_t> bytes,
+    const char* what,
+    ExecutionTier& tier,
+    std::string& interpReason)
+{
+  std::string error;
+  auto lease = loadSharedModule(bytes, tier, interpReason, error, true);
+  if (lease != nullptr)
+  {
+    fprintf(
+        stderr,
+        "wasm aot: no hardware bounds reservation left, %s falls back to "
+        "software bounds on %s\n",
+        what,
+        tierName(tier, interpReason).c_str());
+  }
+  else
+  {
+    fprintf(
+        stderr,
+        "wasm aot: no hardware bounds reservation left, and %s did not load "
+        "on software bounds: %s\n",
+        what,
+        error.c_str());
+  }
+  return lease;
+}
+
+Span<const uint8_t> WasmScriptingVM::hardwareBoundsWasm(
+    const std::shared_ptr<void>& lease)
+{
+  std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
+  for (const auto& cached : sharedModuleCache())
+  {
+    const std::vector<uint8_t>& wasm = cached.second->hardwareBoundsWasm;
+    if (cached.second->module == lease.get())
+    {
+      return Span<const uint8_t>(wasm.data(), wasm.size());
+    }
+  }
+  return {};
+}
+
+bool WasmScriptingVM::hardwareBounds() const
+{
+  return m_state != nullptr && m_state->module != nullptr &&
+         wasm_runtime_rive_module_hw_bounds(m_state->module);
 }
 
 bool WasmScriptingVM::init(Span<const uint8_t> module)
@@ -13018,12 +13075,29 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
   uint32_t outerRegionId;
   SharedRegion* outerRegion = stashHeldRegion(&outerRegionId);
   ensureWasmThreadEnv();
-  m_state->instance = wasm_runtime_instantiate(
-      m_state->module,
-      512 * 1024,
-      0,
-      error,
-      sizeof(error));
+  auto instantiate = [&]() {
+    m_state->instance = wasm_runtime_instantiate(
+        m_state->module,
+        512 * 1024,
+        0,
+        error,
+        sizeof(error));
+  };
+  instantiate();
+  if (m_state->instance == nullptr &&
+      strstr(error, WASM_RIVE_HW_RESERVE_FAILED) != nullptr)
+  {
+    if (auto checked = loadFallbackModule(
+            module,
+            "main module",
+            m_tier,
+            m_interpReason))
+    {
+      m_state->lease = std::move(checked);
+      m_state->module = (wasm_module_t)m_state->lease.get();
+      instantiate();
+    }
+  }
   restoreHeldRegion(outerRegionId, outerRegion);
   if (m_debugHooks != nullptr)
   {

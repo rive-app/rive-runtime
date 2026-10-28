@@ -45,6 +45,8 @@ int x86_64Level(
 
 #ifdef RIVE_WASM_TIER_LADDER
 
+#include "wasm_export.h"
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -237,6 +239,11 @@ static int hostX86_64Level()
 #else
   return 0;
 #endif
+}
+
+std::string wamrcHwGuardFlag()
+{
+  return "--rive-hw-guard=" + std::to_string(WASM_RIVE_HW_GUARD_SIZE);
 }
 
 std::string loaderBinaryPath()
@@ -686,8 +693,7 @@ bool ModuleTierLadder::enabledLocked()
     return false;
   }
   wamrcVersion();
-  m_disabledReason = m_wamrcUsable ? ""
-                                   : m_wamrcPath + " is not our patched wamrc";
+  m_disabledReason = m_wamrcUsable ? "" : m_wamrcPath + " " + m_wamrcProblem;
   return m_wamrcUsable;
 }
 
@@ -750,18 +756,29 @@ const std::string& ModuleTierLadder::wamrcVersion()
     auto accepts = [&](const char* flag) {
       return probeWamrc(m_wamrcPath, flag, nullptr);
     };
-    // Only our patched wamrc takes --rive-interrupt; say so once rather
-    // than fail each compile quietly.
-    m_wamrcUsable = accepts("--rive-interrupt");
+    // Only our patched wamrc takes --rive-interrupt, and only a current one
+    // the guard flag; say so once rather than fail each compile quietly.
+    m_wamrcProblem.clear();
+    if (!accepts("--rive-interrupt"))
+    {
+      m_wamrcProblem = "is not our patched wamrc; build wamrc from our WAMR "
+                       "patches (runtime/scripting/wamr_patches)";
+    }
+    else if (!accepts(wamrcHwGuardFlag().c_str()))
+    {
+      m_wamrcProblem = "predates our current WAMR patches; rebuild wamrc "
+                       "from the current patches "
+                       "(runtime/scripting/wamr_patches)";
+    }
+    m_wamrcUsable = m_wamrcProblem.empty();
     m_wamrcTunes = accepts("--tune-cpu=generic");
     if (!m_wamrcUsable)
     {
       fprintf(
           stderr,
-          "wasm aot: %s lacks --rive-interrupt; build wamrc from "
-          "our patched WAMR (runtime/scripting/wamr_patches). AOT "
-          "is off.\n",
-          m_wamrcPath.c_str());
+          "wasm aot: %s %s. AOT is off.\n",
+          m_wamrcPath.c_str(),
+          m_wamrcProblem.c_str());
     }
 #endif
   }
@@ -808,7 +825,8 @@ std::string ModuleTierLadder::keyedCacheDir()
   // it whenever species flags change or stale artifacts get served on a
   // cache hit.
   const std::string& version = wamrcVersion();
-  return m_cacheDir + "/" + version + "-r14" + (m_wamrcTunes ? "t" : "");
+  return m_cacheDir + "/" + version + "-r15-g" +
+         std::to_string(WASM_RIVE_HW_GUARD_SIZE) + (m_wamrcTunes ? "t" : "");
 }
 
 // Device artifacts sit apart from this machine's, which share their names.
@@ -1288,6 +1306,7 @@ std::string ModuleTierLadder::runWamrc(Job& job)
     // builds with WASM_DISABLE_STACK_HW_BOUND_CHECK).
     args.push_back("--bounds-checks=0");
     args.push_back("--stack-bounds-checks=1");
+    args.push_back(wamrcHwGuardFlag());
   }
   else
   {

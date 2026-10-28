@@ -1,0 +1,397 @@
+From: rive
+Subject: [PATCH 0047] reserve 4 GB and the guard per hardware bounds memory
+
+Hardware bounds builds reserved 8 GB for every memory, the interpreter's
+included. A memory now reserves 4 GB and the guard only when its module's code
+skips bounds checks, and every other memory maps, grows and unmaps as in a
+software bounds build. Reservations stop while the process still has room:
+at a cap of half the address space by default, which the host can change, and
+2 GB short of an address space limit. A reservation maps directly, without
+os_mmap's retries and message, and after one finds no address space the next
+waits until a memory has gone. A refused reservation fails the instantiate
+with an error that says so, for the host to fall back on code that checks.
+The signal handler turns a fault into a trap only inside a memory with the
+reservation.
+
+diff --git a/core/iwasm/aot/aot_runtime.c b/core/iwasm/aot/aot_runtime.c
+index 478fe60..400dee1 100644
+--- a/core/iwasm/aot/aot_runtime.c
++++ b/core/iwasm/aot/aot_runtime.c
+@@ -1108,14 +1108,29 @@ memory_instantiate(AOTModuleInstance *module_inst, AOTModuleInstance *parent,
+     bh_assert(max_memory_data_size <= GET_MAX_LINEAR_MEMORY_SIZE(is_memory64));
+     (void)max_memory_data_size;
+ 
+-    /* TODO: memory64 uses is_memory64 flag */
+-    if (wasm_allocate_linear_memory(&p, is_shared_memory, is_memory64,
+-                                    num_bytes_per_page, init_page_count,
+-                                    max_page_count, &memory_data_size)
+-        != BHT_OK) {
+-        set_error_buf(error_buf, error_buf_size,
+-                      "allocate linear memory failed");
+-        return NULL;
++#ifdef OS_ENABLE_HW_BOUND_CHECK
++    if (module->rive_hw_bounds) {
++        if (wasm_rive_reserve_hw_linear_memory(
++                &p, num_bytes_per_page, init_page_count, &memory_data_size)
++            != BHT_OK) {
++            set_error_buf(error_buf, error_buf_size,
++                          WASM_RIVE_HW_RESERVE_FAILED);
++            return NULL;
++        }
++        memory_inst->rive_hw_reserved = 1;
++    }
++    else
++#endif
++    {
++        /* TODO: memory64 uses is_memory64 flag */
++        if (wasm_allocate_linear_memory(&p, is_shared_memory, is_memory64,
++                                        num_bytes_per_page, init_page_count,
++                                        max_page_count, &memory_data_size)
++            != BHT_OK) {
++            set_error_buf(error_buf, error_buf_size,
++                          "allocate linear memory failed");
++            return NULL;
++        }
+     }
+ 
+     memory_inst->module_type = Wasm_Module_AoT;
+diff --git a/core/iwasm/common/wasm_memory.c b/core/iwasm/common/wasm_memory.c
+index ba2acc3..aed81d2 100644
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1561,6 +1561,205 @@ wasm_mmap_linear_memory(uint64 map_size, uint64 commit_size)
+     return wasm_mremap_linear_memory(NULL, 0, map_size, commit_size);
+ }
+ 
++/* rive patch: only a memory whose code skips bounds checks reserves the
++   guarded range, below; every other one takes the software branches after */
++#ifdef OS_ENABLE_HW_BOUND_CHECK
++#undef OS_ENABLE_HW_BOUND_CHECK
++#define RIVE_HW_BOUND_CHECK 1
++#endif
++
++#ifdef RIVE_HW_BOUND_CHECK
++#if defined(__linux__)
++#include <sys/resource.h>
++#elif defined(__APPLE__)
++#include <mach/vm_param.h>
++#endif
++
++static bh_atomic_32_t rive_hw_reserves = 0;
++/* rive: held while a reservation decides and maps, so racing instantiations
++   see one limit, one failure mark and each other's maps against the margin */
++static bh_atomic_32_t rive_hw_lock = 0;
++static uint32 rive_hw_reserve_limit = 0;
++static bool rive_hw_reserve_limit_set = false;
++/* rive: the live count when a reservation last found no address space */
++static uint32 rive_hw_failed_at = UINT32_MAX;
++
++static void
++rive_hw_lock_take(void)
++{
++    while (BH_ATOMIC_32_FETCH_OR(rive_hw_lock, 1) != 0)
++        ;
++}
++
++static void
++rive_hw_lock_give(void)
++{
++    BH_ATOMIC_32_STORE(rive_hw_lock, 0);
++}
++
++uint64
++wasm_rive_hw_map_size(void)
++{
++    uint64 page_size = os_getpagesize();
++
++    return (4 * (uint64)BH_GB + WASM_RIVE_HW_GUARD_SIZE + page_size - 1)
++           / page_size * page_size;
++}
++
++/* rive patch: half the address space, so the rest of the process keeps room
++   after reservations stop and memories fall back to software bounds */
++static uint32
++rive_default_hw_limit(void)
++{
++    uint64 space, limit;
++#if defined(BH_PLATFORM_WINDOWS)
++    SYSTEM_INFO info;
++
++    GetSystemInfo(&info);
++    space = (uint64)(uintptr_t)info.lpMaximumApplicationAddress + 1;
++#elif defined(__APPLE__)
++    space = MACH_VM_MAX_ADDRESS;
++#else
++    /* the stack sits at the top of a Linux address space, whose size is a
++       power of two */
++    uint64 top = (uint64)(uintptr_t)&space;
++
++    for (space = 1; space <= top && space < ((uint64)1 << 62); space <<= 1)
++        ;
++#endif
++    limit = space / 2 / wasm_rive_hw_map_size();
++    return limit < 1 ? 1 : (uint32)limit;
++}
++
++/* rive patch: callers hold rive_hw_lock */
++static uint32
++rive_hw_limit(void)
++{
++    if (!rive_hw_reserve_limit_set) {
++        rive_hw_reserve_limit = rive_default_hw_limit();
++        rive_hw_reserve_limit_set = true;
++    }
++    return rive_hw_reserve_limit;
++}
++
++/* rive patch: under an address space limit the reservations stop a margin
++   short of it, as the next allocation anywhere would otherwise fail */
++static bool
++rive_hw_reserve_leaves_margin(uint64 map_size)
++{
++#if defined(__linux__)
++    struct rlimit limit;
++    unsigned long long pages;
++    bool leaves = true;
++    FILE *statm;
++
++    if (getrlimit(RLIMIT_AS, &limit) != 0 || limit.rlim_cur == RLIM_INFINITY)
++        return true;
++    if ((statm = fopen("/proc/self/statm", "r"))) {
++        if (fscanf(statm, "%llu", &pages) == 1)
++            leaves = pages * os_getpagesize() + map_size
++                         + WASM_RIVE_HW_RESERVE_MARGIN
++                     <= (uint64)limit.rlim_cur;
++        fclose(statm);
++    }
++    return leaves;
++#else
++    (void)map_size;
++    return true;
++#endif
++}
++
++/* rive patch: a direct map, as os_mmap retries and prints when the address
++   space runs out */
++static uint8 *
++rive_map_hw_linear_memory(uint64 map_size, uint64 commit_size)
++{
++#ifdef BH_PLATFORM_WINDOWS
++    return wasm_mmap_linear_memory(map_size, commit_size);
++#else
++#if defined(__linux__)
++    int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
++#else
++    int flags = MAP_PRIVATE | MAP_ANONYMOUS;
++#endif
++    uint8 *mem = mmap(NULL, map_size, PROT_NONE, flags, -1, 0);
++
++    if (mem == MAP_FAILED)
++        return NULL;
++    if (commit_size > 0
++        && mprotect(mem, commit_size, PROT_READ | PROT_WRITE) != 0) {
++        munmap(mem, map_size);
++        return NULL;
++    }
++#if defined(MADV_HUGEPAGE) && !defined(__APPLE__)
++    madvise(mem, map_size, MADV_HUGEPAGE);
++#endif
++    return mem;
++#endif
++}
++
++int
++wasm_rive_reserve_hw_linear_memory(uint8 **data, uint64 num_bytes_per_page,
++                                   uint64 init_page_count,
++                                   uint64 *memory_data_size)
++{
++    uint64 map_size = wasm_rive_hw_map_size();
++    uint32 live;
++    int result = BHT_ERROR;
++
++    *memory_data_size = align_as_and_cast(init_page_count * num_bytes_per_page,
++                                          os_getpagesize());
++    rive_hw_lock_take();
++    live = BH_ATOMIC_32_LOAD(rive_hw_reserves);
++    /* rive patch: after a failure, try again only once a memory went, or
++       always when none was live to go */
++    if (live < rive_hw_limit()
++        && (live < rive_hw_failed_at || rive_hw_failed_at == 0)
++        && rive_hw_reserve_leaves_margin(map_size)) {
++        if ((*data = rive_map_hw_linear_memory(map_size, *memory_data_size))) {
++            BH_ATOMIC_32_FETCH_ADD(rive_hw_reserves, 1);
++            /* rive: a map that works again lets the next reservation try */
++            rive_hw_failed_at = UINT32_MAX;
++            result = BHT_OK;
++        }
++        else {
++            rive_hw_failed_at = live;
++        }
++    }
++    rive_hw_lock_give();
++    return result;
++}
++#endif
++
++uint32
++wasm_runtime_rive_hw_reserves(void)
++{
++#ifdef RIVE_HW_BOUND_CHECK
++    return BH_ATOMIC_32_LOAD(rive_hw_reserves);
++#else
++    return 0;
++#endif
++}
++
++uint32
++wasm_runtime_rive_limit_hw_reserves(uint32 limit)
++{
++#ifdef RIVE_HW_BOUND_CHECK
++    uint32 previous;
++
++    rive_hw_lock_take();
++    previous = rive_hw_limit();
++    rive_hw_reserve_limit = limit == WASM_RIVE_HW_RESERVES_DEFAULT
++                                ? rive_default_hw_limit()
++                                : limit;
++    rive_hw_lock_give();
++    return previous;
++#else
++    (void)limit;
++    return 0;
++#endif
++}
++
+ static bool
+ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+                              WASMMemoryInstance *memory, uint32 inc_page_count)
+@@ -1589,6 +1788,8 @@ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+ #endif
+ 
+     memory_data_old = memory->memory_data;
++    /* rive patch: a memory reserving the guarded range grows in place */
++    full_size_mmaped |= memory->rive_hw_reserved;
+     total_size_old = memory->memory_data_size;
+ 
+     heap_data_old = memory->heap_data;
+@@ -1941,6 +2142,16 @@ wasm_deallocate_linear_memory(WASMMemoryInstance *memory_inst)
+     uint64 map_size;
+ 
+     bh_assert(memory_inst);
++#ifdef RIVE_HW_BOUND_CHECK
++    if (memory_inst->rive_hw_reserved) {
++        wasm_munmap_linear_memory(memory_inst->memory_data,
++                                  memory_inst->memory_data_size,
++                                  wasm_rive_hw_map_size());
++        BH_ATOMIC_32_FETCH_SUB(rive_hw_reserves, 1);
++        memory_inst->memory_data = NULL;
++        return;
++    }
++#endif
+     bh_assert(memory_inst->memory_data);
+ 
+ #ifndef OS_ENABLE_HW_BOUND_CHECK
+@@ -1959,5 +2170,3 @@ wasm_deallocate_linear_memory(WASMMemoryInstance *memory_inst)
+-#else
+-    map_size = 8 * (uint64)BH_GB;
+ #endif
+ 
+ #if WASM_MEM_ALLOC_WITH_USAGE != 0
+@@ -2005,10 +2214,3 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+-#else  /* else of OS_ENABLE_HW_BOUND_CHECK */
+-    /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
+-     *   ea = i + memarg.offset
+-     * both i and memarg.offset are u32 in range 0 to 4G
+-     * so the range of ea is 0 to 8G
+-     */
+-    map_size = 8 * (uint64)BH_GB;
+ #endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+ 
+     page_size = os_getpagesize();
+diff --git a/core/iwasm/common/wasm_memory.h b/core/iwasm/common/wasm_memory.h
+index 2bd0951..82f06b9 100644
+--- a/core/iwasm/common/wasm_memory.h
++++ b/core/iwasm/common/wasm_memory.h
+@@ -152,6 +152,17 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+                             uint64 init_page_count, uint64 max_page_count,
+                             uint64 *memory_data_size);
+ 
++#ifdef OS_ENABLE_HW_BOUND_CHECK
++/* rive: the address space a hardware bounds memory reserves */
++uint64
++wasm_rive_hw_map_size(void);
++
++int
++wasm_rive_reserve_hw_linear_memory(uint8 **data, uint64 num_bytes_per_page,
++                                   uint64 init_page_count,
++                                   uint64 *memory_data_size);
++#endif
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+index 182d6fd..a9d676f 100644
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -199,4 +199,8 @@ is_sig_addr_in_guard_pages(void *sig_addr, WASMModuleInstance *module_inst)
+-        mapped_mem_end_addr = memory_inst->memory_data + 8 * (uint64)BH_GB;
++        /* rive patch: only a memory reserving the guarded range traps */
++        mapped_mem_end_addr =
++            memory_inst->rive_hw_reserved
++                ? mapped_mem_start_addr + wasm_rive_hw_map_size()
++                : mapped_mem_start_addr;
+         if (mapped_mem_start_addr <= (uint8 *)sig_addr
+             && (uint8 *)sig_addr < mapped_mem_end_addr) {
+             /* The address which causes segmentation fault is inside
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+index 68dfbdd..1e86893 100644
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -2337,10 +2337,28 @@ wasm_runtime_get_module_name(wasm_module_t module);
+    checks only an access whose offset and size pass it */
+ #define WASM_RIVE_HW_GUARD_SIZE (64 * 1024)
+ 
++/* rive: in an instantiate error when no address space was left for it */
++#define WASM_RIVE_HW_RESERVE_FAILED "no address space left for hardware bounds"
++
++/* rive: under an address space limit, what reservations leave free */
++#define WASM_RIVE_HW_RESERVE_MARGIN (2 * 1024 * 1024 * 1024ULL)
++
+ /* rive: whether module's code skips bounds checks, as its artifact says */
+ WASM_RUNTIME_API_EXTERN bool
+ wasm_runtime_rive_module_hw_bounds(wasm_module_t module);
+ 
++/* rive: live hardware bounds reservations */
++WASM_RUNTIME_API_EXTERN uint32_t
++wasm_runtime_rive_hw_reserves(void);
++
++/* rive: what wasm_runtime_rive_limit_hw_reserves takes for the default cap */
++#define WASM_RIVE_HW_RESERVES_DEFAULT UINT32_MAX
++
++/* rive: caps live reservations, by default at half the address space, and
++   returns the cap it replaces */
++WASM_RUNTIME_API_EXTERN uint32_t
++wasm_runtime_rive_limit_hw_reserves(uint32_t limit);
++
+ /*
+  * wasm_runtime_detect_native_stack_overflow
+  *
+diff --git a/core/iwasm/interpreter/wasm_runtime.h b/core/iwasm/interpreter/wasm_runtime.h
+index 6d2e96f..fa0ff8d 100644
+--- a/core/iwasm/interpreter/wasm_runtime.h
++++ b/core/iwasm/interpreter/wasm_runtime.h
+@@ -112,7 +112,12 @@ typedef struct WASMSharedHeap {
+ 
+ struct WASMMemoryInstance {
+     /* Module type */
+-    uint32 module_type;
++    uint16 module_type;
++
++    /* rive: the memory reserves all that unchecked code may reach; bytes
++       from module_type, which nothing reads, so compiled offsets stay */
++    uint8 rive_hw_reserved;
++    uint8 rive_padding;
+ 
+     /* Whether the memory is shared */
+     uint8 is_shared_memory;

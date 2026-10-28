@@ -406,9 +406,9 @@ newoption({
     trigger = 'wasm_hw_bounds',
     description = 'WAMR hardware bounds checks for compiled AnimaScript '
         .. 'modules on platforms where they are not the default (the '
-        .. 'default on 64-bit macOS and Linux). 64-bit only: reserves 8GB '
-        .. 'address space per module memory and installs a SIGSEGV/SIGBUS '
-        .. 'handler.',
+        .. 'default on 64-bit macOS and Linux). 64-bit only: reserves 4GB '
+        .. 'and a 64KB guard of address space per compiled module memory '
+        .. 'and installs a SIGSEGV/SIGBUS handler.',
 })
 
 newoption({

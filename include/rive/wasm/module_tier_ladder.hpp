@@ -33,8 +33,8 @@ enum class TierSpecies : uint8_t
 {
   o0 = 0, // wamrc -O0: ~2x interp, sub-second for typical modules
   o3 = 1, // wamrc top opt level with sw bounds, runs on every build
-  // No inline bounds checks; needs the guard-page trap handler, so only
-  // RIVE_WASM_HW_BOUNDS builds produce or load these.
+  // Unchecked up to the guard past 4 GB; needs the guard-page trap handler,
+  // so only RIVE_WASM_HW_BOUNDS builds produce or load these.
   hw = 2,
 };
 
@@ -67,6 +67,10 @@ struct TierCompile
 // The absolute path of the binary holding the ladder, whose stat keys
 // rejected markers, or empty where the platform cannot say.
 std::string loaderBinaryPath();
+
+// The wamrc flag for the guard our runtime reserves past 4 GB, which only a
+// wamrc whose artifacts our loader accepts takes.
+std::string wamrcHwGuardFlag();
 
 // Drives wamrc subprocesses that turn wasm modules into AOT artifacts.
 // File-in/file-out, no IPC: compile crashes and LLVM's RSS stay in the
@@ -181,9 +185,11 @@ private:
   bool m_compileOnBoot = false;
   // Stale key dirs were swept since the last configure.
   bool m_pruned = false;
-  // The wamrc accepts our --rive-interrupt flag; true on platforms that
-  // cannot probe.
+  // The wamrc accepts our --rive-interrupt and guard flags; true on
+  // platforms that cannot probe.
   bool m_wamrcUsable = true;
+  // Why it does not, as a log line names it.
+  std::string m_wamrcProblem;
   // The wamrc takes --tune-cpu; older builds compile untuned.
   bool m_wamrcTunes = false;
   // compileSync jobs with a cancel flag, which cancelCompiles kills.

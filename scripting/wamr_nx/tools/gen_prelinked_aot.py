@@ -34,6 +34,9 @@ WAMRC_FLAGS = [
     "--opt-level=1",
     # Loop back-edges and call sites check the watchdog's terminate flag.
     "--rive-interrupt",
+    # Only a wamrc whose artifacts record their bounds takes it, so an older
+    # one fails here rather than the runtime refusing its bake.
+    "--rive-hw-guard=65536",
 ]
 
 

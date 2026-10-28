@@ -519,6 +519,12 @@ public:
     aotO3 = 2,
   };
   ExecutionTier executionTier() const { return m_tier; }
+  /// Whether the module runs code that leaves its bounds to guard pages.
+#ifndef __EMSCRIPTEN__
+  bool hardwareBounds() const;
+#else
+  bool hardwareBounds() const { return false; }
+#endif
   /// How a host's log names a tier, with why it is the interpreter.
   static std::string tierName(
       ExecutionTier tier,
@@ -532,7 +538,19 @@ public:
       Span<const uint8_t> bytes,
       ExecutionTier& tier,
       std::string& interpReason,
-      std::string& error);
+      std::string& error,
+      bool checkedBounds = false);
+  /// For an instance that found no address space to reserve for its
+  /// hardware bounds memory: the module on code that checks its bounds.
+  static std::shared_ptr<void> loadFallbackModule(
+      Span<const uint8_t> bytes,
+      const char* what,
+      ExecutionTier& tier,
+      std::string& interpReason);
+  /// The wasm behind a module whose code skips bounds checks, kept once per
+  /// loaded module for loadFallbackModule; empty for any other.
+  static Span<const uint8_t> hardwareBoundsWasm(
+      const std::shared_ptr<void>& lease);
   /// How many modules nothing leases stay loaded for a later load of the
   /// same bytes; a load past it unloads the least recently leased.
   static constexpr size_t kIdleModules = 8;

@@ -655,6 +655,14 @@ ScriptingLimits& limitsSlot()
 void ScriptingLimits::set(const ScriptingLimits& limits)
 {
   std::lock_guard<std::mutex> lock(limitsMutex());
+#ifndef __EMSCRIPTEN__
+  static_assert(kHardwareBoundsDefault == WASM_RIVE_HW_RESERVES_DEFAULT);
+  // Only a change applies, so setting other limits keeps a cap set in WAMR.
+  if (limits.hardwareBoundsMemories != limitsSlot().hardwareBoundsMemories)
+  {
+    wasm_runtime_rive_limit_hw_reserves(limits.hardwareBoundsMemories);
+  }
+#endif
   limitsSlot() = limits;
 }
 
@@ -887,6 +895,18 @@ bool WasmLane::instantiate(uint32_t stackBytes)
       0,
       error,
       sizeof(error));
+  if (inst == nullptr && strstr(error, WASM_RIVE_HW_RESERVE_FAILED) != nullptr)
+  {
+    if (void* checked = m_module->fallbackModule(laneSpec(m_kind).module))
+    {
+      inst = wasm_runtime_instantiate(
+          (wasm_module_t)checked,
+          stackBytes,
+          0,
+          error,
+          sizeof(error));
+    }
+  }
   wasm_exec_env_t env = inst != nullptr
                             ? wasm_runtime_create_exec_env(inst, stackBytes)
                             : nullptr;
@@ -1055,6 +1075,40 @@ void WasmLaneModule::park(Instance instance)
 {
   std::lock_guard<std::mutex> lock(m_parkedMutex);
   m_parked.push_back(instance);
+}
+
+void* WasmLaneModule::fallbackModule(const char* what)
+{
+  std::lock_guard<std::mutex> lock(m_fallbackMutex);
+  if (m_fallback != nullptr)
+  {
+    return m_fallback.get();
+  }
+  Span<const uint8_t> wasm = WasmScriptingVM::hardwareBoundsWasm(module);
+  if (wasm.empty())
+  {
+    return nullptr;
+  }
+  WasmScriptingVM::ExecutionTier fallbackTier;
+  std::string interpReason;
+  m_fallback = WasmScriptingVM::loadFallbackModule(
+      wasm,
+      what,
+      fallbackTier,
+      interpReason);
+  if (m_fallback != nullptr)
+  {
+    m_fallbackTier = WasmScriptingVM::tierName(fallbackTier, interpReason);
+    m_fallbackCompiled = fallbackTier != WasmScriptingVM::ExecutionTier::interp;
+    m_fellBack.store(true, std::memory_order_release);
+  }
+  return m_fallback.get();
+}
+
+bool WasmLaneModule::hardwareBounds() const
+{
+  return !m_fellBack.load(std::memory_order_acquire) &&
+         wasm_runtime_rive_module_hw_bounds((wasm_module_t)module.get());
 }
 
 WasmLaneModule::Instance WasmLaneModule::unpark()
