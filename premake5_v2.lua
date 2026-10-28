@@ -40,18 +40,25 @@ end
 -- WAMR has no emscripten platform layer. On the web script modules run on
 -- the browser's own wasm engine, so the backend stays on and only WAMR is out.
 local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
--- Global so premake5_wamr.lua and test harnesses agree. Windows, Android and
--- iOS wait on the fixes listed in the rasc site's execution-lanes page.
+-- Consoles build from a Windows host, where os.target() says windows. The
+-- Xbox and PlayStation packages set _console_only_ore_vk, Nintendo's
+-- _nx_platform.
+local consoleTarget = _OPTIONS['_nx_platform'] ~= nil
+    or _OPTIONS['_console_only_ore_vk'] ~= nil
+-- Global so premake5_wamr.lua and test harnesses agree. Windows on Arm,
+-- Android and iOS wait on what the rasc site's execution-lanes page lists.
 wasmHwBounds = wamrBuildable
     and _OPTIONS['with_rive_scripting'] ~= nil
     and (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
     and not _OPTIONS['wasm_sw_bounds']
     and (
         _OPTIONS['wasm_hw_bounds'] ~= nil
-        or (rive_target_os == 'macosx' or rive_target_os == 'linux')
-            and _OPTIONS['_nx_platform'] == nil
+        or (rive_target_os == 'macosx' or rive_target_os == 'linux' or rive_target_os == 'windows')
+            and not consoleTarget
             and _OPTIONS['arch'] ~= 'x86'
             and _OPTIONS['arch'] ~= 'arm'
+            -- Windows on Arm traps the same way, but nothing has run it yet.
+            and not (rive_target_os == 'windows' and _OPTIONS['arch'] == 'arm64')
     )
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
@@ -406,9 +413,10 @@ newoption({
     trigger = 'wasm_hw_bounds',
     description = 'WAMR hardware bounds checks for compiled AnimaScript '
         .. 'modules on platforms where they are not the default (the '
-        .. 'default on 64-bit macOS and Linux). 64-bit only: reserves 4GB '
-        .. 'and a 64KB guard of address space per compiled module memory '
-        .. 'and installs a SIGSEGV/SIGBUS handler.',
+        .. 'default on 64-bit macOS and Linux and x64 Windows). 64-bit '
+        .. 'only: reserves 4GB and a 64KB guard of address space per compiled '
+        .. 'module memory and installs a SIGSEGV/SIGBUS handler, or a '
+        .. 'vectored exception handler on Windows.',
 })
 
 newoption({

@@ -129,10 +129,14 @@ do
         links({ 'dl', 'pthread' })
     end
     -- Catch2 puts its own SIGSEGV handler over WAMR's for every test without
-    -- chaining, and Linux raises guard page traps as SIGSEGV.
+    -- chaining, and Linux raises guard page traps as SIGSEGV. On Windows its
+    -- vectored handler goes in front of WAMR's and fails on any access
+    -- violation.
     if wasmHwBounds then
         filter('system:linux')
         defines({ 'CATCH_CONFIG_NO_POSIX_SIGNALS' })
+        filter('system:windows')
+        defines({ 'CATCH_CONFIG_NO_WINDOWS_SEH' })
     end
     filter({ 'options:not no-harfbuzz-renames' })
     do

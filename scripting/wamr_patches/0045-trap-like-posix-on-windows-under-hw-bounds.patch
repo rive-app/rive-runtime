@@ -1,0 +1,859 @@
+From: rive
+Subject: [PATCH 0045] trap like posix on Windows under hw bounds, and pass
+ crashes in natives on
+
+WAMR's Windows exception handler skipped the faulting instruction, decoded
+with Zydis, and let the function run on, so an out of bounds access under
+hardware bounds read garbage or wrote nowhere and the call carried on. It
+could only decode x86-64, and the interpreter relied on a __try that also
+took faults outside wasm from the host's crash reporter.
+
+A call into wasm now goes through os_call_trapping, a small assembly thunk
+that keeps the callee saved registers in its own frame, and the callee saved
+floating point control, MXCSR and the x87 control word or FPCR, in its
+buffer. A trap points the faulting thread at the return of the thunk's call
+with that control and resumes it, so the call fails with the trap and
+returns to its caller as the posix handler's longjmp makes it. The thunk has
+an x64 and an arm64 form, and nothing decodes instructions. Nothing unwinds
+through compiled code, which has no unwind info, and the resume address is
+on the shadow stack, which CET checks a resumed context against. A longjmp
+from the handler fails with STATUS_BAD_FUNCTION_TABLE, and resuming at a
+setjmp site fails under CET once a binary carries EH continuation metadata.
+
+The handler is added once for the process, as Windows calls it for every
+thread, and removed by its handle. It looks only at access violations, and
+at stack overflows when stack checks are hardware ones, whose guard page a
+trapped call now resets.
+
+A crash in a native called from wasm never reached a crash reporter that
+takes unhandled exceptions, in either bounds mode: the SEH walk stopped at
+invokeNative and at compiled code, which have no unwind info, so the thread
+start's filter never ran and the process died. invokeNative now has unwind
+info, and on x64 each module's code gets a function table whose handler
+passes such a crash to the unhandled exception filter itself.
+
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -4511,6 +4511,94 @@ fail:
+     return false;
+ }
+ 
++#if defined(BH_PLATFORM_WINDOWS) \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++/* rive patch: compiled code has no unwind info, so the SEH walk for a crash
++   in a native it called stopped at its frames, short of the unhandled
++   exception filter crash reporters set. Its frames now hand such a crash to
++   that filter, as the thread's start would. */
++static EXCEPTION_DISPOSITION
++aot_code_exception_handler(EXCEPTION_RECORD *record, ULONG64 frame,
++                           CONTEXT *context, void *dispatcher)
++{
++    EXCEPTION_POINTERS pointers = { record, context };
++
++    (void)frame;
++    (void)dispatcher;
++    if (record->ExceptionFlags & EXCEPTION_UNWIND)
++        return ExceptionContinueSearch;
++    switch (UnhandledExceptionFilter(&pointers)) {
++        case EXCEPTION_CONTINUE_EXECUTION:
++            return ExceptionContinueExecution;
++        case EXCEPTION_EXECUTE_HANDLER:
++            TerminateProcess(GetCurrentProcess(), record->ExceptionCode);
++            break;
++        default:
++            break;
++    }
++    return ExceptionContinueSearch;
++}
++
++/* Unwind info naming that handler, and a jump to it, below 4GB with the
++   code, as a function table reaches both by 32 bit addresses */
++static uint8 *aot_code_unwind_info = NULL;
++static INIT_ONCE aot_code_unwind_once = INIT_ONCE_STATIC_INIT;
++
++static BOOL CALLBACK
++create_aot_code_unwind_info(PINIT_ONCE once, PVOID param, PVOID *context)
++{
++    uint32 page_size = os_getpagesize();
++    uint8 *page = os_mmap(NULL, page_size,
++                          MMAP_PROT_READ | MMAP_PROT_WRITE | MMAP_PROT_EXEC,
++                          MMAP_MAP_32BIT, os_get_invalid_handle());
++    uint64 handler = (uint64)(uintptr_t)aot_code_exception_handler;
++    uint32 thunk = (uint32)(uintptr_t)(page + 16);
++    DWORD old_protect;
++
++    (void)once;
++    (void)param;
++    (void)context;
++    if (!page)
++        return FALSE;
++    if ((uintptr_t)page + page_size > UINT32_MAX) {
++        os_munmap(page, page_size);
++        return FALSE;
++    }
++    /* Version 1 with a handler, no prologue or unwind codes */
++    page[0] = 1 | (UNW_FLAG_EHANDLER << 3);
++    bh_memcpy_s(page + 4, 4, &thunk, 4);
++    /* mov rax, handler; jmp rax */
++    page[16] = 0x48;
++    page[17] = 0xb8;
++    bh_memcpy_s(page + 18, 8, &handler, 8);
++    page[26] = 0xff;
++    page[27] = 0xe0;
++    VirtualProtect(page, page_size, PAGE_EXECUTE_READ, &old_protect);
++    aot_code_unwind_info = page;
++    return TRUE;
++}
++
++static void
++add_code_function_table(AOTModule *module)
++{
++    RUNTIME_FUNCTION *table;
++    uintptr_t code = (uintptr_t)module->code;
++
++    if (!code || code + module->code_size > UINT32_MAX
++        || !InitOnceExecuteOnce(&aot_code_unwind_once,
++                                create_aot_code_unwind_info, NULL, NULL)
++        || !(table = wasm_runtime_malloc(sizeof(RUNTIME_FUNCTION))))
++        return;
++    table->BeginAddress = (DWORD)code;
++    table->EndAddress = (DWORD)(code + module->code_size);
++    table->UnwindData = (DWORD)(uintptr_t)aot_code_unwind_info;
++    if (RtlAddFunctionTable(table, 1, 0))
++        module->rive_code_function_table = table;
++    else
++        wasm_runtime_free(table);
++}
++#endif
++
+ AOTModule *
+ aot_load_from_aot_file(const uint8 *buf, uint32 size, const LoadArgs *args,
+                        char *error_buf, uint32 error_buf_size)
+@@ -4536,6 +4624,11 @@ aot_load_from_aot_file(const uint8 *buf, uint32 size, const LoadArgs *args,
+     }
+ #endif /* WASM_ENABLE_AOT_VALIDATOR != 0 */
+ 
++#if defined(BH_PLATFORM_WINDOWS) \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++    add_code_function_table(module);
++#endif
++
+     LOG_VERBOSE("Load module success.\n");
+     return module;
+ }
+@@ -4638,6 +4731,14 @@ aot_unload(AOTModule *module)
+     }
+ #endif
+ 
++#if defined(BH_PLATFORM_WINDOWS) \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++    if (module->rive_code_function_table) {
++        RtlDeleteFunctionTable(module->rive_code_function_table);
++        wasm_runtime_free(module->rive_code_function_table);
++    }
++#endif
++
+     if (module->code && !module->is_indirect_mode
+         && !module->merged_data_text_sections) {
+         /* The layout is: literal size + literal + code (with plt table) */
+--- a/core/iwasm/aot/aot_runtime.c
++++ b/core/iwasm/aot/aot_runtime.c
+@@ -2421,6 +2421,44 @@ aot_lookup_function(const AOTModuleInstance *module_inst, const char *name)
+ }
+ 
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
++/* rive patch: a function, so os_call_trapping can make it on Windows */
++typedef struct InvokeNativeCall {
++    WASMExecEnv *exec_env;
++    void *func_ptr;
++    const WASMFuncType *func_type;
++    const char *signature;
++    void *attachment;
++    uint32 *argv;
++    uint32 argc;
++    uint32 *argv_ret;
++    bool ret;
++} InvokeNativeCall;
++
++static void
++invoke_native_call(void *data)
++{
++    InvokeNativeCall *call = data;
++    WASMExecEnv *exec_env = call->exec_env;
++
++#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
++    /* Quick call if the quick aot entry is registered */
++    if (!call->signature && call->func_type->quick_aot_entry) {
++        void (*invoke_native)(void *func_ptr, void *exec_env, uint32 *argv,
++                              uint32 *argv_ret) =
++            call->func_type->quick_aot_entry;
++        exec_env->attachment = call->attachment;
++        invoke_native(call->func_ptr, exec_env, call->argv, call->argv_ret);
++        exec_env->attachment = NULL;
++        call->ret = !aot_copy_exception(
++            (AOTModuleInstance *)exec_env->module_inst, NULL);
++        return;
++    }
++#endif
++    call->ret = wasm_runtime_invoke_native(
++        exec_env, call->func_ptr, call->func_type, call->signature,
++        call->attachment, call->argv, call->argc, call->argv_ret);
++}
++
+ static bool
+ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+                                   const WASMFuncType *func_type,
+@@ -2430,9 +2468,10 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+     AOTModuleInstance *module_inst = (AOTModuleInstance *)exec_env->module_inst;
+     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
+     WASMJmpBuf jmpbuf_node = { 0 }, *jmpbuf_node_pop;
+-#ifdef BH_PLATFORM_WINDOWS
++    InvokeNativeCall call = { exec_env,   func_ptr, func_type, signature,
++                              attachment, argv,     argc,      argv_ret };
++#if defined(BH_PLATFORM_WINDOWS) && WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+     int result;
+-    bool has_exception;
+     char exception[EXCEPTION_BUF_LEN];
+ #endif
+     bool ret;
+@@ -2459,39 +2498,29 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
+     wasm_runtime_set_exec_env_tls(exec_env);
+     wasm_exec_env_push_jmpbuf(exec_env, &jmpbuf_node);
+ 
+-    if (os_setjmp(jmpbuf_node.jmpbuf) == 0) {
+-#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
+-        /* Quick call if the quick aot entry is registered */
+-        if (!signature && func_type->quick_aot_entry) {
+-            void (*invoke_native)(void *func_ptr, void *exec_env, uint32 *argv,
+-                                  uint32 *argv_ret) =
+-                func_type->quick_aot_entry;
+-            exec_env->attachment = attachment;
+-            invoke_native(func_ptr, exec_env, argv, argv_ret);
+-            exec_env->attachment = NULL;
+-            ret = !aot_copy_exception(module_inst, NULL);
+-        }
+-        else
+-#endif
+-        {
+-            ret = wasm_runtime_invoke_native(exec_env, func_ptr, func_type,
+-                                             signature, attachment, argv, argc,
+-                                             argv_ret);
+-        }
+ #ifdef BH_PLATFORM_WINDOWS
+-        has_exception = aot_copy_exception(module_inst, exception);
+-        if (has_exception && strstr(exception, "native stack overflow")) {
+-            /* After a stack overflow, the stack was left
+-               in a damaged state, let the CRT repair it */
+-            result = _resetstkoflw();
+-            bh_assert(result != 0);
+-        }
++    /* rive patch: a trap returns here as on posix */
++    ret = os_call_trapping(&jmpbuf_node.jmpbuf, invoke_native_call, &call) == 0
++          && call.ret;
++#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
++    if (!ret && aot_copy_exception(module_inst, exception)
++        && strstr(exception, "native stack overflow")) {
++        /* After a stack overflow, the stack was left
++           in a damaged state, let the CRT repair it */
++        result = _resetstkoflw();
++        bh_assert(result != 0);
++    }
+ #endif
++#else
++    if (os_setjmp(jmpbuf_node.jmpbuf) == 0) {
++        invoke_native_call(&call);
++        ret = call.ret;
+     }
+     else {
+         /* Exception has been set in signal handler before calling longjmp */
+         ret = false;
+     }
++#endif
+ 
+     jmpbuf_node_pop = wasm_exec_env_pop_jmpbuf(exec_env);
+     bh_assert(&jmpbuf_node == jmpbuf_node_pop);
+--- a/core/iwasm/aot/aot_runtime.h
++++ b/core/iwasm/aot/aot_runtime.h
+@@ -366,6 +366,11 @@ typedef struct AOTModule {
+ #if WASM_ENABLE_AOT_STACK_FRAME != 0
+     uint32 feature_flags;
+ #endif
++
++#ifdef BH_PLATFORM_WINDOWS
++    /* rive patch: the function table over the code, see aot_loader.c */
++    void *rive_code_function_table;
++#endif
+ } AOTModule;
+ 
+ #define AOTMemoryInstance WASMMemoryInstance
+--- a/core/iwasm/common/arch/invokeNative_mingw_x64_simd.s
++++ b/core/iwasm/common/arch/invokeNative_mingw_x64_simd.s
+@@ -5,13 +5,19 @@
+ .align 2
+ .globl invokeNative
+ invokeNative:
++# rive patch: unwind info, without which a crash in a native stops the SEH
++# walk here, short of the host's crash reporter
++.seh_proc invokeNative
+ 
+     # %rcx func_ptr
+     # %rdx argv
+     # %r8 n_stacks
+ 
+     push %rbp
++.seh_pushreg %rbp
+     mov %rsp, %rbp
++.seh_setframe %rbp, 0
++.seh_endprologue
+ 
+     mov %rcx, %r10    # func_ptr
+     mov %rdx, %rax    # argv
+@@ -55,3 +61,4 @@ cycle_end:
+     call *%r10
+     leave
+     ret
++.seh_endproc
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -270,148 +270,56 @@ runtime_signal_handler(void *sig_addr)
+ }
+ #else /* else of BH_PLATFORM_WINDOWS */
+ 
+-#if WASM_ENABLE_AOT != 0
+-#include <Zydis/Zydis.h>
+-
+-static uint32
+-decode_insn(uint8 *insn)
+-{
+-    uint8 *data = (uint8 *)insn;
+-    uint32 length = 32; /* reserve enough size */
+-
+-    /* Initialize decoder context */
+-    ZydisDecoder decoder;
+-    ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64,
+-                     ZYDIS_STACK_WIDTH_64);
+-
+-    /* Initialize formatter */
+-    ZydisFormatter formatter;
+-    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+-
+-    /* Loop over the instructions in our buffer */
+-    ZyanU64 runtime_address = (ZyanU64)(uintptr_t)data;
+-    ZyanUSize offset = 0;
+-    ZydisDecodedInstruction instruction;
+-    ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT_VISIBLE];
+-    char buffer[256];
+-
+-    if (ZYAN_SUCCESS(ZydisDecoderDecodeFull(
+-            &decoder, data + offset, length - offset, &instruction, operands,
+-            ZYDIS_MAX_OPERAND_COUNT_VISIBLE,
+-            ZYDIS_DFLAG_VISIBLE_OPERANDS_ONLY))) {
++/* rive patch: one for the process, as every thread's faults reach it */
++static PVOID runtime_exception_handler_handle = NULL;
+ 
+-        /* Format & print the binary instruction structure to
+-           human readable format */
+-        ZydisFormatterFormatInstruction(&formatter, &instruction, operands,
+-                                        instruction.operand_count_visible,
+-                                        buffer, sizeof(buffer),
+-                                        runtime_address);
+-
+-#if 0
+-        /* Print current instruction */
+-        os_printf("%012" PRIX64 "  ", runtime_address);
+-        puts(buffer);
+-#endif
+-
+-        return instruction.length;
+-    }
+-
+-    /* Decode failed */
+-    return 0;
+-}
+-#endif /* end of WASM_ENABLE_AOT != 0 */
+-
+-static LONG
+-next_action(WASMModuleInstance *module_inst, EXCEPTION_POINTERS *exce_info)
+-{
+-#if WASM_ENABLE_AOT != 0
+-    uint32 insn_size;
+-#endif
+-
+-    if (module_inst->module_type == Wasm_Module_Bytecode
+-        && module_inst->e->running_mode == Mode_Interp) {
+-        /* Continue to search next exception handler for
+-           interpreter mode as it can be caught by
+-           `__try { .. } __except { .. }` sentences in
+-           wasm_runtime.c */
+-        return EXCEPTION_CONTINUE_SEARCH;
+-    }
+-
+-#if WASM_ENABLE_AOT != 0
+-    /* Skip current instruction and continue to run for AOT/JIT mode.
+-       TODO: implement unwind support for AOT/JIT code in Windows platform */
+-    insn_size = decode_insn((uint8 *)exce_info->ContextRecord->Rip);
+-    if (insn_size > 0) {
+-        exce_info->ContextRecord->Rip += insn_size;
+-        return EXCEPTION_CONTINUE_EXECUTION;
+-    }
+-#endif
+-
+-    /* return different value from EXCEPTION_CONTINUE_SEARCH (= 0)
+-       and EXCEPTION_CONTINUE_EXECUTION (= -1) */
+-    return -2;
+-}
+-
+-static LONG
++/* rive patch: a trap ends the innermost call as the posix handler's longjmp
++   does, where this skipped the faulting x86-64 instruction and ran on */
++static LONG CALLBACK
+ runtime_exception_handler(EXCEPTION_POINTERS *exce_info)
+ {
+     PEXCEPTION_RECORD ExceptionRecord = exce_info->ExceptionRecord;
+-    uint8 *sig_addr = (uint8 *)ExceptionRecord->ExceptionInformation[1];
++    DWORD code = ExceptionRecord->ExceptionCode;
+     WASMModuleInstance *module_inst;
+     WASMJmpBuf *jmpbuf_node;
+-    uint8 *mapped_mem_start_addr = NULL;
+-    uint8 *mapped_mem_end_addr = NULL;
++    uint8 *sig_addr;
+     uint32 page_size = os_getpagesize();
+-    LONG ret;
+ 
+-    if (exec_env_tls && exec_env_tls->handle == os_self_thread()
+-        && (jmpbuf_node = exec_env_tls->jmpbuf_stack_top)) {
+-        module_inst = (WASMModuleInstance *)exec_env_tls->module_inst;
+-        if (ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+-            if (is_sig_addr_in_guard_pages(sig_addr, module_inst)) {
+-                /* The address which causes segmentation fault is inside
+-                   the memory instance's guard regions.
+-                   Set exception and let the wasm func continue to run, when
+-                   the wasm func returns, the caller will check whether the
+-                   exception is thrown and return to runtime. */
+-                wasm_set_exception(module_inst, "out of bounds memory access");
+-                ret = next_action(module_inst, exce_info);
+-                if (ret == EXCEPTION_CONTINUE_SEARCH
+-                    || ret == EXCEPTION_CONTINUE_EXECUTION)
+-                    return ret;
+-            }
+-            else if (exec_env_tls->exce_check_guard_page <= (uint8 *)sig_addr
+-                     && (uint8 *)sig_addr
+-                            < exec_env_tls->exce_check_guard_page + page_size) {
+-                bh_assert(wasm_copy_exception(module_inst, NULL));
+-                ret = next_action(module_inst, exce_info);
+-                if (ret == EXCEPTION_CONTINUE_SEARCH
+-                    || ret == EXCEPTION_CONTINUE_EXECUTION)
+-                    return ret;
+-            }
+-        }
++    /* Every exception the process raises comes here first */
++    if (code != EXCEPTION_ACCESS_VIOLATION
+ #if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+-        else if (ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) {
+-            /* Set stack overflow exception and let the wasm func continue
+-               to run, when the wasm func returns, the caller will check
+-               whether the exception is thrown and return to runtime, and
+-               the damaged stack will be recovered by _resetstkoflw(). */
+-            wasm_set_exception(module_inst, "native stack overflow");
+-            ret = next_action(module_inst, exce_info);
+-            if (ret == EXCEPTION_CONTINUE_SEARCH
+-                || ret == EXCEPTION_CONTINUE_EXECUTION)
+-                return ret;
+-        }
++        && code != EXCEPTION_STACK_OVERFLOW
+ #endif
++    )
++        return EXCEPTION_CONTINUE_SEARCH;
++
++    if (!exec_env_tls || exec_env_tls->handle != os_self_thread()
++        || !(jmpbuf_node = exec_env_tls->jmpbuf_stack_top))
++        return EXCEPTION_CONTINUE_SEARCH;
++
++    module_inst = (WASMModuleInstance *)exec_env_tls->module_inst;
++    if (code == EXCEPTION_ACCESS_VIOLATION) {
++        sig_addr = (uint8 *)ExceptionRecord->ExceptionInformation[1];
++        if (is_sig_addr_in_guard_pages(sig_addr, module_inst)) {
++            wasm_set_exception(module_inst, "out of bounds memory access");
++        }
++        else if (exec_env_tls->exce_check_guard_page <= sig_addr
++                 && sig_addr
++                        < exec_env_tls->exce_check_guard_page + page_size) {
++            bh_assert(wasm_copy_exception(module_inst, NULL));
++        }
+         else {
+-            LOG_WARNING("Unhandled exception thrown:  exception code: 0x%lx, "
+-                        "exception address: %p, exception information: %p\n",
+-                        ExceptionRecord->ExceptionCode,
+-                        ExceptionRecord->ExceptionAddress, sig_addr);
++            return EXCEPTION_CONTINUE_SEARCH;
+         }
+     }
++#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
++    else {
++        wasm_set_exception(module_inst, "native stack overflow");
++    }
++#endif
+ 
+-    return EXCEPTION_CONTINUE_SEARCH;
++    os_resume_trapped(exce_info->ContextRecord, &jmpbuf_node->jmpbuf);
++    return EXCEPTION_CONTINUE_EXECUTION;
+ }
+ #endif /* end of BH_PLATFORM_WINDOWS */
+ 
+@@ -424,7 +332,11 @@ runtime_signal_init()
+     if (os_thread_signal_init() != 0)
+         return false;
+ 
+-    if (!AddVectoredExceptionHandler(1, runtime_exception_handler)) {
++    /* rive patch: once, by the runtime's init, which comes before any
++       thread's */
++    if (!runtime_exception_handler_handle
++        && !(runtime_exception_handler_handle =
++                 AddVectoredExceptionHandler(1, runtime_exception_handler))) {
+         os_thread_signal_destroy();
+         return false;
+     }
+@@ -436,7 +348,11 @@ static void
+ runtime_signal_destroy()
+ {
+ #ifdef BH_PLATFORM_WINDOWS
+-    RemoveVectoredExceptionHandler(runtime_exception_handler);
++    /* rive patch: by the handle, not the function */
++    if (runtime_exception_handler_handle) {
++        RemoveVectoredExceptionHandler(runtime_exception_handler_handle);
++        runtime_exception_handler_handle = NULL;
++    }
+ #endif
+     os_thread_signal_destroy();
+ }
+@@ -1866,7 +1782,8 @@ void
+ wasm_runtime_destroy_thread_env(void)
+ {
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+-    runtime_signal_destroy();
++    /* rive patch: the handler is the process's */
++    os_thread_signal_destroy();
+ #endif
+ 
+ #ifdef BH_PLATFORM_WINDOWS
+--- a/core/iwasm/interpreter/wasm_runtime.c
++++ b/core/iwasm/interpreter/wasm_runtime.c
+@@ -3582,6 +3582,25 @@ wasm_lookup_tag(const WASMModuleInstance *module_inst, const char *name,
+ #endif
+ 
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
++#ifdef BH_PLATFORM_WINDOWS
++/* rive patch: a function, so os_call_trapping can make the call */
++typedef struct InterpCall {
++    WASMModuleInstance *module_inst;
++    WASMExecEnv *exec_env;
++    WASMFunctionInstance *function;
++    unsigned argc;
++    uint32 *argv;
++} InterpCall;
++
++static void
++interp_call(void *data)
++{
++    InterpCall *call = data;
++    wasm_interp_call_wasm(call->module_inst, call->exec_env, call->function,
++                          call->argc, call->argv);
++}
++#endif
++
+ static void
+ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+                               WASMExecEnv *exec_env,
+@@ -3593,9 +3612,11 @@ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+     WASMRuntimeFrame *prev_frame = wasm_exec_env_get_cur_frame(exec_env);
+     uint8 *prev_top = exec_env->wasm_stack.top;
+ #ifdef BH_PLATFORM_WINDOWS
++    InterpCall call = { module_inst, exec_env, function, argc, argv };
++#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+     int result;
+-    bool has_exception;
+     char exception[EXCEPTION_BUF_LEN];
++#endif
+ #endif
+     bool ret = true;
+ 
+@@ -3621,31 +3642,28 @@ call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
+     wasm_runtime_set_exec_env_tls(exec_env);
+     wasm_exec_env_push_jmpbuf(exec_env, &jmpbuf_node);
+ 
++#ifdef BH_PLATFORM_WINDOWS
++    /* rive patch: a trap returns here as on posix, with no __try to take
++       faults outside wasm from the host's crash reporter */
++    ret = os_call_trapping(&jmpbuf_node.jmpbuf, interp_call, &call) == 0;
++#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
++    if (!ret && wasm_copy_exception(module_inst, exception)
++        && strstr(exception, "native stack overflow")) {
++        /* After a stack overflow, the stack was left
++           in a damaged state, let the CRT repair it */
++        result = _resetstkoflw();
++        bh_assert(result != 0);
++    }
++#endif
++#else
+     if (os_setjmp(jmpbuf_node.jmpbuf) == 0) {
+-#ifndef BH_PLATFORM_WINDOWS
+         wasm_interp_call_wasm(module_inst, exec_env, function, argc, argv);
+-#else
+-        __try {
+-            wasm_interp_call_wasm(module_inst, exec_env, function, argc, argv);
+-        } __except (wasm_copy_exception(module_inst, NULL)
+-                        ? EXCEPTION_EXECUTE_HANDLER
+-                        : EXCEPTION_CONTINUE_SEARCH) {
+-            /* Exception was thrown in wasm_exception_handler */
+-            ret = false;
+-        }
+-        has_exception = wasm_copy_exception(module_inst, exception);
+-        if (has_exception && strstr(exception, "native stack overflow")) {
+-            /* After a stack overflow, the stack was left
+-               in a damaged state, let the CRT repair it */
+-            result = _resetstkoflw();
+-            bh_assert(result != 0);
+-        }
+-#endif
+     }
+     else {
+         /* Exception has been set in signal handler before calling longjmp */
+         ret = false;
+     }
++#endif
+ 
+     /* Note: can't check wasm_get_exception(module_inst) here, there may be
+      * exception which is not caught by hardware (e.g. uninitialized elements),
+--- a/core/shared/platform/windows/platform_internal.h
++++ b/core/shared/platform/windows/platform_internal.h
+@@ -104,16 +104,29 @@ os_mem_decommit(void *ptr, size_t size);
+ #define strcasecmp _stricmp
+ 
+ #if WASM_DISABLE_HW_BOUND_CHECK == 0
+-#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64)
+-
+-#include <setjmp.h>
++#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
++    || defined(BUILD_TARGET_AARCH64)
+ 
+ #define OS_ENABLE_HW_BOUND_CHECK
+ 
+-typedef jmp_buf korp_jmpbuf;
++/* rive patch: a trap resumes at the return of the call os_call_trapping
++   makes, so the frames it drops need no unwind info */
++typedef struct korp_jmpbuf {
++    void *sp;
++    void *pc;
++    int trapped;
++    /* MXCSR or FPCR, and the x87 control word, which are callee saved */
++    uint32_t fp_control;
++    uint16_t x87_control;
++} korp_jmpbuf;
++
++/* rive patch: calls fn(arg), returning 0, or 1 when a trap ended it */
++int
++os_call_trapping(korp_jmpbuf *buf, void (*fn)(void *), void *arg);
+ 
+-#define os_setjmp setjmp
+-#define os_longjmp longjmp
++/* rive patch: points a faulting thread at the return of buf's call */
++void
++os_resume_trapped(PCONTEXT context, korp_jmpbuf *buf);
+ 
+ int
+ os_thread_signal_init();
+@@ -127,7 +140,7 @@ os_thread_signal_inited();
+ #define os_signal_unmask() (void)0
+ #define os_sigreturn() (void)0
+ 
+-#endif /* end of BUILD_TARGET_X86_64/AMD_64 */
++#endif /* end of BUILD_TARGET_X86_64/AMD_64/AARCH64 */
+ #endif /* end of WASM_DISABLE_HW_BOUND_CHECK */
+ 
+ typedef enum os_memory_order {
+--- a/core/shared/platform/windows/win_thread.c
++++ b/core/shared/platform/windows/win_thread.c
+@@ -867,4 +867,183 @@ os_thread_signal_inited()
+ {
+     return thread_signal_inited;
+ }
++
++/* rive patch: callee saved registers live in this frame, so a trap only
++   moves sp and pc to the call's return, an address CET's shadow stack holds */
++#if !defined(__clang__) && !defined(__GNUC__)
++#error "os_call_trapping needs a compiler with GNU style module assembly"
++#endif
++#if defined(BUILD_TARGET_AARCH64)
++__asm__(".text\n"
++        ".globl os_call_trapping\n"
++        ".def os_call_trapping\n"
++        ".scl 2\n"
++        ".type 32\n"
++        ".endef\n"
++        ".p2align 2\n"
++        "os_call_trapping:\n"
++        ".seh_proc os_call_trapping\n"
++        "stp x29, x30, [sp, #-176]!\n"
++        ".seh_save_fplr_x 176\n"
++        "mov x29, sp\n"
++        ".seh_set_fp\n"
++        "stp x19, x20, [sp, #16]\n"
++        ".seh_save_regp x19, 16\n"
++        "stp x21, x22, [sp, #32]\n"
++        ".seh_save_regp x21, 32\n"
++        "stp x23, x24, [sp, #48]\n"
++        ".seh_save_regp x23, 48\n"
++        "stp x25, x26, [sp, #64]\n"
++        ".seh_save_regp x25, 64\n"
++        "stp x27, x28, [sp, #80]\n"
++        ".seh_save_regp x27, 80\n"
++        "stp d8, d9, [sp, #96]\n"
++        ".seh_save_fregp d8, 96\n"
++        "stp d10, d11, [sp, #112]\n"
++        ".seh_save_fregp d10, 112\n"
++        "stp d12, d13, [sp, #128]\n"
++        ".seh_save_fregp d12, 128\n"
++        "stp d14, d15, [sp, #144]\n"
++        ".seh_save_fregp d14, 144\n"
++        ".seh_endprologue\n"
++        "str wzr, [x0, #16]\n"
++        "mrs x9, fpcr\n"
++        "str w9, [x0, #20]\n"
++        "str x0, [sp, #160]\n"
++        "mov x9, sp\n"
++        "str x9, [x0]\n"
++        "adr x9, 1f\n"
++        "str x9, [x0, #8]\n"
++        "mov x9, x1\n"
++        "mov x0, x2\n"
++        "blr x9\n"
++        "1:\n"
++        "ldr x9, [sp, #160]\n"
++        "ldr w0, [x9, #16]\n"
++        ".seh_startepilogue\n"
++        "ldp d14, d15, [sp, #144]\n"
++        ".seh_save_fregp d14, 144\n"
++        "ldp d12, d13, [sp, #128]\n"
++        ".seh_save_fregp d12, 128\n"
++        "ldp d10, d11, [sp, #112]\n"
++        ".seh_save_fregp d10, 112\n"
++        "ldp d8, d9, [sp, #96]\n"
++        ".seh_save_fregp d8, 96\n"
++        "ldp x27, x28, [sp, #80]\n"
++        ".seh_save_regp x27, 80\n"
++        "ldp x25, x26, [sp, #64]\n"
++        ".seh_save_regp x25, 64\n"
++        "ldp x23, x24, [sp, #48]\n"
++        ".seh_save_regp x23, 48\n"
++        "ldp x21, x22, [sp, #32]\n"
++        ".seh_save_regp x21, 32\n"
++        "ldp x19, x20, [sp, #16]\n"
++        ".seh_save_regp x19, 16\n"
++        "ldp x29, x30, [sp], #176\n"
++        ".seh_save_fplr_x 176\n"
++        ".seh_endepilogue\n"
++        "ret\n"
++        ".seh_endproc\n");
++#else
++__asm__(".att_syntax\n"
++        ".text\n"
++        ".globl os_call_trapping\n"
++        ".def os_call_trapping\n"
++        ".scl 2\n"
++        ".type 32\n"
++        ".endef\n"
++        ".p2align 4\n"
++        "os_call_trapping:\n"
++        ".seh_proc os_call_trapping\n"
++        "pushq %rbp\n"
++        ".seh_pushreg %rbp\n"
++        "pushq %rbx\n"
++        ".seh_pushreg %rbx\n"
++        "pushq %rsi\n"
++        ".seh_pushreg %rsi\n"
++        "pushq %rdi\n"
++        ".seh_pushreg %rdi\n"
++        "pushq %r12\n"
++        ".seh_pushreg %r12\n"
++        "pushq %r13\n"
++        ".seh_pushreg %r13\n"
++        "pushq %r14\n"
++        ".seh_pushreg %r14\n"
++        "pushq %r15\n"
++        ".seh_pushreg %r15\n"
++        "subq $200, %rsp\n"
++        ".seh_stackalloc 200\n"
++        "movdqa %xmm6, 32(%rsp)\n"
++        ".seh_savexmm %xmm6, 32\n"
++        "movdqa %xmm7, 48(%rsp)\n"
++        ".seh_savexmm %xmm7, 48\n"
++        "movdqa %xmm8, 64(%rsp)\n"
++        ".seh_savexmm %xmm8, 64\n"
++        "movdqa %xmm9, 80(%rsp)\n"
++        ".seh_savexmm %xmm9, 80\n"
++        "movdqa %xmm10, 96(%rsp)\n"
++        ".seh_savexmm %xmm10, 96\n"
++        "movdqa %xmm11, 112(%rsp)\n"
++        ".seh_savexmm %xmm11, 112\n"
++        "movdqa %xmm12, 128(%rsp)\n"
++        ".seh_savexmm %xmm12, 128\n"
++        "movdqa %xmm13, 144(%rsp)\n"
++        ".seh_savexmm %xmm13, 144\n"
++        "movdqa %xmm14, 160(%rsp)\n"
++        ".seh_savexmm %xmm14, 160\n"
++        "movdqa %xmm15, 176(%rsp)\n"
++        ".seh_savexmm %xmm15, 176\n"
++        ".seh_endprologue\n"
++        "movl $0, 16(%rcx)\n"
++        "stmxcsr 20(%rcx)\n"
++        "fnstcw 24(%rcx)\n"
++        "movq %rcx, 192(%rsp)\n"
++        "movq %rsp, (%rcx)\n"
++        "leaq 1f(%rip), %rax\n"
++        "movq %rax, 8(%rcx)\n"
++        "movq %rdx, %rax\n"
++        "movq %r8, %rcx\n"
++        "callq *%rax\n"
++        "1:\n"
++        "movq 192(%rsp), %rcx\n"
++        "movl 16(%rcx), %eax\n"
++        "movdqa 32(%rsp), %xmm6\n"
++        "movdqa 48(%rsp), %xmm7\n"
++        "movdqa 64(%rsp), %xmm8\n"
++        "movdqa 80(%rsp), %xmm9\n"
++        "movdqa 96(%rsp), %xmm10\n"
++        "movdqa 112(%rsp), %xmm11\n"
++        "movdqa 128(%rsp), %xmm12\n"
++        "movdqa 144(%rsp), %xmm13\n"
++        "movdqa 160(%rsp), %xmm14\n"
++        "movdqa 176(%rsp), %xmm15\n"
++        "addq $200, %rsp\n"
++        "popq %r15\n"
++        "popq %r14\n"
++        "popq %r13\n"
++        "popq %r12\n"
++        "popq %rdi\n"
++        "popq %rsi\n"
++        "popq %rbx\n"
++        "popq %rbp\n"
++        "retq\n"
++        ".seh_endproc\n");
++#endif
++
++void
++os_resume_trapped(PCONTEXT context, korp_jmpbuf *buf)
++{
++    buf->trapped = 1;
++#if defined(BUILD_TARGET_AARCH64)
++    context->Sp = (DWORD64)buf->sp;
++    context->Pc = (DWORD64)buf->pc;
++    context->Fpcr = buf->fp_control;
++#else
++    context->Rsp = (DWORD64)buf->sp;
++    context->Rip = (DWORD64)buf->pc;
++    context->MxCsr = buf->fp_control;
++    context->FltSave.MxCsr = buf->fp_control;
++    context->FltSave.ControlWord = buf->x87_control;
++#endif
++}
+ #endif
