@@ -2961,7 +2961,9 @@ void paintBlendModeImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t value)
   auto paint = resolvePaint(vm, handle);
   if (paint != nullptr && validBlendMode(vm, value))
   {
+    // As ScriptedPaint::blendMode in the Luau lane: scripts have no amount.
     paint->blendMode((BlendMode)value);
+    paint->additiveness(additivenessFor((BlendMode)value, 255));
   }
 }
 void paintFeatherImpl(WasmScriptingVM* vm, uint32_t handle, float value)
