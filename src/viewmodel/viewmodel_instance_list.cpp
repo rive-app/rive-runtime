@@ -146,29 +146,37 @@ void ViewModelInstanceList::removeAllItems()
 }
 
 void ViewModelInstanceList::removeAllItemsWithViewModelInstance(
-    ViewModelInstance* viewModelInstance)
+    ViewModelInstance* viewModelInstance,
+    std::vector<rcp<ViewModelInstanceListItem>>* removed)
 {
   if (viewModelInstance == nullptr || m_ListItems.empty())
   {
     return;
   }
 
-  bool changed = false;
-  for (auto it = m_ListItems.begin(); it != m_ListItems.end();)
+  // The items kept slide down over the ones taken out, so the pass erases
+  // once at the end instead of shifting the tail for every match.
+  auto kept = m_ListItems.begin();
+  for (auto it = m_ListItems.begin(); it != m_ListItems.end(); ++it)
   {
     if ((*it)->viewModelInstance().get() == viewModelInstance)
     {
-      (*it)->viewModelInstance()->removeParent(parentViewModelInstance());
-      it = m_ListItems.erase(it);
-      changed = true;
+      viewModelInstance->removeParent(parentViewModelInstance());
+      if (removed != nullptr)
+      {
+        removed->push_back(std::move(*it));
+      }
+      continue;
     }
-    else
+    if (kept != it)
     {
-      ++it;
+      *kept = std::move(*it);
     }
+    ++kept;
   }
-  if (changed)
+  if (kept != m_ListItems.end())
   {
+    m_ListItems.erase(kept, m_ListItems.end());
     propertyValueChanged();
   }
 }

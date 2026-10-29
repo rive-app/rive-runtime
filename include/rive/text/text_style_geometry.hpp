@@ -24,7 +24,10 @@ public:
 
   /// Adds a glyph outline drawn at [opacity]. Returns true when it's the
   /// first one since the last [rewind].
-  bool addPath(const RawPath& rawPath, float opacity);
+  bool addPath(
+      const RawPath& rawPath,
+      float opacity,
+      const Mat2D* transform = nullptr);
   void rewind();
 
   bool hasContents() const { return m_hasContents; }

@@ -5,6 +5,7 @@
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
@@ -1979,4 +1980,184 @@ TEST_CASE(
   stateMachine->pointerUp(overRow);
   stateMachine->advanceAndApply(0.016f);
   CHECK(clicked(replacement.get()));
+}
+
+// The row's "Group" layout is right to left, and its children A and B inherit
+// that. A new row hands the direction down the first time it cascades its
+// layout style. If that happens after the host's first layout solve, the
+// frame that adds the row solves the host a second time.
+TEST_CASE(
+    "Component List adds right-to-left rows in one layout pass",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_rtl_row.riv");
+
+  auto artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  for (int i = 0; i < 3; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+    items->addItem(item);
+  }
+  auto passes = rive::Artboard::layoutPassCount();
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(rive::Artboard::layoutPassCount() - passes == 1);
+
+  // Every row is still laid out right to left: A, the first child, sits to
+  // the right of B.
+  REQUIRE(list->artboardCount() == 4);
+  for (int i = 0; i < 4; i++)
+  {
+    auto row = list->artboardInstance(i);
+    REQUIRE(row != nullptr);
+    auto a = row->find<rive::LayoutComponent>("A");
+    auto b = row->find<rive::LayoutComponent>("B");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    CHECK(a->layoutX() == 50.0f);
+    CHECK(b->layoutX() == 0.0f);
+  }
+}
+
+// The list's layout is right to left and the row sets no direction, so every
+// row inherits right to left from it. A's left margin then sits on its right,
+// the edge it starts from. A row added after the first frame has to inherit
+// it too, not only the rows the list had from the start.
+TEST_CASE(
+    "Component List gives a row added later its layout parent's direction",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_rtl_host.riv");
+
+  auto artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+  items->addItem(item);
+  auto passes = rive::Artboard::layoutPassCount();
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(rive::Artboard::layoutPassCount() - passes == 1);
+
+  // Both rows lay out right to left: A (100 wide, 10 margin on its right)
+  // starts at the row's right edge, 300, and B follows it to the left.
+  REQUIRE(list->artboardCount() == 2);
+  for (int i = 0; i < 2; i++)
+  {
+    auto row = list->artboardInstance(i);
+    REQUIRE(row != nullptr);
+    CHECK(row->actualDirection() == rive::LayoutDirection::rtl);
+    auto a = row->find<rive::LayoutComponent>("A");
+    auto b = row->find<rive::LayoutComponent>("B");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    CHECK(a->layoutX() == 190.0f);
+    CHECK(b->layoutX() == 140.0f);
+  }
+}
+
+// Fills a virtualized list with 20 rows and returns how many layout passes its
+// first frame took. Rows are 40 tall in a 200 tall viewport, so five show.
+static uint64_t fillVirtualizedList(
+    rive::File* file,
+    std::unique_ptr<rive::ArtboardInstance>& artboard,
+    std::unique_ptr<rive::StateMachineInstance>& stateMachine)
+{
+  artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  items->removeAllItems();
+  for (int i = 0; i < 20; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+    items->addItem(item);
+  }
+  auto passes = rive::Artboard::layoutPassCount();
+  stateMachine->advanceAndApply(0.016f);
+  return rive::Artboard::layoutPassCount() - passes;
+}
+
+// The rows a virtualized list realizes for its first frame have to inherit
+// their layouts' direction before the solve that first places them, as the
+// rows of a non-virtualized list do. Otherwise right-to-left rows flip their
+// children after that solve, and the host is solved again.
+TEST_CASE(
+    "Component List fills a virtualized list of right-to-left rows without "
+    "extra layout passes",
+    "[component_list]")
+{
+  auto ltrFile = ReadRiveFile("assets/component_list_virtualized_ltr_row.riv");
+  std::unique_ptr<rive::ArtboardInstance> ltrArtboard;
+  std::unique_ptr<rive::StateMachineInstance> ltrStateMachine;
+  auto ltrPasses = fillVirtualizedList(
+      ltrFile.get(),
+      ltrArtboard,
+      ltrStateMachine);
+
+  auto rtlFile = ReadRiveFile("assets/component_list_virtualized_rtl_row.riv");
+  std::unique_ptr<rive::ArtboardInstance> rtlArtboard;
+  std::unique_ptr<rive::StateMachineInstance> rtlStateMachine;
+  auto rtlPasses = fillVirtualizedList(
+      rtlFile.get(),
+      rtlArtboard,
+      rtlStateMachine);
+  CHECK(rtlPasses == ltrPasses);
+
+  // The realized rows lay out right to left: A, the first child, sits to the
+  // right of B.
+  auto list = rtlArtboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  std::vector<int> realized;
+  list->realizedIndices(realized);
+  REQUIRE(realized.size() >= 5);
+  for (int i : realized)
+  {
+    auto row = list->artboardInstance(i);
+    REQUIRE(row != nullptr);
+    auto a = row->find<rive::LayoutComponent>("A");
+    auto b = row->find<rive::LayoutComponent>("B");
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    CHECK(a->layoutX() == 50.0f);
+    CHECK(b->layoutX() == 0.0f);
+  }
 }

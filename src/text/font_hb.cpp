@@ -976,19 +976,31 @@ rive::rcp<rive::Font> HBFont::withOptions(
 
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
 {
+  return glyphPath(glyph);
+}
+
+const rive::RawPath& HBFont::glyphPath(rive::GlyphID glyph) const
+{
   auto cached = m_glyphPathCache.find(glyph);
   if (cached != m_glyphPathCache.end())
   {
     return cached->second;
   }
-  rive::RawPath rpath;
-  hb_font_draw_glyph(m_font, glyph, m_drawFuncs, &rpath);
+  rive::RawPath rpath = drawGlyphPath(glyph);
   constexpr size_t kMaxCachedGlyphPaths = 512;
   if (m_glyphPathCache.size() >= kMaxCachedGlyphPaths)
   {
     m_glyphPathCache.clear();
   }
-  m_glyphPathCache.emplace(glyph, rpath);
+  // The entry stays put until the cache starts over, which only a later
+  // insert does.
+  return m_glyphPathCache.emplace(glyph, std::move(rpath)).first->second;
+}
+
+rive::RawPath HBFont::drawGlyphPath(rive::GlyphID glyph) const
+{
+  rive::RawPath rpath;
+  hb_font_draw_glyph(m_font, glyph, m_drawFuncs, &rpath);
   return rpath;
 }
 

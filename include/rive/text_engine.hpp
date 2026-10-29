@@ -300,6 +300,15 @@ public:
   //
   virtual RawPath getPath(GlyphID) const = 0;
 
+  // The same path as getPath, lent instead of copied. It stays valid until
+  // the next glyphPath or getPath on this font, either of which may replace
+  // it, so use it before asking for another glyph.
+  virtual const RawPath& glyphPath(GlyphID glyph) const
+  {
+    m_lentPath = getPath(glyph);
+    return m_lentPath;
+  }
+
   // Color glyph (emoji) support via COLR/CPAL tables.
 
   // A single layer of a color glyph, with its own path and fill.
@@ -395,6 +404,8 @@ protected:
 private:
   /// The font specified line metrics (automatic line metrics).
   const LineMetrics m_lineMetrics;
+  /// What the default glyphPath lends.
+  mutable RawPath m_lentPath;
 };
 
 // A user defined styling guide for a set of unicode codepoints within a larger

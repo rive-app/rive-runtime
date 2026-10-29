@@ -292,6 +292,10 @@ public:
   // Far from the artboard origin the products cancel into rounding noise,
   // pass an origin near the path to keep them small.
   float computeCoarseArea(Vec2D origin = {0, 0}) const;
+  // The coarse area this path would have transformed by [transform], without
+  // transforming it. A small outline drawn large (a glyph in em units) needs
+  // this: measured untransformed, its curves flatten to their chords.
+  float computeCoarseArea(const Mat2D& transform) const;
 
 private:
   std::vector<Vec2D> m_Points;

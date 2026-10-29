@@ -13,14 +13,32 @@ void TextStyleGeometry::rewind()
   m_opacityPaths.clear();
 }
 
-bool TextStyleGeometry::addPath(const RawPath& rawPath, float opacity)
+bool TextStyleGeometry::addPath(
+    const RawPath& rawPath,
+    float opacity,
+    const Mat2D* transform)
 {
   bool hadContents = m_hasContents;
   m_hasContents = true;
   if (opacity > 0.0f)
   {
+    // Added clockwise, to both paths below: one winding check for both.
+    const bool backwards = (transform == nullptr
+                                ? rawPath.computeCoarseArea()
+                                : rawPath.computeCoarseArea(*transform)) < 0;
+    auto add = [&](ShapePaintPath& path) {
+      if (backwards)
+      {
+        path.addPathBackwards(rawPath, transform);
+      }
+      else
+      {
+        path.addPath(rawPath, transform);
+      }
+    };
+
     // m_path contains everything, so inner feather bounds can work.
-    m_path.addPathClockwise(rawPath);
+    add(m_path);
 
     // Bucket by opacity
     auto itr = m_opacityPaths.find(opacity);
@@ -34,7 +52,7 @@ bool TextStyleGeometry::addPath(const RawPath& rawPath, float opacity)
       m_opacityPaths[opacity] = ShapePaintPath(true, FillRule::clockwise);
       shapePaintPath = &m_opacityPaths.at(opacity);
     }
-    shapePaintPath->addPathClockwise(rawPath);
+    add(*shapePaintPath);
   }
   return !hadContents;
 }

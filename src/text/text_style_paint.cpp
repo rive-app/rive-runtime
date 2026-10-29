@@ -14,9 +14,12 @@ TextStylePaint::TextStylePaint() {}
 
 void TextStylePaint::rewindPath() { m_geometry.rewind(); }
 
-bool TextStylePaint::addPath(const RawPath& rawPath, float opacity)
+bool TextStylePaint::addPath(
+    const RawPath& rawPath,
+    float opacity,
+    const Mat2D* transform)
 {
-  return m_geometry.addPath(rawPath, opacity);
+  return m_geometry.addPath(rawPath, opacity, transform);
 }
 
 void TextStylePaint::draw(Renderer* renderer, const Mat2D& worldTransform)

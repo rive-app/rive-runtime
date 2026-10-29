@@ -1975,6 +1975,26 @@ void ArtboardComponentList::addArtboardAt(
       artboardInstance->frameOrigin(false);
       artboardInstance->parentIsRow(mainAxisIsRow());
       artboardInstance->parentIsStack(isStack());
+#ifdef WITH_RIVE_LAYOUT
+      // Cascade into the new row what its layout parent cascades into the
+      // rows it already has: its layout animation and direction. The parent
+      // only cascades when its own style changes, so a row added later would
+      // otherwise never inherit them. Doing it now, before the row's first
+      // layout solve, also means a row with a right-to-left layout doesn't
+      // flip its children after that solve and have the whole host solved
+      // again. Without a layout parent the row cascades its own style, as
+      // its update would a step later.
+      LayoutComponent* from = layoutParent();
+      if (from == nullptr)
+      {
+        from = artboardInstance;
+      }
+      artboardInstance->cascadeLayoutStyle(
+          from->interpolation(),
+          from->interpolator(),
+          from->interpolationTime(),
+          from->actualDirection());
+#endif
     }
 
     StateMachineInstance* stateMachineInstance = nullptr;

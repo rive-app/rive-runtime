@@ -64,24 +64,15 @@ void ViewModelInstanceListRuntime::removeInstance(
     ViewModelInstanceRuntime* instanceRuntime)
 {
   auto instanceList = m_viewModelInstanceValue->as<ViewModelInstanceList>();
-  auto listItems = instanceList->listItems();
-  // The same instance might be present multiple times in the list
-  std::vector<rcp<ViewModelInstanceListItem>> itemsToRemove;
-  for (auto& item : listItems)
+  // The same instance might be present multiple times in the list; one pass
+  // takes out every item showing it.
+  std::vector<rcp<ViewModelInstanceListItem>> removed;
+  instanceList->removeAllItemsWithViewModelInstance(
+      instanceRuntime->instance().get(),
+      &removed);
+  for (auto& item : removed)
   {
-    if (item->viewModelInstance().get() == instanceRuntime->instance().get())
-    {
-      itemsToRemove.push_back(item);
-    }
-  }
-  for (auto& item : itemsToRemove)
-  {
-    auto it = m_itemsMap.find(item);
-    if (it != m_itemsMap.end())
-    {
-      m_itemsMap.erase(it);
-    }
-    instanceList->removeItem(item);
+    m_itemsMap.erase(item);
   }
 }
 

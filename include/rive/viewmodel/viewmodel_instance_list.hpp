@@ -32,8 +32,11 @@ public:
   rcp<ViewModelInstanceListItem> pop();
   rcp<ViewModelInstanceListItem> shift();
   void removeAllItems();
+  /// Takes out every item showing [viewModelInstance] in one pass, and
+  /// appends them to [removed] when given.
   void removeAllItemsWithViewModelInstance(
-      ViewModelInstance* viewModelInstance);
+      ViewModelInstance* viewModelInstance,
+      std::vector<rcp<ViewModelInstanceListItem>>* removed = nullptr);
   void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
   Core* clone() const override;
   void parentViewModelInstance(ViewModelInstance* parent)

@@ -858,15 +858,15 @@ void Text::buildRenderStyles()
         }
         else
         {
-          RawPath path = font->getPath(glyphId);
-          path.transformInPlace(pathTransform);
+          // Placed as it's added: the font's own outline, not a copy.
+          const RawPath& path = font->glyphPath(glyphId);
 
           if (style->isShared())
           {
             // A paint other Texts draw too: keep this Text's
             // glyphs here, and leave the paint untouched.
             TextStyleGeometry& geometry = sharedGeometry(style);
-            if (geometry.addPath(path, opacity))
+            if (geometry.addPath(path, opacity, &pathTransform))
             {
               TextDrawCommand cmd;
               cmd.type = TextDrawCommand::kStylePath;
@@ -875,7 +875,7 @@ void Text::buildRenderStyles()
               m_drawCommands.push_back(std::move(cmd));
             }
           }
-          else if (style->addPath(path, opacity))
+          else if (style->addPath(path, opacity, &pathTransform))
           {
             // This was the first path added to the style, so
             // let's mark it in our draw list.

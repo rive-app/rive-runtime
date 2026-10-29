@@ -13,7 +13,10 @@ class TextStylePaint : public TextStylePaintBase, public ShapePaintContainer
 {
 public:
   TextStylePaint();
-  bool addPath(const RawPath& rawPath, float opacity);
+  bool addPath(
+      const RawPath& rawPath,
+      float opacity,
+      const Mat2D* transform = nullptr);
   void rewindPath();
   void draw(Renderer* renderer, const Mat2D& worldTransform);
 

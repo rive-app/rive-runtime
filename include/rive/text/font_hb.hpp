@@ -78,6 +78,7 @@ public:
   bool isItalic() const override;
 
   rive::RawPath getPath(rive::GlyphID) const override;
+  const rive::RawPath& glyphPath(rive::GlyphID) const override;
   bool hasColorGlyphs() const override;
   bool isColorGlyph(rive::GlyphID) const override;
   size_t getColorLayers(
@@ -143,6 +144,10 @@ public:
       const rive::TextRun& originalTextRun,
       const uint32_t fallbackIndex);
 
+  // Draws [glyph]'s outline. glyphPath (and getPath) keep what this returns,
+  // so a font that draws its outlines elsewhere overrides this instead.
+  virtual rive::RawPath drawGlyphPath(rive::GlyphID glyph) const;
+
   // The features list to pass directly to Harfbuzz.
   std::vector<hb_feature_t> m_features;
 
@@ -165,7 +170,7 @@ private:
   mutable std::unordered_map<rive::GlyphID, std::vector<ColorGlyphLayer>>
       m_colorLayerCache;
   // Outlines already drawn, so a text that reshapes (or a list row made for
-  // a new item) copies its glyphs instead of walking the glyf table again.
+  // a new item) reuses its glyphs instead of walking the glyf table again.
   // Bounded; it starts over once full.
   mutable std::unordered_map<rive::GlyphID, rive::RawPath> m_glyphPathCache;
 };

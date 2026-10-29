@@ -659,6 +659,36 @@ TEST_CASE(
   }
 }
 
+TEST_CASE(
+    "coarse area under a transform matches transforming the path",
+    "[rawpath]")
+{
+  // A dot in em units, counterclockwise, drawn with just two cubics. This
+  // small, each cubic flattens to its chord, and the two chords enclose
+  // nothing.
+  RawPath dot;
+  dot.moveTo(0.25f, 0);
+  dot.cubicTo(0.25f, -0.33f, -0.25f, -0.33f, -0.25f, 0);
+  dot.cubicTo(-0.25f, 0.33f, 0.25f, 0.33f, 0.25f, 0);
+  dot.close();
+  CHECK(dot.computeCoarseArea() == 0.0f);
+
+  const Mat2D transforms[] = {
+      Mat2D::fromScaleAndTranslation(100, 100, 300, 200),
+      Mat2D::fromScaleAndTranslation(-100, 100, 300, 200),
+      Mat2D::fromRotation(1.0f) * Mat2D::fromScale(120, 80),
+  };
+  for (const Mat2D& transform : transforms)
+  {
+    RawPath transformed = dot.transform(transform);
+    float area = transformed.computeCoarseArea(transformed.bounds().center());
+    CHECK(area != 0.0f);
+    CHECK(dot.computeCoarseArea(transform) == Approx(area));
+  }
+  CHECK(dot.computeCoarseArea(transforms[0]) < 0.0f);
+  CHECK(dot.computeCoarseArea(transforms[1]) > 0.0f);
+}
+
 TEST_CASE("RawPath appends itself with and without a transform", "[rawpath]")
 {
   RawPath path;

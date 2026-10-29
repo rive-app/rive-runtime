@@ -747,11 +747,16 @@ AABB RawPath::preciseBounds(const Mat2D& xform) const
   return bounds;
 }
 
-float RawPath::computeCoarseArea(Vec2D origin) const
+// Linearizes [path] as finely as it would need once [vectorXform] maps it, and
+// adds up the area left in its own space.
+static float coarse_area(
+    const RawPath& path,
+    Vec2D origin,
+    const wangs_formula::VectorXform& vectorXform)
 {
   float a = 0;
   Vec2D contourP0 = {0, 0}, lastPt = {0, 0};
-  for (auto iter : *this)
+  for (auto iter : path)
   {
     PathVerb verb = std::get<0>(iter);
     const Vec2D* pts = std::get<1>(iter);
@@ -773,7 +778,10 @@ float RawPath::computeCoarseArea(Vec2D origin) const
       {
         // Linearize the cubic in artboard space, then add up the
         // area for each segment.
-        float n = ceilf(wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
+        float n = ceilf(wangs_formula::cubic(
+            pts,
+            1.f / RawPath::kCoarseAreaTolerance,
+            vectorXform));
         if (n > 1)
         {
           n = std::min(n, 64.f);
@@ -802,5 +810,18 @@ float RawPath::computeCoarseArea(Vec2D origin) const
   }
   a += Vec2D::cross(lastPt, contourP0);
   return a * .5f;
+}
+
+float RawPath::computeCoarseArea(Vec2D origin) const
+{
+  return coarse_area(*this, origin, wangs_formula::VectorXform());
+}
+
+float RawPath::computeCoarseArea(const Mat2D& transform) const
+{
+  // A transform moves the points a curve passes through along with it, and
+  // scales every area by its determinant.
+  return coarse_area(*this, {0, 0}, wangs_formula::VectorXform(transform)) *
+         transform.determinant();
 }
 } // namespace rive

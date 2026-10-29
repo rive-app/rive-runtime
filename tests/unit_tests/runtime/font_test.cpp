@@ -2,6 +2,7 @@
 #include "catch.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/text/text_style_geometry.hpp"
 #include "rive/text/utf.hpp"
 #include "hb.h"
 #include "hb-ot.h"
@@ -363,6 +364,45 @@ TEST_CASE(
   REQUIRE(shape[0].runs[0].glyphs.size() == 1);
   REQUIRE(font->getPath(shape[0].runs[0].glyphs[0]).verbs().size() > 0);
 #endif
+}
+
+TEST_CASE("a font lends its cached glyph path", "[text]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+
+  // The first ask draws the outline and keeps it; later asks lend that same
+  // path rather than a copy, and getPath copies exactly what it lends.
+  const GlyphID glyph = 36;
+  const RawPath& lent = font->glyphPath(glyph);
+  REQUIRE(!lent.empty());
+  CHECK(&font->glyphPath(glyph) == &lent);
+  RawPath copy = font->getPath(glyph);
+  CHECK(copy == lent);
+  CHECK(&font->glyphPath(glyph) == &lent);
+}
+
+TEST_CASE("a glyph added with its placement winds as placed", "[text]")
+{
+  // A counterclockwise dot in em units, drawn with just two cubics. Its
+  // winding only shows once it's drawn large enough for the curves to count.
+  RawPath dot;
+  dot.moveTo(0.25f, 0);
+  dot.cubicTo(0.25f, -0.33f, -0.25f, -0.33f, -0.25f, 0);
+  dot.cubicTo(-0.25f, 0.33f, 0.25f, 0.33f, 0.25f, 0);
+  dot.close();
+
+  TextStyleGeometry geometry;
+  const Mat2D placement = Mat2D::fromScaleAndTranslation(100, 100, 300, 200);
+  REQUIRE(geometry.addPath(dot, 0.5f, &placement));
+
+  auto clockwise = [](const ShapePaintPath& path) {
+    const RawPath& raw = *path.rawPath();
+    return raw.computeCoarseArea(raw.bounds().center()) > 0;
+  };
+  CHECK(clockwise(*geometry.path()));
+  REQUIRE(geometry.opacityPaths().size() == 1);
+  CHECK(clockwise(geometry.opacityPaths().begin()->second));
 }
 
 TEST_CASE("owned font bytes are adopted rather than copied", "[text]")

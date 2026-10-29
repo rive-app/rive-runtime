@@ -42,7 +42,7 @@ public:
       const rive::TextRun& originalTextRun,
       const uint32_t fallbackIndex) override;
 
-  rive::RawPath getPath(rive::GlyphID glyph) const override;
+  rive::RawPath drawGlyphPath(rive::GlyphID glyph) const override;
 };
 
 struct HBCTFaceData
@@ -466,7 +466,7 @@ void CoreTextHBFont::shapeFallbackRun(
   }
 }
 
-rive::RawPath CoreTextHBFont::getPath(rive::GlyphID glyph) const
+rive::RawPath CoreTextHBFont::drawGlyphPath(rive::GlyphID glyph) const
 {
   // When we use the system shaper (coretext) get the glyphs from there
   // too.
@@ -479,7 +479,7 @@ rive::RawPath CoreTextHBFont::getPath(rive::GlyphID glyph) const
     }
   }
 
-  rive::RawPath rpath = HBFont::getPath(glyph);
+  rive::RawPath rpath = HBFont::drawGlyphPath(glyph);
 
   // We didn't use the system shaper, but harfbuzz failed to extract the
   // glyphs. Try getting them from the system.

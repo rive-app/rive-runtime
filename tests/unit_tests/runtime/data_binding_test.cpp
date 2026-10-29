@@ -1532,6 +1532,40 @@ TEST_CASE("View model runtime properties", "[data binding]")
   REQUIRE(numData->enumName.empty());
 }
 
+TEST_CASE(
+    "A list runtime removes every row showing an instance",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/viewmodel_runtime_file.riv");
+  auto vm = file->viewModelByName("vm");
+  REQUIRE(vm != nullptr);
+  auto instance = vm->createDefaultInstance();
+  REQUIRE(instance != nullptr);
+  auto list = instance->propertyList("lis");
+  REQUIRE(list != nullptr);
+  const size_t initial = list->size();
+
+  // b shows on two rows.
+  auto a = vm->createInstance();
+  auto b = vm->createInstance();
+  auto c = vm->createInstance();
+  list->addInstance(a.get());
+  list->addInstance(b.get());
+  list->addInstance(c.get());
+  list->addInstance(b.get());
+  REQUIRE(list->size() == initial + 4);
+
+  // Both of b's rows go; the rows around them keep their order and the
+  // runtimes they were added with.
+  list->removeInstance(b.get());
+  REQUIRE(list->size() == initial + 2);
+  CHECK(list->instanceAt((int)initial) == a);
+  CHECK(list->instanceAt((int)initial + 1) == c);
+
+  // An instance the list no longer shows changes nothing.
+  list->removeInstance(b.get());
+  CHECK(list->size() == initial + 2);
+}
 TEST_CASE("Trigger fires single change on listener", "[data binding]")
 {
 
