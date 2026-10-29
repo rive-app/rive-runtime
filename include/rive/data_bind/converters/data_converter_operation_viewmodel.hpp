@@ -3,20 +3,24 @@
 #include "rive/generated/data_bind/converters/data_converter_operation_viewmodel_base.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include <stdio.h>
 namespace rive
 {
 class DataConverterOperationViewModel
-    : public DataConverterOperationViewModelBase
+    : public DataConverterOperationViewModelBase,
+      public ViewModelValueDependent
 {
 private:
   float resolveValue(DataBind* dataBind);
-  ViewModelInstanceNumber* m_source = nullptr;
+  void clearSource();
+  rcp<ViewModelInstanceNumber> m_source = nullptr;
 
 protected:
   std::vector<uint32_t> m_SourcePathIdsBuffer;
 
 public:
+  ~DataConverterOperationViewModel();
   DataValue* convert(DataValue* value, DataBind* dataBind) override;
   DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
   void decodeSourcePathIds(Span<const uint8_t> value) override;
@@ -24,6 +28,9 @@ public:
       const DataConverterOperationViewModelBase& object) override;
   const std::vector<uint32_t>& sourcePathIds() { return m_SourcePathIdsBuffer; }
   void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+  void unbind() override;
+  void addDirt(ComponentDirt value, bool recurse) override;
+  void relinkDataBind() override {}
 };
 } // namespace rive
 

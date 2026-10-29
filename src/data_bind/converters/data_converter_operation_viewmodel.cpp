@@ -47,15 +47,63 @@ void DataConverterOperationViewModel::copySourcePathIds(
                               ->m_SourcePathIdsBuffer;
 }
 
+DataConverterOperationViewModel::~DataConverterOperationViewModel()
+{
+  clearSource();
+}
+
+void DataConverterOperationViewModel::clearSource()
+{
+  if (m_source != nullptr)
+  {
+    m_source->removeDependent(this);
+    m_source = nullptr;
+  }
+}
+
 void DataConverterOperationViewModel::bindFromContext(
     DataContext* dataContext,
     DataBind* dataBind)
 {
   DataConverter::bindFromContext(dataContext, dataBind);
-  auto propertyValue = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
-  if (propertyValue != nullptr && propertyValue->is<ViewModelInstanceNumber>())
+  ViewModelInstanceNumber* source = nullptr;
+  if (dataContext != nullptr)
   {
-    m_source = propertyValue->as<ViewModelInstanceNumber>();
-    m_source->addDependent(dataBind);
+    auto propertyValue = dataContext->getViewModelProperty(
+        m_SourcePathIdsBuffer);
+    if (propertyValue != nullptr &&
+        propertyValue->is<ViewModelInstanceNumber>())
+    {
+      source = propertyValue->as<ViewModelInstanceNumber>();
+    }
+  }
+  if (source == m_source.get())
+  {
+    return;
+  }
+  // Leave the previous operand, or it keeps pointing at this converter after
+  // the converter is deleted.
+  clearSource();
+  m_source = ref_rcp(source);
+  if (m_source != nullptr)
+  {
+    m_source->addDependent(this);
+  }
+}
+
+void DataConverterOperationViewModel::unbind()
+{
+  clearSource();
+  DataConverter::unbind();
+}
+
+// Registered as itself rather than as the bind: the operand can also be the
+// bind's source or another converter's operand, and the dependents list holds
+// each pointer once, so taking the bind off would drop their subscription.
+void DataConverterOperationViewModel::addDirt(ComponentDirt value, bool recurse)
+{
+  if (m_parentDataBind != nullptr)
+  {
+    m_parentDataBind->addDirt(value, recurse);
   }
 }

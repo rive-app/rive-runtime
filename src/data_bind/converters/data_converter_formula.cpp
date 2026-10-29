@@ -525,9 +525,20 @@ void DataConverterFormula::bindFromContext(
     DataBind* dataBind)
 {
   DataConverter::bindFromContext(dataContext, dataBind);
-  if (dataBind && dataBind->source())
+  auto source = dataBind != nullptr ? dataBind->source() : nullptr;
+  if (source == m_source.get())
   {
-    m_source = ref_rcp<ViewModelInstanceValue>(dataBind->source());
+    return;
+  }
+  // A rebind can resolve the bind to another value. Leave the previous one,
+  // or it keeps pointing at this converter after the converter is deleted.
+  if (m_source)
+  {
+    m_source->removeDependent(this);
+  }
+  m_source = ref_rcp(source);
+  if (m_source)
+  {
     m_source->addDependent(this);
   }
 }

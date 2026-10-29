@@ -1,12 +1,17 @@
 #include <catch.hpp>
+#include <algorithm>
 #include <functional>
 #include "rive/component_dirt.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/data_bind/converters/data_converter_formula.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
+#include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/data_bind_flags.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 
 using namespace rive;
 
@@ -50,6 +55,29 @@ public:
   using DataConverterFormula::bindFromContext;
   using DataConverterFormula::unbind;
 };
+
+class TestOperationViewModel : public DataConverterOperationViewModel
+{
+public:
+  void sourcePath(std::vector<uint32_t> path) { m_SourcePathIdsBuffer = path; }
+};
+
+bool isDependent(ViewModelInstanceValue* value, ViewModelValueDependent* d)
+{
+  auto& dependents = value->dependents();
+  return std::find(dependents.begin(), dependents.end(), d) != dependents.end();
+}
+
+// A view model instance with a single number at path {1, 2}.
+rcp<DataContext> makeNumberContext(ViewModelInstanceNumber** number)
+{
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->viewModelId(1);
+  *number = new ViewModelInstanceNumber();
+  (*number)->viewModelPropertyId(2);
+  instance->addValue(*number);
+  return make_rcp<DataContext>(instance);
+}
 
 TestDataBind* makeBind(DataBindFlags f = DataBindFlags::ToTarget)
 {
@@ -483,4 +511,116 @@ TEST_CASE("converter unbind releases the data context", "[data_bind_container]")
   }
 
   CHECK(context->debugging_refcnt() == 1);
+}
+
+// A rebind that resolves the bind to another value rebinds its converter
+// without unbinding it first. A formula left registered on the old value made
+// that value's next change call into the formula after it was deleted
+// (RIVE_NATIVE-16Y).
+TEST_CASE("formula rebind leaves the previous source", "[data_bind_container]")
+{
+  auto context = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+  auto first = make_rcp<ViewModelInstanceEnum>();
+  auto second = make_rcp<ViewModelInstanceEnum>();
+  auto* bind = makeBind();
+  TestFormula formula;
+
+  bind->source(first);
+  formula.bindFromContext(context.get(), bind);
+  CHECK(isDependent(first.get(), &formula));
+
+  bind->clearSource();
+  bind->source(second);
+  formula.bindFromContext(context.get(), bind);
+  CHECK_FALSE(isDependent(first.get(), &formula));
+  CHECK(isDependent(second.get(), &formula));
+
+  formula.unbind();
+  CHECK_FALSE(isDependent(second.get(), &formula));
+  delete bind;
+}
+
+// The operation converter subscribes to the number it reads so its bind
+// re-runs when that number changes. It must unsubscribe, or the number points
+// at the converter after the converter is deleted.
+TEST_CASE(
+    "operation view model converter unsubscribes from its operand",
+    "[data_bind_container]")
+{
+  ViewModelInstanceNumber* first = nullptr;
+  ViewModelInstanceNumber* second = nullptr;
+  auto firstContext = makeNumberContext(&first);
+  auto secondContext = makeNumberContext(&second);
+  auto* bind = makeBind();
+
+  SECTION("unbind")
+  {
+    TestOperationViewModel converter;
+    converter.sourcePath({1, 2});
+    converter.bindFromContext(firstContext.get(), bind);
+    converter.bindFromContext(firstContext.get(), bind);
+    CHECK(first->dependents().size() == 1);
+    CHECK(isDependent(first, &converter));
+
+    converter.unbind();
+    CHECK_FALSE(isDependent(first, &converter));
+  }
+
+  SECTION("rebind to another operand")
+  {
+    TestOperationViewModel converter;
+    converter.sourcePath({1, 2});
+    converter.bindFromContext(firstContext.get(), bind);
+    converter.bindFromContext(secondContext.get(), bind);
+    CHECK_FALSE(isDependent(first, &converter));
+    CHECK(isDependent(second, &converter));
+    converter.unbind();
+  }
+
+  SECTION("destroyed while bound")
+  {
+    ViewModelValueDependent* dependent = nullptr;
+    {
+      TestOperationViewModel converter;
+      converter.sourcePath({1, 2});
+      converter.bindFromContext(firstContext.get(), bind);
+      dependent = &converter;
+    }
+    CHECK_FALSE(isDependent(first, dependent));
+  }
+
+  SECTION("operand changes re-run the bind")
+  {
+    TestOperationViewModel converter;
+    converter.sourcePath({1, 2});
+    converter.bindFromContext(firstContext.get(), bind);
+    first->propertyValue(5.0f);
+    CHECK(enums::is_flag_set(bind->dirt(), ComponentDirt::Bindings));
+    converter.unbind();
+  }
+
+  // The operand can also be the bind's own source, or another converter's
+  // operand. Leaving it must not drop their subscriptions.
+  SECTION("rebind keeps subscriptions it shares")
+  {
+    bind->source(ref_rcp(first));
+    TestOperationViewModel moved;
+    TestOperationViewModel kept;
+    moved.sourcePath({1, 2});
+    kept.sourcePath({1, 2});
+    moved.bindFromContext(firstContext.get(), bind);
+    kept.bindFromContext(firstContext.get(), bind);
+
+    moved.bindFromContext(secondContext.get(), bind);
+    CHECK(isDependent(first, bind));
+    CHECK(isDependent(first, &kept));
+    CHECK_FALSE(isDependent(first, &moved));
+    CHECK(isDependent(second, &moved));
+
+    moved.unbind();
+    kept.unbind();
+    bind->clearSource();
+  }
+
+  delete bind;
 }
