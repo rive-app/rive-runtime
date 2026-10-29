@@ -825,7 +825,7 @@ std::string ModuleTierLadder::keyedCacheDir()
   // it whenever species flags change or stale artifacts get served on a
   // cache hit.
   const std::string& version = wamrcVersion();
-  return m_cacheDir + "/" + version + "-r17-g" +
+  return m_cacheDir + "/" + version + "-r18-g" +
          std::to_string(WASM_RIVE_HW_GUARD_SIZE) + (m_wamrcTunes ? "t" : "");
 }
 

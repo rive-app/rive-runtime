@@ -1,0 +1,254 @@
+From: rive
+Subject: [PATCH 0056] direct calls skip the callee's entry check
+
+Every compiled function sits behind an entry stub that checks the native
+stack against its own frame, and every call between compiled functions went
+through it. A direct call now enters the callee's body when the callee
+cannot reach the caller back, which the call graph's strongly connected
+components show once every function is compiled. The callee's stack need
+folds into the caller's stack size, so the caller's entry check covers each
+callee it enters directly. Calls within a recursive group, indirect calls
+and calls from the host still go through the stub, so unbounded recursion
+still meets a check.
+
+--- a/core/iwasm/compilation/aot_compiler.c
++++ b/core/iwasm/compilation/aot_compiler.c
+@@ -4013,6 +4013,97 @@ verify_module(AOTCompContext *comp_ctx)
+     return true;
+ }
+ 
++/* rive patch: a direct call whose callee cannot reach the caller back goes
++   to the callee's body. The callee's need then folds into the caller's
++   stack size, so the caller's entry check covers both, and recursion keeps
++   a check on every call. Tarjan's order puts every callee first. */
++static bool
++send_direct_calls_past_entry_checks(AOTCompContext *comp_ctx)
++{
++    AOTFuncContext **func_ctxes = comp_ctx->func_ctxes;
++    uint32 n = comp_ctx->func_ctx_count, next = 0, depth = 0, top = 0;
++    uint32 components = 0, ordered = 0, root, i, j;
++    uint64 size = sizeof(uint32) * (uint64)n * 6;
++    uint32 *buf = NULL, *order = NULL;
++    uint32 *index, *low, *component, *stack, *path, *edge;
++
++    if (n == 0)
++        return true;
++    if (size >= UINT32_MAX || !(buf = wasm_runtime_malloc((uint32)size))
++        || !(order = wasm_runtime_malloc(sizeof(uint32) * n))) {
++        if (buf)
++            wasm_runtime_free(buf);
++        aot_set_last_error("allocate memory failed.");
++        return false;
++    }
++    index = buf;
++    low = index + n;
++    component = low + n;
++    stack = component + n;
++    path = stack + n;
++    edge = path + n;
++    for (i = 0; i < n; i++) {
++        index[i] = UINT32_MAX;
++        component[i] = UINT32_MAX;
++    }
++
++    for (root = 0; root < n; root++) {
++        if (index[root] != UINT32_MAX)
++            continue;
++        index[root] = low[root] = next++;
++        stack[top++] = root;
++        path[depth] = root;
++        edge[depth++] = 0;
++        while (depth > 0) {
++            uint32 v = path[depth - 1];
++            AOTFuncContext *func_ctx = func_ctxes[v];
++            if (edge[depth - 1] < func_ctx->rive_direct_call_count) {
++                uint32 w =
++                    func_ctx->rive_direct_calls[edge[depth - 1]++].callee;
++                if (index[w] == UINT32_MAX) {
++                    index[w] = low[w] = next++;
++                    stack[top++] = w;
++                    path[depth] = w;
++                    edge[depth++] = 0;
++                }
++                else if (component[w] == UINT32_MAX && index[w] < low[v]) {
++                    low[v] = index[w];
++                }
++                continue;
++            }
++            if (low[v] == index[v]) {
++                uint32 w;
++                do {
++                    w = stack[--top];
++                    component[w] = components;
++                    order[ordered++] = w;
++                } while (w != v);
++                components++;
++            }
++            if (--depth > 0 && low[v] < low[path[depth - 1]])
++                low[path[depth - 1]] = low[v];
++        }
++    }
++
++    for (i = 0; i < n; i++) {
++        AOTFuncContext *func_ctx = func_ctxes[i];
++        for (j = 0; j < func_ctx->rive_direct_call_count; j++) {
++            AOTDirectCall *direct = &func_ctx->rive_direct_calls[j];
++            if (component[direct->callee] == component[i]) {
++                direct->callee = UINT32_MAX;
++                continue;
++            }
++            LLVMSetOperand(direct->call,
++                           (unsigned)LLVMGetNumOperands(direct->call) - 1,
++                           func_ctxes[direct->callee]->func);
++        }
++    }
++
++    wasm_runtime_free(buf);
++    comp_ctx->rive_callee_first = order;
++    return true;
++}
++
+ bool
+ aot_compile_wasm(AOTCompContext *comp_ctx)
+ {
+@@ -4031,6 +4122,10 @@ aot_compile_wasm(AOTCompContext *comp_ctx)
+         }
+     }
+ 
++    if (!send_direct_calls_past_entry_checks(comp_ctx)) {
++        return false;
++    }
++
+ #if WASM_ENABLE_DEBUG_AOT != 0
+     LLVMDIBuilderFinalize(comp_ctx->debug_builder);
+ #endif
+--- a/core/iwasm/compilation/aot_emit_aot_file.c
++++ b/core/iwasm/compilation/aot_emit_aot_file.c
+@@ -3727,6 +3727,23 @@ aot_resolve_stack_sizes(AOTCompContext *comp_ctx, AOTObjectData *obj_data)
+                     stack_sizes[i] += stack_consumption_to_call_wrapped_func;
+                 }
+             }
++            /* rive patch: a function's entry check covers the callees its
++               direct calls enter past their own */
++            for (i = 0; comp_ctx->rive_callee_first && i < obj_data->func_count;
++                 i++) {
++                uint32 caller = comp_ctx->rive_callee_first[i], deepest = 0, j;
++                const AOTFuncContext *func_ctx = comp_ctx->func_ctxes[caller];
++                for (j = 0; j < func_ctx->rive_direct_call_count; j++) {
++                    uint32 callee = func_ctx->rive_direct_calls[j].callee;
++                    if (callee != UINT32_MAX && stack_sizes[callee] > deepest)
++                        deepest = stack_sizes[callee];
++                }
++                if (UINT32_MAX - stack_sizes[caller] < deepest) {
++                    aot_set_last_error("stack size overflow.");
++                    goto fail;
++                }
++                stack_sizes[caller] += deepest;
++            }
+             LLVMDisposeSectionIterator(sec_itr);
+             LLVMDisposeSymbolIterator(sym_itr);
+             return true;
+--- a/core/iwasm/compilation/aot_emit_function.c
++++ b/core/iwasm/compilation/aot_emit_function.c
+@@ -154,6 +154,27 @@ check_call_return(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+     return true;
+ }
+ 
++static bool
++record_direct_call(AOTFuncContext *func_ctx, LLVMValueRef call, uint32 callee)
++{
++    if (func_ctx->rive_direct_call_count
++        == func_ctx->rive_direct_call_capacity) {
++        uint32 capacity = func_ctx->rive_direct_call_capacity * 2 + 8;
++        AOTDirectCall *calls = wasm_runtime_realloc(
++            func_ctx->rive_direct_calls, sizeof(AOTDirectCall) * capacity);
++        if (!calls) {
++            aot_set_last_error("allocate memory failed.");
++            return false;
++        }
++        func_ctx->rive_direct_calls = calls;
++        func_ctx->rive_direct_call_capacity = capacity;
++    }
++    func_ctx->rive_direct_calls[func_ctx->rive_direct_call_count].call = call;
++    func_ctx->rive_direct_calls[func_ctx->rive_direct_call_count++].callee =
++        callee;
++    return true;
++}
++
+ /* rive patch: argv_buf holds 64 cells, so wider calls stage in this frame,
+    which older runtimes read too since they use the argv they are handed */
+ static LLVMValueRef
+@@ -1847,6 +1868,15 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         if (tail_call && (!ext_ret_buf || ext_ret_buf == func_ctx->argv_buf))
+             LLVMSetTailCall(value_ret, true);
+ 
++        /* rive patch: aot_compile_wasm sends it past the callee's entry
++           check once it knows the callee cannot reach this function back */
++        if (!comp_ctx->is_indirect_mode && !comp_ctx->is_jit_mode
++            && func != func_ctx->precheck_func
++            && func != func_ctxes[func_idx - import_func_count]->func
++            && !record_direct_call(func_ctx, value_ret,
++                                   func_idx - import_func_count))
++            goto fail;
++
+         /* Check whether there was exception thrown when executing
+            the function */
+         if (!tail_call
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -2083,6 +2083,8 @@ aot_destroy_func_contexts(AOTCompContext *comp_ctx, AOTFuncContext **func_ctxes,
+                 wasm_runtime_free(func_ctxes[i]->mem_info);
+             aot_block_stack_destroy(comp_ctx, &func_ctxes[i]->block_stack);
+             aot_checked_addr_list_destroy(func_ctxes[i]);
++            if (func_ctxes[i]->rive_direct_calls)
++                wasm_runtime_free(func_ctxes[i]->rive_direct_calls);
+             wasm_runtime_free(func_ctxes[i]);
+         }
+     wasm_runtime_free(func_ctxes);
+@@ -3727,6 +3729,9 @@ aot_destroy_comp_context(AOTCompContext *comp_ctx)
+         aot_destroy_func_contexts(comp_ctx, comp_ctx->func_ctxes,
+                                   comp_ctx->func_ctx_count);
+ 
++    if (comp_ctx->rive_callee_first)
++        wasm_runtime_free(comp_ctx->rive_callee_first);
++
+     if (bh_list_length(&comp_ctx->native_symbols) > 0) {
+         AOTNativeSymbol *sym = bh_list_first_elem(&comp_ctx->native_symbols);
+         while (sym) {
+--- a/core/iwasm/compilation/aot_llvm.h
++++ b/core/iwasm/compilation/aot_llvm.h
+@@ -224,6 +224,11 @@ typedef struct AOTMemInfo {
+     LLVMValueRef mem_bound_check_16bytes;
+ } AOTMemInfo;
+ 
++typedef struct AOTDirectCall {
++    LLVMValueRef call;
++    uint32 callee;
++} AOTDirectCall;
++
+ typedef struct AOTFuncContext {
+     AOTFunc *aot_func;
+     /* rive patch: memory info cached in locals, refreshed only after calls */
+@@ -278,6 +283,12 @@ typedef struct AOTFuncContext {
+ 
+     unsigned int stack_consumption_for_func_call;
+ 
++    /* rive patch: direct calls; a callee of UINT32_MAX can reach this
++       function back, so that call keeps the callee's entry check */
++    AOTDirectCall *rive_direct_calls;
++    uint32 rive_direct_call_count;
++    uint32 rive_direct_call_capacity;
++
+     LLVMValueRef locals[1];
+ } AOTFuncContext;
+ 
+@@ -522,6 +533,9 @@ typedef struct AOTCompContext {
+     LLVMTypeRef stack_sizes_type;
+     LLVMValueRef stack_sizes;
+     uint32 *jit_stack_sizes; /* for JIT */
++    /* rive patch: function indexes, each after every function it calls
++       past an entry check */
++    uint32 *rive_callee_first;
+ 
+     /* LLVM data types */
+     AOTLLVMTypes basic_types;

@@ -1,0 +1,34 @@
+From: rive
+Subject: [PATCH 0055] address memory as the base plus the index, then the offset
+
+wamrc added a load's constant offset to its 64 bit index before adding the
+memory base, so LLVM kept a register for each field offset of an object and
+folded none of them into the load. On a 64 bit target with a 32 bit memory
+the address is now the base plus the index, then the offset, which the load
+takes as an immediate. The bounds checks still compare the same sum.
+
+--- a/core/iwasm/compilation/aot_emit_memory.c
++++ b/core/iwasm/compilation/aot_emit_memory.c
+@@ -839,7 +839,21 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         SET_BUILD_POS(check_succ);
+     }
+ 
+-    if (!enable_segue) {
++    if (!enable_segue && is_target_64bit && !is_memory64) {
++        /* rive patch: base + addr, then the constant offset, so loads take
++           it as an immediate and fields of one object share a register */
++        LLVMValueRef maddr_base;
++        if (!(maddr_base =
++                  LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE,
++                                        mem_base_addr, &addr, 1, "maddr_base"))
++            || !(maddr = LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE,
++                                               maddr_base, &offset_const, 1,
++                                               "maddr"))) {
++            aot_set_last_error("llvm build inboundgep failed.");
++            goto fail;
++        }
++    }
++    else if (!enable_segue) {
+         /* maddr = mem_base_addr + offset1 */
+         if (!(maddr =
+                   LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE,
