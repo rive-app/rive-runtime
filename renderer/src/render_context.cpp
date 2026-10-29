@@ -454,8 +454,7 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 
   m_impl->preBeginFrame(this);
   assert(!m_didBeginFrame);
-  assert(frameDescriptor.renderTargetWidth > 0);
-  assert(frameDescriptor.renderTargetHeight > 0);
+  // Zero-area frames are legal (a collapsed canvas) and draw nothing.
   m_frameDescriptor = frameDescriptor;
   m_frameInterlockMode = selectInterlockMode(m_frameDescriptor);
   if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
@@ -503,9 +502,10 @@ bool RenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
   auto renderTargetSize = simd::cast<int32_t>(uint2{
       m_frameDescriptor.renderTargetWidth,
       m_frameDescriptor.renderTargetHeight});
-  return simd::any(
-      bounds.xy >= renderTargetSize || bounds.zw <= 0 ||
-      bounds.xy >= bounds.zw);
+  // Clamp before testing so an empty frame rejects everything.
+  bounds.xy = simd::max(bounds.xy, int2(0));
+  bounds.zw = simd::min(bounds.zw, renderTargetSize);
+  return simd::any(bounds.xy >= bounds.zw);
 }
 
 bool RenderContext::frameSupportsClipRects() const
@@ -1162,10 +1162,15 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     unmapResourceBuffers(resourceRequirements);
 
-    // Issue logical flushes to the backend.
-    for (const auto& flush : m_logicalFlushes)
+    // Issue logical flushes to the backend. A zero-area target has no pixels
+    // to touch.
+    if (m_frameDescriptor.renderTargetWidth != 0 &&
+        m_frameDescriptor.renderTargetHeight != 0)
     {
-      m_impl->flush(flush->desc());
+      for (const auto& flush : m_logicalFlushes)
+      {
+        m_impl->flush(flush->desc());
+      }
     }
   }
   else

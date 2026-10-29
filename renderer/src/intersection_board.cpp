@@ -825,16 +825,13 @@ int16_t IntersectionBoard::addRectangle(
         "rectangles that are allowed to overlap should only be a single layer");
   }
 
-  // Discard empty, negative, or offscreen rectangles.
-  if (simd::any(
-          ltrb.xy >= m_viewportSize || ltrb.zw <= 0 || ltrb.xy >= ltrb.zw))
+  // Clamp before testing: an empty viewport has no tiles to index.
+  ltrb.xy = simd::max(ltrb.xy, int2(0));
+  ltrb.zw = simd::min(ltrb.zw, m_viewportSize);
+  if (simd::any(ltrb.xy >= ltrb.zw))
   {
     return 0;
   }
-
-  // Clamp ltrb to the viewport to avoid integer overflows.
-  ltrb.xy = simd::max(ltrb.xy, int2(0));
-  ltrb.zw = simd::min(ltrb.zw, m_viewportSize);
 
   // Find the tiled row and column that each corner of the rectangle falls on.
   int4 span = (ltrb - int4{0, 0, 1, 1}) / TILE_DIM;

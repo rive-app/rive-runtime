@@ -316,6 +316,23 @@ TEST_CASE("IntersectionBoard", "[IntersectionBoard]")
   check_intersection_board_random_rectangles2(1000);
 }
 
+// An empty viewport has no tiles to index, even under a rect over the origin.
+TEST_CASE("IntersectionBoard with an empty viewport", "[IntersectionBoard]")
+{
+  IntersectionBoard board{GroupingType::disjoint};
+  const std::pair<uint32_t, uint32_t> sizes[] =
+      {{0, 0}, {1, 0}, {0, 1}, {1000, 0}};
+  for (auto [w, h] : sizes)
+  {
+    board.resizeAndReset(w, h);
+    CHECK(board.addRectangle(int4{-5, -5, 10, 10}) == 0);
+    CHECK(board.addRectangle(int4{-1, -1, 1, 1}) == 0);
+    CHECK(board.addRectangle(int4{0, 0, 1, 1}) == 0);
+  }
+  board.resizeAndReset(1, 1);
+  CHECK(board.addRectangle(int4{-5, -5, 10, 10}) == 1);
+}
+
 // Check inserting rectangles that have more than one layer.
 TEST_CASE("layerCount", "[IntersectionBoard]")
 {
