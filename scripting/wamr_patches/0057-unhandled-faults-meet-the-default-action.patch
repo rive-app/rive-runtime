@@ -1,0 +1,64 @@
+From: rive
+Subject: [PATCH 0057] meet a fault wasm did not cause as the process would have
+
+When no handler sat below wamr's, a fault outside wasm ended in abort()
+inside wamr's handler. A crash reporter that only steps in once a signal
+goes unhandled, such as Crashpad on macOS, then reported every crash of
+the host as an abort in signal_callback. wamr now puts the default back,
+even over an ignored disposition, where the fault would happen again
+forever, so the process dies of the fault. On Linux a fault happens again
+where it was when the handler returns, and a signal that was sent is sent
+once more. macOS gives a sent signal the codes of a fault, so there every
+signal is sent once more; the kernel keeps the fault the thread took, and
+the crash reports it.
+
+--- a/core/shared/platform/common/posix/posix_thread.c
++++ b/core/shared/platform/common/posix/posix_thread.c
+@@ -597,6 +597,21 @@ mask_signals(int how)
+ static struct sigaction prev_sig_act_SIGSEGV;
+ static struct sigaction prev_sig_act_SIGBUS;
+ 
++/* rive patch: whether the signal happens again when the handler returns.
++   macOS gives a sent signal the codes of a fault, so there it is always
++   sent again, and the crash still records the fault the thread took. Linux
++   codes are positive only for signals the kernel raised. */
++static bool
++signal_recurs(const siginfo_t *sig_info)
++{
++#if defined(__APPLE__)
++    (void)sig_info;
++    return false;
++#else
++    return sig_info->si_code > 0;
++#endif
++}
++
+ /*
+  * ASAN is not designed to work with custom stack unwind or other low-level
+  * things. Ignore a function that does some low-level magic. (e.g. walking
+@@ -637,6 +652,8 @@ signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
+     }
+     /* Output signal info and then crash if signal is unhandled */
+     else {
++        struct sigaction default_act;
++
+         switch (sig_num) {
+             case SIGSEGV:
+                 os_printf("unhandled SIGSEGV, si_addr: %p\n", sig_addr);
+@@ -650,7 +667,15 @@ signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
+                 break;
+         }
+ 
+-        abort();
++        /* rive patch: the default ends the process at the fault, so a crash
++           reporter that waits for it to go unhandled reports it there, not
++           as an abort here. An ignored fault would happen again forever. */
++        memset(&default_act, 0, sizeof(default_act));
++        default_act.sa_handler = SIG_DFL;
++        if (sigaction(sig_num, &default_act, NULL) != 0)
++            abort();
++        if (!signal_recurs(sig_info))
++            raise(sig_num);
+     }
+ }
+ 
