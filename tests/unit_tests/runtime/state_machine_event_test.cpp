@@ -335,6 +335,63 @@ TEST_CASE(
   REQUIRE(stateMachineInstance->reportedEventCount() == 0);
 }
 
+TEST_CASE(
+    "a deleted state machine stops listening to nested artboard events",
+    "[events]")
+{
+  // Hosts like rive_native delete a state machine without dispose() and can
+  // keep its artboard alive to mount a new one, as the editor does when it
+  // recycles a virtualized list item. The nested machines must not keep
+  // reporting to the deleted one (RIVE_NATIVE-178).
+  auto file = ReadRiveFile("assets/nested_event_test.riv");
+  auto artboard = file->artboard()->instance();
+  auto nested = artboard->find<NestedArtboard>();
+  REQUIRE(nested.size() == 1);
+  auto nestedStateMachineInstance = nested[0]
+                                        ->nestedAnimations()[0]
+                                        ->as<NestedStateMachine>()
+                                        ->stateMachineInstance();
+  REQUIRE(nestedStateMachineInstance != nullptr);
+
+  auto first = artboard->stateMachineAt(0);
+  REQUIRE(
+      nestedStateMachineInstance->nestedEventListeners() ==
+      std::vector<NestedEventListener*>{first.get()});
+  first.reset();
+  REQUIRE(nestedStateMachineInstance->nestedEventListeners().empty());
+
+  auto second = artboard->stateMachineAt(0);
+  REQUIRE(
+      nestedStateMachineInstance->nestedEventListeners() ==
+      std::vector<NestedEventListener*>{second.get()});
+
+  // The nested event bubbles up to the live machine only.
+  auto input = second->getBool("Boolean 1");
+  artboard->advance(0.0f);
+  second->advance(0.0f);
+  second->pointerDown(Vec2D(250.0f, 100.0f));
+  REQUIRE(nestedStateMachineInstance->reportedEventCount() == 1);
+  artboard->advance(0.0f);
+  REQUIRE(input->value() == true);
+}
+
+TEST_CASE(
+    "a nested event notifier deleted first unlinks from its listener",
+    "[events]")
+{
+  struct Listener : NestedEventListener
+  {
+    void notify(const std::vector<EventReport>&, NestedArtboard*) override {}
+  };
+  auto listener = std::make_unique<Listener>();
+  auto notifier = std::make_unique<NestedEventNotifier>();
+  notifier->addNestedEventListener(listener.get());
+  // The listener must not reach back into the freed notifier when it goes
+  // (caught by the ASan build).
+  notifier.reset();
+  listener.reset();
+}
+
 TEST_CASE("event targetting an event object triggers correctly", "[events]")
 {
   SerializingFactory silver;

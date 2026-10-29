@@ -4921,48 +4921,14 @@ StateMachineInstance::~StateMachineInstance()
   }
 }
 
-// When a state machine instanced by a higher level runtime is destroyed, we
-// need to clean up all its references from the nested artboard children. The
-// reason is that the artboard might still be kept alive and it might have
-// invalid pointers. This is not necessary for nested state machines because
-// they are destroyed altogether.
+// Stops the nested artboards' animations from reporting events to this
+// machine. ~NestedEventListener does the same, so this only matters to a host
+// that wants the machine detached before it is deleted.
 void StateMachineInstance::dispose() { removeEventListeners(); }
 
 void StateMachineInstance::removeEventListeners()
 {
-  if (m_artboardInstance != nullptr)
-  {
-    for (auto nestedArtboard : m_artboardInstance->nestedArtboards())
-    {
-      if (nestedArtboard == nullptr)
-      {
-        continue;
-      }
-      for (auto animation : nestedArtboard->nestedAnimations())
-      {
-        if (animation == nullptr)
-        {
-          continue;
-        }
-        if (animation->is<NestedStateMachine>())
-        {
-          if (auto notifier = animation->as<NestedStateMachine>()
-                                  ->stateMachineInstance())
-          {
-            notifier->removeNestedEventListener(this);
-          }
-        }
-        else if (animation->is<NestedLinearAnimation>())
-        {
-          if (auto notifier = animation->as<NestedLinearAnimation>()
-                                  ->animationInstance())
-          {
-            notifier->removeNestedEventListener(this);
-          }
-        }
-      }
-    }
-  }
+  removeFromNestedEventNotifiers();
 }
 
 #ifdef WITH_RIVE_TOOLS

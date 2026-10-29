@@ -8,27 +8,51 @@
 namespace rive
 {
 class ArtboardInstance;
+class NestedEventNotifier;
 
 class NestedEventListener
 {
 public:
-  virtual ~NestedEventListener() {}
+  NestedEventListener() = default;
+  // A copy starts unregistered: the notifiers only hold the original.
+  NestedEventListener(const NestedEventListener&) {}
+  NestedEventListener& operator=(const NestedEventListener&) { return *this; }
+  virtual ~NestedEventListener();
   virtual void notify(
       const std::vector<EventReport>& events,
       NestedArtboard* context) = 0;
+
+  // Unregisters from every notifier this listener was added to.
+  void removeFromNestedEventNotifiers();
+
+private:
+  friend class NestedEventNotifier;
+  // Links are kept on both sides so whichever is destroyed first unlinks from
+  // the other. A host can delete a state machine and keep its artboard, whose
+  // nested machines would otherwise report to the deleted one.
+  std::vector<NestedEventNotifier*> m_nestedEventNotifiers;
 };
 
 class NestedEventNotifier
 {
 public:
+  NestedEventNotifier() = default;
+  // A copy starts with no listeners: they registered with the original.
+  NestedEventNotifier(const NestedEventNotifier&) {}
+  NestedEventNotifier& operator=(const NestedEventNotifier&) { return *this; }
   ~NestedEventNotifier()
   {
     m_nestedArtboard = nullptr;
+    for (auto listener : m_nestedEventListeners)
+    {
+      unlinkListener(listener);
+    }
     m_nestedEventListeners.clear();
   }
   void addNestedEventListener(NestedEventListener* listener)
   {
     m_nestedEventListeners.push_back(listener);
+    listener->m_nestedEventNotifiers.push_back(this);
   }
   void removeNestedEventListener(NestedEventListener* listener)
   {
@@ -37,6 +61,7 @@ public:
         m_nestedEventListeners.end(),
         listener);
     m_nestedEventListeners.erase(nested, m_nestedEventListeners.end());
+    unlinkListener(listener);
   }
   std::vector<NestedEventListener*> nestedEventListeners()
   {
@@ -63,9 +88,33 @@ public:
   }
 
 private:
+  // Drops this notifier from the listener's side of the link.
+  void unlinkListener(NestedEventListener* listener)
+  {
+    auto& notifiers = listener->m_nestedEventNotifiers;
+    notifiers.erase(
+        std::remove(notifiers.begin(), notifiers.end(), this),
+        notifiers.end());
+  }
+
   NestedArtboard* m_nestedArtboard = nullptr;
   std::vector<NestedEventListener*> m_nestedEventListeners;
 };
+
+inline NestedEventListener::~NestedEventListener()
+{
+  removeFromNestedEventNotifiers();
+}
+
+inline void NestedEventListener::removeFromNestedEventNotifiers()
+{
+  // removeNestedEventListener edits m_nestedEventNotifiers, so walk a copy.
+  auto notifiers = m_nestedEventNotifiers;
+  for (auto notifier : notifiers)
+  {
+    notifier->removeNestedEventListener(this);
+  }
+}
 
 class NestedAnimation : public NestedAnimationBase
 {
