@@ -94,6 +94,22 @@ constexpr uint32_t kReuseMaxPages = 256;
 // a worklet as a whole, far longer than a block as it may build tables.
 constexpr uint32_t kProcessorInitMs = 1000;
 
+// Where a parallel call's control block keeps each word, in bytes from its
+// start. The words its parts race on sit 128 bytes apart, each alone on a cache
+// line, Apple's included. The claim takes 8 bytes, so no grain can wrap it.
+constexpr uint32_t kParallelThunk = 0;
+constexpr uint32_t kParallelArgs = 4;
+constexpr uint32_t kParallelParts = 8;
+constexpr uint32_t kParallelCount = 12;
+constexpr uint32_t kParallelAtOnce = 16;
+constexpr uint32_t kParallelCallerParks = 20;
+constexpr uint32_t kParallelGeneration = 128;
+constexpr uint32_t kParallelArrived = 256;
+constexpr uint32_t kParallelSleepers = 384;
+constexpr uint32_t kParallelClaim = 512;
+constexpr uint32_t kParallelStop = 640;
+constexpr uint32_t kParallelBytes = 768;
+
 // The exports a lane module may carry besides its entries.
 constexpr const char* kLaneAllocExport = "__rive_lane_alloc";
 constexpr const char* kLaneFreeExport = "__rive_lane_free";

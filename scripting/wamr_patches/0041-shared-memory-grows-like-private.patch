@@ -1,0 +1,273 @@
+From: rive
+Subject: [PATCH 0041] map shared memories as private ones and grow them the same way
+
+A shared memory reserved its whole maximum up front. It now maps and grows
+as a private memory does, extending or moving its map when growth passes it,
+which is safe because it grows only while no parallel call runs: the host
+freezes it for the length of each call and a frozen memory refuses to grow.
+Compiled code reloads a shared memory's base at the same points as a private
+one's.
+
+diff --git a/core/iwasm/common/wasm_memory.c b/core/iwasm/common/wasm_memory.c
+index 2f72446..00c9dc7 100644
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -999,9 +999,9 @@ wasm_runtime_get_mem_alloc_info(mem_alloc_info_t *mem_alloc_info)
+     return false;
+ }
+ 
+-/* rive: a shared memory never moves and only grows, so a check racing a
+-   growth at worst refuses bytes just added; with atomic 64 bit sizes the
+-   process wide mutex was only overhead on every host call with a pointer */
++/* rive: a shared memory grows only while frozen is clear, when no parallel
++   call runs and only the growing thread runs its module, so no check races
++   a growth; the process wide mutex was only overhead on every pointer */
+ #if WASM_ENABLE_SHARED_MEMORY != 0 && BH_ATOMIC_64_IS_ATOMIC != 0
+ #define VALIDATE_LOCK(memory) (void)0
+ #define VALIDATE_UNLOCK(memory) (void)0
+@@ -1593,9 +1593,8 @@ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+ 
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
+     full_size_mmaped = true;
+-#elif WASM_ENABLE_SHARED_MEMORY != 0
+-    full_size_mmaped = shared_memory_is_shared(memory);
+ #else
++    /* rive: a shared memory maps and moves as a private one does */
+     full_size_mmaped = false;
+ #endif
+ 
+@@ -1615,6 +1614,12 @@ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+         /* No need to enlarge memory */
+         return true;
+ 
++    /* rive: a parallel call's members read the memory where it lies */
++    if (RIVE_MEMORY_FROZEN(memory)) {
++        ret = false;
++        goto return_func;
++    }
++
+     if (total_page_count < cur_page_count) { /* integer overflow */
+         ret = false;
+         goto return_func;
+@@ -1955,18 +1960,9 @@ wasm_deallocate_linear_memory(WASMMemoryInstance *memory_inst)
+     bh_assert(memory_inst->memory_data);
+ 
+ #ifndef OS_ENABLE_HW_BOUND_CHECK
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    if (shared_memory_is_shared(memory_inst)) {
+-        map_size = (uint64)memory_inst->num_bytes_per_page
+-                   * memory_inst->max_page_count;
+-    }
+-    else
+-#endif
+-    {
+-        map_size = linear_memory_map_size(memory_inst->num_bytes_per_page,
+-                                          memory_inst->cur_page_count,
+-                                          memory_inst->max_page_count);
+-    }
++    map_size = linear_memory_map_size(memory_inst->num_bytes_per_page,
++                                      memory_inst->cur_page_count,
++                                      memory_inst->max_page_count);
+ #else
+     map_size = 8 * (uint64)BH_GB;
+ #endif
+@@ -1999,20 +1995,14 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
+     bh_assert(memory_data_size);
+ 
+ #ifndef OS_ENABLE_HW_BOUND_CHECK
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    if (is_shared_memory) {
+-        /* Allocate maximum memory size when memory is shared */
+-        map_size = max_page_count * num_bytes_per_page;
+-    }
+-    else
+-#endif
+-    {
+-        map_size = linear_memory_map_size(num_bytes_per_page, init_page_count,
+-                                          max_page_count);
+-        /* rive patch: growth inside the map reuses it without committing,
+-           while hw bounds rely on the uncommitted rest to trap */
+-        commit_map = true;
+-    }
++    /* rive: a shared memory too, which may move when it grows as only the
++       thread growing it runs its module then */
++    (void)is_shared_memory;
++    map_size = linear_memory_map_size(num_bytes_per_page, init_page_count,
++                                      max_page_count);
++    /* rive patch: growth inside the map reuses it without committing,
++       while hw bounds rely on the uncommitted rest to trap */
++    commit_map = true;
+ #else  /* else of OS_ENABLE_HW_BOUND_CHECK */
+     /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
+      *   ea = i + memarg.offset
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+index 0940558..8998fae 100644
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -3314,6 +3314,17 @@ wasm_runtime_instantiate_parallel_member(WASMModuleInstanceCommon *parent,
+     return NULL;
+ }
+ 
++void
++wasm_runtime_rive_freeze_memory(WASMModuleInstanceCommon *module_inst,
++                                bool frozen)
++{
++    WASMMemoryInstance *memory =
++        wasm_get_default_memory((WASMModuleInstance *)module_inst);
++
++    if (memory)
++        RIVE_SET_MEMORY_FROZEN(memory, frozen ? 1 : 0);
++}
++
+ void
+ wasm_runtime_copy_globals(WASMModuleInstanceCommon *dst,
+                           WASMModuleInstanceCommon *src)
+diff --git a/core/iwasm/compilation/aot_emit_memory.c b/core/iwasm/compilation/aot_emit_memory.c
+index 0f42df5..1c4b7c8 100644
+--- a/core/iwasm/compilation/aot_emit_memory.c
++++ b/core/iwasm/compilation/aot_emit_memory.c
+@@ -122,11 +122,7 @@ get_memory_check_bound(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         aot_set_last_error("llvm build load failed.");
+         return NULL;
+     }
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    /* rive patch: another thread may grow a shared memory at any time */
+-    if (!(comp_ctx->comp_data->memories[0].flags & SHARED_MEMORY_FLAG))
+-#endif
+-        aot_set_tbaa(comp_ctx, mem_check_bound, comp_ctx->tbaa_mem_info);
++    aot_set_tbaa(comp_ctx, mem_check_bound, comp_ctx->tbaa_mem_info);
+     return mem_check_bound;
+ }
+ 
+@@ -578,10 +574,6 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+     uint64 const_value;
+     bool is_target_64bit, is_local_of_aot_value = false;
+     bool is_const = false;
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    bool is_shared_memory =
+-        comp_ctx->comp_data->memories[0].flags & SHARED_MEMORY_FLAG;
+-#endif
+ #if WASM_ENABLE_MEMORY64 == 0
+     bool is_memory64 = false;
+ #else
+@@ -619,11 +611,7 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+     }
+ 
+     /* Get memory base address and memory data size */
+-    if (func_ctx->mem_space_unchanged
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-        || is_shared_memory
+-#endif
+-    ) {
++    if (func_ctx->mem_space_unchanged) {
+         mem_base_addr = func_ctx->mem_info[0].mem_base_addr;
+     }
+     else {
+@@ -1513,13 +1501,7 @@ check_bulk_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+     is_target_64bit = (comp_ctx->pointer_size == sizeof(uint64)) ? true : false;
+ 
+     /* Get memory base address and memory data size */
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    bool is_shared_memory = comp_ctx->comp_data->memories[0].flags & 0x02;
+-
+-    if (func_ctx->mem_space_unchanged || is_shared_memory) {
+-#else
+     if (func_ctx->mem_space_unchanged) {
+-#endif
+         mem_base_addr = func_ctx->mem_info[0].mem_base_addr;
+     }
+     else {
+diff --git a/core/iwasm/compilation/aot_llvm.c b/core/iwasm/compilation/aot_llvm.c
+index f419073..d21875e 100644
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -1470,18 +1470,8 @@ create_memory_info(const AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+             return false;
+         }
+     }
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    else if (is_shared_memory) {
+-        /* The base address for shared memory will never changed,
+-            we can load the value here */
+-        if (!(func_ctx->mem_info[0].mem_base_addr = LLVMBuildLoad2(
+-                  comp_ctx->builder, OPQ_PTR_TYPE,
+-                  func_ctx->mem_info[0].mem_base_addr, "mem_base_addr"))) {
+-            aot_set_last_error("llvm build load failed");
+-            return false;
+-        }
+-    }
+-#endif
++    /* rive: a shared memory moves when it grows, as a private one does,
++       never under a running parallel call, so it reloads at the same points */
+ 
+     bound_check_type = (comp_ctx->pointer_size == sizeof(uint64))
+                            ? INT64_PTR_TYPE
+@@ -1618,10 +1608,6 @@ create_memory_info(const AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+         }
+     }
+ 
+-#if WASM_ENABLE_SHARED_MEMORY != 0
+-    if (is_shared_memory)
+-        return true;
+-#endif
+     /* rive patch: unoptimized code keeps the locals in memory, a cost with no
+        gain */
+     if (!mem_space_unchanged && comp_ctx->opt_level > 0)
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+index 6007561..4c9cd06 100644
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -1359,6 +1359,13 @@ wasm_runtime_instantiate_parallel_member(wasm_module_inst_t parent,
+                                          uint32_t stack_size, char *error_buf,
+                                          uint32_t error_buf_size);
+ 
++/**
++ * rive: while frozen, module_inst's default memory refuses to grow, as
++ * growing may move it under the parallel call members that share it.
++ */
++WASM_RUNTIME_API_EXTERN void
++wasm_runtime_rive_freeze_memory(wasm_module_inst_t module_inst, bool frozen);
++
+ /**
+  * rive: copy src's global values into dst, an instance of the same module.
+  */
+diff --git a/core/iwasm/interpreter/wasm_runtime.h b/core/iwasm/interpreter/wasm_runtime.h
+index 6d2e96f..423e5ec 100644
+--- a/core/iwasm/interpreter/wasm_runtime.h
++++ b/core/iwasm/interpreter/wasm_runtime.h
+@@ -124,9 +124,14 @@ struct WASMMemoryInstance {
+          0: non-shared memory, > 0: shared memory */
+     bh_atomic_16_t ref_count;
+ 
++    /* rive: set while a parallel call runs, when growing could move the
++       memory under its members; a padding byte, so compiled code's offsets
++       stay */
++    uint8 rive_frozen;
++
+     /* Four-byte paddings to ensure the layout of WASMMemoryInstance is the same
+      * in both 64-bit and 32-bit */
+-    uint8 _paddings[4];
++    uint8 _paddings[3];
+ 
+     /* Number bytes per page */
+     uint32 num_bytes_per_page;
+@@ -165,6 +170,19 @@ struct WASMMemoryInstance {
+ #endif
+ };
+ 
++/* rive: MSVC lacks the GCC builtins, and it only builds wamrc, which never
++   runs a parallel call */
++#if defined(CLANG_GCC_HAS_ATOMIC_BUILTIN)
++#define RIVE_MEMORY_FROZEN(memory) \
++    __atomic_load_n(&(memory)->rive_frozen, __ATOMIC_SEQ_CST)
++#define RIVE_SET_MEMORY_FROZEN(memory, frozen) \
++    __atomic_store_n(&(memory)->rive_frozen, (frozen), __ATOMIC_SEQ_CST)
++#else
++#define RIVE_MEMORY_FROZEN(memory) ((memory)->rive_frozen)
++#define RIVE_SET_MEMORY_FROZEN(memory, frozen) \
++    ((memory)->rive_frozen = (frozen))
++#endif
++
+ /* WASMTableInstance is used to represent table instance in
+  * runtime, to compute the table element address with index
+  * we need to know the element type and the element ref type.

@@ -427,8 +427,9 @@ private:
   std::chrono::steady_clock::time_point m_outer;
 };
 #else
-/// Hardware bounds checks trap through WAMR's per thread signal state, so
-/// every thread sets it up before it first runs wasm.
+/// Sets up WAMR on a thread it did not start. Hardware bounds checks trap
+/// through WAMR's per thread signal state, and on Windows a wait in wasm code
+/// parks on per thread data, so every thread sets it up before it runs wasm.
 void ensureWasmThreadEnv();
 /// The 32 bit cells a WAMR function's parameters take, or ~0u when its
 /// parameters or results would not fit in limit cells, at most 8.

@@ -557,6 +557,11 @@ double lanesWaitWithinImpl(WasmScriptingVM* vm, uint32_t signal, double after, d
 uint32_t jobsThreadsImpl(WasmScriptingVM* vm);
 uint32_t jobsJoinImpl(WasmScriptingVM* vm, uint32_t job, double timeoutSeconds);
 uint32_t jobsJoinAnyImpl(WasmScriptingVM* vm, const uint32_t* jobs, uint32_t count, double timeoutSeconds);
+uint32_t parallelSizeImpl(WasmScriptingVM* vm);
+#ifdef RIVE_WASM_PARALLEL
+uint32_t parallelRunImpl(WasmScriptingVM* vm, uint32_t control);
+#endif
+void parallelWaitingImpl(WasmScriptingVM* vm, uint32_t control);
 uint32_t sharedRegionCreateImpl(WasmScriptingVM* vm, uint32_t size);
 uint32_t sharedRegionSizeImpl(WasmScriptingVM* vm, uint32_t region);
 uint32_t sharedRegionLockImpl(WasmScriptingVM* vm, uint32_t region, double timeoutSeconds);
@@ -605,7 +610,7 @@ void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
     WasmScriptingVM* vm = bootVmFromEnv(env);
     if (vm == nullptr)
     {
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "execution exceeded timeout");
+        vmlessTrap(env, "execution exceeded timeout");
         return;
     }
     rtBudgetExceededImpl(vm, ms);
@@ -615,7 +620,7 @@ void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
     WasmScriptingVM* vm = bootVmFromEnv(env);
     if (vm == nullptr)
     {
-        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "script threw");
+        vmlessTrap(env, "script threw", message, length);
         return;
     }
     WasmStringArg messageUtf8(vm, message, length);
@@ -2470,6 +2475,23 @@ uint32_t jobsJoinAny(wasm_exec_env_t env, const uint32_t* jobs, uint32_t count, 
     }
     return jobsJoinAnyImpl(vm, jobs, count, timeoutSeconds);
 }
+uint32_t parallelSize(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return parallelSizeImpl(vm);
+}
+#ifdef RIVE_WASM_PARALLEL
+uint32_t parallelRun(wasm_exec_env_t env, uint32_t control)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return parallelRunImpl(vm, control);
+}
+#endif
+void parallelWaiting(wasm_exec_env_t env, uint32_t control)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    parallelWaitingImpl(vm, control);
+}
 uint32_t sharedRegionCreate(wasm_exec_env_t env, uint32_t size)
 {
     WasmScriptingVM* vm = bootVmFromEnv(env);
@@ -3066,6 +3088,14 @@ NativeSymbol kJobsNatives[] = {
     {"join_any", (void*)jobsJoinAny, "(*~F)i", nullptr},
 };
 
+NativeSymbol kParallelNatives[] = {
+    {"size", (void*)parallelSize, "()i", nullptr},
+#ifdef RIVE_WASM_PARALLEL
+    {"run", (void*)parallelRun, "(i)i", nullptr},
+#endif
+    {"waiting", (void*)parallelWaiting, "(i)", nullptr},
+};
+
 NativeSymbol kSharedNatives[] = {
     {"region_create", (void*)sharedRegionCreate, "(i)i", nullptr},
     {"region_size", (void*)sharedRegionSize, "(i)i", nullptr},
@@ -3197,6 +3227,10 @@ inline bool registerRiveBindingNatives()
                "rive_jobs_v1",
                kJobsNatives,
                sizeof(kJobsNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_parallel_v1",
+               kParallelNatives,
+               sizeof(kParallelNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_shared_v1",
                kSharedNatives,

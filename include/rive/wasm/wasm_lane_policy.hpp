@@ -24,6 +24,10 @@ struct ScriptingLimits
   /// to the device; read when each pool is made.
   uint32_t jobThreads = 0;
   uint32_t workerThreads = 0;
+  /// Runs every parallel call one part at a time on the caller's thread,
+  /// as a host without threads does, so code that writes the heap in place
+  /// cannot race. Parallel.size() is then 1.
+  bool parallelSafeMode = false;
   /// As many as fit in half the device's address space.
   static constexpr uint32_t kHardwareBoundsDefault = UINT32_MAX;
   /// How many script memories may use hardware bounds at once, each reserving

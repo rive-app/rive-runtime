@@ -254,14 +254,17 @@ def op(name, params=(), ret=None, stub=None, guard=None, boot=None,
             'lane_refusal': lane_refusal}
 
 
-def ns(module, short, ops, lanes=(), boots=False):
+def ns(module, short, ops, lanes=(), boots=False, as_class=True):
     # lanes: the lane kinds whose modules may import its ops. A lane module
     # runs without a VM, so most namespaces allow none.
     # boots: a module's top level may call its ops, which resolve the booting
     # vm as boot does, without trapping when there is none.
+    # as_class: natives.as wraps its ops in a class. Every class there takes a
+    # runtime id, so a new one changes the bytes of every module importing it.
     for each in ops if boots else ():
         each['boot'] = each['boot'] or True
-    return {'module': module, 'short': short, 'ops': ops, 'lanes': lanes}
+    return {'module': module, 'short': short, 'ops': ops, 'lanes': lanes,
+            'as_class': as_class}
 
 
 NAMESPACES = [
@@ -1257,6 +1260,24 @@ NAMESPACES = [
         op('join_any', [buf('uint32_t', 'jobs', 'count'),
                         f64('timeoutSeconds')], ret='u32'),
     ], boots=True),
+    # Parallel calls: one function run on several threads at once over the
+    # main module's own memory, and joined before the call returns.
+    ns('rive_parallel_v1', 'parallel', [
+        # The most parts a run would get now: the threads it may use with
+        # the main lane, or 1 where it would get one.
+        op('size', ret='u32'),
+        # Runs the call whose control block lane_layout.py's Parallel group
+        # lays out at control. With atOnce set, the call gets one part per
+        # thread it runs on, and count says how many. A part that traps traps
+        # the caller once every part has stopped. Answers how many threads
+        # ran parts.
+        op('run', [u32('control')], ret='u32', guard='RIVE_WASM_PARALLEL'),
+        # Part 0 calls it now and then while it waits at a sync on a caller
+        # that cannot park, so the host can stop a call with a part that
+        # never started. The page's runner answers it; elsewhere the caller
+        # parks and it does nothing.
+        op('waiting', [u32('control')], web_js='undefined'),
+    ], boots=True, as_class=False),
     # Memory every lane shares, by process wide id. Creates answer an id or a
     # shared_layout.py Create code; reads answer size plus one, 0 when empty.
     ns('rive_shared_v1', 'shared', [

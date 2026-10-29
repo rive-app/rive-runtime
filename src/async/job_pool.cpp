@@ -6,6 +6,17 @@
 #include "rive/async/timeouts.hpp"
 
 #include <chrono>
+#include <memory>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <process.h>
+#include <windows.h>
+#endif
 
 using namespace rive;
 
@@ -29,14 +40,141 @@ void JobPool::setThreadFactory(ThreadFactory factory)
   threadFactory() = std::move(factory);
 }
 
-std::thread JobPool::makeThread(std::function<void()> body)
+#if RIVE_LANE_NATIVE_THREADS()
+#ifdef _WIN32
+static unsigned __stdcall runLaneThread(void* body)
+#else
+static void* runLaneThread(void* body)
+#endif
+{
+  std::unique_ptr<std::function<void()>> owned((std::function<void()>*)body);
+  (*owned)();
+  return {};
+}
+
+// Starts body with kStackBytes of stack, false where the system refuses.
+static bool startNative(LaneNativeThread& native, std::function<void()>* body)
+{
+#ifdef _WIN32
+  native = (LaneNativeThread)_beginthreadex(
+      nullptr,
+      (unsigned)LaneThread::kStackBytes,
+      runLaneThread,
+      body,
+      STACK_SIZE_PARAM_IS_A_RESERVATION,
+      nullptr);
+  return native != nullptr;
+#else
+  pthread_attr_t attr;
+  if (pthread_attr_init(&attr) != 0)
+  {
+    return false;
+  }
+  bool started = pthread_attr_setstacksize(&attr, LaneThread::kStackBytes) ==
+                     0 &&
+                 pthread_create(&native, &attr, runLaneThread, body) == 0;
+  pthread_attr_destroy(&attr);
+  return started;
+#endif
+}
+
+static void joinNative(LaneNativeThread native)
+{
+#ifdef _WIN32
+  WaitForSingleObject(native, INFINITE);
+  CloseHandle(native);
+#else
+  pthread_join(native, nullptr);
+#endif
+}
+
+static void detachNative(LaneNativeThread native)
+{
+#ifdef _WIN32
+  CloseHandle(native);
+#else
+  pthread_detach(native);
+#endif
+}
+#endif
+
+LaneThread::LaneThread(LaneThread&& other) noexcept
+    : m_thread(std::move(other.m_thread))
+#if RIVE_LANE_NATIVE_THREADS()
+    , m_native(other.m_native)
+    , m_hasNative(other.m_hasNative)
+#endif
+{
+#if RIVE_LANE_NATIVE_THREADS()
+  other.m_hasNative = false;
+#endif
+}
+
+LaneThread::~LaneThread()
+{
+#if RIVE_LANE_NATIVE_THREADS()
+  if (m_hasNative)
+  {
+    detachNative(m_native);
+  }
+#endif
+}
+
+LaneThread LaneThread::start(std::function<void()> body)
+{
+  LaneThread thread;
+#if RIVE_LANE_NATIVE_THREADS()
+  // Other threads get far less stack than the main thread on Apple and
+  // Android, and 1 MB on Windows, and compiled code recurses on the native
+  // stack.
+  auto owned = std::make_unique<std::function<void()>>(std::move(body));
+  if (startNative(thread.m_native, owned.get()))
+  {
+    owned.release();
+    thread.m_hasNative = true;
+    return thread;
+  }
+  body = std::move(*owned);
+#endif
+  thread.m_thread = std::thread(std::move(body));
+  return thread;
+}
+
+void LaneThread::join()
+{
+#if RIVE_LANE_NATIVE_THREADS()
+  if (m_hasNative)
+  {
+    joinNative(m_native);
+    m_hasNative = false;
+    return;
+  }
+#endif
+  m_thread.join();
+}
+
+void LaneThread::detach()
+{
+#if RIVE_LANE_NATIVE_THREADS()
+  if (m_hasNative)
+  {
+    detachNative(m_native);
+    m_hasNative = false;
+    return;
+  }
+#endif
+  m_thread.detach();
+}
+
+LaneThread JobPool::makeThread(std::function<void()> body)
 {
   ThreadFactory factory;
   {
     std::lock_guard<std::mutex> lock(factoryMutex());
     factory = threadFactory();
   }
-  return factory ? factory(std::move(body)) : std::thread(std::move(body));
+  return factory ? LaneThread(factory(std::move(body)))
+                 : LaneThread::start(std::move(body));
 }
 
 JobPool::JobPool(uint32_t threadCount, JobSchedule schedule, uint64_t seed)

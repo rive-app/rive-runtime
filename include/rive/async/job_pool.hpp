@@ -20,6 +20,17 @@
 #include <thread>
 #include <vector>
 
+// Where a lane thread chooses its own stack, as std::thread cannot; a web
+// build's pthread stacks come out of its own wasm memory.
+#if defined(_WIN32)
+#define RIVE_LANE_NATIVE_THREADS() 1
+#elif !defined(__EMSCRIPTEN__) && (defined(__APPLE__) || defined(__linux__))
+#define RIVE_LANE_NATIVE_THREADS() 1
+#include <pthread.h>
+#else
+#define RIVE_LANE_NATIVE_THREADS() 0
+#endif
+
 namespace rive
 {
 
@@ -84,6 +95,43 @@ enum class JobSchedule : uint8_t
 #endif
 };
 
+#if RIVE_LANE_NATIVE_THREADS()
+#ifdef _WIN32
+// A HANDLE, without windows.h.
+using LaneNativeThread = void*;
+#else
+using LaneNativeThread = pthread_t;
+#endif
+#endif
+
+/// A thread that runs script lanes: the factory's, or one with kStackBytes of
+/// stack.
+class LaneThread
+{
+public:
+  /// As much as a main thread has on desktops and Android, so code that runs
+  /// on the main lane runs on every lane.
+  static constexpr size_t kStackBytes = 8u << 20;
+
+  LaneThread() = default;
+  explicit LaneThread(std::thread thread) : m_thread(std::move(thread)) {}
+  LaneThread(LaneThread&& other) noexcept;
+  LaneThread& operator=(LaneThread&&) = delete;
+  LaneThread(const LaneThread&) = delete;
+  ~LaneThread();
+
+  static LaneThread start(std::function<void()> body);
+  void join();
+  void detach();
+
+private:
+  std::thread m_thread;
+#if RIVE_LANE_NATIVE_THREADS()
+  LaneNativeThread m_native{};
+  bool m_hasNative = false;
+#endif
+};
+
 /// Script jobs' pool, apart from the decodes' WorkPool. Without threads a
 /// task runs only when joined or pumped, every platform's inline fallback.
 class JobPool
@@ -103,7 +151,7 @@ public:
   /// Consoles set this to pick cores, priorities and stack sizes.
   static void setThreadFactory(ThreadFactory factory);
   /// A thread from the factory, for every thread that runs script lanes.
-  static std::thread makeThread(std::function<void()> body);
+  static LaneThread makeThread(std::function<void()> body);
 
   uint32_t threadCount() const
   {
@@ -152,7 +200,7 @@ private:
   std::condition_variable m_workCv;
   std::condition_variable m_doneCv;
   std::deque<rcp<JobTask>> m_queue;
-  std::vector<std::thread> m_threads;
+  std::vector<LaneThread> m_threads;
   bool m_stopping = false;
 };
 

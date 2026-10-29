@@ -825,7 +825,7 @@ std::string ModuleTierLadder::keyedCacheDir()
   // it whenever species flags change or stale artifacts get served on a
   // cache hit.
   const std::string& version = wamrcVersion();
-  return m_cacheDir + "/" + version + "-r15-g" +
+  return m_cacheDir + "/" + version + "-r17-g" +
          std::to_string(WASM_RIVE_HW_GUARD_SIZE) + (m_wamrcTunes ? "t" : "");
 }
 
@@ -1341,7 +1341,13 @@ std::string ModuleTierLadder::runWamrc(Job& job)
     // The platform clobbers x18; reserve it here so safety does not
     // depend on the wamrc we were handed. Features need an explicit cpu.
     args.push_back("--cpu=generic");
+#if defined(__APPLE__)
+    // Every Apple silicon Mac has single instruction atomics, which make
+    // parallel calls' barriers cheaper than load and store exclusive loops.
+    args.push_back("--cpu-features=+reserve-x18,+lse");
+#else
     args.push_back("--cpu-features=+reserve-x18");
+#endif
 #if defined(__APPLE__)
     // Generic scheduling turns float compare chains into mispredicted
     // branches (up to 1.5x slower); tuning leaves the ISA baseline alone.

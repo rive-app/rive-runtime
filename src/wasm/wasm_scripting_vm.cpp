@@ -4,6 +4,7 @@
 #include "rive/async/compare_exchange.hpp"
 #include "rive/async/timeouts.hpp"
 #include "rive/wasm/wasm_jobs.hpp"
+#include "rive/wasm/wasm_parallel.hpp"
 #include "rive/wasm/wasm_lane.hpp"
 #include "rive/wasm/wasm_shared.hpp"
 #include "rive/wasm/wasm_workers.hpp"
@@ -976,6 +977,27 @@ uint32_t WasmScriptingVM::pageThreadBudgetMs() const
   return boundsCalls() ? (uint32_t)m_timeoutMs : 0;
 }
 
+uint32_t WasmScriptingVM::parallelSize() const
+{
+#ifdef RIVE_WASM_PARALLEL
+  // A debugger steps one thread, so every part runs on the one it stops,
+  // and a top level runs before its instance can take members.
+  return m_limits.parallelSafeMode || m_debugHooks != nullptr ||
+                 s_booting == this
+             ? 1
+             : WasmParallel::size();
+#elif defined(__EMSCRIPTEN_PTHREADS__)
+  // The page runs parts on its own team of threads, as many as its runner
+  // picks up to a native call's 64.
+  return m_limits.parallelSafeMode || m_debugHooks != nullptr ||
+                 s_booting == this
+             ? 1
+             : 64;
+#else
+  return 1;
+#endif
+}
+
 // Only joins, region locks and signal waits read the call deadline.
 bool WasmScriptingVM::armDeadline()
 {
@@ -1608,6 +1630,20 @@ WasmScriptingVM* vmFromHandle(uint32_t handle)
 WasmScriptingVM* bootVmFromHandle(uint32_t handle)
 {
   return handle == 1 ? nullptr : (WasmScriptingVM*)(uintptr_t)handle;
+}
+#endif
+
+#ifndef __EMSCRIPTEN__
+// A trap from a module call that has no VM: a lane's, or a parallel call
+// member's, whose throw reaches the call that ran it.
+void vmlessTrap(
+    wasm_exec_env_t env,
+    const char* text,
+    const char* message = nullptr,
+    uint32_t length = 0)
+{
+  WasmParallel::noteMemberTrap(text, message, length);
+  wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), text);
 }
 #endif
 
@@ -10259,13 +10295,19 @@ bool initRuntime()
          wasm_module_inst_t,
          wasm_exec_env_t env,
          void*) {
+        const char* why = reason == MAX_SIZE_REACHED
+                              ? "the module hit its wasmMaxPages ceiling"
+                              : "the device could not provide the memory";
+#ifdef RIVE_WASM_PARALLEL
+        if (WasmParallel::runningParts())
+        {
+          why = "the memory cannot grow during a parallel call";
+        }
+#endif
         reportScriptError(
             env != nullptr ? bootVmFromEnv(env) : nullptr,
             "wasm memory: growing " + std::to_string(currentBytes >> 20) +
-                " MB by " + std::to_string(incPages) + " pages failed: " +
-                (reason == MAX_SIZE_REACHED
-                     ? "the module hit its wasmMaxPages ceiling"
-                     : "the device could not provide the memory"));
+                " MB by " + std::to_string(incPages) + " pages failed: " + why);
       },
       nullptr);
   wasm_runtime_register_natives(
@@ -11264,6 +11306,28 @@ double lanesWaitWithinImpl(
       .block();
 }
 
+// --- rive_parallel_v1: parallel calls -------------------------------------
+
+uint32_t parallelSizeImpl(WasmScriptingVM* vm)
+{
+  return vm != nullptr ? vm->parallelSize() : 1;
+}
+
+#ifdef RIVE_WASM_PARALLEL
+uint32_t parallelRunImpl(WasmScriptingVM* vm, uint32_t control)
+{
+  if (vm == nullptr)
+  {
+    WasmParallel::refuseMemberCall();
+    return 0;
+  }
+  return vm->runParallel(control);
+}
+#endif
+
+// Only a caller that cannot park calls it, and natively every caller parks.
+void parallelWaitingImpl(WasmScriptingVM* vm, uint32_t control) {}
+
 // --- rive_jobs_v1: script jobs ---------------------------------------------
 
 uint32_t jobsThreadsImpl(WasmScriptingVM* vm)
@@ -11585,6 +11649,48 @@ void WasmScriptingVM::callDraw(
   m_handles.release(handle, HandleTable::Tag::renderer);
 }
 
+#ifdef RIVE_WASM_PARALLEL
+uint32_t WasmScriptingVM::runParallel(uint32_t control)
+{
+  if (m_parallel == nullptr)
+  {
+    m_parallel = std::make_unique<WasmParallel>(m_state->instance);
+  }
+  WasmParallel::Outcome outcome = m_parallel->run(
+      m_state->execEnv,
+      control,
+      parallelSize() == 1);
+  using Kind = WasmParallel::Outcome::Kind;
+  switch (outcome.kind)
+  {
+    case Kind::ok:
+    case Kind::callerFailed:
+      break;
+    case Kind::trapped:
+      raiseModuleError(outcome.message.c_str());
+      break;
+    case Kind::threw:
+    {
+      WasmStringArg message(
+          this,
+          outcome.message.data(),
+          (uint32_t)outcome.message.size());
+      raiseThrown(std::string(message.data(), message.size()).c_str());
+      break;
+    }
+    case Kind::budget:
+      reportError(budgetExceededLine(m_timeoutMs));
+      raiseBudgetExceeded();
+      break;
+    case Kind::interrupted:
+      // The watchdog's own report names the timeout.
+      raiseModuleError("execution exceeded timeout");
+      break;
+  }
+  return outcome.threads;
+}
+#endif
+
 WasmScriptingVM::~WasmScriptingVM()
 {
   // First, so no poll reaches it while it goes.
@@ -11598,6 +11704,10 @@ WasmScriptingVM::~WasmScriptingVM()
   m_processors.reset();
   m_workers.reset();
   m_jobs.reset();
+#ifndef __EMSCRIPTEN__
+  // Members share the instance's memory, so they go before it.
+  m_parallel.reset();
+#endif
   if (m_sharedOwner != 0)
   {
     SharedRegistry::releaseOwner(m_sharedOwner);

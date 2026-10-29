@@ -1716,6 +1716,18 @@ uint32_t rive_web_jobs_join_any(uint32_t vmHandle, const uint32_t* jobs, uint32_
     WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
     return jobsJoinAnyImpl(vm, jobs, count, timeoutSeconds);
 }
+uint32_t rive_web_parallel_size(uint32_t vmHandle)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return parallelSizeImpl(vm);
+}
+#ifdef RIVE_WASM_PARALLEL
+uint32_t rive_web_parallel_run(uint32_t vmHandle, uint32_t control)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    return parallelRunImpl(vm, control);
+}
+#endif
 uint32_t rive_web_shared_region_create(uint32_t vmHandle, uint32_t size)
 {
     WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
@@ -2269,6 +2281,12 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_jobs_threads,
     (void*)rive_web_jobs_join,
     (void*)rive_web_jobs_join_any,
+    (void*)rive_web_parallel_size,
+#ifdef RIVE_WASM_PARALLEL
+    (void*)rive_web_parallel_run,
+#else
+    nullptr,
+#endif
     (void*)rive_web_shared_region_create,
     (void*)rive_web_shared_region_size,
     (void*)rive_web_shared_region_lock,

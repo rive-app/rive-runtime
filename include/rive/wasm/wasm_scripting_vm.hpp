@@ -25,6 +25,7 @@
 namespace rive
 {
 class WasmJobs;
+class WasmParallel;
 class WasmWorkers;
 class WasmProcessors;
 class WasmLane;
@@ -300,6 +301,13 @@ public:
 
   /// The module's jobs section, null when it carries none.
   WasmJobs* jobs() const { return m_jobs.get(); }
+  /// The parts a parallel call runs at once: 1 in safe mode, without
+  /// threads, or while a debugger is attached.
+  uint32_t parallelSize() const;
+  /// Runs the parallel call whose control block lies at control, raising
+  /// the first failure of any part as this call's trap. Answers the threads
+  /// that ran parts.
+  uint32_t runParallel(uint32_t control);
   /// The module's workers section, null when it carries none.
   WasmWorkers* workers() const { return m_workers.get(); }
   /// The module's audio section, null when it carries none.
@@ -899,6 +907,9 @@ private:
   void wakeMain(uint32_t token, double value);
   std::unique_ptr<BudgetSlot> m_budgetSlot;
   std::unique_ptr<WasmJobs> m_jobs;
+#ifndef __EMSCRIPTEN__
+  std::unique_ptr<WasmParallel> m_parallel;
+#endif
   std::unique_ptr<WasmWorkers> m_workers;
   std::unique_ptr<WasmProcessors> m_processors;
   std::string m_laneLoadErrors[3];

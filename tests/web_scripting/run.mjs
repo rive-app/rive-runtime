@@ -8,8 +8,16 @@
 //                [--while-pending] [--nrdp-fault <start|silent|fetch>] [--nrdp-stall]
 //                [--forget-modules] [--worklet-throws] [--page-boundary]
 //                [--seam <address>] [--first <file.riv>] [--error-sink]
-//                [--hash <blocks>]
+//                [--hash <blocks>] [--no-isolation] [--job-threads <n>]
+//                [--parallel-parts <n>] [--parallel-safe] [--call-budget <ms>]
 //                [--expect <log line>]... [--expect-line <log line>]...
+// --no-isolation runs as a page without cross origin isolation would, which
+// a build with threads refuses to load.
+// --job-threads sets the job pool's threads. --parallel-parts sets the
+// runner's parallelParts, the parts a parallel call gets on a build with
+// threads. --parallel-safe runs every parallel call one part at a time.
+// --call-budget sets how long a call into the file's scripts may run, 0 for
+// no limit.
 // --early starts scripts once before prepare() settles, as a host that does
 // not wait for it would. --deep runs the frames with little stack left.
 // --bounded starts only modules the page can bound, as an editor does.
@@ -201,6 +209,10 @@ if (nrdpMock) {
     const web = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/wasm/web');
     mock = installNrdpMock((url) => readFileSync(resolve(web, url), 'utf8'), nrdpFault);
 }
+// As a page without cross origin isolation, which has no shared memory.
+if (rest.includes('--no-isolation')) {
+    globalThis.crossOriginIsolated = false;
+}
 const workletThrows = rest.includes('--worklet-throws');
 if (workletThrows) {
     globalThis.crossOriginIsolated = true;
@@ -242,6 +254,16 @@ const Module = await createHarness({
             refusal(bytes) === null && WebAssembly.validate(bytes),
     }),
     riveScriptingLaneTwin: rest.includes('--lane-twin'),
+}).catch((error) => {
+    // A build with threads refuses a page that cannot share memory, which
+    // passes only a run that expects it.
+    const line = `harness refused: ${error.message}`;
+    const missing = expected.filter((want) => !line.includes(want));
+    const wanted = (want) => exactLines.filter((other) => other === want).length;
+    missing.push(...exactLines.filter((want) => want !== line || wanted(want) > 1));
+    const passed = missing.length === 0 && expected.length + exactLines.length > 0;
+    console[passed ? 'log' : 'error'](line);
+    process.exit(passed ? 0 : 1);
 });
 if (nrdpMock) {
     Module.riveScripting.audioWorkletUrl = 'rive_audio_worklet_nrdp.js';
@@ -299,6 +321,18 @@ if (hardBlocks !== undefined) {
 }
 if (errorSink) {
     Module._harness_error_sink();
+}
+const jobThreads = valueOf('--job-threads');
+if (jobThreads !== undefined) {
+    Module._harness_job_threads(Number(jobThreads));
+}
+if (rest.includes('--parallel-safe')) {
+    Module._harness_parallel_safe();
+}
+Module.riveScripting.parallelParts = valueOf('--parallel-parts');
+const callBudget = valueOf('--call-budget');
+if (callBudget !== undefined) {
+    Module._harness_call_budget(Number(callBudget));
 }
 function importRiv(path) {
     const bytes = readFileSync(path);
@@ -453,6 +487,7 @@ if (settle) {
 }
 Module._harness_release();
 lines.push(`script modules instantiated: ${instantiations}`);
+lines.push(`parallel team ${JSON.stringify(Module.riveScripting.parallelState())}`);
 
 // A custom section of the riv's script module.
 function laneSection(bytes, name) {

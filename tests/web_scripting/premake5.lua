@@ -53,9 +53,11 @@ local function harness(name, environment)
             '-sEXPORTED_RUNTIME_METHODS=HEAPU8',
         })
         if _OPTIONS['web_threads'] then
-            -- As threaded runtimes do, so a page can leave the worklet unnamed.
+            -- As threaded runtimes do, so a page can leave the worklet unnamed
+            -- and a page that cannot share memory fails the load at once.
             linkoptions({
                 '--pre-js ' .. path.join(runtime, 'src/wasm/web/rive_audio_worklet_pre.js'),
+                '--pre-js ' .. path.join(runtime, 'src/wasm/web/rive_threads_pre.js'),
             })
         end
     end

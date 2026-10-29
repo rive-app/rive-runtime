@@ -906,6 +906,14 @@ uint32_t rive_jobs_join(uint32_t job, double timeoutSeconds);
 RIVE_BINDING_IMPORT("rive_jobs_v1", "join_any")
 uint32_t rive_jobs_join_any(const uint32_t* jobs, uint32_t count, double timeoutSeconds);
 
+// rive_parallel_v1
+RIVE_BINDING_IMPORT("rive_parallel_v1", "size")
+uint32_t rive_parallel_size(void);
+RIVE_BINDING_IMPORT("rive_parallel_v1", "run")
+uint32_t rive_parallel_run(uint32_t control);
+RIVE_BINDING_IMPORT("rive_parallel_v1", "waiting")
+void rive_parallel_waiting(uint32_t control);
+
 // rive_shared_v1
 RIVE_BINDING_IMPORT("rive_shared_v1", "region_create")
 uint32_t rive_shared_region_create(uint32_t size);

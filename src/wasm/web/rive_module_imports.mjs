@@ -1753,6 +1753,11 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
                 }
             },
         },
+        'rive_parallel_v1': want('rive_parallel_v1') && {
+            'size': calls.rive_parallel_size,
+            'run': calls.rive_parallel_run,
+            'waiting': () => undefined,
+        },
         'rive_shared_v1': want('rive_shared_v1') && {
             'region_create': calls.rive_shared_region_create,
             'region_size': calls.rive_shared_region_size,
@@ -4563,16 +4568,16 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.raised !== null) raise();
             return ret;
         })(hostCall(324)),
-        rive_shared_region_create: want('rive_shared_v1') && ((fn) => (a0) => {
+        rive_parallel_size: want('rive_parallel_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             let ret;
-            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            try { ret = fn(ctx.vm); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
         })(hostCall(325)),
-        rive_shared_region_size: want('rive_shared_v1') && ((fn) => (a0) => {
+        rive_parallel_run: want('rive_parallel_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_parallel_v1', 'run') : (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             let ret;
@@ -4581,6 +4586,24 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.raised !== null) raise();
             return ret;
         })(hostCall(326)),
+        rive_shared_region_create: want('rive_shared_v1') && ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(327)),
+        rive_shared_region_size: want('rive_shared_v1') && ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(328)),
         rive_shared_region_lock: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4589,14 +4612,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(327)),
+        })(hostCall(329)),
         rive_shared_region_unlock: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(328)),
+        })(hostCall(330)),
         rive_shared_region_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4605,7 +4628,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(329)),
+        })(hostCall(331)),
         rive_shared_region_write: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4614,7 +4637,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(330)),
+        })(hostCall(332)),
         rive_shared_region_poisoned: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4623,7 +4646,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(331)),
+        })(hostCall(333)),
         rive_shared_atomic_load: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4632,7 +4655,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(332)),
+        })(hostCall(334)),
         rive_shared_atomic_store: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4641,7 +4664,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(333)),
+        })(hostCall(335)),
         rive_shared_atomic_add: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4650,7 +4673,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(334)),
+        })(hostCall(336)),
         rive_shared_atomic_cas: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4659,7 +4682,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(335)),
+        })(hostCall(337)),
         rive_shared_ring_create: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4668,7 +4691,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(336)),
+        })(hostCall(338)),
         rive_shared_ring_write: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4677,7 +4700,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(337)),
+        })(hostCall(339)),
         rive_shared_ring_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4686,7 +4709,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(338)),
+        })(hostCall(340)),
         rive_shared_ring_drop: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4695,7 +4718,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(339)),
+        })(hostCall(341)),
         rive_shared_ring_used: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4704,7 +4727,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(340)),
+        })(hostCall(342)),
         rive_shared_ring_signal: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4713,7 +4736,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(341)),
+        })(hostCall(343)),
         rive_shared_snapshot_create: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4722,7 +4745,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(342)),
+        })(hostCall(344)),
         rive_shared_snapshot_publish: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4731,7 +4754,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(343)),
+        })(hostCall(345)),
         rive_shared_snapshot_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4740,7 +4763,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(344)),
+        })(hostCall(346)),
         rive_shared_snapshot_seq: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4749,14 +4772,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(345)),
+        })(hostCall(347)),
         rive_shared_read_done: want('rive_shared_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(346)),
+        })(hostCall(348)),
         rive_shared_signal_create: want('rive_shared_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4765,14 +4788,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(347)),
+        })(hostCall(349)),
         rive_shared_signal_notify: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(348)),
+        })(hostCall(350)),
         rive_shared_signal_seq: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4781,7 +4804,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(349)),
+        })(hostCall(351)),
         rive_shared_blob_create: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4790,7 +4813,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(350)),
+        })(hostCall(352)),
         rive_shared_blob_size: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4799,7 +4822,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(351)),
+        })(hostCall(353)),
         rive_shared_blob_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4808,7 +4831,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(352)),
+        })(hostCall(354)),
         rive_shared_retain: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4817,28 +4840,28 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(353)),
+        })(hostCall(355)),
         rive_shared_release: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(354)),
+        })(hostCall(356)),
         rive_console: want('env') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(355)),
+        })(hostCall(357)),
         rive_trace: want('env') && ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(356)),
+        })(hostCall(358)),
     };
 }
 

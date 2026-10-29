@@ -33,6 +33,9 @@ local wamrConfigDefines = {
     -- translate the same as before, simd modules stop being refused.
     'WASM_ENABLE_SIMD=1',
     'WASM_ENABLE_SIMDE=1',
+    -- Parallel calls run extra instances of a module over its shared
+    -- memory; no thread manager, the host runs the threads.
+    'WASM_ENABLE_SHARED_MEMORY=1',
     'WASM_DISABLE_STACK_HW_BOUND_CHECK=1',
     'BH_MALLOC=wasm_runtime_malloc',
     'BH_FREE=wasm_runtime_free',

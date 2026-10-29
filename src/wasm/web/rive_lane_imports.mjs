@@ -80,6 +80,21 @@ export const kReuseMaxPages = 256;
 // a worklet as a whole, far longer than a block as it may build tables.
 export const kProcessorInitMs = 1000;
 
+// Where a parallel call's control block keeps each word, in bytes from its
+// start. The words its parts race on sit 128 bytes apart, each alone on a cache
+// line, Apple's included. The claim takes 8 bytes, so no grain can wrap it.
+export const kParallelThunk = 0;
+export const kParallelArgs = 4;
+export const kParallelParts = 8;
+export const kParallelCount = 12;
+export const kParallelAtOnce = 16;
+export const kParallelCallerParks = 20;
+export const kParallelGeneration = 128;
+export const kParallelArrived = 256;
+export const kParallelSleepers = 384;
+export const kParallelClaim = 512;
+export const kParallelStop = 640;
+
 // The exports a lane module may carry besides its entries.
 export const kLaneAllocExport = '__rive_lane_alloc';
 export const kLaneFreeExport = '__rive_lane_free';

@@ -307,6 +307,29 @@ extern "C"
     ScriptingLimits::set(limits);
   }
 
+  // Before the pool first runs.
+  EMSCRIPTEN_KEEPALIVE void harness_job_threads(uint32_t threads)
+  {
+    ScriptingLimits limits = ScriptingLimits::get();
+    limits.jobThreads = threads;
+    ScriptingLimits::set(limits);
+  }
+
+  // Before the file loads; 0 runs its calls unbounded.
+  EMSCRIPTEN_KEEPALIVE void harness_call_budget(uint32_t ms)
+  {
+    ScriptingLimits limits = ScriptingLimits::get();
+    limits.mainCallBudgetMs = ms;
+    ScriptingLimits::set(limits);
+  }
+
+  EMSCRIPTEN_KEEPALIVE void harness_parallel_safe()
+  {
+    ScriptingLimits limits = ScriptingLimits::get();
+    limits.parallelSafeMode = true;
+    ScriptingLimits::set(limits);
+  }
+
   EMSCRIPTEN_KEEPALIVE uintptr_t harness_stack()
   {
     return emscripten_stack_get_current();

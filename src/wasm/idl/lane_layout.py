@@ -116,4 +116,21 @@ LANE_LAYOUT = [
      ' as it may build tables.', [
          ('initMs', 1000),
      ]),
+    ('Parallel', 'Where a parallel call\'s control block keeps each word, in'
+     ' bytes from its start. The words its parts race on sit 128 bytes apart,'
+     ' each alone on a cache line, Apple\'s included. The claim takes 8 bytes,'
+     ' so no grain can wrap it.', [
+         ('thunk', 0),
+         ('args', 4),
+         ('parts', 8),
+         ('count', 12),
+         ('atOnce', 16),
+         ('callerParks', 20),
+         ('generation', 128),
+         ('arrived', 256),
+         ('sleepers', 384),
+         ('claim', 512),
+         ('stop', 640),
+         ('bytes', 768),
+     ]),
 ]

@@ -45,7 +45,7 @@ LANE_LAYOUT_HEADER_PATH = \
 AS_LANE_CODES_PATH = PACKAGES / 'rasc/animascript/std/rive/lane_codes.as'
 # The layout groups the std reads: natives' answers and a job's reuse cap.
 AS_LAYOUT_GROUPS = ('Join', 'JoinAny', 'Start', 'Create', 'RegionLock',
-                    'Shared', 'RingWrite', 'Reuse')
+                    'Shared', 'RingWrite', 'Reuse', 'Parallel')
 AS_STD_PATH = AS_LANE_CODES_PATH.parent
 WEB_SHARED_LAYOUT_PATH = WEB_PATH.parent / 'rive_shared_layout.mjs'
 # The lane modules the runner and the NRDP worklet both inline, each after
@@ -61,7 +61,9 @@ WEB_PRE_JS_PATH = WEB_PATH.parent / 'rive_scripting_pre.js'
 WEB_WORKLET_PRE_JS_PATH = WEB_PATH.parent / 'rive_audio_worklet_pre.js'
 # The hand written web modules, whose uses decide which layout constants the
 # generated ones export.
+WEB_PARALLEL_PATH = WEB_PATH.parent / 'rive_parallel.mjs'
 WEB_SOURCE_PATHS = [WEB_RUNNER_PATH,
+                    WEB_PARALLEL_PATH,
                     WEB_PATH.parent / 'rive_shared_lane.mjs',
                     WEB_PATH.parent / 'rive_lane.mjs',
                     WEB_WORKLET_PATH,
@@ -380,11 +382,14 @@ def emit_host():
                     ('bootVmFromEnv' if op['boot'] else 'vmFromEnv')]
             if isinstance(op['boot'], str):
                 assert op['ret'] is None, op['name']
+                # A string argument travels with the trap, so a parallel
+                # call member's throw reaches the call that ran it.
+                texts = ['%s, %s' % (p['name'], p['count'])
+                         for p in op['params'] if p['kind'] == 'str'][:1]
                 body += ['    if (vm == nullptr)',
                          '    {',
-                         '        wasm_runtime_set_exception('
-                         'wasm_runtime_get_module_inst(env), "%s");' %
-                         op['boot'],
+                         '        vmlessTrap(env, "%s"%s);' %
+                         (op['boot'], ''.join(', ' + t for t in texts)),
                          '        return;',
                          '    }']
             body += host_bounds_prologue(op)
@@ -708,6 +713,8 @@ def emit_as_natives():
         '',
     ]
     for namespace in NAMESPACES:
+        if not namespace['as_class']:
+            continue
         short = namespace['short']
         cls = as_class_name(namespace)
         self_tag = as_self_tag(namespace)
@@ -1569,12 +1576,13 @@ def emit_web_pre_js(web_imports):
     """The import object and the hand written runner as one classic script
     for emscripten's --pre-js, which has no module syntax."""
     body = classic_script(web_imports + lane_sources() +
+                          WEB_PARALLEL_PATH.read_text() +
                           WEB_RUNNER_PATH.read_text(), 'pre-js')
     lines = [
         '// %s' % GENERATED_NOTE,
         '//',
-        '// rive_module_imports.mjs, the lane modules and rive_script_runner.mjs',
-        '// as one script.',
+        '// rive_module_imports.mjs, the lane modules, rive_parallel.mjs and',
+        '// rive_script_runner.mjs as one script.',
         '// Link it into an emscripten build of librive with --pre-js and the',
         '// script runner installs itself as Module.riveScripting.',
         '(function () {',

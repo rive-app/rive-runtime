@@ -63,12 +63,19 @@ returns their leak warnings for `console.warn`.
   binary and the glue.
 - `rive_script_runner.mjs`, hand written. Keeps one entry per VM, prepares
   and starts modules, and makes every call into a module, catching traps.
-- `rive_scripting_pre.js`, generated from the two files above. One plain
+- `rive_parallel.mjs`, hand written. Parallel calls on a build with threads:
+  the team of pool threads, the members each runs for a module, and the run
+  that hands a call's parts to them.
+- `rive_scripting_pre.js`, generated from the files above. One plain
   script for emscripten's `--pre-js`. It installs itself as
   `Module.riveScripting`. This is what hosts link.
 - `rive_audio_worklet_pre.js`, generated. The browser audio worklet and the
   lane modules it imports as one script's source, for builds with threads to
   link beside the bundle above.
+- `rive_threads_pre.js`, hand written. Every build with threads links it. On
+  a page that cannot share memory such a build would wait forever for
+  threads that never start, so this fails its load at once and says why,
+  and the host loads its build without threads instead.
 
 Regenerate with `python3 src/wasm/idl/generate.py`. Never edit the generated
 files. `generate.py --check` fails when they are stale, and that includes a
@@ -108,7 +115,8 @@ in any build.
   runner to make its own context, which in Firefox and WebKit must start on
   the page's first click. A page fails when librive's threads outgrow the
   harness's pool. A page without cross origin isolation loads the build
-  without threads and runs its jobs on the page.
+  without threads and runs its jobs on the page, and the build with threads
+  refuses to load there.
   `fixture/bake.sh` rebakes the files and needs rive-cli built.
 - `packages/runtime_wasm/js`: `npm run test:scripting`. Loads baked files
   through the JS runtime's public API under jest, from a canvas build with

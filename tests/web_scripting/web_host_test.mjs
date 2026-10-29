@@ -19,7 +19,10 @@ import {
     kProcessorOverran,
     processorBlockBudgetMs,
 } from '../../src/wasm/web/rive_lane_imports.mjs';
-import { installRiveScripting } from '../../src/wasm/web/rive_script_runner.mjs';
+import {
+    importMemory,
+    installRiveScripting,
+} from '../../src/wasm/web/rive_script_runner.mjs';
 import { kHoldBlocks, kHoldStarting } from '../../src/wasm/web/rive_shared_layout.mjs';
 import { readFileSync } from 'fs';
 import { installNrdpMock } from './nrdp_mock.mjs';
@@ -100,6 +103,61 @@ const custom = (name, payload) => section(0, [...named(name), ...payload]);
     const long = 'x'.repeat(1 << 20);
     runner.register(1, moduleOf(custom(long, []), custom('rive.audio', lane)));
     assert.match(runner.start(1), /lacks WebAssembly relaxed SIMD/);
+}
+
+// A parallel module's shared memory becomes an import the runner fills: shared
+// and set aside no larger than 2 GiB where threads can share it, halved while
+// the engine refuses, unshared without isolation, and no other module changes.
+{
+    const parallel = (flags, maximum) =>
+        moduleOf(
+            section(1, vector([[0x60, 0, 1, 0x7f]])),
+            section(2, vector([[...named('rive_parallel_v1'), ...named('size'), 0, 0]])),
+            section(5, vector([[flags, 1, ...(flags & 1 ? leb(maximum) : [])]])),
+            section(7, vector([[...named('memory'), 2, 0]]))
+        );
+    const Real = WebAssembly.Memory;
+    const made = [];
+    let refuseAbove = Infinity;
+    WebAssembly.Memory = function (descriptor) {
+        made.push(descriptor);
+        if (descriptor.shared && descriptor.maximum > refuseAbove) {
+            throw new RangeError('could not set aside the memory');
+        }
+        return new Real(descriptor);
+    };
+    const run = (bytes) => {
+        const out = importMemory(bytes);
+        const instance = new WebAssembly.Instance(new WebAssembly.Module(out.bytes), {
+            rive_parallel_v1: { size: () => 1, memory: out.memory },
+        });
+        assert.equal(instance.exports.memory, out.memory);
+        return out;
+    };
+    try {
+        const shared = run(parallel(3, 65536));
+        assert.ok(shared.memory.buffer instanceof SharedArrayBuffer);
+        assert.deepEqual(made.at(-1), { initial: 1, maximum: 32768, shared: true });
+        // wasmMaxPages caps it lower, and the engine's refusals halve it.
+        run(parallel(3, 300));
+        assert.equal(made.at(-1).maximum, 300);
+        refuseAbove = 4096;
+        made.length = 0;
+        run(parallel(3, 65536));
+        assert.deepEqual(made.map((d) => d.maximum), [32768, 16384, 8192, 4096]);
+        refuseAbove = Infinity;
+        globalThis.crossOriginIsolated = false;
+        const unshared = run(parallel(3, 65536));
+        assert.ok(!(unshared.memory.buffer instanceof SharedArrayBuffer));
+        assert.deepEqual(made.at(-1), { initial: 1, maximum: 65536 });
+        // A module whose memory is not shared is left as it was.
+        const plain = parallel(1, 300);
+        assert.equal(importMemory(plain).bytes, plain);
+        assert.equal(importMemory(plain).memory, null);
+    } finally {
+        WebAssembly.Memory = Real;
+        delete globalThis.crossOriginIsolated;
+    }
 }
 
 // A job lane module with a start function, its result words [at, length] at

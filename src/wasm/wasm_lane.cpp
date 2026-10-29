@@ -816,7 +816,6 @@ void* rive::wasmAppBytes(void* instance, uint32_t appAddr, uint32_t size)
 
 void rive::ensureWasmThreadEnv()
 {
-#ifdef RIVE_WASM_HW_BOUNDS
   struct ThreadEnv
   {
     ThreadEnv() { wasm_runtime_init_thread_env(); }
@@ -824,7 +823,6 @@ void rive::ensureWasmThreadEnv()
   };
   static thread_local ThreadEnv env;
   (void)env;
-#endif
 }
 
 const uint8_t* rive::wasmConsoleText(

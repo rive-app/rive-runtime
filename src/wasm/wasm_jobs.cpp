@@ -39,6 +39,9 @@ JobPool*& poolSlot()
   return pool;
 }
 
+// Whether configurePool chose the pool, under the pool mutex.
+bool s_poolConfigured = false;
+
 uint32_t defaultThreadCount()
 {
 #if !RIVE_POOL_THREADS()
@@ -74,6 +77,28 @@ void WasmJobs::configurePool(
   std::lock_guard<LaneMutex> lock(poolMutex());
   delete poolSlot();
   poolSlot() = new JobPool(threads, schedule, seed);
+  s_poolConfigured = true;
+}
+
+#if defined(WITH_RIVE_TOOLS) || defined(TESTING)
+void WasmJobs::resetPool()
+{
+  std::lock_guard<LaneMutex> lock(poolMutex());
+  delete poolSlot();
+  poolSlot() = nullptr;
+  s_poolConfigured = false;
+}
+#endif
+
+uint32_t WasmJobs::poolThreads(bool* chosen)
+{
+  std::lock_guard<LaneMutex> lock(poolMutex());
+  if (chosen != nullptr)
+  {
+    *chosen = s_poolConfigured || ScriptingLimits::get().jobThreads != 0;
+  }
+  return poolSlot() != nullptr ? poolSlot()->threadCount()
+                               : defaultThreadCount();
 }
 
 JobPool& WasmJobs::pool()

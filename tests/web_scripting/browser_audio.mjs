@@ -5,18 +5,20 @@
 //                          [--no-isolation] [--runner-context]
 //                          [--carried-worklet]
 //                          [--offline <blocks>] [--hash <blocks>]
-//                          [--hard-blocks <n>] [--expect <line>]...
+//                          [--hard-blocks <n>] [--job-threads <n>]
+//                          [--parallel-parts <n>] [--expect <line>]...
 // --browser is chrome, the default, run from the binary CHROME names or else
 // the macOS install, or firefox or webkit, run through playwright-core: npm
 // ci here, then npx playwright-core install firefox webkit. --no-isolation
-// serves the page without cross origin isolation, which only a build
-// without threads loads on. --runner-context hands the runner no
+// serves the page without cross origin isolation, which a build with
+// threads refuses at once. --runner-context hands the runner no
 // AudioContext, so it makes its own, and firefox and webkit click only once
 // the page logs a warning. --carried-worklet names no worklet and serves none
 // of its files, so the runner starts the one the build carries. --offline renders that many blocks through each
 // processor on the page, as run.mjs's --audio does, and --hash logs a hash of
 // the first that many blocks the worklet renders, as harness_audio does.
-// --hard-blocks sets the audio hard limit, as run.mjs's does.
+// --hard-blocks sets the audio hard limit, --job-threads the job pool's
+// threads and --parallel-parts a parallel call's parts, as run.mjs's do.
 import { spawn } from 'child_process';
 import { createServer } from 'http';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
@@ -34,6 +36,8 @@ const carriedWorklet = rest.includes('--carried-worklet');
 const offline = Number(valueOf('--offline') ?? 0);
 const hash = Number(valueOf('--hash') ?? 0);
 const hardBlocks = valueOf('--hard-blocks');
+const jobThreads = valueOf('--job-threads');
+const parallelParts = valueOf('--parallel-parts');
 const chrome =
     process.env.CHROME ??
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -64,11 +68,21 @@ console.warn = (text) => print('warning: ' + text);
 // At harness_audio's rate, and started by a click as a page's audio is.
 const context = ${runnerContext} ? undefined : new AudioContext({ sampleRate: 48000 });
 document.querySelector('button').onclick = () => context?.resume();
-const Module = await createHarness({ print, printErr: print });
+const Module = await createHarness({ print, printErr: print }).catch((error) => {
+    // A build with threads refuses a page that cannot share memory.
+    print('harness refused: ' + error.message);
+    console.log('PAGE DONE');
+    return new Promise(() => {});
+});
 const hardBlocks = ${JSON.stringify(hardBlocks)};
 if (hardBlocks !== undefined) {
     Module._harness_audio_hard_blocks(Number(hardBlocks));
 }
+const jobThreads = ${JSON.stringify(jobThreads)};
+if (jobThreads !== undefined) {
+    Module._harness_job_threads(Number(jobThreads));
+}
+Module.riveScripting.parallelParts = ${JSON.stringify(parallelParts)};
 if (!${carriedWorklet}) {
     Module.riveScripting.audioWorkletUrl = 'rive_audio_worklet.mjs';
 }
@@ -127,6 +141,7 @@ for (let turn = 0; turn < 1000; turn++) {
     await frame();
 }
 print('page audio ' + JSON.stringify(Module.riveScripting.audioState()));
+print('page parallel ' + JSON.stringify(Module.riveScripting.parallelState()));
 Module._harness_release();
 console.log('PAGE DONE');
 </script>`;
