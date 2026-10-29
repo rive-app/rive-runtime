@@ -4,6 +4,7 @@
 #include "rive/layout/axis.hpp"
 #include "rive/layout/n_slicer.hpp"
 #include "rive/layout/n_slicer_tile_mode.hpp"
+#include "rive/math/hit_test.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/n_slicer_helpers.hpp"
 #include "rive/shapes/mesh_host.hpp"
@@ -55,6 +56,71 @@ void SliceMesh::draw(
       blendMode,
       opacity,
       additiveness);
+}
+
+// What draw() renders the vertices under; false without a host.
+bool SliceMesh::drawTransform(Mat2D* transform) const
+{
+  MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
+  if (host == nullptr)
+  {
+    return false;
+  }
+  const Vec2D origin = host->meshHostOrigin();
+  *transform = host->meshHostWorldTransform() *
+               Mat2D::fromTranslate(
+                   -host->meshHostWidth() * origin.x,
+                   -host->meshHostHeight() * origin.y);
+  return true;
+}
+
+bool SliceMesh::hitTest(Vec2D position)
+{
+  // Hidden patches have no triangles, so they stay holes here too.
+  Mat2D world;
+  Mat2D inverseWorld;
+  if (!drawTransform(&world) || !world.invert(&inverseWorld))
+  {
+    return false;
+  }
+  return HitTester::testMesh(inverseWorld * position, m_vertices, m_indices);
+}
+
+bool SliceMesh::uvAt(Vec2D position, Vec2D* uv, bool* inside, Mat2D* toUV)
+{
+  Mat2D world;
+  Mat2D inverseWorld;
+  if (!drawTransform(&world) || !world.invert(&inverseWorld) ||
+      !HitTester::mapMesh(
+          inverseWorld * position,
+          m_vertices,
+          m_uvs,
+          m_indices,
+          uv,
+          inside,
+          toUV))
+  {
+    return false;
+  }
+  if (toUV != nullptr)
+  {
+    *toUV = *toUV * inverseWorld;
+  }
+  return true;
+}
+
+bool SliceMesh::positionAtUV(Vec2D uv, Vec2D* position)
+{
+  Mat2D world;
+  Vec2D local;
+  bool inside;
+  if (!drawTransform(&world) ||
+      !HitTester::mapMesh(uv, m_uvs, m_vertices, m_indices, &local, &inside))
+  {
+    return false;
+  }
+  *position = world * local;
+  return true;
 }
 
 void SliceMesh::onAssetLoaded(RenderImage* renderImage) {}

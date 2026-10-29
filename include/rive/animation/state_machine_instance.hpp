@@ -234,6 +234,21 @@ public:
       int pointerId = 0,
       PointerButton button = PointerButton::primary) override;
   HitResult pointerExit(Vec2D position, int pointerId = 0) override;
+  /// A down, up or move at `position` that can't land on anything here, as
+  /// when a host draws this artboard through a mesh and the pointer is past
+  /// its edge. Hover unwinds and presses miss, but a drag in progress keeps
+  /// following `position`. A dragStart or dragEnd, from a host's drag, still
+  /// turns this machine's pointers off or back on, and misses the same way.
+  HitResult pointerMiss(
+      Vec2D position,
+      ListenerType hitType,
+      float timeStamp = 0,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  /// Whether a pointerMiss is being processed, including the drag passes it
+  /// sets off. Hosted machines then miss too rather than see the pointer
+  /// exit, which would end their drags.
+  bool inPointerMiss() const { return m_inPointerMiss; }
   HitResult dragStart(
       Vec2D position,
       float timeStamp = 0,
@@ -628,6 +643,8 @@ private:
   bool m_hostDispatching : 1;
   // See captureRunByHost.
   bool m_captureRunByHost : 1;
+  // See inPointerMiss.
+  bool m_inPointerMiss : 1;
   // The artboard's changeSerial() when the last advance started. A layer
   // resting on a pose re-applies it only if the serial moved since then
   // (see StateMachineLayerInstance::isFrozen).

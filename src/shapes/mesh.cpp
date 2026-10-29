@@ -7,6 +7,7 @@
 #include "rive/factory.hpp"
 #include "rive/span.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/math/hit_test.hpp"
 #include <limits>
 
 using namespace rive;
@@ -238,4 +239,120 @@ void Mesh::draw(
       blendMode,
       opacity,
       additiveness);
+}
+
+bool Mesh::hasTriangles() const
+{
+  if (m_IndexBuffer == nullptr || m_IndexBuffer->size() % 3 != 0)
+  {
+    return false;
+  }
+#ifdef WITH_RIVE_EDITOR
+  // Editor meshes skip onAddedClean's index validation.
+  for (auto index : *m_IndexBuffer)
+  {
+    if (index >= m_Vertices.size())
+    {
+      return false;
+    }
+  }
+#endif
+  return true;
+}
+
+Mat2D Mesh::drawTransform() const
+{
+  // Skinned vertices are already in world space.
+  if (skin() != nullptr)
+  {
+    return Mat2D();
+  }
+  if (MeshHost* host = MeshHost::from(parent()))
+  {
+    return host->meshHostWorldTransform();
+  }
+  return parent()->as<WorldTransformComponent>()->worldTransform();
+}
+
+std::vector<Vec2D> Mesh::renderPositions() const
+{
+  std::vector<Vec2D> positions;
+  positions.reserve(m_Vertices.size());
+  for (auto vertex : m_Vertices)
+  {
+    positions.push_back(vertex->renderTranslation());
+  }
+  return positions;
+}
+
+std::vector<Vec2D> Mesh::uvs() const
+{
+  std::vector<Vec2D> uvs;
+  uvs.reserve(m_Vertices.size());
+  for (auto vertex : m_Vertices)
+  {
+    uvs.emplace_back(vertex->u(), vertex->v());
+  }
+  return uvs;
+}
+
+bool Mesh::hitTest(Vec2D position)
+{
+  Mat2D inverseWorld;
+  if (!hasTriangles() || !drawTransform().invert(&inverseWorld))
+  {
+    return false;
+  }
+  std::vector<Vec2D> positions = renderPositions();
+  return HitTester::testMesh(
+      inverseWorld * position,
+      positions,
+      *m_IndexBuffer);
+}
+
+bool Mesh::uvAt(Vec2D position, Vec2D* uv, bool* inside, Mat2D* toUV)
+{
+  Mat2D inverseWorld;
+  if (!hasTriangles() || !drawTransform().invert(&inverseWorld))
+  {
+    return false;
+  }
+  if (!HitTester::mapMesh(
+          inverseWorld * position,
+          renderPositions(),
+          uvs(),
+          *m_IndexBuffer,
+          uv,
+          inside,
+          toUV))
+  {
+    return false;
+  }
+  if (toUV != nullptr)
+  {
+    *toUV = *toUV * inverseWorld;
+  }
+  return true;
+}
+
+bool Mesh::positionAtUV(Vec2D uv, Vec2D* position)
+{
+  if (!hasTriangles())
+  {
+    return false;
+  }
+  Vec2D local;
+  bool inside;
+  if (!HitTester::mapMesh(
+          uv,
+          uvs(),
+          renderPositions(),
+          *m_IndexBuffer,
+          &local,
+          &inside))
+  {
+    return false;
+  }
+  *position = drawTransform() * local;
+  return true;
 }

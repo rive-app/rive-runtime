@@ -1,0 +1,99 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/image_listener_targets.riv. Not an editor
+      export: rebuild the .riv from this file with the CLI, from a directory
+      holding this scene.rml and a rive.yaml naming it, then copy
+      build/image_listener_targets.riv into assets/.
+
+          rive . --once
+
+      The images only listen at format 7.5 and up (Image::import), so the
+      CLI must stamp at least that. One that stamps less (the rml writer
+      before 7.5) needs the header's minor version byte, offset 5, set to 5.
+
+      What it is for: Images as pointer listener targets. Every image uses the
+      same 100x100 asset with the default 0.5 origin, centered in its own
+      100px column, and each listener flips its own bool on pointer down:
+
+        Direct       [  0..100]  the image is the target
+        Group        [100..200]  a Node holding only an image is the target
+        Meshed       [200..300]  a one-triangle mesh fills the lower-left half
+        Sliced       [300..400]  3x3 N-slice with the center patch hidden
+        Hidden       [400..500]  hidden image, never hits
+        Transparent  [500..600]  opacity 0, still hits (like shapes)
+    -->
+    <Artboard defaultStateMachineId="0:90" width="600" height="100" styleId="0:2" name="Images" id="0:1">
+        <LayoutComponentStyle name="Images Style" id="0:2"/>
+        <Fill name="Background" id="0:3">
+            <SolidColor colorValue="FF16181D" name="Color" id="0:4"/>
+        </Fill>
+
+        <Image assetId="0:200" x="50" y="50" name="Direct" id="0:10"/>
+
+        <Node x="150" y="50" name="Group" id="0:20">
+            <Image assetId="0:200" name="InGroup" id="0:21"/>
+        </Node>
+
+        <Image assetId="0:200" x="250" y="50" name="Meshed" id="0:30">
+            <Mesh triangleIndexBytes="AAEC" name="Mesh" id="0:31">
+                <MeshVertex x="-50" y="-50" u="0" v="0" name="TopLeft" id="0:32"/>
+                <MeshVertex x="-50" y="50" u="0" v="1" name="BottomLeft" id="0:33"/>
+                <MeshVertex x="50" y="50" u="1" v="1" name="BottomRight" id="0:34"/>
+            </Mesh>
+        </Image>
+
+        <Image assetId="0:200" x="350" y="50" name="Sliced" id="0:40">
+            <NSlicer name="NSlicer" id="0:41">
+                <AxisX offset="25" name="X1" id="0:42"/>
+                <AxisX offset="75" name="X2" id="0:43"/>
+                <AxisY offset="25" name="Y1" id="0:44"/>
+                <AxisY offset="75" name="Y2" id="0:45"/>
+                <NSlicerTileMode patchIndex="4" style="2" name="HiddenCenter" id="0:46"/>
+            </NSlicer>
+        </Image>
+
+        <Image assetId="0:200" x="450" y="50" hidden="true" name="Hidden" id="0:50"/>
+
+        <Image assetId="0:200" x="550" y="50" opacity="0" name="Transparent" id="0:60"/>
+
+        <StateMachine name="State Machine 1" id="0:90">
+            <StateMachineBool name="Direct" id="0:91"/>
+            <StateMachineBool name="Group" id="0:92"/>
+            <StateMachineBool name="Meshed" id="0:93"/>
+            <StateMachineBool name="Sliced" id="0:94"/>
+            <StateMachineBool name="Hidden" id="0:95"/>
+            <StateMachineBool name="Transparent" id="0:96"/>
+            <StateMachineLayer name="Layer 1" id="0:97">
+                <EntryState id="0:98"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:10" name="Direct" id="0:100">
+                <ListenerInputType listenerTypeValue="2" id="0:101"/>
+                <ListenerBoolChange inputId="0:91" value="true" id="0:102"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:20" name="Group" id="0:110">
+                <ListenerInputType listenerTypeValue="2" id="0:111"/>
+                <ListenerBoolChange inputId="0:92" value="true" id="0:112"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:30" name="Meshed" id="0:120">
+                <ListenerInputType listenerTypeValue="2" id="0:121"/>
+                <ListenerBoolChange inputId="0:93" value="true" id="0:122"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:40" name="Sliced" id="0:130">
+                <ListenerInputType listenerTypeValue="2" id="0:131"/>
+                <ListenerBoolChange inputId="0:94" value="true" id="0:132"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:50" name="Hidden" id="0:140">
+                <ListenerInputType listenerTypeValue="2" id="0:141"/>
+                <ListenerBoolChange inputId="0:95" value="true" id="0:142"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:60" name="Transparent" id="0:150">
+                <ListenerInputType listenerTypeValue="2" id="0:151"/>
+                <ListenerBoolChange inputId="0:96" value="true" id="0:152"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <ImageAsset format="png" width="100" height="100" name="Square" id="0:200">
+        <FileAssetContents bytes="iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAt0lEQVR42u3bwQkAIAwDwE7kSg7h26X8u5tLRBA5yADpfUOr75VKmyOVN1sVLFiwYMGCBQsWLFiwYMGCBQsWLFiwYMGCBQsWLFiwYH1/YbAVLFiwYMGCBQsWLFiwYMGCBQsWLFiwYMGCBQsWLFiwYFmkzfewYMGCBQsWLFiwYMGCBQsWLFiwYMGCBQsWLFiwYMHyyWq+hwULFixYsGDBggULFixYsGDBggULFixYsGDBggUL1p1WB/HkFLgJ85pQAAAAAElFTkSuQmCC"/>
+    </ImageAsset>
+</Rive>

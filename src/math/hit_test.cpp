@@ -368,8 +368,6 @@ bool HitTester::test(FillRule rule)
 
 /////////////////////////
 
-static bool cross_lt(Vec2D a, Vec2D b) { return a.x * b.y < a.y * b.x; }
-
 bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices)
 {
   if (verts.size() < 3)
@@ -395,16 +393,25 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices)
     const auto a = verts[indices[i + 0]];
     const auto b = verts[indices[i + 1]];
     const auto c = verts[indices[i + 2]];
+    // A collapsed triangle covers nothing, but every point passes the sign
+    // test below against one: its cross products are all zero.
+    if (Vec2D::cross(b - a, c - a) == 0.0f)
+    {
+      continue;
+    }
 
     auto pa = a - pt;
     auto pb = b - pt;
     auto pc = c - pt;
 
-    auto ab = cross_lt(pa, pb);
-    auto bc = cross_lt(pb, pc);
-    auto ca = cross_lt(pc, pa);
+    const float ab = Vec2D::cross(pa, pb);
+    const float bc = Vec2D::cross(pb, pc);
+    const float ca = Vec2D::cross(pc, pa);
 
-    if (ab == bc && ab == ca)
+    // Inside or on an edge, whichever way the triangle winds, so triangles
+    // sharing an edge leave no seam between them.
+    if ((ab >= 0.0f && bc >= 0.0f && ca >= 0.0f) ||
+        (ab <= 0.0f && bc <= 0.0f && ca <= 0.0f))
     {
       return true;
     }
@@ -467,4 +474,150 @@ bool HitTester::testMesh(
     }
   }
   return false;
+}
+
+// Barycentric weights of `p` in triangle abc; false when it's degenerate.
+// From cross products in doubles: the Gram determinant squares the area,
+// which a long, thin triangle then loses in float.
+static bool barycentric(Vec2D p, Vec2D a, Vec2D b, Vec2D c, float weights[3])
+{
+  const double abx = (double)b.x - a.x;
+  const double aby = (double)b.y - a.y;
+  const double acx = (double)c.x - a.x;
+  const double acy = (double)c.y - a.y;
+  const double apx = (double)p.x - a.x;
+  const double apy = (double)p.y - a.y;
+  const double area = abx * acy - aby * acx;
+  if (!(std::abs(area) >
+        1e-6 * std::sqrt((abx * abx + aby * aby) * (acx * acx + acy * acy))))
+  {
+    return false;
+  }
+  const double wb = (apx * acy - apy * acx) / area;
+  const double wc = (abx * apy - aby * apx) / area;
+  weights[0] = (float)(1.0 - wb - wc);
+  weights[1] = (float)wb;
+  weights[2] = (float)wc;
+  return true;
+}
+
+// The affine map taking triangle abc onto ABC, which barycentric found
+// isn't degenerate.
+static Mat2D triangleMap(Vec2D a, Vec2D b, Vec2D c, Vec2D A, Vec2D B, Vec2D C)
+{
+  const double abx = (double)b.x - a.x;
+  const double aby = (double)b.y - a.y;
+  const double acx = (double)c.x - a.x;
+  const double acy = (double)c.y - a.y;
+  const double area = abx * acy - aby * acx;
+  // How the weights of B and C change with x and with y.
+  const double bx = acy / area;
+  const double by = -acx / area;
+  const double cx = -aby / area;
+  const double cy = abx / area;
+  const double ABx = (double)B.x - A.x;
+  const double ABy = (double)B.y - A.y;
+  const double ACx = (double)C.x - A.x;
+  const double ACy = (double)C.y - A.y;
+  const double xx = ABx * bx + ACx * cx;
+  const double xy = ABy * bx + ACy * cx;
+  const double yx = ABx * by + ACx * cy;
+  const double yy = ABy * by + ACy * cy;
+  return Mat2D(
+      (float)xx,
+      (float)xy,
+      (float)yx,
+      (float)yy,
+      (float)(A.x - (xx * a.x + yx * a.y)),
+      (float)(A.y - (xy * a.x + yy * a.y)));
+}
+
+static float segmentDistanceSquared(Vec2D p, Vec2D a, Vec2D b)
+{
+  const Vec2D ab = b - a;
+  const float lengthSquared = ab.lengthSquared();
+  const float t = lengthSquared > 0.0f ? Vec2D::dot(p - a, ab) / lengthSquared
+                                       : 0.0f;
+  return Vec2D::distanceSquared(p, a + ab * std::min(std::max(t, 0.0f), 1.0f));
+}
+
+bool HitTester::mapMesh(
+    Vec2D point,
+    Span<const Vec2D> from,
+    Span<const Vec2D> to,
+    Span<const uint16_t> indices,
+    Vec2D* out,
+    bool* inside,
+    Mat2D* map)
+{
+  auto land = [&](const uint16_t triangle[3], const float weights[3]) {
+    *out = to[triangle[0]] * weights[0] + to[triangle[1]] * weights[1] +
+           to[triangle[2]] * weights[2];
+    if (map != nullptr)
+    {
+      *map = triangleMap(
+          from[triangle[0]],
+          from[triangle[1]],
+          from[triangle[2]],
+          to[triangle[0]],
+          to[triangle[1]],
+          to[triangle[2]]);
+    }
+  };
+  // Lets a point on the seam between two triangles land in one of them.
+  constexpr float edgeTolerance = 1e-5f;
+  bool hasNearest = false;
+  float nearestDistance = 0.0f;
+  uint16_t nearest[3] = {0, 0, 0};
+  float nearestWeights[3] = {0.0f, 0.0f, 0.0f};
+  // Later triangles draw over earlier ones, so walk back to find the top one.
+  for (size_t i = indices.size() - indices.size() % 3; i >= 3; i -= 3)
+  {
+    const uint16_t triangle[3] = {
+        indices[i - 3],
+        indices[i - 2],
+        indices[i - 1]};
+    bool inRange = true;
+    for (auto index : triangle)
+    {
+      inRange = inRange && index < from.size() && index < to.size();
+    }
+    float weights[3];
+    if (!inRange || !barycentric(
+                        point,
+                        from[triangle[0]],
+                        from[triangle[1]],
+                        from[triangle[2]],
+                        weights))
+    {
+      continue;
+    }
+    if (weights[0] >= -edgeTolerance && weights[1] >= -edgeTolerance &&
+        weights[2] >= -edgeTolerance)
+    {
+      land(triangle, weights);
+      *inside = true;
+      return true;
+    }
+    const float distance = std::min(
+        {segmentDistanceSquared(point, from[triangle[0]], from[triangle[1]]),
+         segmentDistanceSquared(point, from[triangle[1]], from[triangle[2]]),
+         segmentDistanceSquared(point, from[triangle[2]], from[triangle[0]])});
+    if (!hasNearest || distance < nearestDistance)
+    {
+      hasNearest = true;
+      nearestDistance = distance;
+      std::copy(triangle, triangle + 3, nearest);
+      std::copy(weights, weights + 3, nearestWeights);
+    }
+  }
+  if (!hasNearest)
+  {
+    return false;
+  }
+  // Off the mesh: extend the nearest triangle past its edges, which keeps
+  // the mapping continuous as the point crosses them.
+  land(nearest, nearestWeights);
+  *inside = false;
+  return true;
 }

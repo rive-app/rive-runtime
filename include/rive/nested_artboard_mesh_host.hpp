@@ -42,10 +42,29 @@ public:
   // The artboard's Bitmap Cache resolution, else 1.
   float meshRasterResolution() const;
   void resetRaster();
+
+  // Whether pointers follow the mesh: it drew the last frame, rather than
+  // the artboard falling back to its undeformed vectors.
+  bool pointersFollowMesh() const;
+  // Maps a host-space point into the artboard (the space
+  // NestedArtboard::worldToLocal returns) through the mesh. `offMesh` is
+  // true past the mesh's edge, where the mapping extends the nearest
+  // triangle. False when pointers don't follow the mesh, or it has no
+  // triangles to map through. `toLocal`, when given, is set to the affine
+  // map through the triangle used.
+  bool localThroughMesh(
+      Vec2D world,
+      Vec2D* local,
+      bool* offMesh,
+      Mat2D* toLocal = nullptr);
+  // Where a point in the artboard's content space is drawn, in host space.
+  bool worldThroughMesh(Vec2D content, Vec2D* world) const;
 #ifdef RIVE_CANVAS
   // False when no raster could be made; the caller draws vectors.
   bool draw(Renderer* renderer);
   bool compositeDropsClip() const;
+  // Whether the last draw went through the mesh, so pointers follow it.
+  void drewThroughMesh(bool value) { m_drewThroughMesh = value; }
 #endif
 #ifdef TESTING
   bool rasterHeld() const
@@ -73,6 +92,13 @@ private:
   const Artboard* m_rasterSource = nullptr;
   Mat2D m_uvTransform;
   bool m_uvValid = false;
+  // Until a draw says otherwise, pointers follow the mesh.
+  bool m_drewThroughMesh = true;
+  // The last pointer localThroughMesh mapped, where it was and where it
+  // landed in content space (see worldThroughMesh).
+  Vec2D m_pointerWorld;
+  Vec2D m_pointerContent;
+  bool m_hasPointer = false;
 #endif
 };
 } // namespace rive

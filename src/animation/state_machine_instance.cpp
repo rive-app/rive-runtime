@@ -69,6 +69,7 @@
 #include "rive/process_event_result.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
+#include "rive/shapes/image.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text.hpp"
 #include "rive/math/math_types.hpp"
@@ -1169,6 +1170,23 @@ private:
 /// Representation of a Component from the Artboard Instance and all the
 /// listeners it triggers. Allows tracking hover and performing hit detection
 /// only once on components that trigger multiple listeners.
+// A down, up or move a hosted machine gets while its host can't hit
+// anything: past the edge of a mesh the host draws it through, or while the
+// host is itself missing the pointer (see pointerMiss).
+static bool isMissableEvent(ListenerType hitType)
+{
+  return hitType == ListenerType::down || hitType == ListenerType::up ||
+         hitType == ListenerType::move;
+}
+
+// The passes a host's own drag sets off in what it hosts, to turn their
+// pointers off and back on. Past a mesh's edge they miss like the above, so
+// dragEnd's settling move can't reach anything undrawn.
+static bool isDragPass(ListenerType hitType)
+{
+  return hitType == ListenerType::dragStart || hitType == ListenerType::dragEnd;
+}
+
 class HitDrawable : public HitComponent
 {
 public:
@@ -1532,9 +1550,10 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
-      // Mounted artboard isn't ready or has a 0 scale transform.
+      // Mounted artboard isn't ready, has a 0 scale transform, or isn't
+      // drawn under the pointer.
       return false;
     }
 
@@ -1560,7 +1579,7 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
       return false;
     }
@@ -1575,22 +1594,27 @@ public:
     }
     return false;
   }
-  /// Maps a parent-space delta into the nested artboard. A delta is a
-  /// vector, so it takes the mapping's linear part only.
-  bool nestedDelta(
+  /// Maps `position` into the nested artboard for a query only something
+  /// drawn there can answer: false past the edge of a mesh the artboard is
+  /// drawn through.
+  static bool drawnPosition(
       NestedArtboard* nestedArtboard,
       Vec2D position,
-      Vec2D nestedPosition,
-      Vec2D delta,
-      Vec2D& out)
+      Vec2D* nestedPosition,
+      Mat2D* toNested = nullptr)
   {
-    Vec2D shifted;
-    if (!nestedArtboard->worldToLocal(position + delta, &shifted))
-    {
-      return false;
-    }
-    out = shifted - nestedPosition;
-    return true;
+    bool offMesh;
+    return nestedArtboard
+               ->worldToLocal(position, nestedPosition, &offMesh, toNested) &&
+           !offMesh;
+  }
+  /// Maps a parent-space delta into the nested artboard. A delta is a
+  /// vector, so it takes only the linear part of the mapping at the pointer:
+  /// through a mesh, that of the triangle under it, wherever the delta would
+  /// end. Mapping the end point instead could land in another N-Slice tile.
+  static Vec2D nestedDelta(const Mat2D& toNested, Vec2D delta)
+  {
+    return Vec2D::transformDir(delta, toNested);
   }
 
   bool wantsScroll(Vec2D position, const ScrollEvent& event) override
@@ -1601,20 +1625,13 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    Mat2D toNested;
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition, &toNested))
     {
       return false;
     }
     ScrollEvent mapped = event;
-    if (!nestedDelta(
-            nestedArtboard,
-            position,
-            nestedPosition,
-            event.delta,
-            mapped.delta))
-    {
-      return false;
-    }
+    mapped.delta = nestedDelta(toNested, event.delta);
     for (auto nestedAnimation : nestedArtboard->nestedAnimations())
     {
       if (nestedAnimation->is<NestedStateMachine>() &&
@@ -1636,7 +1653,7 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
       return false;
     }
@@ -1661,7 +1678,7 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
       return false;
     }
@@ -1686,7 +1703,7 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
       return false;
     }
@@ -1737,20 +1754,15 @@ public:
   {
     auto nestedArtboard = m_component->as<NestedArtboard>();
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    bool offMesh;
+    Mat2D toNested;
+    if (!nestedArtboard
+             ->worldToLocal(position, &nestedPosition, &offMesh, &toNested))
     {
       return HitResult::none;
     }
     ScrollEvent mapped = event;
-    if (!nestedDelta(
-            nestedArtboard,
-            position,
-            nestedPosition,
-            event.delta,
-            mapped.delta))
-    {
-      return HitResult::none;
-    }
+    mapped.delta = nestedDelta(toNested, event.delta);
     // A latched machine gets the event first; only then can another
     // take it.
     for (auto nestedAnimation : nestedArtboard->nestedAnimations())
@@ -1761,6 +1773,11 @@ public:
         return nestedAnimation->as<NestedStateMachine>()
             ->pointerScroll(nestedPosition, mapped, timeStamp, pointerId);
       }
+    }
+    // Past the mesh's edge nothing is drawn to start a gesture on.
+    if (offMesh)
+    {
+      return HitResult::none;
     }
     for (auto nestedAnimation : nestedArtboard->nestedAnimations())
     {
@@ -1821,11 +1838,23 @@ public:
       return hitResult;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    bool offMesh;
+    if (!nestedArtboard->worldToLocal(position, &nestedPosition, &offMesh))
     {
       // Mounted artboard isn't ready or has a 0 scale transform.
       return hitResult;
     }
+    // Past the edge of the mesh it's drawn through, or while this machine
+    // misses the pointer itself, nothing in the artboard can be hit, but a
+    // drag in progress keeps following the pointer. Past the edge, this
+    // machine's own drags (unless it's turned off, as below) still start and
+    // end in there as misses too.
+    const bool pastMesh = canHit && offMesh;
+    const bool missesMesh = (isMissableEvent(hitType) &&
+                             (pastMesh ||
+                              m_stateMachineInstance->inPointerMiss())) ||
+                            (isDragPass(hitType) && pastMesh &&
+                             !m_pointersOff.has(pointerId));
 
     for (auto nestedAnimation : nestedArtboard->nestedAnimations())
     {
@@ -1836,7 +1865,16 @@ public:
             nestedStateMachine->stateMachineInstance(),
             pointerId);
         HostDispatchScope dispatch(nestedStateMachine->stateMachineInstance());
-        if (canHit)
+        if (missesMesh)
+        {
+          nestedStateMachine->pointerMiss(
+              nestedPosition,
+              hitType,
+              timeStamp,
+              pointerId,
+              button);
+        }
+        else if (canHit)
         {
           switch (hitType)
           {
@@ -1976,7 +2014,7 @@ public:
       return false;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    if (!drawnPosition(nestedArtboard, position, &nestedPosition))
     {
       return false;
     }
@@ -2004,9 +2042,16 @@ public:
       return HitResult::none;
     }
     Vec2D nestedPosition;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+    bool offMesh;
+    if (!nestedArtboard->worldToLocal(position, &nestedPosition, &offMesh))
     {
       return HitResult::none;
+    }
+    // Past the edge of the mesh it's drawn through, its capture listeners
+    // only see the pointer leave, as under an opaque hit drawn above.
+    if (offMesh && isMissableEvent(hitType))
+    {
+      hitType = ListenerType::exit;
     }
     HitResult result = HitResult::none;
     forEachStateMachine([&](StateMachineInstance* smi) {
@@ -2446,6 +2491,16 @@ public:
               break;
           }
         }
+        else if (
+            isMissableEvent(hitType) && m_stateMachineInstance->inPointerMiss())
+        {
+          stateMachine->pointerMiss(
+              listPosition,
+              hitType,
+              timeStamp,
+              pointerId,
+              button);
+        }
         else
         {
           switch (hitType)
@@ -2775,6 +2830,12 @@ public:
           default:
             break;
         }
+      }
+      else if (
+          isMissableEvent(hitType) && m_stateMachineInstance->inPointerMiss())
+      {
+        stateMachine
+            ->pointerMiss(position, hitType, timeStamp, pointerId, button);
       }
       else
       {
@@ -3125,7 +3186,9 @@ HitResult StateMachineInstance::updateListeners(
   // The capture phase runs once per event, from the root of the dispatch,
   // over every machine in the tree; the machines it reaches through the
   // normal phase below must not run it again. Skipped outright while
-  // nothing anywhere has a capture listener.
+  // nothing anywhere has a capture listener. A miss reaches capture
+  // listeners as the pointer leaving, as off a nested mesh in a host's
+  // capture pass.
   HitResult captureResult = HitResult::none;
   if (!m_hostDispatching && !m_captureRunByHost &&
       s_liveCaptureMachines.load(std::memory_order_relaxed) != 0 &&
@@ -3133,7 +3196,8 @@ HitResult StateMachineInstance::updateListeners(
   {
     captureResult = capturePointer(
         position,
-        hitType,
+        m_inPointerMiss && isMissableEvent(hitType) ? ListenerType::exit
+                                                    : hitType,
         pointerId,
         timeStamp,
         button);
@@ -3194,7 +3258,7 @@ HitResult StateMachineInstance::updateListeners(
     HitResult hitResult = hitShape->processEvent(
         position,
         hitType,
-        !hitOpaque && !contentsCollapsed,
+        !m_inPointerMiss && !hitOpaque && !contentsCollapsed,
         timeStamp,
         pointerId,
         button);
@@ -3771,6 +3835,36 @@ HitResult StateMachineInstance::pointerExit(Vec2D position, int id)
 {
   return updateListeners(position, ListenerType::exit, id);
 }
+HitResult StateMachineInstance::pointerMiss(
+    Vec2D position,
+    ListenerType hitType,
+    float timeStamp,
+    int id,
+    PointerButton button)
+{
+  // Every target counts as occluded: ListenerGroup::processEvent then
+  // unhovers it and fails presses, but keeps a drag's press alive. Scoped
+  // rather than passed, so the dragStart/dragEnd passes a group sets off
+  // (and dragEnd's pointerMove) miss as well.
+  const bool wasInPointerMiss = m_inPointerMiss;
+  m_inPointerMiss = true;
+  HitResult result;
+  switch (hitType)
+  {
+    // A host's drag still turns this machine's pointers off and back on.
+    case ListenerType::dragStart:
+      result = dragStart(position, timeStamp, true, id, button);
+      break;
+    case ListenerType::dragEnd:
+      result = dragEnd(position, timeStamp, id, button);
+      break;
+    default:
+      result = updateListeners(position, hitType, id, timeStamp, button);
+      break;
+  }
+  m_inPointerMiss = wasInPointerMiss;
+  return result;
+}
 HitResult StateMachineInstance::dragStart(
     Vec2D position,
     float timeStamp,
@@ -4125,6 +4219,27 @@ void StateMachineInstance::addToHitLookup(
     return;
   }
 
+  // Older files ignore images: they fall through to the container walk, which
+  // finds nothing to hit under one.
+  if (target->is<Image>() && target->as<Image>()->isPointerTarget())
+  {
+    HitExpandable* hitImage;
+    auto itr = hitLookup.find(target);
+    if (itr == hitLookup.end())
+    {
+      Image* image = target->as<Image>();
+      auto hs = std::make_unique<HitExpandable>(image, image, this);
+      hitLookup[target] = hitImage = hs.get();
+      m_hitComponents.push_back(std::move(hs));
+    }
+    else
+    {
+      hitImage = static_cast<HitExpandable*>(itr->second);
+    }
+    addListener(hitImage);
+    return;
+  }
+
   if (target->is<ContainerComponent>())
   {
     target->as<ContainerComponent>()->forEachChild([&](Component* child) {
@@ -4153,6 +4268,7 @@ StateMachineInstance::StateMachineInstance(
     , m_hostSpacePointers(false)
     , m_hostDispatching(false)
     , m_captureRunByHost(false)
+    , m_inPointerMiss(false)
 {
   const auto count = machine->inputCount();
   m_inputInstances.resize(count);

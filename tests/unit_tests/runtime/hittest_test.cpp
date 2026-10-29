@@ -68,6 +68,84 @@ TEST_CASE("hittest-mesh", "[hittest]")
       HitTester::testMesh(area, make_span(verts, 3), make_span(indices, 3)));
 }
 
+// A visible triangle over the top-left half, then two collapsed ones: three
+// coincident vertices, and three on the line y = 80. Neither covers anything.
+TEST_CASE("hittest-mesh skips collapsed triangles", "[hittest]")
+{
+  Vec2D verts[] = {
+      {0, 0},
+      {100, 0},
+      {0, 100},
+      {10, 10},
+      {10, 10},
+      {10, 10},
+      {20, 80},
+      {40, 80},
+      {60, 80},
+  };
+  uint16_t indices[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+  auto hits = [&](float x, float y) {
+    return HitTester::testMesh(
+        Vec2D(x, y),
+        make_span(verts, 9),
+        make_span(indices, 9));
+  };
+  CHECK(hits(20.0f, 20.0f));
+  CHECK_FALSE(hits(90.0f, 90.0f));
+  CHECK_FALSE(hits(90.0f, 80.0f));
+}
+
+// A square split along its diagonal: a point on the diagonal is on the edge
+// of both triangles, and must hit whichever way they wind.
+TEST_CASE("hittest-mesh includes shared edges", "[hittest]")
+{
+  Vec2D verts[] = {{0, 0}, {100, 0}, {0, 100}, {100, 100}};
+  uint16_t clockwise[] = {0, 1, 2, 3, 2, 1};
+  uint16_t counterClockwise[] = {0, 2, 1, 3, 1, 2};
+  for (auto indices : {clockwise, counterClockwise})
+  {
+    CHECK(HitTester::testMesh(
+        Vec2D(50.0f, 50.0f),
+        make_span(verts, 4),
+        make_span(indices, 6)));
+    CHECK(HitTester::testMesh(
+        Vec2D(25.0f, 75.0f),
+        make_span(verts, 4),
+        make_span(indices, 6)));
+  }
+}
+
+// A long, thin triangle: in float, 4096² + 1 rounds to 4096², which zeroes
+// the Gram determinant of the edges though the area is 2048.
+TEST_CASE("mapMesh maps through a long thin triangle", "[hittest]")
+{
+  const Vec2D from[] = {{0, 0}, {4096, 0}, {4096, 1}};
+  const Vec2D to[] = {{0, 0}, {1, 0}, {1, 1}};
+  const uint16_t indices[] = {0, 1, 2};
+  Vec2D out;
+  bool inside = false;
+  Mat2D map;
+  REQUIRE(HitTester::mapMesh(
+      Vec2D(3072, 0.25f),
+      make_span(from, 3),
+      make_span(to, 3),
+      make_span(indices, 3),
+      &out,
+      &inside,
+      &map));
+  CHECK(inside);
+  CHECK(out.x == Approx(0.75f));
+  CHECK(out.y == Approx(0.25f));
+
+  // The triangle's own map agrees, and takes deltas by its linear part.
+  const Vec2D mapped = map * Vec2D(3072, 0.25f);
+  CHECK(mapped.x == Approx(0.75f));
+  CHECK(mapped.y == Approx(0.25f));
+  const Vec2D step = Vec2D::transformDir(Vec2D(1024, 0), map);
+  CHECK(step.x == Approx(0.25f));
+  CHECK(step.y == Approx(0.0f).margin(1e-6f));
+}
+
 TEST_CASE("hit test on opaque target", "[hittest]")
 {
   // This artboard has two rects of size 200 x 200, "red-activate" at [0, 0,

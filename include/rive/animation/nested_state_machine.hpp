@@ -39,6 +39,12 @@ public:
       int pointerId = 0,
       PointerButton button = PointerButton::primary);
   HitResult pointerExit(Vec2D position, int pointerId = 0);
+  HitResult pointerMiss(
+      Vec2D position,
+      ListenerType hitType,
+      float timeStamp = 0,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
   HitResult pointerScroll(
       Vec2D position,
       const ScrollEvent& event,

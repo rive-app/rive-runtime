@@ -103,7 +103,11 @@ public:
   /// the authored font size. Older files were laid out against the
   /// unshrunk box, so honoring Text::fitFontSizeResizesBox below this
   /// version would reflow them. See Text::import.
-  static const int minorVersion = 4;
+  /// 7.5: images are pointer listener targets, on their own or inside a
+  /// targeted group. Older files never hit tested images, so honoring them
+  /// would grow the hit area of listeners on groups holding one. See
+  /// Image::import.
+  static const int minorVersion = 5;
   /// deterministicMode sets a static seed for randomization and uses
   /// timestamps for scrolling.
   static bool deterministicMode;

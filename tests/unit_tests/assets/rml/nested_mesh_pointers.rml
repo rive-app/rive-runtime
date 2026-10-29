@@ -1,0 +1,230 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/nested_mesh_pointers.riv. Not an editor
+      export: rebuild the .riv from this file with the CLI, from a directory
+      holding this scene.rml and a rive.yaml naming it, then copy
+      build/nested_mesh_pointers.riv into assets/.
+
+          rive . --once
+
+      What it is for: pointers reaching an artboard nested through a mesh
+      follow the deformation. Inner is 100x100, split into Left [0..50] and
+      Right [50..100] halves that each flip their own bool on pointer down.
+
+        Card    at (50, 50): a two-triangle mesh skews Inner by x' = x + y,
+                so Inner's content point (x, y) draws at (50 + x + y, 50 + y).
+        Sliced  at (250, 50): a 3x3 N-slice with the center patch hidden,
+                so Inner's [25..75] square is a hole.
+
+      Left also drags Follower to the pointer and flips Exited when the
+      pointer leaves it, so a test can read where pointers land in Inner.
+      Right flips RightMoved when the pointer moves over it.
+
+      Deep, a 20x20 artboard nested in Inner at (80, 80), does the same for
+      its Pad, one level further down. It sits over Right, which doesn't
+      drag: a drag starting in Inner would take Deep's pointer away.
+
+        Hollow  at (400, 50): an N-slice with every patch hidden, so nothing
+                draws and nothing may be hit.
+        Tiled   at (50, 250), scaled 3x across: an N-slice whose center
+                column repeats, so one UV is drawn in several places.
+        TiledStrip  at (50, 400): Tiled's N-slice over Strip, a 100x100
+                horizontal scroll view over 400 of content.
+        Holed   at (450, 250): Sliced again, over HostPad, a 160x120 shape
+                around it whose drag listener flips Host's HostDragged. It
+                is the only thing Host listens to, so no other test reaches
+                it.
+    -->
+    <Artboard defaultStateMachineId="0:90" width="600" height="550" styleId="0:2" name="Host" id="0:1">
+        <LayoutComponentStyle name="Host Style" id="0:2"/>
+
+        <NestedArtboard artboardId="0:40" x="50" y="50" name="Card" id="0:10">
+            <NestedStateMachine animationId="0:60" name="SM" id="0:11"/>
+            <Mesh triangleIndexBytes="AAECAAID" name="Skew" id="0:12">
+                <MeshVertex x="0" y="0" u="0" v="0" name="TopLeft" id="0:13"/>
+                <MeshVertex x="100" y="0" u="1" v="0" name="TopRight" id="0:14"/>
+                <MeshVertex x="200" y="100" u="1" v="1" name="BottomRight" id="0:15"/>
+                <MeshVertex x="100" y="100" u="0" v="1" name="BottomLeft" id="0:16"/>
+            </Mesh>
+        </NestedArtboard>
+
+        <NestedArtboard artboardId="0:40" x="250" y="50" name="Sliced" id="0:20">
+            <NestedStateMachine animationId="0:60" name="SM" id="0:21"/>
+            <NSlicer name="NSlicer" id="0:22">
+                <AxisX offset="25" name="X1" id="0:23"/>
+                <AxisX offset="75" name="X2" id="0:24"/>
+                <AxisY offset="25" name="Y1" id="0:25"/>
+                <AxisY offset="75" name="Y2" id="0:26"/>
+                <NSlicerTileMode patchIndex="4" style="2" name="HiddenCenter" id="0:27"/>
+            </NSlicer>
+        </NestedArtboard>
+
+        <NestedArtboard artboardId="0:40" x="400" y="50" name="Hollow" id="0:200">
+            <NestedStateMachine animationId="0:60" name="SM" id="0:201"/>
+            <NSlicer name="NSlicer" id="0:202">
+                <AxisX offset="25" name="X1" id="0:203"/>
+                <AxisX offset="75" name="X2" id="0:204"/>
+                <AxisY offset="25" name="Y1" id="0:205"/>
+                <AxisY offset="75" name="Y2" id="0:206"/>
+                <NSlicerTileMode patchIndex="0" style="2" id="0:210"/>
+                <NSlicerTileMode patchIndex="1" style="2" id="0:211"/>
+                <NSlicerTileMode patchIndex="2" style="2" id="0:212"/>
+                <NSlicerTileMode patchIndex="3" style="2" id="0:213"/>
+                <NSlicerTileMode patchIndex="4" style="2" id="0:214"/>
+                <NSlicerTileMode patchIndex="5" style="2" id="0:215"/>
+                <NSlicerTileMode patchIndex="6" style="2" id="0:216"/>
+                <NSlicerTileMode patchIndex="7" style="2" id="0:217"/>
+                <NSlicerTileMode patchIndex="8" style="2" id="0:218"/>
+            </NSlicer>
+        </NestedArtboard>
+
+        <NestedArtboard artboardId="0:40" x="50" y="250" scaleX="3" name="Tiled" id="0:220">
+            <NestedStateMachine animationId="0:60" name="SM" id="0:221"/>
+            <NSlicer name="NSlicer" id="0:222">
+                <AxisX offset="25" name="X1" id="0:223"/>
+                <AxisX offset="75" name="X2" id="0:224"/>
+                <NSlicerTileMode patchIndex="1" style="1" name="RepeatCenter" id="0:225"/>
+            </NSlicer>
+        </NestedArtboard>
+
+        <NestedArtboard artboardId="0:300" x="50" y="400" scaleX="3" name="TiledStrip" id="0:230">
+            <NestedStateMachine animationId="0:310" name="SM" id="0:231"/>
+            <NSlicer name="NSlicer" id="0:232">
+                <AxisX offset="25" name="X1" id="0:233"/>
+                <AxisX offset="75" name="X2" id="0:234"/>
+                <NSlicerTileMode patchIndex="1" style="1" name="RepeatCenter" id="0:235"/>
+            </NSlicer>
+        </NestedArtboard>
+
+        <NestedArtboard artboardId="0:40" x="450" y="250" name="Holed" id="0:240">
+            <NestedStateMachine animationId="0:60" name="SM" id="0:241"/>
+            <NSlicer name="NSlicer" id="0:242">
+                <AxisX offset="25" name="X1" id="0:243"/>
+                <AxisX offset="75" name="X2" id="0:244"/>
+                <AxisY offset="25" name="Y1" id="0:245"/>
+                <AxisY offset="75" name="Y2" id="0:246"/>
+                <NSlicerTileMode patchIndex="4" style="2" name="HiddenCenter" id="0:247"/>
+            </NSlicer>
+        </NestedArtboard>
+
+        <Shape x="500" y="300" name="HostPad" id="0:250">
+            <Rectangle width="160" height="120" name="Path" id="0:251"/>
+            <Fill name="Fill" id="0:252">
+                <SolidColor colorValue="FF20242B" name="Color" id="0:253"/>
+            </Fill>
+        </Shape>
+
+        <StateMachine name="State Machine 1" id="0:90">
+            <StateMachineBool name="HostDragged" id="0:93"/>
+            <StateMachineLayer name="Layer 1" id="0:91">
+                <EntryState id="0:92"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:250" name="HostPadDrag" id="0:94">
+                <ListenerInputType listenerTypeValue="12" id="0:95"/>
+                <ListenerBoolChange inputId="0:93" value="true" id="0:96"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="0:60" isComponent="true" originX="0" originY="0" width="100" height="100" styleId="0:41" name="Inner" id="0:40">
+        <LayoutComponentStyle name="Inner Style" id="0:41"/>
+        <NestedArtboard artboardId="0:100" x="80" y="80" name="Deep" id="0:51">
+            <NestedStateMachine animationId="0:110" name="SM" id="0:52"/>
+        </NestedArtboard>
+        <Shape x="25" y="50" name="Left" id="0:42">
+            <Rectangle width="50" height="100" name="Path" id="0:43"/>
+            <Fill name="Fill" id="0:44">
+                <SolidColor colorValue="FF5FBDB2" name="Color" id="0:45"/>
+            </Fill>
+        </Shape>
+        <Shape x="75" y="50" name="Right" id="0:46">
+            <Rectangle width="50" height="100" name="Path" id="0:47"/>
+            <Fill name="Fill" id="0:48">
+                <SolidColor colorValue="FFE04F4F" name="Color" id="0:49"/>
+            </Fill>
+        </Shape>
+        <Node name="Follower" id="0:50"/>
+
+        <StateMachine name="SM" id="0:60">
+            <StateMachineBool name="Left" id="0:61"/>
+            <StateMachineBool name="Right" id="0:62"/>
+            <StateMachineBool name="Exited" id="0:63"/>
+            <StateMachineBool name="RightMoved" id="0:66"/>
+            <StateMachineLayer name="Layer 1" id="0:64">
+                <EntryState id="0:65"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:42" name="LeftDown" id="0:70">
+                <ListenerInputType listenerTypeValue="2" id="0:71"/>
+                <ListenerBoolChange inputId="0:61" value="true" id="0:72"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:46" name="RightDown" id="0:73">
+                <ListenerInputType listenerTypeValue="2" id="0:74"/>
+                <ListenerBoolChange inputId="0:62" value="true" id="0:75"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:42" name="LeftDrag" id="0:76">
+                <ListenerInputType listenerTypeValue="12" id="0:77"/>
+                <ListenerAlignTarget targetId="0:50" id="0:78"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:42" name="LeftExit" id="0:79">
+                <ListenerInputType listenerTypeValue="1" id="0:80"/>
+                <ListenerBoolChange inputId="0:63" value="true" id="0:81"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:46" name="RightMove" id="0:82">
+                <ListenerInputType listenerTypeValue="4" id="0:83"/>
+                <ListenerBoolChange inputId="0:66" value="true" id="0:84"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="0:110" isComponent="true" originX="0" originY="0" width="20" height="20" styleId="0:101" name="Deep" id="0:100">
+        <LayoutComponentStyle name="Deep Style" id="0:101"/>
+        <Shape x="10" y="10" name="Pad" id="0:102">
+            <Rectangle width="20" height="20" name="Path" id="0:103"/>
+            <Fill name="Fill" id="0:104">
+                <SolidColor colorValue="FFF2C14E" name="Color" id="0:105"/>
+            </Fill>
+        </Shape>
+        <Node name="Follower" id="0:106"/>
+
+        <StateMachine name="SM" id="0:110">
+            <StateMachineBool name="Exited" id="0:111"/>
+            <StateMachineLayer name="Layer 1" id="0:112">
+                <EntryState id="0:113"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:102" name="PadDrag" id="0:114">
+                <ListenerInputType listenerTypeValue="12" id="0:115"/>
+                <ListenerAlignTarget targetId="0:106" id="0:116"/>
+            </StateMachineListener>
+            <StateMachineListener targetId="0:102" name="PadExit" id="0:117">
+                <ListenerInputType listenerTypeValue="1" id="0:118"/>
+                <ListenerBoolChange inputId="0:111" value="true" id="0:119"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="0:310" isComponent="true" originX="0" originY="0" width="100" height="100" styleId="0:301" name="Strip" id="0:300">
+        <LayoutComponentStyle name="Strip Style" id="0:301"/>
+        <ElasticScrollPhysics name="Physics" id="0:302"/>
+        <LayoutComponent width="100" height="100" clip="true" styleId="0:304" name="Viewport" id="0:303">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed"
+                                  flexDirectionValue="row" name="Viewport Style" id="0:304"/>
+            <LayoutComponent height="100" styleId="0:306" name="Content" id="0:305">
+                <LayoutComponentStyle layoutWidthScaleType="hug" layoutHeightScaleType="fixed"
+                                      flexDirectionValue="row" name="Content Style" id="0:306"/>
+                <ScrollConstraint directionValue="horizontal" physicsId="0:302" name="Scroll" id="0:307"/>
+                <LayoutComponent width="400" height="100" styleId="0:309" name="Wide" id="0:308">
+                    <LayoutComponentStyle name="Wide Style" id="0:309"/>
+                    <Fill name="Fill" id="0:313">
+                        <SolidColor colorValue="FF5FBDB2" name="Color" id="0:314"/>
+                    </Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+
+        <StateMachine name="SM" id="0:310">
+            <StateMachineLayer name="Layer 1" id="0:311">
+                <EntryState id="0:312"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+</Rive>

@@ -583,7 +583,10 @@ void NestedArtboard::draw(Renderer* renderer)
     // Any composite would drop the clip, the source's own cache included:
     // draw clipped vectors.
     bypassCache = m_meshHost->compositeDropsClip();
-    if (!bypassCache && m_meshHost->draw(renderer))
+    // Pointers follow whichever way this actually draws.
+    const bool drewThroughMesh = !bypassCache && m_meshHost->draw(renderer);
+    m_meshHost->drewThroughMesh(drewThroughMesh);
+    if (drewThroughMesh)
     {
       return;
     }
@@ -627,10 +630,12 @@ bool NestedArtboard::hitTestHost(
     bool skipOnUnclipped,
     ArtboardInstance* artboard)
 {
-  return parent()->hitTestPoint(
-      worldTransform() * position,
-      skipOnUnclipped,
-      false);
+  Vec2D world;
+  if (m_meshHost == nullptr || !m_meshHost->worldThroughMesh(position, &world))
+  {
+    world = worldTransform() * position;
+  }
+  return parent()->hitTestPoint(world, skipOnUnclipped, false);
 }
 
 Vec2D NestedArtboard::hostTransformPoint(
@@ -864,12 +869,36 @@ NestedInput* NestedArtboard::input(
   return nullptr;
 }
 
-bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
+bool NestedArtboard::worldToLocal(
+    Vec2D world,
+    Vec2D* local,
+    bool* offMesh,
+    Mat2D* toLocal)
 {
   assert(local != nullptr);
   if (m_referencedArtboard == nullptr)
   {
     return false;
+  }
+  bool pastMesh = false;
+  if (m_meshHost != nullptr && m_meshHost->pointersFollowMesh())
+  {
+    if (m_meshHost->localThroughMesh(world, local, &pastMesh, toLocal))
+    {
+      if (offMesh != nullptr)
+      {
+        *offMesh = pastMesh;
+      }
+      return true;
+    }
+    // Drawn through a mesh with no triangles to map through, such as an
+    // N-Slice with every patch hidden: nothing is drawn to hit. The
+    // undeformed position below still keeps a drag moving.
+    pastMesh = true;
+  }
+  if (offMesh != nullptr)
+  {
+    *offMesh = pastMesh;
   }
   Mat2D toMountedArtboard;
   if (!worldTransform().invert(&toMountedArtboard))
@@ -878,6 +907,10 @@ bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
   }
 
   *local = toMountedArtboard * world;
+  if (toLocal != nullptr)
+  {
+    *toLocal = toMountedArtboard;
+  }
 
   return true;
 }

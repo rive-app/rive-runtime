@@ -72,7 +72,12 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
   // TODO: handle clip?
 
-  auto renderImage = imageAsset()->renderImage();
+  auto asset = imageAsset();
+  auto renderImage = asset != nullptr ? asset->renderImage() : nullptr;
+  if (renderImage == nullptr)
+  {
+    return nullptr;
+  }
   float width = (float)renderImage->width();
   float height = (float)renderImage->height();
 
@@ -95,6 +100,45 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
   return nullptr;
 }
 
+bool Image::hitTestPoint(
+    const Vec2D& position,
+    bool skipOnUnclipped,
+    bool isPrimaryHit)
+{
+  // Only the target tests its own geometry; as an ancestor the image just
+  // passes the test up the tree.
+  if (!isPrimaryHit)
+  {
+    return Drawable::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
+  }
+  // Hit what draw() draws: nothing until the asset has a decoded image.
+  // Opacity is ignored, as it is for shapes, so a transparent image can
+  // still be a hit area.
+  ImageAsset* asset = imageAsset();
+  if (asset == nullptr || asset->renderImage() == nullptr)
+  {
+    return false;
+  }
+  if (m_Mesh != nullptr)
+  {
+    if (!m_Mesh->hitTest(position))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    Mat2D inverseWorld;
+    if (!worldTransform().invert(&inverseWorld) ||
+        !localBounds().contains(inverseWorld * position))
+    {
+      return false;
+    }
+  }
+  // Geometry hit, now check hidden state and clipping ancestors.
+  return Drawable::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
+}
+
 StatusCode Image::import(ImportStack& importStack)
 {
   auto result = registerReferencer(importStack);
@@ -109,6 +153,8 @@ StatusCode Image::import(ImportStack& importStack)
   int major = importStack.majorVersion();
   int minor = importStack.minorVersion();
   m_layoutScaleSeparate = major > 7 || (major == 7 && minor >= 2);
+  // See File::minorVersion.
+  m_isPointerTarget = major > 7 || (major == 7 && minor >= 5);
   return Super::import(importStack);
 }
 
@@ -171,6 +217,7 @@ Core* Image::clone() const
 {
   Image* twin = ImageBase::clone()->as<Image>();
   twin->m_layoutScaleSeparate = m_layoutScaleSeparate;
+  twin->m_isPointerTarget = m_isPointerTarget;
   if (m_fileAsset != nullptr)
   {
     twin->setAsset(m_fileAsset);

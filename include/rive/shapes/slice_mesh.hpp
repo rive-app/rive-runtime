@@ -45,6 +45,7 @@ private:
 
   // Update the member (non-render) buffers.
   void calc();
+  bool drawTransform(Mat2D* transform) const;
 
   // Copy the member (non-render) buffers into the render buffers.
   void updateBuffers();
@@ -64,6 +65,9 @@ public:
       BlendMode blendMode,
       float opacity,
       float additiveness) override;
+  bool hitTest(Vec2D position) override;
+  bool uvAt(Vec2D position, Vec2D* uv, bool* inside, Mat2D* toUV) override;
+  bool positionAtUV(Vec2D uv, Vec2D* position) override;
   void onAssetLoaded(RenderImage* renderImage) override;
   void uvTransformChanged(const Mat2D& uvTransform) override;
 

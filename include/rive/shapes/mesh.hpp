@@ -21,6 +21,12 @@ protected:
   rcp<IndexBuffer> m_IndexBuffer;
   std::vector<MeshVertex*> m_Vertices;
   void buildUVAndIndexBuffers(const Mat2D& uvTransform);
+  // Whether m_IndexBuffer holds whole triangles of m_Vertices.
+  bool hasTriangles() const;
+  // What draw() renders the vertices under.
+  Mat2D drawTransform() const;
+  std::vector<Vec2D> renderPositions() const;
+  std::vector<Vec2D> uvs() const;
 
 public:
   StatusCode onAddedDirty(CoreContext* context) override;
@@ -38,6 +44,9 @@ public:
       BlendMode blendMode,
       float opacity,
       float additiveness) override;
+  bool hitTest(Vec2D position) override;
+  bool uvAt(Vec2D position, Vec2D* uv, bool* inside, Mat2D* toUV) override;
+  bool positionAtUV(Vec2D uv, Vec2D* position) override;
 
   void markSkinDirty() override;
   Core* clone() const override;

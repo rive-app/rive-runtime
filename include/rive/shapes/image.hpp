@@ -50,6 +50,10 @@ private:
   // file version at import; defaults to the modern behavior for
   // runtime-created images.
   bool m_layoutScaleSeparate = true;
+  // Whether pointer listeners can hit this image (7.5+). Older files never
+  // hit tested images, so a listener on a group holding one would grow its
+  // hit area. Set from the file version at import, like the above.
+  bool m_isPointerTarget = true;
   void updateImageScale();
 
 public:
@@ -82,6 +86,11 @@ public:
   void draw(Renderer* renderer) override;
   bool willDraw() override;
   Core* hitTest(HitInfo*, const Mat2D&) override;
+  bool hitTestPoint(
+      const Vec2D& position,
+      bool skipOnUnclipped,
+      bool isPrimaryHit) override;
+  bool isPointerTarget() const { return m_isPointerTarget; }
   StatusCode import(ImportStack& importStack) override;
   void setAsset(rcp<FileAsset>) override;
   uint32_t assetId() override;

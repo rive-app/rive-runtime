@@ -190,6 +190,21 @@ HitResult NestedStateMachine::pointerExit(Vec2D position, int pointerId)
   return HitResult::none;
 }
 
+HitResult NestedStateMachine::pointerMiss(
+    Vec2D position,
+    ListenerType hitType,
+    float timeStamp,
+    int pointerId,
+    PointerButton button)
+{
+  if (m_StateMachineInstance != nullptr)
+  {
+    return m_StateMachineInstance
+        ->pointerMiss(position, hitType, timeStamp, pointerId, button);
+  }
+  return HitResult::none;
+}
+
 HitResult NestedStateMachine::dragStart(
     Vec2D position,
     float timeStamp,

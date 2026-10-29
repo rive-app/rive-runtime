@@ -192,8 +192,15 @@ public:
   /// Convert a world space (relative to the artboard that this
   /// NestedArtboard is a child of) to the local space of the Artboard
   /// nested within. Returns true when the conversion succeeds, and false
-  /// when one is not possible.
-  bool worldToLocal(Vec2D world, Vec2D* local);
+  /// when one is not possible. When the artboard is drawn through a mesh
+  /// the point follows its deformation, and `offMesh` is set when it falls
+  /// past the mesh's edge. `toLocal`, when given, is set to the affine map
+  /// used there: through a mesh, that of the triangle under `world`.
+  bool worldToLocal(
+      Vec2D world,
+      Vec2D* local,
+      bool* offMesh = nullptr,
+      Mat2D* toLocal = nullptr);
   void decodeDataBindPathIds(Span<const uint8_t> value) override;
   void copyDataBindPathIds(const NestedArtboardBase& object) override;
   void bindViewModelInstance(
