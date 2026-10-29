@@ -12,6 +12,12 @@
 
 #define RIVE_BINDINGS_ABI_VERSION 1
 
+// The import surface below, digested. A wasm module built against
+// one contract and run against another links its imports to
+// nothing, so a build that carries this can be told apart from one
+// that predates a change to it.
+#define RIVE_BINDINGS_V1_CONTRACT "8f571598510eeb94"
+
 #define RIVE_BINDING_IMPORT(module, name)                            \
     __attribute__((import_module(module), import_name(name)))
 

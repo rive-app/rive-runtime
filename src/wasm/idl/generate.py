@@ -2,6 +2,7 @@
 """Projects bindings.py into its generated files; --check diffs instead of
 writing so test lanes can gate on drift."""
 
+import hashlib
 import json
 import re
 import sys
@@ -19,6 +20,7 @@ PACKAGES = Path(__file__).resolve().parents[4]
 
 HEADER_PATH = PACKAGES / 'runtime/include/rive/wasm/rive_bindings_v1.h'
 HOST_PATH = PACKAGES / 'runtime/src/wasm/wasm_natives_gen.hpp'
+CONTRACT_PATH = PACKAGES / 'runtime/src/wasm/idl/contract_v1.txt'
 ELEM_SIZES = {
     'char': 1,
     'uint8_t': 1,
@@ -318,6 +320,12 @@ def emit_header():
         '#include <stdint.h>',
         '',
         '#define RIVE_BINDINGS_ABI_VERSION 1',
+        '',
+        '// The import surface below, digested. A wasm module built against',
+        '// one contract and run against another links its imports to',
+        '// nothing, so a build that carries this can be told apart from one',
+        '// that predates a change to it.',
+        '#define RIVE_BINDINGS_V1_CONTRACT "%s"' % contract_digest(),
         '',
         '#define RIVE_BINDING_IMPORT(module, name)                            \\',
         '    __attribute__((import_module(module), import_name(name)))',
@@ -1628,6 +1636,33 @@ def emit_web_worklet_pre_js():
     ])
 
 
+# Return the import surface as one digest: every op the namespaces declare,
+# with the parameter kinds and return kind that decide whether a wasm import
+# links. Sorted, so the order ops are written in never moves it.
+#
+# What it leaves out is everything that does not change linkage, such as an
+# op's stub behaviour or its web expression, so regenerating for one of those
+# does not tell anybody their build is out of date.
+def contract_digest():
+    signatures = []
+    for namespace in NAMESPACES:
+        for op in namespace['ops']:
+            kinds = ','.join(param['kind'] for param in op['params'])
+            signatures.append(
+                '%s.%s(%s)->%s'
+                % (namespace['module'], op['name'], kinds, op['ret'] or 'void')
+            )
+    signatures.sort()
+    digest = hashlib.sha256('\n'.join(signatures).encode('utf-8'))
+    return digest.hexdigest()[:16]
+
+
+# The same digest as a file, for build steps that have a shell rather than a
+# compiler: the host build copies it beside the module it produces.
+def emit_contract():
+    return contract_digest() + '\n'
+
+
 def main():
     check_all_ops()
     check_lane_exports()
@@ -1635,6 +1670,7 @@ def main():
     outputs = {
         HEADER_PATH: emit_header(),
         HOST_PATH: emit_host(),
+        CONTRACT_PATH: emit_contract(),
         WEB_HOST_PATH: emit_web_host(),
         STUBS_PATH: emit_stubs(),
         WEB_PATH: web_imports,
