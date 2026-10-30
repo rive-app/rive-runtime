@@ -106,16 +106,19 @@ function callStageTime(parts: i32, passes: i32): f64 {
     return median(times);
 }
 
-function stageRows(context: Context, target: f64): void {
-    let passes = 0;
-    if (target > 0) {
-        passes = 1;
-        let one = callStageTime(1, passes);
-        while (one < target && passes < 100000) {
-            passes = <i32>(<f64>passes * target / one) + 1;
-            one = callStageTime(1, passes);
-        }
+// Passes that make a call on one part take about target microseconds.
+function callPasses(target: f64): i32 {
+    let passes = 1;
+    let one = callStageTime(1, passes);
+    while (one < target && passes < 100000) {
+        passes = <i32>(<f64>passes * target / one) + 1;
+        one = callStageTime(1, passes);
     }
+    return passes;
+}
+
+function stageRows(context: Context, target: f64): void {
+    let passes = target > 0 ? callPasses(target) : 0;
     let one = callStageTime(1, passes);
     for (let parts = 2; parts <= 8; parts *= 2) {
         let sync = syncStageTime(parts, passes);
@@ -161,6 +164,29 @@ function fixedRows(context: Context, target: f64): void {
         " " + (one / claimed).toString());
 }
 
+// Microseconds per call of target microseconds a part, each after main lane
+// work long enough that the team has parked, as a frame's calls are.
+function parkedRow(context: Context, target: f64): void {
+    let size = Parallel.size();
+    let data = new SharedArray<f32>(1040 * size);
+    let passes = callPasses(target);
+    let one = callStageTime(1, passes);
+    let times = new Array<f64>();
+    for (let r = 0; r < kReps; r++) {
+        let total = 0.0;
+        for (let i = 0; i < 200; i++) {
+            let until = clock() + 0.0005;
+            while (clock() < until) {}
+            let start = clock();
+            Parallel.run(stageCall, data, passes);
+            total += clock() - start;
+        }
+        times.push(total * 1e6 / 200);
+    }
+    context.log("parked " + target.toString() + " parts " + size.toString() +
+        " one us " + one.toString() + " call us " + median(times).toString());
+}
+
 export class Main extends Layout {
     override init(context: Context): bool {
         context.log("bench size " + Parallel.size().toString());
@@ -183,6 +209,8 @@ export class Main extends Layout {
         fixedRows(context, 50);
         fixedRows(context, 200);
         fixedRows(context, 1000);
+        parkedRow(context, 50);
+        parkedRow(context, 200);
         context.log("bench done");
         return true;
     }

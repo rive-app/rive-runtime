@@ -273,6 +273,11 @@ RIVE_PARALLEL_TIMED_WAITS=1 "${PARALLEL_NODE[@]}" fixture/parallel.riv \
     "${PARALLEL[@]}" --expect 'parallel team {"team":0,"waits":"none"}'
 "${PARALLEL_NODE[@]}" fixture/parallel_stop.riv --parallel-parts 4 "${STOPPED[@]}"
 "${PARALLEL_NODE[@]}" fixture/parallel_design.riv --parallel-parts 4 "${DESIGN[@]}"
+# Member setup that runs out of memory keeps the members it made, as natively,
+# and a call runs on those.
+"${PARALLEL_NODE[@]}" fixture/parallel_capped.riv --parallel-parts 4 \
+    --until "capped fewer parts" --expect "capped parts 3 total 3" \
+    --expect "capped fewer parts yes"
 # A team thread that never takes its part, as one whose wake was lost, fails
 # the call within its budget, or after a second without one, rather than
 # hanging the page, and later calls run without it. A syncing call fails the

@@ -1,0 +1,2 @@
+wasmMaxPages: 256
+wasmRuntime: stub

@@ -278,6 +278,7 @@ function teamThread() {
             !(userAgent.includes('AppleWebKit/') && !userAgent.includes('Chrome/')) &&
             globalThis.process?.['env']?.['RIVE_PARALLEL_TIMED_WAITS'] === undefined;
         Atomics.store(words, kTeamWaits, waitAsync ? kWaitAsync : kWaitTimed);
+        let turned = performance.now();
         for (;;) {
             if (!spinFor(moved, kSpinMs)) {
                 Atomics.add(words, kTeamParked, 1);
@@ -286,9 +287,13 @@ function teamThread() {
                     if (waited.async) {
                         await waited.value;
                     }
+                } else if (performance.now() - turned >= kTimedWaitMs) {
+                    // Messages get a turn in place of a sleep, so a woken
+                    // call never waits on one.
+                    await nextTurn();
+                    turned = performance.now();
                 } else {
                     Atomics.wait(words, kTeamCall, seen, kTimedWaitMs);
-                    await nextTurn();
                 }
                 Atomics.sub(words, kTeamParked, 1);
                 continue;
