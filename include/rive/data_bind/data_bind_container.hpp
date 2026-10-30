@@ -1,6 +1,8 @@
 #ifndef _RIVE_DATA_BIND_CONTAINER_HPP_
 #define _RIVE_DATA_BIND_CONTAINER_HPP_
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include "rive/refcnt.hpp"
 #include "rive/sidecar.hpp"
@@ -92,8 +94,15 @@ public:
   // queue, or one it polls on every pass.
   bool hasDataBindWork() const;
   // Whether advanceDataBinds could do anything: some bind's converter
-  // advances.
+  // advances. Cached until a bind here changes (dataBindsChanged) or a
+  // converter whose answer is cached does (mayAdvanceChanged).
   bool mayAdvanceDataBinds() const;
+  // A bind was added or removed, or one changed the converter it uses.
+  virtual void dataBindsChanged();
+  // Every cached mayAdvanceDataBinds answer may be stale: a converter's answer
+  // depends on the converters its binds use, and those don't know their
+  // users.
+  static void mayAdvanceChanged();
 #ifdef TESTING
   // Binds processed by updateDataBinds, across every container.
   static uint64_t sm_dataBindUpdates;
@@ -122,6 +131,12 @@ protected:
   void bindDataBindsFromContext();
   void unbindDataBinds();
   void sortDataBinds();
+  // Whether mayAdvanceDataBinds holds an answer no change has made stale.
+  bool mayAdvanceCached() const
+  {
+    return m_mayAdvanceEpoch ==
+           sm_mayAdvanceEpoch.load(std::memory_order_relaxed);
+  }
 
 private:
   void updateDataBind(DataBind* dataBind, bool applyTargetToSource);
@@ -133,6 +148,12 @@ private:
   // No default member initializer here on purpose; see the note above.
   rcp<DataContext> m_dataContext;
   bool m_isProcessing = false;
+  // The cached mayAdvanceDataBinds answer, valid while m_mayAdvanceEpoch
+  // matches sm_mayAdvanceEpoch (0 never does). Both sit in the padding after
+  // m_isProcessing, so caching costs no memory.
+  mutable bool m_mayAdvanceDataBinds = false;
+  mutable uint32_t m_mayAdvanceEpoch = 0;
+  static std::atomic<uint32_t> sm_mayAdvanceEpoch;
 };
 } // namespace rive
 

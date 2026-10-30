@@ -14,7 +14,7 @@ public:
   ~DataConverterGroupItem();
   StatusCode import(ImportStack& importStack) override;
   DataConverter* converter() const { return m_dataConverter; };
-  void converter(DataConverter* value) { m_dataConverter = value; };
+  void converter(DataConverter* value);
   void ownsConverter(bool value) { m_ownsConverter = value; };
   Core* clone() const override;
 

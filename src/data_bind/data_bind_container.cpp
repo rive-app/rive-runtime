@@ -71,7 +71,9 @@ void DataBindContainer::bindDataBindsFromContext()
 
 bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
 {
-  if (m_dataBinds.size() == 0)
+  // Artboards advance every bind with a converter each frame, and a formula
+  // walks a bind per bound token, so most of that walk advances nothing.
+  if (!mayAdvanceDataBinds())
   {
     return false;
   }
@@ -100,6 +102,7 @@ void DataBindContainer::removeDataBind(DataBind* dataBind)
     v.erase(std::remove(v.begin(), v.end(), dataBind), v.end());
   };
   eraseOne(m_dataBinds);
+  dataBindsChanged();
   // A bind can only be flagged into one of the queues if the queues were
   // allocated to hold it, but the flags live on the bind, so stay defensive.
   auto* queues = m_queues.get();
@@ -139,6 +142,7 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     return;
   }
   m_dataBinds.push_back(dataBind);
+  dataBindsChanged();
   // toSource binds: prefer push notifications when the target supports it
   // (Alternative A — Core::notifyPropertyChanged). Fall back to per-frame
   // polling via the persisting list for the few derived/computed targets
@@ -174,17 +178,38 @@ bool DataBindContainer::hasDataBindWork() const
           !queues->pendingRemovals.empty() || !queues->pendingDeletes.empty());
 }
 
+// Starts at 1 so a container's initial epoch of 0 is never current.
+std::atomic<uint32_t> DataBindContainer::sm_mayAdvanceEpoch{1};
+
 bool DataBindContainer::mayAdvanceDataBinds() const
 {
-  for (auto dataBind : m_dataBinds)
+  auto epoch = sm_mayAdvanceEpoch.load(std::memory_order_relaxed);
+  if (m_mayAdvanceEpoch != epoch)
   {
-    auto converter = dataBind->converter();
-    if (converter != nullptr && converter->mayAdvance())
+    m_mayAdvanceDataBinds = false;
+    for (auto dataBind : m_dataBinds)
     {
-      return true;
+      auto converter = dataBind->converter();
+      if (converter != nullptr && converter->mayAdvance())
+      {
+        m_mayAdvanceDataBinds = true;
+        break;
+      }
     }
+    m_mayAdvanceEpoch = epoch;
   }
-  return false;
+  return m_mayAdvanceDataBinds;
+}
+
+void DataBindContainer::dataBindsChanged() { m_mayAdvanceEpoch = 0; }
+
+void DataBindContainer::mayAdvanceChanged()
+{
+  // 0 marks an answer that was never cached, so skip it if the count wraps.
+  if (sm_mayAdvanceEpoch.fetch_add(1, std::memory_order_relaxed) + 1 == 0)
+  {
+    sm_mayAdvanceEpoch.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 void DataBindContainer::updateDataBind(

@@ -17,6 +17,8 @@ DataConverterGroup::~DataConverterGroup()
 void DataConverterGroup::addItem(DataConverterGroupItem* item)
 {
   m_items.push_back(item);
+  // mayAdvance reads the items too.
+  dataBindsChanged();
 }
 
 DataValue* DataConverterGroup::convert(DataValue* input, DataBind* dataBind)

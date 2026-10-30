@@ -76,6 +76,18 @@ bool DataConverter::advance(float elapsedTime)
 
 bool DataConverter::mayAdvance() const { return mayAdvanceDataBinds(); }
 
+void DataConverter::dataBindsChanged()
+{
+  // The binds and converters that use this converter may have cached answers
+  // built on its own. One nobody asked yet (a clone being built) has no users
+  // to tell.
+  if (mayAdvanceCached())
+  {
+    mayAdvanceChanged();
+  }
+  DataBindContainer::dataBindsChanged();
+}
+
 #ifdef WITH_RIVE_EDITOR
 void DataConverter::editorPrepareForDestruction()
 {

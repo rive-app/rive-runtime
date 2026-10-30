@@ -51,7 +51,7 @@ public:
   void dirt(ComponentDirt value) { m_Dirt = value; };
   void addDirt(ComponentDirt value, bool recurse) override;
   DataConverter* converter() const { return m_dataConverter; };
-  void converter(DataConverter* value) { m_dataConverter = value; };
+  void converter(DataConverter* value);
   ViewModelInstanceValue* source() const { return m_Source.get(); };
   void source(rcp<ViewModelInstanceValue> value);
   void clearSource();

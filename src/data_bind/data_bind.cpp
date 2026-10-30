@@ -643,6 +643,16 @@ void DataBind::collapse(bool isCollapsed)
   }
 }
 
+void DataBind::converter(DataConverter* value)
+{
+  m_dataConverter = value;
+  if (m_container != nullptr)
+  {
+    // Its container's cached mayAdvanceDataBinds read this bind's converter.
+    m_container->dataBindsChanged();
+  }
+}
+
 DataBind* DataBind::cloneWithTarget(Core* newTarget) const
 {
   auto dataBindClone = static_cast<DataBind*>(clone());

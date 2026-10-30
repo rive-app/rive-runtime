@@ -36,6 +36,7 @@ public:
   // converters, so a bind using a converter whose binds use none never
   // needs advancing.
   virtual bool mayAdvance() const;
+  void dataBindsChanged() override;
   void addDirtyDataBind(DataBind*) override;
   virtual void reset() {};
 

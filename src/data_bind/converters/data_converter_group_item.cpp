@@ -36,6 +36,14 @@ StatusCode DataConverterGroupItem::import(ImportStack& importStack)
   return Super::import(importStack);
 }
 
+void DataConverterGroupItem::converter(DataConverter* value)
+{
+  m_dataConverter = value;
+  // A group may advance when an item's converter does, and the item doesn't
+  // know its group to tell it alone.
+  DataBindContainer::mayAdvanceChanged();
+}
+
 Core* DataConverterGroupItem::clone() const
 {
   auto cloned = DataConverterGroupItemBase::clone()
