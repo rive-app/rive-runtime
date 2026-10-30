@@ -245,6 +245,14 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
       {
         assert(paint->getStrokePosition() == StrokePosition::outside);
 
+        if (m_context->frameInterlockMode() != gpu::InterlockMode::depthStencil)
+        {
+          // For non-depthStencil modes, there will be a gap between this outer
+          // stroke and the same shape if filled normally, so expand this paint
+          // by a full texel to cover the gap.
+          fillPaint->additionalOutset(1.0f);
+        }
+
         // For outside strokes we need to fill the *inverse* of the
         // path.
         auto fillPath = invertClockwisePath(
@@ -1075,7 +1083,7 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
       "are too complex.\n");
 }
 
-// Used by clipping in clockwiseAtomic mode.
+// Used by clipping in clockwiseAtomic mode, as well as outer strokes.
 //
 // Returns the inverse of a path, meaning, regions that were filled in the old
 // path are now empty, and empty regions in the old path are now filled.

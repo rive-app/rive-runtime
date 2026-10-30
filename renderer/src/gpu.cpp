@@ -1259,8 +1259,9 @@ PathData::PathData(
     localParams |= PAINT_FLAG_HAS_CLIP_RECT;
   if (draw.hasImageTexture())
     localParams |= PAINT_FLAG_HAS_IMAGE;
-  if (draw.strokeRadius() != 0 || draw.featherRadius() != 0)
-    localParams |= PAINT_FLAG_IS_STROKE_OR_FEATHER;
+  if (draw.strokeRadius() != 0 || draw.featherRadius() != 0 ||
+      draw.additionalOutset() != 0)
+    localParams |= PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA;
   if (draw.isLayerMask())
   {
     localParams |= PAINT_FLAG_LAYER_MASK;
@@ -1324,6 +1325,7 @@ PathData::PathData(
   // Third uint32x4.
   m_strokeRadius = draw.strokeRadius(); // 0 if the path is filled.
   m_featherRadius = draw.featherRadius();
+  m_additionalOutset = draw.additionalOutset();
 
   // Fourth uint32x4. A draw may allocate either a coverage buffer range or a
   // feather atlas region.

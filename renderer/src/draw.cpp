@@ -834,8 +834,11 @@ DrawUniquePtr PathDraw::Make(
   // index generator. We're vertex bound on Android now, and outerCubic
   // patches generate a lot of vertex waste, which then gets compounded by the
   // multiple lanes and multiple passes of inkbleed hairlines.
+  // We also don't allow interior triangulation for draws with an additional
+  // outset.
   if (!paint->getIsStroked() && paint->getFeather() == 0 &&
-      !context->frameDescriptor().inkbleedOverride)
+      !context->frameDescriptor().inkbleedOverride &&
+      paint->getAdditionalOutset() == 0.0f)
   {
     // Use interior triangulation to draw filled paths if they're large
     // enough to benefit from it.
@@ -920,6 +923,7 @@ PathDraw::PathDraw(
     , m_inverseGradientTransform(paint->getInverseGradientTransform())
     , m_paintType(paint->getType())
     , m_coverageType(coverageType)
+    , m_additionalOutset(paint->getAdditionalOutset())
 {
   assert(m_pathRef != nullptr);
   assert(!m_pathRef->getRawPath().empty());

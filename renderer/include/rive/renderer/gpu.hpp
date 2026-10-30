@@ -1988,10 +1988,12 @@ private:
     WRITEONLY uint32_t m_shiftedClipReplacementID;    // CLIP_UPDATE_PAINT_TYPE
   };
 
-  // Third uint32x4. Only loaded when PAINT_FLAG_IS_STROKE_OR_FEATHER is set.
+  // Third uint32x4. Only loaded when
+  // PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA is set.
   WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled.
   WRITEONLY float m_featherRadius;
-  WRITEONLY uint32_t m_unused[2];
+  WRITEONLY float m_additionalOutset;
+  WRITEONLY uint32_t m_unused;
 
   // Fourth uint32x4. Only loaded for @FEATHER_ATLAS_BLIT or clockwiseAtomic.
   union

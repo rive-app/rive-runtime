@@ -345,6 +345,7 @@ public:
   bool isStroke() const { return m_strokeRadius != 0; }
   float strokeRadius() const { return m_strokeRadius; }
   float featherRadius() const { return m_featherRadius; }
+  float additionalOutset() const { return m_additionalOutset; }
   gpu::ContourDirections contourDirections() const
   {
     return m_contourDirections;
@@ -539,6 +540,7 @@ protected:
   bool m_hasHairlinePass = false;
   float m_strokeRadius = 0;
   float m_featherRadius = 0;
+  float m_additionalOutset = 0.0f;
   gpu::ContourDirections m_contourDirections;
   uint32_t m_contourFlags = 0;
 

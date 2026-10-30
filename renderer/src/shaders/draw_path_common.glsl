@@ -373,11 +373,13 @@ INLINE bool unpack_tessellated_path_vertex(
   float2 translate = uintBitsToFloat(pathData.xy);
   float strokeRadius = .0;
   float featherRadius = .0;
-  if ((pathData.z & PAINT_FLAG_IS_STROKE_OR_FEATHER) != 0u)
+  float additionalOutset = 0.0;
+  if ((pathData.z & PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA) != 0u)
   {
     uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
     strokeRadius = uintBitsToFloat(pathData2.x);
     featherRadius = uintBitsToFloat(pathData2.y);
+    additionalOutset = uintBitsToFloat(pathData2.z);
   }
 
   // Fix the tessellation vertex if we fetched the wrong one in order to
@@ -800,6 +802,13 @@ INLINE bool unpack_tessellated_path_vertex(
       // Offset the vertex for Manhattan AA.
       postTransformVertexOffset = sign(MUL(outset * norm, inverse(M))) *
                                   AA_RADIUS;
+      // To any vertex that isn't a fan's midpoint, apply any additional
+      // outsetting (which is given in pixels) along the normal to expand
+      // the shape.
+      if (vertexType != FAN_MIDPOINT_VERTEX)
+      {
+        postTransformVertexOffset += norm * additionalOutset;
+      }
     }
 
     if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=

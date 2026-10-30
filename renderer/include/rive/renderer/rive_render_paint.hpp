@@ -123,6 +123,9 @@ public:
   void forceClosed(bool force) { m_data.m_forceClosed = force; }
   bool getForceClosed() const { return m_data.m_forceClosed; }
 
+  void additionalOutset(float v) { m_data.m_additionalOutset = v; }
+  float getAdditionalOutset() const { return m_data.m_additionalOutset; }
+
 private:
   // Wrap all the internals in a struct to make the copy
   // constructor/assignment less error-prone.
@@ -146,6 +149,9 @@ private:
     LayerMaskMode m_layerMaskMode = LayerMaskMode::alpha;
     Mat2D m_imageTransform;
     bool m_forceClosed = false;
+
+    // How much we want to expand the shape by
+    float m_additionalOutset = 0.0f;
   };
 
   Data m_data;
