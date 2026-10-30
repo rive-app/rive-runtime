@@ -44,6 +44,11 @@
 #   build_rive.sh ninja release wasm                # release build
 #   build_rive.sh ninja release wasm --with-webgpu  # release build, also enable webgpu
 #
+# Build for Windows with a MinGW-w64 clang (GNU ABI, no D3D), from an MSYS2
+# shell or cross-compiling with llvm-mingw on the $PATH:
+#
+#   build_rive.sh mingw release  # release build, x64, uses ninja
+#
 # Incremental builds:
 #
 #   build_rive.sh                            # initial build
@@ -183,6 +188,7 @@ else
                 RIVE_ARCH="${RIVE_ARCH:-universal}" # The simulator requires universal builds.
                 ;;
             "android") RIVE_OS="${RIVE_OS:-android}" ;;
+            "mingw") RIVE_MINGW="${RIVE_MINGW:-true}" ;;
             "arm64") RIVE_ARCH="${RIVE_ARCH:-arm64}" ;;
             "arm") RIVE_ARCH="${RIVE_ARCH:-arm}" ;;
             "x64") RIVE_ARCH="${RIVE_ARCH:-x64}" ;;
@@ -206,6 +212,11 @@ else
         shift
     done
 
+    if [[ $RIVE_MINGW = true ]]; then
+        RIVE_OS="${RIVE_OS:-windows}"
+        RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}"
+    fi
+
     # Android requires an architecture. Default to arm64 if not specified.
     if [[ $RIVE_OS = "android" ]]; then
         RIVE_ARCH="${RIVE_ARCH:-arm64}"
@@ -218,7 +229,9 @@ else
         if [ ! -z "$RIVE_ARCH" ]; then
             RIVE_OUT="${RIVE_ARCH}_$RIVE_OUT"
         fi
-        if [[ $RIVE_VARIANT = "emulator" ]]; then
+        if [[ $RIVE_MINGW = true ]]; then
+            RIVE_OUT="mingw_$RIVE_OUT"
+        elif [[ $RIVE_VARIANT = "emulator" ]]; then
             RIVE_OUT="${RIVE_OS}sim_$RIVE_OUT"
         elif [ ! -z "$RIVE_OS" ]; then
             RIVE_OUT="${RIVE_OS}_$RIVE_OUT"
@@ -241,6 +254,9 @@ else
         RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --for_android"
     elif [ ! -z "$RIVE_OS" ]; then
         RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"
+    fi
+    if [[ $RIVE_MINGW = true ]]; then
+        RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --for_mingw"
     fi
     if [ ! -z "$RIVE_VARIANT" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --variant=$RIVE_VARIANT"; fi
     if [ ! -z "$RIVE_ARCH" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --arch=$RIVE_ARCH"; fi
@@ -305,7 +321,9 @@ if [[ $RIVE_BUILD_SYSTEM = "ninja" ]]; then
         unset LIB LIBPATH
     fi
 
-    if [[ $HOST_MACHINE = "windows" && -z "$VCToolsInstallDir" ]]; then
+    # MinGW builds have no MSVC toolset to set up.
+    if [[ $HOST_MACHINE = "windows" && -z "$VCToolsInstallDir" &&
+          $RIVE_PREMAKE_ARGS != *--for_mingw* ]]; then
         # VCToolsInstallDir us unset, and unlike builds with msbuild.exe,
         # nothing is going to set up a Visual Studio environment for us here.
         # clang++ would fall back to autodetecting an MSVC toolset -- and pick

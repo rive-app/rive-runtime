@@ -115,7 +115,10 @@ if not _OPTIONS['with-webgpu'] then
             externalincludedirs({ optick .. '/src'})
         end
 
-        if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
+        if rive_target_os == 'windows'
+            and _OPTIONS['for_unreal'] == nil
+            and _OPTIONS['for_mingw'] == nil
+        then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
             })
