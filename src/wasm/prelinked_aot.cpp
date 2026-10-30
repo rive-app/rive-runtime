@@ -33,11 +33,13 @@ void registerPrelinkedAotModule(const PrelinkedAotModule& module)
 
 const PrelinkedAotModule* findPrelinkedAotModule(
     uint64_t moduleKey,
-    size_t wasmSize)
+    size_t wasmSize,
+    bool hardwareBounds)
 {
   for (const PrelinkedAotModule& module : prelinkedRegistry())
   {
-    if (module.moduleKey == moduleKey && module.wasmSize == wasmSize)
+    if (module.moduleKey == moduleKey && module.wasmSize == wasmSize &&
+        module.hardwareBounds == hardwareBounds)
     {
       return &module;
     }

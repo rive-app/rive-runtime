@@ -12894,14 +12894,24 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
   // Offline-compiled code linked into this binary; the only AOT shape on
   // platforms without runtime executable memory. The file lanes above never
   // fire there, but an explicit artifact still wins if one appears.
-  const PrelinkedAotModule* prelinked = haveAot || haveHwAot || haveO0Aot
-                                            ? nullptr
-                                            : findPrelinkedAotModule(
-                                                  plainKey,
-                                                  bytes.size());
+  const PrelinkedAotModule* prelinked = nullptr;
+  if (!haveAot && !haveHwAot && !haveO0Aot)
+  {
+    prelinked = findPrelinkedAotModule(
+        plainKey,
+        bytes.size(),
+        species == TierSpecies::hw);
+    // A bake from an older rive-cli has only the checked build.
+    if (prelinked == nullptr && species == TierSpecies::hw)
+    {
+      prelinked = findPrelinkedAotModule(plainKey, bytes.size(), false);
+    }
+  }
   if (prelinked != nullptr)
   {
-    moduleKey ^= 0x94d049bb133111ebull;
+    moduleKey = compiledModuleKey(
+        moduleKey ^ 0x94d049bb133111ebull,
+        prelinked->hardwareBounds ? TierSpecies::hw : TierSpecies::o3);
   }
 #endif
   if (haveAot || haveHwAot || haveO0Aot)

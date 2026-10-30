@@ -45,15 +45,21 @@ local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- _nx_platform.
 local consoleTarget = _OPTIONS['_nx_platform'] ~= nil
     or _OPTIONS['_console_only_ore_vk'] ~= nil
--- Global so premake5_wamr.lua and test harnesses agree. Windows on Arm,
--- Android and iOS wait on what the rasc site's execution-lanes page lists.
+-- Global so premake5_wamr.lua and test harnesses agree. Windows on Arm and
+-- Android wait on what the rasc site's execution-lanes page lists. iOS
+-- devices run modules prelinked into the app, which are baked both ways.
 wasmHwBounds = wamrBuildable
     and _OPTIONS['with_rive_scripting'] ~= nil
     and (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
     and not _OPTIONS['wasm_sw_bounds']
     and (
         _OPTIONS['wasm_hw_bounds'] ~= nil
-        or (rive_target_os == 'macosx' or rive_target_os == 'linux' or rive_target_os == 'windows')
+        or (
+                rive_target_os == 'macosx'
+                or rive_target_os == 'linux'
+                or rive_target_os == 'windows'
+                or rive_target_os == 'ios' and _OPTIONS['variant'] == 'system'
+            )
             and not consoleTarget
             and _OPTIONS['arch'] ~= 'x86'
             and _OPTIONS['arch'] ~= 'arm'

@@ -163,17 +163,19 @@ do
         -- Windows hosted cross build, so neither the host arch nor --arch
         -- describes the target.
         isArm64 = true
-    elseif archOption == 'universal' then
-        -- One compile for every slice, as the iOS simulator build does.
-        isUniversal = true
     elseif
         _OPTIONS['os'] == 'ios'
         and _OPTIONS['variant'] ~= 'emulator'
         and _OPTIONS['variant'] ~= 'xrsimulator'
         and _OPTIONS['variant'] ~= 'appletvsimulator'
     then
-        -- Every Apple device is arm64.
+        -- Every Apple device is arm64, so its universal build has one slice,
+        -- and WAMR's platform header turns on hardware bounds only for a
+        -- target named before config.h names one.
         isArm64 = true
+    elseif archOption == 'universal' then
+        -- One compile for every slice, as the iOS simulator build does.
+        isUniversal = true
     elseif archOption ~= nil and archOption ~= '' and archOption ~= 'host' then
         isArm64 = archOption == 'arm64' or archOption == 'aarch64'
     else

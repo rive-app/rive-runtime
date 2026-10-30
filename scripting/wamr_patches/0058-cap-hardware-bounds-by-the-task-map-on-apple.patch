@@ -1,0 +1,56 @@
+From: rive
+Subject: [PATCH 0058] cap hardware bounds memories by what an apple task can map
+
+The default cap of half the address space read MACH_VM_MAX_ADDRESS, which
+on iOS is 63 GB whatever the app was granted, and always allowed at least
+one memory. On an iPhone 17 Pro an app's map is 13.3 GB without the extended
+virtual addressing entitlement, 7.2 GB of it free, so one memory with its
+4 GB and guard left 3 GB for everything else; with the entitlement the map
+is 59 GB and 52.8 GB is free. The cap now halves the task's own map, from
+task_info, less the 6 GB shared library region arm64 maps in every task,
+and allows none where one memory would take more than that half: none
+without the entitlement, 6 with it. macOS keeps its cap of 16 thousand.
+
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1583,6 +1583,7 @@ wasm_mmap_linear_memory(uint64 map_size, uint64 commit_size)
+ #if defined(__linux__)
+ #include <sys/resource.h>
+ #elif defined(__APPLE__)
++#include <mach/mach.h>
+ #include <mach/vm_param.h>
+ #endif
+ 
+@@ -1629,7 +1630,21 @@ rive_default_hw_limit(void)
+     GetSystemInfo(&info);
+     space = (uint64)(uintptr_t)info.lpMaximumApplicationAddress + 1;
+ #elif defined(__APPLE__)
++    task_vm_info_data_t info;
++    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
++
++    /* rive patch: an iOS app's map is a fraction of MACH_VM_MAX_ADDRESS
++       without the extended virtual addressing entitlement */
+     space = MACH_VM_MAX_ADDRESS;
++    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count)
++            == KERN_SUCCESS
++        && count >= TASK_VM_INFO_REV2_COUNT)
++        space = info.max_address - info.min_address;
++#if defined(__aarch64__)
++    /* rive patch: the map counts the shared library region, 6 GB on arm64,
++       which nothing else can use */
++    space = space > 0x180000000ULL ? space - 0x180000000ULL : 0;
++#endif
+ #else
+     /* the stack sits at the top of a Linux address space, whose size is a
+        power of two */
+@@ -1638,8 +1653,9 @@ rive_default_hw_limit(void)
+     for (space = 1; space <= top && space < ((uint64)1 << 62); space <<= 1)
+         ;
+ #endif
++    /* rive patch: none at all where one memory would take more than half */
+     limit = space / 2 / wasm_rive_hw_map_size();
+-    return limit < 1 ? 1 : (uint32)limit;
++    return (uint32)limit;
+ }
+ 
+ /* rive patch: callers hold rive_hw_lock */

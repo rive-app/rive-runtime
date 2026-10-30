@@ -29,12 +29,15 @@ struct PrelinkedAotModule
   // Byte length of the wasm module the key was computed from; checked at
   // lookup so a hash collision cannot select the wrong module's code.
   size_t wasmSize;
+  // Skips bounds checks, so it runs only over a hardware bounds reservation.
+  bool hardwareBounds;
 };
 
 void registerPrelinkedAotModule(const PrelinkedAotModule& module);
 const PrelinkedAotModule* findPrelinkedAotModule(
     uint64_t moduleKey,
-    size_t wasmSize);
+    size_t wasmSize,
+    bool hardwareBounds);
 /// Loads a registered module into WAMR as its wasm_module_t; null with error
 /// written when the container does not fit this runtime.
 void* loadPrelinkedAotModule(
