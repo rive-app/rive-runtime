@@ -4365,6 +4365,48 @@ TEST_CASE("Focus is correctly built and updated for lists", "[silver]")
 
   CHECK(silver.matches("list_focus_order"));
 }
+
+// A list with a focus scope places each new row's focus tree under the row's
+// own node. Linking the row used to build that tree at the manager root first,
+// only for the list's row sync to tear it down and build it again under the
+// row: two builds of every new row.
+TEST_CASE("A list builds a new row's focus tree once", "[focus]")
+{
+  auto file = ReadRiveFile("assets/list_focus_order.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto stageProcessedProp = vmi->propertyValue("stageProcessed")
+                                ->as<rive::ViewModelInstanceBoolean>();
+  auto stageCountProp = vmi->propertyValue("stageCount")
+                            ->as<rive::ViewModelInstanceNumber>();
+  const uint64_t buildsBeforeBind = rive::Artboard::sm_focusTreeBuilds;
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto lists = artboard->find<rive::ArtboardComponentList>();
+  REQUIRE(lists.size() == 1);
+  auto* list = lists[0];
+  REQUIRE(list->listScopeFocusNode() != nullptr);
+  const size_t rowsBefore = list->artboardCount();
+  REQUIRE(rowsBefore > 1);
+  // The bind added every row in one pass, and each was built once.
+  CHECK(rive::Artboard::sm_focusTreeBuilds - buildsBeforeBind == rowsBefore);
+  const uint64_t buildsBefore = rive::Artboard::sm_focusTreeBuilds;
+
+  // Inserts one element at the end of the list.
+  stageProcessedProp->propertyValue(false);
+  stageCountProp->propertyValue(1);
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(list->artboardCount() == rowsBefore + 1);
+  CHECK(rive::Artboard::sm_focusTreeBuilds - buildsBefore == 1);
+
+  // That one build put the new row's focus content under its own row node.
+  auto row = list->listScopeFocusNode()->children().back();
+  CHECK_FALSE(row->children().empty());
+}
 #endif
 
 TEST_CASE("Focus based transitions work", "[silver]")

@@ -831,9 +831,16 @@ void ArtboardComponentList::buildListRowFocusTrees(FocusManager* fm)
     {
       continue;
     }
+    // A row linked since it was last built has no tree yet (see
+    // linkStateMachineToArtboard); this is its one build.
+    const bool deferred = inst->focusTreeDeferred();
     rcp<FocusNode> row = m_listRowFocusNodes[static_cast<size_t>(i)];
     if (row == nullptr)
     {
+      if (deferred)
+      {
+        inst->buildFocusTree(fm, nullptr);
+      }
       continue;
     }
     // Wire the item's state machine to the shared manager first:
@@ -852,6 +859,12 @@ void ArtboardComponentList::buildListRowFocusTrees(FocusManager* fm)
         inst->cleanupFocusTree();
       }
       inst->buildFocusTree(fm, row);
+    }
+    else if (deferred)
+    {
+      // Nothing to place under the row: build it where linking used to, at
+      // the manager root, which wires the row's nested state machines.
+      inst->buildFocusTree(fm, nullptr);
     }
   }
 }
@@ -872,7 +885,21 @@ void ArtboardComponentList::linkStateMachineToArtboard(
   if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
   {
     auto* parentFM = parentArtboard->focusManager();
-    stateMachineInstance->setExternalFocusManager(parentFM);
+    if (m_listScopeFocusNode != nullptr &&
+        artboardInstance->focusManager() != parentFM)
+    {
+      // A list with a focus scope syncs its rows at the end of every pass
+      // that adds one, and buildListRowFocusTrees then builds each new row's
+      // tree under the row's own node. Building it at the manager root here
+      // first only had that sync tear it down and build it again, a second
+      // walk of every new row. Wire the manager now and leave the one build
+      // to the sync.
+      artboardInstance->adoptFocusManager(parentFM, false);
+    }
+    else
+    {
+      stateMachineInstance->setExternalFocusManager(parentFM);
+    }
   }
 
   // Share parent artboard's semantic manager and build semantic tree

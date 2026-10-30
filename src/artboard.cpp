@@ -118,6 +118,7 @@ uint64_t Artboard::sm_frameId = 0;
 uint64_t Artboard::sm_layoutPassCount = 0;
 uint64_t Artboard::sm_dirtNotifications = 0;
 uint64_t Artboard::sm_collapsedRunSkips = 0;
+uint64_t Artboard::sm_focusTreeBuilds = 0;
 #endif
 
 Artboard::Artboard()
@@ -4226,7 +4227,7 @@ FocusManager* Artboard::ensureFocusManager()
   return m_activeFocusManager;
 }
 
-void Artboard::adoptFocusManager(FocusManager* manager)
+void Artboard::adoptFocusManager(FocusManager* manager, bool buildTree)
 {
   // A null manager means "stop borrowing", which falls back to our own if we
   // have one — the same shape as clearing the old external-manager override.
@@ -4245,8 +4246,9 @@ void Artboard::adoptFocusManager(FocusManager* manager)
   }
 
   m_activeFocusManager = manager;
+  m_focusTreeDeferred = manager != nullptr && !buildTree;
 
-  if (manager != nullptr)
+  if (manager != nullptr && buildTree)
   {
     buildFocusTree(manager, nullptr);
   }
@@ -4260,6 +4262,10 @@ void Artboard::buildFocusTree(
   {
     return;
   }
+#ifdef TESTING
+  sm_focusTreeBuilds++;
+#endif
+  m_focusTreeDeferred = false;
 
   // Store reference to the active focus manager
   setActiveFocusManager(focusManager);

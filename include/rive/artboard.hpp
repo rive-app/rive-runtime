@@ -191,6 +191,9 @@ private:
   uint32_t m_quietHostRow = kNoQuietRow;
   std::unordered_set<LayoutComponent*> m_dirtyLayout;
   bool m_isCleaningDirtyLayouts = false;
+  // Set by an adoptFocusManager that left the tree to the host, cleared by the
+  // next buildFocusTree. Sits in padding.
+  bool m_focusTreeDeferred = false;
   std::unique_ptr<KeyFrameInterpolator> m_ownedInheritedInterpolator;
   // Live clones of the scripted interpolators this instance's layout styles
   // use. Allocated on first use; see statefulInterpolator().
@@ -352,6 +355,9 @@ public:
   static uint64_t sm_dirtNotifications;
   // Runs of collapsed components updateComponents skipped in one step.
   static uint64_t sm_collapsedRunSkips;
+  // Focus trees built (buildFocusTree calls that had a manager) across every
+  // artboard.
+  static uint64_t sm_focusTreeBuilds;
   static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
   static void incFrameId() { sm_frameId++; }
@@ -418,8 +424,11 @@ public:
   /// FocusManager, tearing down the tree built against the previous one and
   /// rebuilding it against [manager]. This is the entry point for a host that
   /// owns the manager — a parent artboard sharing its own, or Dart/the editor
-  /// supplying one.
-  void adoptFocusManager(FocusManager* manager);
+  /// supplying one. With [buildTree] false the old tree is still torn down,
+  /// but the new one is left to the host, which builds it where it belongs;
+  /// until it does, [focusTreeDeferred] is true.
+  void adoptFocusManager(FocusManager* manager, bool buildTree = true);
+  bool focusTreeDeferred() const { return m_focusTreeDeferred; }
 
 #ifdef WITH_RIVE_TOOLS
   /// Set an external parent FocusNode for this artboard's root-level focus

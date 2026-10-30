@@ -98,16 +98,16 @@ public:
   rcp<DataContext> parent() { return m_Parent; }
   void parent(rcp<DataContext> value) { m_Parent = value; }
   ViewModelInstanceValue* getViewModelProperty(
-      const std::vector<uint32_t> path) const;
+      const std::vector<uint32_t>& path) const;
   ViewModelInstanceValue* getRelativeViewModelProperty(
-      const std::vector<uint32_t> path,
+      const std::vector<uint32_t>& path,
       DataResolver* resolver) const;
   ViewModelInstanceValue* getViewModelProperty(DataBindPath* dataBindPath);
   rcp<ViewModelInstance> getViewModelInstance(
-      const std::vector<uint32_t> path) const;
+      const std::vector<uint32_t>& path) const;
   rcp<ViewModelInstance> getViewModelInstance(DataBindPath*) const;
   rcp<ViewModelInstance> getRelativeViewModelInstance(
-      const std::vector<uint32_t> path,
+      const std::vector<uint32_t>& path,
       DataResolver* resolver) const;
   void viewModelInstance(rcp<ViewModelInstance> value);
   // Insert-or-replace the instance occupying `slotKey`. Positions by

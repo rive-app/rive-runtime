@@ -429,7 +429,7 @@ rcp<ViewModelInstance> DataContext::tryGetRelativeViewModelInstance(
 // --- Public resolution methods: iterate instances, then fall to parent ---
 
 ViewModelInstanceValue* DataContext::getViewModelProperty(
-    const std::vector<uint32_t> path) const
+    const std::vector<uint32_t>& path) const
 {
   if (path.size() == 0)
   {
@@ -451,7 +451,7 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
 }
 
 ViewModelInstanceValue* DataContext::getRelativeViewModelProperty(
-    const std::vector<uint32_t> path,
+    const std::vector<uint32_t>& path,
     DataResolver* resolver) const
 {
   if (path.size() == 0 || !resolver)
@@ -536,7 +536,7 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
 }
 
 rcp<ViewModelInstance> DataContext::getViewModelInstance(
-    const std::vector<uint32_t> path) const
+    const std::vector<uint32_t>& path) const
 {
   if (path.size() == 0)
   {
@@ -558,7 +558,7 @@ rcp<ViewModelInstance> DataContext::getViewModelInstance(
 }
 
 rcp<ViewModelInstance> DataContext::getRelativeViewModelInstance(
-    const std::vector<uint32_t> path,
+    const std::vector<uint32_t>& path,
     DataResolver* resolver) const
 {
   if (path.size() == 0 || !resolver)
