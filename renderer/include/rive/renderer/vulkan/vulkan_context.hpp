@@ -127,6 +127,7 @@ public:
   F(CreateFence)                                                               \
   F(CreateGraphicsPipelines)                                                   \
   F(CreateImageView)                                                           \
+  F(CreatePipelineCache)                                                       \
   F(CreatePipelineLayout)                                                      \
   F(CreateQueryPool)                                                           \
   F(CreateRenderPass)                                                          \
@@ -139,6 +140,7 @@ public:
   F(DestroyFramebuffer)                                                        \
   F(DestroyImageView)                                                          \
   F(DestroyPipeline)                                                           \
+  F(DestroyPipelineCache)                                                      \
   F(DestroyPipelineLayout)                                                     \
   F(DestroyQueryPool)                                                          \
   F(DestroyRenderPass)                                                         \
@@ -147,7 +149,9 @@ public:
   F(EndCommandBuffer)                                                          \
   F(FreeCommandBuffers)                                                        \
   F(FreeDescriptorSets)                                                        \
+  F(GetPipelineCacheData)                                                      \
   F(GetQueryPoolResults)                                                       \
+  F(MergePipelineCaches)                                                       \
   F(QueueSubmit)                                                               \
   F(QueueWaitIdle)                                                             \
   F(ResetCommandBuffer)                                                        \
@@ -166,6 +170,18 @@ public:
   const VulkanFeatures features;
 
   VmaAllocator allocator() const { return m_vmaAllocator; }
+
+  // Every pipeline compiles through this cache, so a client can persist it
+  // across launches. Seeds it with the data from pipelineCacheData() of an
+  // earlier run, dropping data from another driver or device.
+  void initPipelineCache(Span<const uint8_t> data);
+  VkPipelineCache pipelineCache() const { return m_pipelineCache; }
+  // Whether initPipelineCache() kept the data it was given.
+  bool pipelineCacheSeeded() const { return m_pipelineCacheSeeded; }
+  // Merges in compatible data first, so writers sharing one file keep each
+  // other's pipelines. Empty if that merge fails, so nothing replaces them.
+  std::vector<uint8_t> pipelineCacheData(Span<const uint8_t> mergeWith) const;
+  size_t pipelineCacheDataSize() const;
 
   bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
   bool supportsD24S8() const { return m_supportsD24S8; }
@@ -345,7 +361,14 @@ public:
       const char* name);
 
 private:
+  bool isPipelineCacheCompatible(Span<const uint8_t> data) const;
+  VkPipelineCache createPipelineCache(Span<const uint8_t> data) const;
+  size_t cacheDataSize(VkPipelineCache) const;
+  std::vector<uint8_t> cacheData(VkPipelineCache) const;
+
   const VmaAllocator m_vmaAllocator;
+  VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
+  bool m_pipelineCacheSeeded = false;
 
   // Vulkan spec: must support one of D24S8 and D32S8.
   bool m_supportsD24S8 = false;

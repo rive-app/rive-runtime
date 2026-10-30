@@ -649,7 +649,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
   if (m_vk->CreateGraphicsPipelines(
           m_vk->device,
-          VK_NULL_HANDLE,
+          m_vk->pipelineCache(),
           1,
           &pipelineCreateInfo,
           nullptr,

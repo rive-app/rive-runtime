@@ -1441,6 +1441,12 @@ void CommandQueue::requestDefaultViewModelInfo(
   m_commandStream << requestId;
 }
 
+bool CommandQueue::hasMessages()
+{
+  std::unique_lock<std::mutex> lock(m_messageMutex);
+  return !m_messageStream.empty();
+}
+
 void CommandQueue::processMessages()
 {
   std::unique_lock<std::mutex> lock(m_messageMutex);

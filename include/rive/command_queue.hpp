@@ -1256,6 +1256,10 @@ public:
   // Consume all messages received from the server.
   void processMessages();
 
+  // Whether the server has posted messages processMessages() has yet to
+  // consume.
+  bool hasMessages();
+
   void setGlobalFileListener(FileListener* listener)
   {
     m_globalFileListener = listener;

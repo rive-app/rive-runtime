@@ -157,7 +157,113 @@ VulkanContext::VulkanContext(
       "No suitable depth format supported!");
 }
 
-VulkanContext::~VulkanContext() { vmaDestroyAllocator(m_vmaAllocator); }
+VulkanContext::~VulkanContext()
+{
+  if (m_pipelineCache != VK_NULL_HANDLE)
+  {
+    DestroyPipelineCache(device, m_pipelineCache, nullptr);
+  }
+  vmaDestroyAllocator(m_vmaAllocator);
+}
+
+bool VulkanContext::isPipelineCacheCompatible(Span<const uint8_t> data) const
+{
+  // Drivers are required to reject foreign data, but not all of them do.
+  VkPipelineCacheHeaderVersionOne header;
+  if (data.size() < sizeof(header))
+  {
+    return false;
+  }
+  memcpy(&header, data.data(), sizeof(header));
+  return header.headerSize >= sizeof(header) &&
+         header.headerVersion == VK_PIPELINE_CACHE_HEADER_VERSION_ONE &&
+         header.vendorID == physicalDeviceProperties.vendorID &&
+         header.deviceID == physicalDeviceProperties.deviceID &&
+         memcmp(
+             header.pipelineCacheUUID,
+             physicalDeviceProperties.pipelineCacheUUID,
+             VK_UUID_SIZE) == 0;
+}
+
+VkPipelineCache VulkanContext::createPipelineCache(
+    Span<const uint8_t> data) const
+{
+  VkPipelineCacheCreateInfo createInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+      .initialDataSize = data.size(),
+      .pInitialData = data.data(),
+  };
+  VkPipelineCache cache;
+  if (CreatePipelineCache(device, &createInfo, nullptr, &cache) != VK_SUCCESS)
+  {
+    return VK_NULL_HANDLE;
+  }
+  return cache;
+}
+
+void VulkanContext::initPipelineCache(Span<const uint8_t> data)
+{
+  assert(m_pipelineCache == VK_NULL_HANDLE);
+  if (!isPipelineCacheCompatible(data))
+  {
+    data = {};
+  }
+  m_pipelineCache = createPipelineCache(data);
+  m_pipelineCacheSeeded = m_pipelineCache != VK_NULL_HANDLE && !data.empty();
+}
+
+size_t VulkanContext::pipelineCacheDataSize() const
+{
+  return cacheDataSize(m_pipelineCache);
+}
+
+size_t VulkanContext::cacheDataSize(VkPipelineCache cache) const
+{
+  size_t size = 0;
+  if (cache == VK_NULL_HANDLE ||
+      GetPipelineCacheData(device, cache, &size, nullptr) != VK_SUCCESS)
+  {
+    return 0;
+  }
+  return size;
+}
+
+std::vector<uint8_t> VulkanContext::cacheData(VkPipelineCache cache) const
+{
+  size_t size = cacheDataSize(cache);
+  if (size == 0)
+  {
+    return {};
+  }
+  std::vector<uint8_t> data(size);
+  // VK_INCOMPLETE means the cache grew between the two calls; what was
+  // written is still a valid cache.
+  if (GetPipelineCacheData(device, cache, &size, data.data()) < 0)
+  {
+    return {};
+  }
+  data.resize(size);
+  return data;
+}
+
+std::vector<uint8_t> VulkanContext::pipelineCacheData(
+    Span<const uint8_t> mergeWith) const
+{
+  if (m_pipelineCache == VK_NULL_HANDLE ||
+      !isPipelineCacheCompatible(mergeWith))
+  {
+    return cacheData(m_pipelineCache);
+  }
+  std::vector<uint8_t> data;
+  VkPipelineCache merged = createPipelineCache(mergeWith);
+  if (merged != VK_NULL_HANDLE &&
+      MergePipelineCaches(device, merged, 1, &m_pipelineCache) == VK_SUCCESS)
+  {
+    data = cacheData(merged);
+  }
+  DestroyPipelineCache(device, merged, nullptr);
+  return data;
+}
 
 bool VulkanContext::isFormatSupportedWithFeatureFlags(
     VkFormat format,

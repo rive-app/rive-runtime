@@ -38,6 +38,10 @@ public:
 
     ShaderCompilationMode
         shaderCompilationMode = ShaderCompilationMode::standard;
+
+    // VulkanContext::pipelineCacheData() from an earlier run, which skips
+    // compiling the pipelines it already holds.
+    Span<const uint8_t> pipelineCacheData;
   };
 
   static std::unique_ptr<RenderContext> MakeContext(

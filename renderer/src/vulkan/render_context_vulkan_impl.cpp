@@ -754,7 +754,7 @@ private:
 
     VK_RETURN_FALSE_ON_FAIL(m_vk->CreateGraphicsPipelines(
         m_vk->device,
-        VK_NULL_HANDLE,
+        m_vk->pipelineCache(),
         1,
         &pipelineCreateInfo,
         nullptr,
@@ -938,7 +938,7 @@ private:
 
     VK_RETURN_FALSE_ON_FAIL(m_vk->CreateGraphicsPipelines(
         m_vk->device,
-        VK_NULL_HANDLE,
+        m_vk->pipelineCache(),
         1,
         &pipelineCreateInfo,
         nullptr,
@@ -1109,7 +1109,7 @@ private:
     blendState.colorBlendOp = VK_BLEND_OP_ADD;
     VK_RETURN_FALSE_ON_FAIL(m_vk->CreateGraphicsPipelines(
         m_vk->device,
-        VK_NULL_HANDLE,
+        m_vk->pipelineCache(),
         1,
         &pipelineCreateInfo,
         nullptr,
@@ -1123,7 +1123,7 @@ private:
     blendState.colorBlendOp = VK_BLEND_OP_MAX;
     VK_RETURN_FALSE_ON_FAIL(m_vk->CreateGraphicsPipelines(
         m_vk->device,
-        VK_NULL_HANDLE,
+        m_vk->pipelineCache(),
         1,
         &pipelineCreateInfo,
         nullptr,
@@ -4550,6 +4550,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     vk->shutdown();
     return nullptr;
   }
+
+  vk->initPipelineCache(contextOptions.pipelineCacheData);
 
   std::unique_ptr<RenderContextVulkanImpl> impl(
       new RenderContextVulkanImpl(std::move(vk), contextOptions));
