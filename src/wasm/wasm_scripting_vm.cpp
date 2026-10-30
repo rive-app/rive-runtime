@@ -12855,7 +12855,9 @@ std::shared_ptr<void> WasmScriptingVM::loadSharedModule(
   const char* tierEnv = getenv("RIVE_WASM_AOT_SYNC");
   bool wantInterp = tierEnv != nullptr && strcmp(tierEnv, "interp") == 0;
   TierSpecies species = bootTierSpecies();
-  if (checkedBounds && species == TierSpecies::hw)
+  // Where no reservation can be made, the checked build loads at once.
+  if (species == TierSpecies::hw &&
+      (checkedBounds || wasm_runtime_rive_hw_reserve_limit() == 0))
   {
     species = TierSpecies::o3;
   }

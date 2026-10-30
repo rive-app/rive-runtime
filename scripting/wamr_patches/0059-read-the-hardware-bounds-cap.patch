@@ -1,0 +1,48 @@
+From: rive
+Subject: [PATCH 0059] read the hardware bounds cap
+
+A host could set the cap on hardware bounds reservations but not read it,
+so where the cap allowed none, as on an iPhone without the extended virtual
+addressing entitlement, every module loaded its unchecked build, failed to
+reserve and loaded the checked one. wasm_runtime_rive_hw_reserve_limit
+returns the cap, so the host can load the checked build at once.
+
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1768,6 +1768,21 @@ wasm_runtime_rive_hw_reserves(void)
+ #endif
+ }
+ 
++uint32
++wasm_runtime_rive_hw_reserve_limit(void)
++{
++#ifdef RIVE_HW_BOUND_CHECK
++    uint32 limit;
++
++    rive_hw_lock_take();
++    limit = rive_hw_limit();
++    rive_hw_lock_give();
++    return limit;
++#else
++    return 0;
++#endif
++}
++
+ uint32
+ wasm_runtime_rive_limit_hw_reserves(uint32 limit)
+ {
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+index 78a15b2..11a617e 100644
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -2382,6 +2382,10 @@ wasm_runtime_rive_module_hw_bounds(wasm_module_t module);
+ WASM_RUNTIME_API_EXTERN uint32_t
+ wasm_runtime_rive_hw_reserves(void);
+ 
++/* rive: the cap on live reservations, 0 where none can be made */
++WASM_RUNTIME_API_EXTERN uint32_t
++wasm_runtime_rive_hw_reserve_limit(void);
++
+ /* rive: what wasm_runtime_rive_limit_hw_reserves takes for the default cap */
+ #define WASM_RIVE_HW_RESERVES_DEFAULT UINT32_MAX
+ 
