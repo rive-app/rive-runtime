@@ -10,7 +10,8 @@ import textwrap
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bindings import LANE_IMPORTS, LANES, NAMESPACES, PODS
+from bindings import (FEATURES, HOST_FEATURES, LANE_IMPORTS, LANES,
+                      NAMESPACES, PODS)
 from lane_layout import (BLOCK_BUDGET_MS, LANE_EXPORTS, LANE_KINDS,
                          LANE_LAYOUT, LANE_NAMES_SUFFIX, LANE_STATES,
                          LANE_TEXTS, WAIT_ANSWERS, WAIT_SETTLES)
@@ -45,6 +46,7 @@ SHARED_LAYOUT_HEADER_PATH = \
 LANE_LAYOUT_HEADER_PATH = \
     PACKAGES / 'runtime/include/rive/wasm/wasm_lane_layout_gen.hpp'
 AS_LANE_CODES_PATH = PACKAGES / 'rasc/animascript/std/rive/lane_codes.as'
+AS_RUNTIME_PATH = PACKAGES / 'rasc/animascript/std/rive/runtime.as'
 # The layout groups the std reads: natives' answers and a job's reuse cap.
 AS_LAYOUT_GROUPS = ('Join', 'JoinAny', 'Start', 'Create', 'RegionLock',
                     'Shared', 'RingWrite', 'Reuse', 'Parallel')
@@ -305,6 +307,17 @@ def check_all_ops():
                                  (namespace['module'], op['name']))
 
 
+# The std's Feature enum carries the docs, so it is checked, not written.
+def check_features():
+    source = AS_RUNTIME_PATH.read_text()
+    body = re.search(r'export enum Feature \{(.*?)\n\}', source, re.S)
+    named = re.findall(r'^\s*(\w+) = (\d+),', body.group(1) if body else '',
+                       re.M)
+    if named != [(name, str(bit)) for bit, name in enumerate(FEATURES)]:
+        raise SystemExit('%s: enum Feature must list %s, each = its bit' %
+                         (AS_RUNTIME_PATH.relative_to(PACKAGES), FEATURES))
+
+
 def emit_header():
     lines = [
         '#ifndef _RIVE_BINDINGS_V1_H_',
@@ -326,6 +339,11 @@ def emit_header():
         '// nothing, so a build that carries this can be told apart from one',
         '// that predates a change to it.',
         '#define RIVE_BINDINGS_V1_CONTRACT "%s"' % contract_digest(),
+        '',
+        '// The bits rive_rt_features answers.',
+    ] + ['#define RIVE_HOST_FEATURE_%s (1u << %d)' %
+         (re.sub(r'(?<!^)(?=[A-Z])', '_', name).upper(), bit)
+         for bit, name in enumerate(FEATURES)] + [
         '',
         '#define RIVE_BINDING_IMPORT(module, name)                            \\',
         '    __attribute__((import_module(module), import_name(name)))',
@@ -377,7 +395,12 @@ def emit_host():
                                    ', '.join(params))])
     lines.append('')
     # The browser lane shares the cores above and has no WAMR to adapt to.
-    lines.append('#ifndef __EMSCRIPTEN__')
+    lines += [
+        '#ifndef __EMSCRIPTEN__',
+        '// What rt.features answers.',
+        'constexpr uint32_t kHostFeatures = 0x%xu;' % HOST_FEATURES,
+        '',
+    ]
     for namespace in NAMESPACES:
         for op in namespace['ops']:
             name = impl_name(namespace, op)
@@ -1666,6 +1689,7 @@ def emit_contract():
 def main():
     check_all_ops()
     check_lane_exports()
+    check_features()
     web_imports = emit_web_imports()
     outputs = {
         HEADER_PATH: emit_header(),

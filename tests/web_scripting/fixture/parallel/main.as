@@ -9,6 +9,7 @@ import {
     atomicLoad,
     compareExchange,
 } from "rive/parallel";
+import { Feature, supports } from "rive/runtime";
 
 struct Velocity {
     x: f32 = 0;
@@ -130,6 +131,7 @@ export class Main extends Layout {
         let size = Parallel.size();
         context.log("parallel size " + size.toString());
         context.log("parallel threads " + (size > 1 ? "yes" : "no"));
+        context.log("parallel supported " + (supports(Feature.parallelCalls) ? "yes" : "no"));
         return true;
     }
 

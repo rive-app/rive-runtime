@@ -1828,6 +1828,8 @@ double rtDateNowImpl(WasmScriptingVM* vm)
   return std::chrono::duration<double, std::milli>(now).count();
 }
 
+uint32_t rtFeaturesImpl(WasmScriptingVM* vm) { return kHostFeatures; }
+
 // The Luau host module reads the same clocks under the names emscripten
 // gives them.
 double getNow(wasm_exec_env_t env) { return rtNowImpl(nullptr); }

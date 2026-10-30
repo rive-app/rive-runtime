@@ -267,6 +267,14 @@ def ns(module, short, ops, lanes=(), boots=False, as_class=True):
             'as_class': as_class}
 
 
+# The bits rive_rt_v1.features answers, which rive/runtime.as's enum Feature
+# names; only append, so a bit keeps its meaning.
+FEATURES = [
+    'parallelCalls',
+]
+HOST_FEATURES = (1 << len(FEATURES)) - 1
+
+
 NAMESPACES = [
     ns('rive_rt_v1', 'rt', [
         op('log', [i32('level'), string('message', 'length')], stub='hook'),
@@ -282,6 +290,9 @@ NAMESPACES = [
         op('now', ret='f64', boot=True, web_js='performance.now()',
            lanes=('job', 'worker')),
         op('date_now', ret='f64', web_js='Date.now()'),
+        # The FEATURES bits this host has.
+        op('features', ret='u32', boot=True,
+           web_js='0x%x' % HOST_FEATURES),
         # Line probes a debug bake plants: function entry and exit keep a
         # shadow call stack, and each line asks whether to stop. line
         # returns nonzero when it did, so the module re-arms its budget.

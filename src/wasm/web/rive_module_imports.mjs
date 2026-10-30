@@ -143,6 +143,7 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
             },
             'now': () => performance.now(),
             'date_now': () => Date.now(),
+            'features': () => 0x1,
             'debug_enter': calls.rive_rt_debug_enter,
             'debug_line': calls.rive_rt_debug_line,
             'debug_leave': calls.rive_rt_debug_leave,

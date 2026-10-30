@@ -198,6 +198,7 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
 void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length);
 double rtNowImpl(WasmScriptingVM* vm);
 double rtDateNowImpl(WasmScriptingVM* vm);
+uint32_t rtFeaturesImpl(WasmScriptingVM* vm);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
@@ -594,6 +595,9 @@ uint32_t sharedRetainImpl(WasmScriptingVM* vm, uint32_t object);
 void sharedReleaseImpl(WasmScriptingVM* vm, uint32_t object);
 
 #ifndef __EMSCRIPTEN__
+// What rt.features answers.
+constexpr uint32_t kHostFeatures = 0x1u;
+
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -635,6 +639,11 @@ double rtDateNow(wasm_exec_env_t env)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return rtDateNowImpl(vm);
+}
+uint32_t rtFeatures(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    return rtFeaturesImpl(vm);
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
@@ -2658,6 +2667,7 @@ NativeSymbol kRtNatives[] = {
     {"error", (void*)rtError, "(*~)", nullptr},
     {"now", (void*)rtNow, "()F", nullptr},
     {"date_now", (void*)rtDateNow, "()F", nullptr},
+    {"features", (void*)rtFeatures, "()i", nullptr},
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},

@@ -56,7 +56,7 @@ PARALLEL=(--until "parallel after a throw"
     --expect "wasm call trapped in host_obj_advance: the last part gave up"
     --expect "parallel after a throw ok")
 SERIAL=(--expect "parallel size 1" --expect "parallel threads no"
-    --expect "parallel parts all yes")
+    --expect "parallel supported yes" --expect "parallel parts all yes")
 # Every part spins until the call's budget stops them all.
 STOPPED=(--until "parallel after a stop"
     --expect "wasm call trapped in host_obj_advance: execution exceeded timeout"
@@ -256,7 +256,8 @@ node run.mjs $THREADED fixture/basic.riv --no-isolation --expect "$REFUSED"
 # making the same call, which browsers do not, so these runs leave that tier
 # up off.
 PARALLEL_NODE=(node --wasm-wrapper-tiering-budget=2000000000 run.mjs $THREADED)
-TEAM=(--parallel-parts 4 --expect "parallel size 4" --expect "parallel threads yes")
+TEAM=(--parallel-parts 4 --expect "parallel size 4" --expect "parallel threads yes"
+    --expect "parallel supported yes")
 "${PARALLEL_NODE[@]}" fixture/parallel.riv "${TEAM[@]}" "${PARALLEL[@]}" \
     --expect "parallel parts all yes" --expect 'parallel team {"team":3,"waits":"async"}'
 # Started without prepare(), the team starts in the background, and calls

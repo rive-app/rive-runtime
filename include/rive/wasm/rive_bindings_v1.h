@@ -16,7 +16,10 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "8f571598510eeb94"
+#define RIVE_BINDINGS_V1_CONTRACT "b10c4fdf7450ed07"
+
+// The bits rive_rt_features answers.
+#define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
 
 #define RIVE_BINDING_IMPORT(module, name)                            \
     __attribute__((import_module(module), import_name(name)))
@@ -223,6 +226,8 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "now")
 double rive_rt_now(void);
 RIVE_BINDING_IMPORT("rive_rt_v1", "date_now")
 double rive_rt_date_now(void);
+RIVE_BINDING_IMPORT("rive_rt_v1", "features")
+uint32_t rive_rt_features(void);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_enter")
 void rive_rt_debug_enter(uint32_t func, uint32_t line);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_line")
