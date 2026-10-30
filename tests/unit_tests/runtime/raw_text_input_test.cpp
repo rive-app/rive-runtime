@@ -104,6 +104,43 @@ TEST_CASE("cursor's visual position computes correctly", "[text_input]")
   CHECK(position.bottom() == Approx(87.11719f));
 }
 
+TEST_CASE("moveCursorToEnd before the font arrives", "[text_input]")
+{
+  // A focus can land before the font does: the caret still goes after the
+  // text, and its line resolves once the text can be shaped.
+  RawTextInput textInput;
+  textInput.text("hello");
+  textInput.moveCursorToEnd();
+  CHECK(textInput.cursor().isCollapsed());
+  CHECK(textInput.cursor().end().codePointIndex() == 5);
+  CHECK_FALSE(textInput.cursor().end().hasLineIndex());
+
+  textInput.font(loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf"));
+  NoOpFactory factory;
+  textInput.update(&factory);
+  CHECK(textInput.cursor().end().codePointIndex() == 5);
+  CHECK(textInput.cursor().end().lineIndex() == 0);
+}
+
+TEST_CASE("selectAll before the font arrives", "[text_input]")
+{
+  // Tab or selectAllOnFocus can focus before the font arrives: the text is
+  // still selected, and the lines resolve once it can be shaped.
+  RawTextInput textInput;
+  textInput.text("hello");
+  textInput.selectAll();
+  CHECK(textInput.selectedText() == "hello");
+  CHECK_FALSE(textInput.cursor().start().hasLineIndex());
+  CHECK_FALSE(textInput.cursor().end().hasLineIndex());
+
+  textInput.font(loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf"));
+  NoOpFactory factory;
+  textInput.update(&factory);
+  CHECK(textInput.selectedText() == "hello");
+  CHECK(textInput.cursor().start().lineIndex() == 0);
+  CHECK(textInput.cursor().end().lineIndex() == 0);
+}
+
 TEST_CASE("cursor is placed correctly with ltr paragraphs", "[text_input]")
 {
   auto font = loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf");

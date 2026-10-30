@@ -490,6 +490,7 @@ void TextInput::syncDisplayedTextFromSource(bool preserveCursor)
   else
   {
     m_rawTextInput.text(nextDisplayText);
+    m_caretPlaced = false;
   }
 #endif
 }
@@ -598,6 +599,7 @@ bool TextInput::keyInput(
 #ifdef WITH_RIVE_TEXT
   if (isPressed)
   {
+    m_caretPlaced = true;
     switch (value)
     {
       case Key::z:
@@ -694,6 +696,7 @@ bool TextInput::keyInput(
 bool TextInput::textInput(const std::string& value)
 {
 #ifdef WITH_RIVE_TEXT
+  m_caretPlaced = true;
   std::string textToInsert = multiline() ? value : strippedLineBreaks(value);
   if (textToInsert.empty())
   {
@@ -737,12 +740,19 @@ void TextInput::focused()
 {
   m_focused = true;
 #ifdef WITH_RIVE_TEXT
-  // Keyboard focus selects the text browser style, pointer focus keeps the
-  // caret the press placed.
+  // Keyboard focus selects the text browser style. Any other focus keeps the
+  // caret the user placed (a press places it before focusing), but text set
+  // from outside leaves it at the start, so it goes after the text, ready to
+  // type.
   if (selectAllOnFocus() || focusedByTraversal())
   {
     m_rawTextInput.selectAll();
   }
+  else if (!m_caretPlaced)
+  {
+    m_rawTextInput.moveCursorToEnd();
+  }
+  m_caretPlaced = true;
 #endif
   markPaintDirty();
 }
@@ -931,6 +941,7 @@ void TextInput::startDrag(Vec2D worldPosition)
 {
 #ifdef WITH_RIVE_TEXT
   m_isDragging = true;
+  m_caretPlaced = true;
   m_lastDragWorldPosition = worldPosition;
 
   Vec2D localPos;

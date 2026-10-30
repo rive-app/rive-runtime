@@ -426,7 +426,11 @@ TEST_CASE(
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Field", "Viewport Down");
   HostScene scene(file.get());
-  scene.b.caret(0);
+  // The user left the caret at the start, where focus coming back keeps it.
+  scene.focus(scene.b);
+  CHECK(scene.press(Key::up));
+  REQUIRE(scene.b.caret() == 0);
+  scene.machine->clearFocus();
 
   // The field's Viewport claims the press on its text: its own action
   // focuses the input, and the input's built-in press handling never runs,

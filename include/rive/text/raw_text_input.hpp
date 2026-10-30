@@ -170,6 +170,9 @@ public:
   // Selects the entire text.
   void selectAll();
 
+  // Collapses the cursor after the last character.
+  void moveCursorToEnd();
+
   // Selects the visual line at the cursor.
   void selectLine();
 
@@ -234,6 +237,10 @@ private:
       size_t count,
       bool withRestOfParagraph);
   void ensureShape();
+  // The position at a code point index. Its line is resolved now when the
+  // text can be shaped, else left for update() to resolve once the font
+  // arrives: a focus can select or place the caret before then.
+  CursorPosition positionAtIndex(uint32_t codePointIndex);
   std::vector<Unichar>& shapeableText();
   void buildTextPaths(Factory* factory);
   void computeVisualPositionFromCursor();

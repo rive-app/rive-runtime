@@ -1258,7 +1258,7 @@ TEST_CASE("tab traversal into a text input selects all", "[text_input]")
   auto focusData = artboard->objects<FocusData>().first();
   REQUIRE(focusData != nullptr);
 
-  // Target focus keeps the caret where it was.
+  // Target focus places a caret, not a selection.
   stateMachine->setFocus(focusData);
   CHECK(textInput->isFocused());
   CHECK(textInput->rawTextInput()->cursor().isCollapsed());
@@ -1267,6 +1267,61 @@ TEST_CASE("tab traversal into a text input selects all", "[text_input]")
   REQUIRE(stateMachine->focusNext());
   CHECK(textInput->isFocused());
   CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+}
+
+TEST_CASE("focus without a press puts the caret after the text", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline");
+  REQUIRE(artboard != nullptr);
+
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->advanceAndApply(0.0f);
+
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  auto focusData = artboard->objects<FocusData>().first();
+  REQUIRE(focusData != nullptr);
+
+  // Text set from outside (the file's own, a data bind) leaves the caret at
+  // the start.
+  textInput->text("hello world");
+  stateMachine->advanceAndApply(0.0f);
+  CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 0);
+
+  // A focus action, as on a state's entry: typing continues the text.
+  stateMachine->queueFocusTarget(focusData);
+  stateMachine->advanceAndApply(0.0f);
+  REQUIRE(textInput->isFocused());
+  auto caret = textInput->rawTextInput()->cursor();
+  CHECK(caret.isCollapsed());
+  CHECK(caret.end().codePointIndex() == 11);
+  textInput->textInput("!");
+  CHECK(textInput->text() == "hello world!");
+
+  // Focus coming back finds the caret where the user left it.
+  textInput->keyInput(Key::left, KeyModifiers::none, true, false);
+  stateMachine->clearFocus();
+  stateMachine->setFocus(focusData);
+  REQUIRE(textInput->isFocused());
+  CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+
+  // New text from outside puts it after the text again.
+  stateMachine->clearFocus();
+  textInput->text("hello");
+  stateMachine->setFocus(focusData);
+  REQUIRE(textInput->isFocused());
+  CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 5);
+
+  // Text from outside while focused resets the caret, but once the user
+  // moves it, it is theirs to come back to.
+  textInput->text("hello world");
+  textInput->keyInput(Key::right, KeyModifiers::none, true, false);
+  stateMachine->clearFocus();
+  stateMachine->setFocus(focusData);
+  REQUIRE(textInput->isFocused());
+  CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 1);
 }
 
 TEST_CASE("selectAllOnFocus selects on target focus too", "[text_input]")

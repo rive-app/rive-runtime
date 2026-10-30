@@ -165,6 +165,10 @@ private:
   /// Whether the user is currently dragging to select text.
   bool m_isDragging = false;
 
+  /// Whether the caret was placed (by a press, a key, typing or a focus)
+  /// since text set from outside last reset it to the start.
+  bool m_caretPlaced = false;
+
   /// Whether this text input currently has focus.
   bool m_focused = false;
 

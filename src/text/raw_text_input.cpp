@@ -710,13 +710,28 @@ void RawTextInput::selectWord()
   flag(Flags::selectionDirty);
 }
 
+CursorPosition RawTextInput::positionAtIndex(uint32_t codePointIndex)
+{
+  // There is no shaping without a font.
+  if (m_textRun.font == nullptr)
+  {
+    return CursorPosition(codePointIndex);
+  }
+  ensureShape();
+  return CursorPosition::atIndex(codePointIndex, m_shape);
+}
+
 void RawTextInput::selectAll()
 {
-  ensureShape();
   m_idealCursorX = -1.0f;
-  CursorPosition start = CursorPosition::atIndex(0, m_shape);
-  CursorPosition end = CursorPosition::atIndex((uint32_t)length(), m_shape);
-  m_cursor = Cursor(start, end);
+  m_cursor = Cursor(positionAtIndex(0), positionAtIndex((uint32_t)length()));
+  flag(Flags::selectionDirty);
+}
+
+void RawTextInput::moveCursorToEnd()
+{
+  m_idealCursorX = -1.0f;
+  m_cursor = Cursor::collapsed(positionAtIndex((uint32_t)length()));
   flag(Flags::selectionDirty);
 }
 
