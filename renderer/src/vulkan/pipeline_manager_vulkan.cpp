@@ -592,6 +592,34 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
               continue;
             }
 
+            if (drawType == DrawType::renderPassResolve &&
+                interlockMode != InterlockMode::atomics &&
+                !enums::is_flag_set(
+                    props.renderPassOptions,
+                    RenderPassOptionsVulkan::manuallyResolved))
+            {
+              // renderPassResolve is only drawn in atomic mode or in manually
+              // resolved render passes (see RenderContext::LogicalFlush), which
+              // are the only render passes with a resolve subpass. Otherwise
+              // subpass_index would point past the last subpass.
+              continue;
+            }
+
+            if (drawType == DrawType::renderPassInitialize &&
+                interlockMode == InterlockMode::depthStencil &&
+                (!enums::is_flag_set(
+                     props.renderPassOptions,
+                     RenderPassOptionsVulkan::msaa) ||
+                 colorLoadAction != LoadAction::preserveRenderTarget))
+            {
+              // In depthStencil mode, renderPassInitialize only seeds the MSAA
+              // color attachment on preserveRenderTarget passes (see
+              // RenderContext::LogicalFlush), which are the only passes with
+              // the color seed subpass. Otherwise subpass_index asserts and the
+              // pipeline reads a missing input attachment.
+              continue;
+            }
+
             if (interlockMode == InterlockMode::depthStencil)
             {
               if (enums::is_flag_set(
