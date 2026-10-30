@@ -28,13 +28,13 @@ static void fill_stops(
 
     stops.push_back(position);
     colors.push_back(color);
-    lua_pop(L, 1);
+    lua_pop(L, 2); // color and the stop table
   }
 }
 static int gradient_linear(lua_State* L)
 {
-  auto from = lua_checkvec2d(L, 1);
-  auto to = lua_checkvec2d(L, 2);
+  Vec2D from = *lua_checkvec2d(L, 1);
+  Vec2D to = *lua_checkvec2d(L, 2);
 
   std::vector<float> stops;
   std::vector<ColorInt> colors;
@@ -45,10 +45,10 @@ static int gradient_linear(lua_State* L)
       lua_getthreaddata(L));
 
   gradient->shader = context->factory()->makeLinearGradient(
-      from->x,
-      from->y,
-      to->x,
-      to->y,
+      from.x,
+      from.y,
+      to.x,
+      to.y,
       colors.data(),
       stops.data(),
       stops.size());
@@ -57,7 +57,7 @@ static int gradient_linear(lua_State* L)
 
 static int gradient_radial(lua_State* L)
 {
-  auto from = lua_checkvec2d(L, 1);
+  Vec2D from = *lua_checkvec2d(L, 1);
   auto radius = luaL_checknumber(L, 2);
   std::vector<float> stops;
   std::vector<ColorInt> colors;
@@ -68,8 +68,8 @@ static int gradient_radial(lua_State* L)
       lua_getthreaddata(L));
 
   gradient->shader = context->factory()->makeRadialGradient(
-      from->x,
-      from->y,
+      from.x,
+      from.y,
       radius,
       colors.data(),
       stops.data(),

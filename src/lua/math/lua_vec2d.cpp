@@ -9,10 +9,11 @@ using namespace rive;
 
 static int vector_index(lua_State* L)
 {
-  const float* vec = luaL_checkvector(L, 1);
-
+  // Key first: converting a numeric key can move the stack.
   size_t namelen = 0;
   const char* name = luaL_checklstring(L, 2, &namelen);
+
+  const float* vec = luaL_checkvector(L, 1);
 
   if (namelen == 1)
   {

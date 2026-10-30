@@ -1850,6 +1850,8 @@ static void lua_register_rive_type(
   lua_pop(L, 1);
 }
 
+// Points into the Lua stack, which can move on any allocating Lua call: copy
+// the value first. Same for lua_tovec2d.
 inline const Vec2D* lua_checkvec2d(lua_State* L, int stack)
 {
   return (const Vec2D*)luaL_checkvector(L, stack);

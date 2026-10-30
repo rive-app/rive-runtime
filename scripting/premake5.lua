@@ -47,6 +47,10 @@ do
     filter({ 'options:with-asan' })
     do
         defines({ 'LUAU_ENABLE_ASAN' })
+        if TESTING == true then
+            -- Move the Lua stack at every check so ASan catches stale stack pointers.
+            defines({ 'HARDSTACKTESTS=1' })
+        end
     end
 end
 

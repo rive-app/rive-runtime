@@ -178,16 +178,15 @@ static const char* scroll_phase_string(ScrollPhase phase)
 static int scroll_event_new(lua_State* L)
 {
   int id = luaL_checkinteger(L, 1);
-  auto position = lua_checkvec2d(L, 2);
-  auto delta = lua_checkvec2d(L, 3);
+  Vec2D position = *lua_checkvec2d(L, 2);
   ScrollEvent event;
-  event.delta = Vec2D(delta->x, delta->y);
+  event.delta = *lua_checkvec2d(L, 3);
   event.phase = (ScrollPhase)luaL_checkoption(L, 4, "update", scrollPhaseNames);
   event.precise = luaL_optboolean(L, 5, false);
   lua_newrive<ScriptedScrollEvent>(
       L,
       id,
-      Vec2D(position->x, position->y),
+      position,
       event,
       (float)luaL_optnumber(L, 6, 0));
   return 1;
