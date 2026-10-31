@@ -1,0 +1,193 @@
+From: rive
+Subject: [PATCH 0060] check guard page faults ahead of the app's handlers on android
+
+ART's signal chain keeps every handler an app installs behind its own and
+runs the latest first, so a crash reporter installed after wamr, such as
+Sentry's native SDK, saw a guard page fault before wamr and recorded it as
+a crash. On API 26 and later, where the chain lets a special handler
+longjmp out, wamr's check now runs as one, after ART's own and ahead of
+every app handler. It keeps the signals ART keeps blocked, such as SIGQUIT,
+blocked while it runs. ART holds one of the chain's two special slots and a
+third aborts the app, so wamr takes the other only where no native bridge
+needs it; another library that registers its own would still abort. Where
+the chain is older or a bridge is set, wamr installs its handler as before,
+and a reporter installed after it sees guard page faults first again.
+
+Either way every fault on every thread passes through wamr's check, and a
+first __thread read may allocate under emulated TLS, so the check reads
+only a thread key until it knows wamr set the thread up, and setting a
+thread up reads that thread's exec env once.
+
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -331,6 +331,11 @@ runtime_signal_init()
+ runtime_signal_init()
+ {
+ #ifndef BH_PLATFORM_WINDOWS
++#if defined(__ANDROID__)
++    /* rive patch: the guard check reads this on every thread set up here,
++       and a first read may allocate under emulated TLS */
++    (void)*(WASMExecEnv *volatile *)&exec_env_tls;
++#endif
+     return os_thread_signal_init(runtime_signal_handler) == 0 ? true : false;
+ #else
+     if (os_thread_signal_init() != 0)
+--- a/core/shared/platform/common/posix/posix_thread.c
++++ b/core/shared/platform/common/posix/posix_thread.c
+@@ -609,6 +609,24 @@ signal_recurs(const siginfo_t *sig_info)
+     return false;
+ #else
+     return sig_info->si_code > 0;
++#endif
++}
++
++#if defined(__ANDROID__)
++/* rive patch: set on threads that set up their signal state, which every
++   crash on any thread reads first. A __thread variable may allocate on a
++   thread's first read under emulated TLS, which a crash inside malloc
++   would deadlock on. */
++static pthread_key_t signal_thread_key;
++#endif
++
++static bool
++thread_signal_set_up(void)
++{
++#if defined(__ANDROID__)
++    return pthread_getspecific(signal_thread_key) != NULL;
++#else
++    return true;
+ #endif
+ }
+ 
+@@ -629,7 +647,8 @@ signal_callback(int sig_num, siginfo_t *sig_info, void
+     mask_signals(SIG_BLOCK);
+ 
+     /* Try to handle signal with the registered signal handler */
+-    if (signal_handler && (sig_num == SIGSEGV || sig_num == SIGBUS)) {
++    if (thread_signal_set_up() && signal_handler
++        && (sig_num == SIGSEGV || sig_num == SIGBUS)) {
+         signal_handler(sig_addr);
+     }
+ 
+@@ -683,8 +702,77 @@ static bool signal_installed = false;
+    handlers they replace saved once, not again by every thread */
+ static pthread_mutex_t signal_install_lock = PTHREAD_MUTEX_INITIALIZER;
+ static bool signal_installed = false;
++/* rive patch: whether wamr's check runs ahead of the chain, not in it */
++static bool signal_special = false;
++
++#if defined(__ANDROID__)
++#include <android/api-level.h>
++#include <dlfcn.h>
++#include <sys/system_properties.h>
++
++/* rive patch: ART's signal chain runs every handler an app installs behind
++   its own, and the latest first, so a crash reporter installed after wamr
++   saw guard page faults before wamr did. A special handler runs after
++   ART's own and ahead of every app handler, so wamr's check comes before
++   whatever the app installs later, and a fault on a thread wamr has not
++   set up goes on after reading one thread key. */
++struct sigchain_action {
++    bool (*sc_sigaction)(int, siginfo_t *, void *);
++    sigset_t sc_mask;
++    uint64_t sc_flags;
++};
++#define SIGCHAIN_ALLOW_NORETURN 0x1UL
+ 
+ static bool
++special_signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
++{
++    (void)sig_num;
++    (void)sig_ucontext;
++    if (!thread_signal_set_up())
++        return false;
++    /* Returns only when the fault is not wasm's; a trap longjmps out */
++    if (signal_handler)
++        signal_handler(sig_info->si_addr);
++    return false;
++}
++
++static bool
++add_special_signal_handlers(void)
++{
++    typedef void (*add_fn)(int, struct sigchain_action *);
++    char bridge[PROP_VALUE_MAX] = "";
++    add_fn add;
++    struct sigchain_action action;
++
++    /* Before API 26 the chain took a bare function and had no way to let a
++       handler longjmp out. ART holds one of the chain's two special slots
++       and a native bridge needs the other, and a third aborts the app, as
++       one more library registering a special handler of its own would. */
++    if (android_get_device_api_level() < 26)
++        return false;
++    __system_property_get("ro.dalvik.vm.native.bridge", bridge);
++    if (bridge[0] != '\0' && strcmp(bridge, "0") != 0)
++        return false;
++    add = (add_fn)dlsym(RTLD_DEFAULT, "AddSpecialSignalHandlerFn");
++    if (!add)
++        return false;
++    action.sc_sigaction = special_signal_callback;
++    /* As ART's own handler: crashes stay deliverable, and the rest, such
++       as the SIGQUIT ART's signal catcher waits for, stay blocked */
++    sigfillset(&action.sc_mask);
++    sigdelset(&action.sc_mask, SIGABRT);
++    sigdelset(&action.sc_mask, SIGBUS);
++    sigdelset(&action.sc_mask, SIGFPE);
++    sigdelset(&action.sc_mask, SIGILL);
++    sigdelset(&action.sc_mask, SIGSEGV);
++    action.sc_flags = SIGCHAIN_ALLOW_NORETURN;
++    add(SIGSEGV, &action);
++    add(SIGBUS, &action);
++    return true;
++}
++#endif
++
++static bool
+ install_signal_handler(int sig_num, struct sigaction *prev_sig_act)
+ {
+     struct sigaction sig_act;
+@@ -762,11 +850,20 @@ os_thread_signal_init(os_signal_handler handler)
+ 
+     pthread_mutex_lock(&signal_install_lock);
+     if (!signal_installed) {
++#if defined(__ANDROID__)
++        if (pthread_key_create(&signal_thread_key, NULL) != 0) {
++            pthread_mutex_unlock(&signal_install_lock);
++            os_printf("Failed to register signal handler\n");
++            goto fail3;
++        }
++        signal_special = add_special_signal_handlers();
++#endif
+         signal_installed =
+-            install_signal_handler(SIGSEGV, &prev_sig_act_SIGSEGV)
+-            && install_signal_handler(SIGBUS, &prev_sig_act_SIGBUS);
++            signal_special
++            || (install_signal_handler(SIGSEGV, &prev_sig_act_SIGSEGV)
++                && install_signal_handler(SIGBUS, &prev_sig_act_SIGBUS));
+     }
+-    else {
++    else if (!signal_special) {
+         reinstall_signal_handler(SIGSEGV, &prev_sig_act_SIGSEGV);
+         reinstall_signal_handler(SIGBUS, &prev_sig_act_SIGBUS);
+     }
+@@ -788,6 +885,9 @@ os_thread_signal_init(os_signal_handler handler)
+ 
+     signal_handler = handler;
+     thread_signal_inited = true;
++#if defined(__ANDROID__)
++    pthread_setspecific(signal_thread_key, (void *)1);
++#endif
+     return 0;
+ 
+ fail3:
+@@ -819,6 +919,9 @@ os_thread_signal_destroy()
+     destroy_stack_guard_pages();
+ #endif
+ 
++#if defined(__ANDROID__)
++    pthread_setspecific(signal_thread_key, NULL);
++#endif
+     thread_signal_inited = false;
+ }
+ 

@@ -43,6 +43,13 @@ enum class TierSpecies : uint8_t
 // RIVE_WASM_AOT_SYNC=o0.
 TierSpecies bootTierSpecies();
 
+// What a device target's players load. An arm64 Android player built for
+// hardware bounds gets that build beside the checked one, which runs a memory
+// that gets no reservation.
+std::vector<TierSpecies> aotTargetSpecies(
+    const std::string& target,
+    bool hardwareBounds);
+
 // 3 when cpuid leaf 1 ecx, leaf 7 ebx, leaf 0x80000001 ecx and xcr0 show
 // every x86-64-v3 feature with its AVX state saved, else 2.
 int x86_64Level(

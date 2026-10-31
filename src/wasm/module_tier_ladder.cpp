@@ -23,6 +23,17 @@ TierSpecies bootTierSpecies()
 #endif
 }
 
+std::vector<TierSpecies> aotTargetSpecies(
+    const std::string& target,
+    bool hardwareBounds)
+{
+  if (hardwareBounds && target == kAotTargetAndroidAarch64)
+  {
+    return {TierSpecies::o3, TierSpecies::hw};
+  }
+  return {TierSpecies::o3};
+}
+
 int x86_64Level(
     uint32_t leaf1Ecx,
     uint32_t leaf7Ebx,
