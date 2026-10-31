@@ -271,17 +271,22 @@ TEST_CASE(
   CHECK(wrong == 0);
 }
 
-TEST_CASE("a sound stopped with a fade plays again", "[audio]")
+TEST_CASE("a sound stopped with a fade plays again from its start", "[audio]")
 {
   rcp<AudioEngine> engine = engineWithBuffer(4096);
-  rcp<AudioSound> sound = engine->play(fullScale(48000), 0, 0, 0);
+  rcp<AudioSound> sound = engine->play(ramp(48000), 0, 0, 0);
   REQUIRE(sound != nullptr);
   mix(engine.get(), 4096);
   sound->stop(1000);
   mix(engine.get(), 4096);
   sound->play();
   std::vector<float> out = mix(engine.get(), 4096);
-  CHECK(std::count(out.begin(), out.end(), 1.0f) == 4096 * 2);
+  int wrong = 0;
+  for (size_t i = 0; i < out.size(); i++)
+  {
+    wrong += out[i] != (float)(i / 2 + 1) / 48000;
+  }
+  CHECK(wrong == 0);
 }
 
 TEST_CASE("a sound resumed during its fade out plays at full volume", "[audio]")
