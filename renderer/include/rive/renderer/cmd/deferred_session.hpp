@@ -168,12 +168,9 @@ public:
 
   // Forwarded to the bound context, because that is the device this stream
   // will replay against and only it knows whether the mask op exists there.
-  // Unbound (web, mid-import) keeps the optimistic default.
-  //
-  // Through Factory's virtual, deliberately, and not the static_cast to
-  // gpu::RenderContext that makeContentCanvas gets away with: that one only
-  // null-tests the result, while this dereferences it, and a Canvas-2D build
-  // binds something here that is not a render context at all.
+  // Unbound (web, mid-import) keeps the optimistic default. Through Factory's
+  // virtual, since a Canvas-2D build binds something here that is not a
+  // render context at all.
   bool supportsLayerMask() const override
   {
     return m_renderContext == nullptr || m_renderContext->supportsLayerMask();
@@ -191,15 +188,20 @@ public:
   // The canvas needs no pixels here; whoever replays allocates them on the
   // context it replays against, so this only mints the identity the stream
   // refers to. That minting lives behind RIVE_CANVAS, so a build without it
-  // reports "no canvas available" and the caller draws vectors instead.
+  // reports "no canvas available" and the caller draws vectors instead, as
+  // does a session with no device to replay on.
   rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width, uint32_t height)
       override
   {
+    return m_renderContext != nullptr ? makeUnboundContentCanvas(width, height)
+                                      : nullptr;
+  }
+  rcp<gpu::RenderCanvas> makeUnboundContentCanvas(
+      uint32_t width,
+      uint32_t height) override
+  {
 #ifdef RIVE_CANVAS
-    auto* rc = static_cast<gpu::RenderContext*>(m_renderContext);
-    return rc != nullptr
-               ? make_rcp<DeferredRenderCanvas>(m_canvasRetirer, width, height)
-               : nullptr;
+    return make_rcp<DeferredRenderCanvas>(m_canvasRetirer, width, height);
 #else
     (void)width;
     (void)height;

@@ -361,6 +361,7 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
   f.anisotropicFiltering = enabled.samplerAnisotropy;
   f.texture3D = true;
   f.textureArrays = true;
+  f.multisampledTextureRead = true;
   f.computeShaders = true;
   f.storageBuffers = true;
   // Compressed format support via format properties.

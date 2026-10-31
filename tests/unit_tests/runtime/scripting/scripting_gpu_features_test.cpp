@@ -152,6 +152,7 @@ TEST_CASE(
   // flag they deny and a limit they understate.
   real.colorBufferHalfFloat = true;
   real.maxSamples = 8;
+  real.multisampledTextureRead = true;
 
   SECTION("bound at construction, as every native host binds")
   {
@@ -160,7 +161,30 @@ TEST_CASE(
         &recorder,
         "local f = gpuFeatures()\n"
         "assert(f.colorBufferHalfFloat == true, 'half float denied')\n"
-        "assert(f.maxSamples == 8, 'maxSamples ' .. f.maxSamples)\n");
+        "assert(f.maxSamples == 8, 'maxSamples ' .. f.maxSamples)\n"
+        "assert(f.multisampledTextureRead == true, 'ms read denied')\n");
+    CHECK(error.empty());
+  }
+
+  SECTION("shipped as caps, as the web replay worker binds them")
+  {
+    ore::cmd::DeferredOreContext recorder(nullptr);
+    recorder.bindCaps(ore::ReplayCaps::from(device));
+    std::string error = runWithOreContext(
+        &recorder,
+        "local f = gpuFeatures()\n"
+        "assert(f.multisampledTextureRead == true, 'ms read denied')\n");
+    CHECK(error.empty());
+  }
+
+  SECTION("a device without it says so")
+  {
+    real.multisampledTextureRead = false;
+    ore::cmd::DeferredOreContext recorder(&device);
+    std::string error = runWithOreContext(
+        &recorder,
+        "local f = gpuFeatures()\n"
+        "assert(f.multisampledTextureRead == false, 'ms read invented')\n");
     CHECK(error.empty());
   }
 

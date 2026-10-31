@@ -473,6 +473,7 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
   f.anisotropicFiltering = true;
   f.texture3D = true;
   f.textureArrays = true;
+  f.multisampledTextureRead = true;
   f.computeShaders = true;
   f.storageBuffers = true;
   f.bc = false;

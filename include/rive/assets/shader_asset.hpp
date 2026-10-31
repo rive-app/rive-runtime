@@ -92,6 +92,19 @@ public:
         m_entryBindingsSize);
   }
 
+  /// The RSTB binding names section: the WGSL name of each bound global,
+  /// decoded by ore. Empty for bakes that predate it.
+  Span<const uint8_t> bindingNames() const
+  {
+    if (!m_indexed || m_bindingNamesSize == 0)
+    {
+      return {};
+    }
+    return Span<const uint8_t>(
+        m_bytes.data() + m_bindingNamesOffset,
+        m_bindingNamesSize);
+  }
+
   /// The decoded RSTB container, for hosts that forward it across a
   /// process or module boundary.
   Span<const uint8_t> rstb() const
@@ -130,6 +143,8 @@ private:
   std::vector<TextureSamplerPair> m_pairs;
   size_t m_entryBindingsOffset = 0;
   size_t m_entryBindingsSize = 0;
+  size_t m_bindingNamesOffset = 0;
+  size_t m_bindingNamesSize = 0;
 };
 } // namespace rive
 

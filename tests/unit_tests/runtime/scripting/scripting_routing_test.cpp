@@ -29,6 +29,10 @@ public:
   {
     return nullptr;
   }
+  rcp<gpu::RenderCanvas> makeUnboundContentCanvas(uint32_t, uint32_t) override
+  {
+    return nullptr;
+  }
   rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas*) override
   {
     return nullptr;

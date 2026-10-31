@@ -3355,6 +3355,24 @@ bool guardPassed(WasmScriptingVM* vm, bool passed, const std::string& error)
   return passed;
 }
 
+// A deferred host mints a canvas before any device binds; only immediate
+// needs a render context.
+rcp<gpu::RenderCanvas> makeGpuCanvas(
+    WasmScriptingVM* vm,
+    uint32_t width,
+    uint32_t height)
+{
+  if (auto* deferredHost = vm->factory()->deferredCanvasHost())
+  {
+    return deferredHost->makeUnboundContentCanvas(width, height);
+  }
+  auto* renderContext = static_cast<gpu::RenderContext*>(
+      vm->factory()->renderContext());
+  return renderContext != nullptr
+             ? renderContext->makeRenderCanvas(width, height)
+             : nullptr;
+}
+
 uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
 {
   if (vm == nullptr || vm->factory() == nullptr)
@@ -3369,17 +3387,12 @@ uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
         WasmScriptingVM::HandleTable::Tag::gpuCanvas,
         new HostGpuCanvas{});
   }
-  auto* renderContext = static_cast<gpu::RenderContext*>(
-      vm->factory()->renderContext());
   ore::Context* oreContext = gpuOreContext(vm);
-  if (renderContext == nullptr || oreContext == nullptr)
+  if (oreContext == nullptr)
   {
     return 0;
   }
-  auto* deferredHost = vm->factory()->deferredCanvasHost();
-  auto canvas = deferredHost != nullptr
-                    ? deferredHost->makeContentCanvas(width, height)
-                    : renderContext->makeRenderCanvas(width, height);
+  auto canvas = makeGpuCanvas(vm, width, height);
   if (canvas == nullptr)
   {
     return 0;
@@ -3474,16 +3487,7 @@ uint32_t gpuCanvasResizeImpl(
   {
     return 0;
   }
-  auto* renderContext = static_cast<gpu::RenderContext*>(
-      vm->factory()->renderContext());
-  if (renderContext == nullptr)
-  {
-    return 0;
-  }
-  auto* deferredHost = vm->factory()->deferredCanvasHost();
-  auto canvas = deferredHost != nullptr
-                    ? deferredHost->makeContentCanvas(width, height)
-                    : renderContext->makeRenderCanvas(width, height);
+  auto canvas = makeGpuCanvas(vm, width, height);
   if (canvas == nullptr)
   {
     return 0;
@@ -3581,7 +3585,12 @@ uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount)
     return 19;
   }
   out[19] = f.minUniformBufferOffsetAlignment;
-  return 20;
+  if (outCount < 21)
+  {
+    return 20;
+  }
+  out[20] = f.multisampledTextureRead ? 1 : 0;
+  return 21;
 }
 
 uint32_t gpuPassBeginImpl(
@@ -4503,6 +4512,7 @@ static uint32_t mintAssetEntryModule(
     WasmScriptingVM* vm,
     ore::Context* oreContext,
     const ShaderAsset& asset,
+    const std::string& name,
     uint32_t entry)
 {
   uint32_t handle = 0;
@@ -4512,10 +4522,29 @@ static uint32_t mintAssetEntryModule(
       [&](const ore::ShaderModuleDesc& desc,
           uint32_t first,
           uint32_t count,
-          const std::vector<ore::RstbEntryView>&) {
+          const std::vector<ore::RstbEntryView>& views) {
         if (entry < first || entry - first >= count)
         {
           return true;
+        }
+        // Judged per entry where each has its own module, so a fallback entry
+        // still builds beside one that reads a multisampled texture.
+        std::string notice;
+        if (!ore::admitMultisampledReads(
+                *oreContext,
+                asset,
+                name,
+                vm->noticedShaders(),
+                &notice,
+                count == 1 ? &views[entry] : nullptr))
+        {
+          handle = gpuRejected(vm, oreContext, "Shader");
+          return false;
+        }
+        if (!notice.empty())
+        {
+          notice += '\n';
+          WasmScriptingVMNatives::print(vm, notice.data(), notice.size());
         }
         handle = mintShaderModule(vm, oreContext, desc);
         return false;
@@ -4531,6 +4560,7 @@ static uint32_t mintRstbEntryModule(
     const uint8_t* rstb,
     uint32_t rstbCount,
     uint32_t assetId,
+    const std::string& name,
     uint32_t entry)
 {
   ShaderAsset asset;
@@ -4539,7 +4569,7 @@ static uint32_t mintRstbEntryModule(
     return 0;
   }
   asset.assetId(assetId);
-  return mintAssetEntryModule(vm, oreContext, asset, entry);
+  return mintAssetEntryModule(vm, oreContext, asset, name, entry);
 }
 #endif
 
@@ -4571,6 +4601,7 @@ uint32_t gpuShaderModuleFromAssetImpl(
         rstb->data(),
         (uint32_t)rstb->size(),
         fileAsset != nullptr ? fileAsset->assetId() : 0,
+        std::string(name, nameLength),
         entry);
   }
 #endif
@@ -4578,7 +4609,12 @@ uint32_t gpuShaderModuleFromAssetImpl(
   {
     return 0;
   }
-  return mintAssetEntryModule(vm, oreContext, *fileAsset, entry);
+  return mintAssetEntryModule(
+      vm,
+      oreContext,
+      *fileAsset,
+      std::string(name, nameLength),
+      entry);
 }
 
 #ifdef WITH_RIVE_TOOLS
@@ -4594,7 +4630,14 @@ uint32_t gpuShaderModuleFromRstbImpl(
   {
     return 0;
   }
-  return mintRstbEntryModule(vm, oreContext, rstb, rstbCount, assetId, entry);
+  return mintRstbEntryModule(
+      vm,
+      oreContext,
+      rstb,
+      rstbCount,
+      assetId,
+      std::string(),
+      entry);
 }
 #endif
 

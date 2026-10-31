@@ -2039,6 +2039,8 @@ public:
     // match, 2 the caller's own library, 1 host or lib: match.
     int match(const std::string& registeredName, const std::string& shortName)
         const;
+    // The reference as the script wrote it, less any lib: scope.
+    const std::string& name() const { return m_bare.empty() ? m_path : m_bare; }
 
   private:
     bool matchesLibrary(const std::string& registeredName) const;
@@ -2184,6 +2186,8 @@ public:
   // device / RenderContext. Default false: normal runtimes allocate.
   void setGpuCanvasDeferOnly(bool value) { m_gpuCanvasDeferOnly = value; }
   bool gpuCanvasDeferOnly() const { return m_gpuCanvasDeferOnly; }
+  // Shaders this VM already told its author about.
+  std::unordered_set<std::string>& noticedShaders() { return m_noticedShaders; }
 
   // WebGL/WASM only: GL context handle saved at riveGPUBeginFrame so
   // riveGPUEndFrame can restore the caller's context afterwards.
@@ -2210,6 +2214,7 @@ private:
   uint64_t m_ownerId = 0;
   bool m_oreFrameOpen = false;
   bool m_gpuCanvasDeferOnly = false;
+  std::unordered_set<std::string> m_noticedShaders;
   std::vector<OpenCanvasFrame> m_openCanvasFrames;
   uint64_t m_nextOpenCanvasFrameToken = 1;
   intptr_t m_prevGLContext = 0;
@@ -3112,8 +3117,10 @@ class File;
 // vertex and fragment modules for GLSL targets with split entry points).
 // Checks ScriptingContext::m_shaderRstbs first (editor path, compiled
 // during requestVM), then |fileAsset| if non-null (runtime .riv path).
-// Returns false on failure.
+// Returns false on failure, having told the author through context's console
+// when the device refused the shader.
 bool lua_gpu_load_shader_by_name(
+    lua_State* L,
     rive::ScriptedShader* out,
     rive::ScriptingContext* context,
     const rive::ScriptingContext::ScopedAssetReference& reference,

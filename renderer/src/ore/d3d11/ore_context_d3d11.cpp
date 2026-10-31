@@ -1521,6 +1521,7 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(
   f.anisotropicFiltering = true;
   f.texture3D = true;
   f.textureArrays = true;
+  f.multisampledTextureRead = true;
   f.computeShaders = true;
   f.storageBuffers = true;
   f.bc = true;

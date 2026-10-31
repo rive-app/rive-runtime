@@ -537,6 +537,7 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   f.anisotropicFiltering = true;
   f.texture3D = true;
   f.textureArrays = true;
+  f.multisampledTextureRead = true;
   f.computeShaders = true;
   f.storageBuffers = true;
   f.bc = true;

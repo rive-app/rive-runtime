@@ -55,7 +55,7 @@ int lua_push_gpu_features(lua_State* L)
   if (oreCtx != nullptr)
   {
     const auto& f = oreCtx->features();
-    lua_createtable(L, 0, 20);
+    lua_createtable(L, 0, 21);
     lua_pushboolean(L, f.bc);
     lua_setfield(L, -2, "bc");
     lua_pushboolean(L, f.etc2);
@@ -96,12 +96,14 @@ int lua_push_gpu_features(lua_State* L)
     lua_setfield(L, -2, "maxSamples");
     lua_pushnumber(L, f.minUniformBufferOffsetAlignment);
     lua_setfield(L, -2, "minUniformBufferOffsetAlignment");
+    lua_pushboolean(L, f.multisampledTextureRead);
+    lua_setfield(L, -2, "multisampledTextureRead");
     lua_setreadonly(L, -1, true);
     return 1;
   }
 #endif
   // Fallback when no ore context is available
-  lua_createtable(L, 0, 20);
+  lua_createtable(L, 0, 21);
   lua_pushboolean(L, false);
   lua_setfield(L, -2, "bc");
   lua_pushboolean(L, false);
@@ -142,6 +144,8 @@ int lua_push_gpu_features(lua_State* L)
   lua_setfield(L, -2, "maxSamples");
   lua_pushnumber(L, 256);
   lua_setfield(L, -2, "minUniformBufferOffsetAlignment");
+  lua_pushboolean(L, false);
+  lua_setfield(L, -2, "multisampledTextureRead");
   lua_setreadonly(L, -1, true);
   return 1;
 }
@@ -603,15 +607,10 @@ static int context_namecall(lua_State* L)
         {
           return 1;
         }
-        if (gpuRenderCtx == nullptr)
+        // A recording session mints the canvas with no device bound.
+        if (gpuRenderCtx == nullptr &&
+            gpuScriptingCtx->deferredCanvasHost() == nullptr)
         {
-          // Same late-device contract as canvas() above.
-          if (gpuScriptingCtx->deferredCanvasHost() != nullptr)
-          {
-            handle->pendingWidth = gw;
-            handle->pendingHeight = gh;
-            return 1;
-          }
           luaL_error(
               L,
               "context:gpuCanvas() requires a RenderContext — call "
@@ -636,6 +635,14 @@ static int context_namecall(lua_State* L)
             gh);
         if (!canvas)
         {
+          // A host that cannot mint before its device binds holds the size
+          // until one does.
+          if (gpuRenderCtx == nullptr)
+          {
+            handle->pendingWidth = gw;
+            handle->pendingHeight = gh;
+            return 1;
+          }
           luaL_error(L, "context:gpuCanvas() failed to create RenderCanvas");
           return 0;
         }
@@ -707,6 +714,7 @@ static int context_namecall(lua_State* L)
             lua_getthreaddata(L));
         auto* scripted = lua_newrive<ScriptedShader>(L);
         if (lua_gpu_load_shader_by_name(
+                L,
                 scripted,
                 scriptingCtx,
                 reference,

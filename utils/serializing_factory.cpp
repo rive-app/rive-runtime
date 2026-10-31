@@ -885,6 +885,13 @@ cmd::DeferredCanvasHost* SerializingFactory::canvasContentHost()
   return deferredCanvasHost();
 }
 
+rcp<gpu::RenderCanvas> SerializingFactory::makeUnboundContentCanvas(
+    uint32_t width,
+    uint32_t height)
+{
+  return makeContentCanvas(width, height);
+}
+
 rcp<gpu::RenderCanvas> SerializingFactory::makeContentCanvas(
     uint32_t width,
     uint32_t height)

@@ -38,6 +38,12 @@ public:
       uint32_t width,
       uint32_t height) = 0;
 
+  // The same, but a recording host mints it before a device binds too.
+  // Scripts make their canvases at init, ahead of the frame that binds one.
+  virtual rcp<gpu::RenderCanvas> makeUnboundContentCanvas(
+      uint32_t width,
+      uint32_t height) = 0;
+
   // Whether a layer mask can actually be applied to a canvas this host hands
   // out. Asked here rather than of the Factory or the Renderer because this
   // is the one party that is always resolved: the renderer that records is

@@ -765,6 +765,8 @@ struct Features
   bool textureArrays = false;
   bool computeShaders = false;
   bool storageBuffers = false;
+  // GLSL ES 3.00 has no sampler2DMS, so WebGL2 and GLES 3.0 cannot.
+  bool multisampledTextureRead = false;
 
   bool bc = false;
   bool etc2 = false;

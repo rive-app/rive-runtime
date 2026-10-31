@@ -335,6 +335,8 @@ std::unique_ptr<ContextGL> ContextGL::Make()
   f.textureArrays = true;
   f.computeShaders = false;
   f.storageBuffers = false;
+  // Our GLSL bakes as ES 3.00, where sampler2DMS is reserved on every driver.
+  f.multisampledTextureRead = false;
   f.bc = false;
   f.etc2 = true; // GLES3 mandates ETC2.
   f.astc = false;

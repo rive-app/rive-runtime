@@ -87,6 +87,8 @@ bool ShaderAsset::index()
   m_pairs.clear();
   m_entryBindingsOffset = 0;
   m_entryBindingsSize = 0;
+  m_bindingNamesOffset = 0;
+  m_bindingNamesSize = 0;
 
   const uint8_t* p = m_bytes.data();
   const uint8_t* end = p + m_bytes.size();
@@ -163,6 +165,11 @@ bool ShaderAsset::index()
       // Tag 2: entry point bindings, which ore decodes.
       m_entryBindingsOffset = (size_t)(p - m_bytes.data());
       m_entryBindingsSize = length;
+    }
+    else if (tag == 3 && length >= 1)
+    {
+      m_bindingNamesOffset = (size_t)(p - m_bytes.data());
+      m_bindingNamesSize = length;
     }
     // Unknown tags: skip.
     p += length;

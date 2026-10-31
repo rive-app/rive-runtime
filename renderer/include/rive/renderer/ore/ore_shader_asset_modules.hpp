@@ -2,6 +2,7 @@
 
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/cmd/ore_creation_observer.hpp"
+#include "rive/renderer/ore/ore_rstb_binding_names.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
@@ -9,6 +10,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
+#include <unordered_set>
 #include <vector>
 
 // The one place a ShaderAsset becomes ShaderModuleDescs, so every scripting
@@ -189,6 +192,127 @@ bool visitShaderAssetModules(
                                                      : entryBindingBytes.data();
   desc.entryBindingSize = static_cast<uint32_t>(entryBindingBytes.size());
   visit(desc, 0u, count, entries);
+  return true;
+}
+
+// Each multisampled binding the device's variant reads, by WGSL name when the
+// bake kept one. Only bindings an entry uses, or entry itself, count when the
+// bake recorded use, since a declared but unused one never reaches the driver.
+inline std::vector<std::string> multisampledTextureReads(
+    ShaderTarget target,
+    const ShaderAsset& asset,
+    const RstbEntryView* entry = nullptr)
+{
+  std::vector<std::string> reads;
+  auto mapBytes = asset.findShader(bindingMapTargetFor(target));
+  BindingMap map;
+  if (mapBytes.empty() ||
+      !BindingMap::fromBlob(mapBytes.data(), mapBytes.size(), &map))
+  {
+    return reads;
+  }
+  std::vector<RstbEntryBindings> entryBindings;
+  auto bytes = asset.entryBindings();
+  decodeEntryBindings(bytes.data(), bytes.size(), entryBindings);
+  const bool entryRecorded = entry != nullptr &&
+                             std::any_of(
+                                 entryBindings.begin(),
+                                 entryBindings.end(),
+                                 [&](const RstbEntryBindings& e) {
+                                   return e.stage == entry->stage &&
+                                          e.name == entry->logical;
+                                 });
+  auto used = [&](const BindingMap::Entry& binding) {
+    if (entryBindings.empty())
+    {
+      return true;
+    }
+    return std::any_of(
+        entryBindings.begin(),
+        entryBindings.end(),
+        [&](const RstbEntryBindings& e) {
+          return (!entryRecorded ||
+                  (e.stage == entry->stage && e.name == entry->logical)) &&
+                 e.uses(binding.group, binding.binding);
+        });
+  };
+  std::vector<RstbBindingName> names;
+  auto nameBytes = asset.bindingNames();
+  decodeBindingNames(nameBytes.data(), nameBytes.size(), names);
+  for (size_t i = 0; i < map.size(); i++)
+  {
+    const BindingMap::Entry& e = map.at(i);
+    if (!e.textureMultisampled || !used(e))
+    {
+      continue;
+    }
+    auto named = std::find_if(
+        names.begin(),
+        names.end(),
+        [&](const RstbBindingName& n) {
+          return n.group == e.group && n.binding == e.binding &&
+                 !n.name.empty();
+        });
+    reads.push_back(
+        named != names.end()
+            ? named->name
+            : "@group(" + std::to_string(e.group) + ") @binding(" +
+                  std::to_string(e.binding) + ")");
+  }
+  return reads;
+}
+
+// WebGL2's driver error names neither shader nor binding, so we refuse here
+// and tell every other device once, so authors add a fallback.
+inline bool admitMultisampledReads(
+    Context& ctx,
+    const ShaderAsset& asset,
+    const std::string& shaderName,
+    std::unordered_set<std::string>& noticed,
+    std::string* notice,
+    const RstbEntryView* entry = nullptr)
+{
+  // An unbound recording cannot know, so the replay device judges.
+  if (!ctx.featuresKnown())
+  {
+    return true;
+  }
+  std::vector<std::string> reads = multisampledTextureReads(
+      ctx.shaderTarget(),
+      asset,
+      entry);
+  if (reads.empty())
+  {
+    return true;
+  }
+  std::string bindings;
+  for (const std::string& read : reads)
+  {
+    bindings += (bindings.empty() ? "'" : ", '") + read + "'";
+  }
+  const std::string shader = shaderName.empty() ? std::string("shader")
+                                                : "shader '" + shaderName + "'";
+  if (!ctx.features().multisampledTextureRead)
+  {
+    ctx.setLastError(
+        "%s reads multisampled texture %s, which this device cannot "
+        "(WebGL2); check features().multisampledTextureRead and give it a "
+        "fallback",
+        shader.c_str(),
+        bindings.c_str());
+    return false;
+  }
+  // Names repeat across library scopes and raw bakes carry none.
+  const std::string key = asset.assetId() != 0
+                              ? "#" + std::to_string(asset.assetId())
+                              : shaderName;
+  if (noticed.insert(key).second)
+  {
+    *notice = shader + " reads multisampled texture " + bindings +
+              ". WebGL2 cannot read multisampled textures, so to run there "
+              "this project needs a fallback gated on "
+              "features().multisampledTextureRead.";
+  }
   return true;
 }
 

@@ -58,6 +58,9 @@ public:
   void endCanvasContent(gpu::RenderCanvas* canvas) override;
   rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width, uint32_t height)
       override;
+  rcp<gpu::RenderCanvas> makeUnboundContentCanvas(
+      uint32_t width,
+      uint32_t height) override;
   rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas* canvas) override;
 
   // Stream id for a drawable image. Canvas-backed images are registered

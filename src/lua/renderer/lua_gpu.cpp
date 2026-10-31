@@ -590,23 +590,36 @@ static bool buildShaderEntries(
   return parsed && !failed && !out->entries.empty();
 }
 
-#ifdef WITH_RIVE_TOOLS
-/// Editor live-preview: decode the workspace's raw RSTB bytes then build
-/// entries.
-static bool makeShaderFromRstb(
+// A device that cannot run the shader refuses it on the script's console, and
+// one that can tells the author once what WebGL2 will need.
+static bool admitShader(
+    lua_State* L,
+    ScriptingContext* context,
     Context* oreCtx,
-    const uint8_t* data,
-    uint32_t len,
-    ScriptedShader* out)
+    const ShaderAsset& asset,
+    const std::string& name)
 {
-  if (oreCtx == nullptr || out == nullptr)
+  std::string notice;
+  if (!admitMultisampledReads(
+          *oreCtx,
+          asset,
+          name,
+          context->noticedShaders(),
+          &notice))
+  {
+    lua_pushstring(L, oreCtx->lastError().c_str());
+    context->printError(L);
+    lua_pop(L, 1);
     return false;
-  ShaderAsset asset;
-  if (!decodeBareRstb(asset, data, len))
-    return false;
-  return buildShaderEntries(oreCtx, asset, out);
+  }
+  if (!notice.empty())
+  {
+    context->printBeginLine(L);
+    context->print(Span<const char>(notice.data(), notice.size()));
+    context->printEndLine();
+  }
+  return true;
 }
-#endif // WITH_RIVE_TOOLS
 
 /// Look up a shader by name: first check the per-VM RSTB blobs on the
 /// ScriptingContext (editor path, compiled during requestVM), then try the
@@ -614,6 +627,7 @@ static bool makeShaderFromRstb(
 /// Populates both vertex and fragment modules on the ScriptedShader.
 /// Returns true on success.
 bool lua_gpu_load_shader_by_name(
+    lua_State* L,
     ScriptedShader* out,
     ScriptingContext* context,
     const ScriptingContext::ScopedAssetReference& reference,
@@ -621,32 +635,32 @@ bool lua_gpu_load_shader_by_name(
 {
   Context* oreCtx = static_cast<Context*>(
       context != nullptr ? context->oreContext() : nullptr);
-
+  if (oreCtx == nullptr || out == nullptr)
+  {
+    return false;
+  }
+  const ShaderAsset* asset = fileAsset;
 #ifdef WITH_RIVE_TOOLS
   // Editor path: RSTB blobs compiled from WGSL during requestVM, stored
-  // per-VM on the ScriptingContext.
-  if (context != nullptr)
+  // per-VM on the ScriptingContext, decoded the way file assets are.
+  ShaderAsset editorAsset;
+  if (const auto* rstb = context->findShaderRstb(reference))
   {
-    const auto* rstb = context->findShaderRstb(reference);
-    if (rstb != nullptr)
+    if (!decodeBareRstb(
+            editorAsset,
+            rstb->data(),
+            static_cast<uint32_t>(rstb->size())))
     {
-      return makeShaderFromRstb(
-          oreCtx,
-          rstb->data(),
-          static_cast<uint32_t>(rstb->size()),
-          out);
+      return false;
     }
+    asset = &editorAsset;
   }
 #endif
-  // Runtime path: ShaderAsset from the .riv file's asset list. Same
-  // container parsing as the editor path (buildShaderEntries) so entry-point
-  // resolution is identical on all backends.
-  if (fileAsset != nullptr && oreCtx != nullptr)
-  {
-    return buildShaderEntries(oreCtx, *fileAsset, out);
-  }
-
-  return false;
+  // Same container parsing on both paths so entry-point resolution is
+  // identical on all backends.
+  return asset != nullptr &&
+         admitShader(L, context, oreCtx, *asset, reference.name()) &&
+         buildShaderEntries(oreCtx, *asset, out);
 }
 
 ShaderAsset* lua_gpu_find_shader_asset(
@@ -700,7 +714,7 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
   }
 
   auto* scripted = lua_newrive<ScriptedShader>(L);
-  if (!lua_gpu_load_shader_by_name(scripted, context, reference, fileAsset))
+  if (!lua_gpu_load_shader_by_name(L, scripted, context, reference, fileAsset))
   {
     lua_pop(L, 1);
     return 0;
@@ -2974,12 +2988,12 @@ rcp<gpu::RenderCanvas> rive::allocScriptRenderCanvas(
     uint32_t width,
     uint32_t height)
 {
-  assert(rc != nullptr);
   assert(ctx != nullptr);
   if (auto* deferredHost = ctx->deferredCanvasHost())
   {
-    return deferredHost->makeContentCanvas(width, height);
+    return deferredHost->makeUnboundContentCanvas(width, height);
   }
+  assert(rc != nullptr);
   if (ctx->renderContextIsLateBound())
   {
     return rc->makeDeferredRenderCanvas(width, height);
@@ -3011,7 +3025,7 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
   }
   auto* scriptingCtx = static_cast<ScriptingContext*>(lua_getthreaddata(L));
   auto* renderCtx = liveRenderContext(scriptingCtx);
-  if (renderCtx == nullptr)
+  if (renderCtx == nullptr && scriptingCtx->deferredCanvasHost() == nullptr)
   {
     return;
   }
@@ -3029,6 +3043,11 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
   auto newCanvas = allocScriptRenderCanvas(renderCtx, scriptingCtx, w, h);
   if (!newCanvas)
   {
+    // A host that cannot mint before its device binds keeps the size.
+    if (renderCtx == nullptr)
+    {
+      return;
+    }
     luaL_error(L, "GPUCanvas:resize() failed to create RenderCanvas");
   }
   auto newColorView = oreCtx->wrapCanvasTexture(newCanvas.get());
