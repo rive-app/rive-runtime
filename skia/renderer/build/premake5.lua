@@ -67,7 +67,7 @@ do
     filter({ 'system:ios', 'options:variant=system' })
     do
         buildoptions({
-            '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot '
+            '-mios-version-min=15.0 -fembed-bitcode -arch arm64 -isysroot '
                 .. (os.getenv('IOS_SYSROOT') or ''),
         })
     end
@@ -75,7 +75,7 @@ do
     filter({ 'system:ios', 'options:variant=emulator' })
     do
         buildoptions({
-            '--target=arm64-apple-ios13.0.0-simulator -mios-version-min=13.0 -arch x86_64 -arch arm64 -isysroot '
+            '--target=arm64-apple-ios15.0.0-simulator -mios-version-min=15.0 -arch x86_64 -arch arm64 -isysroot '
                 .. (os.getenv('IOS_SYSROOT') or ''),
         })
         targetdir('%{cfg.system}_sim/bin/%{cfg.buildcfg}')

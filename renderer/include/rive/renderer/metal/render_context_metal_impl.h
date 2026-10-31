@@ -17,6 +17,7 @@
 namespace rive::gpu
 {
 class BackgroundShaderCompiler;
+class DSIndexRangeChunker;
 
 // Metal backend implementation of RenderTarget.
 class RenderTargetMetal : public RenderTarget
@@ -35,6 +36,8 @@ public:
 
   void setTargetTexture(id<MTLTexture> texture);
   id<MTLTexture> targetTexture() const { return m_targetTexture; }
+  id<MTLTexture> depthStencilTexture();
+  id<MTLTexture> dstColorTexture();
 
 private:
   friend class RenderContextMetalImpl;
@@ -74,8 +77,12 @@ private:
 
   const id<MTLDevice> m_gpu;
   const MTLPixelFormat m_pixelFormat;
+  const bool m_supportsMemorylessStorage;
 
   id<MTLTexture> m_targetTexture = nil;
+
+  id<MTLTexture> m_depthStencilTexture = nil;
+  id<MTLTexture> m_dstColorTexture = nil;
 
   id<MTLTexture> m_coverageMemorylessTexture = nil;
   id<MTLTexture> m_clipMemorylessTexture = nil;
@@ -156,10 +163,10 @@ public:
   std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
-  // Atomic mode requires a barrier between overlapping draws. We have to
-  // implement this barrier in various different ways, depending on which
-  // hardware we're on.
-  enum class AtomicBarrierType
+  // Draws that read and write the same pixels through device memory require a
+  // barrier between overlapping draws. We have to implement this barrier in
+  // various different ways, depending on which hardware we're on.
+  enum class PipelineBarrierType
   {
     // The hardware supports a normal fragment-fragment memory barrier. (Not
     // supported on Apple-Silicon).
@@ -167,7 +174,7 @@ public:
 
     // Apple Silicon is very fast at raster ordering, and doesn't support
     // fragment-fragment memory barriers anyway, so on this hardware we just
-    // use raster order groups in atomic mode.
+    // use raster order groups.
     rasterOrderGroup,
 
     // On very old hardware that can't support barriers, we just take a
@@ -179,7 +186,22 @@ public:
 
   struct MetalFeatures
   {
-    AtomicBarrierType atomicBarrierType = AtomicBarrierType::renderPassBreak;
+    PipelineBarrierType
+        pipelineBarrierType = PipelineBarrierType::renderPassBreak;
+    bool supportsProgrammableBlending = false;
+
+    bool depthStencilRendersColorToBuffer(bool fixedFunctionColorOutput) const
+    {
+      return !supportsProgrammableBlending &&
+             pipelineBarrierType == PipelineBarrierType::rasterOrderGroup &&
+             !fixedFunctionColorOutput;
+    }
+
+    bool depthStencilReadsDstFromTexture() const
+    {
+      return !supportsProgrammableBlending &&
+             pipelineBarrierType != PipelineBarrierType::rasterOrderGroup;
+    }
   };
 
   const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
@@ -195,6 +217,7 @@ protected:
       size_t capacityInBytes) override;
 
 private:
+  class DrawShader;
   // Renders paths to the main render target.
   class DrawPipeline;
 
@@ -216,6 +239,44 @@ private:
       id<MTLCommandBuffer>,
       gpu::ShaderMiscFlags baselineMiscFlags);
 
+  // Copies the renderTarget's contents within the given bounds into its
+  // color buffer.
+  void copyTargetToColorBuffer(
+      id<MTLCommandBuffer>, RenderTargetMetal*, const IAABB& bounds);
+
+  // Sets every byte of the color buffer's rows within the given bounds to
+  // value.
+  void fillColorBuffer(
+      id<MTLCommandBuffer>,
+      RenderTargetMetal*,
+      const IAABB& bounds,
+      uint8_t value);
+
+  // The inverse of copyTargetToColorBuffer().
+  void copyColorBufferToTarget(
+      id<MTLCommandBuffer>, RenderTargetMetal*, const IAABB& bounds);
+
+  // Ends the render pass, copies the target into its dstColorTexture
+  // wherever the batch's draws read the destination color, and restarts the
+  // render pass.
+  id<MTLRenderCommandEncoder> copyDstReadsAndRestart(
+      id<MTLRenderCommandEncoder>,
+      const gpu::DrawBatch&,
+      const gpu::FlushDescriptor&,
+      MTLRenderPassDescriptor*,
+      id<MTLCommandBuffer>,
+      gpu::ShaderMiscFlags baselineMiscFlags);
+
+  // Orders the fragments of overlapping draws using this hardware's
+  // PipelineBarrierType. Returns the encoder to continue drawing with, which
+  // is a new one if the barrier had to break the render pass.
+  id<MTLRenderCommandEncoder> issuePipelineBarrier(
+      id<MTLRenderCommandEncoder>,
+      const gpu::FlushDescriptor&,
+      MTLRenderPassDescriptor*,
+      id<MTLCommandBuffer>,
+      gpu::ShaderMiscFlags baselineMiscFlags);
+
   // Returns the specific DrawPipeline for the given feature set, if it has
   // been compiled. If it has not finished compiling yet, this method may
   // return a (potentially slower) DrawPipeline that can draw a superset of
@@ -224,7 +285,25 @@ private:
       gpu::DrawType,
       gpu::ShaderFeatures,
       const gpu::FlushDescriptor&,
-      gpu::ShaderMiscFlags);
+      gpu::ShaderMiscFlags,
+      MTLPixelFormat,
+      bool colorWriteEnabled);
+
+  // Returns the DrawPipeline that draws the given shader to the given
+  // pixelFormat, building it if it doesn't exist yet.
+  const DrawPipeline* findOrCreateDrawPipeline(
+      uint32_t shaderKey,
+      const DrawShader&,
+      MTLPixelFormat,
+      bool colorWriteEnabled);
+
+  id<MTLDepthStencilState> findOrCreateDepthStencilState(
+      const gpu::PipelineState&);
+
+  void drawDepthStencilIndexRanges(
+      id<MTLRenderCommandEncoder>,
+      const DrawBatch&,
+      const gpu::DSIndexRangeChunker&);
 
   void flush(const FlushDescriptor&) override;
 
@@ -261,7 +340,12 @@ private:
 
   id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
-  std::unordered_map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
+  std::unordered_map<uint32_t, std::unique_ptr<DrawShader>> m_drawShaders;
+  std::unordered_map<uint64_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
+
+  // Depth/stencil states for InterlockMode::depthStencil, keyed by the
+  // depth/stencil portion of gpu::PipelineState.
+  std::unordered_map<uint64_t, id<MTLDepthStencilState>> m_depthStencilStates;
 
   // Vertex/index buffers for drawing path patches.
   id<MTLBuffer> m_pathPatchVertexBuffer;

@@ -383,7 +383,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
-      v_paint = unpackUnorm4x8(pathData.w);
+      v_paint = float4(unpackUnorm4x8(pathData.w));
       if (paintHasAdvancedBlend)
       {
         // Advanced blends take an unmultiplied color, so coverage only
@@ -564,6 +564,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
   color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
   // Premultiply before the hardware srcOver portion of the blend equation.
   color.rgb *= color.a;
+  #elif defined(@RENDER_TO_UAV)
+  // No hardware blend unit on this path; src-over happens in the shader.
+  half4 dstColorPremul = PLS_LOAD4F_UAV(@dstColorUav);
   #endif
 
   color.rgb = add_dither_if_alpha_nonzero(
@@ -597,7 +600,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
   #endif
 
   #ifdef @RENDER_TO_UAV
-  if (color.a != .0)
+  // Only an all-zero color is a no-op. Additive paints carry alpha 0 with
+  // nonzero rgb.
+  if (any(notEqual(color, make_half4(.0))))
   {
     PLS_STORE4F_UAV(@dstColorUav, blend_src_over(color, dstColorPremul));
   }

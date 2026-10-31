@@ -410,6 +410,12 @@ bool Player::parseArgs(
         keyPressed(*k);
       }
     }
+    else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--headless") == 0)
+    {
+      // Render offscreen with no present, so the frame rate isn't paced
+      // by the display (handy for benchmarking on phones).
+      options.visibility = TestingWindow::Visibility::headless;
+    }
     else if (strcmp(argv[i], "--window") == 0 || strcmp(argv[i], "-w") == 0)
     {
       options.visibility = TestingWindow::Visibility::window;
@@ -1033,6 +1039,18 @@ int main(int argc, const char* argv[])
   {
     fprintf(stderr, "no .riv file specified");
     abort();
+  }
+
+  if (options.visibility == TestingWindow::Visibility::headless)
+  {
+    // A headless window starts at 0x0. On iOS, use the device's native screen
+    // size (e.g., 1080x2340 on iPhone 12 mini) so the numbers compare with a
+    // presented window. Everywhere else, including Android, default to 1080p.
+    uint32_t width = 1920, height = 1080;
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+    rive_ios_app_native_size(&width, &height);
+#endif
+    TestingWindow::Get()->resize(width, height);
   }
 
   player.init();

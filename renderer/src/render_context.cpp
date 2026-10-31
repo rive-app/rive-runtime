@@ -1858,15 +1858,20 @@ void RenderContext::LogicalFlush::writeResources()
     // Set this to 0, any actual scissor IDs used will then start at 1.
     m_ctx->m_prevScissorID = 0;
 
-    const bool hasDstBlendBarriers = enums::is_flag_set(
-                                         m_combinedDrawContents,
-                                         gpu::DrawContents::advancedBlend) &&
-                                     (m_ctx->frameInterlockMode() ==
-                                          gpu::InterlockMode::clockwiseAtomic ||
-                                      (m_ctx->frameInterlockMode() ==
+    const bool hasDstBlend = enums::is_flag_set(
+                                 m_combinedDrawContents,
+                                 gpu::DrawContents::advancedBlend) &&
+                             (m_ctx->frameInterlockMode() ==
+                                  gpu::InterlockMode::clockwiseAtomic ||
+                              (m_ctx->frameInterlockMode() ==
+                                   gpu::InterlockMode::depthStencil &&
+                               !platformFeatures
+                                    .supportsBlendAdvancedCoherentKHR));
+    const bool hasDstBlendBarriers = hasDstBlend &&
+                                     !(m_ctx->frameInterlockMode() ==
                                            gpu::InterlockMode::depthStencil &&
-                                       !platformFeatures
-                                            .supportsBlendAdvancedCoherentKHR));
+                                       platformFeatures
+                                           .supportsRasterOrderDstReads);
 
     // When the dstBlend barrier has no other option than to copy out a
     // texture, this copy destroys MSAA information and we can no longer
@@ -1877,7 +1882,7 @@ void RenderContext::LogicalFlush::writeResources()
     // whether this is necessary in that case, and whether it even helps to
     // split subpasses in the first place.
     const bool
-        allSubpassesInSameDrawGroup = hasDstBlendBarriers &&
+        allSubpassesInSameDrawGroup = hasDstBlend &&
                                       m_ctx->frameInterlockMode() ==
                                           gpu::InterlockMode::depthStencil &&
                                       !platformFeatures

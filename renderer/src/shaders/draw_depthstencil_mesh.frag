@@ -104,6 +104,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     #endif
   color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode) *
               color.a;
+  #elif defined(@RENDER_TO_UAV)
+  // No hardware blend unit on this path; src-over happens in the shader.
+  half4 dstColorPremul = PLS_LOAD4F_UAV(@dstColorUav);
   #endif
 
   #ifndef @DRAW_IMAGE_MESH
@@ -118,7 +121,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
       uniforms.ditherBias);
 
   #ifdef @RENDER_TO_UAV
-  if (color.a != .0)
+  // Only an all-zero color is a no-op: additive paints carry alpha 0 with
+  // nonzero rgb.
+  if (any(notEqual(color, make_half4(.0))))
   {
     PLS_STORE4F_UAV(@dstColorUav, blend_src_over(color, dstColorPremul));
   }

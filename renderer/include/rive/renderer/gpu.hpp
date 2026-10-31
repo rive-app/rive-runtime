@@ -151,6 +151,7 @@ struct PlatformFeatures
   // Use KHR_blend_equation_advanced in depthStencil mode?
   bool supportsBlendAdvancedKHR = false;
   bool supportsBlendAdvancedCoherentKHR = false;
+  bool supportsRasterOrderDstReads = false;
   // Required for @ENABLE_CLIP_RECT in depthStencil mode.
   bool supportsClipPlanes = false;
   // The backend implements BlendEquation::layerMask, so a depthStencil frame

@@ -249,7 +249,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #ifdef @ENABLE_BASE_VERTEX
   #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)              \
     $cbuffer DrawUniforms                                                      \
-        : UNIFORM_BUFFER_REGISTER(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)       \
+        : UNIFORM_BUFFER_REGISTER(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)           \
     {                                                                          \
       uint baseInstance;                                                       \
       uint baseVertex;                                                         \
@@ -267,7 +267,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #else
   #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)              \
     $cbuffer DrawUniforms                                                      \
-        : UNIFORM_BUFFER_REGISTER(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)       \
+        : UNIFORM_BUFFER_REGISTER(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)           \
     {                                                                          \
       uint baseInstance;                                                       \
       uint baseVertex;                                                         \

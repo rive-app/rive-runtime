@@ -1915,7 +1915,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
       m_flushUniforms.Get(),
       m_drawUniforms.Get()};
   static_assert(
-      PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
+      DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX == FLUSH_UNIFORM_BUFFER_IDX + 1);
   m_gpuContext->VSSetConstantBuffers(
       FLUSH_UNIFORM_BUFFER_IDX,
       std::size(uniformBuffers),

@@ -158,6 +158,13 @@ static void set_active(bool active)
 
 @end
 
+void rive_ios_app_native_size(uint32_t* width, uint32_t* height)
+{
+  CAMetalLayer* layer = (__bridge CAMetalLayer*)rive_ios_app_wait_for_window();
+  *width = static_cast<uint32_t>(layer.drawableSize.width);
+  *height = static_cast<uint32_t>(layer.drawableSize.height);
+}
+
 void* rive_ios_app_wait_for_window()
 {
   std::unique_lock<std::mutex> lock(s_windowMutex);

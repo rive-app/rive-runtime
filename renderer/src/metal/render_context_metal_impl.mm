@@ -8,6 +8,8 @@
 
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
+#include "rive/renderer/draw.hpp"
+#include "rive/renderer/range_chunker.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_context_metal.hpp"
@@ -15,6 +17,8 @@
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
+#include <algorithm>
+#include <cmath>
 #include <sstream>
 
 #include "generated/shaders/color_ramp.glsl.exports.h"
@@ -57,6 +61,79 @@ static id<MTLRenderPipelineState> make_pipeline_state(
   }
   return state;
 }
+
+static MTLStencilOperation metalStencilOp(gpu::StencilOp op)
+{
+  switch (op)
+  {
+    case gpu::StencilOp::keep:
+      return MTLStencilOperationKeep;
+    case gpu::StencilOp::replace:
+      return MTLStencilOperationReplace;
+    case gpu::StencilOp::zero:
+      return MTLStencilOperationZero;
+    case gpu::StencilOp::decrClamp:
+      return MTLStencilOperationDecrementClamp;
+    case gpu::StencilOp::incrWrap:
+      return MTLStencilOperationIncrementWrap;
+    case gpu::StencilOp::decrWrap:
+      return MTLStencilOperationDecrementWrap;
+  }
+  RIVE_UNREACHABLE();
+}
+
+static MTLCompareFunction metalStencilCompare(gpu::StencilCompareOp op)
+{
+  switch (op)
+  {
+    case gpu::StencilCompareOp::less:
+      return MTLCompareFunctionLess;
+    case gpu::StencilCompareOp::equal:
+      return MTLCompareFunctionEqual;
+    case gpu::StencilCompareOp::lessOrEqual:
+      return MTLCompareFunctionLessEqual;
+    case gpu::StencilCompareOp::notEqual:
+      return MTLCompareFunctionNotEqual;
+    case gpu::StencilCompareOp::always:
+      return MTLCompareFunctionAlways;
+  }
+  RIVE_UNREACHABLE();
+}
+
+static MTLStencilDescriptor* makeStencilDescriptor(
+    const gpu::StencilFaceOps& ops, uint8_t compareMask, uint8_t writeMask)
+{
+  MTLStencilDescriptor* desc = [[MTLStencilDescriptor alloc] init];
+  desc.stencilCompareFunction = metalStencilCompare(ops.compareOp);
+  desc.stencilFailureOperation = metalStencilOp(ops.stencilFailOp);
+  desc.depthFailureOperation = metalStencilOp(ops.depthFailOp);
+  desc.depthStencilPassOperation = metalStencilOp(ops.depthStencilPassOp);
+  desc.readMask = compareMask;
+  desc.writeMask = writeMask;
+  return desc;
+}
+
+// Metal's default front face is clockwise, which is also Rive's front face, so
+// the cull faces map straight across.
+static MTLCullMode metalCullMode(gpu::CullFace cullFace)
+{
+  switch (cullFace)
+  {
+    case gpu::CullFace::none:
+      return MTLCullModeNone;
+    case gpu::CullFace::clockwise:
+      return MTLCullModeFront;
+    case gpu::CullFace::counterclockwise:
+      return MTLCullModeBack;
+  }
+  RIVE_UNREACHABLE();
+}
+
+// Depth/stencil attachment format for InterlockMode::depthStencil.
+// Depth24Unorm_Stencil8 doesn't exist on Apple GPUs, and the packed depth
+// values we emit are exact in float32, so this works everywhere.
+constexpr static MTLPixelFormat
+    kDepthStencilPixelFormat = MTLPixelFormatDepth32Float_Stencil8;
 
 static MTLSamplerAddressMode address_mode_for_image_wrap(ImageWrap wrap)
 {
@@ -176,8 +253,8 @@ private:
   id<MTLRenderPipelineState> m_pipelineState;
 };
 
-// Renders paths to the main render target.
-class RenderContextMetalImpl::DrawPipeline
+// A compiled draw shader, from which DrawPipelines are built.
+class RenderContextMetalImpl::DrawShader
 {
 public:
   // Precompiled functions are embedded in namespaces. Return the fully
@@ -270,146 +347,188 @@ public:
                                       functionBaseName];
   }
 
-  DrawPipeline(
-      id<MTLDevice> gpu,
+  DrawShader(
       id<MTLLibrary> library,
       NSString* vertexFunctionName,
       NSString* fragmentFunctionName,
       gpu::DrawType drawType,
       gpu::InterlockMode interlockMode,
-      gpu::ShaderFeatures shaderFeatures,
       gpu::ShaderMiscFlags shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
       ,
       gpu::SynthesizedFailureType synthesizedFailureType
 #endif
-  )
+      )
+      : m_drawType(drawType)
+      , m_interlockMode(interlockMode)
+      , m_shaderMiscFlags(shaderMiscFlags)
+#ifdef WITH_RIVE_TOOLS
+      , m_synthesizedFailureType(synthesizedFailureType)
+#endif
   {
     if (library == nil)
     {
-      // This pipeline is being built from a shader that failed to
-      // compile. Leave everything nil and let draws fail.
+      // This shader failed to compile. Leave everything nil and let draws
+      // fail.
+      return;
+    }
+    m_vertexMain = [library newFunctionWithName:vertexFunctionName];
+    m_fragmentMain = [library newFunctionWithName:fragmentFunctionName];
+    if (m_vertexMain == nil || m_fragmentMain == nil)
+    {
+      NSLog(
+          @"RIVE: missing shader function %@ / %@",
+          vertexFunctionName,
+          fragmentFunctionName);
+      m_vertexMain = m_fragmentMain = nil;
+    }
+  }
+
+  bool valid() const { return m_vertexMain != nil; }
+
+  gpu::DrawType drawType() const { return m_drawType; }
+  gpu::InterlockMode interlockMode() const { return m_interlockMode; }
+  gpu::ShaderMiscFlags shaderMiscFlags() const { return m_shaderMiscFlags; }
+  id<MTLFunction> vertexMain() const { return m_vertexMain; }
+  id<MTLFunction> fragmentMain() const { return m_fragmentMain; }
+#ifdef WITH_RIVE_TOOLS
+  gpu::SynthesizedFailureType synthesizedFailureType() const
+  {
+    return m_synthesizedFailureType;
+  }
+#endif
+
+private:
+  const gpu::DrawType m_drawType;
+  const gpu::InterlockMode m_interlockMode;
+  const gpu::ShaderMiscFlags m_shaderMiscFlags;
+#ifdef WITH_RIVE_TOOLS
+  const gpu::SynthesizedFailureType m_synthesizedFailureType;
+#endif
+  id<MTLFunction> m_vertexMain = nil;
+  id<MTLFunction> m_fragmentMain = nil;
+};
+
+// Renders paths to the main render target.
+class RenderContextMetalImpl::DrawPipeline
+{
+public:
+  DrawPipeline(
+      id<MTLDevice> gpu,
+      const DrawShader& shader,
+      MTLPixelFormat pixelFormat,
+      bool colorWriteEnabled)
+  {
+    if (!shader.valid())
+    {
       return;
     }
 
 #ifdef WITH_RIVE_TOOLS
-    if (synthesizedFailureType == SynthesizedFailureType::pipelineCreation)
+    if (shader.synthesizedFailureType() ==
+        SynthesizedFailureType::pipelineCreation)
     {
       NSLog(@"RIVE: Synthesizing pipeline creation failure...");
       return;
     }
 #endif
 
-    auto makePipelineState = [=](id<MTLFunction> vertexMain,
-                                 id<MTLFunction> fragmentMain,
-                                 MTLPixelFormat pixelFormat) {
-      MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc]
-          init];
-      desc.vertexFunction = vertexMain;
-      desc.fragmentFunction = fragmentMain;
+    MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc]
+        init];
+    desc.vertexFunction = shader.vertexMain();
+    desc.fragmentFunction = shader.fragmentMain();
 
-      auto* framebuffer = desc.colorAttachments[COLOR_PLANE_IDX];
-      framebuffer.pixelFormat = pixelFormat;
+    auto* framebuffer = desc.colorAttachments[COLOR_PLANE_IDX];
+    framebuffer.pixelFormat = pixelFormat;
 
-      switch (interlockMode)
-      {
-        case gpu::InterlockMode::rasterOrdering:
-          // In rasterOrdering mode, the PLS planes are accessed as
-          // color attachments.
-          desc.colorAttachments[CLIP_PLANE_IDX]
-              .pixelFormat = MTLPixelFormatR32Uint;
-          desc.colorAttachments[SCRATCH_COLOR_PLANE_IDX]
-              .pixelFormat = pixelFormat;
-          desc.colorAttachments[COVERAGE_PLANE_IDX]
-              .pixelFormat = MTLPixelFormatR32Uint;
-          break;
+    switch (shader.interlockMode())
+    {
+      case gpu::InterlockMode::rasterOrdering:
+        // In rasterOrdering mode, the PLS planes are accessed as
+        // color attachments.
+        desc.colorAttachments[CLIP_PLANE_IDX]
+            .pixelFormat = MTLPixelFormatR32Uint;
+        desc.colorAttachments[SCRATCH_COLOR_PLANE_IDX]
+            .pixelFormat = pixelFormat;
+        desc.colorAttachments[COVERAGE_PLANE_IDX]
+            .pixelFormat = MTLPixelFormatR32Uint;
+        break;
 
-        case gpu::InterlockMode::atomics:
-          // In atomic mode, the PLS planes are accessed as device
-          // buffers. We only use the "framebuffer" attachment
-          // configured above.
-          if (enums::is_flag_set(
-                  shaderMiscFlags,
-                  gpu::ShaderMiscFlags::fixedFunctionColorOutput))
-          {
-            // The shader expectes a "src-over" blend function in
-            // order to to implement antialiasing and opacity.
-            framebuffer.blendingEnabled = TRUE;
-            framebuffer.sourceRGBBlendFactor = MTLBlendFactorOne;
-            framebuffer
-                .destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-            framebuffer.rgbBlendOperation = MTLBlendOperationAdd;
-            framebuffer.sourceAlphaBlendFactor = MTLBlendFactorOne;
-            framebuffer.destinationAlphaBlendFactor =
-                MTLBlendFactorOneMinusSourceAlpha;
-            framebuffer.alphaBlendOperation = MTLBlendOperationAdd;
-            framebuffer.writeMask = MTLColorWriteMaskAll;
-          }
-          else if (drawType == gpu::DrawType::renderPassResolve)
-          {
-            // We're resolving from the offscreen color buffer to
-            // the framebuffer attachment. Write out the final color
-            // directly without any blend modes.
-            framebuffer.blendingEnabled = FALSE;
-            framebuffer.writeMask = MTLColorWriteMaskAll;
-          }
-          else
-          {
-            // This pipeline renders by storing to the offscreen
-            // color buffer; disable writes to the framebuffer
-            // attachment.
-            framebuffer.blendingEnabled = FALSE;
-            framebuffer.writeMask = MTLColorWriteMaskNone;
-          }
-          break;
+      case gpu::InterlockMode::atomics:
+        // In atomic mode, the PLS planes are accessed as device
+        // buffers. We only use the "framebuffer" attachment
+        // configured above.
+        if (enums::is_flag_set(
+                shader.shaderMiscFlags(),
+                gpu::ShaderMiscFlags::fixedFunctionColorOutput))
+        {
+          // The shader expectes a "src-over" blend function in
+          // order to to implement antialiasing and opacity.
+          framebuffer.blendingEnabled = TRUE;
+          framebuffer.sourceRGBBlendFactor = MTLBlendFactorOne;
+          framebuffer
+              .destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+          framebuffer.rgbBlendOperation = MTLBlendOperationAdd;
+          framebuffer.sourceAlphaBlendFactor = MTLBlendFactorOne;
+          framebuffer
+              .destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+          framebuffer.alphaBlendOperation = MTLBlendOperationAdd;
+          framebuffer.writeMask = MTLColorWriteMaskAll;
+        }
+        else if (shader.drawType() == gpu::DrawType::renderPassResolve)
+        {
+          // We're resolving from the offscreen color buffer to
+          // the framebuffer attachment. Write out the final color
+          // directly without any blend modes.
+          framebuffer.blendingEnabled = FALSE;
+          framebuffer.writeMask = MTLColorWriteMaskAll;
+        }
+        else
+        {
+          // This pipeline renders by storing to the offscreen
+          // color buffer; disable writes to the framebuffer
+          // attachment.
+          framebuffer.blendingEnabled = FALSE;
+          framebuffer.writeMask = MTLColorWriteMaskNone;
+        }
+        break;
 
-        case gpu::InterlockMode::clockwise:
-        case gpu::InterlockMode::clockwiseAtomic:
-        case gpu::InterlockMode::depthStencil:
-          RIVE_UNREACHABLE();
-      }
-      return make_pipeline_state(gpu, desc);
-    };
-    id<MTLFunction> vertexMain = [library
-        newFunctionWithName:vertexFunctionName];
-    id<MTLFunction> fragmentMain = [library
-        newFunctionWithName:fragmentFunctionName];
-    m_pipelineStateRGBA8 = makePipelineState(
-        vertexMain, fragmentMain, MTLPixelFormatRGBA8Unorm);
-    m_pipelineStateBGRA8 = makePipelineState(
-        vertexMain, fragmentMain, MTLPixelFormatBGRA8Unorm);
+      case gpu::InterlockMode::depthStencil:
+        if (pixelFormat != MTLPixelFormatInvalid)
+        {
+          framebuffer.blendingEnabled = TRUE;
+          framebuffer.sourceRGBBlendFactor = MTLBlendFactorOne;
+          framebuffer
+              .destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+          framebuffer.rgbBlendOperation = MTLBlendOperationAdd;
+          framebuffer.sourceAlphaBlendFactor = MTLBlendFactorOne;
+          framebuffer
+              .destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+          framebuffer.alphaBlendOperation = MTLBlendOperationAdd;
+          framebuffer.writeMask = colorWriteEnabled ? MTLColorWriteMaskAll
+                                                    : MTLColorWriteMaskNone;
+        }
+        desc.depthAttachmentPixelFormat = kDepthStencilPixelFormat;
+        desc.stencilAttachmentPixelFormat = kDepthStencilPixelFormat;
+        break;
+
+      case gpu::InterlockMode::clockwise:
+      case gpu::InterlockMode::clockwiseAtomic:
+        RIVE_UNREACHABLE();
+    }
+    m_pipelineState = make_pipeline_state(gpu, desc);
   }
 
-  bool valid() const
-  {
-    assert((m_pipelineStateRGBA8 != nil) == (m_pipelineStateBGRA8 != nil));
-    return m_pipelineStateRGBA8 != nil;
-  }
+  bool valid() const { return m_pipelineState != nil; }
 
-  id<MTLRenderPipelineState> pipelineState(MTLPixelFormat pixelFormat) const
+  id<MTLRenderPipelineState> pipelineState() const
   {
     assert(valid());
-    assert(
-        pixelFormat == MTLPixelFormatRGBA8Unorm ||
-        pixelFormat == MTLPixelFormatRGBA16Float ||
-        pixelFormat == MTLPixelFormatRGBA8Unorm_sRGB ||
-        pixelFormat == MTLPixelFormatBGRA8Unorm ||
-        pixelFormat == MTLPixelFormatBGRA8Unorm_sRGB);
-
-    switch (pixelFormat)
-    {
-      case MTLPixelFormatRGBA8Unorm_sRGB:
-      case MTLPixelFormatRGBA8Unorm:
-      case MTLPixelFormatRGBA16Float:
-        return m_pipelineStateRGBA8;
-      default:
-        return m_pipelineStateBGRA8;
-    }
+    return m_pipelineState;
   }
 
 private:
-  id<MTLRenderPipelineState> m_pipelineStateRGBA8 = nil;
-  id<MTLRenderPipelineState> m_pipelineStateBGRA8 = nil;
+  id<MTLRenderPipelineState> m_pipelineState = nil;
 };
 
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
@@ -489,7 +608,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     m_platformFeatures.maxTextureSize = 8192;
   }
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
-  m_platformFeatures.supportsRasterOrderingMode = true;
+  m_metalFeatures.supportsProgrammableBlending = true;
   m_platformFeatures.supportsAtomicMode = false;
   if (!is_apple_silicon(m_gpu))
   {
@@ -502,17 +621,24 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     defined(RIVE_APPLETVOS_SIMULATOR)
   // The simulator does not support framebuffer reads. Fall back on atomic
   // mode.
-  m_platformFeatures.supportsRasterOrderingMode = false;
+  m_metalFeatures.supportsProgrammableBlending = false;
   m_platformFeatures.supportsAtomicMode = true;
 #else
-  m_platformFeatures
-      .supportsRasterOrderingMode = [m_gpu supportsFamily:MTLGPUFamilyApple1] &&
-                                    !contextOptions.disableFramebufferReads;
+  m_metalFeatures
+      .supportsProgrammableBlending = [m_gpu
+                                          supportsFamily:MTLGPUFamilyApple1] &&
+                                      !contextOptions.disableFramebufferReads;
   m_platformFeatures.supportsAtomicMode = true;
 #endif
+  // Programmable blending is exactly what rasterOrdering mode needs.
+  m_platformFeatures
+      .supportsRasterOrderingMode = m_metalFeatures
+                                        .supportsProgrammableBlending;
   m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
   m_platformFeatures.supportsClipScissor = true;
+
+  m_platformFeatures.supportsPipelineDynamicState = true;
 
   // Texture compression support varies by Apple platform family.
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS) ||      \
@@ -530,9 +656,8 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_XROS_SIMULATOR) || \
     defined(RIVE_APPLETVOS) || defined(RIVE_APPLETVOS_SIMULATOR)
-  // Atomic barriers are never used on iOS, but if we ever did need them, we
-  // would use rasterOrderGroups.
-  m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+  // iOS hardware always supports raster order groups.
+  m_metalFeatures.pipelineBarrierType = PipelineBarrierType::rasterOrderGroup;
 #elif defined(RIVE_IOS_SIMULATOR)
   const NXArchInfo* hostArchitecture = NXGetLocalArchInfo();
   if (strncmp(hostArchitecture->name, "arm64", 5) == 0)
@@ -543,14 +668,14 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     // renderPassBreak. (On Intel/AMD this doesn't matter anyway because
     // renderPassBreaks are cheap and actually faster than
     // rasterOrderGroups.)
-    m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+    m_metalFeatures.pipelineBarrierType = PipelineBarrierType::rasterOrderGroup;
   }
   else
   {
-    m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
+    m_metalFeatures.pipelineBarrierType = PipelineBarrierType::renderPassBreak;
   }
 #else
-  // Use real memory barriers for atomic mode if they're availabile.
+  // Use real memory barriers if they're availabile.
   // "GPU devices in Apple3 through Apple9 families don’t support memory
   // barriers that include the MTLRenderStages.fragment or .tile stages in the
   // after argument..."
@@ -558,17 +683,21 @@ RenderContextMetalImpl::RenderContextMetalImpl(
        [m_gpu supportsFamily:MTLGPUFamilyMac2]) &&
       ![m_gpu supportsFamily:MTLGPUFamilyApple3])
   {
-    m_metalFeatures.atomicBarrierType = AtomicBarrierType::memoryBarrier;
+    m_metalFeatures.pipelineBarrierType = PipelineBarrierType::memoryBarrier;
   }
   else if (m_gpu.rasterOrderGroupsSupported)
   {
-    m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+    m_metalFeatures.pipelineBarrierType = PipelineBarrierType::rasterOrderGroup;
   }
   else
   {
-    m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
+    m_metalFeatures.pipelineBarrierType = PipelineBarrierType::renderPassBreak;
   }
 #endif
+
+  m_platformFeatures
+      .supportsRasterOrderDstReads = !m_metalFeatures
+                                          .depthStencilReadsDstFromTexture();
 
   for (int i = 0; i < rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
   {
@@ -680,35 +809,39 @@ RenderContextMetalImpl::RenderContextMetalImpl(
         }
         gpu::ShaderFeatures allShaderFeatures = gpu::ShaderFeaturesMaskFor(
             drawType, gpu::InterlockMode::rasterOrdering);
-        uint32_t pipelineKey = ShaderUniqueKey(
+        uint32_t shaderKey = ShaderUniqueKey(
             drawType,
             allShaderFeatures,
             gpu::InterlockMode::rasterOrdering,
             shaderMiscFlags);
-        m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
-            m_gpu,
-            m_plsPrecompiledLibrary,
-            DrawPipeline::GetPrecompiledFunctionName(
-                drawType,
-                allShaderFeatures & gpu::kVertexShaderFeaturesMask,
-                gpu::ShaderMiscFlags::none,
+        const DrawShader& shader = *(
+            m_drawShaders[shaderKey] = std::make_unique<DrawShader>(
                 m_plsPrecompiledLibrary,
-                GLSL_drawVertexMain),
-            DrawPipeline::GetPrecompiledFunctionName(
+                DrawShader::GetPrecompiledFunctionName(
+                    drawType,
+                    allShaderFeatures & gpu::kVertexShaderFeaturesMask,
+                    gpu::ShaderMiscFlags::none,
+                    m_plsPrecompiledLibrary,
+                    GLSL_drawVertexMain),
+                DrawShader::GetPrecompiledFunctionName(
+                    drawType,
+                    allShaderFeatures,
+                    shaderMiscFlags,
+                    m_plsPrecompiledLibrary,
+                    GLSL_drawFragmentMain),
                 drawType,
-                allShaderFeatures,
-                shaderMiscFlags,
-                m_plsPrecompiledLibrary,
-                GLSL_drawFragmentMain),
-            drawType,
-            gpu::InterlockMode::rasterOrdering,
-            allShaderFeatures,
-            shaderMiscFlags
+                gpu::InterlockMode::rasterOrdering,
+                shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
-            ,
-            SynthesizedFailureType::none
+                ,
+                SynthesizedFailureType::none
 #endif
-        );
+                ));
+        for (MTLPixelFormat pixelFormat :
+             {MTLPixelFormatRGBA8Unorm, MTLPixelFormatBGRA8Unorm})
+        {
+          findOrCreateDrawPipeline(shaderKey, shader, pixelFormat, true);
+        }
       }
     }
   }
@@ -768,6 +901,7 @@ RenderTargetMetal::RenderTargetMetal(
     : RenderTarget(width, height)
     , m_gpu(gpu)
     , m_pixelFormat(pixelFormat)
+    , m_supportsMemorylessStorage(platformFeatures.supportsRasterOrderingMode)
 {
   m_targetTexture = nil; // Will be configured later by setTargetTexture().
   if (platformFeatures.supportsRasterOrderingMode)
@@ -785,6 +919,41 @@ void RenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
 {
   assert(!texture || compatibleWith(texture));
   m_targetTexture = texture;
+}
+
+id<MTLTexture> RenderTargetMetal::dstColorTexture()
+{
+  if (m_dstColorTexture == nil)
+  {
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = m_pixelFormat;
+    desc.width = width();
+    desc.height = height();
+    desc.usage = MTLTextureUsageShaderRead;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    desc.storageMode = MTLStorageModePrivate;
+    m_dstColorTexture = [m_gpu newTextureWithDescriptor:desc];
+  }
+  return m_dstColorTexture;
+}
+
+id<MTLTexture> RenderTargetMetal::depthStencilTexture()
+{
+  if (m_depthStencilTexture == nil)
+  {
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = kDepthStencilPixelFormat;
+    desc.width = width();
+    desc.height = height();
+    desc.usage = MTLTextureUsageRenderTarget;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    desc.storageMode = m_supportsMemorylessStorage ? MTLStorageModeMemoryless
+                                                   : MTLStorageModePrivate;
+    m_depthStencilTexture = [m_gpu newTextureWithDescriptor:desc];
+  }
+  return m_depthStencilTexture;
 }
 
 rcp<RenderTargetMetal> RenderContextMetalImpl::makeRenderTarget(
@@ -1142,7 +1311,9 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
         gpu::DrawType drawType,
         gpu::ShaderFeatures shaderFeatures,
         const gpu::FlushDescriptor& desc,
-        gpu::ShaderMiscFlags shaderMiscFlags)
+        gpu::ShaderMiscFlags shaderMiscFlags,
+        MTLPixelFormat pixelFormat,
+        bool colorWriteEnabled)
 {
   // Find a fully-featured superset of features whose pipeline we can fall
   // back on while waiting for it to compile.
@@ -1170,13 +1341,13 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
   }
 #endif
 
-  uint32_t pipelineKey = gpu::ShaderUniqueKey(
+  uint32_t shaderKey = gpu::ShaderUniqueKey(
       drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags);
-  auto pipelineIter = m_drawPipelines.find(pipelineKey);
-  if (pipelineIter == m_drawPipelines.end())
+  auto shaderIter = m_drawShaders.find(shaderKey);
+  if (shaderIter == m_drawShaders.end())
   {
-    // The shader for this pipeline hasn't been scheduled for compiling yet.
-    // Schedule it to compile in the background.
+    // The shader hasn't been scheduled for compiling yet. Schedule it to
+    // compile in the background.
     m_backgroundShaderCompiler->pushJob({
         .drawType = drawType,
         .shaderFeatures = shaderFeatures,
@@ -1186,21 +1357,21 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
         .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
     });
-    pipelineIter = m_drawPipelines.insert({pipelineKey, nullptr}).first;
+    shaderIter = m_drawShaders.insert({shaderKey, nullptr}).first;
   }
 
-  if (pipelineIter->second == nullptr)
+  if (shaderIter->second == nullptr)
   {
-    // The shader for this pipeline hasn't finished compiling yet.
-    // Fully-featured "rasterOrdering" pipelines should have already been
-    // pre-loaded from the static library.
+    // The shader hasn't finished compiling yet. Fully-featured
+    // "rasterOrdering" shaders should have already been pre-loaded from the
+    // static library.
     assert(
         shaderFeatures != fullyFeaturedPipelineFeatures ||
         desc.interlockMode != gpu::InterlockMode::rasterOrdering);
 
     // Poll to see if the shader is actually done compiling, but only wait
-    // if it's a fully-feature pipeline. Otherwise, we can fall back on the
-    // fully-featured pipeline while we wait for compilation.
+    // if it's a fully-feature shader. Otherwise, we can fall back on the
+    // fully-featured shader while we wait for compilation.
     BackgroundCompileJob job;
     bool shouldWaitForBackgroundCompilation =
         shaderFeatures == fullyFeaturedPipelineFeatures ||
@@ -1214,40 +1385,144 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
           job.shaderFeatures,
           job.interlockMode,
           job.shaderMiscFlags);
-      m_drawPipelines[jobKey] = std::make_unique<DrawPipeline>(
-          m_gpu,
+      // clipReset draws stencil_draw.glsl, whose entry points have
+      // their own names.
+      const bool isStencilDraw = job.drawType == DrawType::clipReset;
+      m_drawShaders[jobKey] = std::make_unique<DrawShader>(
           job.compiledLibrary,
-          @GLSL_drawVertexMain,
-          @GLSL_drawFragmentMain,
+          isStencilDraw ? @GLSL_stencilVertexMain : @GLSL_drawVertexMain,
+          isStencilDraw ? @GLSL_stencilFragmentMain : @GLSL_drawFragmentMain,
           job.drawType,
           job.interlockMode,
-          job.shaderFeatures,
           job.shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
           ,
           desc.synthesizedFailureType
 #endif
       );
-      if (jobKey == pipelineKey)
+      if (jobKey == shaderKey)
       {
-        // The shader we wanted was actually done compiling and pending
-        // being built into a pipeline.
+        // The shader we wanted was actually done compiling.
         break;
       }
     }
   }
 
-  if ((pipelineIter->second == nullptr || !pipelineIter->second->valid()) &&
+  const DrawPipeline* pipeline = nullptr;
+  if (shaderIter->second != nullptr)
+  {
+    pipeline = findOrCreateDrawPipeline(
+        shaderKey, *shaderIter->second, pixelFormat, colorWriteEnabled);
+  }
+
+  if ((pipeline == nullptr || !pipeline->valid()) &&
       shaderFeatures != fullyFeaturedPipelineFeatures)
   {
     // The shader for this feature set hasn't finished compiling (or it
     // failed to compile). Use the uber-shader pipeline that has all
     // features enabled while we wait for it to finish.
     return findCompatibleDrawPipeline(
-        drawType, fullyFeaturedPipelineFeatures, desc, shaderMiscFlags);
+        drawType,
+        fullyFeaturedPipelineFeatures,
+        desc,
+        shaderMiscFlags,
+        pixelFormat,
+        colorWriteEnabled);
   }
 
-  return pipelineIter->second.get();
+  return pipeline;
+}
+
+const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
+    findOrCreateDrawPipeline(
+        uint32_t shaderKey,
+        const DrawShader& shader,
+        MTLPixelFormat pixelFormat,
+        bool colorWriteEnabled)
+{
+  if (shader.interlockMode() == gpu::InterlockMode::depthStencil &&
+      m_metalFeatures.depthStencilRendersColorToBuffer(enums::is_flag_set(
+          shader.shaderMiscFlags(),
+          gpu::ShaderMiscFlags::fixedFunctionColorOutput)))
+  {
+    pixelFormat = MTLPixelFormatInvalid;
+    colorWriteEnabled = true;
+  }
+  assert(
+      colorWriteEnabled ||
+      shader.interlockMode() == gpu::InterlockMode::depthStencil);
+
+  uint64_t key = shaderKey;
+  key = math::add_bits_to_key(key, uint32_t(pixelFormat), 16);
+  key = math::add_bits_to_key(key, colorWriteEnabled, 1);
+  std::unique_ptr<DrawPipeline>& pipeline = m_drawPipelines[key];
+  if (pipeline == nullptr)
+  {
+    pipeline = std::make_unique<DrawPipeline>(
+        m_gpu, shader, pixelFormat, colorWriteEnabled);
+  }
+  return pipeline.get();
+}
+
+// Packs a face's stencil ops into a depth/stencil state key.
+static uint64_t addStencilFaceOpsToKey(
+    uint64_t key, const gpu::StencilFaceOps& ops)
+{
+  constexpr static uint32_t kStencilOpBitCount = 3;
+  constexpr static uint32_t kStencilCompareOpBitCount = 3;
+  key = math::add_bits_to_key(
+      key, uint32_t(ops.stencilFailOp), kStencilOpBitCount);
+  key = math::add_bits_to_key(
+      key, uint32_t(ops.depthFailOp), kStencilOpBitCount);
+  key = math::add_bits_to_key(
+      key, uint32_t(ops.depthStencilPassOp), kStencilOpBitCount);
+  key = math::add_bits_to_key(
+      key, uint32_t(ops.compareOp), kStencilCompareOpBitCount);
+  return key;
+}
+
+id<MTLDepthStencilState> RenderContextMetalImpl::findOrCreateDepthStencilState(
+    const gpu::PipelineState& pipelineState)
+{
+  // The stencil reference is encoder state, so it stays out of the key.
+  const gpu::StencilFaceOps& backOps = pipelineState.stencilDoubleSided
+                                           ? pipelineState.stencilBackOps
+                                           : pipelineState.stencilFrontOps;
+  uint64_t key = 0;
+  key = math::add_bits_to_key(key, pipelineState.depthTestEnabled, 1);
+  key = math::add_bits_to_key(key, pipelineState.depthWriteEnabled, 1);
+  key = math::add_bits_to_key(key, pipelineState.stencilTestEnabled, 1);
+  key = math::add_bits_to_key(key, pipelineState.stencilCompareMask, 8);
+  key = math::add_bits_to_key(key, pipelineState.stencilWriteMask, 8);
+  key = addStencilFaceOpsToKey(key, pipelineState.stencilFrontOps);
+  key = addStencilFaceOpsToKey(key, backOps);
+
+  auto iter = m_depthStencilStates.find(key);
+  if (iter != m_depthStencilStates.end())
+  {
+    return iter->second;
+  }
+
+  MTLDepthStencilDescriptor* desc = [[MTLDepthStencilDescriptor alloc] init];
+  desc.depthCompareFunction = pipelineState.depthTestEnabled
+                                  ? MTLCompareFunctionGreater
+                                  : MTLCompareFunctionAlways;
+  desc.depthWriteEnabled = pipelineState.depthWriteEnabled;
+  if (pipelineState.stencilTestEnabled)
+  {
+    desc.frontFaceStencil = makeStencilDescriptor(
+        pipelineState.stencilFrontOps,
+        pipelineState.stencilCompareMask,
+        pipelineState.stencilWriteMask);
+    desc.backFaceStencil = makeStencilDescriptor(
+        backOps,
+        pipelineState.stencilCompareMask,
+        pipelineState.stencilWriteMask);
+  }
+  id<MTLDepthStencilState> state = [m_gpu
+      newDepthStencilStateWithDescriptor:desc];
+  m_depthStencilStates[key] = state;
+  return state;
 }
 
 void* RenderContextMetalImpl::makeCommandBuffer()
@@ -1376,6 +1651,34 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                       offset:flushDesc.firstContour * sizeof(gpu::ContourData)
                      atIndex:METAL_BUFFER_IDX(CONTOUR_BUFFER_IDX)];
   }
+  if (flushDesc.interlockMode == gpu::InterlockMode::depthStencil &&
+      m_metalFeatures.depthStencilRendersColorToBuffer(
+          flushDesc.fixedFunctionColorOutput))
+  {
+    // Without framebuffer fetch, depthStencil draws blend in the shader
+    // and write packed pixels to the color buffer, in the target's byte
+    // order, instead of a color attachment.
+    [encoder
+        setFragmentBuffer:renderTarget->colorAtomicBuffer()
+                   offset:0
+                  atIndex:METAL_BUFFER_IDX(
+                              COLOR_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE)];
+    const uint32_t targetIsBGRA = renderTarget->pixelFormat() ==
+                                      MTLPixelFormatBGRA8Unorm ||
+                                  renderTarget->pixelFormat() ==
+                                      MTLPixelFormatBGRA8Unorm_sRGB;
+    [encoder
+        setFragmentBytes:&targetIsBGRA
+                  length:sizeof(targetIsBGRA)
+                 atIndex:METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)];
+  }
+  if (flushDesc.interlockMode == gpu::InterlockMode::depthStencil &&
+      m_metalFeatures.depthStencilReadsDstFromTexture() &&
+      !flushDesc.fixedFunctionColorOutput)
+  {
+    [encoder setFragmentTexture:renderTarget->dstColorTexture()
+                        atIndex:DST_COLOR_TEXTURE_IDX];
+  }
   if (flushDesc.interlockMode == gpu::InterlockMode::atomics)
   {
     // In atomic mode, the PLS planes are buffers that we need to bind
@@ -1405,12 +1708,146 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
   return encoder;
 }
 
+void RenderContextMetalImpl::copyTargetToColorBuffer(
+    id<MTLCommandBuffer> commandBuffer,
+    RenderTargetMetal* renderTarget,
+    const IAABB& bounds)
+{
+  auto origin = MTLOriginMake(bounds.left, bounds.top, 0);
+  auto size = MTLSizeMake(bounds.width(), bounds.height(), 1);
+  id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
+  [copyEncoder copyFromTexture:renderTarget->targetTexture()
+                   sourceSlice:0
+                   sourceLevel:0
+                  sourceOrigin:origin
+                    sourceSize:size
+                      toBuffer:renderTarget->colorAtomicBuffer()
+             destinationOffset:(origin.y * renderTarget->width() + origin.x) *
+                               sizeof(uint32_t)
+        destinationBytesPerRow:renderTarget->width() * sizeof(uint32_t)
+      destinationBytesPerImage:renderTarget->height() * renderTarget->width() *
+                               sizeof(uint32_t)];
+  [copyEncoder endEncoding];
+}
+
+void RenderContextMetalImpl::fillColorBuffer(
+    id<MTLCommandBuffer> commandBuffer,
+    RenderTargetMetal* renderTarget,
+    const IAABB& bounds,
+    uint8_t value)
+{
+  const NSUInteger rowBytes = renderTarget->width() * sizeof(uint32_t);
+  id<MTLBlitCommandEncoder> fillEncoder = [commandBuffer blitCommandEncoder];
+  [fillEncoder
+      fillBuffer:renderTarget->colorAtomicBuffer()
+           range:NSMakeRange(bounds.top * rowBytes, bounds.height() * rowBytes)
+           value:value];
+  [fillEncoder endEncoding];
+}
+
+void RenderContextMetalImpl::copyColorBufferToTarget(
+    id<MTLCommandBuffer> commandBuffer,
+    RenderTargetMetal* renderTarget,
+    const IAABB& bounds)
+{
+  auto origin = MTLOriginMake(bounds.left, bounds.top, 0);
+  auto size = MTLSizeMake(bounds.width(), bounds.height(), 1);
+  id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
+  [copyEncoder copyFromBuffer:renderTarget->colorAtomicBuffer()
+                 sourceOffset:(origin.y * renderTarget->width() + origin.x) *
+                              sizeof(uint32_t)
+            sourceBytesPerRow:renderTarget->width() * sizeof(uint32_t)
+          sourceBytesPerImage:renderTarget->height() * renderTarget->width() *
+                              sizeof(uint32_t)
+                   sourceSize:size
+                    toTexture:renderTarget->targetTexture()
+             destinationSlice:0
+             destinationLevel:0
+            destinationOrigin:origin];
+  [copyEncoder endEncoding];
+}
+
+id<MTLRenderCommandEncoder> RenderContextMetalImpl::copyDstReadsAndRestart(
+    id<MTLRenderCommandEncoder> encoder,
+    const gpu::DrawBatch& batch,
+    const gpu::FlushDescriptor& desc,
+    MTLRenderPassDescriptor* pass,
+    id<MTLCommandBuffer> commandBuffer,
+    gpu::ShaderMiscFlags baselineMiscFlags)
+{
+  [encoder endEncoding];
+
+  auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);
+  id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
+  for (const Draw* draw = batch.dstReadList; draw != nullptr;
+       draw = draw->nextDstRead())
+  {
+    IAABB bounds = desc.renderTargetUpdateBounds.intersect(draw->pixelBounds());
+    if (bounds.empty())
+    {
+      continue;
+    }
+    [copyEncoder copyFromTexture:renderTarget->targetTexture()
+                     sourceSlice:0
+                     sourceLevel:0
+                    sourceOrigin:MTLOriginMake(bounds.left, bounds.top, 0)
+                      sourceSize:MTLSizeMake(bounds.width(), bounds.height(), 1)
+                       toTexture:renderTarget->dstColorTexture()
+                destinationSlice:0
+                destinationLevel:0
+               destinationOrigin:MTLOriginMake(bounds.left, bounds.top, 0)];
+  }
+  [copyEncoder endEncoding];
+
+  pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
+  pass.depthAttachment.loadAction = MTLLoadActionLoad;
+  pass.stencilAttachment.loadAction = MTLLoadActionLoad;
+  return makeRenderPassForDraws(desc, pass, commandBuffer, baselineMiscFlags);
+}
+
+id<MTLRenderCommandEncoder> RenderContextMetalImpl::issuePipelineBarrier(
+    id<MTLRenderCommandEncoder> encoder,
+    const gpu::FlushDescriptor& desc,
+    MTLRenderPassDescriptor* pass,
+    id<MTLCommandBuffer> commandBuffer,
+    gpu::ShaderMiscFlags baselineMiscFlags)
+{
+  switch (m_metalFeatures.pipelineBarrierType)
+  {
+    case PipelineBarrierType::memoryBarrier:
+#if defined(RIVE_MACOSX)
+      if (@available(macOS 10.14, *))
+      {
+        [encoder memoryBarrierWithScope:MTLBarrierScopeBuffers |
+                                        MTLBarrierScopeRenderTargets
+                            afterStages:MTLRenderStageFragment
+                           beforeStages:MTLRenderStageFragment];
+        return encoder;
+      }
+#endif
+      // pipelineBarrierType shouldn't be "memoryBarrier" in this case.
+      RIVE_UNREACHABLE();
+
+    case PipelineBarrierType::rasterOrderGroup:
+      return encoder;
+
+    case PipelineBarrierType::renderPassBreak:
+      // On very old hardware that can't support barriers, we just take a
+      // sledge hammer and break the entire render pass between overlapping
+      // draws.
+      // TODO: Is there a lighter way to achieve this?
+      [encoder endEncoding];
+      pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
+      return makeRenderPassForDraws(
+          desc, pass, commandBuffer, baselineMiscFlags);
+  }
+  RIVE_UNREACHABLE();
+}
+
 void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
   assert(desc.interlockMode != gpu::InterlockMode::clockwise);
   assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
-  // TODO: depthStencil.
-  assert(desc.interlockMode != gpu::InterlockMode::depthStencil);
 
   auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);
   id<MTLCommandBuffer> commandBuffer = (__bridge id<MTLCommandBuffer>)
@@ -1603,8 +2040,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [atlasEncoder
             setVertexBytes:&fillBatch.basePatch
                     length:sizeof(uint32_t)
-                   atIndex:METAL_BUFFER_IDX(
-                               PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
+                   atIndex:METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)];
         [atlasEncoder
             drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                        indexCount:gpu::kMidpointFanCenterAAPatchIndexCount
@@ -1628,8 +2064,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [atlasEncoder
             setVertexBytes:&strokeBatch.basePatch
                     length:sizeof(uint32_t)
-                   atIndex:METAL_BUFFER_IDX(
-                               PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
+                   atIndex:METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)];
         [atlasEncoder
             drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                        indexCount:gpu::kMidpointFanPatchBorderIndexCount
@@ -1682,6 +2117,90 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
   }
   pass.colorAttachments[COLOR_PLANE_IDX].storeAction = MTLStoreActionStore;
 
+  // Without framebuffer fetch, depthStencil draws write color to the
+  // raster-ordered color buffer and the pass has no color attachment at all.
+  const bool rendersColorToBuffer = desc.interlockMode ==
+                                        gpu::InterlockMode::depthStencil &&
+                                    m_metalFeatures
+                                        .depthStencilRendersColorToBuffer(
+                                            desc.fixedFunctionColorOutput);
+  if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+  {
+    id<MTLTexture> depthStencilTexture = renderTarget->depthStencilTexture();
+    pass.depthAttachment.texture = depthStencilTexture;
+    pass.depthAttachment.loadAction = MTLLoadActionClear;
+    pass.depthAttachment.clearDepth = desc.depthClearValue;
+    // Breaking the render pass for a dst copy has to pick depth and stencil
+    // back up where they left off.
+    const MTLStoreAction depthStencilStoreAction = desc.firstDstBlendBarrier !=
+                                                           nullptr
+                                                       ? MTLStoreActionStore
+                                                       : MTLStoreActionDontCare;
+    pass.depthAttachment.storeAction = depthStencilStoreAction;
+    pass.stencilAttachment.texture = depthStencilTexture;
+    pass.stencilAttachment.loadAction = MTLLoadActionClear;
+    pass.stencilAttachment.clearStencil = desc.stencilClearValue;
+    pass.stencilAttachment.storeAction = depthStencilStoreAction;
+
+    if (rendersColorToBuffer && !desc.renderTargetUpdateBounds.empty())
+    {
+      if (desc.colorLoadAction == gpu::LoadAction::clear)
+      {
+        float cc[4];
+        UnpackColorToRGBA32FPremul(desc.colorClearValue, cc);
+        uint8_t clearBytes[4];
+        for (int i = 0; i < 4; ++i)
+        {
+          clearBytes[i] = static_cast<uint8_t>(
+              std::lround(std::clamp(cc[i], 0.f, 1.f) * 255.f));
+        }
+        const bool clearIsUniformByte = (renderTarget->pixelFormat() ==
+                                             MTLPixelFormatRGBA8Unorm ||
+                                         renderTarget->pixelFormat() ==
+                                             MTLPixelFormatBGRA8Unorm) &&
+                                        clearBytes[0] == clearBytes[1] &&
+                                        clearBytes[0] == clearBytes[2] &&
+                                        clearBytes[0] == clearBytes[3];
+        if (clearIsUniformByte)
+        {
+          fillColorBuffer(
+              commandBuffer,
+              renderTarget,
+              desc.renderTargetUpdateBounds,
+              clearBytes[0]);
+        }
+        else
+        {
+          // Blits can't fill a buffer with a 32-bit value, so clear the
+          // render target with a draw-less pass and copy that in.
+          MTLRenderPassDescriptor*
+              clearPass = [MTLRenderPassDescriptor renderPassDescriptor];
+          clearPass.colorAttachments[0].texture = renderTarget->targetTexture();
+          clearPass.colorAttachments[0].loadAction = MTLLoadActionClear;
+          clearPass.colorAttachments[0]
+              .clearColor = pass.colorAttachments[COLOR_PLANE_IDX].clearColor;
+          clearPass.colorAttachments[0].storeAction = MTLStoreActionStore;
+          [[commandBuffer renderCommandEncoderWithDescriptor:clearPass]
+              endEncoding];
+          copyTargetToColorBuffer(
+              commandBuffer, renderTarget, desc.renderTargetUpdateBounds);
+        }
+      }
+      else if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
+      {
+        copyTargetToColorBuffer(
+            commandBuffer, renderTarget, desc.renderTargetUpdateBounds);
+      }
+    }
+    if (rendersColorToBuffer)
+    {
+      pass.colorAttachments[COLOR_PLANE_IDX].texture = nil;
+      pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
+      pass.colorAttachments[COLOR_PLANE_IDX]
+          .storeAction = MTLStoreActionDontCare;
+    }
+  }
+
   auto baselineShaderMiscFlags = gpu::ShaderMiscFlags::none;
   if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
   {
@@ -1710,35 +2229,15 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         .storeAction = MTLStoreActionDontCare;
   }
   else if (
+      desc.interlockMode == gpu::InterlockMode::atomics &&
       desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget &&
       !desc.fixedFunctionColorOutput)
   {
     // Since we need to preserve the renderTarget during load, and since
     // we're rendering to an offscreen color buffer, we have to literally
     // copy the renderTarget into the color buffer.
-    assert(desc.interlockMode == gpu::InterlockMode::atomics);
-    id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
-    auto updateOrigin = MTLOriginMake(
-        desc.renderTargetUpdateBounds.left,
-        desc.renderTargetUpdateBounds.top,
-        0);
-    auto updateSize = MTLSizeMake(
-        desc.renderTargetUpdateBounds.width(),
-        desc.renderTargetUpdateBounds.height(),
-        1);
-    [copyEncoder copyFromTexture:renderTarget->targetTexture()
-                     sourceSlice:0
-                     sourceLevel:0
-                    sourceOrigin:updateOrigin
-                      sourceSize:updateSize
-                        toBuffer:renderTarget->colorAtomicBuffer()
-               destinationOffset:(updateOrigin.y * renderTarget->width() +
-                                  updateOrigin.x) *
-                                 sizeof(uint32_t)
-          destinationBytesPerRow:renderTarget->width() * sizeof(uint32_t)
-        destinationBytesPerImage:renderTarget->height() *
-                                 renderTarget->width() * sizeof(uint32_t)];
-    [copyEncoder endEncoding];
+    copyTargetToColorBuffer(
+        commandBuffer, renderTarget, desc.renderTargetUpdateBounds);
   }
 
   // Execute the DrawList.
@@ -1771,7 +2270,14 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
     gpu::ShaderMiscFlags batchMiscFlags = baselineShaderMiscFlags |
                                           batch.shaderMiscFlags;
-    if (!enums::is_flag_set(
+    if (rendersColorToBuffer)
+    {
+      // The target isn't attached when an advanced blend forces the color
+      // buffer, so srcOver draws have to blend in the shader too.
+      batchMiscFlags &= ~gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+    }
+    if (desc.interlockMode == gpu::InterlockMode::atomics &&
+        !enums::is_flag_set(
             batchMiscFlags, gpu::ShaderMiscFlags::fixedFunctionColorOutput))
     {
       if (batch.drawType == gpu::DrawType::renderPassResolve)
@@ -1799,8 +2305,18 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
       }
     }
+    gpu::PipelineState pipelineState;
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    {
+      gpu::get_pipeline_state(batch, desc, m_platformFeatures, &pipelineState);
+    }
     const DrawPipeline* drawPipeline = findCompatibleDrawPipeline(
-        batch.drawType, shaderFeatures, desc, batchMiscFlags);
+        batch.drawType,
+        shaderFeatures,
+        desc,
+        batchMiscFlags,
+        renderTarget->pixelFormat(),
+        pipelineState.colorWriteEnabled);
     if (drawPipeline == nullptr || !drawPipeline->valid())
     {
       // The shader for this draw AND the uber-shader both failed to
@@ -1808,6 +2324,32 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
       // on non-Apple Silicon, where we don't use precompiled shaders.
       // Skip the draw.
       continue;
+    }
+
+    // Issue any barriers if needed. (These come first because some of them
+    // replace the encoder, which drops every bit of state set below.)
+    if (enums::any_flag_set(
+            batch.barriers,
+            BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
+    {
+      assert(desc.interlockMode == gpu::InterlockMode::atomics);
+      id<MTLRenderCommandEncoder> barrierEncoder = issuePipelineBarrier(
+          encoder, desc, pass, commandBuffer, baselineShaderMiscFlags);
+      if (barrierEncoder != encoder)
+      {
+        // A new encoder starts without a scissor rect.
+        encoder = barrierEncoder;
+        currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
+      }
+    }
+    else if (enums::is_flag_set(batch.barriers, BarrierFlags::dstBlend))
+    {
+      assert(
+          desc.interlockMode == gpu::InterlockMode::depthStencil &&
+          m_metalFeatures.depthStencilReadsDstFromTexture());
+      encoder = copyDstReadsAndRestart(
+          encoder, batch, desc, pass, commandBuffer, baselineShaderMiscFlags);
+      currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
     }
 
     {
@@ -1824,8 +2366,24 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
       }
     }
 
-    id<MTLRenderPipelineState> drawPipelineState = drawPipeline->pipelineState(
-        renderTarget->pixelFormat());
+    // depthStencil keeps depth/stencil, cull and the stencil reference as
+    // encoder state, and bakes only the color write mask into the
+    // pipeline.
+    MTLCullMode depthStencilCullMode = MTLCullModeNone;
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    {
+      depthStencilCullMode = metalCullMode(pipelineState.cullFace);
+      if (!gpu::drawTypeHasPipelineDynamicState(batch.drawType))
+      {
+        // (Dynamic-state draw types set this per pass below.)
+        [encoder
+            setDepthStencilState:findOrCreateDepthStencilState(pipelineState)];
+        [encoder setStencilReferenceValue:pipelineState.stencilReference];
+      }
+    }
+
+    id<MTLRenderPipelineState> drawPipelineState = drawPipeline
+                                                       ->pipelineState();
 
     // Bind the appropriate image texture, if any.
     if (auto imageTextureMetal = static_cast<const TextureMetalImpl*>(
@@ -1843,45 +2401,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
       [encoder
           setFragmentSamplerState:m_imageSamplers[BilinearClampImageSamplerKey]
                           atIndex:IMAGE_TEXTURE_IDX];
-    }
-
-    // Issue any barriers if needed.
-    if (enums::any_flag_set(
-            batch.barriers,
-            BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
-    {
-      assert(desc.interlockMode == gpu::InterlockMode::atomics);
-      switch (m_metalFeatures.atomicBarrierType)
-      {
-        case AtomicBarrierType::memoryBarrier:
-#if defined(RIVE_MACOSX)
-          if (@available(macOS 10.14, *))
-          {
-            [encoder memoryBarrierWithScope:MTLBarrierScopeBuffers |
-                                            MTLBarrierScopeRenderTargets
-                                afterStages:MTLRenderStageFragment
-                               beforeStages:MTLRenderStageFragment];
-            break;
-          }
-#endif
-          // atomicBarrierType shouldn't be "memoryBarrier" in this
-          // case.
-          RIVE_UNREACHABLE();
-
-        case AtomicBarrierType::rasterOrderGroup:
-          break;
-
-        case AtomicBarrierType::renderPassBreak:
-          // On very old hardware that can't support barriers, we just
-          // take a sledge hammer and break the entire render pass
-          // between overlapping draws.
-          // TODO: Is there a lighter way to achieve this?
-          [encoder endEncoding];
-          pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
-          encoder = makeRenderPassForDraws(
-              desc, pass, commandBuffer, baselineShaderMiscFlags);
-          break;
-      }
     }
 
     DrawType drawType = batch.drawType;
@@ -1910,10 +2429,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         // Don't use baseInstance in order to run on Apple GPU Family 2.
         // TODO: Use baseInstance instead once we deprecate Apple2.
         uint32_t baseInstance = batch.baseElement();
-        [encoder setVertexBytes:&baseInstance
-                         length:sizeof(uint32_t)
-                        atIndex:METAL_BUFFER_IDX(
-                                    PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
+        [encoder
+            setVertexBytes:&baseInstance
+                    length:sizeof(uint32_t)
+                   atIndex:METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)];
         [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                             indexCount:batch.indexCountPerInstance
                              indexType:MTLIndexTypeUInt16
@@ -1929,6 +2448,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [encoder setVertexBuffer:mtl_buffer(triangleBufferRing())
                           offset:0
                          atIndex:0];
+        assert(
+            desc.interlockMode != gpu::InterlockMode::depthStencil ||
+            depthStencilCullMode == MTLCullModeBack);
         [encoder setCullMode:MTLCullModeBack];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                     vertexStart:batch.baseElement()
@@ -1960,6 +2482,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             setVertexBuffer:mtl_buffer(imageMeshInstanceBufferRing())
                      offset:batch.baseElement() * sizeof(gpu::ImageMeshInstance)
                     atIndex:2];
+        assert(
+            desc.interlockMode != gpu::InterlockMode::depthStencil ||
+            depthStencilCullMode == MTLCullModeNone);
         [encoder setCullMode:MTLCullModeNone];
         LITE_RTTI_CAST_OR_BREAK(
             vertexBuffer, RenderBufferMetalImpl*, batch.vertexBuffer);
@@ -1992,8 +2517,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         break;
       }
       case DrawType::stencilMidpointFanBorrowedCoverage:
-      case DrawType::stencilDynamicMidpointFans:
-      case DrawType::stencilDynamicOuterCubics:
       case DrawType::stencilMidpointFans:
       case DrawType::stencilMidpointFanReset:
       case DrawType::stencilMidpointFanWinding:
@@ -2003,16 +2526,86 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
       case DrawType::stencilOuterCubicWinding:
       case DrawType::stencilOuterCubicCover:
       case DrawType::stencilOuterCubics:
-      case DrawType::clipReset:
       case DrawType::depthStrokes:
       case DrawType::depthAAStrokes:
       case DrawType::depthAAOuterHairline:
       {
-        RIVE_UNREACHABLE();
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        [encoder setRenderPipelineState:drawPipelineState];
+        [encoder setCullMode:depthStencilCullMode];
+        drawDepthStencilIndexRanges(
+            encoder, batch, gpu::DSIndexRangeChunker::drawsForBatch(batch));
+        break;
+      }
+      case DrawType::stencilDynamicMidpointFans:
+      case DrawType::stencilDynamicOuterCubics:
+      {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        [encoder setRenderPipelineState:drawPipelineState];
+        const gpu::DSDynamicFillPipelineStates passStates(
+            desc, batch, batchMiscFlags, m_platformFeatures);
+        for (const auto& range : batch.elementRanges())
+        {
+          for (const gpu::PipelineState& passState : passStates)
+          {
+            [encoder
+                setDepthStencilState:findOrCreateDepthStencilState(passState)];
+            [encoder setStencilReferenceValue:passState.stencilReference];
+            [encoder setCullMode:metalCullMode(passState.cullFace)];
+            drawDepthStencilIndexRanges(
+                encoder,
+                batch,
+                gpu::DSIndexRangeChunker::drawsForDynamicFillSubpass(
+                    batch, range, passState));
+          }
+        }
+        break;
+      }
+      case DrawType::clipReset:
+      {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        [encoder setRenderPipelineState:drawPipelineState];
+        [encoder setVertexBuffer:mtl_buffer(triangleBufferRing())
+                          offset:0
+                         atIndex:0];
+        [encoder setCullMode:depthStencilCullMode];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                    vertexStart:batch.baseElement()
+                    vertexCount:batch.elementCount()];
+        break;
       }
     }
   }
   [encoder endEncoding];
+
+  if (rendersColorToBuffer && !desc.renderTargetUpdateBounds.empty())
+  {
+    // The frame went to the color buffer; copy it out to the target.
+    copyColorBufferToTarget(
+        commandBuffer, renderTarget, desc.renderTargetUpdateBounds);
+  }
+}
+
+void RenderContextMetalImpl::drawDepthStencilIndexRanges(
+    id<MTLRenderCommandEncoder> encoder,
+    const DrawBatch& batch,
+    const gpu::DSIndexRangeChunker& chunker)
+{
+  for (auto [chunkIndexCount, chunkBaseVertex] : chunker)
+  {
+    // Metal has no base vertex on Apple GPU Family 2, so the shader adds
+    // this uniform to the vertex ID instead.
+    [encoder
+        setVertexBytes:&chunkBaseVertex
+                length:sizeof(chunkBaseVertex)
+               atIndex:METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX)];
+    [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                        indexCount:chunkIndexCount
+                         indexType:MTLIndexTypeUInt16
+                       indexBuffer:m_pathPatchIndexBuffer
+                 indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
+                     instanceCount:1];
+  }
 }
 
 void RenderContextMetalImpl::postFlush(

@@ -23,7 +23,8 @@ class TestingWindowMetalLayer : public TestingWindow
 public:
   TestingWindowMetalLayer(
       const BackendParams& backendParams, void* platformWindow)
-      : m_layer((__bridge CAMetalLayer*)platformWindow)
+      : m_backendParams(backendParams)
+      , m_layer((__bridge CAMetalLayer*)platformWindow)
   {
     RenderContextMetalImpl::ContextOptions metalOptions;
     metalOptions.shaderCompilationMode = backendParams.shaderCompilationMode;
@@ -91,6 +92,7 @@ public:
     syncSizeFromLayer();
     m_drawable = [m_layer nextDrawable];
 
+    FrameMode mode = frameMode(options);
     rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
         .renderTargetWidth = m_width,
         .renderTargetHeight = m_height,
@@ -98,12 +100,14 @@ public:
                           ? rive::gpu::LoadAction::clear
                           : rive::gpu::LoadAction::preserveRenderTarget,
         .clearColor = options.clearColor,
-        .disableRasterOrdering = options.disableRasterOrdering,
+        .msaaSampleCount = mode.msaaSampleCount,
+        .disableRasterOrdering = mode.disableRasterOrdering,
         .triangulationThresholds = options.triangulationThresholds,
         .wireframe = options.wireframe,
         .fillsDisabled = options.fillsDisabled,
         .strokesDisabled = options.strokesDisabled,
-        .clockwiseFillOverride = options.clockwiseFillOverride,
+        .clockwiseFillOverride = mode.clockwiseFillOverride,
+        .inkbleedOverride = mode.inkbleed,
         .synthesizedFailureType = options.synthesizedFailureType,
     };
     m_renderContext->beginFrame(frameDescriptor);
@@ -118,6 +122,15 @@ public:
     m_renderTarget->setTargetTexture(
         m_drawable != nil ? m_drawable.texture : nil);
     return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
+
+  FrameMode frameMode(const FrameOptions& options) const final
+  {
+    return {
+        std::max(m_backendParams.msaaSampleCount, options.forceMSAA ? 4u : 0u),
+        options.disableRasterOrdering,
+        m_backendParams.clockwise || options.clockwiseFillOverride,
+        m_backendParams.inkbleed};
   }
 
   rive::gpu::RenderTarget* renderTarget() const override
@@ -214,6 +227,8 @@ public:
   }
 
 private:
+  const BackendParams m_backendParams;
+
   void syncSizeFromLayer()
   {
     CGSize size = m_layer.drawableSize;

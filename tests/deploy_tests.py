@@ -142,6 +142,10 @@ parser.add_argument("-k", "--options",
 parser.add_argument("-w", "--window",
                     action='store_true',
                     help="draw to a visible window instead of offscreen (player only)")
+parser.add_argument("-d", "--headless",
+                    action='store_true',
+                    help="draw offscreen with no present, so the frame rate isn't "\
+                         "paced by the display (player only)")
 parser.add_argument("-S", "--server_only",
                     action='store_true',
                     help="Start servers but don't launch gms or goldens tools")
@@ -617,13 +621,16 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
             # ios-deploy is no longer supported after iOS 17.
             return ["xcrun", "devicectl", "device", "process", "launch",
                     # "--console",  # TODO: "--console" not currently supported.
+                    # A leftover instance from an interrupted run would just be
+                    # foregrounded with its old arguments.
+                    "--terminate-existing",
                     "--device", args.ios_udid] + \
                    (["--environment-variables", json.dumps(validation_env)]
                     if validation_env else []) + \
                    ["rive.app.golden-test-app"] + cmd
         else:
             return ["ios-deploy", "--noinstall", "--noninteractive", "--bundle",
-                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"] + \
+                    ios_tests_app("iphoneos")] + \
                    (["--envs", ','.join("%s=%s" % kv
                                         for kv in validation_env.items())]
                     if validation_env else []) + \
@@ -636,6 +643,10 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         for key, value in metal_validation_env().items():
             env["SIMCTL_CHILD_" + key] = value
         cmd = [toolname] + cmd[1:]
+        # A leftover instance from an interrupted run would just be foregrounded
+        # with its old arguments.
+        subprocess.call(["xcrun", "simctl", "terminate", args.ios_udid, "rive.app.golden-test-app"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return ["xcrun", "simctl", "launch", args.ios_udid, "rive.app.golden-test-app"] + cmd
 
     elif args.target.startswith("web"):
@@ -738,6 +749,8 @@ def launch_player(test_harness_server):
         cmd += ["--options", args.options]
     if args.window:
         cmd += ["--window"]
+    if args.headless:
+        cmd += ["--headless"]
     if args.deferred:
         cmd += ["--deferred"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
@@ -750,6 +763,13 @@ def launch_player(test_harness_server):
     player = CheckProcess(cmd, env)
     player.start()
     return player
+
+# The ios_tests wrapper app links the libraries of the matching build config.
+def ios_tests_config():
+    return "Release" if args.release else "Debug"
+
+def ios_tests_app(platform_suffix):
+    return "ios_tests/build/%s-%s/rive_ios_tests.app" % (ios_tests_config(), platform_suffix)
 
 def force_stop_android_tests_apk():
     subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tests"])
@@ -1155,13 +1175,13 @@ def main():
             # Build the ios_tests wrapper app.
             subprocess.check_call(["xcodebuild",
                                    "-destination", "generic/platform=iOS",
-                                   "-config", "Debug",
+                                   "-config", ios_tests_config(),
                                    "build", "-project", "ios_tests/ios_tests.xcodeproj"])
         elif args.target == "iossim":
             # Build the ios_tests wrapper app for the simulator.
             subprocess.check_call(["xcodebuild",
                                    "-destination", "generic/platform=iOS Simulator",
-                                   "-config", "Debug",
+                                   "-config", ios_tests_config(),
                                    "-sdk", "iphonesimulator",
                                    "build", "-project", "ios_tests/ios_tests.xcodeproj"])
 
@@ -1180,18 +1200,16 @@ def main():
             if target_info["ios_version"] >= 17:
                 # ios-deploy is no longer supported after iOS 17.
                 subprocess.check_call(["xcrun", "devicectl", "device", "install", "app", "--device",
-                                       args.ios_udid,
-                                       "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
+                                       args.ios_udid, ios_tests_app("iphoneos")])
             else:
-                subprocess.check_call(["ios-deploy", "--bundle",
-                                       "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
+                subprocess.check_call(["ios-deploy", "--bundle", ios_tests_app("iphoneos")])
             print()
         elif "unreal" in args.target or args.target == "console":
             install_unreal_package()
         elif args.target == "iossim":
             # Install the ios_tests wrapper app on the simulator.
             subprocess.check_call(["xcrun", "simctl", "install", args.ios_udid,
-                                   "ios_tests/build/Debug-iphonesimulator/rive_ios_tests.app"])
+                                   ios_tests_app("iphonesimulator")])
             print()
 
     if args.install_only:

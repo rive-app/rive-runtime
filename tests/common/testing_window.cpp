@@ -240,6 +240,24 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = MSAASampleCount;
     return Backend::metal;
   }
+  if (nameStr == "metalmsaa1")
+  {
+    params->msaaSampleCount = 1;
+    return Backend::metal;
+  }
+  if (nameStr == "metalcwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::metal;
+  }
+  if (nameStr == "metalcwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::metal;
+  }
   if (nameStr == "vulkan" || nameStr == "vk")
   {
     return Backend::vk;

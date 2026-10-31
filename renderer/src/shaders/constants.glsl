@@ -209,7 +209,7 @@
 // (Enumerate buffers first because GLES allows a hard limit on buffer index
 // bindings as low as 7.)
 #define FLUSH_UNIFORM_BUFFER_IDX 0
-#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 1
+#define DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX 1
 #define PATH_BUFFER_IDX 2
 #define PAINT_AUX_BUFFER_IDX 3
 #define CONTOUR_BUFFER_IDX 4

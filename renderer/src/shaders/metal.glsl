@@ -185,13 +185,27 @@
       VertexStorageBuffers _buffers
 #define VERTEX_CONTEXT_UNPACK , uniforms, _textures, _buffers
 
-#ifdef @ENABLE_INSTANCE_INDEX
+#ifdef @ENABLE_BASE_VERTEX
+  #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)              \
+    $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
+        uint _vertexIDWithoutBase [[$vertex_id]],                              \
+        uint _instanceID [[$instance_id]],                                     \
+        $constant uint& _baseVertex                                            \
+        [[$buffer(METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX))]],      \
+        $constant @FlushUniforms& uniforms                                     \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
+        VertexTextures _textures,                                              \
+        VertexStorageBuffers _buffers)                                         \
+    {                                                                          \
+      uint _vertexID = _vertexIDWithoutBase + _baseVertex;                     \
+      Varyings _varyings;
+#elif defined(@ENABLE_INSTANCE_INDEX)
   #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)              \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
         uint _vertexID [[$vertex_id]],                                         \
         uint _instanceID [[$instance_id]],                                     \
         $constant uint& _baseInstance                                          \
-        [[$buffer(METAL_BUFFER_IDX(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX))]],  \
+        [[$buffer(METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX))]],      \
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
@@ -262,11 +276,85 @@
   }                                                                            \
   return _varyings;
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
-  DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(           \
-      Varyings _varyings [[$stage_in]],                                        \
-      FragmentTextures _textures)                                              \
-  {
+#if defined(@RENDER_MODE_DEPTH_STENCIL) && !defined(@STENCIL_DRAW)
+  #if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
+    // Only draw_path.vert declares a fragment storage buffer block.
+    #define DEPTH_STENCIL_FRAG_STORAGE_BUFFERS_PARAM                           \
+      , FragmentStorageBuffers _buffers
+  #else
+    #define DEPTH_STENCIL_FRAG_STORAGE_BUFFERS_PARAM
+  #endif
+
+  #ifdef @RENDER_TO_UAV
+    #ifdef @PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED
+      #define PLS_DECL4F_UAV(IDX, NAME)                                        \
+        $device uint* NAME                                                     \
+            [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),      \
+              $raster_order_group(0)]]
+    #else
+      #define PLS_DECL4F_UAV(IDX, NAME)                                        \
+        $device uint* NAME                                                     \
+            [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
+    #endif
+INLINE half4 pls_swizzle_bgra(half4 color, uint targetIsBGRA)
+{
+  return targetIsBGRA != 0u ? color.bgra : color;
+}
+    #define PLS_LOAD4F_UAV(PLANE)                                              \
+      pls_swizzle_bgra(unpackUnorm4x8(_pls.PLANE[_plsIdx]), _targetIsBGRA)
+    #define PLS_STORE4F_UAV(PLANE, VALUE)                                      \
+      _pls.PLANE[_plsIdx] = packUnorm4x8(pls_swizzle_bgra(VALUE, _targetIsBGRA))
+    #define DEPTH_STENCIL_FRAG_RETURN(DATA_TYPE) void
+    #define DEPTH_STENCIL_DST_COLOR_PARAM                                      \
+      , PLS _pls,                                                              \
+          $constant uint &_targetIsBGRA                                        \
+          [[$buffer(METAL_BUFFER_IDX(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX))]]
+    #define DEPTH_STENCIL_PLS_COORD                                            \
+      uint2 _plsCoord = uint2($metal::floor(_fragCoord));                      \
+      uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+    #define EMIT_FRAG_DATA(VALUE) }
+  #elif defined(@DST_COLOR_FROM_TEXTURE)
+    #define DST_COLOR_TEXTURE(NAME)                                            \
+      TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
+    #define DST_COLOR_FETCH(NAME) TEXEL_FETCH(NAME, _fragCoord)
+    #define DEPTH_STENCIL_DST_COLOR_PARAM
+    #define DEPTH_STENCIL_FRAG_RETURN(DATA_TYPE) DATA_TYPE
+    #define DEPTH_STENCIL_PLS_COORD
+  #else
+    // Apple GPUs read the destination color straight out of the color
+    // attachment.
+    #define DST_COLOR_TEXTURE(NAME)
+    #define DST_COLOR_FETCH(NAME) _dstColor
+    #if defined(@ENABLE_ADVANCED_BLEND) &&                                     \
+        !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+      #define DEPTH_STENCIL_DST_COLOR_PARAM , half4 _dstColor [[$color(0)]]
+    #else
+      #define DEPTH_STENCIL_DST_COLOR_PARAM
+    #endif
+    #define DEPTH_STENCIL_FRAG_RETURN(DATA_TYPE) DATA_TYPE
+    #define DEPTH_STENCIL_PLS_COORD
+  #endif
+  #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                      \
+    [[$early_fragment_tests]] DEPTH_STENCIL_FRAG_RETURN(DATA_TYPE)             \
+        $__attribute__(($visibility("default"))) $fragment                     \
+        NAME(                                                                  \
+            Varyings _varyings [[$stage_in]],                                  \
+            $constant @FlushUniforms& uniforms                                 \
+            [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],           \
+            FragmentTextures _textures,                                        \
+            DynamicSamplers _dynamicSampler                                    \
+                DEPTH_STENCIL_FRAG_STORAGE_BUFFERS_PARAM                       \
+                    DEPTH_STENCIL_DST_COLOR_PARAM)                             \
+    {                                                                          \
+      float2 _fragCoord [[$maybe_unused]] = _varyings._pos.xy;                 \
+      DEPTH_STENCIL_PLS_COORD
+#else
+  #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                      \
+    DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(         \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures)                                            \
+    {
+#endif
 
 #define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
   DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(           \
@@ -275,9 +363,11 @@
       bool _clockwise [[$front_facing]])                                       \
   {
 
-#define EMIT_FRAG_DATA(VALUE)                                                  \
-  return VALUE;                                                                \
-  }
+#ifndef EMIT_FRAG_DATA
+  #define EMIT_FRAG_DATA(VALUE)                                                \
+    return VALUE;                                                              \
+    }
+#endif
 
 #define FRAGMENT_CONTEXT_DECL                                                  \
   , $constant @FlushUniforms &uniforms, float2 _fragCoord,                     \
@@ -441,20 +531,28 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
       float2 _fragCoord [[$maybe_unused]] = _varyings._pos.xy;                 \
       PLS _pls;
 
-  #define PLS_MAIN(NAME, ...)                                                  \
-    PLS_METAL_MAIN(                                                            \
-        NAME,                                                                  \
-        PLS _inpls,                                                            \
-        $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        Varyings _varyings [[$stage_in]],                                      \
-        DynamicSamplers _dynamicSampler,                                       \
-        FragmentTextures _textures,                                            \
-        FragmentStorageBuffers _buffers)
+  #if defined(@RENDER_MODE_DEPTH_STENCIL) && defined(@RENDER_TO_UAV) &&        \
+      !defined(@STENCIL_DRAW)
+    // depthStencil draws without framebuffer fetch use the depthStencil entry
+    // point, which blends into the color buffer.
+    #define PLS_MAIN(NAME) FRAG_DATA_MAIN(void, NAME)
+    #define EMIT_PLS }
+  #else
+    #define PLS_MAIN(NAME, ...)                                                \
+      PLS_METAL_MAIN(                                                          \
+          NAME,                                                                \
+          PLS _inpls,                                                          \
+          $constant @FlushUniforms& uniforms                                   \
+          [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],             \
+          Varyings _varyings [[$stage_in]],                                    \
+          DynamicSamplers _dynamicSampler,                                     \
+          FragmentTextures _textures,                                          \
+          FragmentStorageBuffers _buffers)
 
-  #define EMIT_PLS                                                             \
-    }                                                                          \
-    return _pls;
+    #define EMIT_PLS                                                           \
+      }                                                                        \
+      return _pls;
+  #endif
 
   #define PLS_FRAG_COLOR_METAL_MAIN(NAME, ...)                                 \
     struct FragmentOut                                                         \

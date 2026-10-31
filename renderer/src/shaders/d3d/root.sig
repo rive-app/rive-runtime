@@ -79,7 +79,7 @@
 
 #define ROOT_SIG "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
     "CBV(b" RIVE_STR(FLUSH_UNIFORM_BUFFER_IDX) ", flags=DATA_VOLATILE, visibility=SHADER_VISIBILITY_ALL), "\
-    "RootConstants(num32BitConstants=2, b" RIVE_STR(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX) ", visibility=SHADER_VISIBILITY_VERTEX), "\
+    "RootConstants(num32BitConstants=2, b" RIVE_STR(DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX) ", visibility=SHADER_VISIBILITY_VERTEX), "\
     "DescriptorTable(SRV(t" RIVE_STR(PATH_BUFFER_IDX) "), "\
                     "SRV(t" RIVE_STR(PAINT_AUX_BUFFER_IDX) "),"\
                     "SRV(t" RIVE_STR(CONTOUR_BUFFER_IDX) "), visibility=SHADER_VISIBILITY_ALL), "\

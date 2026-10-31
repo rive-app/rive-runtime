@@ -12,6 +12,9 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_depthstencil_path.glsl.hpp"
+#include "generated/shaders/draw_depthstencil_mesh.frag.hpp"
+#include "generated/shaders/stencil_draw.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/gradient_packing_common.glsl.hpp"
 #include "generated/shaders/metal.glsl.hpp"
@@ -109,19 +112,40 @@ void BackgroundShaderCompiler::threadMain()
         defines[[NSString stringWithUTF8String:macro]] = @"1";
       }
     }
+    if (m_metalFeatures.pipelineBarrierType ==
+        PipelineBarrierType::rasterOrderGroup)
+    {
+      defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
+    }
     if (interlockMode == gpu::InterlockMode::atomics)
     {
       // Atomic mode uses device buffers instead of framebuffer fetches.
       defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
-      if (m_metalFeatures.atomicBarrierType ==
-          AtomicBarrierType::rasterOrderGroup)
-      {
-        defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
-      }
       if (enums::is_flag_set(
               shaderMiscFlags, gpu::ShaderMiscFlags::fixedFunctionColorOutput))
       {
         defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
+      }
+    }
+    else if (interlockMode == gpu::InterlockMode::depthStencil)
+    {
+      defines[@GLSL_RENDER_MODE_DEPTH_STENCIL] = @"";
+      if (enums::is_flag_set(
+              shaderMiscFlags, gpu::ShaderMiscFlags::fixedFunctionColorOutput))
+      {
+        defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
+      }
+      if (m_metalFeatures.depthStencilRendersColorToBuffer(enums::is_flag_set(
+              shaderMiscFlags, gpu::ShaderMiscFlags::fixedFunctionColorOutput)))
+      {
+        // Without framebuffer fetch, every draw blends in the shader
+        // and writes a raster-ordered texture instead of a color
+        // attachment. "1" because the shared shaders branch on it.
+        defines[@GLSL_RENDER_TO_UAV] = @"1";
+      }
+      else if (m_metalFeatures.depthStencilReadsDstFromTexture())
+      {
+        defines[@GLSL_DST_COLOR_FROM_TEXTURE] = @"";
       }
     }
     if (enums::is_flag_set(
@@ -212,6 +236,15 @@ void BackgroundShaderCompiler::threadMain()
         }
 #endif
         break;
+      case DrawType::depthStrokes:
+      case DrawType::depthAAStrokes:
+      case DrawType::depthAAOuterHairline:
+        // "1" rather than "" because the shader branches on the value.
+        defines
+            [drawType == DrawType::depthAAOuterHairline
+                 ? @GLSL_DS_HAIRLINE_STROKE
+                 : @GLSL_DS_POLAR_STROKE] = @"1";
+        [[fallthrough]];
       case DrawType::stencilMidpointFanBorrowedCoverage:
       case DrawType::stencilDynamicMidpointFans:
       case DrawType::stencilDynamicOuterCubics:
@@ -224,15 +257,67 @@ void BackgroundShaderCompiler::threadMain()
       case DrawType::stencilOuterCubicWinding:
       case DrawType::stencilOuterCubicCover:
       case DrawType::stencilOuterCubics:
+        assert(interlockMode == InterlockMode::depthStencil);
+        // depthStencil path draws derive everything from the vertex
+        // index, which arrives with a base vertex (and flags).
+        defines[@GLSL_ENABLE_BASE_VERTEX] = @"";
+        defines[@GLSL_DRAW_PATH] = @"";
+        break;
       case DrawType::clipReset:
-      case DrawType::depthStrokes:
-      case DrawType::depthAAStrokes:
-      case DrawType::depthAAOuterHairline:
-        RIVE_UNREACHABLE();
+        assert(interlockMode == InterlockMode::depthStencil);
+        defines[@GLSL_STENCIL_DRAW] = @"";
+        break;
     }
 
+    if (interlockMode == gpu::InterlockMode::depthStencil)
+    {
+      switch (drawType)
+      {
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+          [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_depthstencil_path];
+          break;
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+          [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_depthstencil_mesh_frag];
+          break;
+        case DrawType::imageMesh:
+          [source appendFormat:@"%s\n", gpu::glsl::draw_image_mesh_vert];
+          [source appendFormat:@"%s\n", gpu::glsl::draw_depthstencil_mesh_frag];
+          break;
+        case DrawType::clipReset:
+          [source appendFormat:@"%s\n", gpu::glsl::stencil_draw];
+          break;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::imageRect:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+          RIVE_UNREACHABLE();
+      }
+    }
+    else
 #ifndef RIVE_IOS
-    if (interlockMode == gpu::InterlockMode::atomics)
+        if (interlockMode == gpu::InterlockMode::atomics)
     {
       [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
       [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];

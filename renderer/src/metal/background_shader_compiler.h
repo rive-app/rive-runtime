@@ -34,7 +34,7 @@ struct BackgroundCompileJob
 class BackgroundShaderCompiler
 {
 public:
-  using AtomicBarrierType = RenderContextMetalImpl::AtomicBarrierType;
+  using PipelineBarrierType = RenderContextMetalImpl::PipelineBarrierType;
   using MetalFeatures = RenderContextMetalImpl::MetalFeatures;
 
   BackgroundShaderCompiler(id<MTLDevice> gpu, MetalFeatures metalFeatures)

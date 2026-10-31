@@ -493,14 +493,15 @@ INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
   else
   {
     // Average together only the samples that are inside the sample mask.
-    half4 mask = float4(
-        notEqual(sampleMask & int4(1, 2, 4, 8), int4(0, 0, 0, 0)));
+    // Metal needs the explicit vector casts.
+    half4 mask = cast_float4_to_half4(
+        float4(notEqual(sampleMask & int4(1, 2, 4, 8), int4(0, 0, 0, 0))));
     half4 ret = MUL(dstSamples, mask);
     // Since the sample mask can only have 4 bits, counting them is faster
     // this way on Galaxy S24 than calling bitCount().
     int numSamples = (sampleMask & 5) + ((sampleMask >> 1) & 5);
     numSamples = (numSamples & 3) + (numSamples >> 2);
-    ret *= 1. / float(numSamples);
+    ret *= make_half(1. / float(numSamples));
     return ret;
   }
 }
