@@ -334,6 +334,55 @@ TEST_CASE("a paint-only rebuild keeps one ordered line per line", "[text]")
   CHECK(text->orderedLines().size() == 2);
 }
 
+// Each line's baseline and glyphs.
+static std::vector<std::pair<float, std::vector<rive::GlyphID>>> laidOutLines(
+    rive::Text* text)
+{
+  std::vector<std::pair<float, std::vector<rive::GlyphID>>> lines;
+  for (const rive::OrderedLine& line : text->orderedLines())
+  {
+    std::vector<rive::GlyphID> glyphs;
+    for (auto glyph : line)
+    {
+      glyphs.push_back(std::get<0>(glyph)->glyphs[std::get<1>(glyph)]);
+    }
+    lines.emplace_back(line.y(), std::move(glyphs));
+  }
+  return lines;
+}
+
+TEST_CASE("a width change breaks the lines again without reshaping", "[text]")
+{
+  auto file = ReadRiveFile("assets/ellipsis.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  text->overflow(rive::TextOverflow::visible);
+  artboard->advance(0.0f);
+  REQUIRE(text->orderedLines().size() == 2);
+  const size_t shaped = text->shapeCount();
+  const float width = text->width();
+
+  text->width(width * 3.0f);
+  artboard->advance(0.0f);
+  CHECK(text->shapeCount() == shaped);
+  CHECK(text->orderedLines().size() == 1);
+
+  // As a text laid out at that width from the start.
+  auto freshFile = ReadRiveFile("assets/ellipsis.riv");
+  auto freshArtboard = freshFile->artboard();
+  auto fresh = freshArtboard->find<rive::Text>()[0];
+  fresh->overflow(rive::TextOverflow::visible);
+  fresh->width(width * 3.0f);
+  freshArtboard->advance(0.0f);
+  CHECK(laidOutLines(text) == laidOutLines(fresh));
+  CHECK(text->localBounds() == fresh->localBounds());
+
+  text->width(width);
+  artboard->advance(0.0f);
+  CHECK(text->shapeCount() == shaped);
+  CHECK(text->orderedLines().size() == 2);
+}
+
 TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
 {
   // ellipsis.riv is a fixed-size text box whose content overflows (that's why
@@ -1566,6 +1615,45 @@ TEST_CASE("A text change re-solves its hug layout once", "[text]")
   dirtied = 0;
   artboard->advance(0.016f);
   CHECK(dirtied == 0);
+}
+
+TEST_CASE("A text change in a hug layout shapes the text once", "[text]")
+{
+  auto file = ReadRiveFile("assets/layout/text_layout_7_3.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  artboard->advance(0.0f);
+
+  rive::TextValueRun* run = nullptr;
+  for (auto candidate : artboard->find<rive::TextValueRun>())
+  {
+    auto parent = candidate->textComponent()->parent();
+    if (parent != nullptr && parent->is<rive::LayoutComponent>() &&
+        !parent->is<rive::Artboard>())
+    {
+      run = candidate;
+      break;
+    }
+  }
+  REQUIRE(run != nullptr);
+  auto text = run->textComponent()->as<rive::Text>();
+  artboard->advance(0.0f);
+  size_t shaped = text->shapeCount();
+
+  // The layout measures the changed text, then the update lays it out: the
+  // update takes the shape the measure made.
+  run->text(run->text() + " and then some more words");
+  artboard->advance(0.016f);
+  CHECK(text->shapeCount() == shaped + 1);
+
+  // Measuring it again, unchanged, takes the update's shape.
+  shaped = text->shapeCount();
+  text->measureLayout(
+      200.0f,
+      rive::LayoutMeasureMode::atMost,
+      200.0f,
+      rive::LayoutMeasureMode::atMost);
+  CHECK(text->shapeCount() == shaped);
 }
 #endif
 

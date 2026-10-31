@@ -88,6 +88,10 @@ public:
   const std::vector<TextRun>& runs() const { return m_runs; }
 
   void swapRuns(std::vector<TextRun>& otherRuns) { m_runs.swap(otherRuns); }
+
+  /// Whether [other] holds the same characters in the same runs, so shapes
+  /// the same.
+  bool sameAs(const StyledText& other) const;
 };
 
 struct TextBoundsInfo
@@ -409,6 +413,15 @@ public:
     return false;
 #endif
   }
+  // What asked for a shape: Text counts its shapes by it (TESTING).
+  enum class ShapeSource : uint8_t
+  {
+    update,
+    measure,
+    fit,
+    modifier,
+    count,
+  };
 #ifdef TESTING
   const std::vector<OrderedLine>& orderedLines() const
   {
@@ -475,6 +488,9 @@ private:
   // through fitParagraphSpacing(), never directly, so a stale value from a
   // previous fit can't leak into a paint-only rebuild.
   float m_fitFontScale = 1.0f;
+  // The width m_lines were last broken at (see breakShapeLines), here for
+  // the padding after m_fitFontScale.
+  float m_brokenWidth = NAN;
   std::vector<TextModifierGroup*> m_modifierGroups;
 
   StyledText m_styledText;
@@ -533,6 +549,22 @@ private:
   void resolveListRunStyles();
   void pruneOnDemandStyles();
 
+  // A new box size needs new line breaks but, mostly, not a new shape (see
+  // markLinesDirty): the next paint rebuild breaks m_shape again first.
+  bool m_linesDirty = false;
+  void markLinesDirty(bool sendToLayout);
+
+  // What m_lines were last broken at (with m_brokenWidth), so update()
+  // only breaks them again when one of these, or the shape, changed. These
+  // and m_linesDirty fill the padding after m_listItemsDirty.
+  bool m_linesBroken = false;
+  uint8_t m_brokenAlign = 0;
+  uint8_t m_brokenWrap = 0;
+  uint8_t m_brokenWordBreak = 0;
+  // Breaks m_shape into m_lines unless they already hold those lines.
+  // Returns whether m_lines changed.
+  bool breakShapeLines(bool shapeChanged);
+
   // What measure() last reported to the layout and what update() last
   // shaped, as measureKey hashes. Equal means the layout has already sized
   // the text as it is now shaped, so rebuilding it owes the layout nothing.
@@ -540,6 +572,59 @@ private:
   uint64_t m_measuredKey = 0;
   uint64_t m_shapedKey = 1;
   uint64_t measureKey(const StyledText& styled, float fontScale) const;
+
+  // Shapes are memoized. Before shaping, update(), measure() and a fit
+  // look for a shape already made from the same styled text (see
+  // reusableShape): m_shape, or the spare.
+  //
+  // The spare is a shape measure() or a fit made that update() hasn't taken
+  // yet: the layout measures a changed text right before the update that
+  // shapes it. Neither ever writes m_shape, which m_orderedLines points into
+  // until the next update. update() takes the spare, or drops it, so it only
+  // exists between the two.
+  struct SpareShape
+  {
+    StyledText styled;
+    SimpleArray<Paragraph> shape;
+    // Font::fallbackGeneration(), read before the shape was made.
+    uint32_t fallbacks = 0;
+  };
+  std::unique_ptr<SpareShape> m_spare;
+  // m_shape, or the spare's, when it was made from [styled] under the
+  // fallback fonts of generation [fallbacks]; null otherwise.
+  const SimpleArray<Paragraph>* reusableShape(
+      const StyledText& styled,
+      uint32_t fallbacks) const;
+  // Makes [styled]'s shape, by [source], into the spare, unless m_shape or
+  // the spare is it already; returns it. May take [styled]'s contents.
+  const SimpleArray<Paragraph>& spareShapeFor(
+      StyledText& styled,
+      ShapeSource source);
+  // Hands the spare [shape], made from [styled] under the fallback fonts of
+  // generation [fallbacks].
+  void spareShape(
+      StyledText& styled,
+      SimpleArray<Paragraph>&& shape,
+      uint32_t fallbacks);
+  SimpleArray<Paragraph> shapeStyled(
+      const StyledText& styled,
+      ShapeSource source);
+#ifdef TESTING
+  size_t m_shapeCounts[(size_t)ShapeSource::count] = {};
+  size_t m_lineBreakCount = 0;
+
+public:
+  // How many times this text has shaped its runs, in all or for [source].
+  size_t shapeCount() const;
+  size_t shapeCount(ShapeSource source) const
+  {
+    return m_shapeCounts[(size_t)source];
+  }
+  // How many times update() broke m_shape into lines.
+  size_t lineBreakCount() const { return m_lineBreakCount; }
+
+private:
+#endif
 
 #endif
   File* m_file = nullptr;
@@ -571,6 +656,11 @@ private:
     all = layoutSizesBox | fitFontSizeResizesBox,
   };
   FileFeatures m_fileFeatures = FileFeatures::all;
+#ifdef WITH_RIVE_TEXT
+  // Font::fallbackGeneration(), read before m_shape was made (see
+  // reusableShape); here for the padding after m_fileFeatures.
+  uint32_t m_shapeFallbacks = 0;
+#endif
   bool hasFileFeature(FileFeatures feature) const
   {
     return enums::is_flag_set(m_fileFeatures, feature);

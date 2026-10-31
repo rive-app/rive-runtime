@@ -14,6 +14,8 @@
 #include "hb.h"
 #include "hb-ot.h"
 #include <algorithm>
+#include <atomic>
+#include <mutex>
 #include <unordered_set>
 
 // harfbuzz's own file loader is compiled out (HB_NO_OPEN/HB_NO_MMAP keep it
@@ -35,6 +37,43 @@ extern "C"
 rive::Font::FallbackProc rive::Font::gFallbackProc;
 
 bool rive::Font::gFallbackProcEnabled = true;
+
+namespace
+{
+std::atomic<uint32_t> g_fallbackGeneration{0};
+// The proc and flag the generation last moved for. Written under
+// g_fallbackMutex, and only after the generation moved, so a caller that
+// reads them equal to the current ones also reads that generation or a
+// later one.
+std::atomic<rive::Font::FallbackProc> g_seenFallbackProc{nullptr};
+std::atomic<bool> g_seenFallbackProcEnabled{true};
+std::mutex g_fallbackMutex;
+} // namespace
+
+uint32_t rive::Font::fallbackGeneration()
+{
+  if (g_seenFallbackProc.load(std::memory_order_acquire) != gFallbackProc ||
+      g_seenFallbackProcEnabled.load(std::memory_order_acquire) !=
+          gFallbackProcEnabled)
+  {
+    std::lock_guard<std::mutex> lock(g_fallbackMutex);
+    FallbackProc proc = gFallbackProc;
+    bool enabled = gFallbackProcEnabled;
+    if (g_seenFallbackProc.load(std::memory_order_relaxed) != proc ||
+        g_seenFallbackProcEnabled.load(std::memory_order_relaxed) != enabled)
+    {
+      g_fallbackGeneration.fetch_add(1, std::memory_order_relaxed);
+      g_seenFallbackProc.store(proc, std::memory_order_release);
+      g_seenFallbackProcEnabled.store(enabled, std::memory_order_release);
+    }
+  }
+  return g_fallbackGeneration.load(std::memory_order_acquire);
+}
+
+void rive::Font::fallbackFontsChanged()
+{
+  g_fallbackGeneration.fetch_add(1, std::memory_order_acq_rel);
+}
 
 namespace
 {

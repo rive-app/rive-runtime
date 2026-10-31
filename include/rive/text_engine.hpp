@@ -393,6 +393,18 @@ public:
   static bool gFallbackProcEnabled;
   static constexpr unsigned kRegularWeight = 400;
 
+  // Changes whenever fallback fonts may be picked differently than before:
+  // a new gFallbackProc or gFallbackProcEnabled, which hosts assign directly
+  // and this notices, or a host telling fallbackFontsChanged() that the
+  // fonts its proc picks from changed. A shape is only reused under the
+  // generation it was made in.
+  static uint32_t fallbackGeneration();
+  static void fallbackFontsChanged();
+#ifdef TESTING
+  // Shapes made by any font, for tests to count.
+  static uint64_t sm_shapeCount;
+#endif
+
 protected:
   Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
 

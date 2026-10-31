@@ -370,11 +370,18 @@ float OrderedLine::bottom() const
   return m_y - m_glyphLine->baseline + m_glyphLine->bottom;
 }
 
+#ifdef TESTING
+uint64_t Font::sm_shapeCount = 0;
+#endif
+
 SimpleArray<Paragraph> Font::shapeText(
     Span<const Unichar> text,
     Span<const TextRun> runs,
     int textDirectionFlag) const
 {
+#ifdef TESTING
+  sm_shapeCount++;
+#endif
 #ifdef DEBUG
   size_t count = 0;
   for (const TextRun& tr : runs)

@@ -193,8 +193,7 @@ void Text::controlSize(
     LayoutScaleType heightScaleType,
     LayoutDirection direction)
 {
-  if (m_layoutWidth != size.x || m_layoutHeight != size.y ||
-      m_layoutWidthScaleType != (uint8_t)widthScaleType ||
+  if (m_layoutWidthScaleType != (uint8_t)widthScaleType ||
       m_layoutHeightScaleType != (uint8_t)heightScaleType ||
       m_layoutDirection != direction)
   {
@@ -204,6 +203,13 @@ void Text::controlSize(
     m_layoutHeightScaleType = (uint8_t)heightScaleType;
     m_layoutDirection = direction;
     markShapeDirty(false);
+  }
+  else if (m_layoutWidth != size.x || m_layoutHeight != size.y)
+  {
+    // Only the slot changed size: break the lines again.
+    m_layoutWidth = size.x;
+    m_layoutHeight = size.y;
+    markLinesDirty(false);
   }
 }
 
@@ -498,6 +504,13 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
   }
 
   StyledText styledText;
+  // Read before shaping: a change during it leaves the shapes stale.
+  const uint32_t fallbacks = Font::fallbackGeneration();
+  // The shape at the largest size found to fit, when it took a new shape,
+  // and the styled text it was made from. It goes to the spare: the update
+  // or measure that follows styles the text at that size.
+  StyledText bestStyled;
+  SimpleArray<Paragraph> bestShape;
 
   // Shapes and lays out the text at the given integer top size and reports
   // whether it fits the bounds. Text dimensions grow monotonically with size,
@@ -509,8 +522,15 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
       // Nothing to lay out: trivially fits.
       return true;
     }
-    const auto& runs = styledText.runs();
-    auto shape = runs[0].font->shapeText(styledText.unichars(), runs);
+    SimpleArray<Paragraph> made;
+    const SimpleArray<Paragraph>* reusable = reusableShape(
+        styledText,
+        fallbacks);
+    if (reusable == nullptr)
+    {
+      made = shapeStyled(styledText, ShapeSource::fit);
+    }
+    const SimpleArray<Paragraph>& shape = reusable ? *reusable : made;
     auto lines = BreakLines(shape, boxWidth, align(), wrap(), wordBreak());
 
     float maxWidth = 0.0f;
@@ -549,7 +569,20 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
 
     bool widthFits = maxWidth <= boxWidth;
     bool heightFits = y - topTrim - bottomTrim <= boxHeight;
-    return widthFits && heightFits;
+    if (widthFits && heightFits)
+    {
+      // Larger than any size that fit before it.
+      bestShape = std::move(made);
+      std::swap(bestStyled, styledText);
+      return true;
+    }
+    return false;
+  };
+  auto spareBest = [&]() {
+    if (!bestShape.empty())
+    {
+      spareShape(bestStyled, std::move(bestShape), fallbacks);
+    }
   };
 
   // Above 2^24 floats skip integers, and hi + 1 must not overflow int.
@@ -563,6 +596,7 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
   // monotonic, so checking the top first returns the same size.
   if (fits(hi))
   {
+    spareBest();
     return (float)hi / maxSize;
   }
   hi--;
@@ -580,6 +614,7 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
       hi = mid - 1;
     }
   }
+  spareBest();
   return (float)best / maxSize;
 }
 
@@ -1293,6 +1328,26 @@ void Text::markShapeDirty(bool sendToLayout)
 #endif
 }
 
+void Text::markLinesDirty(bool sendToLayout)
+{
+  // The shape doesn't depend on the box, unless the font size is fitted to
+  // it or modifiers lay ranges out by line: those reshape.
+  if (overflow() == TextOverflow::fitFontSize || haveModifiers())
+  {
+    markShapeDirty(sendToLayout);
+    return;
+  }
+  m_linesDirty = true;
+  addDirt(ComponentDirt::Paint);
+  markWorldTransformDirty();
+#ifdef WITH_RIVE_LAYOUT
+  if (sendToLayout)
+  {
+    markLayoutNodeDirty();
+  }
+#endif
+}
+
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
 
 void Text::markPaintDirty() { addDirt(ComponentDirt::Paint); }
@@ -1740,7 +1795,7 @@ void Text::widthChanged()
 {
   if (effectiveSizing() != TextSizing::autoWidth)
   {
-    markShapeDirty();
+    markLinesDirty(true);
   }
 }
 
@@ -1766,7 +1821,7 @@ void Text::heightChanged()
 {
   if (effectiveSizing() == TextSizing::fixed)
   {
-    markShapeDirty();
+    markLinesDirty(true);
   }
 }
 
@@ -1777,6 +1832,27 @@ void StyledText::clear()
 }
 
 bool StyledText::empty() const { return m_runs.empty(); }
+
+bool StyledText::sameAs(const StyledText& other) const
+{
+  if (m_value != other.m_value || m_runs.size() != other.m_runs.size())
+  {
+    return false;
+  }
+  for (size_t i = 0; i < m_runs.size(); i++)
+  {
+    const TextRun& a = m_runs[i];
+    const TextRun& b = other.m_runs[i];
+    if (a.font != b.font || a.size != b.size || a.lineHeight != b.lineHeight ||
+        a.letterSpacing != b.letterSpacing ||
+        a.unicharCount != b.unicharCount || a.script != b.script ||
+        a.styleId != b.styleId || a.level != b.level)
+    {
+      return false;
+    }
+  }
+  return true;
+}
 
 void StyledText::append(
     rcp<Font> font,
@@ -1924,12 +2000,35 @@ void Text::onDirty(ComponentDirt value)
   }
 }
 
+namespace
+{
+// Where Text styles its runs to compare them with the styled text a shape
+// was made from, before it decides to shape. One per thread, and left
+// empty after each use: filled, it holds fonts.
+StyledText& comparisonScratch()
+{
+  static thread_local StyledText scratch;
+  return scratch;
+}
+} // namespace
+
 void Text::update(ComponentDirt value)
 {
   Super::update(value);
   markListenedRuns();
   syncStyleListItems();
 
+  // A new size only breaks the lines again, unless the fallback fonts
+  // changed since the shape was made: then it shapes again, as measure()
+  // does.
+  if (m_linesDirty && !m_shape.empty() &&
+      m_shapeFallbacks != Font::fallbackGeneration())
+  {
+    value |= ComponentDirt::Path;
+  }
+  // Whether m_shape or m_lines changed.
+  bool shapeChanged = false;
+  bool linesChanged = false;
   if (hasDirt(value, ComponentDirt::Path))
   {
     // We have modifiers that need shaping we'll need to compute the
@@ -1945,10 +2044,9 @@ void Text::update(ComponentDirt value)
     if (precomputeModifierCoverage &&
         makeStyled(m_modifierStyledText, false, fontScale))
     {
-      const auto& runs = m_modifierStyledText.runs();
-      m_modifierShape = runs[0].font->shapeText(
-          m_modifierStyledText.unichars(),
-          runs);
+      m_modifierShape = shapeStyled(
+          m_modifierStyledText,
+          ShapeSource::modifier);
       m_modifierLines = BreakLines(
           m_modifierShape,
           (effectiveSizing() == TextSizing::autoWidth &&
@@ -1970,22 +2068,43 @@ void Text::update(ComponentDirt value)
         group->computeCoverage(textSize);
       }
     }
-    const bool styled = makeStyled(m_styledText, true, fontScale);
+    // Styled apart from m_styledText, which stays the text m_shape was
+    // made from until the two are compared.
+    StyledText& styledText = comparisonScratch();
+    const bool styled = makeStyled(styledText, true, fontScale);
+    // Read before shaping: a change during it leaves the shape stale.
+    const uint32_t fallbacks = Font::fallbackGeneration();
+    const SimpleArray<Paragraph>* reusable = styled ? reusableShape(
+                                                          styledText,
+                                                          fallbacks)
+                                                    : nullptr;
+    // An empty text that was already empty has nothing to change.
+    if (reusable != &m_shape && (styled || !m_shape.empty()))
+    {
+      shapeChanged = true;
+      std::swap(m_styledText, styledText);
+      if (m_spare != nullptr && reusable == &m_spare->shape)
+      {
+        m_shape = std::move(m_spare->shape);
+        m_shapeFallbacks = m_spare->fallbacks;
+      }
+      else if (styled)
+      {
+        m_shape = shapeStyled(m_styledText, ShapeSource::update);
+        m_shapeFallbacks = fallbacks;
+      }
+      else
+      {
+        m_shape = SimpleArray<Paragraph>();
+      }
+    }
+    styledText.clear();
+    // Taken or stale either way.
+    m_spare = nullptr;
     m_shapedKey = measureKey(m_styledText, fontScale);
     if (styled)
     {
-      const auto& runs = m_styledText.runs();
-      m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-
-      m_lines = BreakLines(
-          m_shape,
-          (effectiveSizing() == TextSizing::autoWidth &&
-           !parentIsLayoutNotArtboard)
-              ? -1.0f
-              : effectiveWidth(),
-          align(),
-          wrap(),
-          wordBreak());
+      linesChanged = breakShapeLines(shapeChanged);
       if (!precomputeModifierCoverage && haveModifiers())
       {
         m_glyphLookup.compute(m_styledText.unichars(), m_shape);
@@ -2003,18 +2122,30 @@ void Text::update(ComponentDirt value)
     }
     else
     {
-      m_shape = SimpleArray<Paragraph>();
+      linesChanged = m_linesBroken;
       m_lines = SimpleArray<SimpleArray<GlyphLine>>();
+      m_linesBroken = false;
       m_glyphLookup.clear();
     }
     m_ellipsisRun = {};
-    m_emojiImageCache.clear();
+    if (shapeChanged)
+    {
+      m_emojiImageCache.clear();
+    }
+    m_linesDirty = false;
 
     // Immediately build render styles so dimensions get computed.
     buildRenderStyles();
   }
   else if (hasDirt(value, ComponentDirt::Paint))
   {
+    if (m_linesDirty)
+    {
+      // The box changed size: the same shape, broken at the new width.
+      m_linesDirty = false;
+      linesChanged = breakShapeLines(false);
+      m_ellipsisRun = {};
+    }
     buildRenderStyles();
   }
   else if (hasDirt(value, ComponentDirt::RenderOpacity))
@@ -2046,10 +2177,105 @@ void Text::update(ComponentDirt value)
   if (m_selectionController != nullptr &&
       hasDirt(value, ComponentDirt::Path | ComponentDirt::Paint))
   {
-    m_selectionController->textUpdated(
-        this,
-        hasDirt(value, ComponentDirt::Path));
+    m_selectionController->textUpdated(this, shapeChanged || linesChanged);
   }
+}
+
+const SimpleArray<Paragraph>* Text::reusableShape(
+    const StyledText& styled,
+    uint32_t fallbacks) const
+{
+  if (!m_shape.empty() && m_shapeFallbacks == fallbacks &&
+      styled.sameAs(m_styledText))
+  {
+    return &m_shape;
+  }
+  if (m_spare != nullptr && m_spare->fallbacks == fallbacks &&
+      styled.sameAs(m_spare->styled))
+  {
+    return &m_spare->shape;
+  }
+  return nullptr;
+}
+
+const SimpleArray<Paragraph>& Text::spareShapeFor(
+    StyledText& styled,
+    ShapeSource source)
+{
+  // Read before shaping: a change during it leaves the shape stale.
+  const uint32_t fallbacks = Font::fallbackGeneration();
+  if (const SimpleArray<Paragraph>* reusable = reusableShape(styled, fallbacks))
+  {
+    return *reusable;
+  }
+  spareShape(styled, shapeStyled(styled, source), fallbacks);
+  return m_spare->shape;
+}
+
+void Text::spareShape(
+    StyledText& styled,
+    SimpleArray<Paragraph>&& shape,
+    uint32_t fallbacks)
+{
+  if (m_spare == nullptr)
+  {
+    m_spare = std::make_unique<SpareShape>();
+  }
+  m_spare->shape = std::move(shape);
+  m_spare->fallbacks = fallbacks;
+  std::swap(m_spare->styled, styled);
+}
+
+SimpleArray<Paragraph> Text::shapeStyled(
+    const StyledText& styled,
+    ShapeSource source)
+{
+#ifdef TESTING
+  m_shapeCounts[(size_t)source]++;
+#endif
+  const auto& runs = styled.runs();
+  return runs[0].font->shapeText(styled.unichars(), runs);
+}
+
+#ifdef TESTING
+size_t Text::shapeCount() const
+{
+  size_t count = 0;
+  for (size_t shapes : m_shapeCounts)
+  {
+    count += shapes;
+  }
+  return count;
+}
+#endif
+
+bool Text::breakShapeLines(bool shapeChanged)
+{
+  bool parentIsLayoutNotArtboard = parent()->is<LayoutComponent>() &&
+                                   !parent()->is<Artboard>();
+  const float width = (effectiveSizing() == TextSizing::autoWidth &&
+                       !parentIsLayoutNotArtboard)
+                          ? -1.0f
+                          : effectiveWidth();
+  const TextAlign lineAlign = align();
+  // Compared bitwise, so NaN matches NaN.
+  if (!shapeChanged && m_linesBroken &&
+      memcmp(&width, &m_brokenWidth, sizeof(width)) == 0 &&
+      m_brokenAlign == (uint8_t)lineAlign && m_brokenWrap == (uint8_t)wrap() &&
+      m_brokenWordBreak == (uint8_t)wordBreak())
+  {
+    return false;
+  }
+  m_lines = BreakLines(m_shape, width, lineAlign, wrap(), wordBreak());
+#ifdef TESTING
+  m_lineBreakCount++;
+#endif
+  m_linesBroken = true;
+  m_brokenWidth = width;
+  m_brokenAlign = (uint8_t)lineAlign;
+  m_brokenWrap = (uint8_t)wrap();
+  m_brokenWordBreak = (uint8_t)wordBreak();
+  return true;
 }
 
 // What measure() reports depends on, as a hash: the styled text it shapes,
@@ -2137,13 +2363,24 @@ Vec2D Text::measure(Vec2D maxSize)
   {
     fontScale = fitFontScale(fitWidth, maxSize.y);
   }
-  const bool styled = makeStyled(m_styledText, true, fontScale);
-  m_measuredKey = measureKey(m_styledText, fontScale);
+  // Styled apart from m_styledText, which stays the text m_shape was shaped
+  // from. Every return leaves the scratch empty.
+  StyledText& styledText = comparisonScratch();
+  const bool styled = makeStyled(styledText, true, fontScale);
+  m_measuredKey = measureKey(styledText, fontScale);
   if (styled)
   {
+    // A fixed box measures as itself; only a baseline origin, which shifts
+    // it by the first line's baseline, needs the text shaped.
+    if (sizing() == TextSizing::fixed && textOrigin() != TextOrigin::baseline)
+    {
+      styledText.clear();
+      return Vec2D(std::min(maxSize.x, width()), std::min(maxSize.y, height()));
+    }
     const float paragraphSpace = paragraphSpacing() * fontScale;
-    const auto& runs = m_styledText.runs();
-    auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
+    const SimpleArray<Paragraph>& shape = spareShapeFor(
+        styledText,
+        ShapeSource::measure);
     auto measuringWrap = maxSize.x == std::numeric_limits<float>::max() &&
                                  effectiveSizing() != TextSizing::autoHeight
                              ? TextWrap::noWrap
@@ -2230,8 +2467,10 @@ Vec2D Text::measure(Vec2D maxSize)
         bounds = Vec2D(width(), minY + height());
         break;
     }
+    styledText.clear();
     return Vec2D(std::min(maxSize.x, bounds.x), std::min(maxSize.y, bounds.y));
   }
+  styledText.clear();
   return Vec2D();
 }
 
