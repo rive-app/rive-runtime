@@ -72,10 +72,6 @@ export const kLaneStates = {
 // What a processor event carries for a console line, in place of a state.
 export const kProcessorEventLog = 0xffffffff;
 
-// The most 64 KiB pages a job instance's memory may have grown to for another
-// job to reuse it, as memory never shrinks.
-export const kReuseMaxPages = 256;
-
 // How long a processor's init may run in milliseconds, natively per step and in
 // a worklet as a whole, far longer than a block as it may build tables.
 export const kProcessorInitMs = 1000;

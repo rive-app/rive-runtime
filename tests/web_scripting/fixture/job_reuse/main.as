@@ -56,8 +56,9 @@ function change(): void {
 }
 
 const ROUNDS: i32 = 32;
-// Past what a job's memory may have grown to for another job to reuse it.
-const HUNGRY_KILOBYTES: i32 = 20 * 1024;
+// Past the 64 MB a job's memory may grow to by default for another job to
+// reuse it.
+const HUNGRY_KILOBYTES: i32 = 80 * 1024;
 
 function yes(ok: bool): string {
     return ok ? "yes" : "no";

@@ -123,8 +123,15 @@ uint32_t jobCancelled(wasm_exec_env_t)
   return job != nullptr && job->cancelRequested() ? 1 : 0;
 }
 
+uint32_t jobReusePages(wasm_exec_env_t)
+{
+  WasmJob* job = WasmJob::current();
+  return job != nullptr ? job->reuseMaxPages() : 0;
+}
+
 NativeSymbol kJobNatives[] = {
     {"cancelled", (void*)jobCancelled, "()i", nullptr},
+    {"reuse_pages", (void*)jobReusePages, "()i", nullptr},
 };
 
 constexpr uint32_t kJobStack = 256 * 1024;
@@ -174,7 +181,7 @@ void WasmJob::park()
 {
   if (!m_module->resets || hasFailure() ||
       wasm_memory_get_cur_page_count(wasm_runtime_get_default_memory(
-          (wasm_module_inst_t)m_instance)) > lane_layout::kReuseMaxPages)
+          (wasm_module_inst_t)m_instance)) > m_module->reuseMaxPages)
   {
     return;
   }
@@ -223,14 +230,16 @@ EM_JS_DEPS(riveWebJobs, "$stringToNewUTF8");
 EM_JS(char*, riveWebJobRun,
       (uint32_t lane, uint32_t moduleId, const uint8_t* module,
        uint32_t moduleSize, uint32_t entry, const uint8_t* input,
-       uint32_t inputSize, const int32_t* cancel, void* output), {
+       uint32_t inputSize, const int32_t* cancel, uint32_t reuseMaxPages,
+       void* output), {
     const result = Module['riveScripting']['runJob'](
         lane,
         moduleId,
         () => HEAPU8.slice(module, module + moduleSize),
         entry,
         HEAPU8.slice(input, input + inputSize),
-        () => Atomics.load(HEAP32, cancel >> 2));
+        () => Atomics.load(HEAP32, cancel >> 2),
+        reuseMaxPages);
     if (!result.ok) {
         return stringToNewUTF8(result.error);
     }
@@ -267,6 +276,7 @@ bool WasmJob::execute()
       input.data(),
       (uint32_t)input.size(),
       (const int32_t*)&m_cancelWord,
+      m_module->reuseMaxPages,
       &m_output);
   if (error != nullptr)
   {

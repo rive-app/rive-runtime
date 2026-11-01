@@ -4980,10 +4980,6 @@ const kLaneStates = {
 // What a processor event carries for a console line, in place of a state.
 const kProcessorEventLog = 0xffffffff;
 
-// The most 64 KiB pages a job instance's memory may have grown to for another
-// job to reuse it, as memory never shrinks.
-const kReuseMaxPages = 256;
-
 // How long a processor's init may run in milliseconds, natively per step and in
 // a worklet as a whole, far longer than a block as it may build tables.
 const kProcessorInitMs = 1000;
@@ -7546,13 +7542,22 @@ function installRiveScripting(Module) {
             idle.timers.clear();
             return idle;
         }
-        const job = { lane: 0, cancelled: null, timers: new Map(), reset: false };
+        const job = {
+            lane: 0,
+            cancelled: null,
+            reuseMaxPages: 0,
+            timers: new Map(),
+            reset: false,
+        };
         return Object.assign(
             job,
             instantiateLane({
                 module: compiled.module,
                 natives: 'rive_job_v1',
-                own: () => ({ 'cancelled': () => job.cancelled() }),
+                own: () => ({
+                    'cancelled': () => job.cancelled(),
+                    'reuse_pages': () => job.reuseMaxPages,
+                }),
                 shared: sharedImports(),
                 log: (line) => host.laneLog(job.lane, line),
                 timers: job.timers,
@@ -7564,7 +7569,7 @@ function installRiveScripting(Module) {
 
     // A stop reaches a running job through its cancelled() and its fuel
     // checks. The output views the job's memory.
-    function runJob(lane, id, bytes, entry, input, cancelled) {
+    function runJob(lane, id, bytes, entry, input, cancelled, reuseMaxPages) {
         const compiled = laneModule(id, bytes, 'job');
         if (compiled.error !== null) {
             return { ok: false, error: compiled.error };
@@ -7575,6 +7580,7 @@ function installRiveScripting(Module) {
         }
         job.lane = lane;
         job.cancelled = cancelled;
+        job.reuseMaxPages = reuseMaxPages;
         const entered = enterLane(
             job,
             { prefix: kLaneEntryPrefixes['job'], entry, input },
@@ -7592,7 +7598,7 @@ function installRiveScripting(Module) {
             // instance; the next resets it once this output is copied out.
             if (
                 job.exports[kLaneResetExport] !== undefined &&
-                buffer.byteLength <= kReuseMaxPages * 65536 &&
+                buffer.byteLength <= reuseMaxPages * 65536 &&
                 !cancelled()
             ) {
                 job.reset = true;

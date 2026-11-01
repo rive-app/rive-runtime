@@ -346,7 +346,8 @@ function countingJobModule(resets) {
 }
 
 // A job leaves its instance for the next on its thread, which resets it
-// first. A stopped job leaves none, nor does a module without a reset.
+// first. A stopped job leaves none, nor does a module without a reset or a
+// host whose reuse cap is 0 pages.
 {
     const runner = installRiveScripting({});
     runner.attach(pageHost());
@@ -356,9 +357,9 @@ function countingJobModule(resets) {
         construct: (target, args) => (instances++, new target(...args)),
     });
     try {
-        const count = (id, resets, cancelled = () => 0) => {
+        const count = (id, resets, cancelled = () => 0, reuseMaxPages = 256) => {
             const ran = runner['runJob'](1, id, () => countingJobModule(resets), 0,
-                new Uint8Array(0), cancelled);
+                new Uint8Array(0), cancelled, reuseMaxPages);
             assert.equal(ran.ok, true, ran.error);
             return new Uint32Array(ran.output.slice().buffer)[0];
         };
@@ -370,6 +371,11 @@ function countingJobModule(resets) {
         instances = 0;
         assert.deepEqual([count(21, false), count(21, false)], [1, 1]);
         assert.equal(instances, 2, 'a module without a reset starts anew');
+        instances = 0;
+        // The first takes the instance the last run of 20 left.
+        const none = () => count(20, true, () => 0, 0);
+        assert.deepEqual([none(), none(), none()], [1, 1, 1]);
+        assert.equal(instances, 2, 'a cap of 0 pages keeps no instance');
     } finally {
         WebAssembly.Instance = Instance;
     }
@@ -415,7 +421,8 @@ function meteredJobModule() {
     });
     try {
         const run = (lane, entry) =>
-            runner['runJob'](lane, 30, () => meteredJobModule(), entry, new Uint8Array(0), () => 0);
+            runner['runJob'](lane, 30, () => meteredJobModule(), entry, new Uint8Array(0), () => 0,
+                256);
         assert.equal(run(1, 0).ok, true);
         assert.deepEqual(run(2, 1), { ok: false, error: 'stopped by its host' });
         assert.deepEqual(asked, [2, 2, 2]);

@@ -47,9 +47,10 @@ LANE_LAYOUT_HEADER_PATH = \
     PACKAGES / 'runtime/include/rive/wasm/wasm_lane_layout_gen.hpp'
 AS_LANE_CODES_PATH = PACKAGES / 'rasc/animascript/std/rive/lane_codes.as'
 AS_RUNTIME_PATH = PACKAGES / 'rasc/animascript/std/rive/runtime.as'
-# The layout groups the std reads: natives' answers and a job's reuse cap.
+# The layout groups the std reads: natives' answers and a parallel call's
+# control block.
 AS_LAYOUT_GROUPS = ('Join', 'JoinAny', 'Start', 'Create', 'RegionLock',
-                    'Shared', 'RingWrite', 'Reuse', 'Parallel')
+                    'Shared', 'RingWrite', 'Parallel')
 AS_STD_PATH = AS_LANE_CODES_PATH.parent
 WEB_SHARED_LAYOUT_PATH = WEB_PATH.parent / 'rive_shared_layout.mjs'
 # The lane modules the runner and the NRDP worklet both inline, each after

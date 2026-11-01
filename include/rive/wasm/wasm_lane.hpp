@@ -113,6 +113,9 @@ public:
   /// The page runner's cache key for its compiled module on each thread,
   /// the same for the same bytes.
   uint32_t id = 0;
+  /// The most 64 KiB pages a job's instance may have grown to for another
+  /// job to reuse it, as memory never shrinks.
+  uint32_t reuseMaxPages = 0;
 #ifndef __EMSCRIPTEN__
   /// Each entry's export name, so a run builds none.
   std::vector<std::string> entryNames;

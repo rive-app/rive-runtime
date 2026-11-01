@@ -107,10 +107,6 @@ LANE_LAYOUT = [
      ' in place of a state.', [
          ('log', 0xffffffff),
      ]),
-    ('Reuse', 'The most 64 KiB pages a job instance\'s memory may have grown'
-     ' to for another job to reuse it, as memory never shrinks.', [
-         ('maxPages', 256),
-     ]),
     ('Processor', 'How long a processor\'s init may run in milliseconds,'
      ' natively per step and in a worklet as a whole, far longer than a block'
      ' as it may build tables.', [

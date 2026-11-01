@@ -29,6 +29,7 @@ public:
   void stop() override;
   /// Valid once finished.
   const std::vector<uint8_t>& output() const { return m_output; }
+  uint32_t reuseMaxPages() const { return m_module->reuseMaxPages; }
 
   /// The job running on this thread, for the natives its module imports.
   static WasmJob* current();

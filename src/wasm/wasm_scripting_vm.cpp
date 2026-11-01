@@ -12364,6 +12364,13 @@ void WasmScriptingVM::attachLanes(Span<const uint8_t> module)
           this,
           std::string("script ") + laneNoun(kind) + "s unavailable: " + error);
     }
+    if (lanes != nullptr)
+    {
+      // A wasm32 memory has at most 65536 pages.
+      lanes->reuseMaxPages = (uint32_t)std::min<uint64_t>(
+          m_limits.jobReuseBytes >> 16,
+          65536);
+    }
     return lanes;
   };
   auto attach = [&](auto& set, LaneKind kind) {

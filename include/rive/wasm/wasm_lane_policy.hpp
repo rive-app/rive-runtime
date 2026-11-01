@@ -24,6 +24,11 @@ struct ScriptingLimits
   /// to the device; read when each pool is made.
   uint32_t jobThreads = 0;
   uint32_t workerThreads = 0;
+  /// The most memory a job's instance may have grown to and still be kept
+  /// for the next job of its script module, which then starts without
+  /// instantiating. Each module keeps at most one per job thread. 0 keeps
+  /// none.
+  uint64_t jobReuseBytes = 64ull << 20;
   /// Runs every parallel call one part at a time on the caller's thread,
   /// as a host without threads does, so code that writes the heap in place
   /// cannot race. Parallel.size() is then 1.

@@ -30,7 +30,6 @@ import {
     kProcessorEventLog,
     kProcessorInitMs,
     kProcessorNode,
-    kReuseMaxPages,
     kWorkerWakeExport,
     laneImportError,
     laneImportRefusal,
@@ -875,13 +874,22 @@ export function installRiveScripting(Module) {
             idle.timers.clear();
             return idle;
         }
-        const job = { lane: 0, cancelled: null, timers: new Map(), reset: false };
+        const job = {
+            lane: 0,
+            cancelled: null,
+            reuseMaxPages: 0,
+            timers: new Map(),
+            reset: false,
+        };
         return Object.assign(
             job,
             instantiateLane({
                 module: compiled.module,
                 natives: 'rive_job_v1',
-                own: () => ({ 'cancelled': () => job.cancelled() }),
+                own: () => ({
+                    'cancelled': () => job.cancelled(),
+                    'reuse_pages': () => job.reuseMaxPages,
+                }),
                 shared: sharedImports(),
                 log: (line) => host.laneLog(job.lane, line),
                 timers: job.timers,
@@ -893,7 +901,7 @@ export function installRiveScripting(Module) {
 
     // A stop reaches a running job through its cancelled() and its fuel
     // checks. The output views the job's memory.
-    function runJob(lane, id, bytes, entry, input, cancelled) {
+    function runJob(lane, id, bytes, entry, input, cancelled, reuseMaxPages) {
         const compiled = laneModule(id, bytes, 'job');
         if (compiled.error !== null) {
             return { ok: false, error: compiled.error };
@@ -904,6 +912,7 @@ export function installRiveScripting(Module) {
         }
         job.lane = lane;
         job.cancelled = cancelled;
+        job.reuseMaxPages = reuseMaxPages;
         const entered = enterLane(
             job,
             { prefix: kLaneEntryPrefixes['job'], entry, input },
@@ -921,7 +930,7 @@ export function installRiveScripting(Module) {
             // instance; the next resets it once this output is copied out.
             if (
                 job.exports[kLaneResetExport] !== undefined &&
-                buffer.byteLength <= kReuseMaxPages * 65536 &&
+                buffer.byteLength <= reuseMaxPages * 65536 &&
                 !cancelled()
             ) {
                 job.reset = true;
