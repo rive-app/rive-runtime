@@ -45,9 +45,8 @@ local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- _nx_platform.
 local consoleTarget = _OPTIONS['_nx_platform'] ~= nil
     or _OPTIONS['_console_only_ore_vk'] ~= nil
--- Global so premake5_wamr.lua and test harnesses agree. Windows on Arm waits
--- on what the rasc site's execution-lanes page lists. Mobile apps ship their
--- compiled modules, so they opt in, as rive-cli's player does for
+-- Global so premake5_wamr.lua and test harnesses agree. Mobile apps ship
+-- their compiled modules, so they opt in, as rive-cli's player does for
 -- --hardware-bounds.
 wasmHwBounds = wamrBuildable
     and _OPTIONS['with_rive_scripting'] ~= nil
@@ -63,8 +62,6 @@ wasmHwBounds = wamrBuildable
             and not consoleTarget
             and _OPTIONS['arch'] ~= 'x86'
             and _OPTIONS['arch'] ~= 'arm'
-            -- Windows on Arm traps the same way, but nothing has run it yet.
-            and not (rive_target_os == 'windows' and _OPTIONS['arch'] == 'arm64')
     )
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
