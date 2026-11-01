@@ -302,11 +302,28 @@ thread_local std::shared_ptr<VMPollList>
     t_laneVMs = std::make_shared<VMPollList>(t_pollMutex);
 #endif
 constexpr size_t kLaneResultBytesPerPoll = 8u << 20;
+
+// The VMs whose sinks take any thread and that have lanes, which a thread of
+// their own watches for stalls. Leaked, as that thread outlives static
+// destructors.
+struct StallWatch
+{
+  std::mutex mutex;
+  std::condition_variable changed;
+  std::vector<WasmScriptingVM*> vms;
+};
+
+StallWatch& stallWatch()
+{
+  static StallWatch* watch = new StallWatch();
+  return *watch;
+}
 } // namespace
 
 struct rive::WasmScriptingVMNatives
 {
   static void print(WasmScriptingVM* vm, const char* data, size_t size);
+  static std::unique_lock<std::recursive_mutex> lockPrint(WasmScriptingVM* vm);
   static int startFuelMs(const WasmScriptingVM* vm);
   static const char* startRefusal(const WasmScriptingVM* vm);
 #ifndef __EMSCRIPTEN__
@@ -1453,6 +1470,16 @@ const char* WasmScriptingVMNatives::startRefusal(const WasmScriptingVM* vm)
 #endif
 }
 
+// The VM print reaches, the booting one during module start.
+std::unique_lock<std::recursive_mutex> WasmScriptingVMNatives::lockPrint(
+    WasmScriptingVM* vm)
+{
+  vm = vm != nullptr ? vm : s_booting;
+  return vm != nullptr
+             ? std::unique_lock<std::recursive_mutex>(vm->m_printMutex)
+             : std::unique_lock<std::recursive_mutex>();
+}
+
 void WasmScriptingVMNatives::print(
     WasmScriptingVM* vm,
     const char* data,
@@ -2128,6 +2155,7 @@ uint32_t fdWrite(
     return 28; // EINVAL
   }
   uint32_t total = 0;
+  auto lock = WasmScriptingVMNatives::lockPrint(vm);
   for (uint32_t i = 0; i < iovcnt; i++)
   {
     uint32_t* io = iovs + i * 2;
@@ -6208,6 +6236,7 @@ void rtLogImpl(
     const char* message,
     uint32_t length)
 {
+  auto lock = WasmScriptingVMNatives::lockPrint(vm);
   WasmScriptingVMNatives::print(vm, message, length);
   WasmScriptingVMNatives::print(vm, "\n", 1);
 }
@@ -11741,6 +11770,14 @@ WasmScriptingVM::~WasmScriptingVM()
   // First, so no poll reaches it while it goes.
   VMPollList::leave(m_laneList, this);
   VMPollList::leave(m_holdingList, this);
+  if (m_stallWatched)
+  {
+    StallWatch& watch = stallWatch();
+    std::lock_guard<std::mutex> lock(watch.mutex);
+    watch.vms.erase(
+        std::remove(watch.vms.begin(), watch.vms.end(), this),
+        watch.vms.end());
+  }
   for (const MainWait& wait : m_mainWaits)
   {
     abandonWait(wait);
@@ -12375,11 +12412,84 @@ void WasmScriptingVM::deliverAllLaneOutput()
   });
 }
 
+static void printLaneLine(void* vm, std::string_view line)
+{
+  rtLogImpl((WasmScriptingVM*)vm, 0, line.data(), (uint32_t)line.size());
+}
+
 void WasmScriptingVM::watchLanes()
 {
   // Its lanes start only from one thread, whose polls reach their output.
   assert(m_laneList == nullptr || m_laneList == t_laneVMs);
   VMPollList::join(m_laneList, t_laneVMs, this);
+  if (m_printFromAnyThread)
+  {
+    watchStalls();
+  }
+}
+
+void WasmScriptingVM::printFromAnyThread()
+{
+#ifndef __EMSCRIPTEN__
+  m_printFromAnyThread = true;
+  if (m_laneList != nullptr)
+  {
+    watchStalls();
+  }
+#endif
+}
+
+void WasmScriptingVM::watchStalls()
+{
+  StallWatch& watch = stallWatch();
+  {
+    std::lock_guard<std::mutex> lock(watch.mutex);
+    if (m_stallWatched)
+    {
+      return;
+    }
+    m_stallWatched = true;
+    m_lastPoll.store(std::chrono::steady_clock::now());
+    watch.vms.push_back(this);
+  }
+  static std::once_flag started;
+  std::call_once(started, [] { std::thread(flushStalledLaneLogs).detach(); });
+  watch.changed.notify_one();
+}
+
+void WasmScriptingVM::flushLaneLogs()
+{
+  auto flush = [this](const auto* set) {
+    if (set != nullptr)
+    {
+      set->forEachLocked(
+          [this](WasmLane* lane) { lane->takeLogs(printLaneLine, this); });
+    }
+  };
+  flush(m_jobs.get());
+  flush(m_workers.get());
+  flush(m_processors.get());
+}
+
+void WasmScriptingVM::flushStalledLaneLogs()
+{
+  constexpr auto kStall = std::chrono::milliseconds(
+      lane_timing::kLaneLogStallMs);
+  StallWatch& watch = stallWatch();
+  std::unique_lock<std::mutex> lock(watch.mutex);
+  for (;;)
+  {
+    watch.changed.wait(lock, [&] { return !watch.vms.empty(); });
+    watch.changed.wait_for(lock, kStall / 2);
+    auto now = std::chrono::steady_clock::now();
+    for (WasmScriptingVM* vm : watch.vms)
+    {
+      if (now - vm->m_lastPoll.load(std::memory_order_relaxed) >= kStall)
+      {
+        vm->flushLaneLogs();
+      }
+    }
+  }
 }
 
 // Decodes on a job thread into a blob the main lane registers as it settles.
@@ -12657,11 +12767,7 @@ void WasmScriptingVM::wakeMain(uint32_t token, double value)
 
 void WasmScriptingVM::deliverLaneOutput(WasmLane* lane)
 {
-  lane->takeLogs(
-      [](void* vm, std::string_view line) {
-        rtLogImpl((WasmScriptingVM*)vm, 0, line.data(), (uint32_t)line.size());
-      },
-      this);
+  lane->takeLogs(printLaneLine, this);
   // A job's failure is its joiner's result, so only workers and processors
   // announce theirs.
   if (lane->kind() == LaneKind::job || lane->reportedFailure ||
@@ -12685,6 +12791,7 @@ void WasmScriptingVM::deliverLaneOutput(WasmLane* lane)
 
 void WasmScriptingVM::deliverLaneOutput()
 {
+  m_lastPoll.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
   settleMainWaits();
 #if RIVE_AUDIO_STREAMS()
   pumpAudioStreams(this);

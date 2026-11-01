@@ -189,12 +189,13 @@ public:
   void fail(std::string_view message);
   void failUtf16(const uint8_t* text, uint32_t bytes);
 
-  // On the VM's thread.
   /// Frees the ring, then hands deliver each console line since the last
-  /// take and a note of any it dropped.
+  /// take and a note of any it dropped. On the VM's thread, or the stall
+  /// flusher's for a stalled VM.
   void takeLogs(
       void (*deliver)(void* context, std::string_view line),
       void* context);
+  // On the VM's thread.
   std::string failure() const;
   /// Whether it failed, from any thread.
   bool hasFailure() const { return m_failureClaimed.load(); }
@@ -329,7 +330,8 @@ private:
   std::vector<uint32_t> m_holds;
   std::vector<uint32_t> m_created;
   // Console lines, each a two byte length then its bytes: one writer and
-  // one reader, so neither waits.
+  // one reader at a time, so the writer never waits.
+  std::mutex m_logReaderMutex;
   const uint32_t m_logCapacity;
   std::unique_ptr<uint8_t[]> m_logBytes;
   std::atomic<uint32_t> m_logWrite{0};
@@ -358,7 +360,17 @@ public:
   explicit WasmLaneSet(rcp<WasmLaneModule> module) : m_module(std::move(module))
   {}
 
+  /// On the VM's thread, the only one that adds or prunes them.
   const std::vector<rcp<T>>& lanes() const { return m_lanes; }
+  /// Visits each lane from another thread.
+  template <class F> void forEachLocked(F visit) const
+  {
+    std::lock_guard<std::mutex> lock(m_lanesMutex);
+    for (const rcp<T>& lane : m_lanes)
+    {
+      visit(lane.get());
+    }
+  }
   /// The VM whose shared memory its lanes hold.
   void setSharedOwner(uint64_t owner) { m_sharedOwner = owner; }
   uint32_t entryCount() const { return m_module->entryCount; }
@@ -375,6 +387,7 @@ public:
   /// output is out.
   void prune()
   {
+    std::lock_guard<std::mutex> lock(m_lanesMutex);
     m_lanes.erase(
         std::remove_if(m_lanes.begin(), m_lanes.end(), &unneeded),
         m_lanes.end());
@@ -382,6 +395,7 @@ public:
   /// As prune, for one lane whose output is out.
   void prune(const WasmLane* lane)
   {
+    std::lock_guard<std::mutex> lock(m_lanesMutex);
     auto found = std::find_if(
         m_lanes.begin(),
         m_lanes.end(),
@@ -401,11 +415,13 @@ protected:
   rcp<T> add(rcp<T> lane)
   {
     lane->setSharedOwner(m_sharedOwner);
+    std::lock_guard<std::mutex> lock(m_lanesMutex);
     m_lanes.push_back(lane);
     return lane;
   }
 
   rcp<WasmLaneModule> m_module;
+  mutable std::mutex m_lanesMutex;
   std::vector<rcp<T>> m_lanes;
   uint64_t m_sharedOwner = 0;
 };

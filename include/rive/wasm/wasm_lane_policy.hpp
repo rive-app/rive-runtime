@@ -57,6 +57,9 @@ constexpr uint32_t kWorkerStopGraceMs = 50;
 /// thread and elsewhere.
 constexpr uint32_t kMainWaitMs = 100;
 constexpr uint32_t kLaneWaitMs = 2000;
+/// How long a VM whose print sink takes any thread may go without a poll
+/// before a thread of its own hands over its lanes' console lines.
+constexpr uint32_t kLaneLogStallMs = 500;
 } // namespace lane_timing
 
 } // namespace rive

@@ -12,10 +12,12 @@
 #include "rive/wasm/wasm_lane_policy.hpp"
 #include "rive/wasm/wasm_signal_wait.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -706,6 +708,12 @@ public:
   {
     m_print = std::move(handler);
   }
+  /// Says the print sink takes calls from any thread, though never two at
+  /// once, so a main lane stuck waiting on a lane still shows what the lane
+  /// logs: a thread of its own hands its lines over once the VM goes
+  /// lane_timing::kLaneLogStallMs without a poll. Call it after onPrint.
+  /// Native only.
+  void printFromAnyThread();
 
   /// Receives each script error line, such as a trapped call, a failed
   /// lane or a module that failed to start. Without it they go to stderr,
@@ -773,6 +781,16 @@ protected:
   bool m_transitionManagesToExport = false;
   std::function<void(const char*, size_t)> m_print;
   std::function<void(const std::string&)> m_error;
+  // Held over each line to the print sink, which the stall flusher may
+  // reach; recursive for a sink that prints back into the VM.
+  std::recursive_mutex m_printMutex;
+  bool m_printFromAnyThread = false;
+  bool m_stallWatched = false;
+  std::atomic<std::chrono::steady_clock::time_point> m_lastPoll{};
+  void watchStalls();
+  void flushLaneLogs();
+  // Hands each watched VM's lane lines over once it stalls, forever.
+  static void flushStalledLaneLogs();
 
   /// Reads a flag export. Backends call it off the module before start,
   /// which runs every script's top level and already passes strings.

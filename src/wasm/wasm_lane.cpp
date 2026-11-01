@@ -299,6 +299,7 @@ void WasmLane::takeLogs(
     void (*deliver)(void* context, std::string_view line),
     void* context)
 {
+  std::lock_guard<std::mutex> lock(m_logReaderMutex);
   uint32_t read = m_logRead.load(std::memory_order_relaxed);
   uint32_t write = m_logWrite.load(std::memory_order_acquire);
   uint32_t mask = m_logCapacity - 1;
