@@ -1,0 +1,156 @@
+From: rive
+Subject: [PATCH 0063] hand crashes on from compiled code on windows on arm
+
+Patch 0045 hands a crash in a native that compiled code called to the
+unhandled exception filter on x64, through a function table over each
+module's code, since the SEH walk cannot unwind compiled code. arm64 needs
+the same. Its unwind info holds the length of its function, at most
+2^18 - 1 instructions, so runs of 2^k instructions cover the code, each
+naming one of 18 shared infos with the same handler. Windows on Arm calls
+no handler on a frame whose unwind leaves sp and pc where they were, so the
+infos move sp up 16, as x64's unwind pops the return address.
+
+diff --git a/core/iwasm/aot/aot_loader.c b/core/iwasm/aot/aot_loader.c
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -4578,8 +4578,9 @@ fail:
+     return false;
+ }
+ 
+-#if defined(BH_PLATFORM_WINDOWS) \
+-    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++#if defined(BH_PLATFORM_WINDOWS)                                     \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
++        || defined(BUILD_TARGET_AARCH64))
+ /* rive patch: compiled code has no unwind info, so the SEH walk for a crash
+    in a native it called stopped at its frames, short of the unhandled
+    exception filter crash reporters set. Its frames now hand such a crash to
+@@ -4611,6 +4612,23 @@ aot_code_exception_handler(EXCEPTION_RECORD *record, ULONG64 frame,
+ static uint8 *aot_code_unwind_info = NULL;
+ static INIT_ONCE aot_code_unwind_once = INIT_ONCE_STATIC_INIT;
+ 
++#if defined(BUILD_TARGET_AARCH64)
++/* arm64 unwind info holds its function's length, at most 2^18 - 1
++   instructions, so runs of 2^k instructions cover the code, each naming
++   the info at 16k for its k */
++#define AOT_CODE_RUN_MAX_LOG2 17
++
++static uint32
++aot_code_run_log2(uint32 instructions_left)
++{
++    uint32 k = AOT_CODE_RUN_MAX_LOG2;
++
++    while (!(instructions_left >> k))
++        k--;
++    return k;
++}
++#endif
++
+ static BOOL CALLBACK
+ create_aot_code_unwind_info(PINIT_ONCE once, PVOID param, PVOID *context)
+ {
+@@ -4619,7 +4637,14 @@ create_aot_code_unwind_info(PINIT_ONCE once, PVOID param, PVOID *context)
+                           MMAP_PROT_READ | MMAP_PROT_WRITE | MMAP_PROT_EXEC,
+                           MMAP_MAP_32BIT, os_get_invalid_handle());
+     uint64 handler = (uint64)(uintptr_t)aot_code_exception_handler;
++#if defined(BUILD_TARGET_AARCH64)
++    /* ldr x16, #8; br x16 */
++    static const uint32 jump[2] = { 0x58000050, 0xd61f0200 };
++    uint8 *thunk = page + 16 * (AOT_CODE_RUN_MAX_LOG2 + 1);
++    uint32 info[4], k;
++#else
+     uint32 thunk = (uint32)(uintptr_t)(page + 16);
++#endif
+     DWORD old_protect;
+ 
+     (void)once;
+@@ -4631,6 +4656,20 @@ create_aot_code_unwind_info(PINIT_ONCE once, PVOID param, PVOID *context)
+         os_munmap(page, page_size);
+         return FALSE;
+     }
++#if defined(BUILD_TARGET_AARCH64)
++    for (k = 0; k <= AOT_CODE_RUN_MAX_LOG2; k++) {
++        /* 2^k instructions, a handler, and alloc_s 16 so the frame unwinds
++           somewhere, or Windows never calls its handler */
++        info[0] = (1u << k) | (1u << 20) | (1u << 27);
++        info[1] = 0xe3e3e401;
++        info[2] = (uint32)(uintptr_t)thunk;
++        info[3] = 0;
++        bh_memcpy_s(page + 16 * k, sizeof(info), info, sizeof(info));
++    }
++    bh_memcpy_s(thunk, sizeof(jump), jump, sizeof(jump));
++    bh_memcpy_s(thunk + sizeof(jump), 8, &handler, 8);
++    FlushInstructionCache(GetCurrentProcess(), page, page_size);
++#else
+     /* Version 1 with a handler, no prologue or unwind codes */
+     page[0] = 1 | (UNW_FLAG_EHANDLER << 3);
+     bh_memcpy_s(page + 4, 4, &thunk, 4);
+@@ -4640,6 +4679,7 @@ create_aot_code_unwind_info(PINIT_ONCE once, PVOID param, PVOID *context)
+     bh_memcpy_s(page + 18, 8, &handler, 8);
+     page[26] = 0xff;
+     page[27] = 0xe0;
++#endif
+     VirtualProtect(page, page_size, PAGE_EXECUTE_READ, &old_protect);
+     aot_code_unwind_info = page;
+     return TRUE;
+@@ -4650,16 +4690,33 @@ add_code_function_table(AOTModule *module)
+ {
+     RUNTIME_FUNCTION *table;
+     uintptr_t code = (uintptr_t)module->code;
++    uint32 count = 1;
++#if defined(BUILD_TARGET_AARCH64)
++    uint32 left, k, i;
++
++    for (count = 0, left = module->code_size / 4; left; count++)
++        left -= 1u << aot_code_run_log2(left);
++#endif
+ 
+-    if (!code || code + module->code_size > UINT32_MAX
++    if (!code || !count || code + module->code_size > UINT32_MAX
+         || !InitOnceExecuteOnce(&aot_code_unwind_once,
+                                 create_aot_code_unwind_info, NULL, NULL)
+-        || !(table = wasm_runtime_malloc(sizeof(RUNTIME_FUNCTION))))
++        || !(table = wasm_runtime_malloc(sizeof(RUNTIME_FUNCTION) * count)))
+         return;
++#if defined(BUILD_TARGET_AARCH64)
++    for (i = 0, left = module->code_size / 4; left; i++) {
++        k = aot_code_run_log2(left);
++        table[i].BeginAddress = (DWORD)code;
++        table[i].UnwindData = (DWORD)(uintptr_t)(aot_code_unwind_info + 16 * k);
++        code += (uintptr_t)4 << k;
++        left -= 1u << k;
++    }
++#else
+     table->BeginAddress = (DWORD)code;
+     table->EndAddress = (DWORD)(code + module->code_size);
+     table->UnwindData = (DWORD)(uintptr_t)aot_code_unwind_info;
+-    if (RtlAddFunctionTable(table, 1, 0))
++#endif
++    if (RtlAddFunctionTable(table, count, 0))
+         module->rive_code_function_table = table;
+     else
+         wasm_runtime_free(table);
+@@ -4691,8 +4748,9 @@ aot_load_from_aot_file(const uint8 *buf, uint32 size, const LoadArgs *args,
+     }
+ #endif /* WASM_ENABLE_AOT_VALIDATOR != 0 */
+ 
+-#if defined(BH_PLATFORM_WINDOWS) \
+-    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++#if defined(BH_PLATFORM_WINDOWS)                                     \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
++        || defined(BUILD_TARGET_AARCH64))
+     add_code_function_table(module);
+ #endif
+ 
+@@ -4798,8 +4856,9 @@ aot_unload(AOTModule *module)
+     }
+ #endif
+ 
+-#if defined(BH_PLATFORM_WINDOWS) \
+-    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64))
++#if defined(BH_PLATFORM_WINDOWS)                                     \
++    && (defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
++        || defined(BUILD_TARGET_AARCH64))
+     if (module->rive_code_function_table) {
+         RtlDeleteFunctionTable(module->rive_code_function_table);
+         wasm_runtime_free(module->rive_code_function_table);

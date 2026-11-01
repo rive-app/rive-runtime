@@ -179,7 +179,10 @@ do
     elseif archOption ~= nil and archOption ~= '' and archOption ~= 'host' then
         isArm64 = archOption == 'arm64' or archOption == 'aarch64'
     else
-        isArm64 = machine == 'arm64' or machine == 'aarch64'
+        -- Windows builds 'host' as x64 on any machine, as rive_build_config's
+        -- target triple does.
+        isArm64 = os.target() ~= 'windows'
+            and (machine == 'arm64' or machine == 'aarch64')
     end
     local isArm32 = forAndroid and archOption == 'arm'
     -- The quoted string define goes through buildoptions pre-escaped so both
@@ -207,14 +210,16 @@ do
     -- invoke marshaling widens float slots to v128, so the shim must be the
     -- _simd variant or int registers load from the wrong offsets. arm32 has
     -- no simd invoke variant; its marshaling never widens. Windows takes
-    -- the mingw shim: same Win64 ABI as MSVC targets, and GAS syntax that
-    -- clang's integrated assembler handles without ml64.
+    -- the mingw shims: the same ABIs as MSVC targets, in GAS syntax that
+    -- clang's integrated assembler handles without ml64 or armasm64.
     local archDir = wamr .. '/core/iwasm/common/arch/'
     local relocDir = wamr .. '/core/iwasm/aot/arch/'
     local invokeNative = isUniversal and 'wamr_universal_invoke.S'
         or archDir
             .. (
                 isArm32 and 'invokeNative_thumb_vfp.s'
+                or isArm64 and os.target() == 'windows' and not isNx
+                    and 'invokeNative_mingw_aarch64_simd.s'
                 or isArm64 and 'invokeNative_aarch64_simd.s'
                 or os.target() == 'windows' and 'invokeNative_mingw_x64_simd.s'
                 or 'invokeNative_em64_simd.s'
@@ -281,7 +286,9 @@ do
         do
             buildmessage('assembling %{file.name}')
             buildcommands({
-                'clang --target=x86_64-pc-windows-msvc -c "%{file.abspath}" -o "%{cfg.objdir}/%{file.basename}.obj"',
+                'clang --target='
+                    .. (isArm64 and 'aarch64' or 'x86_64')
+                    .. '-pc-windows-msvc -c "%{file.abspath}" -o "%{cfg.objdir}/%{file.basename}.obj"',
             })
             buildoutputs({ '%{cfg.objdir}/%{file.basename}.obj' })
         end

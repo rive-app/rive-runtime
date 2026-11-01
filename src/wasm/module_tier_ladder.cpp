@@ -1351,6 +1351,11 @@ std::string ModuleTierLadder::runWamrc(Job& job)
   {
     // The platform clobbers x18; reserve it here so safety does not
     // depend on the wamrc we were handed. Features need an explicit cpu.
+#if defined(_WIN32)
+    // An x64 wamrc runs here under emulation and would compile for x64.
+    args.push_back("--target=aarch64v8");
+    args.push_back("--target-abi=msvc");
+#endif
     args.push_back("--cpu=generic");
 #if defined(__APPLE__)
     // Every Apple silicon Mac has single instruction atomics, which make

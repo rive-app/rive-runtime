@@ -1,0 +1,525 @@
+From: rive
+Subject: [PATCH 0062] load aot code on windows on arm
+
+WAMR could not compile AOT code for Windows on Arm, nor load it. wamrc
+knew no arm64 COFF machine. It left arm64's calls to aot_func_internal#n
+as relocations, which the loader cannot resolve, where it applies x64's
+itself. And it dropped the .rdata holding arm64's jump tables, which are
+offsets with no relocations, where x64's absolute entries have them. For
+an msvc target it chose the medium code model, which arm64 lacks, so arm64
+keeps the small one, whose adrp reaches the data the loader maps beside the
+code.
+
+The loader knew no arm64 COFF machine or relocation. COFF keeps every
+addend in the instruction it relocates: an adrp's in bytes, not pages, and
+a load or store's in units of its access size. Code reaches each constant
+by an adrp and a load, two relocations, which now share one slot, where
+each took the next and a pair could straddle a page. __chkstk, which LLVM
+calls for frames past a page, joins the arm64 symbols. And every map the
+loader makes goes below 4GB as on x64, which keeps the code within an
+adrp's reach of its data and lets a function table address it.
+
+diff --git a/core/iwasm/aot/aot_loader.c b/core/iwasm/aot/aot_loader.c
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -278,6 +278,7 @@ GET_U16_FROM_ADDR(const uint8 *p)
+ #define E_MACHINE_RISCV 243         /* RISC-V 32/64 */
+ #define E_MACHINE_WIN_I386 0x14c    /* Windows i386 architecture */
+ #define E_MACHINE_WIN_X86_64 0x8664 /* Windows x86-64 architecture */
++#define E_MACHINE_WIN_ARM64 0xaa64  /* Windows arm64 architecture */
+ 
+ /* Legal values for e_version */
+ #define E_VERSION_CURRENT 1 /* Current version */
+@@ -306,7 +307,8 @@ loader_mmap(uint32 size, bool prot_exec, char *error_buf, uint32 error_buf_size)
+ 
+ #if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
+     || defined(BUILD_TARGET_RISCV64_LP64D)                       \
+-    || defined(BUILD_TARGET_RISCV64_LP64)
++    || defined(BUILD_TARGET_RISCV64_LP64)                        \
++    || (defined(BUILD_TARGET_AARCH64) && defined(BH_PLATFORM_WINDOWS))
+ #if !defined(__APPLE__) && !defined(BH_PLATFORM_LINUX_SGX)
+     /* The mmapped AOT data and code in 64-bit targets had better be in
+        range 0 to 2G, or aot loader may fail to apply some relocations,
+@@ -414,6 +416,7 @@ get_aot_file_target(AOTTargetInfo *target_info, char *target_buf,
+             break;
+         case E_MACHINE_ARM:
+         case E_MACHINE_AARCH64:
++        case E_MACHINE_WIN_ARM64:
+             /* TODO: this will make following `strncmp()` ~L392 unnecessary.
+              * Use const strings here */
+             machine_type = target_info->arch;
+@@ -3222,6 +3225,25 @@ is_text_section(const char *section_name)
+     return !strcmp(section_name, ".text") || !strcmp(section_name, ".ltext");
+ }
+ 
++#if defined(BH_PLATFORM_WINDOWS)
++/* rive patch: the slot already holding value, else the next free one, as
++   arm64 code reaches a constant by an adrp and a load, two relocations
++   that must land on the same slot */
++static uint8 *
++plt_data_slot(uint8 *slots, uint32 *p_used, const void *value, uint32 size)
++{
++    uint32 i;
++
++    for (i = 0; i < *p_used; i++) {
++        if (!memcmp(slots + i * size, value, size))
++            return slots + i * size;
++    }
++    bh_memcpy_s(slots + i * size, size, value, size);
++    (*p_used)++;
++    return slots + i * size;
++}
++#endif
++
+ static bool
+ do_text_relocation(AOTModule *module, AOTRelocationGroup *group,
+                    char *error_buf, uint32 error_buf_size)
+@@ -3360,71 +3382,74 @@ do_text_relocation(AOTModule *module, AOTRelocationGroup *group,
+                  && !strncmp(symbol, YMM_PLT_PREFIX, strlen(YMM_PLT_PREFIX))
+                  && strlen(symbol) == strlen(YMM_PLT_PREFIX) + 64) {
+             char ymm_buf[17] = { 0 };
++            uint64 ymm[4];
+ 
+-            symbol_addr = module->extra_plt_data + ymm_plt_index * 32;
+             for (j = 0; j < 4; j++) {
+                 bh_memcpy_s(ymm_buf, sizeof(ymm_buf),
+                             symbol + strlen(YMM_PLT_PREFIX) + 48 - 16 * j, 16);
+-                if (!str2uint64(ymm_buf,
+-                                (uint64 *)((uint8 *)symbol_addr + 8 * j))) {
++                if (!str2uint64(ymm_buf, ymm + j)) {
+                     set_error_buf_v(error_buf, error_buf_size,
+                                     "resolve symbol %s failed", symbol);
+                     goto check_symbol_fail;
+                 }
+             }
+-            ymm_plt_index++;
++            symbol_addr = plt_data_slot(module->extra_plt_data, &ymm_plt_index,
++                                        ymm, sizeof(ymm));
+         }
+         else if (!strcmp(group->section_name, ".text")
+                  && !strncmp(symbol, XMM_PLT_PREFIX, strlen(XMM_PLT_PREFIX))
+                  && strlen(symbol) == strlen(XMM_PLT_PREFIX) + 32) {
+             char xmm_buf[17] = { 0 };
++            uint64 xmm[2];
+ 
+-            symbol_addr = module->extra_plt_data + module->ymm_plt_count * 32
+-                          + xmm_plt_index * 16;
+             for (j = 0; j < 2; j++) {
+                 bh_memcpy_s(xmm_buf, sizeof(xmm_buf),
+                             symbol + strlen(XMM_PLT_PREFIX) + 16 - 16 * j, 16);
+-                if (!str2uint64(xmm_buf,
+-                                (uint64 *)((uint8 *)symbol_addr + 8 * j))) {
++                if (!str2uint64(xmm_buf, xmm + j)) {
+                     set_error_buf_v(error_buf, error_buf_size,
+                                     "resolve symbol %s failed", symbol);
+                     goto check_symbol_fail;
+                 }
+             }
+-            xmm_plt_index++;
++            symbol_addr = plt_data_slot(module->extra_plt_data
++                                            + module->ymm_plt_count * 32,
++                                        &xmm_plt_index, xmm, sizeof(xmm));
+         }
+         else if (!strcmp(group->section_name, ".text")
+                  && !strncmp(symbol, REAL_PLT_PREFIX, strlen(REAL_PLT_PREFIX))
+                  && strlen(symbol) == strlen(REAL_PLT_PREFIX) + 16) {
+             char real_buf[17] = { 0 };
++            uint64 real;
+ 
+-            symbol_addr = module->extra_plt_data + module->ymm_plt_count * 32
+-                          + module->xmm_plt_count * 16 + real_plt_index * 8;
+             bh_memcpy_s(real_buf, sizeof(real_buf),
+                         symbol + strlen(REAL_PLT_PREFIX), 16);
+-            if (!str2uint64(real_buf, (uint64 *)symbol_addr)) {
++            if (!str2uint64(real_buf, &real)) {
+                 set_error_buf_v(error_buf, error_buf_size,
+                                 "resolve symbol %s failed", symbol);
+                 goto check_symbol_fail;
+             }
+-            real_plt_index++;
++            symbol_addr = plt_data_slot(module->extra_plt_data
++                                            + module->ymm_plt_count * 32
++                                            + module->xmm_plt_count * 16,
++                                        &real_plt_index, &real, sizeof(real));
+         }
+         else if (!strcmp(group->section_name, ".text")
+                  && !strncmp(symbol, REAL_PLT_PREFIX, strlen(REAL_PLT_PREFIX))
+                  && strlen(symbol) == strlen(REAL_PLT_PREFIX) + 8) {
+             char float_buf[9] = { 0 };
++            uint32 value;
+ 
+-            symbol_addr = module->extra_plt_data + module->ymm_plt_count * 32
+-                          + module->xmm_plt_count * 16
+-                          + module->real_plt_count * 8 + float_plt_index * 4;
+             bh_memcpy_s(float_buf, sizeof(float_buf),
+                         symbol + strlen(REAL_PLT_PREFIX), 8);
+-            if (!str2uint32(float_buf, (uint32 *)symbol_addr)) {
++            if (!str2uint32(float_buf, &value)) {
+                 set_error_buf_v(error_buf, error_buf_size,
+                                 "resolve symbol %s failed", symbol);
+                 goto check_symbol_fail;
+             }
+-            float_plt_index++;
++            symbol_addr = plt_data_slot(
++                module->extra_plt_data + module->ymm_plt_count * 32
++                    + module->xmm_plt_count * 16 + module->real_plt_count * 8,
++                &float_plt_index, &value, sizeof(value));
+         }
+ #endif /* end of defined(BH_PLATFORM_WINDOWS) */
+         else if (!(symbol_addr = resolve_target_sym(symbol, &symbol_index))) {
+diff --git a/core/iwasm/aot/arch/aot_reloc_aarch64.c b/core/iwasm/aot/arch/aot_reloc_aarch64.c
+--- a/core/iwasm/aot/arch/aot_reloc_aarch64.c
++++ b/core/iwasm/aot/arch/aot_reloc_aarch64.c
+@@ -33,9 +33,27 @@
+ #define R_AARCH64_JUMP26 282
+ #define R_AARCH64_CALL26 283
+ 
++#if defined(BH_PLATFORM_WINDOWS)
++/* rive patch: COFF keeps every addend in the instruction it relocates */
++#ifndef IMAGE_REL_ARM64_BRANCH26
++#define IMAGE_REL_ARM64_BRANCH26 0x0003
++#define IMAGE_REL_ARM64_PAGEBASE_REL21 0x0004
++#define IMAGE_REL_ARM64_PAGEOFFSET_12A 0x0006
++#define IMAGE_REL_ARM64_PAGEOFFSET_12L 0x0007
++#endif
++
++/* LLVM probes frames past a page through it, since Windows commits thread
++   stacks one guard page at a time. */
++void
++__chkstk(void);
++#endif
++
+ /* clang-format off */
+ static SymbolMap target_sym_map[] = {
+     REG_COMMON_SYMBOLS
++#if defined(BH_PLATFORM_WINDOWS)
++    REG_SYM(__chkstk),
++#endif
+ };
+ /* clang-format on */
+ 
+@@ -139,6 +157,9 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+     switch (reloc_type) {
+         case R_AARCH64_CALL26:
+         case R_AARCH64_JUMP26:
++#if defined(BH_PLATFORM_WINDOWS)
++        case IMAGE_REL_ARM64_BRANCH26:
++#endif
+         {
+             void *S, *P = (void *)(target_section_addr + reloc_offset);
+             int64 X, A, initial_addend;
+@@ -268,6 +289,9 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+ 
+         case R_AARCH64_ADR_PREL_PG_HI21:
+         case R_AARCH64_ADR_PREL_PG_HI21_NC:
++#if defined(BH_PLATFORM_WINDOWS)
++        case IMAGE_REL_ARM64_PAGEBASE_REL21:
++#endif
+         {
+             void *S = symbol_addr,
+                  *P = (void *)(target_section_addr + reloc_offset);
+@@ -281,7 +305,13 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+             immlo2 = (insn >> 29) & 0x3;
+             imm21 = (immhi19 << 2) | immlo2;
+ 
+-            SIGN_EXTEND_TO_INT64(imm21 << 12, 33, initial_addend);
++#if defined(BH_PLATFORM_WINDOWS)
++            /* rive patch: COFF keeps the byte addend, not its page */
++            if (reloc_type == IMAGE_REL_ARM64_PAGEBASE_REL21)
++                SIGN_EXTEND_TO_INT64(imm21, 21, initial_addend);
++            else
++#endif
++                SIGN_EXTEND_TO_INT64(imm21 << 12, 33, initial_addend);
+             A = initial_addend;
+             A += (int64)reloc_addend;
+ 
+@@ -289,7 +319,7 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+             X = Page((int64)S + A) - Page((int64)P);
+ 
+             /* Check overflow: +-4GB */
+-            if (reloc_type == R_AARCH64_ADR_PREL_PG_HI21
++            if (reloc_type != R_AARCH64_ADR_PREL_PG_HI21_NC
+                 && (X > ((int64)4 * BH_GB) || X < ((int64)-4 * BH_GB)))
+                 goto overflow_check_fail;
+ 
+@@ -302,6 +332,9 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+         }
+ 
+         case R_AARCH64_ADD_ABS_LO12_NC:
++#if defined(BH_PLATFORM_WINDOWS)
++        case IMAGE_REL_ARM64_PAGEOFFSET_12A:
++#endif
+         {
+             void *S = symbol_addr,
+                  *P = (void *)(target_section_addr + reloc_offset);
+@@ -381,6 +414,40 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
+             break;
+         }
+ 
++#if defined(BH_PLATFORM_WINDOWS)
++        case IMAGE_REL_ARM64_PAGEOFFSET_12L:
++        {
++            /* rive patch: COFF keeps the addend in units of the access
++               size, which the instruction encodes */
++            void *S = symbol_addr,
++                 *P = (void *)(target_section_addr + reloc_offset);
++            int64 X;
++            int32 insn, scale;
++
++            CHECK_RELOC_OFFSET(sizeof(int32));
++
++            insn = *(int32 *)P;
++            scale = (int32)((uint32)insn >> 30);
++            /* A 128 bit simd and fp register */
++            if ((insn & 0x04800000) == 0x04800000)
++                scale += 4;
++
++            /* S + A */
++            X = (int64)S + ((int64)((insn >> 10) & 0xFFF) << scale);
++            if (X & ((1 << scale) - 1)) {
++                set_error_buf(error_buf, error_buf_size,
++                              "AOT module load failed: "
++                              "misaligned load or store target.");
++                return false;
++            }
++
++            /* write the imm12 back to instruction */
++            *(int32 *)P =
++                (insn & 0xFFC003FF) | ((int32)(((X & 0xFFF) >> scale) << 10));
++            break;
++        }
++#endif
++
+         default:
+             if (error_buf != NULL)
+                 snprintf(error_buf, error_buf_size,
+diff --git a/core/iwasm/compilation/aot_emit_aot_file.c b/core/iwasm/compilation/aot_emit_aot_file.c
+--- a/core/iwasm/compilation/aot_emit_aot_file.c
++++ b/core/iwasm/compilation/aot_emit_aot_file.c
+@@ -923,6 +923,30 @@ get_relocation_size(AOTRelocation *relocation, bool is_32bin)
+     return size;
+ }
+ 
++/* rive patch: whether a relocation is a call to aot_func_internal#n that
++   aot_emit_text_section applies, as Windows objects keep them, arm64 too */
++static bool
++is_windows_internal_call(const AOTObjectData *obj_data,
++                         const AOTRelocationGroup *relocation_group,
++                         const AOTRelocation *relocation)
++{
++    const char *arch = obj_data->comp_ctx->target_arch;
++    uint32 type = relocation->relocation_type;
++
++    if ((strcmp(relocation_group->section_name, ".text")
++         && strcmp(relocation_group->section_name, ".ltext"))
++        || !str_starts_with(relocation->symbol_name, AOT_FUNC_INTERNAL_PREFIX))
++        return false;
++    /* Windows AOT_COFF64_BIN_TYPE */
++    if (obj_data->target_info.bin_type == 6)
++        /* IMAGE_REL_AMD64_REL32 and IMAGE_REL_ARM64_BRANCH26 */
++        return (!strncmp(arch, "x86_64", 6) && type == 4)
++               || (!strncmp(arch, "aarch64", 7) && type == 3);
++    /* Windows AOT_COFF32_BIN_TYPE, IMAGE_REL_I386_REL32 */
++    return obj_data->target_info.bin_type == 4 && !strncmp(arch, "i386", 4)
++           && type == 20;
++}
++
+ static uint32
+ get_relocations_size(AOTObjectData *obj_data,
+                      AOTRelocationGroup *relocation_group,
+@@ -936,22 +960,7 @@ get_relocations_size(AOTObjectData *obj_data,
+         /* ignore the relocations to aot_func_internal#n in text section
+            for windows platform since they will be applied in
+            aot_emit_text_section */
+-
+-        const char *name = relocation->symbol_name;
+-        if ((!strcmp(relocation_group->section_name, ".text")
+-             || !strcmp(relocation_group->section_name, ".ltext"))
+-            && !strncmp(name, AOT_FUNC_INTERNAL_PREFIX,
+-                        strlen(AOT_FUNC_INTERNAL_PREFIX))
+-            && ((!strncmp(obj_data->comp_ctx->target_arch, "x86_64", 6)
+-                 /* Windows AOT_COFF64_BIN_TYPE */
+-                 && obj_data->target_info.bin_type == 6
+-                 /* IMAGE_REL_AMD64_REL32 in windows x86_64 */
+-                 && relocation->relocation_type == 4)
+-                || (!strncmp(obj_data->comp_ctx->target_arch, "i386", 4)
+-                    /* Windows AOT_COFF32_BIN_TYPE */
+-                    && obj_data->target_info.bin_type == 4
+-                    /* IMAGE_REL_I386_REL32 in windows x86_32 */
+-                    && relocation->relocation_type == 20))) {
++        if (is_windows_internal_call(obj_data, relocation_group, relocation)) {
+             continue;
+         }
+         size = align_uint(size, 4);
+@@ -2516,12 +2525,9 @@ aot_emit_text_section(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
+ 
+     /* apply relocations to aot_func_internal#n in text section for
+        windows platform */
+-    if ((!strncmp(obj_data->comp_ctx->target_arch, "x86_64", 6)
+-         /* Windows AOT_COFF64_BIN_TYPE */
+-         && obj_data->target_info.bin_type == 6)
+-        || (!strncmp(obj_data->comp_ctx->target_arch, "i386", 4)
+-            /* Windows AOT_COFF32_BIN_TYPE */
+-            && obj_data->target_info.bin_type == 4)) {
++    /* Windows AOT_COFF64_BIN_TYPE or AOT_COFF32_BIN_TYPE */
++    if (obj_data->target_info.bin_type == 6
++        || obj_data->target_info.bin_type == 4) {
+         relocation_group = obj_data->relocation_groups;
+         for (i = 0; i < obj_data->relocation_group_count;
+              i++, relocation_group++) {
+@@ -2533,15 +2539,8 @@ aot_emit_text_section(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
+                 for (j = 0; j < relocation_count; j++) {
+                     /* relocation to aot_func_internal#n */
+                     const char *name = relocation->symbol_name;
+-                    if (str_starts_with(name, AOT_FUNC_INTERNAL_PREFIX)
+-                        && ((obj_data->target_info.bin_type
+-                                 == 6 /* AOT_COFF64_BIN_TYPE */
+-                             && relocation->relocation_type
+-                                    == 4 /* IMAGE_REL_AMD64_REL32 */)
+-                            || (obj_data->target_info.bin_type
+-                                    == 4 /* AOT_COFF32_BIN_TYPE */
+-                                && relocation->relocation_type
+-                                       == 20 /* IMAGE_REL_I386_REL32 */))) {
++                    if (is_windows_internal_call(obj_data, relocation_group,
++                                                 relocation)) {
+                         uint32 func_idx =
+                             atoi(name + strlen(AOT_FUNC_INTERNAL_PREFIX));
+                         uint64 text_offset, reloc_offset, reloc_addend;
+@@ -2552,10 +2551,31 @@ aot_emit_text_section(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
+                                           .text_offset_of_aot_func_internal;
+                         reloc_offset = relocation->relocation_offset;
+                         reloc_addend = relocation->relocation_addend;
+-                        /* S + A - P */
+-                        *(uint32 *)(text + reloc_offset) =
+-                            (uint32)(text_offset + reloc_addend - reloc_offset
+-                                     - 4);
++                        if (relocation->relocation_type
++                            == 3 /* IMAGE_REL_ARM64_BRANCH26 */) {
++                            /* rive patch: the bl keeps its addend in its
++                               imm26, as COFF has no addend field */
++                            uint32 insn = *(uint32 *)(text + reloc_offset);
++                            int64 x = (int64)text_offset
++                                      + (int64)((int32)(insn << 6) >> 4)
++                                      + (int64)reloc_addend
++                                      - (int64)reloc_offset;
++
++                            if (x >= 128 * BH_MB || x < -128 * BH_MB) {
++                                aot_set_last_error(
++                                    "internal call out of bl range.");
++                                return false;
++                            }
++                            *(uint32 *)(text + reloc_offset) =
++                                (insn & 0xFC000000)
++                                | ((uint32)(x >> 2) & 0x3FFFFFF);
++                        }
++                        else {
++                            /* S + A - P */
++                            *(uint32 *)(text + reloc_offset) =
++                                (uint32)(text_offset + reloc_addend
++                                         - reloc_offset - 4);
++                        }
+ 
+                         /* remove current relocation as it has been applied */
+                         if (j < relocation_count - 1) {
+@@ -3004,6 +3024,7 @@ struct coff_hdr {
+ #define E_TYPE_XIP 4
+ 
+ #define IMAGE_FILE_MACHINE_AMD64 0x8664
++#define IMAGE_FILE_MACHINE_ARM64 0xAA64
+ #define IMAGE_FILE_MACHINE_I386 0x014c
+ #define IMAGE_FILE_MACHINE_IA64 0x0200
+ 
+@@ -3155,7 +3176,9 @@ aot_resolve_target_info(AOTCompContext *comp_ctx, AOTObjectData *obj_data)
+         obj_data->target_info.e_flags = 0;
+ 
+         if (coff_header->u16Machine == IMAGE_FILE_MACHINE_AMD64
+-            || coff_header->u16Machine == IMAGE_FILE_MACHINE_IA64)
++            || coff_header->u16Machine == IMAGE_FILE_MACHINE_IA64
++            /* rive patch */
++            || coff_header->u16Machine == IMAGE_FILE_MACHINE_ARM64)
+             obj_data->target_info.bin_type = AOT_COFF64_BIN_TYPE;
+         else if (coff_header->u16Machine == IMAGE_FILE_MACHINE_I386)
+             obj_data->target_info.bin_type = AOT_COFF32_BIN_TYPE;
+@@ -3303,6 +3326,34 @@ aot_resolve_literal(AOTObjectData *obj_data)
+ static bool
+ get_relocations_count(LLVMSectionIteratorRef sec_itr, uint32 *p_count);
+ 
++/* rive patch: arm64 COFF keeps jump tables as offsets, with no relocations,
++   in the one .rdata that holds no constant of its own */
++static bool
++is_coff_arm64_rdata(AOTObjectData *obj_data, LLVMSectionIteratorRef sec_itr,
++                    const char *section_name)
++{
++    LLVMSymbolIteratorRef sym_itr;
++    const char *name;
++    bool holds_constant = false;
++
++    if (strcmp(section_name, ".rdata")
++        || obj_data->target_info.e_machine != IMAGE_FILE_MACHINE_ARM64
++        || !(sym_itr = LLVMObjectFileCopySymbolIterator(obj_data->binary)))
++        return false;
++    while (!holds_constant
++           && !LLVMObjectFileIsSymbolIteratorAtEnd(obj_data->binary, sym_itr)) {
++        name = LLVMGetSymbolName(sym_itr);
++        holds_constant = name
++                         && (str_starts_with(name, "__real@")
++                             || str_starts_with(name, "__xmm@")
++                             || str_starts_with(name, "__ymm@"))
++                         && LLVMGetSectionContainsSymbol(sec_itr, sym_itr);
++        LLVMMoveToNextSymbol(sym_itr);
++    }
++    LLVMDisposeSymbolIterator(sym_itr);
++    return !holds_constant;
++}
++
+ static bool
+ is_data_section(AOTObjectData *obj_data, LLVMSectionIteratorRef sec_itr,
+                 char *section_name)
+@@ -3327,6 +3378,7 @@ is_data_section(AOTObjectData *obj_data, LLVMSectionIteratorRef sec_itr,
+             || (!strcmp(section_name, ".rdata")
+                 && get_relocations_count(sec_itr, &relocation_count)
+                 && relocation_count > 0)
++            || is_coff_arm64_rdata(obj_data, sec_itr, section_name)
+             || !strcmp(section_name, aot_stack_sizes_section_name)
+             || (obj_data->comp_ctx->enable_llvm_pgo
+                 && (!strncmp(section_name, "__llvm_prf_cnts", 15)
+diff --git a/core/shared/platform/windows/win_memmap.c b/core/shared/platform/windows/win_memmap.c
+--- a/core/shared/platform/windows/win_memmap.c
++++ b/core/shared/platform/windows/win_memmap.c
+@@ -60,10 +60,12 @@ os_mmap(void *hint, size_t size, int prot, int flags, os_file_handle file)
+         alloc_type |= MEM_COMMIT;
+     }
+ 
+-#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64)
++#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
++    || defined(BUILD_TARGET_AARCH64)
+     /* Windows has no MAP_32BIT, and AOT code relocates against its own
+        sections with 32 bit absolute addresses, so take the first free
+-       region below 2GB. */
++       region below 2GB. rive patch: arm64 code reaches its sections by
++       adrp, and its function table by 32 bit addresses too. */
+     if (!hint && (flags & MMAP_MAP_32BIT)) {
+         SYSTEM_INFO info;
+         MEMORY_BASIC_INFORMATION region;
+diff --git a/wamr-compiler/main.c b/wamr-compiler/main.c
+--- a/wamr-compiler/main.c
++++ b/wamr-compiler/main.c
+@@ -734,11 +734,16 @@ main(int argc, char *argv[])
+          * be able to meet the requirements of some AOT relocation
+          * operations.
+          */
+-        if (option.target_abi && !strcmp(option.target_abi, "msvc")) {
++        /* rive patch: arm64 has no medium code model, and on Windows adrp
++           reaches the data the loader maps beside the code */
++        if (option.target_abi && !strcmp(option.target_abi, "msvc")
++            && !(option.target_arch
++                 && (!strncmp(option.target_arch, "aarch64", 7)
++                     || !strncmp(option.target_arch, "arm64", 5)))) {
+             LOG_VERBOSE("Set size level to 1 for Windows AOT file");
+             option.size_level = 1;
+         }
+-#if defined(_WIN32) || defined(_WIN32_) \
++#if ((defined(_WIN32) || defined(_WIN32_)) && !defined(_M_ARM64)) \
+     || ((defined(__APPLE__) || defined(__MACH__)) && !defined(__arm64__))
+         if (!option.target_arch && !option.target_abi) {
+             LOG_VERBOSE("Set size level to 1 for Windows or MacOS AOT file");
