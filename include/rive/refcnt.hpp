@@ -38,6 +38,25 @@ public:
 
   void ref() const { (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed); }
 
+  // Takes a reference unless the count already reached zero, which means the
+  // object is being destroyed. For a registry that lists objects without
+  // owning them: it can hand one out without reviving one that is dying.
+  bool tryRef() const
+  {
+    int32_t count = m_refcnt.load(std::memory_order_relaxed);
+    while (count > 0)
+    {
+      if (m_refcnt.compare_exchange_weak(
+              count,
+              count + 1,
+              std::memory_order_relaxed))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void unref() const
   {
     if (1 == m_refcnt.fetch_add(-1, std::memory_order_acq_rel))

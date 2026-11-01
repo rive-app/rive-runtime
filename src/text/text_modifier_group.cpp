@@ -332,7 +332,7 @@ TextRun TextModifierGroup::modifyShape(
     if (!same)
     {
       m_variationCoords = std::move(coords);
-      m_variableFont = font->makeAtCoords(m_variationCoords);
+      m_variableFont = font->sharedAtCoords(m_variationCoords);
       m_variableFontBase = style->font();
     }
     return {

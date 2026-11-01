@@ -36,6 +36,33 @@ TEST_CASE("refcnt", "[basics]")
   safe_unref((MyRefCnt*)nullptr);
 }
 
+// Counts reaching zero instead of deleting itself, so it can still be asked
+// for a reference after.
+class DeferredRefCnt : public RefCnt<DeferredRefCnt>
+{
+public:
+  mutable int reachedZero = 0;
+  void onRefCntReachedZero() const { reachedZero++; }
+};
+
+TEST_CASE("tryRef takes a reference until the count reaches zero", "[basics]")
+{
+  DeferredRefCnt object;
+  REQUIRE(object.tryRef());
+  REQUIRE(object.debugging_refcnt() == 2);
+  object.unref();
+  REQUIRE(object.debugging_refcnt() == 1);
+  object.unref();
+  REQUIRE(object.reachedZero == 1);
+  REQUIRE(object.debugging_refcnt() == 0);
+
+  // Refused, and the count stays at zero: a dying object isn't revived, and
+  // isn't handed to a second destruction.
+  REQUIRE_FALSE(object.tryRef());
+  REQUIRE(object.debugging_refcnt() == 0);
+  REQUIRE(object.reachedZero == 1);
+}
+
 TEST_CASE("rcp", "[basics]")
 {
   rcp<MyRefCnt> r0(nullptr);

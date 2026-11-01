@@ -15,6 +15,7 @@
 #include "hb-ot.h"
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <unordered_set>
 
@@ -37,6 +38,13 @@ extern "C"
 rive::Font::FallbackProc rive::Font::gFallbackProc;
 
 bool rive::Font::gFallbackProcEnabled = true;
+
+#ifdef TESTING
+std::atomic<uint64_t> HBFont::sm_variantsMade{0};
+std::atomic<uint64_t> HBFont::sm_glyphPathsDrawn{0};
+void (*HBFont::sm_variantDying)() = nullptr;
+std::atomic<uint64_t> HBFont::sm_variantsCompared{0};
+#endif
 
 namespace
 {
@@ -77,6 +85,58 @@ void rive::Font::fallbackFontsChanged()
 
 namespace
 {
+// A number for the calling thread that no other thread, then or later, gets.
+uint64_t threadToken()
+{
+  static std::atomic<uint64_t> s_nextToken{1};
+  thread_local uint64_t token = s_nextToken.fetch_add(
+      1,
+      std::memory_order_relaxed);
+  return token;
+}
+
+// A hash of what tells variants apart: the thread one is shared on, and its
+// merged axes and features, in tag order, as the maps' own order isn't fixed.
+// Sorts [axes] and [features].
+uint64_t variantKey(
+    uint64_t thread,
+    hb_variation_t* axes,
+    size_t axisCount,
+    std::pair<hb_tag_t, uint32_t>* features,
+    size_t featureCount)
+{
+  std::sort(
+      axes,
+      axes + axisCount,
+      [](const hb_variation_t& a, const hb_variation_t& b) {
+        return a.tag < b.tag;
+      });
+  std::sort(features, features + featureCount);
+  uint64_t hash = 0x9e3779b97f4a7c15ull;
+  auto mix = [&hash](uint64_t word) {
+    hash ^= word;
+    hash *= 0xff51afd7ed558ccdull;
+    hash ^= hash >> 32;
+  };
+  mix(thread);
+  mix(axisCount);
+  for (size_t i = 0; i < axisCount; i++)
+  {
+    // Adding zero turns -0 into 0, which the maps' == already treats as
+    // equal, so the two share a key.
+    float axisValue = axes[i].value + 0.0f;
+    uint32_t value;
+    memcpy(&value, &axisValue, sizeof(value));
+    mix((uint64_t)axes[i].tag << 32 | value);
+  }
+  mix(featureCount);
+  for (size_t i = 0; i < featureCount; i++)
+  {
+    mix((uint64_t)features[i].first << 32 | features[i].second);
+  }
+  return hash;
+}
+
 // Takes ownership of blob, which is null when harfbuzz already released its
 // data.
 hb_font_t* hbFontFromBlob(hb_blob_t* blob, unsigned faceIndex = 0)
@@ -801,6 +861,29 @@ HBFont::HBFont(
 
 HBFont::~HBFont()
 {
+  if (m_variantOf != nullptr)
+  {
+#ifdef TESTING
+    if (sm_variantDying != nullptr)
+    {
+      sm_variantDying();
+    }
+#endif
+    // Until this is out of the map, sharedWithOptions may still compare this
+    // font's options, which outlive this block; it can't take a reference
+    // to it (see RefCnt::tryRef).
+    std::lock_guard<std::mutex> lock(m_variantOf->m_variantsMutex);
+    auto& variants = m_variantOf->m_variants;
+    auto range = variants.equal_range(m_variantKey);
+    for (auto itr = range.first; itr != range.second; itr++)
+    {
+      if (itr->second == this)
+      {
+        variants.erase(itr);
+        break;
+      }
+    }
+  }
   hb_draw_funcs_destroy(m_drawFuncs);
   hb_paint_funcs_destroy(m_paintFuncs);
   hb_font_destroy(m_font);
@@ -978,6 +1061,21 @@ rive::rcp<rive::Font> HBFont::withOptions(
     rive::Span<const Coord> coords,
     rive::Span<const Feature> features) const
 {
+  return makeVariant(coords, features, false);
+}
+
+rive::rcp<rive::Font> HBFont::sharedWithOptions(
+    rive::Span<const Coord> coords,
+    rive::Span<const Feature> features) const
+{
+  return makeVariant(coords, features, true);
+}
+
+rive::rcp<rive::Font> HBFont::makeVariant(
+    rive::Span<const Coord> coords,
+    rive::Span<const Feature> features,
+    bool shared) const
+{
   // Merges previous options with current ones.
   std::unordered_map<hb_tag_t, float> axisValues = m_axisValues;
   for (size_t i = 0; i < coords.size(); ++i)
@@ -992,14 +1090,52 @@ rive::rcp<rive::Font> HBFont::withOptions(
     vars[i++] = {itr->first, itr->second};
   }
 
-  auto font = hb_font_create_sub_font(m_font);
-  hb_font_set_variations(font, vars.data(), (unsigned int)vars.size());
-  std::vector<hb_feature_t> hbFeatures;
   std::unordered_map<hb_tag_t, uint32_t> featureValues = m_featureValues;
   for (auto feature : features)
   {
     featureValues[feature.tag] = feature.value;
   }
+
+  uint64_t thread = 0;
+  uint64_t key = 0;
+  if (shared)
+  {
+    thread = threadToken();
+    AutoSTArray<16, std::pair<hb_tag_t, uint32_t>> featurePairs(
+        featureValues.size());
+    i = 0;
+    for (auto itr = featureValues.begin(); itr != featureValues.end(); itr++)
+    {
+      featurePairs[i++] = {itr->first, itr->second};
+    }
+    key = variantKey(
+        thread,
+        vars.data(),
+        vars.size(),
+        featurePairs.data(),
+        featurePairs.size());
+    std::lock_guard<std::mutex> lock(m_variantsMutex);
+    auto range = m_variants.equal_range(key);
+    for (auto itr = range.first; itr != range.second; itr++)
+    {
+      HBFont* variant = itr->second;
+#ifdef TESTING
+      sm_variantsCompared++;
+#endif
+      // A variant whose count already reached zero waits on this lock to
+      // leave the map, so its options can still be compared; tryRef then
+      // refuses it.
+      if (variant->m_madeOn == thread && variant->m_axisValues == axisValues &&
+          variant->m_featureValues == featureValues && variant->tryRef())
+      {
+        return rive::rcp<rive::Font>(variant);
+      }
+    }
+  }
+
+  auto font = hb_font_create_sub_font(m_font);
+  hb_font_set_variations(font, vars.data(), (unsigned int)vars.size());
+  std::vector<hb_feature_t> hbFeatures;
   for (auto itr = featureValues.begin(); itr != featureValues.end(); itr++)
   {
     hbFeatures.push_back(
@@ -1009,8 +1145,19 @@ rive::rcp<rive::Font> HBFont::withOptions(
          HB_FEATURE_GLOBAL_END});
   }
 
-  return rive::rcp<rive::Font>(
-      new HBFont(font, axisValues, featureValues, hbFeatures));
+  auto variant = new HBFont(font, axisValues, featureValues, hbFeatures);
+#ifdef TESTING
+  sm_variantsMade++;
+#endif
+  if (shared)
+  {
+    variant->m_variantOf = rive::ref_rcp(this);
+    variant->m_madeOn = thread;
+    variant->m_variantKey = key;
+    std::lock_guard<std::mutex> lock(m_variantsMutex);
+    m_variants.emplace(key, variant);
+  }
+  return rive::rcp<rive::Font>(variant);
 }
 
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
@@ -1026,6 +1173,9 @@ const rive::RawPath& HBFont::glyphPath(rive::GlyphID glyph) const
     return cached->second;
   }
   rive::RawPath rpath = drawGlyphPath(glyph);
+#ifdef TESTING
+  sm_glyphPathsDrawn++;
+#endif
   constexpr size_t kMaxCachedGlyphPaths = 512;
   if (m_glyphPathCache.size() >= kMaxCachedGlyphPaths)
   {

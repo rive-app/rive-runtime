@@ -142,7 +142,7 @@ void TextStyle::updateVariableFont() const
     {
       m_features.push_back({styleFeature->tag(), styleFeature->featureValue()});
     }
-    m_variableFont = baseFont->withOptions(m_coords, m_features);
+    m_variableFont = baseFont->sharedWithOptions(m_coords, m_features);
     m_variableFontBase = baseFont;
   }
   else

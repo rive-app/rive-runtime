@@ -291,9 +291,29 @@ public:
     return this->makeAtCoords(Span<const Coord>(&c, 1));
   }
 
+  // A new font with these options merged over this font's. Each call makes
+  // one of its own, so the caller may hand it to another thread.
   virtual rcp<Font> withOptions(
       Span<const Coord> variableAxes,
       Span<const Feature> features) const = 0;
+
+  // The font withOptions would make, or one this font already made for the
+  // same options on this thread and that is still alive. Text styles and
+  // variation modifiers ask this way, so a list's rows share one variable
+  // font and the outlines it draws. The font may be in use elsewhere on this
+  // thread, and a font's caches aren't locked, so it stays on this thread: a
+  // font to hand to another comes from withOptions.
+  virtual rcp<Font> sharedWithOptions(
+      Span<const Coord> variableAxes,
+      Span<const Feature> features) const
+  {
+    return withOptions(variableAxes, features);
+  }
+
+  rcp<Font> sharedAtCoords(Span<const Coord> coords) const
+  {
+    return sharedWithOptions(coords, Span<const Feature>(nullptr, 0));
+  }
 
   // Returns a 1-point path for this glyph. It will be positioned
   // relative to (0,0) with the typographic baseline at y = 0.

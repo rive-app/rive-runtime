@@ -4,8 +4,10 @@
 #include "rive/factory.hpp"
 #include "rive/text_engine.hpp"
 
+#include <atomic>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 // Platforms where HBFont::DecodeFile can map a file. Declared here so callers
@@ -93,6 +95,9 @@ public:
   rive::rcp<Font> withOptions(
       rive::Span<const Coord> variableAxes,
       rive::Span<const Feature> features) const override;
+  rive::rcp<Font> sharedWithOptions(
+      rive::Span<const Coord> variableAxes,
+      rive::Span<const Feature> features) const override;
 
   bool hasGlyph(const rive::Unichar) const override;
   std::vector<rive::Unichar> codepoints() const override;
@@ -126,6 +131,17 @@ public:
       uint8_t width);
   static float GetStyle(hb_font_t*, uint32_t);
   hb_font_t* font() const { return m_font; }
+#ifdef TESTING
+  // Variants made, rather than shared, and glyph outlines drawn rather than
+  // found in a cache, across every font and thread.
+  static std::atomic<uint64_t> sm_variantsMade;
+  static std::atomic<uint64_t> sm_glyphPathsDrawn;
+  // Called by a variant's destructor once its count reached zero, before it
+  // leaves its font's map, so a test can look the variant up while it dies.
+  static void (*sm_variantDying)();
+  // Live variants sharedWithOptions compared a request's options against.
+  static std::atomic<uint64_t> sm_variantsCompared;
+#endif
 
 private:
   HBFont(
@@ -133,6 +149,12 @@ private:
       std::unordered_map<uint32_t, float> axisValues,
       std::unordered_map<uint32_t, uint32_t> featureValues,
       std::vector<hb_feature_t> features);
+
+  // withOptions, or sharedWithOptions when [shared].
+  rive::rcp<Font> makeVariant(
+      rive::Span<const Coord> variableAxes,
+      rive::Span<const Feature> features,
+      bool shared) const;
 
 public:
   hb_font_t* m_font;
@@ -173,6 +195,29 @@ private:
   // a new item) reuses its glyphs instead of walking the glyf table again.
   // Bounded; it starts over once full.
   mutable std::unordered_map<rive::GlyphID, rive::RawPath> m_glyphPathCache;
+
+  // The fonts sharedWithOptions made from this one that are still alive, by
+  // variantKey. A request for options one of them already has, from the
+  // thread that made it, gets that font, and with it the outlines it already
+  // drew: every list row's text style asks for the same variable font, and
+  // each used to build its own and draw every glyph again. Keyed rather than
+  // listed because a variation modifier's falloff keeps a variant alive per
+  // coverage level, thousands on a long text. Not owned: a variant holds
+  // this font (m_variantOf) and takes itself out as it is destroyed. Fonts
+  // withOptions makes aren't listed, so one its caller hands to another
+  // thread is never handed out again.
+  mutable std::mutex m_variantsMutex;
+  mutable std::unordered_multimap<uint64_t, HBFont*> m_variants;
+  // The font sharedWithOptions made this one from, if it did, and this
+  // one's key in that font's m_variants.
+  rive::rcp<const HBFont> m_variantOf;
+  uint64_t m_variantKey = 0;
+  // The thread sharedWithOptions made this one on, as a number no later
+  // thread gets (a std::thread::id can be reused once its thread ends). Its
+  // caches aren't locked, as a base font's aren't, so it is only shared on
+  // that thread. One base font can serve files that advance on different
+  // threads, whose styles each get a font of their own.
+  uint64_t m_madeOn = 0;
 };
 
 #endif
