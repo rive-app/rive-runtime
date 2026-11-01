@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/span.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -62,6 +63,22 @@ public:
     return Span<const uint8_t>(m_blobs.data(), m_blobs.size());
   }
 
+  size_t blobCapacity() const { return m_blobs.capacity(); }
+
+  // Room for an import's image bytes, which otherwise grow in here by
+  // doubling and leave the heap too fragmented for the decodes that follow.
+  void reserveBlobs(size_t bytes) { m_blobs.reserve(m_blobs.size() + bytes); }
+
+  // Hands the recorded bytes over without copying and leaves the stream
+  // empty, so one large frame cannot pin its capacity here.
+  void takeBytes(std::vector<uint8_t>& commands, std::vector<uint8_t>& blobs)
+  {
+    // Frames are usually alike, so the next starts with room for this one.
+    // Blobs are capped: an import's images must not be carried forward.
+    commands = takeAndReserve(m_commands, m_commands.size());
+    blobs = takeAndReserve(m_blobs, std::min(m_blobs.size(), kCarriedBlobs));
+  }
+
 protected:
   // Appends are the hottest thing recording does, and vector::insert drags
   // its general mid-range machinery through every one of them.
@@ -90,6 +107,20 @@ protected:
     m_blobs.clear();
   }
 
+private:
+  static constexpr size_t kCarriedBlobs = 1 << 20;
+
+  static std::vector<uint8_t> takeAndReserve(
+      std::vector<uint8_t>& bytes,
+      size_t carry)
+  {
+    std::vector<uint8_t> taken;
+    taken.reserve(carry);
+    taken.swap(bytes);
+    return taken;
+  }
+
+protected:
   std::vector<uint8_t> m_commands;
   std::vector<uint8_t> m_blobs;
 };

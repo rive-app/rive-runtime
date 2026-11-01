@@ -646,6 +646,16 @@ public:
 
   const OreCommandBuffer& stream() const { return m_render; }
 
+  // Open passes finish into this frame first; their offsets point into the
+  // bytes being handed over.
+  void takeStreamBytes(
+      std::vector<uint8_t>& commands,
+      std::vector<uint8_t>& blobs)
+  {
+    finishOpenRenderPassesFrom(0);
+    m_render.takeBytes(commands, blobs);
+  }
+
 private:
   // The replay device's capabilities are the ones a recording script has to
   // see: it is the device the recorded branch will run on. Copied rather

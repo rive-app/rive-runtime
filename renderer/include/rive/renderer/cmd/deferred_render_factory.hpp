@@ -57,6 +57,13 @@ public:
   const RenderCommandBuffer& commandBuffer() const { return m_buffer; }
   RenderCommandBuffer& commandBuffer() { return m_buffer; }
 
+  // Images are at most the file; the frame's other blobs and their 8 byte
+  // padding ride on top, so a little more keeps the buffer from doubling.
+  void reserveForImport(size_t fileBytes) override
+  {
+    m_buffer.reserveBlobs(fileBytes + fileBytes / 8 + (64 << 10));
+  }
+
   // Clear the ordered stream for the next frame; consumer keeps resources.
   void resetFrame()
   {

@@ -441,6 +441,7 @@ rcp<File> File::import(
     }
     return nullptr;
   }
+  factory->reserveForImport(bytes.size());
   BinaryReader reader(bytes);
   RuntimeHeader header;
   if (!RuntimeHeader::read(reader, header))

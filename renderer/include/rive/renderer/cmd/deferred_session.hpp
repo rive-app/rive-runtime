@@ -41,6 +41,12 @@ public:
   void bindCaps(const ore::ReplayCaps& caps) { m_caps = caps; }
   const ore::ReplayCaps& caps() const { return m_caps; }
   const ore::cmd::OreCommandBuffer& stream() const { return m_stream; }
+  void takeStreamBytes(
+      std::vector<uint8_t>& commands,
+      std::vector<uint8_t>& blobs)
+  {
+    m_stream.takeBytes(commands, blobs);
+  }
   const std::vector<rcp<gpu::GPUResource>>& realResources() const
   {
     return m_realResources;

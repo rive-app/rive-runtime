@@ -105,6 +105,18 @@ struct DeferredFrame
   uint32_t oreTargetSize = 0;
 };
 
+// What a frame carries besides its byte streams.
+inline void snapshotFrameState(DeferredSession& session, DeferredFrame& f)
+{
+  f.canvasImages = session.canvases().images();
+  f.contentCanvases = session.contentCanvases();
+  f.retiredCanvasBackings = session.takeRetiredCanvasBackings();
+  f.oreReals = session.oreContext().realResources();
+  f.segments = session.schedulerSegments();
+  f.oreCaps = session.oreContext().caps();
+  f.oreTargetSize = session.oreContext().drawnTargetSize();
+}
+
 inline DeferredFrame snapshotFrame(DeferredSession& session)
 {
   // An errored script can leave a canvas range open; close it before the
@@ -118,13 +130,7 @@ inline DeferredFrame snapshotFrame(DeferredSession& session)
   f.blobs = copy(session.commandBuffer().blobBytes());
   f.oreCommands = copy(session.oreContext().stream().commandBytes());
   f.oreBlobs = copy(session.oreContext().stream().blobBytes());
-  f.canvasImages = session.canvases().images();
-  f.contentCanvases = session.contentCanvases();
-  f.retiredCanvasBackings = session.takeRetiredCanvasBackings();
-  f.oreReals = session.oreContext().realResources();
-  f.segments = session.schedulerSegments();
-  f.oreCaps = session.oreContext().caps();
-  f.oreTargetSize = session.oreContext().drawnTargetSize();
+  snapshotFrameState(session, f);
   return f;
 }
 
@@ -132,9 +138,15 @@ inline DeferredFrame snapshotFrame(DeferredSession& session)
 // rendered frame however many targets it drove, so the reset that ends the
 // recording window belongs with the capture that reads it, not with any one
 // target's flush.
+// The bytes move out rather than copy: a frame can carry megabytes of image
+// data, and a copy would hold it twice while the consumer decodes it.
 inline DeferredFrame takeFrame(DeferredSession& session)
 {
-  DeferredFrame frame = snapshotFrame(session);
+  session.closeOpenRange();
+  DeferredFrame frame;
+  snapshotFrameState(session, frame);
+  session.commandBuffer().takeBytes(frame.commands, frame.blobs);
+  session.oreContext().takeStreamBytes(frame.oreCommands, frame.oreBlobs);
   session.resetFrame();
   return frame;
 }
