@@ -715,6 +715,18 @@ public:
   /// Native only.
   void printFromAnyThread();
 
+  /// Values scripts read with Context.arg, as rive-cli's --arg sets them.
+  void setArgs(std::unordered_map<std::string, std::string> args)
+  {
+    m_args = std::move(args);
+  }
+  /// The value given for name, or null.
+  const std::string* arg(const std::string& name) const
+  {
+    auto found = m_args.find(name);
+    return found != m_args.end() ? &found->second : nullptr;
+  }
+
   /// Receives each script error line, such as a trapped call, a failed
   /// lane or a module that failed to start. Without it they go to stderr,
   /// and a lane's failure to the print sink.
@@ -791,6 +803,7 @@ protected:
   void flushLaneLogs();
   // Hands each watched VM's lane lines over once it stalls, forever.
   static void flushStalledLaneLogs();
+  std::unordered_map<std::string, std::string> m_args;
 
   /// Reads a flag export. Backends call it off the module before start,
   /// which runs every script's top level and already passes strings.

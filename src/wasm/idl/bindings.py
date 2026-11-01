@@ -307,6 +307,11 @@ NAMESPACES = [
         op('zone_name', [f64('epochSeconds'),
                          mutbuf('char', 'buffer', 'capacity')],
            ret='u32', stub='zero'),
+        # Context.arg: a value the host gave the run under name, with the
+        # retrying length contract, or 0xffffffff when it gave none.
+        op('arg', [string('name', 'nameLength'),
+                   mutbuf('char', 'buffer', 'capacity')],
+           ret='u32', stub='zero', boot=True),
     ]),
     # Data binding tracer: numbers only; more property types, listeners, and
     # the valueChanged callback channel land with the properties namespace.

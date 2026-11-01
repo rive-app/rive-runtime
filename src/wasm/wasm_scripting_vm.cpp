@@ -6381,6 +6381,20 @@ uint32_t rtZoneNameImpl(
   return fillModuleString(vm, std::string(name, length), buffer, capacity);
 }
 
+uint32_t rtArgImpl(
+    WasmScriptingVM* vm,
+    const char* name,
+    uint32_t nameLength,
+    char* buffer,
+    uint32_t capacity)
+{
+  const std::string* value = vm != nullptr
+                                 ? vm->arg(std::string(name, nameLength))
+                                 : nullptr;
+  return value != nullptr ? fillModuleString(vm, *value, buffer, capacity)
+                          : UINT32_MAX;
+}
+
 // Module start has no exec env to carry the vm; the probes its top level
 // hits belong to the VM being booted.
 static WasmDebugHooks* debugHooksFor(WasmScriptingVM*& vm)

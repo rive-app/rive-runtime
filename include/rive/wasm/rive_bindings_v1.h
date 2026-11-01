@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "b10c4fdf7450ed07"
+#define RIVE_BINDINGS_V1_CONTRACT "5e80f7bbbb0cd2db"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -240,6 +240,8 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "is_dst")
 uint32_t rive_rt_is_dst(double epochSeconds);
 RIVE_BINDING_IMPORT("rive_rt_v1", "zone_name")
 uint32_t rive_rt_zone_name(double epochSeconds, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_rt_v1", "arg")
+uint32_t rive_rt_arg(const char* name, uint32_t nameLength, char* buffer, uint32_t capacity);
 
 // rive_data_v1
 RIVE_BINDING_IMPORT("rive_data_v1", "view_model")

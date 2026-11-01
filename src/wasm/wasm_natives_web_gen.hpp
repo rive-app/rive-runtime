@@ -67,6 +67,12 @@ uint32_t rive_web_rt_zone_name(uint32_t vmHandle, double epochSeconds, char* buf
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return rtZoneNameImpl(vm, epochSeconds, buffer, capacity);
 }
+uint32_t rive_web_rt_arg(uint32_t vmHandle, const char* name, uint32_t nameLength, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return rtArgImpl(vm, nameUtf8.data(), nameUtf8.size(), buffer, capacity);
+}
 uint32_t rive_web_data_view_model(uint32_t vmHandle, uint32_t object)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1890,6 +1896,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_rt_utc_offset,
     (void*)rive_web_rt_is_dst,
     (void*)rive_web_rt_zone_name,
+    (void*)rive_web_rt_arg,
     (void*)rive_web_data_view_model,
     (void*)rive_web_data_root_view_model,
     (void*)rive_web_data_global_view_model,
