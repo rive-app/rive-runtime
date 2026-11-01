@@ -1,0 +1,496 @@
+<!--
+  Source markup for assets/layer_writes.riv, which the rive CLI built from
+  it (`rive . --once`, 1.8.0), kept alongside so the scene is readable
+  without opening the binary. Each artboard has a property that two layers
+  key (see layer_accumulator_test.cpp):
+  - Blend: a later layer's blend state mixes from two earlier layers' x.
+  - Reads: a third layer's transitions compare the x two layers wrote.
+  - AtEnd: a transition's end action sets a view model number bound to x.
+  - Pill: two layers hold a layout's height at different values.
+  - Discrete: two layers show different Solo children and display values.
+  Four more have a property two layers key alongside one whose writes
+  depend on it, so none of them may wait for a flush:
+  - Alias: a third layer keys the same x through its xArtboard key.
+  - ScaleTypes: a third layer keys the intrinsicallySizedValue a scale type
+    change sets.
+  - BoundFlag: a view model bool is bound to the intrinsicallySizedValue a
+    scale type change sets.
+  - Direction: a third layer mixes a width whose mix reads the layout
+    animation a direction change clears.
+-->
+<Rive version="1" kind="fragment">
+    <!-- Blend: a later layer's blend state mixes from what two earlier
+         layers wrote to the same x this frame. -->
+    <Artboard defaultStateMachineId="0:101" width="200" height="200" name="Blend" id="0:100">
+        <Shape x="0" y="100" name="Box" id="0:110">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="Color"/></Fill>
+        </Shape>
+        <StateMachine name="Machine" id="0:101">
+            <StateMachineNumber name="mix" value="50" id="0:102"/>
+            <StateMachineLayer name="Base" id="0:103">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:104"/></EntryState>
+                <AnimationState x="200" animationId="0:120" id="0:104"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Drift" id="0:107">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:108"/></EntryState>
+                <AnimationState x="200" animationId="0:123" id="0:108"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Blend" id="0:105">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:106"/></EntryState>
+                <BlendState1DInput x="200" inputId="0:102" id="0:106">
+                    <BlendAnimation1D animationId="0:121" value="0"/>
+                    <BlendAnimation1D animationId="0:122" value="100"/>
+                </BlendState1DInput>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation loopValue="loop" duration="60" name="Slide" id="0:120">
+            <KeyedObject objectId="0:110">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="0" interpolationType="linear"/>
+                    <KeyFrameDouble value="100" interpolationType="linear" frame="60"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="45" name="Drift" id="0:123">
+            <KeyedObject objectId="0:110">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="10" interpolationType="linear"/>
+                    <KeyFrameDouble value="60" interpolationType="linear" frame="45"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Left" id="0:121">
+            <KeyedObject objectId="0:110">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="20"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Right" id="0:122">
+            <KeyedObject objectId="0:110">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="180"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- Reads: a third layer's transitions compare the x two earlier layers
+         wrote this frame. -->
+    <Artboard defaultStateMachineId="0:201" width="200" height="200" name="Reads" id="0:200">
+        <Shape x="0" y="50" name="Box" id="0:210">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="Color"/></Fill>
+        </Shape>
+        <Shape x="100" y="0" name="Marker" id="0:211">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFE05757" name="Color"/></Fill>
+        </Shape>
+        <StateMachine name="Machine" id="0:201">
+            <StateMachineLayer name="A" id="0:202">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:203"/></EntryState>
+                <AnimationState x="200" animationId="0:220" id="0:203"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="B" id="0:204">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:205"/></EntryState>
+                <AnimationState x="200" animationId="0:221" id="0:205"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Watch" id="0:206">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:207"/></EntryState>
+                <AnimationState x="200" animationId="0:222" id="0:207">
+                    <StateTransition stateToId="0:208">
+                        <TransitionViewModelCondition opValue="greaterThan">
+                            <TransitionPropertyComponentComparator objectId="0:210" propertyKey="13"/>
+                            <TransitionValueNumberComparator value="60"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="0:223" id="0:208">
+                    <StateTransition stateToId="0:207">
+                        <TransitionViewModelCondition opValue="lessThanOrEqual">
+                            <TransitionPropertyComponentComparator objectId="0:210" propertyKey="13"/>
+                            <TransitionValueNumberComparator value="60"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation loopValue="loop" duration="60" name="SlideA" id="0:220">
+            <KeyedObject objectId="0:210">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="0" interpolationType="linear"/>
+                    <KeyFrameDouble value="100" interpolationType="linear" frame="60"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="45" name="SlideB" id="0:221">
+            <KeyedObject objectId="0:210">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="0" interpolationType="linear"/>
+                    <KeyFrameDouble value="120" interpolationType="linear" frame="45"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Low" id="0:222">
+            <KeyedObject objectId="0:211">
+                <KeyedProperty propertyKey="14"><KeyFrameDouble value="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="High" id="0:223">
+            <KeyedObject objectId="0:211">
+                <KeyedProperty propertyKey="14"><KeyFrameDouble value="50"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- AtEnd: when a later layer's transition finishes mixing, its action
+         sets a view model number bound to the x an earlier layer wrote. -->
+    <Artboard defaultStateMachineId="0:301" viewModelId="0:340" width="200" height="200" name="AtEnd" id="0:300">
+        <Shape x="0" y="50" name="Box" id="0:310">
+            <DataBindContext sourcePathIds="0:340-0:341" propertyKey="13"/>
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="Color"/></Fill>
+        </Shape>
+        <StateMachine name="Machine" id="0:301">
+            <StateMachineLayer name="A" id="0:302">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:303"/></EntryState>
+                <AnimationState x="200" animationId="0:320" id="0:303"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="B" id="0:304">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:305"/></EntryState>
+                <AnimationState x="200" animationId="0:321" id="0:305">
+                    <StateTransition stateToId="0:306" duration="100">
+                        <ListenerViewModelChange flags="1">
+                            <BindablePropertyNumber propertyValue="42">
+                                <DataBindContext sourcePathIds="0:340-0:341" propertyKey="636" direction="true"/>
+                            </BindablePropertyNumber>
+                        </ListenerViewModelChange>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" animationId="0:322" id="0:306">
+                    <StateTransition stateToId="0:305" duration="100"
+                                     enableExitTime="true" exitTimeIsPercetange="true" exitTime="100"/>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation loopValue="loop" duration="60" name="SlideA" id="0:320">
+            <KeyedObject objectId="0:310">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="0" interpolationType="linear"/>
+                    <KeyFrameDouble value="100" interpolationType="linear" frame="60"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="12" name="HoldB" id="0:321">
+            <KeyedObject objectId="0:310">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="30"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="12" name="HoldC" id="0:322">
+            <KeyedObject objectId="0:310">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="70"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- Pill: a Base layer rests the pill's height at 0 and a Selected layer
+         holds it at 40, as discord_clone's server icons do. Both apply every
+         frame; only the last one shows. -->
+    <Artboard defaultStateMachineId="0:401" styleId="0:402" width="200" height="200" name="Pill" id="0:400">
+        <LayoutComponentStyle name="Pill Artboard Style" id="0:402"/>
+        <LayoutComponent width="8" height="0" styleId="0:411" name="Pill" id="0:410">
+            <LayoutComponentStyle name="Pill Style" id="0:411"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Machine" id="0:401">
+            <StateMachineLayer name="Base" id="0:403">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:404"/></EntryState>
+                <AnimationState x="200" animationId="0:420" id="0:404"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Selected" id="0:405">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:406"/></EntryState>
+                <AnimationState x="200" animationId="0:421" id="0:406"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Rest" id="0:420">
+            <KeyedObject objectId="0:410">
+                <KeyedProperty propertyKey="8"><KeyFrameDouble value="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Selected" id="0:421">
+            <KeyedObject objectId="0:410">
+                <KeyedProperty propertyKey="8"><KeyFrameDouble value="40"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- Discrete: a Base layer shows the Solo's first child and keeps a
+         layout displayed; an Over layer shows the second child and hides the
+         layout. Both apply every frame; only the last one shows. -->
+    <Artboard defaultStateMachineId="0:501" styleId="0:502" width="200" height="200" name="Discrete" id="0:500">
+        <LayoutComponentStyle name="Discrete Artboard Style" id="0:502"/>
+        <Solo activeComponentId="0:511" name="Icons" id="0:510">
+            <Shape x="50" y="50" name="First" id="0:511">
+                <Rectangle width="20" height="20" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="C"/></Fill>
+            </Shape>
+            <Shape x="150" y="50" name="Second" id="0:512">
+                <Rectangle width="20" height="20" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="FFE05757" name="C"/></Fill>
+            </Shape>
+        </Solo>
+        <LayoutComponent width="40" height="40" styleId="0:531" name="Panel" id="0:530">
+            <LayoutComponentStyle name="Panel Style" id="0:531"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Machine" id="0:501">
+            <StateMachineLayer name="Base" id="0:503">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:504"/></EntryState>
+                <AnimationState x="200" animationId="0:520" id="0:504"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Over" id="0:505">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:506"/></EntryState>
+                <AnimationState x="200" animationId="0:521" id="0:506"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Rest" id="0:520">
+            <KeyedObject objectId="0:510">
+                <KeyedProperty propertyKey="296"><KeyFrameId value="0:511"/></KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:531">
+                <KeyedProperty propertyKey="596"><KeyFrameUint value="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Over" id="0:521">
+            <KeyedObject objectId="0:510">
+                <KeyedProperty propertyKey="296"><KeyFrameId value="0:512"/></KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:531">
+                <KeyedProperty propertyKey="596"><KeyFrameUint value="1"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- Alias: two layers key the box's x through key 13 and a third through
+         key 9, which sets the same x. Only the last write shows. -->
+    <Artboard defaultStateMachineId="0:601" width="200" height="200" name="Alias" id="0:600">
+        <Shape x="0" y="100" name="Box" id="0:610">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="Machine" id="0:601">
+            <StateMachineLayer name="First" id="0:603">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:604"/></EntryState>
+                <AnimationState x="200" animationId="0:620" id="0:604"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Second" id="0:605">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:606"/></EntryState>
+                <AnimationState x="200" animationId="0:621" id="0:606"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Alias" id="0:607">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:608"/></EntryState>
+                <AnimationState x="200" animationId="0:622" id="0:608"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="First" id="0:620">
+            <KeyedObject objectId="0:610">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="10"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Second" id="0:621">
+            <KeyedObject objectId="0:610">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="20"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Alias" id="0:622">
+            <KeyedObject objectId="0:610">
+                <KeyedProperty propertyKey="9"><KeyFrameDouble value="30"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- ScaleTypes: a Base layer keys the panel's width scale type to fill and
+         a Toggle layer flips it between fixed and hug; a Flag layer keys
+         intrinsicallySizedValue, which a scale type change also sets. -->
+    <Artboard defaultStateMachineId="0:701" styleId="0:702" width="200" height="200" name="ScaleTypes" id="0:700">
+        <LayoutComponentStyle name="ScaleTypes Artboard Style" id="0:702"/>
+        <LayoutComponent width="40" height="40" styleId="0:711" name="Panel" id="0:710">
+            <LayoutComponentStyle name="Panel Style" id="0:711"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Machine" id="0:701">
+            <StateMachineLayer name="Base" id="0:703">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:704"/></EntryState>
+                <AnimationState x="200" animationId="0:720" id="0:704"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Toggle" id="0:705">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:706"/></EntryState>
+                <AnimationState x="200" animationId="0:721" id="0:706"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Flag" id="0:707">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:708"/></EntryState>
+                <AnimationState x="200" animationId="0:722" id="0:708"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Base" id="0:720">
+            <KeyedObject objectId="0:711">
+                <KeyedProperty propertyKey="655"><KeyFrameUint value="1"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="30" name="Toggle" id="0:721">
+            <KeyedObject objectId="0:711">
+                <KeyedProperty propertyKey="655">
+                    <KeyFrameUint value="0" frame="0"/>
+                    <KeyFrameUint value="2" frame="15"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Flag" id="0:722">
+            <KeyedObject objectId="0:711">
+                <KeyedProperty propertyKey="606"><KeyFrameBool value="false"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- Direction: the cell inherits the artboard's layout animation. Two
+         layers key the cell's direction to rtl and ltr, which clears what it
+         inherited; a Grow layer then mixes the cell's width between states. -->
+    <Artboard defaultStateMachineId="0:801" styleId="0:802" width="200" height="200" name="Direction" id="0:800">
+        <LayoutComponentStyle animationStyleType="custom" interpolationType="linear" interpolationTime="1" name="Direction Artboard Style" id="0:802"/>
+        <LayoutComponent width="40" height="40" styleId="0:811" name="Cell" id="0:810">
+            <LayoutComponentStyle animationStyleType="inherit" name="Cell Style" id="0:811"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Machine" id="0:801">
+            <StateMachineLayer name="Rtl" id="0:803">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:804"/></EntryState>
+                <AnimationState x="200" animationId="0:820" id="0:804"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Ltr" id="0:805">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:806"/></EntryState>
+                <AnimationState x="200" animationId="0:821" id="0:806"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Grow" id="0:807">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:808"/></EntryState>
+                <AnimationState x="200" animationId="0:822" id="0:808">
+                    <StateTransition stateToId="0:809" duration="500"/>
+                </AnimationState>
+                <AnimationState x="400" animationId="0:823" id="0:809">
+                    <StateTransition stateToId="0:808" duration="500" enableExitTime="true" exitTime="1000"/>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Rtl" id="0:820">
+            <KeyedObject objectId="0:811">
+                <KeyedProperty propertyKey="599"><KeyFrameUint value="2"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Ltr" id="0:821">
+            <KeyedObject objectId="0:811">
+                <KeyedProperty propertyKey="599"><KeyFrameUint value="1"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="60" name="Small" id="0:822">
+            <KeyedObject objectId="0:810">
+                <KeyedProperty propertyKey="7"><KeyFrameDouble value="10"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="60" name="Big" id="0:823">
+            <KeyedObject objectId="0:810">
+                <KeyedProperty propertyKey="7"><KeyFrameDouble value="100"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- BoundFlag: a Base layer keys the panel's width scale type to fill and
+         a Fixed layer keys it back to fixed, so each frame's scale type
+         change sets intrinsicallySizedValue from the final types. A view
+         model bool bound to intrinsicallySizedValue sets it too. Both loop,
+         so neither layer rests on a finished pose. -->
+    <Artboard defaultStateMachineId="0:901" viewModelId="0:940" styleId="0:902" width="200" height="200" name="BoundFlag" id="0:900">
+        <LayoutComponentStyle name="BoundFlag Artboard Style" id="0:902"/>
+        <LayoutComponent width="40" height="40" styleId="0:911" name="Panel" id="0:910">
+            <LayoutComponentStyle name="Panel Style" id="0:911">
+                <DataBindContext sourcePathIds="0:940-0:941" propertyKey="606"/>
+            </LayoutComponentStyle>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="C"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="Machine" id="0:901">
+            <StateMachineLayer name="Base" id="0:903">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:904"/></EntryState>
+                <AnimationState x="200" animationId="0:920" id="0:904"/>
+            </StateMachineLayer>
+            <StateMachineLayer name="Fixed" id="0:905">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState><StateTransition stateToId="0:906"/></EntryState>
+                <AnimationState x="200" animationId="0:921" id="0:906"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation loopValue="loop" duration="10" name="Base" id="0:920">
+            <KeyedObject objectId="0:911">
+                <KeyedProperty propertyKey="655"><KeyFrameUint value="1"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation loopValue="loop" duration="10" name="Fixed" id="0:921">
+            <KeyedObject objectId="0:911">
+                <KeyedProperty propertyKey="655"><KeyFrameUint value="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <ViewModel defaultInstanceId="0:942" name="Flags" id="0:940">
+        <ViewModelPropertyBoolean name="hugs" id="0:941"/>
+        <ViewModelInstance exports="true" name="Default" id="0:942">
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:941"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:342" name="Main" id="0:340">
+        <ViewModelPropertyNumber name="n" id="0:341"/>
+        <ViewModelInstance exports="true" name="Default" id="0:342">
+            <ViewModelInstanceNumber propertyValue="5" viewModelPropertyId="0:341"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

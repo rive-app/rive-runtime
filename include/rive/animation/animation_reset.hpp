@@ -28,7 +28,9 @@ public:
   void writeTotalProperties(uint32_t value);
   void writePropertyKey(uint32_t value);
   void writePropertyValue(float value);
-  void apply(Artboard* artboard);
+  // Sets the reset values, through [accumulator] for the properties it
+  // tracks (see BlendAccumulator::track).
+  void apply(Artboard* artboard, BlendAccumulator* accumulator = nullptr);
   // Feeds the reset values to [accumulator] instead of the objects.
   void seed(Artboard* artboard, BlendAccumulator& accumulator);
   void complete();

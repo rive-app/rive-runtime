@@ -89,6 +89,7 @@
 #include "rive/file.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
+#include "rive/animation/blend_accumulator.hpp"
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -229,6 +230,8 @@ public:
       {
         m_transitionCompleted = true;
         clearAnimationReset();
+        // Its actions read and write what earlier layers applied.
+        smi->flushLayerWrites();
         fireEvents(
             smi,
             StateMachineFireOccurance::atEnd,
@@ -616,6 +619,15 @@ public:
     m_waitingForExit = false;
 
     ensureAnyStateInstance(smi);
+    // A condition reading an object's property must see what the layers
+    // before this one applied.
+    if ((m_anyStateInstance != nullptr &&
+         m_anyStateInstance->state()->transitionsReadObjects()) ||
+        (m_currentState != nullptr &&
+         m_currentState->state()->transitionsReadObjects()))
+    {
+      smi->flushLayerWrites();
+    }
     if (m_settled)
     {
       // Marked anyway: a machine bound to another instance would
@@ -764,6 +776,10 @@ public:
     m_currentState = stateTo == nullptr
                          ? nullptr
                          : stateTo->makeInstance(artboardOf(smi)).release();
+    if (m_currentState != nullptr && smi->m_layerWrites.get() != nullptr)
+    {
+      m_currentState->layerAccumulator(smi->m_layerWrites.get());
+    }
 
     // Fire start events for the state we're changing to.
     if (m_currentState != nullptr)
@@ -901,6 +917,10 @@ public:
     auto transition = findAllowedTransition(smi, stateFromInstance);
     if (transition != nullptr)
     {
+      // Everything below reads or writes what the layers applied: exit,
+      // enter and transition actions, the reset's snapshot of the values it
+      // mixes from, a blend state's own reset.
+      smi->flushLayerWrites();
       clearAnimationReset();
       changeState(smi, transition->stateTo());
       m_stateMachineChangedOnAdvance = true;
@@ -998,10 +1018,12 @@ public:
     auto artboardInstance = artboardOf(smi);
     if (m_animationReset != nullptr)
     {
-      m_animationReset->apply(artboardInstance);
+      m_animationReset->apply(artboardInstance, smi->m_layerWrites.get());
     }
     if (m_holdAnimation != nullptr)
     {
+      // Applied straight to the objects, from their current values.
+      smi->flushLayerWrites();
       m_holdAnimation->apply(artboardInstance, m_holdTime, m_mixFrom);
       m_holdAnimation = nullptr;
     }
@@ -4327,6 +4349,26 @@ StateMachineInstance::StateMachineInstance(
   assert(machine->layerCount() <= UINT16_MAX);
   m_layerCount = static_cast<uint16_t>(
       std::min<size_t>(machine->layerCount(), UINT16_MAX));
+#ifndef WITH_RIVE_EDITOR
+  // Before the layers make their first states, which write through it. Not
+  // where scripts run during the layers' advance (callbacks, scripted
+  // conditions, interpolators and actions): they could read or write a
+  // property between two layers' writes.
+  if (sm_layerAccumulatorEnabled && !machine->layerConflicts().empty() &&
+      !instance->usesScripts())
+  {
+    BlendAccumulator* accumulator = m_layerWrites.ensureAllocated();
+    accumulator->notifyChangesTo(instance);
+    for (const StateMachine::LayerConflict& conflict :
+         machine->layerConflicts())
+    {
+      accumulator->track(
+          instance->resolve(conflict.objectId),
+          conflict.propertyKey,
+          conflict.kind);
+    }
+  }
+#endif
   m_layers = new StateMachineLayerInstance[m_layerCount];
   for (size_t i = 0; i < m_layerCount; i++)
   {
@@ -5027,6 +5069,7 @@ void StateMachineInstance::sortHitComponents()
 
 bool StateMachineInstance::tryChangeState()
 {
+  assert(m_layerWrites.get() == nullptr || !m_layerWrites.get()->hasPending());
   updateDataBinds(false);
   bool hasChangedState = false;
   for (size_t i = 0; i < m_layerCount; i++)
@@ -5431,6 +5474,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
   const uint32_t poseSince = m_advanceChangeSerial;
   m_advanceChangeSerial = m_artboardInstance->changeSerial();
   updateDataBinds(false);
+  assert(m_layerWrites.get() == nullptr || !m_layerWrites.get()->hasPending());
   for (size_t i = 0; i < m_layerCount; i++)
   {
     if (m_layers[i].advance(this, seconds, newFrame, poseSince))
@@ -5438,6 +5482,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
       m_needsAdvance = true;
     }
   }
+  flushLayerWrites();
 
   if (advanceDataBinds(seconds))
   {
@@ -5550,6 +5595,16 @@ bool StateMachineInstance::advanceAndApply(
     focusManager()->finishPendingFocusRequests(rootArtboard());
   }
   return keepGoing || hasPendingReports();
+}
+
+bool StateMachineInstance::sm_layerAccumulatorEnabled = true;
+
+void StateMachineInstance::flushLayerWrites()
+{
+  if (BlendAccumulator* accumulator = m_layerWrites.get())
+  {
+    accumulator->flush();
+  }
 }
 
 void StateMachineInstance::markNeedsAdvance()

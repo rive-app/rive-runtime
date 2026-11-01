@@ -74,6 +74,13 @@ public:
   bool transitionsIgnoreTime() const { return m_transitionsIgnoreTime; }
   void transitionsIgnoreTime(bool value) { m_transitionsIgnoreTime = value; }
 
+  /// Whether a condition on this state's transitions reads a property of an
+  /// object in the artboard (TransitionViewModelCondition::
+  /// readsObjectProperty), so a search from it must see what earlier layers
+  /// applied. Set with transitionsSettleSafe; editor builds keep it true.
+  bool transitionsReadObjects() const { return m_transitionsReadObjects; }
+  void transitionsReadObjects(bool value) { m_transitionsReadObjects = value; }
+
 #ifdef WITH_RIVE_EDITOR
   // Editor-only parallel non-owning transition list. `m_Transitions`
   // is owned by `LayerState::~LayerState`. See
@@ -89,6 +96,7 @@ private:
 #endif
   bool m_transitionsSettleSafe = false;
   bool m_transitionsIgnoreTime = false;
+  bool m_transitionsReadObjects = true;
 };
 } // namespace rive
 

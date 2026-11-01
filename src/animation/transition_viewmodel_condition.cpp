@@ -1140,6 +1140,20 @@ bool TransitionViewModelCondition::readsComponentTrigger() const
          isComponentTrigger(rightComparator());
 }
 
+bool TransitionViewModelCondition::readsObjectProperty() const
+{
+  for (TransitionComparator* comparator : {leftComparator(), rightComparator()})
+  {
+    if (comparator != nullptr &&
+        (comparator->is<TransitionPropertyComponentComparator>() ||
+         comparator->is<TransitionPropertyArtboardComparator>()))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool TransitionViewModelCondition::readsPendingChange() const
 {
   if (readsComponentTrigger())

@@ -1629,6 +1629,19 @@ bool Artboard::usesScripts() const
       return true;
     }
   }
+  // An instance's binds on keyframes stay on its source; its animations
+  // clone them, converters included, as they apply.
+  const Artboard* source = artboardSource();
+  if (source != nullptr && source != this && source->hasKeyFrameSourceBinds())
+  {
+    for (const auto& entry : source->m_sourceState.get()->keyFrameBinds)
+    {
+      if (converterRunsScript(entry.second->converter()))
+      {
+        return true;
+      }
+    }
+  }
   return false;
 }
 

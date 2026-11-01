@@ -1,4 +1,6 @@
 #include "rive/animation/linear_animation.hpp"
+#include "rive/animation/blend_accumulator.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/keyframe.hpp"
@@ -148,9 +150,36 @@ void LinearAnimation::apply(
     float ffps = (float)fps();
     time = std::floor(time * ffps) / ffps;
   }
-  for (const auto& object : m_KeyedObjects)
+  // A state machine's accumulator only handles some objects; the rest are
+  // written straight to, without asking it.
+  BlendAccumulator* accumulator = context != nullptr
+                                      ? context->blendAccumulator()
+                                      : nullptr;
+  const std::vector<bool>* tracked = accumulator != nullptr
+                                         ? accumulator->trackedObjects(this)
+                                         : nullptr;
+  if (tracked == nullptr)
   {
-    object->apply(artboard, time, mix, context);
+    for (const auto& object : m_KeyedObjects)
+    {
+      object->apply(artboard, time, mix, context);
+    }
+  }
+  else
+  {
+    for (size_t i = 0, count = m_KeyedObjects.size(); i < count; i++)
+    {
+      if ((*tracked)[i])
+      {
+        m_KeyedObjects[i]->apply(artboard, time, mix, context);
+      }
+      else
+      {
+        context->suspendAccumulator(true);
+        m_KeyedObjects[i]->apply(artboard, time, mix, context);
+        context->suspendAccumulator(false);
+      }
+    }
   }
 #ifdef WITH_RIVE_EDITOR
   for (auto* object : m_EditorKeyedObjects)

@@ -535,6 +535,10 @@ public:
   StatusCode initialize();
   bool didChange() { return m_didChange; }
   uint32_t changeSerial() const { return m_changeSerial; }
+  // Moves the change serial alone: a value the artboard's objects will be
+  // set to changed (see BlendAccumulator's layer mode), so a pose resting on
+  // it must re-apply, as it would after the set itself.
+  void noteChange() { m_changeSerial++; }
 
   // The BitmapCache child of this artboard, if one exists. Its presence
   // enables cache-as-bitmap rendering. Populated during initialize().
@@ -872,8 +876,9 @@ public:
   /// make state machines of their own as they advance.
   bool hostsArtboards() const { return !m_ArtboardHosts.empty(); }
   /// Whether this artboard runs scripts: scripted components, scripts in its
-  /// state machines, or scripted converters on their data binds. Each
-  /// instance keeps its scripts' state. Walks the artboard on every call.
+  /// state machines, or scripted converters on their data binds, those on
+  /// its animations' keyframes included. Each instance keeps its scripts'
+  /// state. Walks the artboard on every call.
   bool usesScripts() const;
   const std::vector<ArtboardHost*>& artboardHosts() const
   {

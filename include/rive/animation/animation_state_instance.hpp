@@ -27,6 +27,7 @@ public:
 
   bool keepGoing() const override;
   void clearSpilledTime() override;
+  void layerAccumulator(BlendAccumulator* accumulator) override;
 
   const LinearAnimationInstance* animationInstance() const
   {

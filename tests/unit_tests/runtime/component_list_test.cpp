@@ -1,12 +1,15 @@
+#include "rive/animation/keyframe.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/math/transform_components.hpp"
+#include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
@@ -1919,6 +1922,30 @@ TEST_CASE("Artboard knows whether it runs scripts", "[component_list]")
   auto plain = ReadRiveFile("assets/component_list_default_state_machine.riv");
   REQUIRE(plain->artboard("Row") != nullptr);
   CHECK_FALSE(plain->artboard("Row")->usesScripts());
+
+  // An instance's binds on keyframes stay on its source, and its animations
+  // clone them, converters included, as they apply.
+  auto keyframes = ReadRiveFile("assets/data_bind_keyframes_test.riv");
+  auto instance = keyframes->artboardDefault();
+  REQUIRE(instance != nullptr);
+  REQUIRE(instance->artboardSource() != nullptr);
+  rive::DataBind* keyFrameBind = nullptr;
+  for (auto* dataBind : instance->artboardSource()->dataBinds())
+  {
+    if (dataBind->target() != nullptr &&
+        dataBind->target()->is<rive::KeyFrame>())
+    {
+      keyFrameBind = dataBind;
+      break;
+    }
+  }
+  REQUIRE(keyFrameBind != nullptr);
+  CHECK_FALSE(instance->usesScripts());
+  rive::DataConverter* original = keyFrameBind->converter();
+  keyFrameBind->converter(new rive::ScriptedDataConverter());
+  CHECK(instance->usesScripts());
+  delete keyFrameBind->converter();
+  keyFrameBind->converter(original);
 }
 
 // A row reused for a new item forgets the pointers its old item was

@@ -66,10 +66,21 @@ public:
   static uint64_t sm_keyFrameHolderResolves;
 #endif
 
-  // Where this instance's number and color writes go instead of straight to
-  // the objects, when a blend state owns it; see BlendAccumulator.
-  BlendAccumulator* blendAccumulator() const { return m_blendAccumulator; }
+  // Where this instance's writes go instead of straight to the objects,
+  // when a blend state or a state machine collects them; see
+  // BlendAccumulator.
+  BlendAccumulator* blendAccumulator() const
+  {
+    return m_accumulatorSuspended ? nullptr : m_blendAccumulator;
+  }
   void blendAccumulator(BlendAccumulator* value) { m_blendAccumulator = value; }
+  // Writes go straight to the objects while suspended: LinearAnimation::apply
+  // suspends a state machine's accumulator around the keyed objects it
+  // tracks nothing of, so their writes skip it.
+  void suspendAccumulator(bool suspended) const
+  {
+    m_accumulatorSuspended = suspended;
+  }
 
   // Returns the current point in time at which this instance has advance
   // to
@@ -179,6 +190,8 @@ private:
   // index; the index is never rebuilt. The editor adds binds live and
   // always looks.
   mutable bool m_noKeyFrameBinds = false;
+  // See suspendAccumulator; in the padding after m_noKeyFrameBinds.
+  mutable bool m_accumulatorSuspended = false;
   int m_loopValue = -1;
 
   // The four data-binding / scripted-interpolator containers this instance

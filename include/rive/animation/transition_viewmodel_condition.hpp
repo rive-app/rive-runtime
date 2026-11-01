@@ -756,6 +756,11 @@ public:
   // model or component) or a "changed" (Self) comparison. Errs on the side
   // of yes, since a no only saves the per-layer change windows.
   bool readsPendingChange() const;
+  // Whether either side reads a property of an object in the artboard (a
+  // component's, or the artboard's own), which the layers before this one
+  // may have written to the state machine's accumulator but not yet to the
+  // object (see StateMachineInstance).
+  bool readsObjectProperty() const;
 #ifdef WITH_RIVE_EDITOR
   void setComparatorsForEditor(
       TransitionComparator* left,

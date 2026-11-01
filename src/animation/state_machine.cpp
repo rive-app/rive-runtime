@@ -33,6 +33,43 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind_flags.hpp"
+#include "rive/animation/animation_state.hpp"
+#include "rive/animation/blend_animation.hpp"
+#include "rive/animation/blend_state.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/generated/bones/bone_base.hpp"
+#include "rive/generated/bones/root_bone_base.hpp"
+#include "rive/generated/constraints/constraint_base.hpp"
+#include "rive/generated/constraints/follow_path_constraint_base.hpp"
+#include "rive/generated/constraints/ik_constraint_base.hpp"
+#include "rive/generated/draw_rules_base.hpp"
+#include "rive/generated/layout/layout_sizing_style_base.hpp"
+#include "rive/generated/shapes/clipping_shape_base.hpp"
+#include "rive/generated/solo_base.hpp"
+#include "rive/generated/text/text_value_run_base.hpp"
+#include "rive/generated/core_registry.hpp"
+#include "rive/generated/layout/layout_component_style_base.hpp"
+#include "rive/generated/layout_component_base.hpp"
+#include "rive/generated/node_base.hpp"
+#include "rive/generated/shapes/cubic_asymmetric_vertex_base.hpp"
+#include "rive/generated/shapes/cubic_detached_vertex_base.hpp"
+#include "rive/generated/shapes/cubic_mirrored_vertex_base.hpp"
+#include "rive/generated/shapes/paint/color_channels_base.hpp"
+#include "rive/generated/shapes/paint/feather_base.hpp"
+#include "rive/generated/shapes/paint/gradient_stop_base.hpp"
+#include "rive/generated/shapes/paint/solid_color_base.hpp"
+#include "rive/generated/shapes/paint/stroke_base.hpp"
+#include "rive/generated/shapes/paint/trim_path_base.hpp"
+#include "rive/generated/shapes/parametric_path_base.hpp"
+#include "rive/generated/shapes/straight_vertex_base.hpp"
+#include "rive/generated/shapes/vertex_base.hpp"
+#include "rive/generated/transform_component_base.hpp"
+#include "rive/generated/world_transform_component_base.hpp"
+#include <map>
+#include <mutex>
+#include <set>
 #include <unordered_set>
 #endif
 
@@ -228,6 +265,235 @@ StatusCode StateMachine::onAddedDirty(CoreContext* context)
   return StatusCode::Ok;
 }
 
+#ifndef WITH_RIVE_EDITOR
+// See LayerState::transitionsReadObjects. Any view model condition counts,
+// subclasses (artboard and focus conditions) included.
+static bool transitionsReadObjects(const LayerState* state)
+{
+  for (size_t i = 0, count = state->transitionCount(); i < count; i++)
+  {
+    auto transition = state->transition(i);
+    if (transition == nullptr)
+    {
+      continue;
+    }
+    for (size_t j = 0, conditions = transition->conditionCount();
+         j < conditions;
+         j++)
+    {
+      auto condition = transition->condition(j);
+      if (condition != nullptr &&
+          condition->is<TransitionViewModelCondition>() &&
+          condition->as<TransitionViewModelCondition>()->readsObjectProperty())
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// How a property several layers key is collected and set once a frame, or
+// false when it isn't. Setting it only to its final value skips the
+// intermediate sets, so its setter must do nothing those would have needed:
+// store the value and invalidate (mark dirt, call changed(), mark a layout
+// node dirty, re-collapse a Solo's children), from which everything is
+// recomputed off the final value. Each key is checked against every override
+// of its hook. A property that isn't listed keeps being set by each layer, as
+// before. Left out on purpose:
+// - positionLeft/Top/Right/Bottom and positionType, whose hook writes them;
+// - a layout's scale types, whose hook sets its intrinsicallySizedValue from
+//   them, over what a bind or a layer set it to;
+// - a layout's direction, whose hook clears the layout animation it
+//   inherits, which a later layer's width and height keyframes read to pick
+//   their mix;
+// - a text run's style id, whose hook keeps the current style when the id
+//   names none, so its result depends on the intermediate ids;
+// - nested inputs and nested animations' controls, custom properties and
+//   scripts' inputs, whose setters reach other machines and scripts;
+// - Joystick x/y, applied by the joystick itself;
+// - numbers kept as bits or computed (the scroll and bitmask properties),
+//   and uints that interpolate (color channels).
+static bool layerAccumulatedKind(uint16_t key, BlendAccumulator::Kind& kind)
+{
+  using Kind = BlendAccumulator::Kind;
+  switch (key)
+  {
+    // xArtboard and yArtboard are counted as these (see
+    // BlendAccumulator::storageKey).
+    case NodeBase::xPropertyKey:
+    case NodeBase::yPropertyKey:
+    case TransformComponentBase::rotationPropertyKey:
+    case TransformComponentBase::scaleXPropertyKey:
+    case TransformComponentBase::scaleYPropertyKey:
+    case WorldTransformComponentBase::opacityPropertyKey:
+    case LayoutComponentBase::widthPropertyKey:
+    case LayoutComponentBase::heightPropertyKey:
+    case LayoutComponentStyleBase::cornerRadiusTLPropertyKey:
+    case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
+    case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
+    case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
+    case ParametricPathBase::widthPropertyKey:
+    case ParametricPathBase::heightPropertyKey:
+    case VertexBase::xPropertyKey:
+    case VertexBase::yPropertyKey:
+    case StraightVertexBase::radiusPropertyKey:
+    case CubicAsymmetricVertexBase::rotationPropertyKey:
+    case CubicAsymmetricVertexBase::inDistancePropertyKey:
+    case CubicAsymmetricVertexBase::outDistancePropertyKey:
+    case CubicMirroredVertexBase::rotationPropertyKey:
+    case CubicMirroredVertexBase::distancePropertyKey:
+    case CubicDetachedVertexBase::inRotationPropertyKey:
+    case CubicDetachedVertexBase::inDistancePropertyKey:
+    case CubicDetachedVertexBase::outRotationPropertyKey:
+    case CubicDetachedVertexBase::outDistancePropertyKey:
+    case GradientStopBase::positionPropertyKey:
+    case StrokeBase::thicknessPropertyKey:
+    case TrimPathBase::startPropertyKey:
+    case TrimPathBase::endPropertyKey:
+    case TrimPathBase::offsetPropertyKey:
+    case FeatherBase::strengthPropertyKey:
+    case BoneBase::lengthPropertyKey:
+    case RootBoneBase::xPropertyKey:
+    case RootBoneBase::yPropertyKey:
+    case ConstraintBase::strengthPropertyKey:
+    case FollowPathConstraintBase::distancePropertyKey:
+      kind = Kind::number;
+      return true;
+    case SolidColorBase::colorValuePropertyKey:
+    case GradientStopBase::colorValuePropertyKey:
+      kind = Kind::color;
+      return true;
+    case SoloBase::activeComponentIdPropertyKey:
+    case DrawRulesBase::drawTargetIdPropertyKey:
+      kind = Kind::id;
+      return true;
+    case LayoutSizingStyleBase::displayValuePropertyKey:
+    case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
+      kind = Kind::uint;
+      return true;
+    case ClippingShapeBase::isVisiblePropertyKey:
+    case FeatherBase::innerPropertyKey:
+    case FollowPathConstraintBase::orientPropertyKey:
+    case IKConstraintBase::invertDirectionPropertyKey:
+      kind = Kind::boolean;
+      return true;
+    case TextValueRunBase::textPropertyKey:
+      kind = Kind::string;
+      return true;
+  }
+  return false;
+}
+
+// Whether a layer keys another property of the object that key's value
+// depends on. Its set at the flush would then land out of order with that
+// property's writes.
+static bool entangledWithKeyed(
+    uint32_t objectId,
+    uint16_t key,
+    const std::map<std::pair<uint32_t, uint16_t>, int>& layersKeying)
+{
+  auto keyed = [&](uint16_t other) {
+    return layersKeying.count({objectId, other}) != 0;
+  };
+  switch (key)
+  {
+    // The color channels read and write colorValue: one keyed alongside it
+    // would mix from a stale color.
+    case SolidColorBase::colorValuePropertyKey:
+    case GradientStopBase::colorValuePropertyKey:
+      return keyed(ColorChannelsBase::colorRedPropertyKey) ||
+             keyed(ColorChannelsBase::colorGreenPropertyKey) ||
+             keyed(ColorChannelsBase::colorBluePropertyKey) ||
+             keyed(ColorChannelsBase::colorAlphaPropertyKey);
+  }
+  return false;
+}
+
+static void addKeyed(
+    const LinearAnimation* animation,
+    std::set<std::pair<uint32_t, uint16_t>>& keyed)
+{
+  if (animation == nullptr)
+  {
+    return;
+  }
+  for (size_t o = 0; o < animation->numKeyedObjects(); o++)
+  {
+    const KeyedObject* object = animation->getObject(o);
+    for (size_t p = 0; p < object->numKeyedProperties(); p++)
+    {
+      const KeyedProperty* property = object->getProperty(p);
+      if (property->numKeyFrames() != 0)
+      {
+        keyed.insert(
+            {object->objectId(),
+             (uint16_t)BlendAccumulator::storageKey(property->propertyKey())});
+      }
+    }
+  }
+}
+
+const std::vector<StateMachine::LayerConflict>& StateMachine::layerConflicts()
+    const
+{
+  if (m_layerConflictsReady.load(std::memory_order_acquire))
+  {
+    return m_layerConflicts;
+  }
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock(mutex);
+  if (m_layerConflictsReady.load(std::memory_order_relaxed))
+  {
+    return m_layerConflicts;
+  }
+  // How many layers key each (object, property).
+  std::map<std::pair<uint32_t, uint16_t>, int> layersKeying;
+  for (auto& layer : m_Layers)
+  {
+    std::set<std::pair<uint32_t, uint16_t>> keyed;
+    for (size_t i = 0, count = layer->stateCount(); i < count; i++)
+    {
+      const LayerState* state = layer->state(i);
+      if (state == nullptr)
+      {
+        continue;
+      }
+      if (state->is<AnimationState>())
+      {
+        addKeyed(state->as<AnimationState>()->animation(), keyed);
+      }
+      else if (state->is<BlendState>())
+      {
+        for (const BlendAnimation* blend :
+             state->as<BlendState>()->animations())
+        {
+          addKeyed(blend->animation(), keyed);
+        }
+      }
+    }
+    for (const auto& entry : keyed)
+    {
+      layersKeying[entry]++;
+    }
+  }
+  for (const auto& entry : layersKeying)
+  {
+    const uint32_t objectId = entry.first.first;
+    const uint16_t key = entry.first.second;
+    BlendAccumulator::Kind kind;
+    if (entry.second < 2 || !layerAccumulatedKind(key, kind) ||
+        entangledWithKeyed(objectId, key, layersKeying))
+    {
+      continue;
+    }
+    m_layerConflicts.push_back({objectId, key, kind});
+  }
+  m_layerConflictsReady.store(true, std::memory_order_release);
+  return m_layerConflicts;
+}
+#endif
+
 StatusCode StateMachine::onAddedClean(CoreContext* context)
 {
   StatusCode code;
@@ -281,6 +547,7 @@ StatusCode StateMachine::onAddedClean(CoreContext* context)
       {
         state->transitionsSettleSafe(isSettleSafe(state, untracked));
         state->transitionsIgnoreTime(transitionsIgnoreTime(state));
+        state->transitionsReadObjects(transitionsReadObjects(state));
         m_readsComponentTriggers = m_readsComponentTriggers ||
                                    anyViewModelCondition(
                                        state,

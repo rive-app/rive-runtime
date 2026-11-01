@@ -27,11 +27,13 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value)
   }
   else
   {
-    float mixi = 1.0f - mix;
     CoreRegistry::setDouble(
         object,
         propertyKey,
-        CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
+        mixKeyedDouble(
+            CoreRegistry::getDouble(object, propertyKey),
+            value,
+            mix));
   }
 }
 
@@ -54,10 +56,10 @@ void KeyFrameDouble::apply(
     float mix,
     const LinearAnimationInstance* context)
 {
-  if (context != nullptr && context->blendAccumulator() != nullptr)
+  if (context != nullptr && context->blendAccumulator() != nullptr &&
+      context->blendAccumulator()
+          ->applyDouble(object, propertyKey, mix, effectiveValue(context)))
   {
-    context->blendAccumulator()
-        ->applyDouble(object, propertyKey, mix, effectiveValue(context));
     return;
   }
   applyDouble(object, propertyKey, mix, effectiveValue(context));
@@ -88,10 +90,10 @@ void KeyFrameDouble::applyInterpolation(
     frameValue = fromValue + (toValue - fromValue) * f;
   }
 
-  if (context != nullptr && context->blendAccumulator() != nullptr)
+  if (context != nullptr && context->blendAccumulator() != nullptr &&
+      context->blendAccumulator()
+          ->applyDouble(object, propertyKey, mix, frameValue))
   {
-    context->blendAccumulator()
-        ->applyDouble(object, propertyKey, mix, frameValue);
     return;
   }
   applyDouble(object, propertyKey, mix, frameValue);

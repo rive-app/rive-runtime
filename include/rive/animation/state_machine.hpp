@@ -1,6 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_HPP_
 #define _RIVE_STATE_MACHINE_HPP_
 #include "rive/generated/animation/state_machine_base.hpp"
+#include "rive/animation/blend_accumulator.hpp"
+#include <atomic>
 #include <stdio.h>
 #include <vector>
 
@@ -139,10 +141,29 @@ public:
   size_t editorDataBindCount() const { return m_editorDataBinds.size(); }
 #endif
 
+#ifndef WITH_RIVE_EDITOR
+  // A property that states in two or more of this machine's layers key.
+  // Each layer would set it in turn every frame, so its instances collect
+  // these in one accumulator and set each once, to its final value (see
+  // StateMachineInstance). Only properties whose setters do no more than
+  // invalidate are listed (see layerAccumulatedKind in the .cpp).
+  struct LayerConflict
+  {
+    uint32_t objectId;
+    uint16_t propertyKey;
+    BlendAccumulator::Kind kind;
+  };
+  // Worked out on first use, once every importer has resolved, and shared
+  // by every instance (on any thread) from then on.
+  const std::vector<LayerConflict>& layerConflicts() const;
+#endif
+
 private:
 #ifndef WITH_RIVE_EDITOR
   bool m_readsComponentTriggers = false;
   bool m_readsPendingChanges = false;
+  mutable std::atomic<bool> m_layerConflictsReady{false};
+  mutable std::vector<LayerConflict> m_layerConflicts;
 #endif
 #ifdef WITH_RIVE_EDITOR
   std::vector<StateMachineLayer*> m_editorLayers;

@@ -8,6 +8,7 @@
 
 namespace rive
 {
+class BlendAccumulator;
 class LayerState;
 class StateMachineInstance;
 class ArtboardInstance;
@@ -30,6 +31,11 @@ public:
   /// state.
   virtual bool keepGoing() const = 0;
   virtual void clearSpilledTime() {}
+
+  /// The state machine's accumulator for the properties several of its
+  /// layers key (see StateMachineInstance): what this state applies to
+  /// those properties goes to it.
+  virtual void layerAccumulator(BlendAccumulator* accumulator) {}
 
   const LayerState* state() const;
 };

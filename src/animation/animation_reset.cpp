@@ -64,18 +64,31 @@ void AnimationReset::forEachValue(Artboard* artboard, Visit&& visit)
   }
 }
 
-void AnimationReset::apply(Artboard* artboard)
+void AnimationReset::apply(Artboard* artboard, BlendAccumulator* accumulator)
 {
   forEachValue(
       artboard,
-      [](Core* object, uint32_t propertyKey, float propertyValue) {
+      [accumulator](Core* object, uint32_t propertyKey, float propertyValue) {
         switch (CoreRegistry::propertyFieldId(propertyKey))
         {
           case CoreDoubleType::id:
-            CoreRegistry::setDouble(object, propertyKey, propertyValue);
+            if (accumulator == nullptr ||
+                !accumulator
+                     ->applyDouble(object, propertyKey, 1.0f, propertyValue))
+            {
+              CoreRegistry::setDouble(object, propertyKey, propertyValue);
+            }
             break;
           case CoreColorType::id:
-            CoreRegistry::setColor(object, propertyKey, propertyValue);
+            // The same conversion setColor makes.
+            if (accumulator == nullptr || !accumulator->applyColor(
+                                              object,
+                                              propertyKey,
+                                              1.0f,
+                                              (ColorInt)(int)propertyValue))
+            {
+              CoreRegistry::setColor(object, propertyKey, propertyValue);
+            }
             break;
         }
       });

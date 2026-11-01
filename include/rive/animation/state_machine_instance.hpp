@@ -69,6 +69,7 @@ struct SMIReporting;
 struct SMIBindables;
 struct SMIInputExtras;
 struct SMIScripting;
+class BlendAccumulator;
 typedef void (*DataBindChanged)();
 
 #ifdef WITH_RIVE_TOOLS
@@ -570,7 +571,15 @@ public:
       SemanticManager* manager,
       rcp<SemanticNode> parentNode = nullptr);
 
+  // Whether instances made from here on collect the properties several of
+  // their layers key and set each once a frame (see
+  // StateMachine::layerConflicts). On by default; off applies each layer's
+  // writes straight to the objects, as before.
+  static bool sm_layerAccumulatorEnabled;
+
 #ifdef TESTING
+  // Whether this instance collects its layers' shared writes.
+  bool hasLayerAccumulator() const { return m_layerWrites.get() != nullptr; }
   size_t hitComponentsCount() { return m_hitComponents.size(); };
   HitComponent* hitComponent(size_t index)
   {
@@ -688,6 +697,14 @@ private:
   Sidecar<SMIBindables> m_bindables;
   Sidecar<SMIInputExtras> m_inputExtras;
   Sidecar<SMIScripting> m_scripting;
+  // What the layers apply to the properties several of them key, set when
+  // they have all applied. Only for a machine that has such properties (see
+  // StateMachine::layerConflicts).
+  Sidecar<BlendAccumulator> m_layerWrites;
+  // Sets everything the layers wrote to m_layerWrites. Before anything
+  // else could read or write those properties: an action, a reset or hold,
+  // a transition search reading objects, the instance's binds.
+  void flushLayerWrites();
 
   // Read accessors — null when the cluster's feature is unused, which every
   // caller must handle. The ensure...() variants allocate and are defined in

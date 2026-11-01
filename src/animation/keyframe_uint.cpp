@@ -1,6 +1,7 @@
 #include "rive/animation/keyframe_uint.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/animation/blend_accumulator.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -35,6 +36,22 @@ static void applyUint(Core* object, int propertyKey, float mix, uint32_t value)
   }
 }
 
+// A uint that doesn't interpolate is set whole, through the state machine's
+// accumulator when it collects the property.
+static void holdUint(
+    Core* object,
+    int propertyKey,
+    uint32_t value,
+    const LinearAnimationInstance* context)
+{
+  if (context != nullptr && context->blendAccumulator() != nullptr &&
+      context->blendAccumulator()->applyDiscrete(object, propertyKey, value))
+  {
+    return;
+  }
+  CoreRegistry::setUint(object, propertyKey, value);
+}
+
 void KeyFrameUint::apply(
     Core* object,
     int propertyKey,
@@ -47,7 +64,7 @@ void KeyFrameUint::apply(
     applyUint(object, propertyKey, mix, value());
     return;
   }
-  CoreRegistry::setUint(object, propertyKey, value());
+  holdUint(object, propertyKey, value(), context);
 }
 
 void KeyFrameUint::applyInterpolation(
@@ -60,7 +77,7 @@ void KeyFrameUint::applyInterpolation(
 {
   if (!CoreRegistry::isInterpolatableUint(propertyKey))
   {
-    CoreRegistry::setUint(object, propertyKey, value());
+    holdUint(object, propertyKey, value(), context);
     return;
   }
 

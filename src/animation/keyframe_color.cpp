@@ -41,10 +41,10 @@ void KeyFrameColor::apply(
     float mix,
     const LinearAnimationInstance* context)
 {
-  if (context != nullptr && context->blendAccumulator() != nullptr)
+  if (context != nullptr && context->blendAccumulator() != nullptr &&
+      context->blendAccumulator()
+          ->applyColor(object, propertyKey, mix, effectiveValue(context)))
   {
-    context->blendAccumulator()
-        ->applyColor(object, propertyKey, mix, effectiveValue(context));
     return;
   }
   applyColor(object, propertyKey, mix, effectiveValue(context));
@@ -70,13 +70,13 @@ void KeyFrameColor::applyInterpolation(
     f = keyframeInterpolator->transform(f);
   }
 
-  if (context != nullptr && context->blendAccumulator() != nullptr)
+  if (context != nullptr && context->blendAccumulator() != nullptr &&
+      context->blendAccumulator()->applyColor(
+          object,
+          propertyKey,
+          mix,
+          colorLerp(fromValue, toValue, f)))
   {
-    context->blendAccumulator()->applyColor(
-        object,
-        propertyKey,
-        mix,
-        colorLerp(fromValue, toValue, f));
     return;
   }
   applyColor(object, propertyKey, mix, colorLerp(fromValue, toValue, f));

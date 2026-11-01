@@ -70,6 +70,11 @@ public:
 
   bool keepGoing() const override { return m_KeepGoing; }
 
+  void layerAccumulator(BlendAccumulator* accumulator) override
+  {
+    m_accumulator.parent(accumulator);
+  }
+
   void advance(float seconds, StateMachineInstance* stateMachineInstance)
       override
   {
