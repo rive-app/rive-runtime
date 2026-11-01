@@ -199,6 +199,19 @@ public:
     // The current state goes away below even when changeState then finds
     // nothing to change to (no entry state).
     m_settled = false;
+    // Nor does anything of a transition in progress carry over: its mix,
+    // the values it mixes from (applied every frame until another
+    // transition clears them), an exit time it holds.
+    clearAnimationReset();
+    m_transition = nullptr;
+    m_transitionDurationProperty = nullptr;
+    m_holdAnimation = nullptr;
+    m_holdTime = 0.0f;
+    m_mix = 1.0f;
+    m_mixFrom = 1.0f;
+    m_transitionCompleted = false;
+    m_holdAnimationFrom = false;
+    m_waitingForExit = false;
     if (m_stateFrom != m_anyStateInstance && m_stateFrom != m_currentState)
     {
       delete m_stateFrom;
@@ -1060,6 +1073,10 @@ public:
   }
 
   bool stateChangedOnAdvance() const { return m_stateMachineChangedOnAdvance; }
+
+#ifdef TESTING
+  bool isMixing() const { return m_mix != 1.0f || m_animationReset != nullptr; }
+#endif
 
   const LayerState* currentState()
   {
@@ -4144,6 +4161,11 @@ bool StateMachineInstance::isLayerFrozen(size_t index) const
 {
   return index < m_layerCount &&
          m_layers[index].isFrozen(this, m_advanceChangeSerial);
+}
+
+bool StateMachineInstance::isLayerMixing(size_t index) const
+{
+  return index < m_layerCount && m_layers[index].isMixing();
 }
 
 bool StateMachineInstance::hasLayerChangeWindows() const

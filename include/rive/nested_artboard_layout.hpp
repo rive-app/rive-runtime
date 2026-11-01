@@ -37,6 +37,7 @@ public:
   void referencedArtboard(Artboard* artboard) override;
   void updateArtboard(
       ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  void remount() override;
 
   TransformComponent* transformComponent() override
   {

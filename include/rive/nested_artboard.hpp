@@ -149,6 +149,16 @@ public:
 #endif
   void updateArtboard(
       ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  /// Whether remount() would bring this host back to how it was instanced:
+  /// it mounts the artboard it was authored with. One bound to an artboard
+  /// property mounts whatever that names, and a stateful one keeps view model
+  /// instances of its own.
+  bool canRemount() const { return !isArtboardDataBound() && !isStateful(); }
+  /// Replaces the mounted instance with a new one of the same artboard, and
+  /// the nested animations' instances with new ones on it, as if this host
+  /// had just been instanced. A list does this for the rows it hands to
+  /// another item, before binding them to it.
+  virtual void remount();
   int referencedArtboardId() override;
   void referencedArtboard(Artboard* artboard) override;
   size_t artboardCount() override { return 1; }

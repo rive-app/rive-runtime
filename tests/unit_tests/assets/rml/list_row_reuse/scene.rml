@@ -1,0 +1,310 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/list_row_reuse.riv. Rebuild the .riv from this
+      file with the CLI, from a directory holding this scene.rml and a
+      rive.yaml naming it, then copy build/list_row_reuse.riv into assets/.
+
+          rive . --once
+
+      What it is for: a list that reuses a removed item's row for a new item
+      (see list_row_reuse_test.cpp). A reused row has to start the way a
+      freshly made one does, whatever the old item's row was doing:
+      - Row: a hover transition that may be mid-mix, and a view model
+        listener on the item's number.
+      - Mapped: rows a map rule picks, sized by an override for that
+        artboard.
+      - Hosts: rows that host a nested artboard, whose input the row keys
+        and whose event it listens to, and a nested list.
+      - Scrolls: rows a map rule picks, which scroll.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="200" height="400" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="200" height="400" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row. Hovering lifts the box over 300 ms; a change to the item's n
+         sets the item's flag. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" width="100" height="40" styleId="0:35" name="Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="0:35"/>
+        <Shape x="10" y="20" name="Box" id="0:31">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="Color"/></Fill>
+        </Shape>
+        <StateMachine name="Row Machine" id="0:37">
+            <StateMachineBool name="hovered" id="0:39"/>
+            <StateMachineLayer name="Hover" id="0:38">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:33" duration="300">
+                        <TransitionBoolCondition inputId="0:39" opValue="equal"/>
+                    </StateTransition>
+                </EntryState>
+                <AnimationState animationId="0:32" id="0:33"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:30" name="On n" id="0:36">
+                <ListenerInputTypeViewModel viewModelPathIds="0:50-0:51" listenerTypeValue="viewModel"/>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:54" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Lift" id="0:32">
+            <KeyedObject objectId="0:31">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="60"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Row"/>
+
+    <!-- Mapped: the same items, shown with Wide Row by a map rule, which an
+         override sizes. Row comes first among the artboards bound to Item,
+         so only the map rule picks Wide Row. -->
+    <Artboard defaultStateMachineId="0:67" viewModelId="0:40" x="400" width="200" height="400" styleId="0:65" name="Mapped" id="0:60">
+        <LayoutComponentStyle name="Artboard Style" id="0:65"/>
+        <LayoutComponent width="200" height="400" styleId="0:71" name="List" id="0:70">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:71"/>
+            <ArtboardComponentList name="Rows" id="0:72">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+                <ArtboardListMapRule artboardId="0:80" viewModelId="0:50" name="Use Wide Row"/>
+                <ArtboardComponentListOverride artboardId="0:80" instanceWidth="150" name="Wide"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Mapped Machine" id="0:67">
+            <StateMachineLayer name="Layer" id="0:68">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:74"/>
+                </EntryState>
+                <AnimationState animationId="0:73" id="0:74"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:73"/>
+    </Artboard>
+
+    <Artboard isComponent="true" viewModelId="0:50" x="700" width="100" height="40" styleId="0:85" name="Wide Row" id="0:80">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Wide Row Style" id="0:85"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:80" name="Wide Row"/>
+
+    <!-- Hosts: rows that host a nested artboard and a nested list. -->
+    <Artboard defaultStateMachineId="0:207" viewModelId="0:40" x="900" width="200" height="400" styleId="0:205" name="Hosts" id="0:200">
+        <LayoutComponentStyle name="Artboard Style" id="0:205"/>
+        <LayoutComponent width="200" height="400" styleId="0:211" name="List" id="0:210">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:211"/>
+            <ArtboardComponentList name="Rows" id="0:212">
+                <DataBindContext sourcePathIds="0:40-0:44" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Hosts Machine" id="0:207">
+            <StateMachineLayer name="Layer" id="0:208">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:214"/>
+                </EntryState>
+                <AnimationState animationId="0:213" id="0:214"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:213"/>
+    </Artboard>
+
+    <!-- A row hosting Avatar, whose glow (authored 7) it keys to 20 while
+         hovered, and a list of the item's tags. Avatar's lit event sets the
+         item's flag. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:237" viewModelId="0:150" x="1200" width="100" height="40" styleId="0:235" name="Host Row" id="0:230">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Host Row Style" id="0:235"/>
+        <NestedArtboard artboardId="0:260" name="Avatar" id="0:231">
+            <NestedStateMachine animationId="0:267" name="Avatar Machine" id="0:232">
+                <NestedNumber nestedValue="7" inputId="0:268" name="glow" id="0:233"/>
+            </NestedStateMachine>
+        </NestedArtboard>
+        <ArtboardComponentList x="50" name="Tags" id="0:234">
+            <DataBindContext sourcePathIds="0:150-0:153" propertyKey="800"/>
+        </ArtboardComponentList>
+        <StateMachine name="Host Row Machine" id="0:237">
+            <StateMachineBool name="hovered" id="0:239"/>
+            <StateMachineLayer name="Hover" id="0:238">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:241">
+                        <TransitionBoolCondition inputId="0:239" opValue="equal"/>
+                    </StateTransition>
+                </EntryState>
+                <AnimationState animationId="0:240" id="0:241"/>
+            </StateMachineLayer>
+            <StateMachineListenerSingle targetId="0:231" listenerTypeValue="event" eventId="0:269" name="On lit" id="0:236">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:150-0:152" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Glow" id="0:240">
+            <KeyedObject objectId="0:233">
+                <KeyedProperty propertyKey="239"><KeyFrameDouble value="20"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:230" name="Host Row"/>
+
+    <!-- Avatar: lights up, firing lit, once its glow passes 10. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:267" x="1400" width="40" height="40" styleId="0:265" name="Avatar" id="0:260">
+        <LayoutComponentStyle name="Avatar Style" id="0:265"/>
+        <Shape x="20" y="20" name="Dot" id="0:261">
+            <Ellipse width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Color"/></Fill>
+        </Shape>
+        <Event name="lit" id="0:269"/>
+        <StateMachine name="Avatar Machine" id="0:267">
+            <StateMachineNumber name="glow" id="0:268"/>
+            <StateMachineLayer name="Glow" id="0:270">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:272"/>
+                </EntryState>
+                <AnimationState animationId="0:271" id="0:272">
+                    <StateTransition stateToId="0:274">
+                        <TransitionNumberCondition inputId="0:268" opValue="greaterThan" value="10"/>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="0:273" id="0:274">
+                    <StateMachineFireEvent eventId="0:269" occursValue="0"/>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Dim" id="0:271"/>
+        <LinearAnimation duration="1" name="Lit" id="0:273"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:260" name="Avatar"/>
+
+    <!-- Scrolls: the same items, shown with Scroll Row by a map rule. -->
+    <Artboard defaultStateMachineId="0:307" viewModelId="0:40" x="1700" width="200" height="400" styleId="0:305" name="Scrolls" id="0:300">
+        <LayoutComponentStyle name="Artboard Style" id="0:305"/>
+        <LayoutComponent width="200" height="400" styleId="0:311" name="List" id="0:310">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:311"/>
+            <ArtboardComponentList name="Rows" id="0:312">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+                <ArtboardListMapRule artboardId="0:330" viewModelId="0:50" name="Use Scroll Row"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Scrolls Machine" id="0:307">
+            <StateMachineLayer name="Layer" id="0:308">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:314"/>
+                </EntryState>
+                <AnimationState animationId="0:313" id="0:314"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:313"/>
+    </Artboard>
+
+    <!-- A row that scrolls 200 of content through a 40 high viewport. -->
+    <ElasticScrollPhysics name="Physics" id="0:349"/>
+    <Artboard isComponent="true" defaultStateMachineId="0:337" viewModelId="0:50" x="2000" width="100" height="40" styleId="0:335" name="Scroll Row" id="0:330">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Scroll Row Style" id="0:335"/>
+        <LayoutComponent width="100" height="40" clip="true" styleId="0:341" name="Viewport" id="0:340">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" name="Viewport Style" id="0:341"/>
+            <LayoutComponent width="100" styleId="0:343" name="Content" id="0:342">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" flexDirectionValue="column" name="Content Style" id="0:343"/>
+                <ScrollConstraint directionValue="vertical" physicsId="0:349" name="Scroll"/>
+                <LayoutComponent width="100" height="200" styleId="0:345" name="Tall" id="0:344">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Tall Style" id="0:345"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="Color"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="Scroll Row Machine" id="0:337">
+            <StateMachineLayer name="Layer" id="0:338">
+                <AnyState/>
+                <ExitState/>
+                <EntryState>
+                    <StateTransition stateToId="0:339"/>
+                </EntryState>
+                <AnimationState animationId="0:336" id="0:339"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:336"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:330" name="Scroll Row"/>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyNumber name="n" id="0:51"/>
+        <ViewModelPropertyBoolean name="flag" id="0:54"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceNumber propertyValue="1" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceNumber propertyValue="2" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="Tag 1" id="0:58">
+            <ViewModelInstanceNumber propertyValue="3" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="Tag 2" id="0:59">
+            <ViewModelInstanceNumber propertyValue="4" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:156" name="Host Item" id="0:150">
+        <ViewModelPropertyNumber name="n" id="0:151"/>
+        <ViewModelPropertyBoolean name="flag" id="0:152"/>
+        <ViewModelPropertyList name="tags" id="0:153"/>
+        <ViewModelInstance exports="true" name="H1" id="0:156">
+            <ViewModelInstanceNumber propertyValue="1" viewModelPropertyId="0:151"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:152"/>
+            <ViewModelInstanceList viewModelPropertyId="0:153">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:58"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="H2" id="0:157">
+            <ViewModelInstanceNumber propertyValue="2" viewModelPropertyId="0:151"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:152"/>
+            <ViewModelInstanceList viewModelPropertyId="0:153">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:59"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelPropertyList name="hosts" id="0:44"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceList viewModelPropertyId="0:44">
+                <ViewModelInstanceListItem viewModelId="0:150" viewModelInstanceId="0:156"/>
+                <ViewModelInstanceListItem viewModelId="0:150" viewModelInstanceId="0:157"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

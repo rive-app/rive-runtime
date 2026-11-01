@@ -253,6 +253,28 @@ void NestedArtboardLayout::referencedArtboard(Artboard* artboard)
 #endif
 }
 
+void NestedArtboardLayout::remount()
+{
+#ifdef WITH_RIVE_LAYOUT
+  // As updateArtboard: the owning layout lets go of the outgoing instance's
+  // node and collects the new one's.
+  auto* layout = owningLayout(parent());
+  if (layout != nullptr)
+  {
+    layout->clearLayoutChildren();
+  }
+#endif
+  NestedArtboard::remount();
+  updateWidthOverride();
+  updateHeightOverride();
+#ifdef WITH_RIVE_LAYOUT
+  if (layout != nullptr)
+  {
+    layout->syncLayoutChildren();
+  }
+#endif
+}
+
 void NestedArtboardLayout::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {

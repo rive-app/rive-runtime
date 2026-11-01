@@ -593,6 +593,9 @@ public:
   // Whether the layer would skip its next advance (see
   // StateMachineLayerInstance::isFrozen), given nothing changes before it.
   bool isLayerFrozen(size_t index) const;
+  // Whether the layer is mixing a transition in, or still applies the values
+  // one mixes from.
+  bool isLayerMixing(size_t index) const;
   // Whether this instance tracks view model changes at all, and whether it
   // keeps a change window per layer (see SMIBindables::layerChanges).
   bool tracksViewModelChanges() const { return bindables() != nullptr; }

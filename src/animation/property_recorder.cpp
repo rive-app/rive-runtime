@@ -11,6 +11,8 @@
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/blend_state.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/animation/nested_bool.hpp"
+#include "rive/animation/nested_number.hpp"
 
 using namespace rive;
 
@@ -256,6 +258,30 @@ CoreObjectData* PropertyRecorder::getCoreObjectData(uint32_t id)
   return ref;
 }
 
+// A nested input's getter reads the input of the nested artboard's state
+// machine, which a source artboard doesn't run: it reads 0 or false there. An
+// instance starts the input from the value the nested input stores (see
+// NestedNumber::applyValue), so that is the value to restore.
+static float recordedDouble(Core* object, uint16_t propertyKey)
+{
+  if (propertyKey == NestedNumberBase::nestedValuePropertyKey &&
+      object->is<NestedNumber>())
+  {
+    return object->as<NestedNumber>()->NestedNumberBase::nestedValue();
+  }
+  return CoreRegistry::getDouble(object, propertyKey);
+}
+
+static bool recordedBool(Core* object, uint16_t propertyKey)
+{
+  if (propertyKey == NestedBoolBase::nestedValuePropertyKey &&
+      object->is<NestedBool>())
+  {
+    return object->as<NestedBool>()->NestedBoolBase::nestedValue();
+  }
+  return CoreRegistry::getBool(object, propertyKey);
+}
+
 void PropertyRecorder::writeProperties(const Artboard* artboard)
 {
   for (auto& coreObjectData : m_coreObjectsData)
@@ -273,7 +299,7 @@ void PropertyRecorder::writeProperties(const Artboard* artboard)
           case CoreDoubleType::id:
           {
             writePropertyKey(propertyKey, m_binaryWriter);
-            auto value = CoreRegistry::getDouble(object, propertyKey);
+            auto value = recordedDouble(object, propertyKey);
             writePropertyValue(value, m_binaryWriter);
           }
           break;
@@ -301,7 +327,7 @@ void PropertyRecorder::writeProperties(const Artboard* artboard)
           case CoreBoolType::id:
           {
             writePropertyKey(propertyKey, m_binaryWriter);
-            auto value = CoreRegistry::getBool(object, propertyKey);
+            auto value = recordedBool(object, propertyKey);
             writePropertyValue(value, m_binaryWriter);
           }
           break;

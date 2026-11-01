@@ -131,10 +131,13 @@ public:
   void setVirtualizablePosition(int index, Vec2D position) override;
   void setVirtualizableCell(int index, int column, int row) override;
   void createArtboardAt(int index, bool forceLayoutSync = true);
+  // Hosts artboard as the row of the item at index. A pooled row comes with
+  // the state machine it ran, which is reset rather than made again.
   void addArtboardAt(
       std::unique_ptr<ArtboardInstance> artboard,
       int index,
-      bool forceLayoutSync = true);
+      bool forceLayoutSync = true,
+      std::unique_ptr<StateMachineInstance> stateMachine = nullptr);
   void removeArtboardAt(int index);
   void removeArtboard(rcp<ViewModelInstanceListItem> item);
   bool virtualizationEnabled() override;
@@ -186,6 +189,9 @@ private:
   void createOrReuseArtboardAt(int index);
   // Destroys the pooled rows, state machines first.
   void releasePools();
+  // Takes every row out of the list into the pools, as an update to no items
+  // would, but keeps them there for the next update to take.
+  void restartRows();
   std::unique_ptr<ArtboardInstance> createArtboard(
       Component* target,
       rcp<ViewModelInstanceListItem> listItem) const;
@@ -214,12 +220,17 @@ private:
       rcp<ViewModelInstanceListItem>,
       std::unique_ptr<StateMachineInstance>>
       m_stateMachinesMap;
-  std::unordered_map<Artboard*, std::vector<std::unique_ptr<ArtboardInstance>>>
-      m_resourcePool;
-  std::unordered_map<
-      Artboard*,
-      std::vector<std::unique_ptr<StateMachineInstance>>>
-      m_stateMachinesPool;
+  // A row out of the list, for another item to take, with the state machine
+  // it ran. Kept together: the machine was built on this artboard's objects
+  // and reads them until it is destroyed, which happens first (members go in
+  // reverse order).
+  struct PooledRow
+  {
+    std::unique_ptr<ArtboardInstance> artboard;
+    std::unique_ptr<StateMachineInstance> stateMachine;
+  };
+  // Keyed by the artboard the rows are instances of.
+  std::unordered_map<Artboard*, std::vector<PooledRow>> m_rowPool;
   std::unordered_map<const Artboard*, std::unique_ptr<PropertyRecorder>>
       m_propertyRecordersMap;
   std::unordered_map<ArtboardInstance*, Mat2D> m_artboardTransforms;
@@ -293,9 +304,7 @@ private:
       FocusManager* parentFM,
       ArtboardInstance* inst,
       rcp<FocusNode> row) const;
-  void attachArtboardOverride(
-      ArtboardInstance*,
-      rcp<ViewModelInstanceListItem>);
+  void attachArtboardOverride(ArtboardInstance*);
   void clearArtboardOverride(ArtboardInstance*);
   // Whether some item shows on more than one row.
   bool m_listHasDuplicateItems = false;
@@ -348,6 +357,11 @@ public:
   static bool sm_quietRowsEnabled;
   // Lets a benchmark time quiet rows without checking each one every pass.
   static bool sm_verifyQuietRows;
+  // Lets a test run the same frames with and without handing rows that host
+  // artboards to new items (see poolListItem).
+  static bool sm_reuseHostingRows;
+  // Rows hosting artboards that a list handed to a new item.
+  static uint64_t sm_reusedHostingRows;
 
 private:
 #endif
@@ -369,6 +383,8 @@ private:
   // Whether the last advance ran the rows' state machines (AdvanceNested).
   // updateList only enters a new row's initial state early when it did.
   bool m_advancesNested = true;
+  // Set while restartRows runs: the rows it pools stay for the next update.
+  bool m_keepPools = false;
   /// Always paint / scroll order (ascending drawIndex when enabled).
   std::vector<int> m_cachedOrderedListIndices;
   std::unordered_map<

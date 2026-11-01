@@ -163,10 +163,8 @@ void ArtboardComponentList::clear()
   m_listItems.clear();
   m_listHasDuplicateItems = false;
   m_artboardsMap.clear();
-  // Pooled state machines go before the pooled artboards too, for the same
-  // reason as above.
-  m_stateMachinesPool.clear();
-  m_resourcePool.clear();
+  // Pooled rows destroy their state machines first too (see PooledRow).
+  m_rowPool.clear();
   m_artboardOverridesMap.clear();
 }
 
@@ -422,26 +420,65 @@ void ArtboardComponentList::disposeListItem(
   removeArtboard(listItem);
 }
 
+// Whether a row of artboard can start over for another item: whatever it
+// hosts can. A list does, as the new item's data rebuilds its rows, and so
+// does a nested artboard that can remount. An artboard paint keeps a scene
+// of its own going.
+static bool rowHostsRestart(const Artboard* artboard)
+{
+#ifdef TESTING
+  if (!ArtboardComponentList::sm_reuseHostingRows)
+  {
+    return false;
+  }
+#endif
+  size_t restarting = artboard->artboardComponentLists().size();
+  for (auto* nestedArtboard : artboard->nestedArtboards())
+  {
+    if (!nestedArtboard->canRemount())
+    {
+      return false;
+    }
+    restarting++;
+  }
+  return restarting == artboard->artboardHosts().size();
+}
+
+// Whether a row of artboard scrolls. A scroll constraint's offset and
+// momentum aren't values the reuse resets, so another item's row would open
+// where this one was scrolled to.
+static bool rowScrolls(const Artboard* artboard)
+{
+  for (auto* object : artboard->objects())
+  {
+    if (object != nullptr && object->is<ScrollConstraint>())
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 void ArtboardComponentList::poolListItem(
     const rcp<ViewModelInstanceListItem>& listItem)
 {
   auto artboard = findArtboard(listItem);
   auto itr = m_artboardInstancesMap.find(listItem);
-  // A row that hosts artboards (nested artboards, lists, artboard paints)
-  // carries their state machines' progress, and a row that runs scripts
-  // carries their state; reuse resets neither. Such a row is destroyed
-  // rather than handed to another item.
-  if (artboard == nullptr || artboard->hostsArtboards() ||
-      artboard->usesScripts() || itr == m_artboardInstancesMap.end() ||
-      itr->second == nullptr)
+  // A row that runs scripts carries their state, and one that scrolls its
+  // scroll position, and reuse resets neither; nor the state of what a row
+  // hosts, unless it all starts over (see createOrReuseArtboardAt). Such a
+  // row is destroyed rather than handed to another item.
+  if (artboard == nullptr || itr == m_artboardInstancesMap.end() ||
+      itr->second == nullptr || artboard->usesScripts() ||
+      rowScrolls(artboard) ||
+      (artboard->hostsArtboards() && !rowHostsRestart(artboard)))
   {
     removeArtboard(listItem);
     return;
   }
   // What removeArtboard does for a row it destroys, minus the destroy: the
-  // row leaves the semantic and focus trees and its override, then the
-  // instances move to the pools (state machine paired with its artboard,
-  // since reuse pops both from the back).
+  // row leaves the semantic and focus trees and its override, then moves to
+  // the pool with its state machine.
   auto smItr = m_stateMachinesMap.find(listItem);
   StateMachineInstance* stateMachine = smItr != m_stateMachinesMap.end()
                                            ? smItr->second.get()
@@ -456,11 +493,15 @@ void ArtboardComponentList::poolListItem(
   itr->second->cleanupSemanticTree();
   itr->second->cleanupFocusTree();
   clearArtboardOverride(itr->second.get());
-  m_resourcePool[artboard].push_back(std::move(itr->second));
-  if (stateMachine != nullptr)
+  PooledRow pooled;
+  pooled.artboard = std::move(itr->second);
+  // A row that hosts artboards gets a new state machine when it is reused,
+  // built on what it hosts then; removeArtboard destroys this one.
+  if (stateMachine != nullptr && !artboard->hostsArtboards())
   {
-    m_stateMachinesPool[artboard].push_back(std::move(smItr->second));
+    pooled.stateMachine = std::move(smItr->second);
   }
+  m_rowPool[artboard].push_back(std::move(pooled));
   removeArtboard(listItem);
 }
 
@@ -473,26 +514,68 @@ void ArtboardComponentList::createOrReuseArtboardAt(int index)
     createArtboardAt(index, false);
     return;
   }
-  auto poolItr = m_resourcePool.find(artboard);
-  if (poolItr == m_resourcePool.end() || poolItr->second.empty())
+  auto poolItr = m_rowPool.find(artboard);
+  if (poolItr == m_rowPool.end() || poolItr->second.empty())
   {
     createArtboardAt(index, false);
     return;
   }
   createArtboardRecorders(artboard);
   auto& pool = poolItr->second;
-  auto pooledArtboard = std::move(pool.back());
+  auto pooled = std::move(pool.back());
   pool.pop_back();
-  applyRecorders(pooledArtboard.get(), artboard);
-  attachArtboardOverride(pooledArtboard.get(), item);
-  addArtboardAt(std::move(pooledArtboard), index, false);
+  // What the row hosts starts over: its nested artboards are mounted anew,
+  // before the recorded values reach their inputs, and its lists rebuild
+  // their rows when the row is bound to the new item. The row's state
+  // machine, made after, is then built on them as a new row's would be.
+  for (auto* nestedArtboard : pooled.artboard->nestedArtboards())
+  {
+    nestedArtboard->remount();
+  }
+  // Its lists' rows start over too, the ones for items the new item shares
+  // with the old included, as a new row's lists would make them all: they
+  // go to their lists' pools, binding the row below hands them out again
+  // reset, and the ones it doesn't are released after.
+  auto* row = pooled.artboard.get();
+  for (auto* list : row->artboardComponentLists())
+  {
+    list->restartRows();
+  }
+#ifdef TESTING
+  if (artboard->hostsArtboards())
+  {
+    sm_reusedHostingRows++;
+  }
+#endif
+  applyRecorders(pooled.artboard.get(), artboard);
+  attachArtboardOverride(pooled.artboard.get());
+  addArtboardAt(
+      std::move(pooled.artboard),
+      index,
+      false,
+      std::move(pooled.stateMachine));
+  for (auto* list : row->artboardComponentLists())
+  {
+    list->releasePools();
+  }
+}
+
+void ArtboardComponentList::restartRows()
+{
+  if (m_listItems.empty())
+  {
+    return;
+  }
+  std::vector<rcp<ViewModelInstanceListItem>> none;
+  m_keepPools = true;
+  updateList(&none);
+  m_keepPools = false;
 }
 
 void ArtboardComponentList::releasePools()
 {
-  // State machines before the artboards they drive (see clear()).
-  m_stateMachinesPool.clear();
-  m_resourcePool.clear();
+  // State machines before the artboards they drive (see PooledRow).
+  m_rowPool.clear();
 }
 
 std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
@@ -1034,7 +1117,7 @@ void ArtboardComponentList::updateList(
     }
     index++;
   }
-  if (!virtualized)
+  if (!virtualized && !m_keepPools)
   {
     // Rows nothing took are the ones this update removed for good.
     releasePools();
@@ -1074,6 +1157,8 @@ void ArtboardComponentList::syncLayoutChildren()
 uint64_t ArtboardComponentList::sm_quietRowSkips = 0;
 bool ArtboardComponentList::sm_quietRowsEnabled = true;
 bool ArtboardComponentList::sm_verifyQuietRows = true;
+bool ArtboardComponentList::sm_reuseHostingRows = true;
+uint64_t ArtboardComponentList::sm_reusedHostingRows = 0;
 #endif
 
 static size_t lowestSetBit(uint64_t bits)
@@ -1881,7 +1966,21 @@ void ArtboardComponentList::bindViewModelInstance(
 }
 
 void ArtboardComponentList::clearDataContext() {}
-void ArtboardComponentList::unbind() { clear(); }
+void ArtboardComponentList::unbind()
+{
+  // The overrides size the rows they hold whenever their own sizes change,
+  // so they let go of every row clear() destroys, pooled ones included. Not
+  // in clear() itself: the destructor runs it after the artboard may have
+  // deleted them.
+  for (auto& child : children())
+  {
+    if (child->is<ArtboardComponentListOverride>())
+    {
+      child->as<ArtboardComponentListOverride>()->clearArtboards();
+    }
+  }
+  clear();
+}
 void ArtboardComponentList::updateDataBinds()
 {
   // A collapsed list does no bind work at all: not the rows' own binds, not
@@ -1970,7 +2069,7 @@ void ArtboardComponentList::createArtboardAt(int index, bool forceLayoutSync)
     auto artboardCopy = createArtboard(this, item);
     if (artboardCopy != nullptr)
     {
-      attachArtboardOverride(artboardCopy.get(), item);
+      attachArtboardOverride(artboardCopy.get());
       addArtboardAt(std::move(artboardCopy), index, forceLayoutSync);
     }
   }
@@ -1979,7 +2078,8 @@ void ArtboardComponentList::createArtboardAt(int index, bool forceLayoutSync)
 void ArtboardComponentList::addArtboardAt(
     std::unique_ptr<ArtboardInstance> artboard,
     int index,
-    bool forceLayoutSync)
+    bool forceLayoutSync,
+    std::unique_ptr<StateMachineInstance> pooledStateMachine)
 {
   auto item = listItem(index);
   if (item != nullptr)
@@ -2025,31 +2125,23 @@ void ArtboardComponentList::addArtboardAt(
     }
 
     StateMachineInstance* stateMachineInstance = nullptr;
-    auto artboard = findArtboard(item);
-    if (artboard != nullptr)
+    if (pooledStateMachine != nullptr)
     {
-
-      auto& smPool = m_stateMachinesPool[artboard];
-      if (!smPool.empty())
+      auto sm = pooledStateMachine.get();
+      sm->resetState();
+      applyRecorders(sm, findArtboard(item));
+      m_stateMachinesMap[item] = std::move(pooledStateMachine);
+      if (virtualized)
       {
-        auto sm = smPool.back().get();
-
-        sm->resetState();
-        applyRecorders(sm, artboard);
-        m_stateMachinesMap[item] = std::move(smPool.back());
-        if (virtualized)
-        {
-          setRowsForItem(index, item, artboardInstance, sm);
-        }
-        linkStateMachineToArtboard(sm, artboardInstance);
-        stateMachineInstance = sm;
-        smPool.pop_back();
-        // Back in the tree without being rebuilt, so a root that
-        // cached its tree as capture-free has to look again.
-        if (sm->hasCaptureListeners())
-        {
-          StateMachineInstance::captureTopologyChanged();
-        }
+        setRowsForItem(index, item, artboardInstance, sm);
+      }
+      linkStateMachineToArtboard(sm, artboardInstance);
+      stateMachineInstance = sm;
+      // Back in the tree without being rebuilt, so a root that cached its
+      // tree as capture-free has to look again.
+      if (sm->hasCaptureListeners())
+      {
+        StateMachineInstance::captureTopologyChanged();
       }
     }
     if (stateMachineInstance == nullptr)
@@ -2219,17 +2311,21 @@ void ArtboardComponentList::addVirtualizable(int index)
     if (artboard != nullptr)
     {
       createArtboardRecorders(artboard);
-      auto& pool = m_resourcePool[artboard];
+      auto& pool = m_rowPool[artboard];
       if (pool.empty())
       {
         createArtboardAt(index);
       }
       else
       {
-        auto pooledArtboard = pool.back().get();
-        applyRecorders(pooledArtboard, artboard);
-        addArtboardAt(std::move(pool.back()), index);
+        auto pooled = std::move(pool.back());
         pool.pop_back();
+        applyRecorders(pooled.artboard.get(), artboard);
+        addArtboardAt(
+            std::move(pooled.artboard),
+            index,
+            true,
+            std::move(pooled.stateMachine));
       }
       // Add components dirt so we process layout updates in the same
       // frame that a mounted artboard is added
@@ -2266,25 +2362,27 @@ void ArtboardComponentList::removeVirtualizable(int index)
   if (listItem != nullptr)
   {
     // The rows let go of the item's instances before they move to the
-    // pools.
+    // pool.
     setRowsForItem(index, listItem, nullptr, nullptr);
     auto artboard = findArtboard(listItem);
-    auto artboardInstance = std::move(m_artboardInstancesMap[listItem]);
-    if (artboard != nullptr && artboardInstance != nullptr)
+    auto instanceItr = m_artboardInstancesMap.find(listItem);
+    // A row whose item no longer maps to an artboard is pooled all the same,
+    // under no artboard, where nothing takes it: no row can be destroyed
+    // here. This runs in the scroll pass, and the layout parent holds the
+    // row's layout node until it next syncs its children.
+    if (instanceItr != m_artboardInstancesMap.end() &&
+        instanceItr->second != nullptr)
     {
       // A pooled instance may be reused anywhere, so it keeps no cell.
-      artboardInstance->virtualGridCell(-1, -1);
-      auto& pool = m_resourcePool[artboard];
-      pool.push_back(std::move(artboardInstance));
-    }
-    auto smInstanceIterator = m_stateMachinesMap.find(listItem);
-    // A row without a state machine has nothing to pool, and a null in
-    // the pool would be reused as one.
-    if (smInstanceIterator != m_stateMachinesMap.end() &&
-        smInstanceIterator->second != nullptr)
-    {
-      auto& smPool = m_stateMachinesPool[artboard];
-      smPool.push_back(std::move(smInstanceIterator->second));
+      instanceItr->second->virtualGridCell(-1, -1);
+      PooledRow pooled;
+      pooled.artboard = std::move(instanceItr->second);
+      auto smItr = m_stateMachinesMap.find(listItem);
+      if (smItr != m_stateMachinesMap.end())
+      {
+        pooled.stateMachine = std::move(smItr->second);
+      }
+      m_rowPool[artboard].push_back(std::move(pooled));
     }
   }
   removeArtboardAt(index);
@@ -2418,30 +2516,25 @@ float ArtboardComponentList::gap()
   return 0.0f;
 }
 
-void ArtboardComponentList::attachArtboardOverride(
-    ArtboardInstance* instance,
-    rcp<ViewModelInstanceListItem> listItem)
+void ArtboardComponentList::attachArtboardOverride(ArtboardInstance* instance)
 {
-
-  auto viewModelInstance = listItem->viewModelInstance();
-  if (viewModelInstance == nullptr)
+  if (instance == nullptr)
   {
     return;
   }
-  auto artboards = m_file->artboards();
+  // An override names the artboard it applies to by its index in the file,
+  // as a map rule does: the artboard the row is an instance of, which a map
+  // rule may have picked over the first one bound to the item's view model.
+  // A row of none of them only takes an override for every artboard.
   int artboardIndex = -1;
-  for (auto& artboard : artboards)
+  auto source = instance->artboardSource();
+  for (size_t i = 0, count = m_file->artboardCount(); i < count; i++)
   {
-    artboardIndex++;
-
-    if (artboard->viewModelId() == viewModelInstance->viewModelId())
+    if (m_file->artboard(i) == source)
     {
+      artboardIndex = static_cast<int>(i);
       break;
     }
-  }
-  if (artboardIndex < 0 && artboardIndex >= artboards.size())
-  {
-    return;
   }
   ArtboardComponentListOverride* artboardOverride = nullptr;
   for (auto& child : children())

@@ -11,6 +11,13 @@ class ArtboardComponentListOverride : public ArtboardComponentListOverrideBase
 public:
   void addArtboard(ArtboardInstance* artboard);
   void removeArtboard(ArtboardInstance* artboard);
+  void clearArtboards() { m_artboards.clear(); }
+#ifdef TESTING
+  const std::vector<ArtboardInstance*>& artboards() const
+  {
+    return m_artboards;
+  }
+#endif
   float actualInstanceWidth(ArtboardInstance* artboardInstance);
   float actualInstanceHeight(ArtboardInstance* artboardInstance);
   void markHostingLayoutDirty(ArtboardInstance* artboardInstance);

@@ -1216,6 +1216,36 @@ const File* NestedArtboard::foreignFile() const
 
 int NestedArtboard::referencedArtboardId() { return artboardId(); }
 
+void NestedArtboard::remount()
+{
+  if (m_Instance == nullptr)
+  {
+    return;
+  }
+  // The outgoing instance leaves the trees it joined while it is whole, as
+  // in updateArtboard.
+  m_Instance->cleanupFocusTree();
+  m_Instance->cleanupSemanticTree();
+  // The nested animations' instances run on the outgoing artboard, so they
+  // go first.
+  for (auto* animation : m_NestedAnimations)
+  {
+    animation->releaseDependencies();
+  }
+  auto source = m_Instance->artboardSource();
+  m_cumulatedSeconds = 0.0f;
+  // On the outgoing instance's factory, which may not be the file's (see
+  // Artboard::reinstanceNestedArtboards). Destroys the outgoing instance,
+  // with this host still its host.
+  referencedArtboard(
+      source->instance<ArtboardInstance>(m_Instance->factory()).release());
+  for (auto* animation : m_NestedAnimations)
+  {
+    animation->initializeAnimation(m_Instance.get());
+  }
+  addDirt(ComponentDirt::Filthy);
+}
+
 void NestedArtboard::referencedArtboard(Artboard* artboard)
 {
   assert(artboard != nullptr);
