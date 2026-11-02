@@ -623,8 +623,15 @@ inline rcp<ShaderModule> ContextMetal::mtlMakeShaderModule(
   NSString* source = [[NSString alloc] initWithBytes:desc.code
                                               length:desc.codeSize
                                             encoding:NSUTF8StringEncoding];
-  module->m_mtlLibrary = [m_mtlDevice newLibraryWithSource:source options:nil
-          error: &err];
+  MTLCompileOptions* options = [MTLCompileOptions new];
+  // Metal only guarantees @invariant outputs with this, and depth prepasses
+  // need their positions to match exactly.
+  if (@available(macOS 11.0, iOS 14.0, tvOS 14.0, *))
+  {
+    options.preserveInvariance = YES;
+  }
+  module->m_mtlLibrary = [m_mtlDevice newLibraryWithSource:source
+          options:options error: &err];
   if (err != nil || module->m_mtlLibrary == nil)
   {
     NSLog(
