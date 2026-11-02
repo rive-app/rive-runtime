@@ -77,11 +77,12 @@ public:
   // was drawing. An immediate host that interrupted a live frame to give the
   // canvas its own has to answer this: a renderer carried across that
   // interrupt cannot draw the result afterwards, while one created fresh
-  // against the resumed frame can. The caller re-applies the current
-  // transform, since a fresh renderer shares no state with the original.
-  virtual Renderer* compositeRenderer() { return nullptr; }
-  // True when compositeRenderer() hands back a fresh renderer, which
-  // inherits no clip. Asked without allocating one.
+  // against the resumed frame can. [current] is the renderer that was
+  // drawing; the host gives the fresh one its clip. The caller re-applies the
+  // current transform and opacity.
+  virtual Renderer* compositeRenderer(Renderer* current) { return nullptr; }
+  // True when a composite through compositeRenderer() would not be clipped
+  // like the original draw. Asked without allocating one.
   virtual bool compositeDropsClips() const { return false; }
 
   // Emits the content begin bracket and returns a recording renderer owned

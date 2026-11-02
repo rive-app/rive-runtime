@@ -372,16 +372,13 @@ CompositePlacement beginComposite(
 {
   // Some hosts cannot composite through the renderer that was drawing when
   // the offscreen frame interrupted it, and hand back a clean one instead.
-  // It shares no state, so the current transform and the modulated opacity
-  // both have to be re-applied by hand -- and it inherits no clip. Known
-  // limitation: on that path (WebGL today) an ancestor's clip does not
-  // constrain the composite, so cached content under a clipping shape can
-  // paint outside it where the vector draw would have been cropped.
+  // It shares no state but the clip the host copies onto it, so the current
+  // transform and the modulated opacity have to be re-applied by hand.
   Renderer* composite = renderer;
   float compositeOpacity = 1.0f;
   if (host != nullptr)
   {
-    if (Renderer* fresh = host->compositeRenderer())
+    if (Renderer* fresh = host->compositeRenderer(renderer))
     {
       if (plan.haveCtm && plan.haveOpacity)
       {
@@ -449,7 +446,7 @@ CompositePlacement beginPlacement(
   float opacity = 1.0f;
   if (host != nullptr)
   {
-    if (Renderer* fresh = host->compositeRenderer())
+    if (Renderer* fresh = host->compositeRenderer(renderer))
     {
       if (plan.haveCtm && plan.haveOpacity)
       {

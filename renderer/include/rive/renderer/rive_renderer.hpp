@@ -90,6 +90,12 @@ public:
     return true;
   }
 
+  // Gives [dst] the clip this renderer currently applies, for a draw
+  // re-issued through a fresh renderer. [dst] must be another renderer on the
+  // same context with no clip of its own. Its transform is neither used nor
+  // changed.
+  void copyClipTo(RiveRenderer* dst) const;
+
   // Determines if a path is an axis-aligned rectangle that can be represented
   // by rive::AABB.
   static bool IsAABB(const RawPath&, AABB* result);
@@ -103,6 +109,10 @@ public:
   const Mat2D& getClipRectMatrix() const
   {
     return m_renderStateStack.back().clipRectMatrix;
+  }
+  const gpu::ClipRectInverseMatrix* getClipRectInverseMatrix() const
+  {
+    return m_renderStateStack.back().clipRectInverseMatrix;
   }
   float currentModulatedOpacity() const
   {
@@ -154,6 +164,8 @@ private:
     Mat2D clipRectMatrix;
     IAABB clipRectPixelBounds;
     const gpu::ClipRectInverseMatrix* clipRectInverseMatrix = nullptr;
+    // The context's clipEpoch() when clipRectInverseMatrix was made.
+    uint32_t clipRectEpoch = 0;
     float modulatedOpacity = 1.0f;
     ColorInt modulatedColor = 0xFFFFFFFF;
 
@@ -161,6 +173,8 @@ private:
     // which defaults to a maximally-large rectangle
     IAABB overallClipPixelBounds = IAABB::makeMaximal();
   };
+  // Makes [state]'s clipRectInverseMatrix in the current epoch.
+  void makeClipRectInverseMatrix(RenderState& state);
   std::vector<RenderState> m_renderStateStack{1};
 
   // A draw's color with this scope's modulation folded in.
@@ -202,6 +216,8 @@ private:
     FillRule fillRule; // Bc RiveRenderPath fillRule can mutate during the
                        // artboard draw process.
     uint32_t clipID;
+    // The context's clipEpoch() when clipID was generated.
+    uint32_t clipEpoch;
 
     std::optional<StrokeParams> stroke;
     float feather;

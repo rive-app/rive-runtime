@@ -265,7 +265,8 @@ void ShapePaint::draw(
     {
       // An artboard source rasterized on an immediate host, which leaves
       // [renderer] unable to sample the result; draw through the clean
-      // renderer it handed back, with this draw's transform and opacity.
+      // renderer it handed back (already clipped), with this draw's transform
+      // and opacity.
       target.renderer->save();
       target.renderer->transform(target.transform);
       target.renderer->modulateOpacity(target.opacity);

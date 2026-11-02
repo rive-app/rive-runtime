@@ -154,7 +154,8 @@ bool NestedArtboardMeshHost::underClip() const
   return false;
 }
 
-// A fresh composite renderer (WebGL) inherits no clip.
+// A host whose fresh composite renderer would not carry the clip. None in tree
+// today; WebGL2 copies it across.
 bool NestedArtboardMeshHost::compositeDropsClip() const
 {
   if (instance() == nullptr || !underClip())

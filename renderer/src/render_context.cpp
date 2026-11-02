@@ -894,6 +894,7 @@ void RenderContext::logicalFlush()
   // Reset clipping state after every logical flush because the clip buffer is
   // not preserved between render passes.
   m_clipContentID = 0;
+  ++m_clipEpoch;
 
   // Don't issue any GPU commands between logical flushes. Instead, build up a
   // list of flushes that we will submit all at once at the end of the frame.
@@ -914,6 +915,7 @@ void RenderContext::flush(const FlushResources& flushResources)
   m_triangulationController.endFrame();
 
   m_clipContentID = 0;
+  ++m_clipEpoch;
 
   // Layout this frame's resource buffers and textures.
   LogicalFlush::ResourceCounters totalFrameResourceCounts;

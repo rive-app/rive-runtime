@@ -271,6 +271,10 @@ public:
     return m_clipContentID;
   }
 
+  // Bumped by every logical flush and flush. Clip IDs and make() allocations
+  // from an older epoch are stale.
+  uint32_t clipEpoch() const { return m_clipEpoch; }
+
   // Appends a list of high-level Draws to the current frame.
   // Returns false if the draws don't fit within the current resource
   // constraints, at which point the caller must issue a logical flush and try
@@ -535,6 +539,7 @@ private:
 
   // Clipping state.
   uint32_t m_clipContentID = 0;
+  uint32_t m_clipEpoch = 0;
 
   // Monotonically increasing prefix that gets appended to the most
   // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer

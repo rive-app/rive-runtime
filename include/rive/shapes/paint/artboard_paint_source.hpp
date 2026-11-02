@@ -34,8 +34,8 @@ class DeferredCanvasHost;
 /// Where a path modulated by a paint image has to be drawn. [renderer] is the
 /// renderer the draw started on, unless an immediate host interrupted it to
 /// rasterize -- that renderer can no longer sample the canvas, so the host
-/// hands back a clean one, which has to be given [transform] and [opacity] by
-/// hand and inherits no clip (the same limitation a cached artboard has).
+/// hands back a clean one carrying the original's clip, which has to be given
+/// [transform] and [opacity] by hand.
 struct ModulatedDrawTarget
 {
   Renderer* renderer = nullptr;

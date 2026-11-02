@@ -330,7 +330,7 @@ bool ArtboardPaintSource::applyTo(
   float opacity = 1.0f;
   if (haveCtm && renderer->currentModulatedOpacity(&opacity))
   {
-    if (Renderer* fresh = host->compositeRenderer())
+    if (Renderer* fresh = host->compositeRenderer(renderer))
     {
       target->renderer = fresh;
       target->transform = ctm;

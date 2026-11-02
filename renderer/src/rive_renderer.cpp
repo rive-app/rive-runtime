@@ -96,6 +96,7 @@ void RiveRenderer::ClipElement::reset(
   path = ref_rcp(path_);
   fillRule = fillRule_;
   clipID = 0; // This gets initialized lazily.
+  clipEpoch = 0;
   pixelBounds = pixelBounds_;
   stroke = stroke_;
   feather = feather_;
@@ -146,6 +147,37 @@ void RiveRenderer::restore()
       m_renderStateStack.back().clipStackHeight >=
       m_renderStateStack[m_renderStateStack.size() - 2].clipStackHeight);
   m_renderStateStack.pop_back();
+}
+
+void RiveRenderer::copyClipTo(RiveRenderer* dst) const
+{
+  assert(dst != nullptr && dst != this);
+  assert(dst->m_context == m_context);
+  const RenderState& from = m_renderStateStack.back();
+  RenderState& state = dst->m_renderStateStack.back();
+  assert(state.clipStackHeight == 0);
+  assert(state.clipRectInverseMatrix == nullptr);
+
+  dst->m_clipStack.assign(
+      m_clipStack.begin(),
+      m_clipStack.begin() + from.clipStackHeight);
+  for (ClipElement& clip : dst->m_clipStack)
+  {
+    // Clip IDs name an embodiment in one flush's clip buffer; [dst] draws
+    // its own.
+    clip.clipID = 0;
+    clip.clipEpoch = 0;
+  }
+  state.clipStackHeight = from.clipStackHeight;
+
+  // A stale inverse matrix is remade by applyClip.
+  state.clipRect = from.clipRect;
+  state.clipRectMatrix = from.clipRectMatrix;
+  state.clipRectPixelBounds = from.clipRectPixelBounds;
+  state.clipRectInverseMatrix = from.clipRectInverseMatrix;
+  state.clipRectEpoch = from.clipRectEpoch;
+  state.overallClipPixelBounds = state.overallClipPixelBounds.intersect(
+      from.overallClipPixelBounds);
 }
 
 void RiveRenderer::transform(const Mat2D& matrix)
@@ -571,10 +603,15 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
                                            .intersect(
                                                renderState.clipRectPixelBounds);
 
-  renderState.clipRectInverseMatrix = m_context
-                                          ->make<gpu::ClipRectInverseMatrix>(
-                                              renderState.clipRectMatrix,
-                                              renderState.clipRect);
+  makeClipRectInverseMatrix(renderState);
+}
+
+void RiveRenderer::makeClipRectInverseMatrix(RenderState& state)
+{
+  state.clipRectInverseMatrix = m_context->make<gpu::ClipRectInverseMatrix>(
+      state.clipRectMatrix,
+      state.clipRect);
+  state.clipRectEpoch = m_context->clipEpoch();
 }
 
 void RiveRenderer::clipPathImpl(
@@ -1149,6 +1186,13 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
   RIVE_PROF_SCOPE_L(3)
   auto& renderState = m_renderStateStack.back();
 
+  if (renderState.clipRectInverseMatrix != nullptr &&
+      renderState.clipRectEpoch != m_context->clipEpoch())
+  {
+    // Made before a flush, which may have recycled its memory.
+    makeClipRectInverseMatrix(renderState);
+  }
+
   draw->setClipRect(
       renderState.clipRectInverseMatrix,
       renderState.overallClipPixelBounds);
@@ -1176,7 +1220,9 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
   {
     for (size_t i = clipStackHeight - 1; i != -1; --i)
     {
-      if (m_clipStack[i].clipID == m_context->getClipContentID())
+      // An ID from an earlier epoch names another flush's clip.
+      if (m_clipStack[i].clipID == m_context->getClipContentID() &&
+          m_clipStack[i].clipEpoch == m_context->clipEpoch())
       {
         clipIdxCurrentlyInClipBuffer = i;
         break;
@@ -1303,6 +1349,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
           clipDrawBounds,
           parentClipID,
           tightenedBounds);
+      clip.clipEpoch = m_context->clipEpoch();
     }
     assert(clip.clipID != m_context->getClipContentID());
     if (clip.clipID == 0)
