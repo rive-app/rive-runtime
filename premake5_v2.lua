@@ -45,8 +45,9 @@ local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- _nx_platform.
 local consoleTarget = _OPTIONS['_nx_platform'] ~= nil
     or _OPTIONS['_console_only_ore_vk'] ~= nil
--- Global so premake5_wamr.lua and test harnesses agree. Mobile apps ship
--- their compiled modules, so they opt in, as rive-cli's player does for
+-- Global so premake5_wamr.lua and test harnesses agree. Only tool builds
+-- compile unchecked modules for themselves; anything else only interprets or
+-- ships its compiled modules, so it opts in, as rive-cli's player does for
 -- --hardware-bounds.
 wasmHwBounds = wamrBuildable
     and _OPTIONS['with_rive_scripting'] ~= nil
@@ -59,6 +60,7 @@ wasmHwBounds = wamrBuildable
                 or rive_target_os == 'linux'
                 or rive_target_os == 'windows'
             )
+            and _OPTIONS['with_rive_tools'] ~= nil
             and not consoleTarget
             and _OPTIONS['arch'] ~= 'x86'
             and _OPTIONS['arch'] ~= 'arm'
@@ -415,8 +417,8 @@ newoption({
 newoption({
     trigger = 'wasm_hw_bounds',
     description = 'WAMR hardware bounds checks for compiled AnimaScript '
-        .. 'modules on platforms where they are not the default (the '
-        .. 'default on 64-bit macOS and Linux and x64 Windows). 64-bit '
+        .. 'modules where they are not the default (the default for tool '
+        .. 'builds on 64-bit macOS, Linux and Windows). 64-bit '
         .. 'only: reserves 4GB and a 64KB guard of address space per compiled '
         .. 'module memory and installs a SIGSEGV/SIGBUS handler, or a '
         .. 'vectored exception handler on Windows.',
