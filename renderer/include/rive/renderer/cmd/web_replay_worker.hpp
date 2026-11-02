@@ -47,6 +47,21 @@ public:
     m_queue.proxyAsync(emscripten_main_runtime_thread_id(), std::move(job));
   }
 
+  // Safari 26.2 keeps a stale heap size on threads that did not grow it, so
+  // their copies into new pages trap. Waits for the worker to start.
+  bool seesHeapGrowth()
+  {
+    __builtin_wasm_memory_grow(0, 1);
+    size_t pages = __builtin_wasm_memory_size(0);
+    size_t workerPages = 0;
+    return emscripten_proxy_sync(
+               m_queue.queue,
+               m_thread,
+               &ReadHeapPages,
+               &workerPages) &&
+           workerPages >= pages;
+  }
+
 private:
   WebReplayWorker()
   {
@@ -61,6 +76,11 @@ private:
     self->m_listening.store(true, std::memory_order_release);
     emscripten_exit_with_live_runtime();
     return nullptr;
+  }
+
+  static void ReadHeapPages(void* pages)
+  {
+    *static_cast<size_t*>(pages) = __builtin_wasm_memory_size(0);
   }
 
   emscripten::ProxyingQueue m_queue;
