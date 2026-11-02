@@ -43,6 +43,17 @@ int LayerMaskProxyDrawable::emptyClipCount()
   return m_op == LayerMaskOp::sourceStart ? 1 : -1;
 }
 
+BlendMode LayerMask::compositeBlendMode() const
+{
+  ContainerComponent* masked = parent();
+  if (masked == nullptr || !masked->is<Drawable>())
+  {
+    return BlendMode::srcOver;
+  }
+  const BlendMode mode = masked->as<Drawable>()->blendMode();
+  return mode == BlendMode::additive ? BlendMode::srcOver : mode;
+}
+
 LayerMaskProxyDrawable* LayerMask::createProxyDrawable(LayerMaskOp op)
 {
   LayerMaskProxyDrawable* drawable;

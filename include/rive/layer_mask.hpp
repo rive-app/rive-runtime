@@ -132,6 +132,17 @@ public:
                : MaskMode::alpha;
   }
 
+  // The blend the flattened layer composites with: the masked drawable's own,
+  // so a masked shape keeps the blend mode its inspector shows. Inside the
+  // content canvas a blend mode has only transparent pixels as a backdrop, so
+  // the source colour passes straight through; the composite is the first
+  // point that can see what the layer actually covers.
+  //
+  // Additive answers srcOver because it is already in the raster, as colour
+  // over reduced alpha, and src-over is what applies it. A plain Node has no
+  // blend mode of its own, so a masked group composites as normal.
+  BlendMode compositeBlendMode() const;
+
 #ifdef WITH_RIVE_EDITOR
   // Dual storage, as every other editor-mutable cross-reference has:
   // DrawTarget::m_DrawableHandle, DrawRules::m_ActiveTargetHandle,

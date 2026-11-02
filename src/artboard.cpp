@@ -3416,11 +3416,16 @@ bool Artboard::drawMasked(
           &sourceBox,
           &coverageDraws);
     }
+    // Inline is only the same picture as the composite when the layer
+    // composites as normal. With any other blend each drawable would blend
+    // on its own rather than as one flattened layer, so removing nothing
+    // still has to rasterize.
+    const bool inlineMatchesLayer = mask.compositeBlendMode() ==
+                                    BlendMode::srcOver;
     if (!coverageDraws)
     {
       // Coverage is zero everywhere -- the mask source is hidden, or sits
-      // in an inactive solo. Which way that falls depends on the mode,
-      // and both answers avoid the GPU entirely.
+      // in an inactive solo. Which way that falls depends on the mode.
       switch (mask.maskMode())
       {
         case MaskMode::alpha:
@@ -3428,7 +3433,11 @@ bool Artboard::drawMasked(
           return true; // content fully masked out
         case MaskMode::invertedAlpha:
         case MaskMode::invertedLuminance:
-          return false; // content fully visible; draw it inline
+          if (inlineMatchesLayer)
+          {
+            return false; // content fully visible; draw it inline
+          }
+          break;
       }
     }
 
@@ -3491,7 +3500,7 @@ bool Artboard::drawMasked(
           }
           tight = overlap;
         }
-        else if (!overlaps)
+        else if (!overlaps && inlineMatchesLayer)
         {
           // Inverted, so absent coverage means a factor of one: the
           // layer is fully visible. Decline the bracket and let it
@@ -3608,11 +3617,15 @@ bool Artboard::drawMasked(
         // Over the source bracket, not sourceDrawables() directly, so a
         // clipping shape nested inside the source still brackets its
         // own drawables. Starting past the opening marker keeps its
-        // own +1 suppression from hiding the very range we want.
-        drawDrawableRange(
-            r,
-            mask.sourceStart()->prevDrawable(),
-            mask.sourceEnd());
+        // own +1 suppression from hiding the very range we want. No bracket
+        // means the source draws nothing, so the canvas stays empty.
+        if (mask.sourceStart() != nullptr)
+        {
+          drawDrawableRange(
+              r,
+              mask.sourceStart()->prevDrawable(),
+              mask.sourceEnd());
+        }
       }
       else
       {
@@ -3696,7 +3709,7 @@ bool Artboard::drawMasked(
   placement.renderer->drawImage(
       contentImage.get(),
       ImageSampler::LinearClamp(),
-      BlendMode::srcOver,
+      mask.compositeBlendMode(),
       placement.opacity);
   offscreen::endComposite(placement);
   return true;

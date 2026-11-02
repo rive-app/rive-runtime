@@ -54,6 +54,11 @@ namespace
 {
 constexpr int kArtboardSize = 200;
 
+// The blended fixture. Multiplied, these give (32, 96, 32), which reads the
+// same whichever way round the readback orders red and blue.
+constexpr uint32_t kBlendedColor = 0xff20c0ff;
+constexpr uint32_t kBackdropColor = 0xffff8020;
+
 struct Diff
 {
   uint32_t maxChannel = 0;
@@ -137,7 +142,7 @@ size_t nonBackgroundPixels(const std::vector<uint8_t>& px)
   return count;
 }
 
-void addFilledRect(
+Shape* addFilledRect(
     Artboard& artboard,
     Node* parent,
     float x,
@@ -165,6 +170,7 @@ void addFilledRect(
   solid->colorValue(color);
   artboard.addObject(solid);
   solid->parentId(artboard.idOf(fill));
+  return shape;
 }
 
 // Same as addFilledRect but with a Feather on the fill, which reaches 1.5x its
@@ -206,6 +212,16 @@ void addFeatheredRect(
   blur->parentId(artboard.idOf(fill));
 }
 
+// Ways for a mask's source to leave its coverage canvas with nothing to remove.
+enum class SourceState
+{
+  drawn,
+  hidden,
+  missesContent,
+  // No drawables at all, so the mask has no source bracket.
+  empty,
+};
+
 struct MaskSpec
 {
   bool present = true;
@@ -221,6 +237,20 @@ struct MaskSpec
   bool nested = false;
   // Adds a feathered square, whose blur reaches well past its own geometry.
   bool feathered = false;
+  // Swaps the subtree under test for one shape with this blend mode, drawn
+  // over a backdrop, with the mask parented to the shape itself. The other
+  // fixtures sit on black under a group, where no blend mode has anything to
+  // show.
+  bool blended = false;
+  BlendMode blendMode = BlendMode::srcOver;
+  // With `blended`, adds a white normal-blend child, which draws beneath the
+  // shape. Inside a flattened layer white is what a multiply leaves alone, so
+  // the result is one flat colour. Drawn inline, the child hides the backdrop
+  // from the shape instead.
+  bool blendedChild = false;
+  SourceState source = SourceState::drawn;
+  // The frame is meant to decline the mask and draw the range inline.
+  bool drawsInline = false;
 };
 
 // `spec.present == false` renders the same content with no mask object and the
@@ -242,59 +272,83 @@ std::vector<uint8_t> renderOnce(
   Artboard artboard(&session);
   artboard.addObject(&artboard);
 
-  // The subtree under test: two overlapping translucent squares, so the
-  // comparison is sensitive to group-isolation mistakes as well as to
-  // placement, plus one opaque square away from the overlap.
-  auto* masked = new Node();
-  artboard.addObject(masked);
-  masked->parentId(artboard.idOf(&artboard));
-  addFilledRect(artboard, masked, 30.f, 30.f, 80.f, 0x99ff2020);
-  addFilledRect(artboard, masked, 70.f, 70.f, 80.f, 0x9920ff20);
-  if (spec.feathered)
-  {
-    // Centred at 150 with a 40 side, so the square spans 130..170 and its
-    // blur reaches 1.5 * 12 = 18 further, out to 112..188. Clear of the
-    // artboard edge at 200, so the clamp cannot be what decides the box.
-    addFeatheredRect(artboard, masked, 150.f, 150.f, 40.f, 0xffffcc20, 12.f);
-  }
+  Node* masked = nullptr;
   Node* extraHidden = nullptr;
-  if (spec.nested)
+  if (spec.blended)
   {
-    // The blue square gets its own mask, so its bracket opens while the
-    // outer mask's content canvas is still open.
-    auto* inner = new Node();
-    artboard.addObject(inner);
-    inner->parentId(artboard.idOf(masked));
-    addFilledRect(artboard, inner, 150.f, 30.f, 40.f, 0xff2020ff);
-
-    auto* innerSource = new Node();
-    artboard.addObject(innerSource);
-    innerSource->parentId(artboard.idOf(&artboard));
-    addFilledRect(
+    // Spans 40..160 over a backdrop spanning 20..180. The shape comes first:
+    // the head of the hierarchy draws on top.
+    Shape* shape = addFilledRect(
         artboard,
-        innerSource,
-        kArtboardSize * .5f,
-        kArtboardSize * .5f,
-        kArtboardSize * 2.f,
-        0xffffffff);
-
-    if (spec.present)
+        &artboard,
+        100.f,
+        100.f,
+        120.f,
+        kBlendedColor);
+    shape->blendModeValue(static_cast<uint32_t>(spec.blendMode));
+    shape->additiveAmount(128);
+    if (spec.blendedChild)
     {
-      auto* innerMask = new LayerMask();
-      artboard.addObject(innerMask);
-      innerMask->parentId(artboard.idOf(inner));
-      innerMask->sourceId(artboard.idOf(innerSource));
+      addFilledRect(artboard, shape, 0.f, 0.f, 40.f, 0xffffffff);
     }
-    else
-    {
-      // The golden must carry no masks at all, so this source has to be
-      // hidden by hand like the outer one below.
-      extraHidden = innerSource;
-    }
+    addFilledRect(artboard, &artboard, 100.f, 100.f, 160.f, kBackdropColor);
+    masked = shape;
   }
   else
   {
-    addFilledRect(artboard, masked, 150.f, 30.f, 40.f, 0xff2020ff);
+    // The subtree under test: two overlapping translucent squares, so the
+    // comparison is sensitive to group-isolation mistakes as well as to
+    // placement, plus one opaque square away from the overlap.
+    masked = new Node();
+    artboard.addObject(masked);
+    masked->parentId(artboard.idOf(&artboard));
+    addFilledRect(artboard, masked, 30.f, 30.f, 80.f, 0x99ff2020);
+    addFilledRect(artboard, masked, 70.f, 70.f, 80.f, 0x9920ff20);
+    if (spec.feathered)
+    {
+      // Centred at 150 with a 40 side, so the square spans 130..170 and its
+      // blur reaches 1.5 * 12 = 18 further, out to 112..188. Clear of the
+      // artboard edge at 200, so the clamp cannot be what decides the box.
+      addFeatheredRect(artboard, masked, 150.f, 150.f, 40.f, 0xffffcc20, 12.f);
+    }
+    if (spec.nested)
+    {
+      // The blue square gets its own mask, so its bracket opens while the
+      // outer mask's content canvas is still open.
+      auto* inner = new Node();
+      artboard.addObject(inner);
+      inner->parentId(artboard.idOf(masked));
+      addFilledRect(artboard, inner, 150.f, 30.f, 40.f, 0xff2020ff);
+
+      auto* innerSource = new Node();
+      artboard.addObject(innerSource);
+      innerSource->parentId(artboard.idOf(&artboard));
+      addFilledRect(
+          artboard,
+          innerSource,
+          kArtboardSize * .5f,
+          kArtboardSize * .5f,
+          kArtboardSize * 2.f,
+          0xffffffff);
+
+      if (spec.present)
+      {
+        auto* innerMask = new LayerMask();
+        artboard.addObject(innerMask);
+        innerMask->parentId(artboard.idOf(inner));
+        innerMask->sourceId(artboard.idOf(innerSource));
+      }
+      else
+      {
+        // The golden must carry no masks at all, so this source has to be
+        // hidden by hand like the outer one below.
+        extraHidden = innerSource;
+      }
+    }
+    else
+    {
+      addFilledRect(artboard, masked, 150.f, 30.f, 40.f, 0xff2020ff);
+    }
   }
 
   // The coverage source, always present so both renders have identical object
@@ -302,7 +356,15 @@ std::vector<uint8_t> renderOnce(
   auto* sourceGroup = new Node();
   artboard.addObject(sourceGroup);
   sourceGroup->parentId(artboard.idOf(&artboard));
-  if (spec.coversEverything)
+  if (spec.source == SourceState::empty)
+  {
+  }
+  else if (spec.source == SourceState::missesContent)
+  {
+    // The blended content ends at 160, so this is clear of it on both axes.
+    addFilledRect(artboard, sourceGroup, 190.f, 190.f, 8.f, spec.color);
+  }
+  else if (spec.coversEverything)
   {
     // Centred, and oversized: a Rectangle is centred on its origin, so a
     // kArtboardSize square at (0,0) would only cover a quadrant.
@@ -337,7 +399,7 @@ std::vector<uint8_t> renderOnce(
   artboard.width(static_cast<float>(kArtboardSize));
   artboard.height(static_cast<float>(kArtboardSize));
 
-  if (!spec.present)
+  if (!spec.present || spec.source == SourceState::hidden)
   {
     // No mask means nothing suppresses the source, so hide it by hand to
     // leave the same visible content the masked render produces.
@@ -392,7 +454,7 @@ std::vector<uint8_t> renderOnce(
   rive_tests::TestingWindowFrameSink sink(window, rc, mainDesc);
   cmd::DeferredReplayer replayer;
   replayer.replayFrame(frame, sink);
-  if (spec.present && !disableRasterOrdering)
+  if (spec.present && !disableRasterOrdering && !spec.drawsInline)
   {
     // Two canvases per mask -- coverage and content. If a mask silently
     // fell back to an inline draw every comparison below would be
@@ -458,6 +520,21 @@ const char* windowName(MaskWindow kind)
                                    : "angle msaa (depthStencil)";
 }
 } // namespace
+
+// How many pixels are within a channel or two of `rgb`.
+size_t pixelsNear(const std::vector<uint8_t>& px, const uint8_t (&rgb)[3])
+{
+  size_t count = 0;
+  for (size_t p = 0; p + 3 < px.size(); p += 4)
+  {
+    if (std::abs(px[p] - rgb[0]) <= 2 && std::abs(px[p + 1] - rgb[1]) <= 2 &&
+        std::abs(px[p + 2] - rgb[2]) <= 2)
+    {
+      count++;
+    }
+  }
+  return count;
+}
 
 TEST_CASE("a fully covering opaque mask is an identity", "[layer-mask-pixel]")
 {
@@ -923,6 +1000,165 @@ TEST_CASE("a partial mask only ever removes content", "[layer-mask-pixel]")
   CHECK(removed > 100);
   // ...and nothing was conjured up.
   CHECK(addedOrBrightened == 0);
+}
+
+TEST_CASE("a masked shape blends with what is beneath it", "[layer-mask-pixel]")
+{
+  // The content canvas is transparent, so a blend mode can only reach the
+  // backdrop at composite. With an identity mask the result has to be the
+  // plain blended draw, which is the same assertion as the identity case above
+  // with the blend as the thing under test.
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  const BlendMode blendMode = GENERATE(
+      BlendMode::multiply,
+      BlendMode::screen,
+      BlendMode::hue,
+      BlendMode::luminosity,
+      BlendMode::additive);
+  auto window = makeWindow(kind);
+  if (window == nullptr)
+  {
+    SUCCEED("no " << windowName(kind) << " testing window here");
+    return;
+  }
+
+  auto masked = renderOnce(
+      window.get(),
+      {.present = true,
+       .coversEverything = true,
+       .blended = true,
+       .blendMode = blendMode},
+      1.0f,
+      1.0f);
+  auto vectors = renderOnce(
+      window.get(),
+      {.present = false, .blended = true, .blendMode = blendMode},
+      1.0f,
+      1.0f);
+  auto normal = renderOnce(
+      window.get(),
+      {.present = false, .blended = true},
+      1.0f,
+      1.0f);
+
+  // Positive control. The bug this pins renders the shape as normal, so if
+  // normal and blended look alike the fixture proves nothing.
+  CHECK(Diff::between(vectors, normal).significantFraction > 0.1);
+
+  char label[64];
+  snprintf(
+      label,
+      sizeof(label),
+      "blend %d on %s",
+      static_cast<int>(blendMode),
+      windowName(kind));
+  Diff d = Diff::between(masked, vectors);
+  d.report(label);
+  CHECK(d.maxChannel <= 2);
+  CHECK(d.significantFraction == 0.0);
+}
+
+TEST_CASE("a mask limits where a blend applies", "[layer-mask-pixel]")
+{
+  // The other half of the blend: outside the coverage the backdrop has to be
+  // left alone, not blended and then masked. Only the 40..80 corner of the
+  // shape overlaps the source, and that source is not drawn.
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
+  if (window == nullptr)
+  {
+    SUCCEED("no " << windowName(kind) << " testing window here");
+    return;
+  }
+
+  constexpr uint8_t kMultiplied[3] = {32, 96, 32};
+  auto vectors = renderOnce(
+      window.get(),
+      {.present = false, .blended = true, .blendMode = BlendMode::multiply},
+      1.0f,
+      1.0f);
+  // Guards the expected colour: the whole shape, less its antialiased rim.
+  CHECK(pixelsNear(vectors, kMultiplied) > 118 * 118);
+
+  auto masked = renderOnce(
+      window.get(),
+      {.present = true, .blended = true, .blendMode = BlendMode::multiply},
+      1.0f,
+      1.0f);
+  const size_t blended = pixelsNear(masked, kMultiplied);
+  CHECK(blended > 38 * 38);
+  CHECK(blended <= 41 * 41);
+}
+
+TEST_CASE(
+    "a blended inverted mask that removes nothing is still a layer",
+    "[layer-mask-pixel]")
+{
+  // An inverted mask with no coverage to subtract has nothing to do, but the
+  // layer still composites as one. Moving the source off the content must not
+  // change how the content blends.
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  const SourceState source = GENERATE(
+      SourceState::hidden,
+      SourceState::missesContent,
+      SourceState::empty);
+  auto window = makeWindow(kind);
+  if (window == nullptr)
+  {
+    SUCCEED("no " << windowName(kind) << " testing window here");
+    return;
+  }
+
+  constexpr uint8_t kMultiplied[3] = {32, 96, 32};
+  auto masked = renderOnce(
+      window.get(),
+      {.present = true,
+       .mode = LayerMaskMode::invertedAlpha,
+       .blended = true,
+       .blendMode = BlendMode::multiply,
+       .blendedChild = true,
+       .source = source},
+      1.0f,
+      1.0f);
+  CHECK(pixelsNear(masked, kMultiplied) > 118 * 118);
+}
+
+TEST_CASE(
+    "a normal inverted mask that removes nothing stays inline",
+    "[layer-mask-pixel]")
+{
+  // The other half: a layer compositing as normal is the same picture inline,
+  // so it must not start paying for two canvases.
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  const SourceState source = GENERATE(
+      SourceState::hidden,
+      SourceState::missesContent,
+      SourceState::empty);
+  auto window = makeWindow(kind);
+  if (window == nullptr)
+  {
+    SUCCEED("no " << windowName(kind) << " testing window here");
+    return;
+  }
+
+  auto masked = renderOnce(
+      window.get(),
+      {.present = true,
+       .mode = LayerMaskMode::invertedAlpha,
+       .blended = true,
+       .blendedChild = true,
+       .source = source,
+       .drawsInline = true},
+      1.0f,
+      1.0f);
+  auto vectors = renderOnce(
+      window.get(),
+      {.present = false, .blended = true, .blendedChild = true},
+      1.0f,
+      1.0f);
+  Diff d = Diff::between(masked, vectors);
+  CHECK(d.maxChannel <= 2);
+  CHECK(d.significantFraction == 0.0);
 }
 
 TEST_CASE(
