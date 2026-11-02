@@ -327,6 +327,19 @@ void TextureGL::uploadImpl(const TextureDataDesc& data)
   glBindTexture(m_glTarget, 0);
 }
 
+void TextureGL::setSampledLevels(uint32_t unit, uint32_t base, uint32_t max)
+{
+  if (base == m_glBaseLevel && max == m_glMaxLevel)
+    return;
+  glActiveTexture(GL_TEXTURE0 + unit);
+  if (base != m_glBaseLevel)
+    glTexParameteri(m_glTarget, GL_TEXTURE_BASE_LEVEL, base);
+  if (max != m_glMaxLevel)
+    glTexParameteri(m_glTarget, GL_TEXTURE_MAX_LEVEL, max);
+  m_glBaseLevel = base;
+  m_glMaxLevel = max;
+}
+
 TextureGL::~TextureGL()
 {
   if (m_glRenderbuffer != 0 && m_glOwnsTexture)
@@ -337,15 +350,6 @@ TextureGL::~TextureGL()
   if (m_glTexture != 0 && m_glOwnsTexture)
   {
     GLuint tex = m_glTexture;
-    glDeleteTextures(1, &tex);
-  }
-}
-
-TextureViewGL::~TextureViewGL()
-{
-  if (m_glTextureView != 0)
-  {
-    GLuint tex = m_glTextureView;
     glDeleteTextures(1, &tex);
   }
 }

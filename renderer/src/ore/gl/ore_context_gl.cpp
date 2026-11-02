@@ -648,6 +648,11 @@ rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
     glTexParameteri(texture->m_glTarget, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(texture->m_glTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(texture->m_glTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    texture->m_glMaxLevel = std::max(desc.numMipmaps, 1u) - 1;
+    glTexParameteri(
+        texture->m_glTarget,
+        GL_TEXTURE_MAX_LEVEL,
+        texture->m_glMaxLevel);
     glBindTexture(texture->m_glTarget, 0);
   }
 
@@ -664,14 +669,8 @@ rcp<TextureView> ContextGL::makeTextureViewImpl(const TextureViewDesc& desc)
   if (!tex)
     return nullptr;
 
-  auto view = rcp<TextureViewGL>(new TextureViewGL(ref_rcp(tex), desc));
-
-  // GLES3 doesn't have glTextureView. We store m_glTextureView = 0
-  // and use the base texture at bind time. FBO attachment targeting
-  // specific mip/layer is done via glFramebufferTextureLayer.
-  view->m_glTextureView = 0;
-
-  return view;
+  // GLES3 has no texture views, so bind groups carry the view's mip range.
+  return rcp<TextureViewGL>(new TextureViewGL(ref_rcp(tex), desc));
 }
 
 // ============================================================================
@@ -1028,14 +1027,17 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
   {
     const auto& entry = desc.textures[i];
     BindGroupGL::GLTexBinding binding{};
-    auto* viewGL = lite_rtti_cast<TextureViewGL*>(entry.view);
-    assert(viewGL);
     auto* texGL = lite_rtti_cast<TextureGL*>(entry.view->texture());
     assert(texGL);
-    binding.texture = viewGL->m_glTextureView != 0 ? viewGL->m_glTextureView
-                                                   : texGL->m_glTexture;
+    binding.texture = texGL->m_glTexture;
     binding.target = texGL->m_glTarget;
     binding.binding = entry.slot;
+    if (texGL->m_glOwnsTexture)
+    {
+      binding.owned = texGL;
+      binding.baseLevel = entry.view->baseMipLevel();
+      binding.maxLevel = binding.baseLevel + entry.view->mipCount() - 1;
+    }
     bg->m_glTextures.push_back(binding);
     bg->m_retainedViews.push_back(ref_rcp(entry.view));
   }

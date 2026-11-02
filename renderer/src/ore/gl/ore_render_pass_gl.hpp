@@ -3,10 +3,12 @@
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/refcnt.hpp"
 #include <cstdint>
+#include <vector>
 
 namespace rive::ore
 {
 class ContextGL;
+class TextureGL;
 
 class RenderPassGL : public RenderPass
 {
@@ -71,6 +73,17 @@ private:
   // be set after the bind groups.
   void applySamplerBindings();
 
+  // Per draw, since any bound group can hold a view of the same texture.
+  void applySampledLevels();
+  struct SampledLevels
+  {
+    TextureGL* texture;
+    uint16_t unit;
+    uint32_t base;
+    uint32_t max;
+  };
+  std::vector<SampledLevels> m_sampledLevels;
+
   // Buffers and textures at the pipeline's units, which differ from the
   // layout's when the layout came from another shader.
   void applyBindGroup(uint32_t groupIndex);
@@ -95,6 +108,7 @@ private:
   uint32_t m_viewportHeight = 0;
   uint32_t m_maxSamplerSlot = 0;
   bool m_samplerBindingsDirty = false;
+  bool m_sampledLevelsDirty = false;
   bool m_usedSamplers = false;
   // Enabled attribute arrays, one bit per location.
   uint32_t m_enabledAttribs = 0;

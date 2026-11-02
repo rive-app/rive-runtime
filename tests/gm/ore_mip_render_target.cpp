@@ -5,8 +5,9 @@
  * colour and depth attached and no explicit viewport, then shows each level
  * in its own quadrant. A pass sized from the texture instead of the attached
  * level draws the triangle scaled and shifted in the smaller quadrants. Level
- * one is then loaded back and gets a second, flipped triangle. Each quadrant
- * picks its level with a sampler lod clamp, since GL cannot sample a mip view.
+ * one is then loaded back and gets a second, flipped triangle. Levels two and
+ * three are then drawn through their own views into corners of levels three
+ * and zero. Each quadrant picks its level with a sampler lod clamp.
  */
 
 #include "gm.hpp"
@@ -181,6 +182,34 @@ public:
     texBGDesc.textureCount = 1;
     auto texBG = ctx.makeBindGroup(texBGDesc);
 
+    PipelineDesc levelPd = imgPd;
+    levelPd.colorTargets[0].format = TextureFormat::rgba8unorm;
+    levelPd.label = "ore_mip_render_target_level_img";
+    auto levelPipeline = ctx.makePipeline(levelPd);
+    if (!levelPipeline)
+      return;
+    rcp<BindGroup> levelBGs[kLevels];
+    for (uint32_t i = 0; i < kLevels; ++i)
+    {
+      texEntry.view = colorViews[i].get();
+      levelBGs[i] = ctx.makeBindGroup(texBGDesc);
+    }
+
+    // Mipmapped, so GL checks the sampled range for a feedback loop. Linear
+    // keeps the 4:1 corner's taps off texel edges.
+    SamplerDesc cornerSampDesc{};
+    cornerSampDesc.minFilter = Filter::linear;
+    cornerSampDesc.magFilter = Filter::linear;
+    auto cornerSampler = ctx.makeSampler(cornerSampDesc);
+    BindGroupDesc::SampEntry cornerSampEntry{};
+    cornerSampEntry.slot = 0;
+    cornerSampEntry.sampler = cornerSampler.get();
+    BindGroupDesc cornerSampBGDesc{};
+    cornerSampBGDesc.layout = layout2.get();
+    cornerSampBGDesc.samplers = &cornerSampEntry;
+    cornerSampBGDesc.samplerCount = 1;
+    auto cornerSampBG = ctx.makeBindGroup(cornerSampBGDesc);
+
     rcp<Sampler> samplers[kLevels];
     rcp<BindGroup> sampBGs[kLevels];
     for (uint32_t i = 0; i < kLevels; ++i)
@@ -244,6 +273,28 @@ public:
       pass->setPipeline(triPipeline.get());
       pass->setVertexBuffer(0, vbFlipped.get());
       pass->draw(3);
+      pass->finish();
+    }
+
+    struct Corner
+    {
+      uint32_t target, source;
+    };
+    for (Corner c : {Corner{3, 2}, Corner{0, 3}})
+    {
+      RenderPassDesc rp{};
+      rp.colorAttachments[0].view = colorViews[c.target].get();
+      rp.colorAttachments[0].loadOp = LoadOp::load;
+      rp.colorAttachments[0].storeOp = StoreOp::store;
+      rp.colorCount = 1;
+      rp.label = "ore_mip_render_target_corner";
+      auto pass = ctx.beginRenderPass(rp);
+      pass->setPipeline(levelPipeline.get());
+      pass->setBindGroup(1, levelBGs[c.source].get());
+      pass->setBindGroup(2, cornerSampBG.get());
+      const float half = (kSize >> c.target) / 2.0f;
+      pass->setViewport(0, 0, half, half);
+      pass->draw(6);
       pass->finish();
     }
 

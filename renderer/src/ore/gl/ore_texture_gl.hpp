@@ -12,6 +12,9 @@ public:
   TextureGL(const TextureDesc& desc) : lite_rtti_override(desc) {}
   ~TextureGL() override;
   void uploadImpl(const TextureDataDesc& data) override;
+  // GLES3 has no texture views, so a sampled view's mip range is texture
+  // state. Expects the texture bound at `unit`.
+  void setSampledLevels(uint32_t unit, uint32_t base, uint32_t max);
 
 private:
   friend class ContextGL;
@@ -21,6 +24,8 @@ private:
   // False only for textures wrapped from outside, which aren't ours to
   // delete.
   bool m_glOwnsTexture = true;
+  uint32_t m_glBaseLevel = 0;
+  uint32_t m_glMaxLevel = 0;
 };
 
 class TextureViewGL : public LITE_RTTI_OVERRIDE(TextureView, TextureViewGL)
@@ -29,10 +34,5 @@ public:
   TextureViewGL(rcp<Texture> texture, const TextureViewDesc& desc)
       : lite_rtti_override(std::move(texture), desc)
   {}
-  ~TextureViewGL() override;
-
-private:
-  friend class ContextGL;
-  unsigned int m_glTextureView = 0; // GLenum; 0 means use base texture
 };
 } // namespace rive::ore

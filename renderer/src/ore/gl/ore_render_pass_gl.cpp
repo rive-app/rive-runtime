@@ -10,6 +10,7 @@
 #include "ore_texture_gl.hpp"
 #include "rive/renderer/ore/ore_context_gl.hpp"
 #include "rive/rive_types.hpp"
+#include <algorithm>
 
 namespace rive::ore
 {
@@ -222,6 +223,7 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
   m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
   m_currentPipeline = ref_rcp(pipeline);
   m_samplerBindingsDirty = true;
+  m_sampledLevelsDirty = true;
 
   auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
   assert(glPipeline);
@@ -453,6 +455,7 @@ void RenderPassGL::setBindGroup(
   assert(bg != nullptr);
   storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
   m_samplerBindingsDirty = true;
+  m_sampledLevelsDirty = true;
 }
 
 void RenderPassGL::applyBindGroup(uint32_t groupIndex)
@@ -576,6 +579,45 @@ void RenderPassGL::applySamplerBindings()
   }
 }
 
+void RenderPassGL::applySampledLevels()
+{
+  if (!m_sampledLevelsDirty)
+    return;
+  m_sampledLevelsDirty = false;
+
+  m_sampledLevels.clear();
+  for (uint32_t group = 0; group < kMaxBindGroups; ++group)
+  {
+    auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+    if (glBg == nullptr)
+      continue;
+    for (const auto& tex : glBg->m_glTextures)
+    {
+      const uint16_t unit = glUnit(
+          m_currentPipeline->slots(group, tex.binding, SlotSpace::texture));
+      if (tex.owned == nullptr || unit == BindingMap::kAbsent)
+        continue;
+      auto it = std::find_if(
+          m_sampledLevels.begin(),
+          m_sampledLevels.end(),
+          [&](const auto& l) { return l.texture == tex.owned; });
+      if (it == m_sampledLevels.end())
+      {
+        m_sampledLevels.push_back(
+            {tex.owned, unit, tex.baseLevel, tex.maxLevel});
+      }
+      else if (it->base != tex.baseLevel || it->max != tex.maxLevel)
+      {
+        // Conflicting views sample the whole chain, as every view did before.
+        it->base = 0;
+        it->max = tex.owned->numMipmaps() - 1;
+      }
+    }
+  }
+  for (const auto& l : m_sampledLevels)
+    l.texture->setSampledLevels(l.unit, l.base, l.max);
+}
+
 void RenderPassGL::setViewport(
     float x,
     float y,
@@ -642,6 +684,7 @@ void RenderPassGL::draw(
   assert(m_currentPipeline != nullptr);
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
+  applySampledLevels();
   flushVertexBuffers();
   GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
@@ -666,6 +709,7 @@ void RenderPassGL::drawIndexed(
   assert(m_currentPipeline != nullptr);
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
+  applySampledLevels();
   flushVertexBuffers();
   GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
   GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
