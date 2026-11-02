@@ -2123,7 +2123,12 @@ void LayoutComponent::positionTypeChanged()
     // appropriately.
     if (!hasLayoutFlag(LayoutComponentFlags::PositionLeftChanged))
     {
-      m_style->positionLeft(layoutBounds().left());
+      // Left is the inset from the parent's right side under RTL.
+      auto* parent = layoutParent();
+      m_style->positionLeft(
+          parent != nullptr && actualDirection() == LayoutDirection::rtl
+              ? parent->layoutBounds().width() - layoutBounds().right()
+              : layoutBounds().left());
     }
     if (!hasLayoutFlag(LayoutComponentFlags::PositionTopChanged))
     {

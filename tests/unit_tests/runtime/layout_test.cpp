@@ -361,6 +361,34 @@ TEST_CASE("LayoutComponent Direction", "[layout]")
   REQUIRE(text->align() == rive::TextAlign::right);
 }
 
+// Left is a logical edge: under RTL it is the inset from the parent's right
+// side, so holding a layout in place has to store that distance rather than its
+// position from the left.
+TEST_CASE("Switching RTL layouts to absolute leaves them in place", "[layout]")
+{
+  // A fresh file for each: taking one out of the row reflows the others.
+  for (const char* name : {"Layout1", "Layout2", "Layout3"})
+  {
+    INFO(name);
+    auto file = ReadRiveFile("assets/layout/layout_direction.riv");
+    auto artboard = file->artboard();
+    auto target = artboard->find<rive::LayoutComponent>(name);
+    REQUIRE(target != nullptr);
+    REQUIRE(target->style() != nullptr);
+    artboard->advance(0.0f);
+    REQUIRE(target->actualDirection() == rive::LayoutDirection::rtl);
+    const float right = target->layoutBounds().right();
+
+    target->style()->positionTypeValue(YGPositionTypeAbsolute);
+    artboard->advance(0.0f);
+
+    // These fill the row, so with nothing left to fill they lose their width
+    // and only the edge they are anchored by holds.
+    REQUIRE(target->style()->positionType() == YGPositionTypeAbsolute);
+    REQUIRE(target->layoutBounds().right() == Approx(right));
+  }
+}
+
 TEST_CASE("LayoutComponent forcedWidth/Height dirt test", "[layout]")
 {
   auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
