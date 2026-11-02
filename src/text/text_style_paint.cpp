@@ -67,9 +67,9 @@ void TextStylePaint::drawGeometry(
             BlendMode mode = shapePaint->inheritsBlendMode()
                                  ? BlendMode::srcOver
                                  : shapePaint->blendMode();
-            renderPaint->blendMode(mode);
-            renderPaint->additiveness(
-                additivenessFor(mode, shapePaint->additiveAmount()));
+            uint8_t amount = shapePaint->additiveAmount();
+            renderPaint->blendMode(renderBlendModeFor(mode, amount));
+            renderPaint->additiveness(additivenessFor(mode, amount));
           }
           shapePaint->draw(renderer, path, worldTransform, true, renderPaint);
         };

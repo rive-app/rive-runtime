@@ -114,7 +114,7 @@ void ShapePaint::blendMode(BlendMode parentValue, uint8_t parentAdditiveAmount)
   const BlendMode mode = inherits ? parentValue : (BlendMode)blendModeValue();
   const uint8_t amount = inherits ? parentAdditiveAmount : additiveAmount();
 
-  m_RenderPaint->blendMode(mode);
+  m_RenderPaint->blendMode(renderBlendModeFor(mode, amount));
   // Only additive is parameterized; every other mode ignores additiveness
   // anyway, but keep it at 0 so a stale value can never leak through.
   m_RenderPaint->additiveness(additivenessFor(mode, amount));
@@ -129,7 +129,7 @@ void ShapePaint::additiveAmountChanged()
   {
     return;
   }
-  m_RenderPaint->blendMode(blendMode());
+  m_RenderPaint->blendMode(renderBlendModeFor(blendMode(), additiveAmount()));
   m_RenderPaint->additiveness(additivenessFor(blendMode(), additiveAmount()));
 }
 

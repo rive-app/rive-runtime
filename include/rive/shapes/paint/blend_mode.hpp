@@ -37,5 +37,14 @@ inline float additivenessFor(BlendMode mode, uint8_t additiveAmount)
 {
   return mode == BlendMode::additive ? additiveAmount / 255.0f : 0.0f;
 }
+
+/// The mode to hand a renderer. Canvas renderers can't scale additive, so they
+/// draw it at full strength; additive at 0 has to reach them as srcOver. The
+/// serialized mode stays additive so an animated or bound amount can return.
+inline BlendMode renderBlendModeFor(BlendMode mode, uint8_t additiveAmount)
+{
+  return mode == BlendMode::additive && additiveAmount == 0 ? BlendMode::srcOver
+                                                            : mode;
+}
 } // namespace rive
 #endif

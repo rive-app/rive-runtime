@@ -237,6 +237,58 @@ TEST_CASE("changing the amount re-syncs the paint after load", "[blend]")
   REQUIRE(rp->additive == Approx(32 / 255.0f));
 }
 
+TEST_CASE("additive at zero reaches the renderer as srcOver", "[blend]")
+{
+  // Canvas renderers ignore additiveness and draw additive at full strength,
+  // so 0% has to arrive as srcOver or it draws the opposite of Normal.
+  REQUIRE(renderBlendModeFor(BlendMode::additive, 0) == BlendMode::srcOver);
+  REQUIRE(renderBlendModeFor(BlendMode::additive, 1) == BlendMode::additive);
+  REQUIRE(renderBlendModeFor(BlendMode::multiply, 0) == BlendMode::multiply);
+
+  RecordingFactory factory;
+  auto file = ReadRiveFile("assets/shapetest.riv", &factory);
+  auto artboard = file->artboard()->instance();
+  Shape* shape = nullptr;
+  Fill* fill = nullptr;
+  for (auto candidate : artboard->find<Fill>())
+  {
+    if (candidate->parent() != nullptr && candidate->parent()->is<Shape>())
+    {
+      fill = candidate;
+      shape = candidate->parent()->as<Shape>();
+      break;
+    }
+  }
+  REQUIRE(fill != nullptr);
+  REQUIRE(shape != nullptr);
+  auto* rp = static_cast<RecordingPaint*>(fill->renderPaint());
+
+  // Inherited from the drawable. The serialized mode stays additive so the
+  // amount can animate back up, and the paint follows it both ways.
+  fill->blendModeValue(127);
+  shape->blendModeValue((uint32_t)BlendMode::additive);
+  shape->additiveAmount(0);
+  REQUIRE(shape->blendMode() == BlendMode::additive);
+  REQUIRE(shape->renderBlendMode() == BlendMode::srcOver);
+  REQUIRE(rp->blend == BlendMode::srcOver);
+  REQUIRE(rp->additive == 0.0f);
+
+  shape->additiveAmount(128);
+  REQUIRE(shape->renderBlendMode() == BlendMode::additive);
+  REQUIRE(rp->blend == BlendMode::additive);
+  REQUIRE(rp->additive == Approx(128 / 255.0f));
+
+  // The paint's own mode and amount.
+  fill->blendModeValue((uint32_t)BlendMode::additive);
+  fill->additiveAmount(0);
+  REQUIRE(fill->blendMode() == BlendMode::additive);
+  REQUIRE(rp->blend == BlendMode::srcOver);
+
+  fill->additiveAmount(255);
+  REQUIRE(rp->blend == BlendMode::additive);
+  REQUIRE(rp->additive == Approx(1.0f));
+}
+
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("a scripted paint sets additiveness alongside the mode", "[blend]")
 {

@@ -106,6 +106,12 @@ public:
 
   BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
 
+  /// blendMode() as the renderer wants it; see renderBlendModeFor.
+  BlendMode renderBlendMode() const
+  {
+    return renderBlendModeFor(blendMode(), additiveAmount());
+  }
+
   /// additiveAmount() as the renderer wants it: 0 (plain srcOver) to 1
   /// (fully additive), and always 0 for the modes that ignore it.
   float additiveness() const

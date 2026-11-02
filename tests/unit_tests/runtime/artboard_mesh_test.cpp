@@ -74,6 +74,9 @@ constexpr size_t kNumCmds = static_cast<size_t>(RenderCmd::lastRenderCmd) + 1;
 struct Census
 {
   uint64_t count[kNumCmds] = {};
+  // The last drawImageMesh.
+  uint8_t meshBlendMode = 0;
+  float meshAdditiveness = 0.0f;
   uint64_t of(RenderCmd cmd) const { return count[static_cast<size_t>(cmd)]; }
   static Census of(const RenderCommandBuffer& buf)
   {
@@ -87,6 +90,13 @@ struct Census
         break;
       }
       c.count[type]++;
+      if (static_cast<RenderCmd>(type) == RenderCmd::drawImageMesh)
+      {
+        const auto mesh = r.read<DrawImageMeshPOD>();
+        c.meshBlendMode = mesh.blendMode;
+        c.meshAdditiveness = mesh.additiveness;
+        continue;
+      }
       r.skip(payloadSizeOf(static_cast<RenderCmd>(type)));
     }
     return c;
@@ -317,6 +327,29 @@ TEST_CASE(
   CHECK(c.of(RenderCmd::drawImageMesh) == 1);
   // The flat composite the plain cache would issue is not there.
   CHECK(c.of(RenderCmd::drawImage) == 0);
+}
+
+TEST_CASE(
+    "a meshed instance draws additive like any drawable",
+    "[artboard-mesh]")
+{
+  MeshScene scene;
+  REQUIRE(scene.initStatus == StatusCode::Ok);
+  scene.nested->meshHost();
+  scene.nested->blendModeValue(static_cast<uint32_t>(BlendMode::additive));
+
+  // Canvas renderers ignore additiveness, so 0 has to arrive as srcOver.
+  scene.nested->additiveAmount(0);
+  Census zero = scene.frame();
+  REQUIRE(zero.of(RenderCmd::drawImageMesh) == 1);
+  CHECK(zero.meshBlendMode == static_cast<uint8_t>(BlendMode::srcOver));
+  CHECK(zero.meshAdditiveness == 0.0f);
+
+  scene.nested->additiveAmount(128);
+  Census half = scene.frame();
+  REQUIRE(half.of(RenderCmd::drawImageMesh) == 1);
+  CHECK(half.meshBlendMode == static_cast<uint8_t>(BlendMode::additive));
+  CHECK(half.meshAdditiveness == Approx(128 / 255.0f));
 }
 
 TEST_CASE("the raster is the artboard size times resolution", "[artboard-mesh]")

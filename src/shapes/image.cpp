@@ -41,7 +41,7 @@ void Image::draw(Renderer* renderer)
         renderer,
         renderImage,
         imageSampler(),
-        blendMode(),
+        renderBlendMode(),
         renderOpacity(),
         additiveness());
   }
@@ -52,7 +52,7 @@ void Image::draw(Renderer* renderer)
     renderer->drawImage(
         renderImage,
         imageSampler(),
-        blendMode(),
+        renderBlendMode(),
         renderOpacity(),
         additiveness());
   }

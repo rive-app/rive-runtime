@@ -215,9 +215,9 @@ bool NestedArtboardMeshHost::draw(Renderer* renderer)
       placement.renderer,
       image.get(),
       ImageSampler::LinearClamp(),
-      m_owner->blendMode(),
+      m_owner->renderBlendMode(),
       placement.opacity,
-      0.0f);
+      m_owner->additiveness());
   offscreen::endComposite(placement);
   return true;
 }
