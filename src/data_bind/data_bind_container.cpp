@@ -164,18 +164,35 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
 uint64_t DataBindContainer::sm_dataBindUpdates = 0;
 #endif
 
-bool DataBindContainer::hasDataBindWork() const
+bool DataBindContainer::hasDataBindWork(bool applyTargetToSource) const
 {
   if (!m_dirtyDataBinds.empty())
   {
     return true;
   }
   auto* queues = m_queues.get();
-  return queues != nullptr &&
-         (!queues->persisting.empty() || !queues->dirtyToSource.empty() ||
-          !queues->pendingDirtyToSource.empty() ||
-          !queues->pendingDirty.empty() || !queues->pendingAdditions.empty() ||
-          !queues->pendingRemovals.empty() || !queues->pendingDeletes.empty());
+  if (queues == nullptr)
+  {
+    return false;
+  }
+  if (!queues->dirtyToSource.empty() || !queues->pendingDirtyToSource.empty() ||
+      !queues->pendingDirty.empty() || !queues->pendingAdditions.empty() ||
+      !queues->pendingRemovals.empty() || !queues->pendingDeletes.empty())
+  {
+    return true;
+  }
+  if (applyTargetToSource)
+  {
+    return !queues->persisting.empty();
+  }
+  for (auto dataBind : queues->persisting)
+  {
+    if (dataBind->dirt() != ComponentDirt::None)
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Starts at 1 so a container's initial epoch of 0 is never current.
@@ -285,7 +302,11 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
   {
     for (auto& dataBind : queues->persisting)
     {
-      if (!dataBind->canSkip())
+      // A polled bind is polled for its target's value. Without that pass,
+      // a clean one has nothing to do: a state machine's listeners apply
+      // their to-source binds themselves, and its passes never do.
+      if (!dataBind->canSkip() &&
+          (applyTargetToSource || dataBind->dirt() != ComponentDirt::None))
       {
         updateDataBind(dataBind, applyTargetToSource);
       }

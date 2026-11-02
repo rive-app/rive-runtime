@@ -1,0 +1,182 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/quiet_hosting_rows.riv. Rebuild the .riv from
+      this file with the CLI, from a directory holding this scene.rml and a
+      rive.yaml naming it, then copy build/quiet_hosting_rows.riv into assets/.
+
+          rive . --once
+
+      What it is for: list rows that host a nested artboard and a nested list
+      going quiet (see quiet_rows_test.cpp), and waking for a change to
+      either. Each Host Row shows its item's Badge, which lights up while the
+      item is online, and a list of its tags, each drawn at its n. Clicking a
+      row selects its item (Root.selected) through a bind the row's machine
+      polls. Each row also has Slot, a nested artboard with nothing in it,
+      which a test mounts an instance into.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row: Badge, which takes the row's data context, an empty Slot, and
+         a list of the item's tags. Its machine does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" x="400" width="300" height="60" styleId="0:35" name="Host Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Host Row Style" id="0:35"/>
+        <NestedArtboard artboardId="0:60" name="Badge" id="0:31">
+            <NestedStateMachine animationId="0:67" name="Badge Machine" id="0:32"/>
+        </NestedArtboard>
+        <NestedArtboard name="Slot" id="0:89"/>
+        <LayoutComponent x="60" width="240" height="60" styleId="0:39" name="Tag Strip" id="0:38">
+            <LayoutComponentStyle flexDirectionValue="row" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Tag Strip Style" id="0:39"/>
+            <ArtboardComponentList name="Tags" id="0:33">
+                <DataBindContext sourcePathIds="0:50-0:53" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Host Row Machine" id="0:37">
+            <!-- Selects the row's item. Its bind writing Root.selected is one
+                 a machine polls (a view model reference can't push). -->
+            <StateMachineListenerSingle targetId="0:30" listenerTypeValue="click" name="Select" id="0:47">
+                <ListenerViewModelChange fromViewModelProperty="true" fromDataBindId="0:45">
+                    <BindablePropertyViewModel>
+                        <DataBindContext sourcePathIds="0:50" propertyKey="823" id="0:45"/>
+                        <DataBindContext sourcePathIds="0:40-0:44" propertyKey="823" direction="true"/>
+                    </BindablePropertyViewModel>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="Layer" id="0:36">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:41"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:34" id="0:41"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:34"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Host Row"/>
+
+    <!-- Badge: grey, green while its item is online. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:67" viewModelId="0:50" x="800" width="40" height="40" styleId="0:65" name="Badge" id="0:60">
+        <LayoutComponentStyle name="Badge Style" id="0:65"/>
+        <Shape x="20" y="20" name="Dot" id="0:61">
+            <Ellipse width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Color" id="0:62"/></Fill>
+        </Shape>
+        <StateMachine name="Badge Machine" id="0:67">
+            <StateMachineLayer name="Presence" id="0:70">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:72"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:71" id="0:72">
+                    <StateTransition stateToId="0:74">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:50-0:52" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:73" id="0:74">
+                    <StateTransition stateToId="0:72">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:50-0:52" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Offline" id="0:71">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF808080"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Online" id="0:73">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF3BA55C"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:60" name="Badge"/>
+
+    <!-- Tag: a box drawn at its n. -->
+    <Artboard isComponent="true" viewModelId="0:80" x="900" width="40" height="40" styleId="0:85" name="Tag" id="0:81">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Tag Style" id="0:85"/>
+        <Shape x="0" y="20" name="Box" id="0:82">
+            <DataBindContext sourcePathIds="0:80-0:83" propertyKey="13"/>
+            <Rectangle width="10" height="10" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFE0A557" name="Color"/></Fill>
+        </Shape>
+    </Artboard>
+    <ComponentAsset artboardId="0:81" name="Tag"/>
+
+    <ViewModel defaultInstanceId="0:86" name="Tag" id="0:80">
+        <ViewModelPropertyNumber name="n" id="0:83"/>
+        <ViewModelInstance exports="true" name="T1" id="0:86">
+            <ViewModelInstanceNumber propertyValue="5" viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="T2" id="0:87">
+            <ViewModelInstanceNumber propertyValue="15" viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="T3" id="0:88">
+            <ViewModelInstanceNumber propertyValue="25" viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyBoolean name="online" id="0:52"/>
+        <ViewModelPropertyList name="tags" id="0:53"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:86"/>
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:87"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:88"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelPropertyViewModel viewModelReferenceId="0:50" name="selected" id="0:44"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceViewModel viewModelPropertyId="0:44"/>
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

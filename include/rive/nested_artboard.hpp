@@ -77,6 +77,9 @@ private:
   // that must be unref'd by this NestedArtboard.
   bool m_ownsActiveVmi = false;
   NestedArtboardHostFlags m_hostFlags = NestedArtboardHostFlags::none;
+  // Something may have changed this host: wake the artboard it is in if a
+  // host had it quiet.
+  void wakeRow();
   void nest(Artboard* artboard);
   void detectArtboardDataBinding();
   bool tryScheduleBindStateful();
@@ -227,6 +230,17 @@ public:
       float elapsedSeconds,
       AdvanceFlags flags = AdvanceFlags::Animate |
                            AdvanceFlags::NewFrame) override;
+  QuietState quietState() override;
+  // Whether, collapsed and marked, this host can skip its advances (see
+  // quietState): no machine in it, or in what it hosts, reads pending
+  // changes.
+  bool skippableWhileCollapsed();
+  // The mounted instance, marked quiet with the row hosting this (see
+  // Artboard::markHostedQuiet), saw something that may change it.
+  void hostedRowWoke(Artboard* artboard, uint32_t row) override;
+  // Both change what quietState answers.
+  void isPausedChanged() override;
+  void quantizeChanged() override;
   void reset() override;
   Artboard* parentArtboard() override { return artboard(); }
   Artboard* nestingArtboard() override { return artboard(); }

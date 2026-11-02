@@ -390,11 +390,24 @@ public:
     }
   }
   /// Whether this artboard's own per-frame work as a row (advanceInternal,
-  /// updateDataBinds, reset and updatePass) would currently do nothing.
-  /// `never` for artboards whose content can't say (hosted artboards,
-  /// scripts, joysticks, resettables, advancing converters, advancing
-  /// components that can't report).
+  /// updateDataBinds, reset and updatePass) would currently do nothing,
+  /// what it hosts included. `never` for artboards whose content can't say
+  /// (scripts, joysticks, resettables, advancing converters, advancing
+  /// components that can't report, such as an artboard paint).
   AdvancingComponent::QuietState rowQuietState();
+  /// Marks the artboards this one hosts in nested artboards, and theirs, as
+  /// quiet with it, so whatever wakes one of them wakes this row: a list row
+  /// goes quiet with all of them (see NestedArtboard::quietState). A nested
+  /// list's rows are already marked by that list.
+  void markHostedQuiet();
+  /// Whether, once marked, a collapsed host above this artboard can skip its
+  /// advances. Each one notes where the change sequence stands for the
+  /// machines below that read pending changes, so none may (see
+  /// NestedArtboard::skippableWhileCollapsed). A list's rows go quiet only
+  /// while every change their machines read wakes them, and a list passes a
+  /// wake on only from a quiet row, so every list needs all its rows quiet.
+  /// An artboard paint's source is neither checked nor marked.
+  bool hostedSkippableWhileCollapsed() const;
   void addedToHost()
   {
     setLayoutFlag(LayoutComponentFlags::JustAddedToHost, true);

@@ -1902,10 +1902,10 @@ void Artboard::wakeQuietRow()
 AdvancingComponent::QuietState Artboard::rowQuietState()
 {
   using QuietState = AdvancingComponent::QuietState;
-  // Work this check can't see into: hosted artboards and lists, joysticks
-  // and scripts.
-  if (!m_ArtboardHosts.empty() || !m_Joysticks.empty() ||
-      !m_ScriptedObjects.empty())
+  // Work this check can't see into: joysticks and scripts. Hosted
+  // artboards and lists answer for themselves below, as advancing
+  // components.
+  if (!m_Joysticks.empty() || !m_ScriptedObjects.empty())
   {
     return QuietState::never;
   }
@@ -1936,6 +1936,44 @@ AdvancingComponent::QuietState Artboard::rowQuietState()
     return QuietState::never;
   }
   return state;
+}
+
+void Artboard::markHostedQuiet()
+{
+  for (auto nestedArtboard : nestedArtboards())
+  {
+    if (auto instance = nestedArtboard->artboardInstance())
+    {
+      // A nested artboard hosts its one instance at row 0.
+      instance->quietHostRow(0);
+      instance->markHostedQuiet();
+    }
+  }
+}
+
+bool Artboard::hostedSkippableWhileCollapsed() const
+{
+  // The hosts that aren't nested artboards or lists are artboard paints.
+  if (m_ArtboardHosts.size() !=
+      m_NestedArtboards.size() + m_ComponentLists.size())
+  {
+    return false;
+  }
+  for (auto list : artboardComponentLists())
+  {
+    if (!list->allRowsQuiet())
+    {
+      return false;
+    }
+  }
+  for (auto nestedArtboard : nestedArtboards())
+  {
+    if (!nestedArtboard->skippableWhileCollapsed())
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 void Artboard::dataBindsProcessed()

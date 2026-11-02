@@ -2,6 +2,7 @@
 #include "rive/nested_artboard_mesh_host.hpp"
 #include "rive/component_origin.hpp"
 #include "rive/artboard.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
 #include "rive/file.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -131,6 +132,8 @@ void NestedArtboard::nest(Artboard* artboard)
   m_referencedArtboard->hostOpacity(renderOpacity());
   m_referencedArtboard->volume(artboard->volume());
   m_Instance = nullptr;
+  // A new instance isn't marked quiet yet.
+  m_hostFlags &= ~NestedArtboardHostFlags::inactiveMarked;
   if (m_meshHost != nullptr)
   {
     m_meshHost->resetRaster();
@@ -147,6 +150,9 @@ void NestedArtboard::nest(Artboard* artboard)
   // On initial import the override child may not be linked yet; onAddedClean
   // covers that case.
   applyOriginOverride();
+  // A row that went quiet with no instance here, or another one, has this
+  // one to advance.
+  wakeRow();
 }
 
 void NestedArtboard::applyOriginOverride()
@@ -1132,9 +1138,29 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
   }
   if (isCollapsed() || isPaused())
   {
+#ifdef TESTING
+    // Standing in for a skipped pass, which notes nothing.
+    if (ArtboardComponentList::sm_verifyingQuietRow)
+    {
+      return false;
+    }
+#endif
     m_inactiveChangeSequence = ViewModelInstanceValue::latestChangeSequence();
+    if (isCollapsed() && m_Instance != nullptr &&
+        !enums::is_flag_set(
+            m_hostFlags,
+            NestedArtboardHostFlags::inactiveMarked))
+    {
+      // From here, a change the machines inside read wakes this host
+      // (hostedRowWoke), so until one does, the advances after this one
+      // can be skipped (see quietState).
+      m_Instance->quietHostRow(0);
+      m_Instance->markHostedQuiet();
+      m_hostFlags |= NestedArtboardHostFlags::inactiveMarked;
+    }
     return false;
   }
+  m_hostFlags &= ~NestedArtboardHostFlags::inactiveMarked;
   if (enums::is_flag_set(
           m_hostFlags,
           NestedArtboardHostFlags::pendingStatefulBinding))
@@ -1199,6 +1225,114 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
   }
 
   return keepGoing;
+}
+
+AdvancingComponent::QuietState NestedArtboard::quietState()
+{
+  using QuietState = AdvancingComponent::QuietState;
+  if (m_referencedArtboard == nullptr)
+  {
+    return QuietState::quiet;
+  }
+  // An instance this host doesn't own may be advanced elsewhere too.
+  if (m_Instance == nullptr)
+  {
+    return QuietState::never;
+  }
+  // advanceComponent's early out. A collapsed or paused host only notes
+  // where the change sequence stands, for the state machines inside once
+  // they run again. A change made after that is still pending for them.
+  // A paused host stays busy.
+  if (isPaused())
+  {
+    return QuietState::busy;
+  }
+  // A collapsed one is quiet once an advance has marked what it hosts, as
+  // long as nothing inside needs the advance's note
+  // (skippableWhileCollapsed). A change a list row inside reads still wakes
+  // it, and its next advance notes the change.
+  if (isCollapsed())
+  {
+    bool marked = enums::is_flag_set(
+        m_hostFlags,
+        NestedArtboardHostFlags::inactiveMarked);
+    return marked && skippableWhileCollapsed() ? QuietState::quiet
+                                               : QuietState::busy;
+  }
+  if (enums::is_flag_set(
+          m_hostFlags,
+          NestedArtboardHostFlags::pendingStatefulBinding))
+  {
+    return QuietState::busy;
+  }
+  // A quantized clock moves on every advance.
+  if (quantize() >= 0)
+  {
+    return QuietState::never;
+  }
+  // The machines first, as a list checks its rows' (see
+  // ArtboardComponentList::rowQuietState): they are cheap, and usually what
+  // is busy.
+  for (auto animation : m_NestedAnimations)
+  {
+    // Linear and remap animations play on time this can't see into.
+    if (!animation->is<NestedStateMachine>())
+    {
+      return QuietState::never;
+    }
+    auto machine = animation->as<NestedStateMachine>()->stateMachineInstance();
+    if (machine == nullptr)
+    {
+      continue;
+    }
+    auto state = machine->rowQuietState();
+    if (state != QuietState::quiet)
+    {
+      return state;
+    }
+  }
+  return m_Instance->rowQuietState();
+}
+
+bool NestedArtboard::skippableWhileCollapsed()
+{
+  for (auto animation : m_NestedAnimations)
+  {
+    if (!animation->is<NestedStateMachine>())
+    {
+      continue;
+    }
+    // Not every change such a machine reads reports a wake (a component
+    // trigger fired directly, a bind already dirty, a binding still to be
+    // made), so only the advance's note keeps it from taking one made while
+    // it couldn't run.
+    auto machine = animation->as<NestedStateMachine>()->stateMachineInstance();
+    if (machine != nullptr && machine->stateMachine()->readsPendingChanges())
+    {
+      return false;
+    }
+  }
+  return m_Instance == nullptr || m_Instance->hostedSkippableWhileCollapsed();
+}
+
+void NestedArtboard::hostedRowWoke(Artboard* artboard, uint32_t row)
+{
+  // Collapsed, the change is one the next advance has to note.
+  m_hostFlags &= ~NestedArtboardHostFlags::inactiveMarked;
+  // The row this host is on, if it is quiet, can change too.
+  wakeRow();
+}
+
+void NestedArtboard::isPausedChanged() { wakeRow(); }
+
+void NestedArtboard::quantizeChanged() { wakeRow(); }
+
+void NestedArtboard::wakeRow()
+{
+  if (auto host = artboard())
+  {
+    host->wakeIfQuietRow();
+  }
 }
 
 void NestedArtboard::reset() {}

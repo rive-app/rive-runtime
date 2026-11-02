@@ -1,0 +1,429 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/quiet_inactive_hosts.riv. Rebuild the .riv from
+      this file with the CLI, from a directory holding this scene.rml and a
+      rive.yaml naming it, then copy build/quiet_inactive_hosts.riv into
+      assets/.
+
+          rive . --once
+
+      What it is for: list rows whose hosts are collapsed (see
+      quiet_rows_test.cpp). Each Inactive Row shows a Pinger through its Solo
+      Switch, its tags through its Solo Tag Switch, and Holder, which lists
+      its held tags, through its Solo Holder Switch. A test turns one to Off
+      to hide what it shows. A
+      Pinger turns gold, and a tag moves to 30, when its ping fires. A ping
+      fired while they're hidden has had its frame, and must not play once
+      they show again.
+
+      Each Paint Row starts with its Solo on Off. On shows a Flasher, which
+      draws an artboard paint: Flash, whose machine turns it gold when the
+      item's flash fires.
+
+      Each Buzz Row shows a Buzzer through its Solo. A Buzzer turns gold when
+      its component trigger, Buzz, fires.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+            <ArtboardComponentList name="Paint Rows" id="0:13">
+                <DataBindContext sourcePathIds="0:40-0:45" propertyKey="800"/>
+            </ArtboardComponentList>
+            <ArtboardComponentList name="Buzz Rows" id="0:14">
+                <DataBindContext sourcePathIds="0:40-0:230" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row: its Solo Switch shows a Pinger, Tag Switch the item's tags,
+         and Holder Switch Holder. Its machine does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" x="400" width="300" height="60" styleId="0:35" name="Inactive Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Inactive Row Style" id="0:35"/>
+        <Solo activeComponentId="0:38" name="Switch" id="0:33">
+            <Node name="Off" id="0:34"/>
+            <Node x="60" name="On" id="0:38">
+                <NestedArtboard artboardId="0:60" name="Pinger" id="0:39">
+                    <NestedStateMachine animationId="0:67" name="Pinger Machine" id="0:46"/>
+                </NestedArtboard>
+            </Node>
+        </Solo>
+        <Solo activeComponentId="0:164" name="Tag Switch" id="0:162">
+            <Node name="Off" id="0:163"/>
+            <Node x="120" name="On" id="0:164">
+                <ArtboardComponentList name="Tags" id="0:47">
+                    <DataBindContext sourcePathIds="0:50-0:53" propertyKey="800"/>
+                </ArtboardComponentList>
+            </Node>
+        </Solo>
+        <Solo activeComponentId="0:169" name="Holder Switch" id="0:167">
+            <Node name="Off" id="0:168"/>
+            <Node x="180" name="On" id="0:169">
+                <NestedArtboard artboardId="0:190" name="Holder" id="0:165">
+                    <NestedStateMachine animationId="0:196" name="Holder Machine" id="0:166"/>
+                </NestedArtboard>
+            </Node>
+        </Solo>
+        <StateMachine name="Inactive Row Machine" id="0:37">
+            <StateMachineLayer name="Layer" id="0:36">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:41"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:44" id="0:41"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:44"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Inactive Row"/>
+
+    <!-- Pinger: grey, gold once its item's ping fires. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:67" viewModelId="0:50" x="800" width="40" height="40" styleId="0:65" name="Pinger" id="0:60">
+        <LayoutComponentStyle name="Pinger Style" id="0:65"/>
+        <Shape x="20" y="20" name="Dot" id="0:61">
+            <Ellipse width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Color" id="0:62"/></Fill>
+        </Shape>
+        <StateMachine name="Pinger Machine" id="0:67">
+            <StateMachineLayer name="Ping" id="0:70">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:72"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:71" id="0:72">
+                    <StateTransition stateToId="0:74">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:50-0:55" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:73" id="0:74"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Idle" id="0:71">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF808080"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Pinged" id="0:73">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FFE0A557"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:60" name="Pinger"/>
+
+    <!-- Tag: a box at 0, at 30 once its ping fires. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:94" viewModelId="0:80" x="900" width="40" height="40" styleId="0:85" name="Tag" id="0:81">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Tag Style" id="0:85"/>
+        <Shape x="0" y="20" name="Box" id="0:82">
+            <Rectangle width="10" height="10" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFE0A557" name="Color"/></Fill>
+        </Shape>
+        <StateMachine name="Tag Machine" id="0:94">
+            <StateMachineLayer name="Ping" id="0:95">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:96"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:98" id="0:96">
+                    <StateTransition stateToId="0:97">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:80-0:83" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:99" id="0:97"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Idle" id="0:98">
+            <KeyedObject objectId="0:82">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Pinged" id="0:99">
+            <KeyedObject objectId="0:82">
+                <KeyedProperty propertyKey="13"><KeyFrameDouble value="30"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:81" name="Tag"/>
+
+    <!-- Holder: the item's held tags, in a list of its own. No other list
+         reads them. Its machine does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:196" viewModelId="0:50" x="1000" width="100" height="40" styleId="0:191" name="Holder" id="0:190">
+        <LayoutComponentStyle name="Holder Style" id="0:191"/>
+        <ArtboardComponentList name="Held Tags" id="0:192">
+            <DataBindContext sourcePathIds="0:50-0:58" propertyKey="800"/>
+        </ArtboardComponentList>
+        <StateMachine name="Holder Machine" id="0:196">
+            <StateMachineLayer name="Layer" id="0:197">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:198"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:199" id="0:198"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:199"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:190" name="Holder"/>
+
+    <!-- A paint row: its Solo starts on Off, hiding its Flasher. Its machine
+         does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:127" viewModelId="0:130" x="400" y="400" width="300" height="60" styleId="0:121" name="Paint Row" id="0:120">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Paint Row Style" id="0:121"/>
+        <Solo activeComponentId="0:123" name="Switch" id="0:122">
+            <Node name="Off" id="0:123"/>
+            <Node x="60" name="On" id="0:124">
+                <NestedArtboard artboardId="0:140" name="Flasher" id="0:125">
+                    <NestedStateMachine animationId="0:146" name="Flasher Machine" id="0:126"/>
+                </NestedArtboard>
+            </Node>
+        </Solo>
+        <StateMachine name="Paint Row Machine" id="0:127">
+            <StateMachineLayer name="Layer" id="0:128">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:129"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:119" id="0:129"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:119"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:120" name="Paint Row"/>
+
+    <!-- Flasher: a swatch painted with Flash. Its machine does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:146" viewModelId="0:130" x="800" y="400" width="40" height="40" styleId="0:141" name="Flasher" id="0:140">
+        <LayoutComponentStyle name="Flasher Style" id="0:141"/>
+        <Shape x="20" y="20" name="Swatch" id="0:142">
+            <Rectangle width="40" height="40" name="Path"/>
+            <Fill name="Fill">
+                <PaintImage artboardId="0:150" name="Flash Paint" id="0:143"/>
+                <SolidColor colorValue="FFFFFFFF" name="Tint"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="Flasher Machine" id="0:146">
+            <StateMachineLayer name="Layer" id="0:147">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:148"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:149" id="0:148"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:149"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:140" name="Flasher"/>
+
+    <!-- Flash, the paint: grey, gold once its item's flash fires. -->
+    <Artboard defaultStateMachineId="0:156" viewModelId="0:130" x="900" y="400" width="40" height="40" styleId="0:151" name="Flash" id="0:150">
+        <LayoutComponentStyle name="Flash Style" id="0:151"/>
+        <Shape x="20" y="20" name="Box" id="0:152">
+            <Rectangle width="40" height="40" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Color" id="0:153"/></Fill>
+        </Shape>
+        <StateMachine name="Flash Machine" id="0:156">
+            <StateMachineLayer name="Flash" id="0:157">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:160"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:158" id="0:160">
+                    <StateTransition stateToId="0:161">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:130-0:131" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:159" id="0:161"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Idle" id="0:158">
+            <KeyedObject objectId="0:153">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF808080"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Flashed" id="0:159">
+            <KeyedObject objectId="0:153">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FFE0A557"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <!-- A buzz row: its Solo shows a Buzzer. Its machine does nothing. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:207" viewModelId="0:220" x="400" y="800" width="300" height="60" styleId="0:201" name="Buzz Row" id="0:200">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Buzz Row Style" id="0:201"/>
+        <Solo activeComponentId="0:204" name="Switch" id="0:202">
+            <Node name="Off" id="0:203"/>
+            <Node x="60" name="On" id="0:204">
+                <NestedArtboard artboardId="0:170" name="Buzzer" id="0:205">
+                    <NestedStateMachine animationId="0:177" name="Buzzer Machine" id="0:206"/>
+                </NestedArtboard>
+            </Node>
+        </Solo>
+        <StateMachine name="Buzz Row Machine" id="0:207">
+            <StateMachineLayer name="Layer" id="0:208">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:209"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:211" id="0:209"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:211"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:200" name="Buzz Row"/>
+
+    <!-- Buzzer: grey, gold once its component trigger Buzz fires. A
+         condition reads Buzz directly, with no bind. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:177" x="800" y="800" width="40" height="40" styleId="0:176" name="Buzzer" id="0:170">
+        <LayoutComponentStyle name="Buzzer Style" id="0:176"/>
+        <Shape x="20" y="20" name="Box" id="0:171">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Color" id="0:172"/></Fill>
+        </Shape>
+        <CustomPropertyGroup name="Knobs" id="0:179">
+            <CustomPropertyTrigger name="Buzz" id="0:173"/>
+        </CustomPropertyGroup>
+        <StateMachine name="Buzzer Machine" id="0:177">
+            <StateMachineLayer name="Buzz" id="0:178">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:180"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:174" id="0:180">
+                    <StateTransition stateToId="0:181">
+                        <TransitionViewModelCondition opValue="notEqual">
+                            <TransitionPropertyComponentComparator objectId="0:173" propertyKey="870"/>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:175" id="0:181"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="10" name="Idle" id="0:174">
+            <KeyedObject objectId="0:172">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF808080"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="10" name="Buzzed" id="0:175">
+            <KeyedObject objectId="0:172">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FFE0A557"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:170" name="Buzzer"/>
+
+    <ViewModel defaultInstanceId="0:222" name="BuzzItem" id="0:220">
+        <ViewModelPropertyNumber name="n" id="0:221"/>
+        <ViewModelInstance exports="true" name="B1" id="0:222">
+            <ViewModelInstanceNumber viewModelPropertyId="0:221"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:132" name="PaintItem" id="0:130">
+        <ViewModelPropertyTrigger name="flash" id="0:131"/>
+        <ViewModelInstance exports="true" name="F1" id="0:132">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:131"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:86" name="Tag" id="0:80">
+        <ViewModelPropertyTrigger name="ping" id="0:83"/>
+        <ViewModelInstance exports="true" name="T1" id="0:86">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="T2" id="0:87">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="T3" id="0:88">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="T4" id="0:89">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:83"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyList name="tags" id="0:53"/>
+        <ViewModelPropertyTrigger name="ping" id="0:55"/>
+        <ViewModelPropertyList name="heldTags" id="0:58"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:86"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceTrigger viewModelPropertyId="0:55"/>
+            <ViewModelInstanceList viewModelPropertyId="0:58">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:88"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:87"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceTrigger viewModelPropertyId="0:55"/>
+            <ViewModelInstanceList viewModelPropertyId="0:58">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:89"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelPropertyList name="paintItems" id="0:45"/>
+        <ViewModelPropertyList name="buzzItems" id="0:230"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceList viewModelPropertyId="0:45">
+                <ViewModelInstanceListItem viewModelId="0:130" viewModelInstanceId="0:132"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceList viewModelPropertyId="0:230">
+                <ViewModelInstanceListItem viewModelId="0:220" viewModelInstanceId="0:222"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

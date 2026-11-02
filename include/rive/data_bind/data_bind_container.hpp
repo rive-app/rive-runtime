@@ -90,9 +90,10 @@ public:
   // The context this container holds was set, replaced or cleared. Called
   // after the change, and before any rebinding that follows it.
   virtual void dataContextChanged() {};
-  // Whether updateDataBinds would process anything: a bind waiting in any
-  // queue, or one it polls on every pass.
-  bool hasDataBindWork() const;
+  // Whether updateDataBinds(applyTargetToSource) would process anything: a
+  // bind waiting in any queue, or one it polls. A polled bind only has work
+  // in a pass that applies target to source, or once it is dirty.
+  bool hasDataBindWork(bool applyTargetToSource = true) const;
   // Whether advanceDataBinds could do anything: some bind's converter
   // advances. Cached until a bind here changes (dataBindsChanged) or a
   // converter whose answer is cached does (mayAdvanceChanged).

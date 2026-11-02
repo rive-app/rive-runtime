@@ -5992,7 +5992,12 @@ AdvancingComponent::QuietState StateMachineInstance::rowQuietState()
     return QuietState::never;
   }
   // Cheapest first: a busy row is checked again every frame.
-  if (m_needsAdvance || m_bindsPending || hasDataBindWork() ||
+  // A list runs its rows' machines' passes without applying target to
+  // source (see ArtboardComponentList::updateDataBinds), so a bind a row's
+  // machine polls only has work once dirty, which wakes the row
+  // (addDirtyDataBind).
+  if (m_needsAdvance || m_bindsPending ||
+      hasDataBindWork(/*applyTargetToSource=*/false) ||
       m_drawOrderChangeCounter != m_artboardInstance->drawOrderChangeCounter())
   {
     return QuietState::busy;

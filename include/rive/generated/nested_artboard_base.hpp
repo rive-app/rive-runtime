@@ -62,6 +62,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(isPausedPropertyKey, &m_IsPaused, &value);
     m_IsPaused = value;
+    RIVE_EDITOR_CHANGED(isPausedChanged());
     notifyPropertyChanged(isPausedPropertyKey);
   }
 
@@ -86,6 +87,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(quantizePropertyKey, &m_Quantize, &value);
     m_Quantize = value;
+    RIVE_EDITOR_CHANGED(quantizeChanged());
     notifyPropertyChanged(quantizePropertyKey);
   }
 
@@ -143,6 +145,8 @@ public:
 
 protected:
   virtual void artboardIdChanged() {}
+  virtual void isPausedChanged() {}
+  virtual void quantizeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/nested_artboard_ext.inl"
 #endif

@@ -1159,6 +1159,7 @@ bool ArtboardComponentList::sm_quietRowsEnabled = true;
 bool ArtboardComponentList::sm_verifyQuietRows = true;
 bool ArtboardComponentList::sm_reuseHostingRows = true;
 uint64_t ArtboardComponentList::sm_reusedHostingRows = 0;
+bool ArtboardComponentList::sm_verifyingQuietRow = false;
 #endif
 
 static size_t lowestSetBit(uint64_t bits)
@@ -1206,12 +1207,17 @@ AdvancingComponent::QuietState ArtboardComponentList::rowQuietState(size_t row)
   {
     return QuietState::busy;
   }
-  auto state = artboard->rowQuietState();
-  if (state != QuietState::quiet || stateMachine == nullptr)
+  // The machine first: it is a few flags, and when the row is busy it is
+  // usually what is busy. What the artboard hosts is checked through it.
+  if (stateMachine != nullptr)
   {
-    return state;
+    auto state = stateMachine->rowQuietState();
+    if (state != QuietState::quiet)
+    {
+      return state;
+    }
   }
-  return stateMachine->rowQuietState();
+  return artboard->rowQuietState();
 }
 
 bool ArtboardComponentList::tryQuietRow(size_t row)
@@ -1237,8 +1243,29 @@ bool ArtboardComponentList::tryQuietRow(size_t row)
   if (auto artboard = m_artboardInstancesByIndex[row])
   {
     artboard->quietHostRow(static_cast<uint32_t>(row));
+    artboard->markHostedQuiet();
   }
   return true;
+}
+
+AdvancingComponent::QuietState ArtboardComponentList::quietState()
+{
+  using QuietState = AdvancingComponent::QuietState;
+  if (artboardCount() == 0)
+  {
+    return QuietState::quiet;
+  }
+  // Collapsed, the advance only notes where the change sequence stands, for
+  // the rows' machines once they run again. That too is nothing while every
+  // row is quiet: a change one of them reads wakes it, and so this list's
+  // row, whose next advance notes the change. A row woken while the list is
+  // collapsed stays awake until it shows.
+  return allRowsQuiet() ? QuietState::quiet : QuietState::busy;
+}
+
+bool ArtboardComponentList::allRowsQuiet() const
+{
+  return nextAwakeRow(0) >= m_listItems.size();
 }
 
 bool ArtboardComponentList::canQuietRows() const
@@ -1318,9 +1345,30 @@ void ArtboardComponentList::hostedRowWoke(Artboard* artboard, uint32_t row)
       m_quietRows[word] &= ~(uint64_t(1) << (row & 63));
     }
   }
+  // The list is no longer quiet, so neither is a row it is on.
+  if (auto host = this->artboard())
+  {
+    host->wakeIfQuietRow();
+  }
 }
 
 #ifdef TESTING
+// Whether every artboard hosted under artboard by nested artboards is marked
+// quiet, so a change to one of them wakes the row (see markHostedQuiet).
+static bool hostedMarkedQuiet(Artboard* artboard)
+{
+  for (auto nestedArtboard : artboard->nestedArtboards())
+  {
+    auto instance = nestedArtboard->artboardInstance();
+    if (instance != nullptr &&
+        (instance->quietHostRow() != 0 || !hostedMarkedQuiet(instance)))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 void ArtboardComponentList::verifyQuietRows(
     RowPass pass,
     float elapsedSeconds,
@@ -1352,11 +1400,18 @@ void ArtboardComponentList::verifyQuietRows(
       {
         problem = "lost track of its artboard";
       }
+      else if (!hostedMarkedQuiet(artboard))
+      {
+        problem = "lost track of an artboard it hosts";
+      }
       else
       {
         auto dirt = Artboard::sm_dirtNotifications;
         auto updates = DataBindContainer::sm_dataBindUpdates;
         bool didWork = false;
+        // A nested list's verifier runs inside this pass.
+        bool wasVerifying = sm_verifyingQuietRow;
+        sm_verifyingQuietRow = true;
         switch (pass)
         {
           case RowPass::advance:
@@ -1386,6 +1441,7 @@ void ArtboardComponentList::verifyQuietRows(
             didWork = artboard->updatePass(false);
             break;
         }
+        sm_verifyingQuietRow = wasVerifying;
         if (didWork || dirt != Artboard::sm_dirtNotifications ||
             updates != DataBindContainer::sm_dataBindUpdates ||
             artboard->hasDirt(ComponentDirt::Components) ||
@@ -1424,6 +1480,13 @@ bool ArtboardComponentList::advanceComponent(
   }
   if (isCollapsed())
   {
+#ifdef TESTING
+    // Standing in for a skipped pass, which notes nothing.
+    if (sm_verifyingQuietRow)
+    {
+      return false;
+    }
+#endif
     m_inactiveChangeSequence = ViewModelInstanceValue::latestChangeSequence();
     return false;
   }

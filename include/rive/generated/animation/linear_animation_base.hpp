@@ -133,6 +133,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(quantizePropertyKey, &m_Quantize, &value);
     m_Quantize = value;
+    RIVE_EDITOR_CHANGED(quantizeChanged());
     notifyPropertyChanged(quantizePropertyKey);
   }
 
@@ -186,6 +187,7 @@ public:
 
 protected:
   virtual void durationChanged() {}
+  virtual void quantizeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/linear_animation_ext.inl"
 #endif

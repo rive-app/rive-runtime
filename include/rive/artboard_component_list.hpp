@@ -67,6 +67,12 @@ public:
       float elapsedSeconds,
       AdvanceFlags flags = AdvanceFlags::Animate |
                            AdvanceFlags::NewFrame) override;
+  // Quiet once every row is: a list inside a list row then lets that row go
+  // quiet too.
+  QuietState quietState() override;
+  // Whether every row is quiet, so a change to one wakes the row this list
+  // is on (see Artboard::hostedSkippableWhileCollapsed).
+  bool allRowsQuiet() const;
   void reset() override;
   AABB layoutBounds() override;
   AABB layoutBoundsForNode(int index) override;
@@ -362,6 +368,9 @@ public:
   static bool sm_reuseHostingRows;
   // Rows hosting artboards that a list handed to a new item.
   static uint64_t sm_reusedHostingRows;
+  // Set while the verifier does a quiet row's skipped work: a collapsed or
+  // paused host's advance then notes nothing, as the pass never ran.
+  static bool sm_verifyingQuietRow;
 
 private:
 #endif
