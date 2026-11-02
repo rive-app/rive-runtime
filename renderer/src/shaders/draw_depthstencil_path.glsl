@@ -57,18 +57,53 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   const bool isHairlineStroke = false;
   #endif
 
+  int vertexIdx = _vertexIdx;
+
   // Since there are no actual vertex attrib buffers, Rive smuggles in flags
   // via vertex ID. This proves to be a very efficient way of drawing
   // different variations of things without changing pipeline state or push
   // constants.
-  bool colorWriteDisabled = (_vertexIdx & VERTEX_FLAG_DISABLE_COLOR_WRITE) != 0;
-  bool isStrokeDepthPass = (_vertexIdx & VERTEX_FLAG_STROKE_DEPTH_PASS) != 0;
+  //
+  // These flags are always valid in virtual vertexIDs as well.
+  // (i.e., for draws that use the virtual patch buffer.)
+  //
   // NOTE: spirv-opt verifiably folds isOuterCubicPatch and isAAPolarStroke
   // into a single value because VERTEX_FLAG_OUTER_CUBIC_FILL and
   // VERTEX_FLAG_AA_POLAR_STROKE are equal aliases.
-  bool isOuterCubicPatch = (_vertexIdx & VERTEX_FLAG_OUTER_CUBIC_FILL) != 0;
-  bool isAAPolarStroke = (_vertexIdx & VERTEX_FLAG_AA_POLAR_STROKE) != 0;
-  int vertexIdxNoFlags = _vertexIdx & ((1 << VERTEX_FLAGS_SHIFT) - 1);
+  bool isOuterCubicPatch = (vertexIdx & VERTEX_FLAG_OUTER_CUBIC_FILL) != 0;
+  bool isAAPolarStroke = (vertexIdx & VERTEX_FLAG_AA_POLAR_STROKE) != 0;
+
+  int patchStrideLog2;
+  #if defined(@DS_POLAR_STROKE) || defined(@DS_HAIRLINE_STROKE)
+  if (isStroke())
+  {
+    // Strokes (and hairlines) get their baseVertex indirectly via the virtual
+    // patch buffer. This indirection allows us to batch multiple overlapping
+    // ranges and subpass flags together in a single draw command.
+    patchStrideLog2 = DS_STROKE_PATCH_STRIDE_LOG2(isAAPolarStroke);
+    int virtualVertexIdxNoFlags = vertexIdx & VERTEX_IDX_MASK;
+    // The real vertexIdx gets its baseVertex from the virtual patch buffer
+    // (flags and tessellation base index), and its localVertexOffset from the
+    // virtual vertexIdx.
+    uint virtualPatchIdx = uint(virtualVertexIdxNoFlags >> patchStrideLog2);
+    int localVertexOffset = virtualVertexIdxNoFlags &
+                            ((1 << patchStrideLog2) - 1);
+    vertexIdx = int(STORAGE_BUFFER_LOAD1(
+                    @virtualPatchBuffer,
+                    virtualPatchIdx)) +
+                localVertexOffset;
+  }
+  else
+  #endif
+  {
+    // Fills have their baseVertex built in directly to _vertexIdx.
+    patchStrideLog2 = DS_FILL_PATCH_STRIDE_LOG2(isOuterCubicPatch);
+  }
+
+  // These flags are not valid until after virtual patch resolution.
+  bool colorWriteDisabled = (vertexIdx & VERTEX_FLAG_DISABLE_COLOR_WRITE) != 0;
+  bool isStrokeDepthPass = (vertexIdx & VERTEX_FLAG_STROKE_DEPTH_PASS) != 0;
+  int vertexIdxNoFlags = vertexIdx & VERTEX_IDX_MASK;
 
   // The index buffers align per-patch vertex IDs on pow2 strides,
   // specifically so this shader can decode _vertexIdx without divides and
@@ -77,20 +112,17 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   // NOTE: The patches don't actually have pow2 numbers of vertices; the index
   // buffers just never reference those vertex IDs between the end of one
   // patch and the beginning of another.
-  int patchIdx, localVertexIdx, patchTessVertexStride;
+  int patchIdx = vertexIdxNoFlags >> patchStrideLog2;
+  int patchVertexIdx = vertexIdxNoFlags & ((1 << patchStrideLog2) - 1);
   float outset = .0;
   float coverage = 1.;
   bool isFillMidpointVertex = false;
+  int patchSpokeIdx;
+  int patchTessVertexStride;
   if (isStroke())
   {
-    int patchStrideLog2 = DS_STROKE_PATCH_STRIDE_LOG2(isAAPolarStroke);
-    patchIdx = vertexIdxNoFlags >> patchStrideLog2;
-    int patchVertexIdx = vertexIdxNoFlags & ((1 << patchStrideLog2) - 1);
     int lanesPerSpokeLog2 = DS_STROKE_LANES_PER_SPOKE_LOG2(isAAPolarStroke);
-    localVertexIdx = patchVertexIdx >> lanesPerSpokeLog2; // spoke
     int lane = patchVertexIdx & ((1 << lanesPerSpokeLog2) - 1);
-    // Lanes run outside to inside, so localVertexIdx is already correct for
-    // AA polar strokes and outer hairlines.
     if (isPolarStroke && !isAAPolarStroke)
     {
       // Non-AA strokes only draw the solid body band (no AA bands).
@@ -99,13 +131,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     }
     outset = lane < 2 ? 1. : -1.;
     coverage = (lane == 0 || lane == 3) ? .0 : 1.;
+    patchSpokeIdx = patchVertexIdx >> lanesPerSpokeLog2;
     patchTessVertexStride = int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
   }
   else
   {
-    int patchStrideLog2 = DS_FILL_PATCH_STRIDE_LOG2(isOuterCubicPatch);
-    patchIdx = vertexIdxNoFlags >> patchStrideLog2;
-    int patchVertexIdx = vertexIdxNoFlags & ((1 << patchStrideLog2) - 1);
+    isFillMidpointVertex = !isOuterCubicPatch &&
+                           patchVertexIdx == DS_MIDPOINT_VERTEX_IDX;
+    patchSpokeIdx = isFillMidpointVertex ? 0 : patchVertexIdx;
     patchTessVertexStride =
         isOuterCubicPatch
             // outerCubics tessellate a redundant bowtie vertex at the end
@@ -114,13 +147,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
             // over it when indexing into the tessellation texture.
             ? int(OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE)
             : int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
-    isFillMidpointVertex = !isOuterCubicPatch &&
-                           patchVertexIdx == DS_MIDPOINT_VERTEX_IDX;
-    localVertexIdx = isFillMidpointVertex ? 0 : patchVertexIdx;
   }
 
   // Fetch a vertex that definitely belongs to the contour we're drawing.
-  int vertexIDOnContour = min(localVertexIdx, patchTessVertexStride - 1);
+  int vertexIDOnContour = min(patchSpokeIdx, patchTessVertexStride - 1);
   int tessVertexIdx = patchIdx * patchTessVertexStride + vertexIDOnContour;
   uint4 tessVertexData = TEXEL_FETCH(
       @tessVertexTexture,
@@ -175,13 +205,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
                                  !isOuterCubicPatch && !isFillMidpointVertex;
   }
   if (hasAlternateVertexPosition)
-    localVertexIdx = localVertexIdx - 1;
-  if (localVertexIdx != vertexIDOnContour)
+    patchSpokeIdx = patchSpokeIdx - 1;
+  if (patchSpokeIdx != vertexIDOnContour)
   {
     // This can peek one vertex before or after the contour, but the
     // tessellator guarantees there is always at least one padding vertex at
     // the beginning and end of the data.
-    int replacementTessVertexIdx = tessVertexIdx + localVertexIdx -
+    int replacementTessVertexIdx = tessVertexIdx + patchSpokeIdx -
                                    vertexIDOnContour;
     uint4 replacementTessVertexData = TEXEL_FETCH(
         @tessVertexTexture,

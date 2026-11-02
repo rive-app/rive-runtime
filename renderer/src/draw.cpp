@@ -1854,6 +1854,17 @@ void PathDraw::initForMidpointFan(
                                           m_contourDirections)
                                           ? tessVertexCount * 2
                                           : tessVertexCount;
+    if (m_coverageType == CoverageType::depthStencil &&
+        (isStroke() || m_hasHairlinePass))
+    {
+      // depthStencil strokes use the virtual patch buffer for better batching.
+      const bool inkbleed = context->frameDescriptor().inkbleedOverride;
+      assert(!m_hasHairlinePass || inkbleed);
+      const size_t passCount = inkbleed ? 2 : 1;
+      m_resourceCounts
+          .virtualPatchCount = m_resourceCounts.midpointFanTessVertexCount /
+                               gpu::kMidpointFanPatchSegmentSpan * passCount;
+    }
   }
 }
 

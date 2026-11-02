@@ -173,6 +173,7 @@ public:
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(PathBuffer, m_pathBuffer)
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBuffer)
   IMPLEMENT_RIVE_STRUCTURED_BUFFER(ContourBuffer, m_contourBuffer)
+  IMPLEMENT_RIVE_STRUCTURED_BUFFER(VirtualPatchBuffer, m_virtualPatchBuffer)
   IMPLEMENT_RIVE_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
   IMPLEMENT_RIVE_BUFFER(TessVertexSpanBuffer, m_tessSpanBuffer)
   IMPLEMENT_RIVE_BUFFER(TriangleVertexBuffer, m_triangleBuffer)
@@ -257,6 +258,7 @@ private:
   D3D12VolatileBufferPool m_pathBufferPool;
   D3D12VolatileBufferPool m_paintAuxBufferPool;
   D3D12VolatileBufferPool m_contourBufferPool;
+  D3D12VolatileBufferPool m_virtualPatchBufferPool;
   D3D12VolatileBufferPool m_gradSpanBufferPool;
   D3D12VolatileBufferPool m_tessSpanBufferPool;
   D3D12VolatileBufferPool m_triangleBufferPool;
@@ -273,6 +275,7 @@ private:
   rcp<D3D12VolatileBuffer> m_pathBuffer;
   rcp<D3D12VolatileBuffer> m_paintAuxBuffer;
   rcp<D3D12VolatileBuffer> m_contourBuffer;
+  rcp<D3D12VolatileBuffer> m_virtualPatchBuffer;
   rcp<D3D12VolatileBuffer> m_gradSpanBuffer;
   rcp<D3D12VolatileBuffer> m_tessSpanBuffer;
   rcp<D3D12VolatileBuffer> m_triangleBuffer;

@@ -448,7 +448,7 @@ private:
   // LogicalFlush::LayoutCounters.
   struct ResourceAllocationCounts
   {
-    constexpr static int NUM_ELEMENTS = 19;
+    constexpr static int NUM_ELEMENTS = 20;
     using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
     RIVE_ALWAYS_INLINE VecType toVec() const
@@ -474,6 +474,7 @@ private:
     size_t pathBufferCount = 0;
     size_t paintAuxBufferCount = 0;
     size_t contourBufferCount = 0;
+    size_t virtualPatchBufferCount = 0;
     size_t gradSpanBufferCount = 0;
     size_t tessSpanBufferCount = 0;
     size_t triangleVertexBufferCount = 0;
@@ -582,6 +583,7 @@ private:
   WriteOnlyMappedMemory<gpu::PathData> m_pathData;
   WriteOnlyMappedMemory<gpu::PaintAuxData> m_paintAuxData;
   WriteOnlyMappedMemory<gpu::ContourData> m_contourData;
+  WriteOnlyMappedMemory<gpu::VirtualPatchData> m_virtualPatchData;
   WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
   WriteOnlyMappedMemory<gpu::TessVertexSpan> m_tessSpanData;
   WriteOnlyMappedMemory<gpu::TriangleVertex> m_triangleVertexData;
@@ -714,7 +716,7 @@ private:
     // allocated in the render context's various GPU buffers.
     struct ResourceCounters
     {
-      constexpr static int NUM_ELEMENTS = 8;
+      constexpr static int NUM_ELEMENTS = 9;
       using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
       VecType toVec() const
@@ -739,6 +741,7 @@ private:
       size_t outerCubicTessVertexCount = 0;
       size_t pathCount = 0;
       size_t contourCount = 0;
+      size_t virtualPatchCount = 0;
       // lines, curves, lone joins, emulated caps, etc.
       size_t maxTessellatedSegmentCount = 0;
       size_t maxTriangleVertexCount = 0;
@@ -753,6 +756,7 @@ private:
       uint32_t pathPaddingCount = 0;
       uint32_t paintAuxPaddingCount = 0;
       uint32_t contourPaddingCount = 0;
+      uint32_t virtualPatchPaddingCount = 0;
       uint32_t gradSpanCount = 0;
       uint32_t gradSpanPaddingCount = 0;
       uint32_t maxGradTextureHeight = 0;
@@ -1025,6 +1029,7 @@ private:
     uint32_t m_pathPaddingCount;
     uint32_t m_paintAuxPaddingCount;
     uint32_t m_contourPaddingCount;
+    uint32_t m_virtualPatchPaddingCount;
     uint32_t m_gradSpanPaddingCount;
     uint32_t m_midpointFanTessEndLocation;
     uint32_t m_outerCubicTessEndLocation;

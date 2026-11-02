@@ -21,6 +21,8 @@ public:
       override;
   void resizeContourBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
       override;
+  void resizeVirtualPatchBuffer(size_t sizeInBytes, gpu::StorageBufferStructure)
+      override;
   void resizeGradSpanBuffer(size_t sizeInBytes) override;
   void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
   void resizeTriangleVertexBuffer(size_t sizeInBytes) override;
@@ -31,6 +33,7 @@ public:
   void* mapPathBuffer(size_t mapSizeInBytes) override;
   void* mapPaintAuxBuffer(size_t mapSizeInBytes) override;
   void* mapContourBuffer(size_t mapSizeInBytes) override;
+  void* mapVirtualPatchBuffer(size_t mapSizeInBytes) override;
   void* mapGradSpanBuffer(size_t mapSizeInBytes) override;
   void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
   void* mapTriangleVertexBuffer(size_t mapSizeInBytes) override;
@@ -41,6 +44,7 @@ public:
   void unmapPathBuffer(size_t mapSizeInBytes) override;
   void unmapPaintAuxBuffer(size_t mapSizeInBytes) override;
   void unmapContourBuffer(size_t mapSizeInBytes) override;
+  void unmapVirtualPatchBuffer(size_t mapSizeInBytes) override;
   void unmapGradSpanBuffer(size_t mapSizeInBytes) override;
   void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
   void unmapTriangleVertexBuffer(size_t mapSizeInBytes) override;
@@ -58,6 +62,7 @@ protected:
   BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
   BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
   BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
+  BufferRing* virtualPatchBufferRing() { return m_virtualPatchBuffer.get(); }
   BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
   BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
   BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
@@ -83,6 +88,7 @@ private:
   std::unique_ptr<BufferRing> m_pathBuffer;
   std::unique_ptr<BufferRing> m_paintAuxBuffer;
   std::unique_ptr<BufferRing> m_contourBuffer;
+  std::unique_ptr<BufferRing> m_virtualPatchBuffer;
   std::unique_ptr<BufferRing> m_gradSpanBuffer;
   std::unique_ptr<BufferRing> m_tessSpanBuffer;
   std::unique_ptr<BufferRing> m_triangleBuffer;

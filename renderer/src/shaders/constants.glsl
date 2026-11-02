@@ -50,6 +50,8 @@
 // into the tessellation texture. So these flags have to live above the entire
 // tessellation range. Hence a shift of 28 and not 16.
 #define VERTEX_FLAGS_SHIFT 28
+#define VERTEX_FLAGS_MASK (~((1u << VERTEX_FLAGS_SHIFT) - 1))
+#define VERTEX_IDX_MASK ((1 << VERTEX_FLAGS_SHIFT) - 1)
 #define VERTEX_FLAG_DISABLE_COLOR_WRITE (0x1 << VERTEX_FLAGS_SHIFT)
 #define VERTEX_FLAG_OUTER_CUBIC_FILL (0x2 << VERTEX_FLAGS_SHIFT)
 // Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
@@ -215,17 +217,18 @@
 #define CONTOUR_BUFFER_IDX 4
 // Coverage buffer used in coverageAtomic mode.
 #define COVERAGE_BUFFER_IDX 5
-#define TESS_VERTEX_TEXTURE_IDX 6
-#define GRAD_TEXTURE_IDX 7
-#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 8
-#define FEATHER_ATLAS_TEXTURE_IDX 9
-#define IMAGE_TEXTURE_IDX 10
-#define DST_COLOR_TEXTURE_IDX 11
-#define DEFAULT_BINDINGS_SET_SIZE 12
+#define VIRTUAL_PATCH_BUFFER_IDX 6
+#define TESS_VERTEX_TEXTURE_IDX 7
+#define GRAD_TEXTURE_IDX 8
+#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 9
+#define FEATHER_ATLAS_TEXTURE_IDX 10
+#define IMAGE_TEXTURE_IDX 11
+#define DST_COLOR_TEXTURE_IDX 12
+#define DEFAULT_BINDINGS_SET_SIZE 13
 
 // WebGPU needs image sampler index as a separate value.
-#define WEBGPU_IMAGE_SAMPLER_IDX 12
-#define WEBGPU_BINDINGS_SET_SIZE 13
+#define WEBGPU_IMAGE_SAMPLER_IDX 13
+#define WEBGPU_BINDINGS_SET_SIZE 14
 
 // In Metal, vertex attributes just come in as buffers. Since we use up to 3
 // vertex attrib buffers, offset the Rive resources by 3 so they don't alias

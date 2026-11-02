@@ -109,14 +109,17 @@
   }                                                                            \
   ;
 
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
-  $constant uint2* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
   $constant uint4* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
+  $constant uint2* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
+#define STORAGE_BUFFER_U32x1(IDX, GLSL_STRUCT_NAME, NAME)                      \
+  $constant uint* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
   $constant float4* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_LOAD4(NAME, I) _buffers.NAME[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) _buffers.NAME[I]
+#define STORAGE_BUFFER_LOAD1(NAME, I) _buffers.NAME[I]
 
 #define VERTEX_TEXTURE_BLOCK_BEGIN                                             \
   struct VertexTextures                                                        \

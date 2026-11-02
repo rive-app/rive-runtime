@@ -94,7 +94,9 @@ INLINE half apply_fill_coverage(
   uint fragCoverageRemainingFixed = clockwise_atomic_coverage_delta_to_fixed(
       abs(fragCoverageRemaining));
 
-  preexistingCoverageValue = STORAGE_BUFFER_LOAD(coverageBuffer, coverageIndex);
+  preexistingCoverageValue = STORAGE_BUFFER_LOAD1(
+      coverageBuffer,
+      coverageIndex);
 
   #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
   if (min(paintAlpha, fragCoverageRemaining) >= 1. &&

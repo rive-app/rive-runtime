@@ -574,8 +574,26 @@ public:
                         .viewDimension = wgpu::TextureViewDimension::e2D,
                     },
             },
+            impl->m_capabilities.polyfillVertexStorageBuffers ?
+                wgpu::BindGroupLayoutEntry{
+                    .binding = VIRTUAL_PATCH_BUFFER_IDX,
+                    .visibility = wgpu::ShaderStage::Vertex,
+                    .texture =
+                        {
+                            .sampleType = wgpu::TextureSampleType::Uint,
+                            .viewDimension = wgpu::TextureViewDimension::e2D,
+                        },
+                } :
+                wgpu::BindGroupLayoutEntry{
+                    .binding = VIRTUAL_PATCH_BUFFER_IDX,
+                    .visibility = wgpu::ShaderStage::Vertex,
+                    .buffer =
+                        {
+                            .type = wgpu::BufferBindingType::ReadOnlyStorage,
+                        },
+                },
         }};
-    static_assert(DRAW_BINDINGS_COUNT == 9);
+    static_assert(DRAW_BINDINGS_COUNT == 10);
 
     wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
         .entryCount = DRAW_BINDINGS_COUNT,
@@ -2890,6 +2908,8 @@ static wgpu::TextureFormat storage_texture_format(
       return wgpu::TextureFormat::RGBA32Uint;
     case gpu::StorageBufferStructure::uint32x2:
       return wgpu::TextureFormat::RG32Uint;
+    case gpu::StorageBufferStructure::uint32x1:
+      return wgpu::TextureFormat::R32Uint;
     case gpu::StorageBufferStructure::float32x4:
       return wgpu::TextureFormat::RGBA32Float;
   }
@@ -4363,6 +4383,14 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
           desc.firstContour,
           commandEncoder);
     }
+    if (desc.virtualPatchCount > 0)
+    {
+      update_webgpu_storage_texture<uint32_t>(
+          virtualPatchBufferRing(),
+          desc.virtualPatchCount,
+          desc.firstVirtualPatch,
+          commandEncoder);
+    }
   }
 
   wgpu::BindGroupEntry perFlushBindingEntries[DRAW_BINDINGS_COUNT] = {
@@ -4424,6 +4452,19 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                ? renderTarget->dstColorTextureView()
                                : m_nullTextureView,
         },
+        m_capabilities.polyfillVertexStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = VIRTUAL_PATCH_BUFFER_IDX,
+                .textureView =
+                    webgpu_storage_texture_view(virtualPatchBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = VIRTUAL_PATCH_BUFFER_IDX,
+                .buffer = webgpu_buffer(virtualPatchBufferRing()),
+                .offset = desc.virtualPatchCount > 0
+                              ? desc.firstVirtualPatch * sizeof(gpu::VirtualPatchData)
+                              : 0,
+            },
     };
 
   // Render the complex color ramps to the gradient texture.

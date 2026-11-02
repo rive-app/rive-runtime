@@ -331,6 +331,7 @@ void RenderContext::LogicalFlush::rewind()
   m_pathPaddingCount = 0;
   m_paintAuxPaddingCount = 0;
   m_contourPaddingCount = 0;
+  m_virtualPatchPaddingCount = 0;
   m_gradSpanPaddingCount = 0;
   m_midpointFanTessEndLocation = 0;
   m_outerCubicTessEndLocation = 0;
@@ -939,6 +940,8 @@ void RenderContext::flush(const FlushResources& flushResources)
                              layoutCounts.paintAuxPaddingCount,
       .contourBufferCount = totalFrameResourceCounts.contourCount +
                             layoutCounts.contourPaddingCount,
+      .virtualPatchBufferCount = totalFrameResourceCounts.virtualPatchCount +
+                                 layoutCounts.virtualPatchPaddingCount,
       .gradSpanBufferCount = layoutCounts.gradSpanCount +
                              layoutCounts.gradSpanPaddingCount,
       .tessSpanBufferCount = totalFrameResourceCounts
@@ -1023,6 +1026,7 @@ void RenderContext::flush(const FlushResources& flushResources)
       .pathBufferCount = 5,                // 125%
       .paintAuxBufferCount = 5,            // 125%
       .contourBufferCount = 5,             // 125%
+      .virtualPatchBufferCount = 5,        // 125%
       .gradSpanBufferCount = 5,            // 125%
       .tessSpanBufferCount = 5,            // 125%
       .triangleVertexBufferCount = 5,      // 125%
@@ -1076,6 +1080,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         .pathBufferCount = 2,                // 66.7%
         .paintAuxBufferCount = 2,            // 66.7%
         .contourBufferCount = 2,             // 66.7%
+        .virtualPatchBufferCount = 2,        // 66.7%
         .gradSpanBufferCount = 2,            // 66.7%
         .tessSpanBufferCount = 2,            // 66.7%
         .triangleVertexBufferCount = 2,      // 66.7%
@@ -1151,6 +1156,10 @@ void RenderContext::flush(const FlushResources& flushResources)
         m_contourData.elementsWritten() ==
         totalFrameResourceCounts.contourCount +
             layoutCounts.contourPaddingCount);
+    assert(
+        m_virtualPatchData.elementsWritten() ==
+        totalFrameResourceCounts.virtualPatchCount +
+            layoutCounts.virtualPatchPaddingCount);
     assert(
         m_gradSpanData.elementsWritten() ==
         layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount);
@@ -1309,6 +1318,9 @@ void RenderContext::LogicalFlush::layoutResources(
       gpu::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_contourPaddingCount = math::padding_to_align_up<
       gpu::kContourBufferAlignmentInElements>(m_resourceCounts.contourCount);
+  m_virtualPatchPaddingCount = math::padding_to_align_up<
+      gpu::VirtualPatchBufferAlignmentInElements>(
+      m_resourceCounts.virtualPatchCount);
 
   // Metal requires vertex buffers to be 256-byte aligned.
   m_gradSpanPaddingCount = math::padding_to_align_up<
@@ -1498,6 +1510,11 @@ void RenderContext::LogicalFlush::layoutResources(
       m_resourceCounts.contourCount);
   m_flushDesc.firstContour = runningFrameResourceCounts->contourCount +
                              runningFrameLayoutCounts->contourPaddingCount;
+  m_flushDesc.virtualPatchCount = math::lossless_numeric_cast<uint32_t>(
+      m_resourceCounts.virtualPatchCount);
+  m_flushDesc
+      .firstVirtualPatch = runningFrameResourceCounts->virtualPatchCount +
+                           runningFrameLayoutCounts->virtualPatchPaddingCount;
   m_flushDesc.gradSpanCount = math::lossless_numeric_cast<uint32_t>(
       m_pendingGradSpanCount);
   m_flushDesc.firstGradSpan = runningFrameLayoutCounts->gradSpanCount +
@@ -1522,6 +1539,8 @@ void RenderContext::LogicalFlush::layoutResources(
   runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
   runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
   runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
+  runningFrameLayoutCounts
+      ->virtualPatchPaddingCount += m_virtualPatchPaddingCount;
   runningFrameLayoutCounts->gradSpanCount += m_pendingGradSpanCount;
   runningFrameLayoutCounts->gradSpanPaddingCount += m_gradSpanPaddingCount;
   runningFrameLayoutCounts->maxGradTextureHeight = std::max(
@@ -2482,6 +2501,73 @@ void RenderContext::LogicalFlush::writeResources()
     m_combinedDrawContents |= m_drawList.tail()->drawContents;
   }
 
+  // Build the virtual patch buffer now that the drawList is complete.
+  assert(
+      m_ctx->m_virtualPatchData.elementsWritten() ==
+      m_flushDesc.firstVirtualPatch);
+  if (m_flushDesc.virtualPatchCount > 0)
+  {
+    assert(!m_drawList.empty());
+    for (gpu::DrawBatch& batch :
+         NextPtrRange<gpu::DrawBatch>(m_drawList.head()))
+    {
+      if (!gpu::drawTypeUsesVirtualPatches(batch.drawType))
+      {
+        continue;
+      }
+      const uint32_t firstVirtualPatch = math::lossless_numeric_cast<uint32_t>(
+          m_ctx->m_virtualPatchData.elementsWritten() -
+          m_flushDesc.firstVirtualPatch);
+      const uint32_t patchStrideLog2 = gpu::dsPatchStrideLog2(batch.drawType);
+      StackVector<uint32_t, 2> subpassFlags;
+      if (gpu::drawTypeIsDepthAAStroke(batch.drawType))
+      {
+        // Inkbleed strokes (and hairlines) render in two passes: a depth-only
+        // pass followed by color. We select the pass by vertex flags rather
+        // than pipeline state.
+        subpassFlags.push_back(
+            VERTEX_FLAG_STROKE_DEPTH_PASS | VERTEX_FLAG_DISABLE_COLOR_WRITE);
+      }
+      subpassFlags.push_back(0);
+      // Since linked ElementRanges can overlap in pixels, and since subpasses
+      // communicate with the depth buffer, we need to iterate all subpasses
+      // before moving on to the next range.
+      for (const gpu::DrawBatch::ElementRange& range : batch.elementRanges())
+      {
+        for (uint32_t flags : subpassFlags)
+        {
+          const uint32_t baseVertex = range.base | flags;
+          for (uint32_t i = 0; i < range.count; ++i)
+          {
+            // This is the "real" baseVertex that the shader will load for this
+            // virtual patch.
+            m_ctx->m_virtualPatchData.emplace_back(
+                baseVertex + (i << patchStrideLog2));
+          }
+        }
+      }
+      const uint32_t virtualPatchCount = math::lossless_numeric_cast<uint32_t>(
+          m_ctx->m_virtualPatchData.elementsWritten() -
+          m_flushDesc.firstVirtualPatch - firstVirtualPatch);
+      // Make sure the vertex indices won't stomp on the flags.
+      assert(
+          ((firstVirtualPatch + virtualPatchCount) << patchStrideLog2) <=
+          1u << VERTEX_FLAGS_SHIFT);
+      // The batch now draws its run of virtual patches as one range. Keep its
+      // static vertex flags because the shader needs this info (e.g., patch
+      // stride) in order to index the virtual patch buffer and get the real
+      // baseVertex.
+      batch.elementRange = gpu::DrawBatch::ElementRange(
+          virtualPatchCount,
+          (firstVirtualPatch << patchStrideLog2) |
+              (batch.elementRange.base & VERTEX_FLAGS_MASK));
+      batch.elementRangeTail = &batch.elementRange;
+    }
+  }
+  assert(
+      m_ctx->m_virtualPatchData.elementsWritten() ==
+      m_flushDesc.firstVirtualPatch + m_flushDesc.virtualPatchCount);
+
   // Write out the draws to the feather atlas. Do this after the main draws
   // (even though the atlas ones execute first) so that our path info and Z
   // index are decided and available to pushFeatherAtlasTessellation().
@@ -2579,6 +2665,7 @@ void RenderContext::LogicalFlush::writeResources()
   m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
   m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
   m_ctx->m_contourData.push_back_n(nullptr, m_contourPaddingCount);
+  m_ctx->m_virtualPatchData.push_back_n(nullptr, m_virtualPatchPaddingCount);
   m_ctx->m_gradSpanData.push_back_n(nullptr, m_gradSpanPaddingCount);
 
   assert(
@@ -2592,6 +2679,10 @@ void RenderContext::LogicalFlush::writeResources()
       m_ctx->m_contourData.elementsWritten() ==
       m_flushDesc.firstContour + m_resourceCounts.contourCount +
           m_contourPaddingCount);
+  assert(
+      m_ctx->m_virtualPatchData.elementsWritten() ==
+      m_flushDesc.firstVirtualPatch + m_flushDesc.virtualPatchCount +
+          m_virtualPatchPaddingCount);
   assert(
       m_ctx->m_gradSpanData.elementsWritten() == m_flushDesc.firstGradSpan +
                                                      m_pendingGradSpanCount +
@@ -2914,6 +3005,16 @@ void RenderContext::setResourceSizes(
         gpu::ContourData::kBufferStructure);
   }
 
+  LOG_BUFFER_RING_SIZE(virtualPatchBufferCount, sizeof(gpu::VirtualPatchData));
+  if (allocs.virtualPatchBufferCount !=
+          m_currentResourceAllocations.virtualPatchBufferCount ||
+      forceRealloc)
+  {
+    m_impl->resizeVirtualPatchBuffer(
+        allocs.virtualPatchBufferCount * sizeof(gpu::VirtualPatchData),
+        gpu::VirtualPatchData::kBufferStructure);
+  }
+
   LOG_BUFFER_RING_SIZE(gradSpanBufferCount, sizeof(gpu::GradientSpan));
   if (allocs.gradSpanBufferCount !=
           m_currentResourceAllocations.gradSpanBufferCount ||
@@ -3124,6 +3225,15 @@ bool RenderContext::mapResourceBuffers(
   }
   assert(m_contourData.hasRoomFor(mapCounts.contourBufferCount));
 
+  if (mapCounts.virtualPatchBufferCount > 0)
+  {
+    HANDLE_MAP_FAILURE(m_virtualPatchData.mapElements(
+        m_impl.get(),
+        &RenderContextImpl::mapVirtualPatchBuffer,
+        mapCounts.virtualPatchBufferCount));
+  }
+  assert(m_virtualPatchData.hasRoomFor(mapCounts.virtualPatchBufferCount));
+
   if (mapCounts.gradSpanBufferCount > 0)
   {
     HANDLE_MAP_FAILURE(m_gradSpanData.mapElements(
@@ -3206,6 +3316,13 @@ void RenderContext::unmapResourceBuffers(
         m_impl.get(),
         &RenderContextImpl::unmapContourBuffer,
         mapCounts.contourBufferCount);
+  }
+  if (m_virtualPatchData)
+  {
+    m_virtualPatchData.unmapElements(
+        m_impl.get(),
+        &RenderContextImpl::unmapVirtualPatchBuffer,
+        mapCounts.virtualPatchBufferCount);
   }
   if (m_gradSpanData)
   {

@@ -51,7 +51,7 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
                              uint2(floor(v_coverageCoord)),
                              coveragePitch);
 
-    uint preexistingCoverageValue = STORAGE_BUFFER_LOAD(
+    uint preexistingCoverageValue = STORAGE_BUFFER_LOAD1(
         coverageBuffer,
         coverageIndex);
     half pathCoverage;

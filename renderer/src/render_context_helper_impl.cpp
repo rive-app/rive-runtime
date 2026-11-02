@@ -40,6 +40,13 @@ void RenderContextHelperImpl::resizeContourBuffer(
   m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
+void RenderContextHelperImpl::resizeVirtualPatchBuffer(
+    size_t sizeInBytes,
+    gpu::StorageBufferStructure bufferStructure)
+{
+  m_virtualPatchBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
+}
+
 void RenderContextHelperImpl::resizeGradSpanBuffer(size_t sizeInBytes)
 {
   m_gradSpanBuffer = makeVertexBufferRing(sizeInBytes);
@@ -83,6 +90,11 @@ void* RenderContextHelperImpl::mapPaintAuxBuffer(size_t mapSizeInBytes)
 void* RenderContextHelperImpl::mapContourBuffer(size_t mapSizeInBytes)
 {
   return m_contourBuffer->mapBuffer(mapSizeInBytes);
+}
+
+void* RenderContextHelperImpl::mapVirtualPatchBuffer(size_t mapSizeInBytes)
+{
+  return m_virtualPatchBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapGradSpanBuffer(size_t mapSizeInBytes)
@@ -132,6 +144,12 @@ void RenderContextHelperImpl::unmapContourBuffer(size_t mapSizeInBytes)
 {
   assert(m_contourBuffer->mapSizeInBytes() == mapSizeInBytes);
   m_contourBuffer->unmapAndSubmitBuffer();
+}
+
+void RenderContextHelperImpl::unmapVirtualPatchBuffer(size_t mapSizeInBytes)
+{
+  assert(m_virtualPatchBuffer->mapSizeInBytes() == mapSizeInBytes);
+  m_virtualPatchBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapGradSpanBuffer(size_t mapSizeInBytes)

@@ -1002,6 +1002,8 @@ static GLenum storage_texture_internalformat(
       return GL_RGBA32UI;
     case gpu::StorageBufferStructure::uint32x2:
       return GL_RG32UI;
+    case gpu::StorageBufferStructure::uint32x1:
+      return GL_R32UI;
     case gpu::StorageBufferStructure::float32x4:
       return GL_RGBA32F;
   }
@@ -1018,6 +1020,8 @@ static GLenum storage_texture_format(
       return GL_RGBA_INTEGER;
     case gpu::StorageBufferStructure::uint32x2:
       return GL_RG_INTEGER;
+    case gpu::StorageBufferStructure::uint32x1:
+      return GL_RED_INTEGER;
     case gpu::StorageBufferStructure::float32x4:
       return GL_RGBA;
   }
@@ -1030,8 +1034,8 @@ static GLenum storage_texture_type(gpu::StorageBufferStructure bufferStructure)
   switch (bufferStructure)
   {
     case gpu::StorageBufferStructure::uint32x4:
-      return GL_UNSIGNED_INT;
     case gpu::StorageBufferStructure::uint32x2:
+    case gpu::StorageBufferStructure::uint32x1:
       return GL_UNSIGNED_INT;
     case gpu::StorageBufferStructure::float32x4:
       return GL_FLOAT;
@@ -2008,6 +2012,13 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     {
       glutils::Uniform1iByName(m_id, GLSL_contourBuffer, CONTOUR_BUFFER_IDX);
     }
+    if (gpu::drawTypeUsesVirtualPatches(drawType))
+    {
+      glutils::Uniform1iByName(
+          m_id,
+          GLSL_virtualPatchBuffer,
+          VIRTUAL_PATCH_BUFFER_IDX);
+    }
   }
   if (interlockMode == gpu::InterlockMode::depthStencil &&
       enums::is_flag_set(
@@ -2342,6 +2353,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         CONTOUR_BUFFER_IDX,
         desc.contourCount * sizeof(gpu::ContourData),
         desc.firstContour * sizeof(gpu::ContourData),
+        polyfillBufferTextureSlot,
+        reallocatePolyfillBufferTextures);
+  }
+
+  if (desc.virtualPatchCount > 0)
+  {
+    bind_storage_buffer(
+        m_capabilities,
+        virtualPatchBufferRing(),
+        VIRTUAL_PATCH_BUFFER_IDX,
+        desc.virtualPatchCount * sizeof(gpu::VirtualPatchData),
+        desc.firstVirtualPatch * sizeof(gpu::VirtualPatchData),
         polyfillBufferTextureSlot,
         reallocatePolyfillBufferTextures);
   }

@@ -992,6 +992,15 @@ constexpr static bool drawTypeIsDepthStencilPolarStroke(DrawType drawType)
   RIVE_UNREACHABLE();
 }
 
+// Draws that get their baseVertex indirectly via the virtual patch buffer. The
+// indirection allows us to batch multiple overlapping ranges and subpass flags
+// together in a single draw command.
+constexpr static bool drawTypeUsesVirtualPatches(DrawType drawType)
+{
+  return drawTypeIsDepthStencilPolarStroke(drawType) ||
+         drawType == DrawType::depthAAOuterHairline;
+}
+
 // depthStencil draws whose analytic AA renders in two passes: depth only, then
 // color.
 constexpr static bool drawTypeIsDepthAAStroke(DrawType drawType)
@@ -1574,6 +1583,10 @@ struct DrawBatch
   //
   // In cases where we can't splice, it may still be possible to combine batches
   // by building up a list of ElementRanges instead.
+  //
+  // If a batch uses virtual patches, the RenderContext builds a virtual patch
+  // buffer once the the drawList is complete, and rewrites the ElementRange as
+  // a single run of virtual patches. (See drawTypeUsesVirtualPatches().)
   struct ElementRange
   {
     ElementRange(uint32_t count_, uint32_t base_, ElementRange* next_ = nullptr)
@@ -1642,10 +1655,10 @@ struct DrawBatch
   // support reading the framebuffer, this can be helpful for breaking up the
   // drawList into multiple render passes with framebuffer copies in between.
   const DrawBatch* nextDstBlendBarrier = nullptr;
+
   // Link to the next batch to render in the drawList. DrawBatch always exists
   // in a linked list.
-
-  const DrawBatch* next = nullptr;
+  DrawBatch* next = nullptr;
 };
 
 // Simple gradients only have 2 texels, so we write them to mapped texture
@@ -1755,6 +1768,8 @@ struct FlushDescriptor
   size_t firstPaintAux = 0;
   uint32_t contourCount = 0;
   size_t firstContour = 0;
+  uint32_t virtualPatchCount = 0;
+  size_t firstVirtualPatch = 0;
   uint32_t gradSpanCount = 0;
   size_t firstGradSpan = 0;
   uint32_t tessVertexSpanCount = 0;
@@ -1914,10 +1929,11 @@ static_assert(sizeof(FlushUniforms) == 256);
 //
 // This enum defines the underlying basic type that each storage buffer struct
 // is layed on top of.
-enum StorageBufferStructure
+enum class StorageBufferStructure
 {
   uint32x4,
   uint32x2,
+  uint32x1,
   float32x4,
 };
 
@@ -1930,6 +1946,8 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
       return sizeof(uint32_t) * 4;
     case StorageBufferStructure::uint32x2:
       return sizeof(uint32_t) * 2;
+    case StorageBufferStructure::uint32x1:
+      return sizeof(uint32_t);
     case StorageBufferStructure::float32x4:
       return sizeof(float) * 4;
   }
@@ -2079,6 +2097,26 @@ static_assert(
 static_assert(256 % sizeof(ContourData) == 0);
 constexpr static size_t kContourBufferAlignmentInElements = 256 /
                                                             sizeof(ContourData);
+
+// Structure of the "virtualPatch" storage buffer. For draws that get their
+// baseVertex indirectly. See drawTypeUsesVirtualPatches().
+struct VirtualPatchData
+{
+public:
+  constexpr static StorageBufferStructure
+      kBufferStructure = StorageBufferStructure::uint32x1;
+
+  explicit VirtualPatchData(uint32_t baseVertex_) : baseVertex(baseVertex_) {}
+
+  // The real patch's baseVertex, which also includes vertex flags.
+  WRITEONLY uint32_t baseVertex;
+};
+static_assert(
+    sizeof(VirtualPatchData) ==
+    StorageBufferElementSizeInBytes(VirtualPatchData::kBufferStructure));
+static_assert(256 % sizeof(VirtualPatchData) == 0);
+constexpr static size_t
+    VirtualPatchBufferAlignmentInElements = 256 / sizeof(VirtualPatchData);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex
@@ -2262,7 +2300,7 @@ constexpr size_t
                                          ImageDrawInstanceBase::FirstAttribIdx;
 
 // The maximum number of storage buffers we will ever use in a vertex or
-// fragment shader.
+// fragment shader (path, paintAux, contour, virtualPatch).
 constexpr static size_t kMaxStorageBuffers = 4;
 
 // If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill

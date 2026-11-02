@@ -42,6 +42,15 @@ VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
+// clang-format off
+// The Qualcomm compiler can't handle line breaks in #ifs.
+  #if defined(@RENDER_MODE_DEPTH_STENCIL) && (defined(@DS_POLAR_STROKE) || defined(@DS_HAIRLINE_STROKE))
+// clang-format on
+STORAGE_BUFFER_U32x1(
+    VIRTUAL_PATCH_BUFFER_IDX,
+    VirtualPatchBuffer,
+    @virtualPatchBuffer);
+  #endif
 VERTEX_STORAGE_BUFFER_BLOCK_END
 #endif // @VERTEX
 

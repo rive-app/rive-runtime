@@ -540,15 +540,18 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 #define FRAG_STORAGE_BUFFER_BLOCK_END
 
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
-  $StructuredBuffer<uint2> NAME
 #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
   $StructuredBuffer<uint4> NAME
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
+  $StructuredBuffer<uint2> NAME
+#define STORAGE_BUFFER_U32x1(IDX, GLSL_STRUCT_NAME, NAME)                      \
+  $StructuredBuffer<uint> NAME
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
   $StructuredBuffer<float4> NAME
 
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) NAME[I]
+#define STORAGE_BUFFER_LOAD1(NAME, I) NAME[I]
 
 INLINE half2 unpackHalf2x16(uint u)
 {

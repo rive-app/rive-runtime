@@ -682,6 +682,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     , m_pathBufferPool(m_resourceManager)
     , m_paintAuxBufferPool(m_resourceManager)
     , m_contourBufferPool(m_resourceManager)
+    , m_virtualPatchBufferPool(m_resourceManager)
     , m_gradSpanBufferPool(m_resourceManager)
     , m_tessSpanBufferPool(m_resourceManager)
     , m_triangleBufferPool(m_resourceManager)
@@ -1077,6 +1078,7 @@ void RenderContextD3D12Impl::prepareToFlush(
   assert(m_pathBuffer == nullptr);
   assert(m_paintAuxBuffer == nullptr);
   assert(m_contourBuffer == nullptr);
+  assert(m_virtualPatchBuffer == nullptr);
   assert(m_gradSpanBuffer == nullptr);
   assert(m_tessSpanBuffer == nullptr);
   assert(m_triangleBuffer == nullptr);
@@ -1105,6 +1107,7 @@ void RenderContextD3D12Impl::prepareToFlush(
   m_pathBuffer = m_pathBufferPool.acquire();
   m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
   m_contourBuffer = m_contourBufferPool.acquire();
+  m_virtualPatchBuffer = m_virtualPatchBufferPool.acquire();
   m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
   m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
   m_triangleBuffer = m_triangleBufferPool.acquire();
@@ -1119,6 +1122,7 @@ void RenderContextD3D12Impl::prepareToFlush(
   VNAME_D3D12_OBJECT(m_pathBuffer);
   VNAME_D3D12_OBJECT(m_paintAuxBuffer);
   VNAME_D3D12_OBJECT(m_contourBuffer);
+  VNAME_D3D12_OBJECT(m_virtualPatchBuffer);
   VNAME_D3D12_OBJECT(m_gradSpanBuffer);
   VNAME_D3D12_OBJECT(m_tessSpanBuffer);
   VNAME_D3D12_OBJECT(m_triangleBuffer);
@@ -1194,31 +1198,13 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     // sync everything first logical flush,
     // copies are slow, so do it all at once
     m_flushUniformBuffer->sync(copyCmdList, 0);
-    if (desc.pathCount > 0)
-    {
-      m_pathBuffer->sync(copyCmdList, 0);
-      m_paintAuxBuffer->sync(copyCmdList, 0);
-    }
-    if (desc.contourCount > 0)
-    {
-      m_contourBuffer->sync(copyCmdList, 0);
-    }
-
-    if (desc.tessVertexSpanCount)
-    {
-      m_tessSpanBuffer->sync(copyCmdList, 0);
-    }
-
-    if (desc.gradSpanCount)
-    {
-      m_gradSpanBuffer->sync(copyCmdList, 0);
-    }
-
-    if (desc.hasTriangleVertices)
-    {
-      m_triangleBuffer->sync(copyCmdList, 0);
-    }
-
+    m_pathBuffer->sync(copyCmdList, 0);
+    m_paintAuxBuffer->sync(copyCmdList, 0);
+    m_contourBuffer->sync(copyCmdList, 0);
+    m_virtualPatchBuffer->sync(copyCmdList, 0);
+    m_tessSpanBuffer->sync(copyCmdList, 0);
+    m_gradSpanBuffer->sync(copyCmdList, 0);
+    m_triangleBuffer->sync(copyCmdList, 0);
     m_imageRectInstanceBuffer->sync(copyCmdList, 0);
     m_imageMeshInstanceBuffer->sync(copyCmdList, 0);
 
@@ -1411,6 +1397,25 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         m_device.Get(),
         CONTOUR_BUFFER_HEAP_OFFSET,
         StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
+  }
+
+  if (desc.virtualPatchCount > 0)
+  {
+    m_cpuSrvUavCbvHeap->markSrvToIndex(
+        m_device.Get(),
+        m_virtualPatchBuffer->resource(),
+        VIRTUAL_PATCH_BUFFER_HEAP_OFFSET,
+        desc.virtualPatchCount,
+        sizeof(VirtualPatchData),
+        StorageBufferElementSizeInBytes(VirtualPatchData::kBufferStructure),
+        desc.firstVirtualPatch);
+  }
+  else
+  {
+    m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
+        m_device.Get(),
+        VIRTUAL_PATCH_BUFFER_HEAP_OFFSET,
+        StorageBufferElementSizeInBytes(VirtualPatchData::kBufferStructure));
   }
 
   // copy to gpu heap
@@ -2411,6 +2416,7 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
   m_pathBufferPool.recycle(std::move(m_pathBuffer));
   m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
   m_contourBufferPool.recycle(std::move(m_contourBuffer));
+  m_virtualPatchBufferPool.recycle(std::move(m_virtualPatchBuffer));
   m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
   m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
   m_triangleBufferPool.recycle(std::move(m_triangleBuffer));

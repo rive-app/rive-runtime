@@ -289,10 +289,12 @@
 
 #ifdef @DISABLE_SHADER_STORAGE_BUFFERS
 
-  #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                    \
-    TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
   #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                    \
+    TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
+  #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                    \
     TEXTURE_RG32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
+  #define STORAGE_BUFFER_U32x1(IDX, GLSL_STRUCT_NAME, NAME)                    \
+    TEXTURE_R32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
   #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                    \
     TEXTURE_RGBA32F(PER_FLUSH_BINDINGS_SET, IDX, NAME)
   #define STORAGE_BUFFER_LOAD4(NAME, I)                                        \
@@ -304,22 +306,33 @@
         NAME,                                                                  \
         int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))    \
         .xy
+  #define STORAGE_BUFFER_LOAD1(NAME, I)                                        \
+    TEXEL_FETCH(                                                               \
+        NAME,                                                                  \
+        int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))    \
+        .x
 
 #else
 
   #ifdef GL_ARB_shader_storage_buffer_object
     #extension GL_ARB_shader_storage_buffer_object : require
   #endif
+  #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                    \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
+    {                                                                          \
+      uint4 _values[];                                                         \
+    }                                                                          \
+    NAME
   #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                    \
     layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
     {                                                                          \
       uint2 _values[];                                                         \
     }                                                                          \
     NAME
-  #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                    \
+  #define STORAGE_BUFFER_U32x1(IDX, GLSL_STRUCT_NAME, NAME)                    \
     layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
     {                                                                          \
-      uint4 _values[];                                                         \
+      uint _values[];                                                          \
     }                                                                          \
     NAME
   #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                    \
@@ -333,7 +346,7 @@
     NAME
   #define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
   #define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
-  #define STORAGE_BUFFER_LOAD(NAME, I) NAME._values[I]
+  #define STORAGE_BUFFER_LOAD1(NAME, I) NAME._values[I]
   #define STORAGE_BUFFER_ATOMIC_MAX(NAME, I, X) atomicMax(NAME._values[I], X)
   #define STORAGE_BUFFER_ATOMIC_ADD(NAME, I, X) atomicAdd(NAME._values[I], X)
   #define STORAGE_BUFFER_ATOMIC_OR(NAME, I, X) atomicOr(NAME._values[I], X)

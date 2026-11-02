@@ -1198,6 +1198,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     , m_pathBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_paintAuxBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_contourBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
+    , m_virtualPatchBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_gradSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
     , m_tessSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
     , m_triangleBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
@@ -1547,6 +1548,7 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
   assert(m_pathBuffer == nullptr);
   assert(m_paintAuxBuffer == nullptr);
   assert(m_contourBuffer == nullptr);
+  assert(m_virtualPatchBuffer == nullptr);
   assert(m_gradSpanBuffer == nullptr);
   assert(m_tessSpanBuffer == nullptr);
   assert(m_triangleBuffer == nullptr);
@@ -2116,6 +2118,7 @@ void RenderContextVulkanImpl::prepareToFlush(
   assert(m_triangleBuffer == nullptr);
   assert(m_imageRectInstanceBuffer == nullptr);
   assert(m_imageMeshInstanceBuffer == nullptr);
+  assert(m_virtualPatchBuffer == nullptr);
 
   // Advance the context frame and delete resources that are no longer
   // referenced by in-flight command buffers.
@@ -2133,6 +2136,7 @@ void RenderContextVulkanImpl::prepareToFlush(
   m_pathBuffer = m_pathBufferPool.acquire();
   m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
   m_contourBuffer = m_contourBufferPool.acquire();
+  m_virtualPatchBuffer = m_virtualPatchBufferPool.acquire();
   m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
   m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
   m_triangleBuffer = m_triangleBufferPool.acquire();
@@ -2153,7 +2157,7 @@ constexpr static uint32_t kMaxSampledImageUpdates = 1;
 // color, coverage, clip, scratch in clockwise mode.
 constexpr static uint32_t kMaxStorageImageUpdates = 4;
 constexpr static uint32_t
-    kMaxStorageBufferUpdates = 7 + // path/paint/uniform buffers
+    kMaxStorageBufferUpdates = 8 + // path/paint/contour/patch/uniform buffers
                                1;  // coverage buffer in clockwiseAtomic mode
 constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
@@ -2732,6 +2736,27 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
           .offset = desc.firstContour * sizeof(gpu::ContourData),
           .range = VK_WHOLE_SIZE,
       }});
+
+  if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+  {
+    // The depthStencil shader always references the virtual patch buffer, so
+    // bind it even when the flush doesn't have any draws that use virtual
+    // patches.
+    m_vk->updateBufferDescriptorSets(
+        descriptorSetAllocator.perFlushDescriptorSet(),
+        {
+            .dstBinding = VIRTUAL_PATCH_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = *m_virtualPatchBuffer,
+            .offset = desc.virtualPatchCount > 0
+                          ? desc.firstVirtualPatch *
+                                sizeof(gpu::VirtualPatchData)
+                          : 0,
+            .range = VK_WHOLE_SIZE,
+        }});
+  }
 
   if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
       m_coverageBuffer != nullptr)
@@ -4413,6 +4438,7 @@ void RenderContextVulkanImpl::postFlush(const RenderContext::FlushResources&)
   m_pathBufferPool.recycle(std::move(m_pathBuffer));
   m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
   m_contourBufferPool.recycle(std::move(m_contourBuffer));
+  m_virtualPatchBufferPool.recycle(std::move(m_virtualPatchBuffer));
   m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
   m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
   m_triangleBufferPool.recycle(std::move(m_triangleBuffer));

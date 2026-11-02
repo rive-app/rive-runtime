@@ -202,7 +202,7 @@ private:
   constexpr static int COLOR_RAMP_BINDINGS_COUNT = 1;
   constexpr static int TESS_BINDINGS_COUNT = 5;
   constexpr static int FEATHER_ATLAS_BINDINGS_COUNT = 6;
-  constexpr static int DRAW_BINDINGS_COUNT = 9;
+  constexpr static int DRAW_BINDINGS_COUNT = 10;
   std::array<std::unique_ptr<DrawPipelineLayout>, gpu::INTERLOCK_MODE_COUNT>
       m_drawPipelineLayouts;
 

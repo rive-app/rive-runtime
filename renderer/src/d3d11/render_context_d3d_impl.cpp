@@ -1964,6 +1964,20 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         storageBufferBufferSRVs);
   }
 
+  if (desc.virtualPatchCount > 0)
+  {
+    ID3D11ShaderResourceView*
+        virtualPatchSRV = flush_structured_buffer<gpu::VirtualPatchData>(
+            m_gpuContext.Get(),
+            virtualPatchBufferRing(),
+            desc.virtualPatchCount,
+            math::lossless_numeric_cast<UINT>(desc.firstVirtualPatch));
+    m_gpuContext->VSSetShaderResources(
+        VIRTUAL_PATCH_BUFFER_IDX,
+        1,
+        &virtualPatchSRV);
+  }
+
   // All programs use the same gaussian integral texture.
   m_gpuContext->VSSetShaderResources(
       GAUSSIAN_INTEGRAL_TEXTURE_IDX,

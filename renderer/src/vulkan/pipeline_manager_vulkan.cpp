@@ -135,6 +135,12 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
           .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
       },
       {
+          .binding = VIRTUAL_PATCH_BUFFER_IDX,
+          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+          .descriptorCount = 1,
+          .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+      },
+      {
           .binding = COVERAGE_BUFFER_IDX,
           .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
           .descriptorCount = 1,

@@ -129,6 +129,9 @@ public:
   virtual void resizeContourBuffer(
       size_t sizeInBytes,
       gpu::StorageBufferStructure) = 0;
+  virtual void resizeVirtualPatchBuffer(
+      size_t sizeInBytes,
+      gpu::StorageBufferStructure) = 0;
   virtual void resizeGradSpanBuffer(size_t sizeInBytes) = 0;
   virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
   virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
@@ -174,6 +177,7 @@ public:
   virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapContourBuffer(size_t mapSizeInBytes) = 0;
+  virtual void* mapVirtualPatchBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
   virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
@@ -185,6 +189,7 @@ public:
   virtual void unmapPathBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapContourBuffer(size_t mapSizeInBytes) = 0;
+  virtual void unmapVirtualPatchBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapGradSpanBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
   virtual void unmapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;

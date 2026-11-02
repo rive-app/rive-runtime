@@ -6,7 +6,6 @@
 
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/next_ptr_range.hpp"
-#include "rive/renderer/stack_vector.hpp"
 
 #include <stdint.h>
 #include <algorithm>
@@ -77,20 +76,20 @@ private:
 // batch and provides the direct arguments for them.
 //
 // depthStencil draws use repeating index patterns instead of instancing. Index
-// patterns are mapped to real patches via the "baseVertex" parameter. Once the
-// GPU adds in the baseVertex, the shader is able to derives all of its
-// attributes from gl_VertexID.
+// patterns are mapped to real (or virtual) patches via the "baseVertex"
+// parameter. Once the GPU adds in the baseVertex, the shader is able to derive
+// all of its attributes from gl_VertexID.
 //
 // Since the index buffer only has a finite number of repetitions built in,
 // large draws may also need to be broken up into chunks.
 //
-// Additionally, depthAAStrokes render in (2 passes) x (N chunks): a depth-only
-// pass followed by color. We select the pass by vertex flags rather than
-// pipeline state.
-//
-// A batch may hold a list of ElementRanges (e.g., hairlines merged across draw
+// A dynamic fill batch may hold a list of ElementRanges (merged across draw
 // groups). Each range runs all of its subpasses before the next range begins,
 // so overlapping ranges still execute their subpasses in order.
+//
+// Batches that use virtual patches "just work" here because the RenderContext
+// already built a virtual patch buffer and rewrote the ElementRange as a single
+// run of virtual patches. (See LogicalFlush::writeResources().)
 class DSIndexRangeChunker
 {
 public:
@@ -106,11 +105,9 @@ public:
     Iterator(
         const DSIndexRangeChunker* chunker,
         const DrawBatch::ElementRange* range,
-        uint32_t pass,
         uint32_t basePatch)
         : m_chunker(chunker)
         , m_range(range)
-        , m_pass(pass)
         , m_basePatch(basePatch)
     {
       skipEmptyRanges();
@@ -120,8 +117,7 @@ public:
     {
       return {
           chunkPatchCount() * m_chunker->m_indexCountPerPatch,
-          (static_cast<int32_t>(m_range->base) | m_chunker->m_vertexFlags |
-           m_chunker->m_passFlags[m_pass]) +
+          (static_cast<int32_t>(m_range->base) | m_chunker->m_vertexFlags) +
               (static_cast<int32_t>(m_basePatch)
                << m_chunker->m_patchStrideLog2),
       };
@@ -133,13 +129,8 @@ public:
       if (m_basePatch == m_range->count)
       {
         m_basePatch = 0;
-        ++m_pass;
-        if (m_pass == m_chunker->m_passFlags.size())
-        {
-          m_pass = 0;
-          m_range = m_range->next;
-          skipEmptyRanges();
-        }
+        m_range = m_range->next;
+        skipEmptyRanges();
       }
       return *this;
     }
@@ -147,8 +138,7 @@ public:
     bool operator==(const Iterator& other) const
     {
       assert(m_chunker == other.m_chunker);
-      return m_range == other.m_range && m_pass == other.m_pass &&
-             m_basePatch == other.m_basePatch;
+      return m_range == other.m_range && m_basePatch == other.m_basePatch;
     }
 
     bool operator!=(const Iterator& other) const { return !(*this == other); }
@@ -169,11 +159,10 @@ public:
 
     const DSIndexRangeChunker* m_chunker;
     const DrawBatch::ElementRange* m_range;
-    uint32_t m_pass;
     uint32_t m_basePatch;
   };
 
-  // Walks every ElementRange in the batch, including subpasses if >1.
+  // Walks every ElementRange in the batch.
   static DSIndexRangeChunker drawsForBatch(const DrawBatch& batch)
   {
     // Dynamic fills need to call drawsForDynamicFillSubpass() because they
@@ -189,6 +178,7 @@ public:
       const PipelineState& subpassState)
   {
     assert(drawTypeHasPipelineDynamicState(batch.drawType));
+    assert(!drawTypeUsesVirtualPatches(batch.drawType));
     // Always send DSVertexFlag_DisableColorWrite for color-masked subpasses,
     // even when the API also masks color. The flag lets the vertex shader skip
     // paint fetches.
@@ -212,22 +202,11 @@ private:
       , m_patchStrideLog2(dsPatchStrideLog2(batch.drawType))
       , m_vertexFlags(vertexFlags)
   {
-    // Only strokes, hairlines, and dynamic-state fills merge into lists of
-    // ranges.
+    // Only dynamic-state fills still have a list of ranges by draw time.
+    // Everything else got collapsed into a single run of virtual patches.
     assert(
         batch.elementRange.next == nullptr ||
-        drawTypeIsDepthStencilPolarStroke(batch.drawType) ||
-        batch.drawType == DrawType::depthAAOuterHairline ||
         drawTypeHasPipelineDynamicState(batch.drawType));
-    if (drawTypeIsDepthAAStroke(batch.drawType))
-    {
-      // depthAAstrokes (and hairlines) render in two passes: a depth-only
-      // pass followed by color. We select the pass by vertex flags rather
-      // than pipeline state.
-      m_passFlags.push_back(
-          DSVertexFlag_StrokeDepthPass | DSVertexFlag_DisableColorWrite);
-    }
-    m_passFlags.push_back(0);
 #ifndef NDEBUG
     for (const DrawBatch::ElementRange& r :
          NextPtrRange<const DrawBatch::ElementRange>(m_firstRange, m_endRange))
@@ -242,9 +221,9 @@ private:
   }
 
 public:
-  Iterator begin() const { return {this, m_firstRange, 0, 0}; }
+  Iterator begin() const { return {this, m_firstRange, 0}; }
 
-  Iterator end() const { return {this, m_endRange, 0, 0}; }
+  Iterator end() const { return {this, m_endRange, 0}; }
 
 private:
   const DrawBatch::ElementRange* const m_firstRange;
@@ -253,6 +232,5 @@ private:
   const uint32_t m_indexCountPerPatch;
   const uint32_t m_patchStrideLog2;
   const int32_t m_vertexFlags;
-  StackVector<int32_t, 2> m_passFlags;
 };
 } // namespace rive::gpu

@@ -29,6 +29,30 @@ public:
         .supportsPipelineDynamicState = supportsPipelineDynamicState;
   }
 
+  // A contiguous run of real hairline patches within one subpass.
+  struct HairlineRun
+  {
+    bool isDepthPass;
+    uint32_t baseVertex;
+    uint32_t patchCount;
+  };
+
+  void* mapVirtualPatchBuffer(size_t mapSizeInBytes) override
+  {
+    m_mappedVirtualPatches = static_cast<const uint32_t*>(
+        RenderContextNULL::mapVirtualPatchBuffer(mapSizeInBytes));
+    return const_cast<uint32_t*>(m_mappedVirtualPatches);
+  }
+
+  void unmapVirtualPatchBuffer(size_t mapSizeInBytes) override
+  {
+    // Keep a copy so flush() can read back the real patches.
+    m_virtualPatches.assign(
+        m_mappedVirtualPatches,
+        m_mappedVirtualPatches + mapSizeInBytes / sizeof(uint32_t));
+    RenderContextNULL::unmapVirtualPatchBuffer(mapSizeInBytes);
+  }
+
   void flush(const FlushDescriptor& desc) override
   {
     if (desc.drawList == nullptr)
@@ -41,6 +65,10 @@ public:
       for ([[maybe_unused]] const auto& range : batch.elementRanges())
       {
         ++m_rangeCounts[batch.drawType];
+      }
+      if (batch.drawType == DrawType::depthAAOuterHairline)
+      {
+        captureHairlineRuns(desc, batch);
       }
     }
   }
@@ -55,7 +83,42 @@ public:
     return find(m_rangeCounts, drawType);
   }
 
+  const std::vector<HairlineRun>& hairlineRuns() const
+  {
+    return m_hairlineRuns;
+  }
+
 private:
+  // Walks the batch's single run of virtual patches and splits the real
+  // patches they point to into contiguous runs per subpass.
+  void captureHairlineRuns(const FlushDescriptor& desc, const DrawBatch& batch)
+  {
+    constexpr uint32_t VertexIdxMask = (1u << DSVertexFlagsShift) - 1;
+    const uint32_t patchStrideLog2 = dsPatchStrideLog2(batch.drawType);
+    const size_t firstEntry = desc.firstVirtualPatch +
+                              ((batch.elementRange.base & VertexIdxMask) >>
+                               patchStrideLog2);
+    REQUIRE(firstEntry + batch.elementRange.count <= m_virtualPatches.size());
+    for (uint32_t i = 0; i < batch.elementRange.count; ++i)
+    {
+      const uint32_t entry = m_virtualPatches[firstEntry + i];
+      const bool isDepthPass = (entry & DSVertexFlag_StrokeDepthPass) != 0;
+      const uint32_t baseVertex = entry & VertexIdxMask;
+      if (m_hairlineRuns.empty() ||
+          m_hairlineRuns.back().isDepthPass != isDepthPass ||
+          baseVertex !=
+              m_hairlineRuns.back().baseVertex +
+                  (m_hairlineRuns.back().patchCount << patchStrideLog2))
+      {
+        m_hairlineRuns.push_back({isDepthPass, baseVertex, 1});
+      }
+      else
+      {
+        ++m_hairlineRuns.back().patchCount;
+      }
+    }
+  }
+
   static size_t find(
       const std::map<DrawType, size_t>& counts,
       DrawType drawType)
@@ -66,7 +129,30 @@ private:
 
   std::map<DrawType, size_t> m_batchCounts;
   std::map<DrawType, size_t> m_rangeCounts;
+  const uint32_t* m_mappedVirtualPatches = nullptr;
+  std::vector<uint32_t> m_virtualPatches;
+  std::vector<HairlineRun> m_hairlineRuns;
 };
+
+// Hairlines draw as one batch with a single run of virtual patches. Behind it,
+// the real patches must still line up with the fills' ranges: one depth-only
+// run then one color run over the same patches, per range.
+void checkHairlinesMatchFills(
+    const CapturingRenderContext* capture,
+    size_t fillRangeCount)
+{
+  CHECK(capture->count(DrawType::depthAAOuterHairline) == 1);
+  CHECK(capture->rangeCount(DrawType::depthAAOuterHairline) == 1);
+  const auto& runs = capture->hairlineRuns();
+  REQUIRE(runs.size() == fillRangeCount * 2);
+  for (size_t i = 0; i < runs.size(); i += 2)
+  {
+    CHECK(runs[i].isDepthPass);
+    CHECK(!runs[i + 1].isDepthPass);
+    CHECK(runs[i + 1].baseVertex == runs[i].baseVertex);
+    CHECK(runs[i + 1].patchCount == runs[i].patchCount);
+  }
+}
 
 constexpr uint32_t TargetSize = 256;
 
@@ -144,16 +230,14 @@ TEST_CASE(
   CapturingRenderContext* capture;
   auto ctx = drawRects(/*supportsPipelineDynamicState=*/true, &capture);
 
-  // Dynamic fills and hairlines each merge into one batch with a list of
-  // ranges, and the hairlines' ranges line up with the fills'.
+  // Dynamic fills and hairlines each merge into one batch, and the hairlines'
+  // real patches line up with the fills' ranges.
   CHECK(capture->count(DrawType::stencilDynamicMidpointFans) == 1);
-  CHECK(capture->count(DrawType::depthAAOuterHairline) == 1);
   const size_t fills = capture->rangeCount(
       DrawType::stencilDynamicMidpointFans);
-  const size_t hairlines = capture->rangeCount(DrawType::depthAAOuterHairline);
   CHECK(fills > 1);
   CHECK(fills < PathCount);
-  CHECK(hairlines == fills);
+  checkHairlinesMatchFills(capture, fills);
 }
 
 TEST_CASE(
@@ -172,7 +256,6 @@ TEST_CASE(
   CHECK(borrowedCoverage == fans);
   CHECK(resets == fans);
   // Static fills can't hold a list of ranges, but hairlines can: they merge
-  // into one batch with a range per fan batch.
-  CHECK(capture->count(DrawType::depthAAOuterHairline) == 1);
-  CHECK(capture->rangeCount(DrawType::depthAAOuterHairline) == fans);
+  // into one batch whose real patches line up with each fan batch.
+  checkHairlinesMatchFills(capture, fans);
 }
