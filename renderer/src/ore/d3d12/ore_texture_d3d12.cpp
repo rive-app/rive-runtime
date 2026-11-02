@@ -12,11 +12,54 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 
 using Microsoft::WRL::ComPtr;
 
 namespace rive::ore
 {
+
+void TextureD3D12::d3dTransition(
+    ID3D12GraphicsCommandList* cmdList,
+    const D3D12AttachedRange& range,
+    D3D12_RESOURCE_STATES before,
+    D3D12_RESOURCE_STATES after) const
+{
+#if defined(ORE_BACKEND_D3D12)
+  if (before == after)
+    return;
+  D3D12_RESOURCE_BARRIER barriers[16] = {};
+  uint32_t count = 0;
+  const uint32_t planeStride = numMipmaps() * m_d3dArraySize;
+  for (uint32_t plane = 0; plane < m_d3dPlaneCount; ++plane)
+  {
+    for (uint32_t i = 0; i < range.layerCount; ++i)
+    {
+      D3D12_RESOURCE_BARRIER& barrier = barriers[count++];
+      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barrier.Transition.pResource = m_d3dTexture.Get();
+      barrier.Transition.StateBefore = before;
+      barrier.Transition.StateAfter = after;
+      barrier.Transition.Subresource = d3dSubresource(
+                                           range.mip,
+                                           range.baseLayer + i) +
+                                       plane * planeStride;
+      if (count == std::size(barriers))
+      {
+        cmdList->ResourceBarrier(count, barriers);
+        count = 0;
+      }
+    }
+  }
+  if (count > 0)
+    cmdList->ResourceBarrier(count, barriers);
+#else
+  (void)cmdList;
+  (void)range;
+  (void)before;
+  (void)after;
+#endif
+}
 
 void TextureD3D12::uploadImpl(const TextureDataDesc& data)
 {

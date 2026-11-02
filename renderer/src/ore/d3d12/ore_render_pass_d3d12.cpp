@@ -42,8 +42,7 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
     , m_d3dIndexOffset(other.m_d3dIndexOffset)
     , m_d3dStencilRef(other.m_d3dStencilRef)
     , m_d3dColorCount(other.m_d3dColorCount)
-    , m_d3dDepthResource(other.m_d3dDepthResource)
-    , m_d3dDepthFinalState(other.m_d3dDepthFinalState)
+    , m_d3dDepthRange(other.m_d3dDepthRange)
 #endif
 {
 #if defined(ORE_BACKEND_D3D12)
@@ -61,6 +60,7 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
     m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
     m_d3dColorResources[i] = other.m_d3dColorResources[i];
     m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
+    m_d3dColorRanges[i] = other.m_d3dColorRanges[i];
     m_d3dColorFinalStates[i] = other.m_d3dColorFinalStates[i];
     m_d3dResolves[i] = other.m_d3dResolves[i];
   }
@@ -69,7 +69,6 @@ RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
   other.m_d3dCmdList = nullptr;
   other.m_d3dDevice = nullptr;
   other.m_d3dContext = nullptr;
-  other.m_d3dDepthResource = nullptr;
   other.m_d3dDepthTexture = nullptr;
   other.m_d3dColorCount = 0;
   other.m_d3dResolveCount = 0;
@@ -93,8 +92,7 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     m_d3dIndexOffset = other.m_d3dIndexOffset;
     m_d3dStencilRef = other.m_d3dStencilRef;
     m_d3dColorCount = other.m_d3dColorCount;
-    m_d3dDepthResource = other.m_d3dDepthResource;
-    m_d3dDepthFinalState = other.m_d3dDepthFinalState;
+    m_d3dDepthRange = other.m_d3dDepthRange;
     for (int i = 0; i < 8; ++i)
     {
       m_d3dPendingUBOs[i] = other.m_d3dPendingUBOs[i];
@@ -111,6 +109,7 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
       m_d3dBlendFactor[i] = other.m_d3dBlendFactor[i];
       m_d3dColorResources[i] = other.m_d3dColorResources[i];
       m_d3dColorTextures[i] = other.m_d3dColorTextures[i];
+      m_d3dColorRanges[i] = other.m_d3dColorRanges[i];
       m_d3dColorFinalStates[i] = other.m_d3dColorFinalStates[i];
       m_d3dResolves[i] = other.m_d3dResolves[i];
     }
@@ -119,7 +118,6 @@ RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
     other.m_d3dCmdList = nullptr;
     other.m_d3dDevice = nullptr;
     other.m_d3dContext = nullptr;
-    other.m_d3dDepthResource = nullptr;
     other.m_d3dDepthTexture = nullptr;
     other.m_d3dColorCount = 0;
     other.m_d3dResolveCount = 0;
@@ -538,7 +536,7 @@ void RenderPassD3D12::finish()
   }
 
   // Transition colour attachments back to their post-pass state.
-  // MSAA srcs that were resolved are in RESOLVE_SOURCE; others are in
+  // A resolved MSAA src's base layer is in RESOLVE_SOURCE; the rest are in
   // RENDER_TARGET. Keep Texture::m_d3dCurrentState synced so the next
   // use of the texture sees the right StateBefore.
   for (uint32_t i = 0; i < m_d3dColorCount; ++i)
@@ -546,44 +544,42 @@ void RenderPassD3D12::finish()
     if (!m_d3dColorResources[i])
       continue;
 
-    D3D12_RESOURCE_STATES stateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    TextureD3D12* tex = m_d3dColorTextures[i];
+    D3D12AttachedRange range = m_d3dColorRanges[i];
+    const uint32_t baseSubresource = tex->d3dSubresource(
+        range.mip,
+        range.baseLayer);
     for (uint32_t r = 0; r < m_d3dResolveCount; ++r)
     {
-      if (m_d3dResolves[r].msaa == m_d3dColorResources[i])
+      if (m_d3dResolves[r].msaa == m_d3dColorResources[i] &&
+          m_d3dResolves[r].msaaSubresource == baseSubresource)
       {
-        stateBefore = D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
+        tex->d3dTransition(
+            m_d3dCmdList,
+            {range.mip, range.baseLayer, 1},
+            D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+            m_d3dColorFinalStates[i]);
+        ++range.baseLayer;
+        --range.layerCount;
         break;
       }
     }
 
-    if (stateBefore != m_d3dColorFinalStates[i])
-    {
-      D3D12_RESOURCE_BARRIER barrier = {};
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Transition.pResource = m_d3dColorResources[i];
-      barrier.Transition.StateBefore = stateBefore;
-      barrier.Transition.StateAfter = m_d3dColorFinalStates[i];
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      m_d3dCmdList->ResourceBarrier(1, &barrier);
-    }
-
-    if (m_d3dColorTextures[i] != nullptr)
-      m_d3dColorTextures[i]->m_d3dCurrentState = m_d3dColorFinalStates[i];
+    tex->d3dTransition(
+        m_d3dCmdList,
+        range,
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        m_d3dColorFinalStates[i]);
+    tex->m_d3dCurrentState = m_d3dColorFinalStates[i];
   }
 
-  // Transition depth/stencil if present.
-  if (m_d3dDepthResource)
+  if (m_d3dDepthTexture != nullptr)
   {
-    D3D12_RESOURCE_BARRIER barrier = {};
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Transition.pResource = m_d3dDepthResource;
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-    barrier.Transition.StateAfter = m_d3dDepthFinalState;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    m_d3dCmdList->ResourceBarrier(1, &barrier);
-
-    if (m_d3dDepthTexture != nullptr)
-      m_d3dDepthTexture->m_d3dCurrentState = m_d3dDepthFinalState;
+    m_d3dDepthTexture->d3dTransition(
+        m_d3dCmdList,
+        m_d3dDepthRange,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        m_d3dDepthTexture->m_d3dCurrentState);
   }
 
   m_d3dCmdList = nullptr;

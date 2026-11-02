@@ -2,6 +2,7 @@
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
+#include "ore_texture_d3d12.hpp"
 
 #include <d3d12.h>
 #include <wrl/client.h>
@@ -112,11 +113,11 @@ private:
   // resource state after the end-of-pass transition.
   ID3D12Resource* m_d3dColorResources[4] = {};
   TextureD3D12* m_d3dColorTextures[4] = {};
+  D3D12AttachedRange m_d3dColorRanges[4] = {};
   D3D12_RESOURCE_STATES m_d3dColorFinalStates[4] = {};
   uint32_t m_d3dColorCount = 0;
-  ID3D12Resource* m_d3dDepthResource = nullptr;
   TextureD3D12* m_d3dDepthTexture = nullptr;
-  D3D12_RESOURCE_STATES m_d3dDepthFinalState = D3D12_RESOURCE_STATE_COMMON;
+  D3D12AttachedRange m_d3dDepthRange;
   // MSAA resolve pairs (populated at beginRenderPass, executed in finish).
   // D3D12 subresource index is mipLevel + arraySlice * mipCount for the
   // common single-plane case.

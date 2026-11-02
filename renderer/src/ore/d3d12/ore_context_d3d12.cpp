@@ -694,10 +694,10 @@ void ContextD3D12::d3d12FlushPendingTextureUploads()
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Transition.pResource = tex->m_d3dTexture.Get();
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    barrier.Transition.StateAfter = kD3D12ShaderResourceStates;
     barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_d3dCmdList->ResourceBarrier(1, &barrier);
-    tex->m_d3dCurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    tex->m_d3dCurrentState = kD3D12ShaderResourceStates;
   }
 
   // Purgatory keeps the staging buffers alive until safeFrameNumber.
@@ -873,7 +873,12 @@ rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
   if (fmtInfo.isDepth)
   {
     flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-    initialState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+    initialState = kD3D12ShaderResourceStates;
+    if (fmtInfo.dsv == DXGI_FORMAT_D24_UNORM_S8_UINT ||
+        fmtInfo.dsv == DXGI_FORMAT_D32_FLOAT_S8X24_UINT)
+    {
+      texture->m_d3dPlaneCount = 2;
+    }
     clearValue.Format = fmtInfo.dsv;
     clearValue.DepthStencil.Depth = 1.0f;
     clearValue.DepthStencil.Stencil = 0;
@@ -882,7 +887,7 @@ rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
   else if (desc.renderTarget)
   {
     flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-    initialState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    initialState = kD3D12ShaderResourceStates;
     clearValue.Format = fmtInfo.rtv;
     clearValue.Color[3] = 1.0f;
     clearVal = &clearValue;
@@ -918,6 +923,7 @@ rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
                                    ? 6
                                    : static_cast<UINT16>(
                                          desc.depthOrArrayLayers);
+    texture->m_d3dArraySize = resDesc.DepthOrArraySize;
   }
 
   HRESULT hr = m_d3dDevice->CreateCommittedResource(
@@ -1721,30 +1727,23 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
 
     TextureD3D12* tex = lite_rtti_cast<TextureD3D12*>(view->texture());
     assert(tex != nullptr);
-    if (tex->m_d3dCurrentState != D3D12_RESOURCE_STATE_RENDER_TARGET)
-    {
-      D3D12_RESOURCE_BARRIER barrier = {};
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Transition.pResource = tex->m_d3dTexture.Get();
-      barrier.Transition.StateBefore = tex->m_d3dCurrentState;
-      barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      m_d3dCmdList->ResourceBarrier(1, &barrier);
-      tex->m_d3dCurrentState = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    }
+    const D3D12AttachedRange range = tex->d3dAttachedRange(view);
+    tex->d3dTransition(
+        m_d3dCmdList,
+        range,
+        tex->m_d3dCurrentState,
+        D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     rtvHandles[i] = view->m_d3dRtvHandle;
 
-    // Record resource + final state for finish() to transition back.
+    // Record what finish() moves back. External textures go back to their
+    // owner's state.
     pass->m_d3dColorResources[i] = tex->m_d3dTexture.Get();
     pass->m_d3dColorTextures[i] = tex;
-    // External textures go back to their owner's state; ORE-owned go to
-    // PIXEL_SHADER_RESOURCE.
-    const D3D12_RESOURCE_STATES
-        colourFinalState = tex->m_d3dIsExternal
-                               ? tex->m_d3dExternalState
-                               : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    pass->m_d3dColorFinalStates[i] = colourFinalState;
+    pass->m_d3dColorRanges[i] = range;
+    pass->m_d3dColorFinalStates[i] = tex->m_d3dIsExternal
+                                         ? tex->m_d3dExternalState
+                                         : tex->m_d3dCurrentState;
     pass->m_d3dColorCount++;
 
     // Record MSAA resolve pair if present. D3D12 subresource index
@@ -1761,15 +1760,14 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
       r.resolve = resolveTex->m_d3dTexture.Get();
       r.resolveTex = resolveTex;
       r.format = oreFormatInfoD3D12(resolveTex->format()).resource;
-      const uint32_t msaaMips = tex->numMipmaps();
-      const uint32_t resolveMips = resolveTex->numMipmaps();
-      r.msaaSubresource = view->baseMipLevel() + view->baseLayer() * msaaMips;
-      r.resolveSubresource = resolveView->baseMipLevel() +
-                             resolveView->baseLayer() * resolveMips;
+      r.msaaSubresource = tex->d3dSubresource(range.mip, range.baseLayer);
+      r.resolveSubresource = resolveTex->d3dSubresource(
+          resolveView->baseMipLevel(),
+          resolveView->baseLayer());
       r.resolvePriorState = resolveTex->m_d3dCurrentState;
       r.resolveFinalState = resolveTex->m_d3dIsExternal
                                 ? resolveTex->m_d3dExternalState
-                                : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                                : resolveTex->m_d3dCurrentState;
     }
   }
 
@@ -1781,31 +1779,18 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
     TextureD3D12* dsTex = lite_rtti_cast<TextureD3D12*>(dsView->texture());
     assert(dsTex != nullptr);
 
-    D3D12_RESOURCE_STATES dsTarget = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-    if (dsTex->m_d3dCurrentState != dsTarget)
-    {
-      D3D12_RESOURCE_BARRIER barrier = {};
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Transition.pResource = dsTex->m_d3dTexture.Get();
-      barrier.Transition.StateBefore = dsTex->m_d3dCurrentState;
-      barrier.Transition.StateAfter = dsTarget;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      m_d3dCmdList->ResourceBarrier(1, &barrier);
-      dsTex->m_d3dCurrentState = dsTarget;
-    }
+    const D3D12AttachedRange dsRange = dsTex->d3dAttachedRange(dsView);
+    dsTex->d3dTransition(
+        m_d3dCmdList,
+        dsRange,
+        dsTex->m_d3dCurrentState,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
     dsvHandle = dsView->m_d3dDsvHandle;
     hasDsv = true;
 
-    pass->m_d3dDepthResource = dsTex->m_d3dTexture.Get();
     pass->m_d3dDepthTexture = dsTex;
-    // When the depth is stored the caller intends to sample it as a
-    // shader resource (e.g. shadow map read-back), so transition to
-    // PIXEL_SHADER_RESOURCE.  Otherwise DEPTH_READ is sufficient.
-    pass->m_d3dDepthFinalState =
-        (desc.depthStencil.depthStoreOp == StoreOp::store)
-            ? D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-            : D3D12_RESOURCE_STATE_DEPTH_READ;
+    pass->m_d3dDepthRange = dsRange;
   }
 
   m_d3dCmdList->OMSetRenderTargets(

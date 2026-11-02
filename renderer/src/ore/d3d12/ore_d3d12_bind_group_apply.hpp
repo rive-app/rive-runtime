@@ -126,32 +126,9 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
     // heap. Missing slots fall back to the context's null SRV
     // descriptor so the table stays well-defined.
     //
-    // Resource-state transitions: D3D12 requires textures bound as
-    // SRVs to be in a shader-resource state for the stages that
-    // sample them. Ore doesn't know which stages a given binding
-    // group will be sampled from at apply time, so transition into
-    // the *union* state — `PIXEL_SHADER_RESOURCE` for fragment
-    // samples plus `NON_PIXEL_SHADER_RESOURCE` for vertex/etc.
-    // samples — and require the texture to *already* cover both
-    // before skipping the barrier.
-    //
-    // Two cases this catches:
-    //   1. Depth-stencil texture born in `DEPTH_WRITE` (because
-    //      `renderTarget=true`) and never attached as a DSV before
-    //      being sampled. `ore_binding_shadow_sampler_d32` GM.
-    //   2. Color attachment finished into just
-    //      `PIXEL_SHADER_RESOURCE` by an earlier render pass, then
-    //      sampled from a *vertex* shader. `ore_binding_vs_texture`
-    //      GM. Without `NON_PIXEL_SHADER_RESOURCE`, GBV fires
-    //      `id=1358 Incompatible texture barrier layout: Shader
-    //      Stage: VERTEX, Layout:
-    //      D3D12_BARRIER_LAYOUT_LEGACY_PIXEL_SHADER_RESOURCE`.
-    //
-    // Without these barriers GPU-Based Validation eventually TDRs
-    // the device with `DXGI_ERROR_DEVICE_HUNG`.
-    constexpr D3D12_RESOURCE_STATES
-        kSrvStates = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE |
-                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    // Ore owned textures already rest in both shader resource states, so
+    // this only moves external or never uploaded ones, which a pass does
+    // not also attach.
     for (uint8_t i = 0; i < gp.srvCount; ++i)
     {
       uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
@@ -161,21 +138,17 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
           bg->m_d3dSrvTextures[globalSlot]);
       if (tex == nullptr)
         continue;
-      // Require *full* coverage of both shader-stage bits, not
-      // just any overlap. A texture in just
-      // `PIXEL_SHADER_RESOURCE` (typical post-finish state for
-      // color attachments) needs the `NON_PIXEL_SHADER_RESOURCE`
-      // bit added before a vertex-stage sample.
-      if ((tex->m_d3dCurrentState & kSrvStates) == kSrvStates)
+      if ((tex->m_d3dCurrentState & kD3D12ShaderResourceStates) ==
+          kD3D12ShaderResourceStates)
         continue;
       D3D12_RESOURCE_BARRIER barrier = {};
       barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
       barrier.Transition.pResource = tex->m_d3dTexture.Get();
       barrier.Transition.StateBefore = tex->m_d3dCurrentState;
-      barrier.Transition.StateAfter = kSrvStates;
+      barrier.Transition.StateAfter = kD3D12ShaderResourceStates;
       barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
       m_d3dCmdList->ResourceBarrier(1, &barrier);
-      tex->m_d3dCurrentState = kSrvStates;
+      tex->m_d3dCurrentState = kD3D12ShaderResourceStates;
     }
     for (uint8_t i = 0; i < gp.srvCount; ++i)
     {
