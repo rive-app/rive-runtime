@@ -200,6 +200,17 @@ ColorInt RiveRenderer::modulated(ColorInt color, float opacity) const
       opacity);
 }
 
+bool RiveRenderer::transformCollapses() const
+{
+  // Products of two floats are exact in double, so this is true exactly when
+  // the determinant is 0. (In float, a fused multiply-add can leave a tiny
+  // remainder for a singular matrix.) Drawing anyway would leave slivers:
+  // the GPU rounds collapsed points slightly off their line.
+  const Mat2D& m = m_renderStateStack.back().matrix;
+  return static_cast<double>(m.xx()) * m.yy() ==
+         static_cast<double>(m.xy()) * m.yx();
+}
+
 void RiveRenderer::modulateColor(ColorInt color, bool replace)
 {
   RenderState& state = m_renderStateStack.back();
@@ -238,6 +249,10 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     return;
   }
   if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
+  if (transformCollapses())
   {
     return;
   }
@@ -775,6 +790,11 @@ void RiveRenderer::drawImage(
     // just don't draw anything.
     return;
   }
+  if (transformCollapses())
+  {
+    // Every vertex lands on one line, so nothing covers any area.
+    return;
+  }
 
   // Apply modulated opacity (clamp to prevent negative values)
   float finalOpacity = std::max(
@@ -928,6 +948,11 @@ void RiveRenderer::drawImageMesh(
     // just don't draw anything.
     return;
   }
+  if (transformCollapses())
+  {
+    // Every vertex lands on one line, so nothing covers any area.
+    return;
+  }
 
   assert(vertices_f32);
   assert(uvCoords_f32);
@@ -978,6 +1003,12 @@ void RiveRenderer::drawImageMeshInstanced(
     // imageTexture may be null if the backend uses a custom factory and/or
     // updates out-of-band assets asynchronously. If there's no texture yet,
     // just don't draw anything.
+    return;
+  }
+  if (transformCollapses())
+  {
+    // Every vertex lands on one line, so nothing covers any area. (For
+    // instances too: each one's transform is applied on top of this one.)
     return;
   }
 

@@ -614,3 +614,53 @@ TEST_CASE(
   REQUIRE(countOccurrences(b.substr(open, close - open), "<path") == 4);
   REQUIRE(countOccurrences(b, "<path") == 5);
 }
+
+TEST_CASE(
+    "SVGRenderer: nothing is written under a transform that collapses an axis",
+    "[svg_renderer]")
+{
+  SVGFactory f;
+  auto path = makeSquarePath(f);
+  auto fill = makeFillPaint(f, 0xFFFF0000);
+  auto stroke = makeStrokePaint(f, 0xFF0000FF, 4);
+  const uint8_t bytes[] = {0};
+  auto image = rive::make_rcp<rive::SVGRenderImage>(
+      rive::Span<const uint8_t>(bytes, sizeof(bytes)),
+      8,
+      8);
+
+  auto drawn = [&](const rive::Mat2D& matrix) {
+    SVGRenderer r;
+    r.save();
+    r.transform(rive::Mat2D::fromTranslate(10.37f, 20.61f));
+    r.transform(matrix);
+    r.drawPath(path.get(), fill.get());
+    r.drawPath(path.get(), stroke.get());
+    r.drawImage(
+        image.get(),
+        rive::ImageSampler::LinearClamp(),
+        rive::BlendMode::srcOver,
+        1);
+    r.restore();
+    auto b = body(r.finalize(64, 64));
+    return countOccurrences(b, "<path") + countOccurrences(b, "<image");
+  };
+
+  CHECK(drawn(rive::Mat2D()) == 3);
+  const rive::Mat2D collapsed[] = {
+      rive::Mat2D(1, 0, 0, 0, 0, 0),
+      rive::Mat2D(0, 0, 0, 1, 0, 0),
+      rive::Mat2D(0, 0, 0, 0, 0, 0),
+      rive::Mat2D(1, 1, 1, 1, 0, 0),
+      rive::Mat2D(0.6f, 0.3f, 1.2f, 0.6f, 0, 0), // singular in float too
+  };
+  for (const rive::Mat2D& matrix : collapsed)
+  {
+    INFO(
+        "matrix " << matrix[0] << " " << matrix[1] << " " << matrix[2] << " "
+                  << matrix[3]);
+    CHECK(drawn(matrix) == 0);
+  }
+  // Very thin, but not zero area.
+  CHECK(drawn(rive::Mat2D(1, 0, 0, 1e-3f, 0, 0)) == 3);
+}

@@ -161,7 +161,10 @@ void Shape::draw(Renderer* renderer)
                             m_ShapePaints.size() > 1;
   for (auto shapePaint : m_ShapePaints)
   {
-    if (!shapePaint->isVisible())
+    // A paint whose color or gradient is fully transparent draws nothing,
+    // in any blend mode. (willDraw() still counts the shape, since layer
+    // masks decide what to do from it.)
+    if (!shapePaint->shouldDraw())
     {
       continue;
     }

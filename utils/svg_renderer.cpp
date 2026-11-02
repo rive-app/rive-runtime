@@ -66,6 +66,16 @@ std::string blendStyle(BlendMode mode)
   }
   return std::string(" style=\"mix-blend-mode:") + css + "\"";
 }
+
+// Does m collapse an axis (determinant exactly 0)? Then whatever is drawn
+// under it covers no area: SVG strokes in user space, so strokes collapse
+// too. Browsers still leave slivers for some of these matrices, so such draws
+// aren't written at all. Products of two floats are exact in double, unlike a
+// float determinant.
+bool collapses(const Mat2D& m)
+{
+  return static_cast<double>(m[0]) * m[3] == static_cast<double>(m[1]) * m[2];
+}
 } // namespace
 
 void SVGRenderer::save()
@@ -257,13 +267,17 @@ void SVGRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
   auto* path = static_cast<SVGRenderPath*>(renderPath);
   auto* paint = static_cast<SVGRenderPaint*>(renderPaint);
 
+  auto& top = m_stack.back();
+  if (collapses(top.matrix))
+  {
+    return;
+  }
+
   std::string d = path->toSvgD(m_floatPrecision);
   if (d.empty())
   {
     return;
   }
-
-  auto& top = m_stack.back();
 
   // Build the element body without any inline blend style. Blend is applied
   // at flush time so that multiple draws inside a single save block sharing
@@ -339,6 +353,10 @@ void SVGRenderer::drawImage(
   auto* svgImage = static_cast<const SVGRenderImage*>(image);
 
   auto& top = m_stack.back();
+  if (collapses(top.matrix))
+  {
+    return;
+  }
   float a = top.opacity * opacity;
 
   std::ostringstream body;

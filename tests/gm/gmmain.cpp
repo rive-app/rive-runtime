@@ -314,6 +314,11 @@ extern "C" void gms_build_registry()
       render_deferred_2d,
       render_deferred_2d_immediate,
       render_deferred_2d)
+  // Draws under a transform with determinant 0 must not change a pixel.
+  MAKE_PARITY_GM2(
+      degenerate_transform_draws,
+      degenerate_transform_draws_ref,
+      degenerate_transform_draws)
 }
 
 void GMRunner::dumpGM(GM* gm, const std::string& gmName)

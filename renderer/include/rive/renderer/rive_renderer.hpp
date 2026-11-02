@@ -180,6 +180,11 @@ private:
   // A draw's color with this scope's modulation folded in.
   ColorInt modulated(ColorInt color, float opacity) const;
 
+  // Does the current transform collapse an axis (determinant exactly 0)?
+  // Then whatever is drawn under it covers no area: strokes and feathers are
+  // expanded before the transform, so they collapse too.
+  bool transformCollapses() const;
+
   struct ClipElement
   {
     ClipElement() = default;
