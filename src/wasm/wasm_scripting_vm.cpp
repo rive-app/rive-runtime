@@ -7992,7 +7992,9 @@ uint32_t artboardAnimationAdvanceImpl(
   {
     return 0;
   }
-  bool advanced = host->animation->advance(seconds);
+  // LinearAnimationInstance::advance(0) returns false whatever the loop mode.
+  bool advanced = host->animation->advance(seconds) ||
+                  (seconds == 0.0f && host->animation->keepGoing());
   host->animation->apply();
   return advanced ? 1 : 0;
 }

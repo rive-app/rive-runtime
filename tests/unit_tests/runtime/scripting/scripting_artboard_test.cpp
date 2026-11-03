@@ -1,6 +1,8 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/loop.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
@@ -150,6 +152,58 @@ TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
   }
 
   CHECK(vm.serializer()->matches("scripted_artboard_render"));
+}
+
+TEST_CASE("scripted Animation advance(0) follows the loop mode", "[scripting]")
+{
+  ScriptingTest vm("function zero(artboard:Artboard, name:string)\n"
+                   "  local anim = artboard:animation(name)\n"
+                   "  return anim ~= nil and anim:advance(0)\n"
+                   "end\n"
+                   "function zeroAfterEnd(artboard:Artboard, name:string)\n"
+                   "  local anim = artboard:animation(name)\n"
+                   "  if anim == nil then\n"
+                   "    return false\n"
+                   "  end\n"
+                   "  anim:advance(anim.duration + 1)\n"
+                   "  return anim:advance(0)\n"
+                   "end\n");
+  lua_State* L = vm.state();
+  auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
+  auto artboard = file->artboard();
+  REQUIRE(artboard != nullptr);
+  auto animation = artboard->animation(0);
+  REQUIRE(animation != nullptr);
+  REQUIRE(animation->speed() > 0.0f);
+  lua_newrive<ScriptedArtboard>(
+      L,
+      L,
+      file.get(),
+      artboard->instance(),
+      nullptr,
+      nullptr);
+
+  auto call = [&](const char* function) {
+    lua_getglobal(L, function);
+    lua_pushvalue(L, -2);
+    lua_pushstring(L, animation->name().c_str());
+    REQUIRE(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    bool result = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    return result;
+  };
+
+  animation->loopValue(static_cast<int>(Loop::loop));
+  CHECK(call("zero"));
+  CHECK(call("zeroAfterEnd"));
+
+  animation->loopValue(static_cast<int>(Loop::pingPong));
+  CHECK(call("zero"));
+  CHECK(call("zeroAfterEnd"));
+
+  animation->loopValue(static_cast<int>(Loop::oneShot));
+  CHECK(call("zero"));
+  CHECK_FALSE(call("zeroAfterEnd"));
 }
 
 TEST_CASE("can detect hit test from PointerEvent", "[scripting]")

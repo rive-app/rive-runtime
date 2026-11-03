@@ -864,7 +864,9 @@ int ScriptedAnimation::advance()
 {
   auto seconds = float(luaL_checknumber(m_state, 2));
 
-  bool advanced = m_animation->advance(seconds);
+  // LinearAnimationInstance::advance(0) returns false whatever the loop mode.
+  bool advanced = m_animation->advance(seconds) ||
+                  (seconds == 0.0f && m_animation->keepGoing());
   m_animation->apply();
   lua_pushboolean(m_state, advanced ? 1 : 0);
   return 1;
