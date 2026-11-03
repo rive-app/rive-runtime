@@ -1043,7 +1043,6 @@ bool CommandServer::processCommands()
           auto fileAssets = fileAssetLoader->fileAssets();
           m_globalAssetRegistry->addFileAssets(handle, fileAssets);
           m_globalAssetRegistry->applyResourcesToFileAssets(fileAssets);
-          m_fileDependencies[handle] = {};
           m_files[handle] = file;
 
           std::unique_lock<std::mutex> messageLock(
@@ -1077,18 +1076,9 @@ bool CommandServer::processCommands()
           m_globalAssetRegistry->removeFileAssets(
               handle,
               fileItr->second->assets());
+          // Existing bindable artboards retain the file independently of its
+          // handle.
           m_files.erase(fileItr);
-        }
-        auto itr = m_fileDependencies.find(handle);
-        if (itr != m_fileDependencies.end())
-        {
-          auto& artboardVector = itr->second;
-          for (auto artboardHandle : artboardVector)
-          {
-            cleanupArtboard(artboardHandle, requestId);
-          }
-
-          m_fileDependencies.erase(itr);
         }
         std::unique_lock<std::mutex> messageLock(
             m_commandQueue->m_messageMutex);
@@ -1605,8 +1595,6 @@ bool CommandServer::processCommands()
         commandStream >> requestId;
         lock.unlock();
         cleanupArtboard(handle, requestId);
-        // We don't remove from the file dependencies here because
-        // calling erase on a non existent key is fine.
         break;
       }
 

@@ -283,11 +283,6 @@ private:
   std::vector<Subscription> m_propertySubscriptions;
 
   // Dependencies
-  // When a file gets deleted artboards and state machines become invalid.
-  // Here we hold a reference to the artboard only because that artboard has a
-  // dependency to the State Machine.
-  std::unordered_map<FileHandle, std::vector<ArtboardHandle>>
-      m_fileDependencies;
   // When an artboard gets deleted the state machine associated with it is
   // also now invalid.
   std::unordered_map<ArtboardHandle, std::vector<StateMachineHandle>>

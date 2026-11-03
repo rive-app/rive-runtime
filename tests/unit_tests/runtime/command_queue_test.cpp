@@ -208,10 +208,12 @@ TEST_CASE("artboard management", "[CommandQueue]")
     CHECK(server->getArtboardInstance(artboardHandle3) == nullptr);
   });
 
-  // Deleting the file first should now delete the artboard as well.
+  // Deleting the file handle leaves existing artboards alive with their
+  // retained file.
   commandQueue->deleteFile(fileHandle);
-  commandQueue->runOnce([fileHandle](CommandServer* server) {
+  commandQueue->runOnce([fileHandle, artboardHandle1](CommandServer* server) {
     CHECK(server->getFile(fileHandle) == nullptr);
+    CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
   });
 
   commandQueue->deleteArtboard(artboardHandle1);
@@ -260,6 +262,13 @@ TEST_CASE("state machine management", "[CommandQueue]")
   });
 
   commandQueue->deleteFile(fileHandle);
+  commandQueue->runOnce(
+      [fileHandle, artboardHandle, sm1, sm2](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle) != nullptr);
+        CHECK(server->getStateMachineInstance(sm1) != nullptr);
+        CHECK(server->getStateMachineInstance(sm2) != nullptr);
+      });
   commandQueue->deleteArtboard(artboardHandle);
   commandQueue->deleteStateMachine(sm1);
   commandQueue->runOnce(
@@ -6753,9 +6762,9 @@ TEST_CASE("requestViewModelInstanceListClear", "[CommandQueue]")
   serverThread.join();
 }
 
-// StateMachines depend on Artboards and Artboards depend on Files.
-// So if an artboard gets deleted so should the statemachines assosiated with
-// it. If a file is deleted so should artboards and therefore statemachines.
+// Deleting an artboard deletes its associated state machines. Artboards retain
+// their files independently and survive deletion of the originating file
+// handle.
 
 TEST_CASE("dependency lifetime management", "[CommandQueue]")
 {
