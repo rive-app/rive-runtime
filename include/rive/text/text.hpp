@@ -561,6 +561,15 @@ private:
   uint8_t m_brokenAlign = 0;
   uint8_t m_brokenWrap = 0;
   uint8_t m_brokenWordBreak = 0;
+  // Whether a build sized the style paths for their glyphs yet (see
+  // reserveGlyphPaths), also in that padding.
+  bool m_glyphPathsReserved = false;
+  /// Sizes each style's paths for the outlines of every glyph this Text
+  /// draws with it, so its first build doesn't grow them an outline at a
+  /// time. Only for a build that draws every glyph of the shape, and only
+  /// when every outline is cached or can be without a font starting its
+  /// cache over.
+  void reserveGlyphPaths();
   // Breaks m_shape into m_lines unless they already hold those lines.
   // Returns whether m_lines changed.
   bool breakShapeLines(bool shapeChanged);

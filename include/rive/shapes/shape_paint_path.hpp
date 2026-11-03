@@ -33,6 +33,13 @@ public:
     m_isLocal = isLocal;
     rewind();
   }
+  // Empties the path, keeping its storage like rewind, and lets its render
+  // path go: it then draws exactly as a path made afresh would.
+  void rewindAsNew()
+  {
+    rewind();
+    m_renderPath = nullptr;
+  }
   void addPath(const RawPath& rawPath, const Mat2D* transform = nullptr);
   void addPathBackwards(
       const RawPath& rawPath,

@@ -1176,7 +1176,6 @@ const rive::RawPath& HBFont::glyphPath(rive::GlyphID glyph) const
 #ifdef TESTING
   sm_glyphPathsDrawn++;
 #endif
-  constexpr size_t kMaxCachedGlyphPaths = 512;
   if (m_glyphPathCache.size() >= kMaxCachedGlyphPaths)
   {
     m_glyphPathCache.clear();
@@ -1184,6 +1183,19 @@ const rive::RawPath& HBFont::glyphPath(rive::GlyphID glyph) const
   // The entry stays put until the cache starts over, which only a later
   // insert does.
   return m_glyphPathCache.emplace(glyph, std::move(rpath)).first->second;
+}
+
+const rive::RawPath* HBFont::cachedGlyphPath(rive::GlyphID glyph) const
+{
+  auto cached = m_glyphPathCache.find(glyph);
+  return cached == m_glyphPathCache.end() ? nullptr : &cached->second;
+}
+
+size_t HBFont::glyphPathCacheRoom() const
+{
+  return m_glyphPathCache.size() >= kMaxCachedGlyphPaths
+             ? 0
+             : kMaxCachedGlyphPaths - m_glyphPathCache.size();
 }
 
 rive::RawPath HBFont::drawGlyphPath(rive::GlyphID glyph) const
@@ -1359,12 +1371,47 @@ size_t HBFont::getColorLayers(
 
 ///////////////////////////////////////////////////////////
 
+// One HarfBuzz buffer per thread, cleared for each run instead of made and
+// freed for it: cleared, it keeps the storage it grew, which every run
+// would otherwise allocate again.
+namespace
+{
+class ShapingBuffer
+{
+public:
+  ~ShapingBuffer() { hb_buffer_destroy(m_buffer); }
+
+  // Empty, as hb_buffer_create makes it.
+  hb_buffer_t* take()
+  {
+    hb_buffer_clear_contents(m_buffer);
+    return m_buffer;
+  }
+
+  // Lets go of what a run of [unicharCount] grew, when it's more than a
+  // usual run needs, so one long text doesn't hold it for the thread's life.
+  void release(uint32_t unicharCount)
+  {
+    if (unicharCount > kKeptUnichars)
+    {
+      hb_buffer_destroy(m_buffer);
+      m_buffer = hb_buffer_create();
+    }
+  }
+
+private:
+  static constexpr uint32_t kKeptUnichars = 4096;
+  hb_buffer_t* m_buffer = hb_buffer_create();
+};
+} // namespace
+
 static rive::GlyphRun shape_run(
     const rive::Unichar text[],
     const rive::TextRun& tr,
     unsigned textOffset)
 {
-  hb_buffer_t* buf = hb_buffer_create();
+  static thread_local ShapingBuffer shapingBuffer;
+  hb_buffer_t* buf = shapingBuffer.take();
   hb_buffer_add_utf32(buf, text, tr.unicharCount, 0, tr.unicharCount);
 
   hb_buffer_set_direction(
@@ -1409,7 +1456,7 @@ static rive::GlyphRun shape_run(
         -glyph_pos[index].y_offset * scale);
   }
   gr.xpos[glyph_count] = 0; // so the next run can line up snug
-  hb_buffer_destroy(buf);
+  shapingBuffer.release(tr.unicharCount);
   return gr;
 }
 
@@ -1419,12 +1466,15 @@ static rive::GlyphRun extract_subset(
     size_t end)
 {
   auto count = end - start;
-  rive::GlyphRun subset(
-      rive::SimpleArray<rive::GlyphID>(&orig.glyphs[start], count),
-      rive::SimpleArray<uint32_t>(&orig.textIndices[start], count),
-      rive::SimpleArray<float>(&orig.advances[start], count),
-      rive::SimpleArray<float>(&orig.xpos[start], count + 1),
-      rive::SimpleArray<rive::Vec2D>(&orig.offsets[start], count));
+  rive::GlyphRun subset(count);
+  std::copy_n(orig.glyphs.data() + start, count, subset.glyphs.data());
+  std::copy_n(
+      orig.textIndices.data() + start,
+      count,
+      subset.textIndices.data());
+  std::copy_n(orig.advances.data() + start, count, subset.advances.data());
+  std::copy_n(orig.xpos.data() + start, count + 1, subset.xpos.data());
+  std::copy_n(orig.offsets.data() + start, count, subset.offsets.data());
   subset.font = std::move(orig.font);
   subset.size = orig.size;
   subset.lineHeight = orig.lineHeight;

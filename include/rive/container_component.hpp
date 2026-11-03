@@ -31,6 +31,7 @@ public:
 
   const std::vector<Component*>& children() const { return m_children; }
   virtual void addChild(Component* component);
+  void reserveChildren(std::size_t count) { m_children.reserve(count); }
 #ifdef WITH_RIVE_EDITOR
   /// Remove `component` from this container's children list, if
   /// present. Called by `EditorFile::removeObject` during cull

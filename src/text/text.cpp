@@ -691,6 +691,121 @@ LineIter Text::shouldDrawLine(
   return LineIter::drawLine;
 }
 
+void Text::reserveGlyphPaths()
+{
+  bool allOpaque = true;
+  for (TextModifierGroup* modifierGroup : m_modifierGroups)
+  {
+    if (modifierGroup->modifiesOpacity())
+    {
+      allOpaque = false;
+    }
+  }
+  // Most Texts draw a style or two. Past these, a style's paths grow as
+  // their glyphs are added.
+  constexpr size_t kMaxStyles = 8;
+  struct StyleOutlines
+  {
+    TextStylePaint* style;
+    size_t verbs;
+    size_t points;
+  };
+  StyleOutlines styles[kMaxStyles];
+  size_t styleCount = 0;
+  // Looking at an outline must not cost the draw that follows it. A font
+  // starts its cache over once full, so outlines are cached here only when
+  // every font has room for every glyph of the shape: neither this nor the
+  // draw can then start one over. Otherwise only cached outlines are read,
+  // and a glyph without one leaves the paths to grow as they're drawn.
+  size_t glyphCount = 0;
+  for (const Paragraph& paragraph : m_shape)
+  {
+    for (const GlyphRun& run : paragraph.runs)
+    {
+      glyphCount += run.glyphs.size();
+    }
+  }
+  bool mayCache = true;
+  for (const Paragraph& paragraph : m_shape)
+  {
+    for (const GlyphRun& run : paragraph.runs)
+    {
+      if (run.font->glyphPathCacheRoom() < glyphCount)
+      {
+        mayCache = false;
+      }
+    }
+  }
+  for (const Paragraph& paragraph : m_shape)
+  {
+    for (const GlyphRun& run : paragraph.runs)
+    {
+      assert(run.styleId < m_allRuns.size());
+      TextStylePaint* style = m_allRuns[run.styleId]->style();
+      if (style == nullptr)
+      {
+        continue;
+      }
+      StyleOutlines* outlines = nullptr;
+      for (size_t i = 0; i < styleCount; i++)
+      {
+        if (styles[i].style == style)
+        {
+          outlines = &styles[i];
+          break;
+        }
+      }
+      if (outlines == nullptr)
+      {
+        if (styleCount == kMaxStyles)
+        {
+          continue;
+        }
+        outlines = &styles[styleCount++];
+        *outlines = {style, 0, 0};
+      }
+      const Font* font = run.font.get();
+      for (GlyphID glyph : run.glyphs)
+      {
+        // Color glyphs draw on their own, not into the style's paths.
+        if (font->isColorGlyph(glyph))
+        {
+          continue;
+        }
+        const RawPath* path = font->cachedGlyphPath(glyph);
+        if (path == nullptr)
+        {
+          if (!mayCache)
+          {
+            return;
+          }
+          path = &font->glyphPath(glyph);
+        }
+        outlines->verbs += path->verbs().size();
+        outlines->points += path->points().size();
+      }
+    }
+  }
+  for (size_t i = 0; i < styleCount; i++)
+  {
+    const StyleOutlines& outlines = styles[i];
+    if (outlines.points == 0)
+    {
+      continue;
+    }
+    if (outlines.style->isShared())
+    {
+      sharedGeometry(outlines.style)
+          .reserve(outlines.verbs, outlines.points, allOpaque);
+    }
+    else
+    {
+      outlines.style->reservePath(outlines.verbs, outlines.points, allOpaque);
+    }
+    m_glyphPathsReserved = true;
+  }
+}
+
 void Text::buildRenderStyles()
 {
   // Step 1: reset stuff. Every build lays the lines out again, so a
@@ -779,6 +894,17 @@ void Text::buildRenderStyles()
                  verticalAlignOffset;
     m_clipRect.addRect(
         AABB(minX, minY, minX + bounds.width(), minY + bounds.height()));
+  }
+
+  // The first build to draw every glyph of the shape (no ellipsis, and no
+  // overflow leaving lines out, see shouldDrawLine) sizes the paths it adds
+  // them to.
+  if (!m_glyphPathsReserved && ellipsisLine == -1 &&
+      !((overflow() == TextOverflow::hidden ||
+         overflow() == TextOverflow::clipped) &&
+        overflowAsFixed()))
+  {
+    reserveGlyphPaths();
   }
 
   // Step 6: add the glyphs to render paths. Shift content up by topTrim so

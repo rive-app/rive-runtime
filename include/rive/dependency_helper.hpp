@@ -30,6 +30,7 @@ template <typename T, typename U, typename Derived> class DependencyHelper
 
 public:
   void addDependent(U* component) { m_Dependents.pushUnique(component); }
+  void reserveDependents(std::size_t count) { m_Dependents.reserve(count); }
   void removeDependent(U* component) { m_Dependents.eraseAll(component); }
 #ifdef WITH_RIVE_EDITOR
   // Editor-only: drop every entry. See Component::editorClearDependents

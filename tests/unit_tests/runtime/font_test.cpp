@@ -366,6 +366,52 @@ TEST_CASE(
 #endif
 }
 
+// What a shape comes to, glyph by glyph, to compare one with another.
+static std::vector<float> shapeSignature(rcp<Font> font, const char text[])
+{
+  std::vector<rive::Unichar> unichars;
+  std::vector<rive::TextRun> runs;
+  runs.push_back(append(&unichars, font, 32.0f, text));
+  std::vector<float> signature;
+  for (const Paragraph& paragraph : font->shapeText(unichars, runs))
+  {
+    for (const GlyphRun& run : paragraph.runs)
+    {
+      signature.push_back((float)run.level);
+      for (size_t i = 0; i < run.glyphs.size(); i++)
+      {
+        signature.push_back((float)run.glyphs[i]);
+        signature.push_back(run.advances[i]);
+        signature.push_back((float)run.textIndices[i]);
+      }
+    }
+  }
+  return signature;
+}
+
+TEST_CASE("shaping a run carries nothing over from the last one", "[text]")
+{
+  // Runs share one HarfBuzz buffer per thread: what a right-to-left run set
+  // on it must not reach the next left-to-right one, or the other way round,
+  // and a run long enough to make it start a fresh buffer changes nothing.
+  auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
+  REQUIRE(font != nullptr);
+  const char* latin = "Shaping parity ABC";
+  const char* arabic = "لمفاتيح";
+  auto latinFirst = shapeSignature(font, latin);
+  auto arabicFirst = shapeSignature(font, arabic);
+  REQUIRE(!latinFirst.empty());
+  REQUIRE(!arabicFirst.empty());
+  CHECK(latinFirst[0] == 0.0f);
+  CHECK(arabicFirst[0] == 1.0f);
+
+  CHECK(shapeSignature(font, latin) == latinFirst);
+  std::string longText(5000, 'a');
+  CHECK(!shapeSignature(font, longText.c_str()).empty());
+  CHECK(shapeSignature(font, arabic) == arabicFirst);
+  CHECK(shapeSignature(font, latin) == latinFirst);
+}
+
 TEST_CASE("a font lends its cached glyph path", "[text]")
 {
   auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
@@ -403,6 +449,124 @@ TEST_CASE("a glyph added with its placement winds as placed", "[text]")
   CHECK(clockwise(*geometry.path()));
   REQUIRE(geometry.opacityPaths().size() == 1);
   CHECK(clockwise(geometry.opacityPaths().begin()->second));
+}
+
+TEST_CASE("a glyph run's arrays share one block it copies and moves", "[text]")
+{
+  GlyphRun run(3);
+  for (uint32_t i = 0; i < 3; i++)
+  {
+    run.glyphs[i] = (GlyphID)(10 + i);
+    run.textIndices[i] = i * 2;
+    run.advances[i] = 5.0f + i;
+    run.xpos[i] = 5.0f + i;
+    run.offsets[i] = Vec2D((float)i, -(float)i);
+  }
+  run.xpos[3] = 0;
+  run.size = 12.0f;
+  run.lineHeight = 14.0f;
+  run.letterSpacing = 0.5f;
+  run.styleId = 7;
+  run.level = 1;
+
+  // Every per-glyph array lies in the block xpos leads.
+  auto inBlock = [](const GlyphRun& r, const void* ptr, size_t bytes) {
+    const size_t count = r.glyphs.size();
+    const auto* block = reinterpret_cast<const uint8_t*>(r.xpos.data());
+    const size_t blockBytes = count * (sizeof(float) * 2 + sizeof(uint32_t) +
+                                       sizeof(Vec2D) + sizeof(GlyphID)) +
+                              sizeof(float);
+    const auto* start = static_cast<const uint8_t*>(ptr);
+    return start >= block && start + bytes <= block + blockBytes;
+  };
+  CHECK(inBlock(run, run.glyphs.data(), 3 * sizeof(GlyphID)));
+  CHECK(inBlock(run, run.textIndices.data(), 3 * sizeof(uint32_t)));
+  CHECK(inBlock(run, run.advances.data(), 3 * sizeof(float)));
+  CHECK(inBlock(run, run.offsets.data(), 3 * sizeof(Vec2D)));
+
+  auto same = [](const GlyphRun& a, const GlyphRun& b) {
+    if (a.glyphs.size() != b.glyphs.size() || a.xpos.size() != b.xpos.size())
+    {
+      return false;
+    }
+    for (size_t i = 0; i < a.glyphs.size(); i++)
+    {
+      if (a.glyphs[i] != b.glyphs[i] || a.textIndices[i] != b.textIndices[i] ||
+          a.advances[i] != b.advances[i] || a.offsets[i] != b.offsets[i])
+      {
+        return false;
+      }
+    }
+    for (size_t i = 0; i < a.xpos.size(); i++)
+    {
+      if (a.xpos[i] != b.xpos[i])
+      {
+        return false;
+      }
+    }
+    return a.size == b.size && a.lineHeight == b.lineHeight &&
+           a.letterSpacing == b.letterSpacing && a.styleId == b.styleId &&
+           a.level == b.level;
+  };
+
+  // A copy gets a block of its own.
+  GlyphRun copy(run);
+  CHECK(same(copy, run));
+  CHECK(copy.xpos.data() != run.xpos.data());
+  CHECK(inBlock(copy, copy.offsets.data(), 3 * sizeof(Vec2D)));
+
+  // A move takes the block and leaves no glyphs behind.
+  const float* block = copy.xpos.data();
+  GlyphRun moved(std::move(copy));
+  CHECK(moved.xpos.data() == block);
+  CHECK(same(moved, run));
+  CHECK(copy.glyphs.empty());
+  CHECK(copy.xpos.empty());
+
+  GlyphRun assigned;
+  assigned = std::move(moved);
+  CHECK(assigned.xpos.data() == block);
+  CHECK(same(assigned, run));
+  CHECK(moved.xpos.empty());
+
+  // An empty run still has the extent past its last glyph.
+  GlyphRun empty;
+  CHECK(empty.glyphs.empty());
+  CHECK(empty.xpos.size() == 1);
+}
+
+TEST_CASE("glyphs added to a sized text style geometry stay in place", "[text]")
+{
+  RawPath glyph;
+  glyph.moveTo(0, 0);
+  glyph.lineTo(10, 0);
+  glyph.lineTo(10, 10);
+  glyph.close();
+
+  // Sized for three opaque glyphs, both paths take them without moving.
+  TextStyleGeometry geometry;
+  geometry.reserve(glyph.verbs().size() * 3, glyph.points().size() * 3, true);
+  REQUIRE(geometry.opacityPaths().size() == 1);
+  const Vec2D* whole = geometry.path()->rawPath()->points().data();
+  const Vec2D*
+      opaque = geometry.opacityPaths().at(1.0f).rawPath()->points().data();
+  for (int i = 0; i < 3; i++)
+  {
+    const Mat2D placement = Mat2D::fromTranslate(i * 20.0f, 0);
+    geometry.addPath(glyph, 1.0f, &placement);
+  }
+  CHECK(
+      geometry.path()->rawPath()->points().size() == glyph.points().size() * 3);
+  CHECK(geometry.path()->rawPath()->points().data() == whole);
+  REQUIRE(geometry.opacityPaths().size() == 1);
+  CHECK(geometry.opacityPaths().at(1.0f).rawPath()->points().data() == opaque);
+
+  // A rewind keeps the opaque bucket's storage for the next build.
+  geometry.rewind();
+  CHECK(geometry.opacityPaths().empty());
+  geometry.addPath(glyph, 1.0f);
+  REQUIRE(geometry.opacityPaths().size() == 1);
+  CHECK(geometry.opacityPaths().at(1.0f).rawPath()->points().data() == opaque);
 }
 
 TEST_CASE("owned font bytes are adopted rather than copied", "[text]")

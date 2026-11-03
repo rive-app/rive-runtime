@@ -28,6 +28,11 @@ public:
       const RawPath& rawPath,
       float opacity,
       const Mat2D* transform = nullptr);
+  /// Makes room for glyph outlines totaling [verbs] verbs and [points]
+  /// points, so adding them doesn't grow the paths an outline at a time.
+  /// [allOpaque]: every one of them is added at full opacity, so the opaque
+  /// bucket gets the room too.
+  void reserve(size_t verbs, size_t points, bool allOpaque);
   void rewind();
 
   bool hasContents() const { return m_hasContents; }
@@ -40,7 +45,13 @@ public:
   RenderPaint* pooledPaint(size_t index) { return m_paintPool[index].get(); }
 
 private:
+  ShapePaintPath& opacityPath(float opacity);
+
   std::map<float, ShapePaintPath> m_opacityPaths;
+  // The opaque bucket, kept with its storage across a rewind: most Texts
+  // draw every glyph opaque, and the next build fills it again. It draws
+  // through a new render path, as a new bucket did.
+  std::map<float, ShapePaintPath>::node_type m_spareOpaquePath;
   std::vector<rcp<RenderPaint>> m_paintPool;
   ShapePaintPath m_path;
   bool m_hasContents = false;

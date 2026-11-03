@@ -242,6 +242,10 @@ private:
   bool sharesLayoutWithHost() const;
   void cloneObjectDataBinds(const Core* object, Core* clone, Artboard* artboard)
       const;
+  // Sizes [clone]'s children and dependents for the ones [source] has, which
+  // the clone ends up with once initialized, so they don't grow an entry at
+  // a time.
+  static void reserveLikeSource(Core* clone, const Core* source);
   // Lazily-built index of this artboard's data binds that target keyframes,
   // keyed by the (shared) keyframe. Keyframe binds live in dataBinds() but
   // are never applied directly (keyframes aren't Components); instead a
@@ -1100,6 +1104,7 @@ public:
     // instance holding up to its own object count again in unused capacity.
     cloneObjects.reserve(m_Objects.size());
     cloneObjects.push_back(artboardClone.get());
+    reserveLikeSource(artboardClone.get(), this);
 
     if (!m_Objects.empty())
     {
@@ -1109,6 +1114,10 @@ public:
       {
         auto object = *itr;
         cloneObjects.push_back(object == nullptr ? nullptr : object->clone());
+        if (object != nullptr && cloneObjects.back() != nullptr)
+        {
+          reserveLikeSource(cloneObjects.back(), object);
+        }
         // For each object, clone its data bind objects and target their
         // clones
         cloneObjectDataBinds(object, cloneObjects.back(), artboardClone.get());

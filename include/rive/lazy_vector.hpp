@@ -75,6 +75,20 @@ public:
     m_v->push_back(std::move(value));
   }
 
+  // Room for [count] elements, so pushing that many allocates once.
+  void reserve(std::size_t count)
+  {
+    if (count == 0)
+    {
+      return;
+    }
+    if (m_v == nullptr)
+    {
+      m_v = new std::vector<T>();
+    }
+    m_v->reserve(count);
+  }
+
   // Append only if `value` is not already present. Centralizes the
   // find-then-push idiom used by callers that maintain set semantics.
   void pushUnique(T value)

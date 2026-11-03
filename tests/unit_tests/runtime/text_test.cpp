@@ -1,6 +1,8 @@
 #include "rive/text/text.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/text/text_style.hpp"
+#include "rive/text/font_hb.hpp"
+#include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
@@ -18,6 +20,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/layout_component.hpp"
 #include <functional>
+#include <unordered_map>
 #include <iostream>
 #include <string>
 
@@ -38,6 +41,114 @@ TEST_CASE("file with text loads correctly", "[text]")
   artboard->advance(0.0f);
   rive::NoOpRenderer renderer;
   artboard->draw(&renderer);
+}
+
+TEST_CASE("a text's first build sizes its style paths for its glyphs", "[text]")
+{
+  auto file = ReadRiveFile("assets/new_text.riv");
+  auto artboard = file->artboard()->instance();
+  auto texts = artboard->find<rive::Text>();
+  REQUIRE(!texts.empty());
+  for (rive::Text* text : texts)
+  {
+    text->overflowValue((uint32_t)rive::TextOverflow::visible);
+  }
+  artboard->advance(0.0f);
+
+  // Each style's path has room for exactly the outlines of its glyphs, not
+  // what growing an outline at a time left.
+  size_t paths = 0;
+  for (rive::Text* text : texts)
+  {
+    std::unordered_map<rive::TextStylePaint*, std::pair<size_t, size_t>>
+        outlines;
+    for (const rive::Paragraph& paragraph : text->shape())
+    {
+      for (const rive::GlyphRun& run : paragraph.runs)
+      {
+        auto& total = outlines[text->runs()[run.styleId]->style()];
+        for (rive::GlyphID glyph : run.glyphs)
+        {
+          const rive::RawPath& path = run.font->glyphPath(glyph);
+          total.first += path.verbs().size();
+          total.second += path.points().size();
+        }
+      }
+    }
+    for (const auto& entry : outlines)
+    {
+      const rive::RawPath* path = entry.first->localPath()->rawPath();
+      CHECK(path->verbCapacity() == entry.second.first);
+      CHECK(path->pointCapacity() == entry.second.second);
+      paths++;
+    }
+  }
+  CHECK(paths > 0);
+}
+
+TEST_CASE(
+    "sizing a text's paths outlines no glyph twice when the font's "
+    "cache is short of room",
+    "[text]")
+{
+  auto file = ReadRiveFile("assets/new_text.riv");
+
+  // The font, from a first instance.
+  auto first = file->artboard()->instance();
+  first->advance(0.0f);
+  auto firstTexts = first->find<rive::Text>();
+  REQUIRE(!firstTexts.empty());
+  REQUIRE(!firstTexts[0]->shape().empty());
+  REQUIRE(!firstTexts[0]->shape()[0].runs.empty());
+  rive::rcp<rive::Font> font = firstTexts[0]->shape()[0].runs[0].font;
+
+  // A second instance draws one text of glyphs that are all distinct.
+  const char* distinct = "abcdefghijklmnop";
+  auto artboard = file->artboard()->instance();
+  auto texts = artboard->find<rive::Text>();
+  for (rive::Text* text : texts)
+  {
+    text->overflowValue((uint32_t)rive::TextOverflow::visible);
+  }
+  auto runs = artboard->find<rive::TextValueRun>();
+  REQUIRE(!runs.empty());
+  for (rive::TextValueRun* run : runs)
+  {
+    run->text(run == runs[0] ? distinct : "");
+  }
+
+  // Start the cache over, so none of them is cached, then leave it room
+  // for only a few of them: drawing them starts it over again partway.
+  const size_t room = 5;
+  rive::GlyphID junk = 60000;
+  while (font->glyphPathCacheRoom() != 0)
+  {
+    font->glyphPath(junk++);
+  }
+  font->glyphPath(junk++);
+  while (font->glyphPathCacheRoom() > room)
+  {
+    font->glyphPath(junk++);
+  }
+
+  const uint64_t drawn = HBFont::sm_glyphPathsDrawn.load();
+  artboard->advance(0.0f);
+  size_t glyphs = 0;
+  for (rive::Text* text : texts)
+  {
+    for (const rive::Paragraph& paragraph : text->shape())
+    {
+      for (const rive::GlyphRun& run : paragraph.runs)
+      {
+        REQUIRE(run.font == font);
+        glyphs += run.glyphs.size();
+      }
+    }
+  }
+  REQUIRE(glyphs == strlen(distinct));
+  // Drawing outlines each glyph once; looking at them first to size the
+  // paths must not drop ones it outlined before the draw gets to them.
+  CHECK(HBFont::sm_glyphPathsDrawn.load() - drawn == glyphs);
 }
 
 TEST_CASE("can query for all text runs", "[text]")

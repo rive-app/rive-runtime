@@ -1,4 +1,5 @@
 #include <rive/file.hpp>
+#include <rive/layout_component.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
 #include <rive/shapes/rectangle.hpp>
@@ -66,4 +67,28 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]")
   file.reset(nullptr);
   // Now the animations should've been deleted.
   REQUIRE(rive::LinearAnimation::deleteCount == numberOfAnimations);
+}
+
+TEST_CASE("an instance's lists are sized for its source's", "[instancing]")
+{
+  // Added one entry at a time, three children grow the list to room for
+  // four and twelve dependents to room for sixteen; sized from the source,
+  // each holds exactly what it ends up with.
+  auto rowFile = ReadRiveFile("assets/component_list_rtl_row.riv");
+  auto rowSource = rowFile->artboardNamed("Row");
+  REQUIRE(rowSource != nullptr);
+  auto row = rowSource->instance();
+  REQUIRE(row != nullptr);
+  REQUIRE(row->children().size() == rowSource->children().size());
+  REQUIRE(row->children().size() == 3);
+  CHECK(row->children().capacity() == 3);
+
+  auto clipsFile = ReadRiveFile("assets/circle_clips.riv");
+  auto clipsSource = clipsFile->artboard();
+  REQUIRE(clipsSource != nullptr);
+  auto clips = clipsSource->instance();
+  REQUIRE(clips != nullptr);
+  REQUIRE(clips->dependents().size() == clipsSource->dependents().size());
+  REQUIRE(clips->dependents().size() == 12);
+  CHECK(clips->dependents().capacity() == 12);
 }

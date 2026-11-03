@@ -14,6 +14,123 @@ bool rive::isWhiteSpace(Unichar c)
          c == 0x2029 || c == 0x205F || c == 0x3000;
 }
 
+// A run's block starts with xpos, which always has an entry, then the other
+// 4 byte arrays, offsets, and glyphs last so each array stays aligned.
+static constexpr size_t kGlyphBytes = sizeof(float) + sizeof(float) +
+                                      sizeof(uint32_t) + sizeof(Vec2D) +
+                                      sizeof(GlyphID);
+
+static size_t glyphBlockBytes(size_t glyphCount)
+{
+  return glyphCount * kGlyphBytes + sizeof(float);
+}
+
+GlyphRun::GlyphRun(size_t glyphCount) { allocateGlyphs(glyphCount); }
+
+GlyphRun::GlyphRun(const GlyphRun& other)
+    : font(other.font)
+    , size(other.size)
+    , lineHeight(other.lineHeight)
+    , letterSpacing(other.letterSpacing)
+    , breaks(other.breaks)
+    , styleId(other.styleId)
+    , level(other.level)
+    , joiners(other.joiners)
+{
+  if (other.xpos.data() == nullptr)
+  {
+    return;
+  }
+  allocateGlyphs(other.glyphs.size());
+  if (xpos.data() != nullptr)
+  {
+    memcpy(xpos.data(), other.xpos.data(), glyphBlockBytes(glyphs.size()));
+  }
+}
+
+GlyphRun::GlyphRun(GlyphRun&& other) noexcept
+    : font(std::move(other.font))
+    , size(other.size)
+    , lineHeight(other.lineHeight)
+    , letterSpacing(other.letterSpacing)
+    , breaks(std::move(other.breaks))
+    , styleId(other.styleId)
+    , level(other.level)
+    , joiners(std::move(other.joiners))
+{
+  takeGlyphs(other);
+}
+
+GlyphRun& GlyphRun::operator=(GlyphRun&& other) noexcept
+{
+  if (this != &other)
+  {
+    freeGlyphs();
+    font = std::move(other.font);
+    size = other.size;
+    lineHeight = other.lineHeight;
+    letterSpacing = other.letterSpacing;
+    breaks = std::move(other.breaks);
+    styleId = other.styleId;
+    level = other.level;
+    joiners = std::move(other.joiners);
+    takeGlyphs(other);
+  }
+  return *this;
+}
+
+GlyphRun::~GlyphRun() { freeGlyphs(); }
+
+void GlyphRun::allocateGlyphs(size_t glyphCount)
+{
+  size_t perGlyph;
+  if (!checkedMul<size_t>(glyphCount, kGlyphBytes, &perGlyph) ||
+      perGlyph > SIZE_MAX - sizeof(float))
+  {
+    return;
+  }
+  auto* block = static_cast<uint8_t*>(malloc(perGlyph + sizeof(float)));
+  if (block == nullptr)
+  {
+    return;
+  }
+  auto* xs = reinterpret_cast<float*>(block);
+  auto* ws = xs + glyphCount + 1;
+  auto* indices = reinterpret_cast<uint32_t*>(ws + glyphCount);
+  auto* offs = reinterpret_cast<Vec2D*>(indices + glyphCount);
+  auto* ids = reinterpret_cast<GlyphID*>(offs + glyphCount);
+  xpos.set(xs, glyphCount + 1);
+  advances.set(ws, glyphCount);
+  textIndices.set(indices, glyphCount);
+  offsets.set(offs, glyphCount);
+  glyphs.set(ids, glyphCount);
+}
+
+void GlyphRun::takeGlyphs(GlyphRun& other)
+{
+  glyphs.set(other.glyphs.data(), other.glyphs.size());
+  textIndices.set(other.textIndices.data(), other.textIndices.size());
+  advances.set(other.advances.data(), other.advances.size());
+  xpos.set(other.xpos.data(), other.xpos.size());
+  offsets.set(other.offsets.data(), other.offsets.size());
+  other.glyphs.set(nullptr, 0);
+  other.textIndices.set(nullptr, 0);
+  other.advances.set(nullptr, 0);
+  other.xpos.set(nullptr, 0);
+  other.offsets.set(nullptr, 0);
+}
+
+void GlyphRun::freeGlyphs()
+{
+  // xpos leads the block.
+  free(xpos.data());
+  glyphs.set(nullptr, 0);
+  textIndices.set(nullptr, 0);
+  advances.set(nullptr, 0);
+  xpos.set(nullptr, 0);
+  offsets.set(nullptr, 0);
+}
+
 #ifdef WITH_RIVE_TEXT
 
 static void appendUnicode(

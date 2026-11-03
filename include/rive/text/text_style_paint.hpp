@@ -18,6 +18,11 @@ public:
       float opacity,
       const Mat2D* transform = nullptr);
   void rewindPath();
+  /// Makes room in this paint's glyph paths (see TextStyleGeometry::reserve).
+  void reservePath(size_t verbs, size_t points, bool allOpaque)
+  {
+    m_geometry.reserve(verbs, points, allOpaque);
+  }
   void draw(Renderer* renderer, const Mat2D& worldTransform);
 
   /// Draws [geometry] (some Text's glyphs) with this paint. A paint shared

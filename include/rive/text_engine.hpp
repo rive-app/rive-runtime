@@ -329,6 +329,17 @@ public:
     return m_lentPath;
   }
 
+  // For a caller that looks at outlines before drawing them, without making
+  // the draw outline a glyph again: the outline glyphPath would lend for
+  // [glyph] if the font has it cached, else null, caching nothing.
+  virtual const RawPath* cachedGlyphPath(GlyphID glyph) const
+  {
+    return nullptr;
+  }
+  // How many more outlines glyphPath can cache before it drops the ones it
+  // has. A font that caches none has no room.
+  virtual size_t glyphPathCacheRoom() const { return 0; }
+
   // Color glyph (emoji) support via COLR/CPAL tables.
 
   // A single layer of a color glyph, with its own path and fill.
@@ -454,31 +465,68 @@ struct TextRun
   uint8_t level;
 };
 
+// One of a GlyphRun's per-glyph arrays: a view into the one block the run
+// allocates for all of them. Laid out like a SimpleArray (pointer, then
+// size), since GlyphRuns are read by field offset from Dart and wasm.
+template <typename T> class GlyphRunArray
+{
+public:
+  GlyphRunArray(const GlyphRunArray&) = delete;
+  GlyphRunArray& operator=(const GlyphRunArray&) = delete;
+
+  T& operator[](size_t index)
+  {
+    assert(index < m_size);
+    return m_ptr[index];
+  }
+  const T& operator[](size_t index) const
+  {
+    assert(index < m_size);
+    return m_ptr[index];
+  }
+
+  T* data() { return m_ptr; }
+  const T* data() const { return m_ptr; }
+  size_t size() const { return m_size; }
+  bool empty() const { return m_size == 0; }
+
+  T* begin() { return m_ptr; }
+  T* end() { return m_ptr + m_size; }
+  const T* begin() const { return m_ptr; }
+  const T* end() const { return m_ptr + m_size; }
+
+  T& front() { return (*this)[0]; }
+  const T& front() const { return (*this)[0]; }
+  T& back() { return (*this)[m_size - 1]; }
+  const T& back() const { return (*this)[m_size - 1]; }
+
+private:
+  friend struct GlyphRun;
+  GlyphRunArray() = default;
+  void set(T* ptr, size_t size)
+  {
+    m_ptr = ptr;
+    m_size = size;
+  }
+
+  T* m_ptr = nullptr;
+  size_t m_size = 0;
+};
+
 // The corresponding system generated run for the user provided TextRuns.
 // GlyphRuns may not match TextRuns if the system needs to split the run (for
 // fallback fonts) or if codepoints get ligated/shaped to a single glyph.
+//
+// Its per-glyph arrays share one allocation, so it copies and moves its
+// members by hand: a member added here must be added to those too.
 struct GlyphRun
 {
-  GlyphRun(size_t glyphCount = 0)
-      : glyphs(glyphCount)
-      , textIndices(glyphCount)
-      , advances(glyphCount)
-      , xpos(glyphCount + 1)
-      , offsets(glyphCount)
-  {}
-
-  GlyphRun(
-      SimpleArray<GlyphID> glyphIds,
-      SimpleArray<uint32_t> offsets,
-      SimpleArray<float> ws,
-      SimpleArray<float> xs,
-      SimpleArray<rive::Vec2D> offs)
-      : glyphs(glyphIds)
-      , textIndices(offsets)
-      , advances(ws)
-      , xpos(xs)
-      , offsets(offs)
-  {}
+  GlyphRun(size_t glyphCount = 0);
+  GlyphRun(const GlyphRun& other);
+  GlyphRun(GlyphRun&& other) noexcept;
+  GlyphRun& operator=(GlyphRun&& other) noexcept;
+  GlyphRun& operator=(const GlyphRun&) = delete;
+  ~GlyphRun();
 
   rcp<Font> font;
   float size;
@@ -487,25 +535,25 @@ struct GlyphRun
 
   // List of glyphs, represented by font specific glyph ids. Length is equal
   // to number of glyphs in the run.
-  SimpleArray<GlyphID> glyphs;
+  GlyphRunArray<GlyphID> glyphs;
 
   // Index in the unicode text array representing the text displayed in this
   // run. Because each glyph can be composed of multiple unicode values, this
   // index points to the first index in the unicode text. Length is equal to
   // number of glyphs in the run.
-  SimpleArray<uint32_t> textIndices;
+  GlyphRunArray<uint32_t> textIndices;
 
   // X position of each glyph in visual order (xpos is in logical/memory
   // order).
-  SimpleArray<float> advances;
+  GlyphRunArray<float> advances;
 
   // X position of each glyph, with an extra value at the end for the right
   // most extent of the last glyph.
-  SimpleArray<float> xpos;
+  GlyphRunArray<float> xpos;
 
   // X and Y offset each glyphs draws at relative to its baseline and advance
   // position.
-  SimpleArray<rive::Vec2D> offsets;
+  GlyphRunArray<rive::Vec2D> offsets;
 
   // List of possible indices to line break at. Has a stride of 2 uint32_ts
   // where each pair marks the start and end of a word, with the exception of
@@ -529,6 +577,13 @@ struct GlyphRun
   {
     return level & 1 ? TextDirection::rtl : TextDirection::ltr;
   }
+
+private:
+  // Points the per-glyph arrays into one new block for [glyphCount] glyphs.
+  void allocateGlyphs(size_t glyphCount);
+  // Takes [other]'s block, leaving it with none.
+  void takeGlyphs(GlyphRun& other);
+  void freeGlyphs();
 };
 
 class OrderedLine;

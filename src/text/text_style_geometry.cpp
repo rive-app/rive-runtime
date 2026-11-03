@@ -10,7 +10,40 @@ void TextStyleGeometry::rewind()
 {
   m_path.rewind();
   m_hasContents = false;
+  if (m_spareOpaquePath.empty())
+  {
+    m_spareOpaquePath = m_opacityPaths.extract(1.0f);
+    if (!m_spareOpaquePath.empty())
+    {
+      m_spareOpaquePath.mapped().rewindAsNew();
+    }
+  }
   m_opacityPaths.clear();
+}
+
+void TextStyleGeometry::reserve(size_t verbs, size_t points, bool allOpaque)
+{
+  m_path.mutableRawPath()->reserve(verbs, points);
+  if (allOpaque)
+  {
+    opacityPath(1.0f).mutableRawPath()->reserve(verbs, points);
+  }
+}
+
+ShapePaintPath& TextStyleGeometry::opacityPath(float opacity)
+{
+  auto itr = m_opacityPaths.find(opacity);
+  if (itr != m_opacityPaths.end())
+  {
+    return itr->second;
+  }
+  if (opacity == 1.0f && !m_spareOpaquePath.empty())
+  {
+    return m_opacityPaths.insert(std::move(m_spareOpaquePath)).position->second;
+  }
+  return m_opacityPaths
+      .emplace(opacity, ShapePaintPath(true, FillRule::clockwise))
+      .first->second;
 }
 
 bool TextStyleGeometry::addPath(
@@ -41,18 +74,7 @@ bool TextStyleGeometry::addPath(
     add(m_path);
 
     // Bucket by opacity
-    auto itr = m_opacityPaths.find(opacity);
-    ShapePaintPath* shapePaintPath = nullptr;
-    if (itr != m_opacityPaths.end())
-    {
-      shapePaintPath = &itr->second;
-    }
-    else
-    {
-      m_opacityPaths[opacity] = ShapePaintPath(true, FillRule::clockwise);
-      shapePaintPath = &m_opacityPaths.at(opacity);
-    }
-    add(*shapePaintPath);
+    add(opacityPath(opacity));
   }
   return !hadContents;
 }

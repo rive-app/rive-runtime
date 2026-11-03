@@ -81,6 +81,8 @@ public:
 
   rive::RawPath getPath(rive::GlyphID) const override;
   const rive::RawPath& glyphPath(rive::GlyphID) const override;
+  const rive::RawPath* cachedGlyphPath(rive::GlyphID) const override;
+  size_t glyphPathCacheRoom() const override;
   bool hasColorGlyphs() const override;
   bool isColorGlyph(rive::GlyphID) const override;
   size_t getColorLayers(
@@ -195,6 +197,8 @@ private:
   // a new item) reuses its glyphs instead of walking the glyf table again.
   // Bounded; it starts over once full.
   mutable std::unordered_map<rive::GlyphID, rive::RawPath> m_glyphPathCache;
+  // Past this many outlines, glyphPath starts the cache over.
+  static constexpr size_t kMaxCachedGlyphPaths = 512;
 
   // The fonts sharedWithOptions made from this one that are still alive, by
   // variantKey. A request for options one of them already has, from the

@@ -1828,6 +1828,21 @@ bool Artboard::sharesLayoutWithHost() const
   return m_host != nullptr && m_host->isLayoutProvider();
 }
 
+void Artboard::reserveLikeSource(Core* clone, const Core* source)
+{
+  if (!source->is<Component>() || !clone->is<Component>())
+  {
+    return;
+  }
+  clone->as<Component>()->reserveDependents(
+      source->as<Component>()->dependents().size());
+  if (source->is<ContainerComponent>() && clone->is<ContainerComponent>())
+  {
+    clone->as<ContainerComponent>()->reserveChildren(
+        source->as<ContainerComponent>()->children().size());
+  }
+}
+
 void Artboard::cloneObjectDataBinds(
     const Core* object,
     Core* clone,

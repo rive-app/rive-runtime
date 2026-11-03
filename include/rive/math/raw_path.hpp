@@ -286,6 +286,10 @@ public:
     m_Verbs.reserve(numVerbs);
     m_Points.reserve(numPts);
   }
+#ifdef TESTING
+  size_t verbCapacity() const { return m_Verbs.capacity(); }
+  size_t pointCapacity() const { return m_Points.capacity(); }
+#endif
   // Approximates the area of the path by linearizing it with a coarse
   // tolerance of 8px in artboard space.
   constexpr static float kCoarseAreaTolerance = 8;
