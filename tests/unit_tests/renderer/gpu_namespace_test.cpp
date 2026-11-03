@@ -9,6 +9,9 @@
 #include "rive/renderer/rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "shaders/constants.glsl"
+#ifdef RIVE_VULKAN
+#include "vulkan/pipeline_manager_vulkan.hpp"
+#endif
 #include <catch.hpp>
 #include <cstring>
 #include <map>
@@ -213,6 +216,149 @@ TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
     CHECK(withoutDynamicState.count(drawType) == 1);
   }
 }
+
+#ifdef RIVE_VULKAN
+// Exercise the backend's enumeration, including render-pass options. The
+// generic shader enumerator cannot tell whether a Vulkan subpass exists.
+TEST_CASE(
+    "Vulkan warmup pipeline states and resolve subpasses",
+    "[gpu][vulkan_warmup]")
+{
+  using namespace gpu;
+  PlatformFeatures features;
+  features.msaaColorPreserveNeedsDraw = true;
+  features.supportsPipelineDynamicState = true;
+  for (auto mode :
+       {InterlockMode::rasterOrdering,
+        InterlockMode::atomics,
+        InterlockMode::depthStencil})
+  {
+    for (auto load :
+         {LoadAction::clear,
+          LoadAction::preserveRenderTarget,
+          LoadAction::dontCare})
+    {
+      for (VkImageUsageFlags usage :
+           {VkImageUsageFlags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+            VkImageUsageFlags(
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)})
+      {
+        CAPTURE(mode, load, usage);
+        std::set<bool> resolveSampleCounts;
+        size_t ordinaryDraws = 0;
+        PipelineManagerVulkan::forEachUbershaderPermutation(
+            mode,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            usage,
+            load,
+            DrawPipelineVulkan::Options::none,
+            features,
+            [&](const DrawPipelineVulkan::PipelineProps& props) {
+              CAPTURE(
+                  props.drawType,
+                  props.drawContents,
+                  props.shaderMiscFlags,
+                  props.renderPassOptions);
+              // Exercise the same state construction as DrawPipelineVulkan,
+              // including its invariants, without needing a Vulkan device.
+              const auto state = get_pipeline_state(
+                  props.drawType,
+                  props.interlockMode,
+                  props.shaderMiscFlags,
+                  props.drawContents,
+                  enums::is_flag_set(
+                      props.renderPassOptions,
+                      RenderPassOptionsVulkan::fixedFunctionColorOutput),
+                  props.blendMode,
+                  features);
+              if (mode == InterlockMode::depthStencil &&
+                  (props.drawType == DrawType::renderPassInitialize ||
+                   props.drawType == DrawType::renderPassResolve))
+              {
+                // These fullscreen copies replace color, including alpha.
+                // Blending would incorrectly combine it with the destination.
+                CHECK(enums::is_flag_set(
+                    props.drawContents,
+                    DrawContents::opaquePaint));
+                CHECK(state.blendEquation == BlendEquation::none);
+              }
+              if (props.drawType == DrawType::renderPassResolve)
+              {
+                // RenderPassVulkan appends a resolve subpass only for these
+                // cases. Fixed-function MSAA resolve uses the main subpass.
+                CHECK(
+                    (mode == InterlockMode::atomics ||
+                     enums::is_flag_set(
+                         props.renderPassOptions,
+                         RenderPassOptionsVulkan::manuallyResolved)));
+                resolveSampleCounts.insert(enums::is_flag_set(
+                    props.renderPassOptions,
+                    RenderPassOptionsVulkan::msaa));
+              }
+              else if (props.drawType != DrawType::renderPassInitialize)
+              {
+                ++ordinaryDraws;
+              }
+              return true;
+            });
+        CHECK(ordinaryDraws > 0);
+        // Prevent a blanket resolve skip from satisfying the negative check.
+        CHECK(resolveSampleCounts.count(false) == 1);
+        CHECK(
+            resolveSampleCounts.count(true) ==
+            (mode == InterlockMode::depthStencil ? 1 : 0));
+      }
+    }
+  }
+}
+
+TEST_CASE("Vulkan warmup color seed subpasses", "[gpu][vulkan_warmup]")
+{
+  using namespace gpu;
+  PlatformFeatures features;
+  features.msaaColorPreserveNeedsDraw = true;
+  features.supportsPipelineDynamicState = true;
+  for (auto load :
+       {LoadAction::clear,
+        LoadAction::preserveRenderTarget,
+        LoadAction::dontCare})
+  {
+    CAPTURE(load);
+    std::set<bool> seedSources;
+    PipelineManagerVulkan::forEachUbershaderPermutation(
+        InterlockMode::depthStencil,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+        load,
+        DrawPipelineVulkan::Options::none,
+        features,
+        [&](const DrawPipelineVulkan::PipelineProps& props) {
+          if (props.drawType == DrawType::renderPassInitialize)
+          {
+            CHECK(load == LoadAction::preserveRenderTarget);
+            CHECK(enums::is_flag_set(
+                props.renderPassOptions,
+                RenderPassOptionsVulkan::msaa));
+            seedSources.insert(enums::is_flag_set(
+                props.renderPassOptions,
+                RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture));
+          }
+          return true;
+        });
+    if (load == LoadAction::preserveRenderTarget)
+    {
+      // Both the destination image and an offscreen image can seed MSAA.
+      CHECK(seedSources == std::set<bool>{false, true});
+    }
+    else
+    {
+      CHECK(seedSources.empty());
+    }
+  }
+}
+#endif
 
 // ShaderUniqueKey() packs shaderMiscFlags densely, using only the bits that are
 // relevant to the interlockMode. Draw types that share a drawTypeKey therefore

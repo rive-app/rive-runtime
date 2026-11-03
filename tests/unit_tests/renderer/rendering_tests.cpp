@@ -6,7 +6,13 @@
 #include "rive/renderer.hpp"
 #include "rive/factory.hpp"
 
+#ifdef RIVE_VULKAN
+#include "rive/renderer/render_context.hpp"
+#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#endif
+
 #include <catch.hpp>
+#include <set>
 
 using namespace rive;
 using namespace rive::gpu;
@@ -103,6 +109,48 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
 #endif
 };
+
+#if defined(RIVE_VULKAN) && !defined(RIVE_NO_VK_BOOTSTRAP)
+// Exercise background warmup on a real Vulkan device using its default
+// rendering mode and depthStencil mode.
+// "Vulkan warmup shader stages" separately tests all compiled-in modes
+// with a fake driver, without validating real GPU pipeline creation.
+TEST_CASE("Vulkan background pipeline warmup", "[rendering][vulkan_warmup]")
+{
+  auto window = testingWindowFactories[0].function();
+  REQUIRE(window != nullptr);
+  auto* context = window->renderContext();
+  REQUIRE(context != nullptr);
+  auto* impl = context->static_impl_cast<RenderContextVulkanImpl>();
+  const auto defaultMode = context->selectInterlockMode({});
+  const std::set<InterlockMode> modes{
+      defaultMode,
+      InterlockMode::depthStencil,
+  };
+  for (auto mode : modes)
+  {
+    for (auto load : {LoadAction::clear, LoadAction::preserveRenderTarget})
+    {
+      for (VkImageUsageFlags usage :
+           {VkImageUsageFlags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+            VkImageUsageFlags(
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)})
+      {
+        CAPTURE(mode, load, usage);
+        impl->startAsyncPipelineCreation(
+            mode,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            usage,
+            load);
+        // Drain the compile queue so failures occur within this test, before
+        // the render context and its device are destroyed.
+        impl->waitForAsyncPipelineCreation();
+      }
+    }
+  }
+}
+#endif
 
 // Ensure that rendering still succeeds when compilations fail (e.g., by falling
 // back on an uber shader or at least not crashing). Valid compilations may fail

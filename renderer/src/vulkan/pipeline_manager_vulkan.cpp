@@ -474,6 +474,17 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
       [&](DrawType drawType,
           ShaderFeatures shaderFeatures,
           ShaderMiscFlags shaderMiscFlags) {
+        if (interlockMode == InterlockMode::depthStencil &&
+            drawType == DrawType::renderPassResolve &&
+            enums::is_flag_set(
+                shaderMiscFlags,
+                ShaderMiscFlags::fixedFunctionColorOutput))
+        {
+          // Manual resolve reads the framebuffer. Its shader cannot use the
+          // write-only color path, even when the render pass omits that flag.
+          return true;
+        }
+
         PipelineProps props{
             .drawType = drawType,
             .shaderFeatures = shaderFeatures,
@@ -579,6 +590,17 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
             continue;
           }
 
+          if (interlockMode == InterlockMode::depthStencil &&
+              (drawType == DrawType::renderPassInitialize ||
+               drawType == DrawType::renderPassResolve) &&
+              !enums::is_flag_set(drawContents, DrawContents::opaquePaint))
+          {
+            // LogicalFlush marks color seed and manual resolve draws opaque
+            // to disable blending. They copy color, including alpha, rather
+            // than composite it with the destination.
+            continue;
+          }
+
           props.drawContents = drawContents;
           for (auto variableRenderPassOptions :
                math::iterate_bit_combinations_in_mask(validPassOptions))
@@ -595,6 +617,31 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
             {
               // manuallyResolved and these other flags are mutually
               // exclusive
+              continue;
+            }
+
+            // Only atomic and manually resolved render passes have a resolve
+            // subpass. Skip resolve draws for other passes because they have no
+            // matching subpass.
+            if (drawType == DrawType::renderPassResolve &&
+                interlockMode != InterlockMode::atomics &&
+                !enums::is_flag_set(
+                    props.renderPassOptions,
+                    RenderPassOptionsVulkan::manuallyResolved))
+            {
+              continue;
+            }
+
+            // In depthStencil mode, only MSAA passes that preserve the render
+            // target have a color-seeding subpass. Skip initialization draws
+            // for other passes because they have no matching subpass.
+            if (drawType == DrawType::renderPassInitialize &&
+                interlockMode == InterlockMode::depthStencil &&
+                (!enums::is_flag_set(
+                     props.renderPassOptions,
+                     RenderPassOptionsVulkan::msaa) ||
+                 colorLoadAction != LoadAction::preserveRenderTarget))
+            {
               continue;
             }
 

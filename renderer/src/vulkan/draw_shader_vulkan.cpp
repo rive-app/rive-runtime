@@ -29,12 +29,16 @@ DrawShaderVulkan::DrawShaderVulkan(
   // fixedFunctionColorOutput does no dstRead, by definition.
   assert(!msaaDstRead || !fixedFunctionColorOutput);
 
+  // Exclude clipReset from the color-output assertion because its shader
+  // only updates stencil and requires neither fixed-function color output
+  // nor advanced blending.
   if (type == Type::fragment && interlockMode == InterlockMode::depthStencil &&
       drawType != DrawType::renderPassInitialize &&
-      drawType != DrawType::renderPassResolve)
+      drawType != DrawType::renderPassResolve &&
+      drawType != DrawType::clipReset)
   {
     // Fixed function color output and advanced blend are mutually exclusive
-    // and one of them should always be set in depthStencil mode.
+    // and one must be set for ordinary depthStencil color draws.
     assert(
         fixedFunctionColorOutput !=
         bool(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND));

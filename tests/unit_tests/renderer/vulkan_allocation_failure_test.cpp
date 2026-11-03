@@ -11,6 +11,8 @@
 #ifdef RIVE_VULKAN
 
 #include "rive/renderer/vulkan/vulkan_context.hpp"
+#include "vulkan/draw_shader_vulkan.hpp"
+#include "vulkan/pipeline_manager_vulkan.hpp"
 
 #include <catch.hpp>
 #include <string.h>
@@ -24,6 +26,7 @@ struct
 {
   VkResult createRenderPass = VK_SUCCESS;
   VkResult createSampler = VK_SUCCESS;
+  VkResult createShaderModule = VK_SUCCESS;
   VkResult createBuffer = VK_SUCCESS;
   VkResult mapMemory = VK_SUCCESS;
 } g_failures;
@@ -71,6 +74,11 @@ DEFINE_FAKE_CREATE(
     createRenderPass)
 DEFINE_FAKE_CREATE(CreateSampler, VkSamplerCreateInfo, VkSampler, createSampler)
 DEFINE_FAKE_CREATE(CreateBuffer, VkBufferCreateInfo, VkBuffer, createBuffer)
+DEFINE_FAKE_CREATE(
+    CreateShaderModule,
+    VkShaderModuleCreateInfo,
+    VkShaderModule,
+    createShaderModule)
 #undef DEFINE_FAKE_CREATE
 
 VKAPI_ATTR void VKAPI_CALL fake_vkGetPhysicalDeviceProperties(
@@ -229,6 +237,8 @@ PFN_vkVoidFunction resolve(const char* name)
 
   ENTRY("vkCreateRenderPass", fake_vkCreateRenderPass)
   ENTRY("vkCreateSampler", fake_vkCreateSampler)
+  ENTRY("vkCreateShaderModule", fake_vkCreateShaderModule)
+  ENTRY("vkDestroyShaderModule", fakeIgnore)
   ENTRY("vkCreateBuffer", fake_vkCreateBuffer)
   ENTRY("vkCreateImage", fake_vkCreateImage)
   ENTRY("vkGetPhysicalDeviceProperties", fake_vkGetPhysicalDeviceProperties)
@@ -356,6 +366,122 @@ bool initRenderPass(VulkanContext* vk, VkRenderPass* renderPass)
   return true;
 }
 } // namespace
+
+// Use the stand-in driver to exercise the real shader constructor without a
+// GPU. clipReset only updates stencil, so warmup can omit both color modes.
+TEST_CASE("Vulkan colorless clip reset shaders", "[vulkan][vulkan_warmup]")
+{
+  FakeDriverReset resetDriver;
+  FakeContext vk;
+  for (auto flags :
+       {ShaderMiscFlags::none,
+        ShaderMiscFlags::msaaDstRead,
+        ShaderMiscFlags::fixedFunctionColorOutput})
+  {
+    for (auto type :
+         {DrawShaderVulkan::Type::vertex, DrawShaderVulkan::Type::fragment})
+    {
+      CAPTURE(flags, type);
+      DrawShaderVulkan shader(
+          type,
+          vk,
+          DrawType::clipReset,
+          ShaderFeatures::ENABLE_DITHER,
+          InterlockMode::depthStencil,
+          flags);
+      CHECK(shader.module() == liveHandle<VkShaderModule>());
+    }
+  }
+}
+
+// Run real shader selection and pipeline-state construction against the fake
+// driver. A live-device warmup aborts at its first assertion, hiding later
+// invalid permutations, and cannot cover modes unavailable on that device.
+TEST_CASE("Vulkan warmup shader stages", "[vulkan][vulkan_warmup]")
+{
+  FakeDriverReset resetDriver;
+  FakeContext vk;
+  for (bool clipPlanes : {false, true})
+  {
+    for (bool dynamicState : {false, true})
+    {
+      PlatformFeatures features;
+      features.msaaColorPreserveNeedsDraw = true;
+      features.clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit = true;
+      features.supportsClipPlanes = clipPlanes;
+      features.supportsPipelineDynamicState = dynamicState;
+      for (auto mode :
+           {InterlockMode::rasterOrdering,
+#ifndef RIVE_ANDROID
+            InterlockMode::clockwise,
+#endif
+#ifdef WITH_VULKAN_ATOMICS
+            InterlockMode::atomics,
+            InterlockMode::clockwiseAtomic,
+#endif
+            InterlockMode::depthStencil})
+      {
+        for (auto load :
+             {LoadAction::clear,
+              LoadAction::preserveRenderTarget,
+              LoadAction::dontCare})
+        {
+          for (VkImageUsageFlags usage :
+               {VkImageUsageFlags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT),
+                VkImageUsageFlags(
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                    VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)})
+          {
+            CAPTURE(clipPlanes, dynamicState, mode, load, usage);
+            size_t permutationCount = 0;
+            PipelineManagerVulkan::forEachUbershaderPermutation(
+                mode,
+                VK_FORMAT_R8G8B8A8_UNORM,
+                usage,
+                load,
+                DrawPipelineVulkan::Options::none,
+                features,
+                [&](const DrawPipelineVulkan::PipelineProps& props) {
+                  CAPTURE(
+                      props.drawType,
+                      props.drawContents,
+                      props.shaderFeatures,
+                      props.shaderMiscFlags,
+                      props.renderPassOptions);
+                  (void)get_pipeline_state(
+                      props.drawType,
+                      props.interlockMode,
+                      props.shaderMiscFlags,
+                      props.drawContents,
+                      enums::is_flag_set(
+                          props.renderPassOptions,
+                          RenderPassOptionsVulkan::fixedFunctionColorOutput),
+                      props.blendMode,
+                      features);
+                  for (auto type :
+                       {DrawShaderVulkan::Type::vertex,
+                        DrawShaderVulkan::Type::fragment})
+                  {
+                    CAPTURE(type);
+                    DrawShaderVulkan shader(
+                        type,
+                        vk,
+                        props.drawType,
+                        props.shaderFeatures,
+                        props.interlockMode,
+                        props.shaderMiscFlags);
+                    CHECK(shader.module() == liveHandle<VkShaderModule>());
+                  }
+                  ++permutationCount;
+                  return true;
+                });
+            CHECK(permutationCount > 0);
+          }
+        }
+      }
+    }
+  }
+}
 
 TEST_CASE(
     "VK_CREATE_HANDLE publishes the driver's handle on success",

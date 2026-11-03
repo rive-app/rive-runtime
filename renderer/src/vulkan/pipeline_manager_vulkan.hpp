@@ -74,13 +74,15 @@ public:
     return PLSBackingType::inputAttachment;
   }
 
-  void forEachUbershaderPermutation(
-      InterlockMode,
+  // Enumerate the ubershader pipeline permutations for the given render
+  // properties and call func for each one. Stop if func returns false.
+  static void forEachUbershaderPermutation(
+      InterlockMode interlockMode,
       VkFormat renderTargetFormat,
       VkImageUsageFlags renderTargetUsage,
-      LoadAction,
+      LoadAction colorLoadAction,
       DrawPipelineVulkan::Options drawPipelineOptions,
-      const PlatformFeatures&,
+      const PlatformFeatures& platformFeatures,
       const std::function<bool(const PipelineProps&)>& func);
 
 #if !defined(NDEBUG)
