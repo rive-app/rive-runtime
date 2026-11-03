@@ -406,6 +406,36 @@ TEST_CASE(
   CHECK(c.of(RenderCmd::drawImageMesh) == 1);
 }
 
+TEST_CASE(
+    "a Bitmap Cache that is off leaves the mesh raster at 1x",
+    "[artboard-mesh]")
+{
+  MeshScene scene;
+  mountCachedSource(scene, 2.0f, false);
+  CHECK(scene.nested->meshHost()->meshRasterResolution() == 1.0f);
+
+  scene.frame();
+  REQUIRE(scene.session.rasters.size() == 1);
+  CHECK(scene.session.rasters[0].width == 200);
+  CHECK(scene.session.rasters[0].height == 100);
+}
+
+TEST_CASE(
+    "switching the cache back on resizes the mesh raster",
+    "[artboard-mesh]")
+{
+  MeshScene scene;
+  BitmapCache* cache = mountCachedSource(scene, 2.0f, false);
+  scene.frame();
+  REQUIRE(scene.session.rasters.size() == 1);
+
+  cache->cacheEnabled(true);
+  scene.frame();
+  REQUIRE(scene.session.rasters.size() == 2);
+  CHECK(scene.session.rasters[1].width == 400);
+  CHECK(scene.session.rasters[1].height == 200);
+}
+
 TEST_CASE("a static meshed instance reuses its raster", "[artboard-mesh]")
 {
   MeshScene scene;

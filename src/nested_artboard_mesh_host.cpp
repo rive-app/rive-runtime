@@ -93,11 +93,10 @@ Mat2D NestedArtboardMeshHost::meshHostWorldTransform() const
 
 float NestedArtboardMeshHost::meshRasterResolution() const
 {
-  if (instance() != nullptr && instance()->bitmapCache() != nullptr)
-  {
-    return instance()->bitmapCache()->resolution();
-  }
-  return 1.0f;
+  // A cache that's off has no say, the same as having none.
+  const BitmapCache* cache = instance() != nullptr ? instance()->bitmapCache()
+                                                   : nullptr;
+  return cache != nullptr && cache->cacheEnabled() ? cache->resolution() : 1.0f;
 }
 
 Mat2D NestedArtboardMeshHost::meshHostUVTransform() const
@@ -186,7 +185,7 @@ bool NestedArtboardMeshHost::draw(Renderer* renderer)
     return true;
   }
 
-  // Ignores Bitmap Cache Enabled: a deformed instance needs a bitmap.
+  // Rasterizes with Bitmap Cache off too: a deformed instance needs a bitmap.
   offscreen::RasterPlan plan;
   cmd::DeferredCanvasHost* host = nullptr;
   rcp<RenderImage> image = instance->rasterImage(
