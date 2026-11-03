@@ -75,7 +75,8 @@ returns their leak warnings for `console.warn`.
 - `rive_threads_pre.js`, hand written. Every build with threads links it. On
   a page that cannot share memory such a build would wait forever for
   threads that never start, so this fails its load at once and says why,
-  and the host loads its build without threads instead.
+  and the host loads its build without threads instead. It also fails the
+  load in Safari 26.2 to 26.3.1, whose threads lose each other's heap growth.
 
 Regenerate with `python3 src/wasm/idl/generate.py`. Never edit the generated
 files. `generate.py --check` fails when they are stale, and that includes a
