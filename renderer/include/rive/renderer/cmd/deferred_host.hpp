@@ -73,6 +73,7 @@ public:
     uint32_t msaaSampleCount = 0;
     bool disableRasterOrdering = false;
     bool clockwiseFillOverride = false;
+    bool inkbleedOverride = false;
   };
 
   rive::Renderer* beginCanvasContent(

@@ -103,6 +103,7 @@ rive::Renderer* HostFrameSink::beginCanvasContent(
   d.msaaSampleCount = mode.msaaSampleCount;
   d.disableRasterOrdering = mode.disableRasterOrdering;
   d.clockwiseFillOverride = mode.clockwiseFillOverride;
+  d.inkbleedOverride = mode.inkbleedOverride;
   rc->beginFrame(d);
   m_canvasRenderer = std::make_unique<rive::RiveRenderer>(rc);
   return m_canvasRenderer.get();
