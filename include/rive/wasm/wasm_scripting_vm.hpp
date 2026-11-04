@@ -929,7 +929,7 @@ private:
     SignalWait wait;
     // The watched lane's handle, 0 for a signal wait.
     uint32_t lane;
-    rcp<WasmAudioDecode> decode = nullptr;
+    rcp<WasmAudioDecode> decode;
     // The handle of a stream that is not ready yet, released on a cancel.
     uint32_t stream = 0;
   };
