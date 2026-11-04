@@ -26,10 +26,14 @@ void GLState::invalidate()
   // Low-effort attempt to reset core state we don't use to default values.
   glDisable(GL_POLYGON_OFFSET_FILL);
 #ifndef RIVE_WEBGL
+  // Rive does not use primitive restart, but enables it anyway for triangle
+  // strips and lists (where supported) for two reasons:
+  //  1) Consistency. Metal and WebGL always enable it for strips and lists, and
+  //     WebGPU for strips, so match their behavior.
+  //  2) Performance on Adreno. Enabling it for lists bizarrely makes Adreno
+  //     inkbleed over 2x faster.
   // https://www.khronos.org/registry/webgl/specs/latest/2.0/#5.18
-  // WebGL 2.0 behaves as though PRIMITIVE_RESTART_FIXED_INDEX were always
-  // enabled.
-  glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+  glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
 #endif
   glDisable(GL_RASTERIZER_DISCARD);
   glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);

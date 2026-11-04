@@ -591,7 +591,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     case DrawType::outerCurvePatches:
       pipelineCreateInfo.pVertexInputState = &layout::PATH_VERTEX_INPUT_STATE;
       pipelineCreateInfo
-          .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+          .pInputAssemblyState = layout::inputAssemblyTriangleList(
+          m_vk->features.primitiveTopologyListRestart);
       break;
 
     case DrawType::stencilOuterCubicBorrowedCoverage:
@@ -613,7 +614,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
       // everything from the vertex index.
       pipelineCreateInfo.pVertexInputState = &layout::EMPTY_VERTEX_INPUT_STATE;
       pipelineCreateInfo
-          .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+          .pInputAssemblyState = layout::inputAssemblyTriangleList(
+          m_vk->features.primitiveTopologyListRestart);
       break;
 
     case DrawType::clipReset:
@@ -622,21 +624,24 @@ DrawPipelineVulkan::DrawPipelineVulkan(
       pipelineCreateInfo
           .pVertexInputState = &layout::INTERIOR_TRI_VERTEX_INPUT_STATE;
       pipelineCreateInfo
-          .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+          .pInputAssemblyState = layout::inputAssemblyTriangleList(
+          m_vk->features.primitiveTopologyListRestart);
       break;
 
     case DrawType::imageRect:
       pipelineCreateInfo
           .pVertexInputState = &layout::IMAGE_RECT_VERTEX_INPUT_STATE;
       pipelineCreateInfo
-          .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+          .pInputAssemblyState = layout::inputAssemblyTriangleList(
+          m_vk->features.primitiveTopologyListRestart);
       break;
 
     case DrawType::imageMesh:
       pipelineCreateInfo
           .pVertexInputState = &layout::IMAGE_MESH_VERTEX_INPUT_STATE;
       pipelineCreateInfo
-          .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+          .pInputAssemblyState = layout::inputAssemblyTriangleList(
+          m_vk->features.primitiveTopologyListRestart);
       break;
 
     case DrawType::renderPassResolve:

@@ -236,6 +236,8 @@ VulkanDevice::VulkanDevice(
       interlockFeatures;
   std::optional<VkPhysicalDeviceColorWriteEnableFeaturesEXT>
       colorWriteEnableFeatures;
+  std::optional<VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT>
+      listRestartFeatures;
 
   if (!opts.coreFeaturesOnly)
   {
@@ -248,6 +250,10 @@ VulkanDevice::VulkanDevice(
         supportedExtensions,
         addedExtensions);
     colorWriteEnableFeatures = tryEnableColorWriteEnableFeatures(
+        instance,
+        supportedExtensions,
+        addedExtensions);
+    listRestartFeatures = tryEnableListRestartFeatures(
         instance,
         supportedExtensions,
         addedExtensions);
@@ -318,6 +324,12 @@ VulkanDevice::VulkanDevice(
     colorWriteEnableFeatures.value().pNext = const_cast<void*>(
         deviceCreateInfo.pNext);
     deviceCreateInfo.pNext = &colorWriteEnableFeatures.value();
+  }
+  if (listRestartFeatures.has_value())
+  {
+    listRestartFeatures.value().pNext = const_cast<void*>(
+        deviceCreateInfo.pNext);
+    deviceCreateInfo.pNext = &listRestartFeatures.value();
   }
 
   DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateDevice, instance);
@@ -406,6 +418,8 @@ VulkanDevice::VulkanDevice(
       printf("%sfragmentShaderPixelInterlock", *commaSeparator);
     if (m_riveVulkanFeatures.colorWriteEnable)
       printf("%scolorWriteEnable", *commaSeparator);
+    if (m_riveVulkanFeatures.primitiveTopologyListRestart)
+      printf("%sprimitiveTopologyListRestart", *commaSeparator);
     if (m_riveVulkanFeatures.VK_KHR_portability_subset)
       printf("%sVK_KHR_portability_subset", *commaSeparator);
     printf(" ] ====\n");
@@ -801,6 +815,43 @@ std::optional<VkPhysicalDeviceColorWriteEnableFeaturesEXT> VulkanDevice::
       // feature set we want, it's supported!
       m_riveVulkanFeatures.colorWriteEnable = true;
       return requestedColorWriteEnableFeatures;
+    }
+  }
+
+  return std::nullopt;
+}
+
+std::optional<VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT>
+VulkanDevice::tryEnableListRestartFeatures(
+    VulkanInstance& instance,
+    const std::vector<VkExtensionProperties>& supportedExtensions,
+    std::vector<const char*>& extensions)
+{
+  if (addExtensionIfSupported(
+          VK_EXT_PRIMITIVE_TOPOLOGY_LIST_RESTART_EXTENSION_NAME,
+          supportedExtensions,
+          extensions))
+  {
+    constexpr static VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT
+        requestedListRestartFeatures = {
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_TOPOLOGY_LIST_RESTART_FEATURES_EXT,
+            .primitiveTopologyListRestart = VK_TRUE,
+        };
+
+    auto testedListRestartFeatures = requestedListRestartFeatures;
+
+    // Test to see if this is supported
+    VkPhysicalDeviceFeatures2 features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &testedListRestartFeatures,
+    };
+
+    if (instance.tryGetPhysicalDeviceFeatures2(m_physicalDevice, &features) &&
+        testedListRestartFeatures.primitiveTopologyListRestart)
+    {
+      m_riveVulkanFeatures.primitiveTopologyListRestart = true;
+      return requestedListRestartFeatures;
     }
   }
 

@@ -918,8 +918,10 @@ static void generateDepthStencilFillIndices(
   {
     const uint32_t patchBaseVertex = patch << patchStrideLog2;
     const auto emitPatchVertex = [&](uint32_t patchVertexID) {
-      indices[indexCount++] = math::lossless_numeric_cast<uint16_t>(
+      auto idx = math::lossless_numeric_cast<uint16_t>(
           patchBaseVertex + patchVertexID);
+      assert(idx != 0xffff); // 0xffff is reserved for primitive restart.
+      indices[indexCount++] = idx;
     };
     // Middle-out fan topology, matching the fan half of
     // generate_buffer_data_for_patch_type().
@@ -985,6 +987,7 @@ static void generateDepthStencilStrokeIndices(
         const uint32_t v3 = v1 + 1;
         for (uint32_t v : {v0, v1, v2, v2, v1, v3})
         {
+          assert(v != 0xffff); // 0xffff is reserved for primitive restart.
           indices[indexCount++] = math::lossless_numeric_cast<uint16_t>(v);
         }
       }
@@ -999,6 +1002,8 @@ void GeneratePatchBufferData(
     PatchVertex vertices[kPatchVertexBufferCount],
     uint16_t indices[kPatchIndexBufferCount])
 {
+  // 0xffff is reserved for primitive restart.
+  static_assert(kPatchVertexBufferCount < 0xffff);
   generate_buffer_data_for_patch_type(
       PatchType::midpointFan,
       vertices,

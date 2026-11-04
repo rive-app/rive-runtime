@@ -926,7 +926,8 @@ private:
         .stageCount = 2,
         .pStages = stages,
         .pVertexInputState = &pipelineVertexInputStateCreateInfo,
-        .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST,
+        .pInputAssemblyState = layout::inputAssemblyTriangleList(
+            m_vk->features.primitiveTopologyListRestart),
         .pViewportState = &layout::SINGLE_VIEWPORT,
         .pRasterizationState = &layout::RASTER_STATE_CULL_BACK_CCW,
         .pMultisampleState = &layout::MSAA_DISABLED,
@@ -1095,7 +1096,8 @@ private:
         .stageCount = std::size(stages),
         .pStages = stages,
         .pVertexInputState = &layout::PATH_VERTEX_INPUT_STATE,
-        .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST,
+        .pInputAssemblyState = layout::inputAssemblyTriangleList(
+            m_vk->features.primitiveTopologyListRestart),
         .pViewportState = &layout::SINGLE_VIEWPORT,
         .pRasterizationState = &layout::RASTER_STATE_CULL_NONE_CW,
         .pMultisampleState = &layout::MSAA_DISABLED,

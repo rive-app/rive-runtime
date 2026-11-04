@@ -237,11 +237,31 @@ constexpr VkPipelineInputAssemblyStateCreateInfo INPUT_ASSEMBLY_TRIANGLE_STRIP =
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
 };
 
-constexpr VkPipelineInputAssemblyStateCreateInfo INPUT_ASSEMBLY_TRIANGLE_LIST =
-    {
+constexpr VkPipelineInputAssemblyStateCreateInfo InputAssemblyTriangleList = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+    .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+};
+
+// Requires VK_EXT_primitive_topology_list_restart.
+constexpr VkPipelineInputAssemblyStateCreateInfo
+    InputAssemblyTriangleListRestart = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_TRUE,
 };
+
+// Rive does not use primitive restart, but enables it anyway for triangle
+// strips and lists (where supported) for two reasons:
+//  1) Consistency. Metal and WebGL always enable it for strips and lists, and
+//     WebGPU for strips, so match their behavior.
+//  2) Performance on Adreno. Enabling it for lists bizarrely makes Adreno
+//     inkbleed over 2x faster.
+constexpr const VkPipelineInputAssemblyStateCreateInfo*
+inputAssemblyTriangleList(bool primitiveTopologyListRestart)
+{
+  return primitiveTopologyListRestart ? &InputAssemblyTriangleListRestart
+                                      : &InputAssemblyTriangleList;
+}
 
 constexpr VkPipelineViewportStateCreateInfo SINGLE_VIEWPORT = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,

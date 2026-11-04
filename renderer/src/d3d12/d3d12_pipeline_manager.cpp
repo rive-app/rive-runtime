@@ -46,6 +46,14 @@ namespace sig
 
 namespace rive::gpu
 {
+// Rive does not use primitive restart, but enables it anyway for triangle
+// strips and lists (where supported) for two reasons:
+//  1) Consistency. Metal and WebGL always enable it for strips and lists, and
+//     WebGPU for strips, so match their behavior.
+//  2) Performance on Adreno. Enabling it for lists bizarrely makes Adreno
+//     inkbleed over 2x faster.
+constexpr D3D12_INDEX_BUFFER_STRIP_CUT_VALUE
+    RivePrimitiveRestartSentinel = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF;
 
 D3D12PipelineManager::D3D12PipelineManager(
     ComPtr<ID3D12Device> device,
@@ -429,6 +437,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
   psoDesc.DepthStencilState = depthStencilDesc;
   psoDesc.SampleMask = UINT_MAX;
   psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.IBStripCutValue = RivePrimitiveRestartSentinel;
   psoDesc.NumRenderTargets = 1;
   psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
   psoDesc.DSVFormat = isDepthStencil ? DXGI_FORMAT_D24_UNORM_S8_UINT
@@ -521,6 +530,7 @@ void D3D12PipelineManager::compileTesselationPipeline()
   psoDesc.DepthStencilState.StencilEnable = FALSE;
   psoDesc.SampleMask = UINT_MAX;
   psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.IBStripCutValue = RivePrimitiveRestartSentinel;
   psoDesc.NumRenderTargets = 1;
   psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_UINT;
   psoDesc.SampleDesc.Count = 1;
@@ -578,6 +588,7 @@ void D3D12PipelineManager::compileGradientPipeline()
   psoDesc.DepthStencilState.StencilEnable = FALSE;
   psoDesc.SampleMask = UINT_MAX;
   psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.IBStripCutValue = RivePrimitiveRestartSentinel;
   psoDesc.NumRenderTargets = 1;
   psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
   psoDesc.SampleDesc.Count = 1;
@@ -644,6 +655,7 @@ void D3D12PipelineManager::compileFeatherAtlasPipeline()
   psoDesc.DepthStencilState.StencilEnable = FALSE;
   psoDesc.SampleMask = UINT_MAX;
   psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.IBStripCutValue = RivePrimitiveRestartSentinel;
   psoDesc.NumRenderTargets = 1;
   psoDesc.RTVFormats[0] = DXGI_FORMAT_R16_FLOAT;
   psoDesc.SampleDesc.Count = 1;

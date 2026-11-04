@@ -35,6 +35,9 @@ struct VulkanFeatures
   // VK_EXT_color_write_enable.
   bool colorWriteEnable = false;
 
+  // VK_EXT_primitive_topology_list_restart.
+  bool primitiveTopologyListRestart = false;
+
   // Indicates a nonconformant driver, like MoltenVK.
   bool VK_KHR_portability_subset = false;
 
