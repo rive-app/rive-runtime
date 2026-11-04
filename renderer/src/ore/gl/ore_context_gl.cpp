@@ -1111,6 +1111,8 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     pass->m_ownsFBO = true;
   }
   glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
+  // The host's flush can leave a scissor enabled.
+  glDisable(GL_SCISSOR_TEST);
 
   // Hashes what decides completeness. A stale match only skips the report.
   uint64_t attachmentKey = 14695981039346656037ull;
