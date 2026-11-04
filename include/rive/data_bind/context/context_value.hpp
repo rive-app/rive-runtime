@@ -4,13 +4,19 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
+#include "rive/data_bind/data_values/data_value_string.hpp"
+#include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/context/context_target_value.hpp"
+#include <algorithm>
+#include <new>
 #include <stdio.h>
+#include <utility>
 namespace rive
 {
 class DataBindContextValue
 {
 protected:
+  // Points into m_dataValueStorage once the source's value is made.
   DataValue* m_dataValue = nullptr;
   DataBindContextTargetValue m_targetValue;
   bool m_isValid = false;
@@ -25,9 +31,12 @@ public:
   {
     if (m_dataValue != nullptr)
     {
-      delete m_dataValue;
+      m_dataValue->~DataValue();
     }
   };
+  // m_dataValue points into this object's own storage.
+  DataBindContextValue(const DataBindContextValue&) = delete;
+  DataBindContextValue& operator=(const DataBindContextValue&) = delete;
   virtual void applyToSource(
       Core* component,
       uint32_t propertyKey,
@@ -122,6 +131,30 @@ public:
       }
     }
   };
+
+private:
+  // The source's value, held here rather than in an allocation of its own:
+  // a context value holds exactly one, for as long as it lives. A string
+  // and a list are the largest a source makes (see the constructor), and
+  // their sizes depend on the standard library, so they size the storage.
+  static constexpr size_t kDataValueStorageSize = std::max(
+      sizeof(DataValueString),
+      sizeof(DataValueList));
+  static constexpr size_t kDataValueStorageAlign = std::max(
+      alignof(DataValueString),
+      alignof(DataValueList));
+  alignas(kDataValueStorageAlign) unsigned char m_dataValueStorage
+      [kDataValueStorageSize];
+
+protected:
+  template <typename T, typename... Args> T* makeDataValue(Args&&... args)
+  {
+    static_assert(
+        sizeof(T) <= kDataValueStorageSize &&
+            alignof(T) <= kDataValueStorageAlign,
+        "a data value outgrew DataBindContextValue's storage");
+    return new (m_dataValueStorage) T(std::forward<Args>(args)...);
+  }
 };
 } // namespace rive
 

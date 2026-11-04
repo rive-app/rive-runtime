@@ -59,7 +59,10 @@ public:
 class TestOperationViewModel : public DataConverterOperationViewModel
 {
 public:
-  void sourcePath(std::vector<uint32_t> path) { m_SourcePathIdsBuffer = path; }
+  void sourcePath(std::vector<uint32_t> path)
+  {
+    *m_sourcePathIds.ensureAllocated() = path;
+  }
 };
 
 bool isDependent(ViewModelInstanceValue* value, ViewModelValueDependent* d)

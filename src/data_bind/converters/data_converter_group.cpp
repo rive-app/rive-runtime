@@ -52,6 +52,7 @@ DataValue* DataConverterGroup::reverseConvert(
 Core* DataConverterGroup::clone() const
 {
   auto cloned = DataConverterGroupBase::clone()->as<DataConverterGroup>();
+  cloned->m_items.reserve(m_items.size());
   for (auto& item : m_items)
   {
     if (item->converter() == nullptr)

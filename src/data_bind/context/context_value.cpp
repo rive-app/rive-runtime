@@ -36,19 +36,19 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind)
     switch (source->coreType())
     {
       case ViewModelInstanceNumberBase::typeKey:
-        m_dataValue = new DataValueNumber(
+        m_dataValue = makeDataValue<DataValueNumber>(
             source->as<ViewModelInstanceNumber>()->propertyValue());
         break;
       case ViewModelInstanceStringBase::typeKey:
-        m_dataValue = new DataValueString(
+        m_dataValue = makeDataValue<DataValueString>(
             source->as<ViewModelInstanceString>()->propertyValue());
         break;
       case ViewModelInstanceColorBase::typeKey:
-        m_dataValue = new DataValueColor(
+        m_dataValue = makeDataValue<DataValueColor>(
             source->as<ViewModelInstanceColor>()->propertyValue());
         break;
       case ViewModelInstanceBooleanBase::typeKey:
-        m_dataValue = new DataValueBoolean(
+        m_dataValue = makeDataValue<DataValueBoolean>(
             source->as<ViewModelInstanceBoolean>()->propertyValue());
         break;
       case ViewModelInstanceEnumBase::typeKey:
@@ -61,43 +61,43 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind)
                                          ? viewModelProperty
                                                ->as<ViewModelPropertyEnum>()
                                          : nullptr;
-        m_dataValue = new DataValueEnum(
+        m_dataValue = makeDataValue<DataValueEnum>(
             viewmodelInstanceEnum->propertyValue(),
             viewModelPropertyEnum != nullptr ? viewModelPropertyEnum->dataEnum()
                                              : nullptr);
       }
       break;
       case ViewModelInstanceTriggerBase::typeKey:
-        m_dataValue = new DataValueTrigger(
+        m_dataValue = makeDataValue<DataValueTrigger>(
             source->as<ViewModelInstanceTrigger>()->propertyValue());
         break;
       case ViewModelInstanceListBase::typeKey:
-        m_dataValue = new DataValueList();
+        m_dataValue = makeDataValue<DataValueList>();
         break;
       case ViewModelInstanceSymbolListIndexBase::typeKey:
-        m_dataValue = new DataValueSymbolListIndex();
+        m_dataValue = makeDataValue<DataValueSymbolListIndex>();
         break;
       case ViewModelInstanceAssetImageBase::typeKey:
-        m_dataValue = new DataValueAssetImage(
+        m_dataValue = makeDataValue<DataValueAssetImage>(
             source->as<ViewModelInstanceAssetImage>()->propertyValue());
         break;
       case ViewModelInstanceAssetFontBase::typeKey:
-        m_dataValue = new DataValueAssetFont(
+        m_dataValue = makeDataValue<DataValueAssetFont>(
             source->as<ViewModelInstanceAssetFont>()->propertyValue());
         break;
       case ViewModelInstanceAssetBlobBase::typeKey:
-        m_dataValue = new DataValueAssetBlob(
+        m_dataValue = makeDataValue<DataValueAssetBlob>(
             source->as<ViewModelInstanceAssetBlob>()->propertyValue());
         break;
       case ViewModelInstanceArtboardBase::typeKey:
-        m_dataValue = new DataValueArtboard(
+        m_dataValue = makeDataValue<DataValueArtboard>(
             source->as<ViewModelInstanceArtboard>()->propertyValue());
         break;
       case ViewModelInstanceViewModelBase::typeKey:
-        m_dataValue = new DataValueViewModel();
+        m_dataValue = makeDataValue<DataValueViewModel>();
         break;
       default:
-        m_dataValue = new DataValue();
+        m_dataValue = makeDataValue<DataValue>();
     }
   }
 }

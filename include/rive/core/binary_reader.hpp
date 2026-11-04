@@ -57,6 +57,18 @@ public:
     return static_cast<T>(value);
   }
   void reset();
+
+  // How many LEB128 varuints [bytes] holds: each ends at a byte without its
+  // high bit set.
+  static size_t countVarUints(Span<const uint8_t> bytes)
+  {
+    size_t count = 0;
+    for (uint8_t byte : bytes)
+    {
+      count += (byte & 0x80) == 0 ? 1 : 0;
+    }
+    return count;
+  }
 };
 } // namespace rive
 

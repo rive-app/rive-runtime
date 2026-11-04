@@ -32,19 +32,25 @@ DataValue* DataConverterOperationViewModel::reverseConvert(
 void DataConverterOperationViewModel::decodeSourcePathIds(
     Span<const uint8_t> value)
 {
+  if (value.size() == 0)
+  {
+    return;
+  }
   BinaryReader reader(value);
+  auto ids = m_sourcePathIds.ensureAllocated();
+  ids->reserve(BinaryReader::countVarUints(value));
   while (!reader.reachedEnd())
   {
     auto val = reader.readVarUintAs<uint32_t>();
-    m_SourcePathIdsBuffer.push_back(val);
+    ids->push_back(val);
   }
 }
 
 void DataConverterOperationViewModel::copySourcePathIds(
     const DataConverterOperationViewModelBase& object)
 {
-  m_SourcePathIdsBuffer = object.as<DataConverterOperationViewModel>()
-                              ->m_SourcePathIdsBuffer;
+  m_sourcePathIds = object.as<DataConverterOperationViewModel>()
+                        ->m_sourcePathIds;
 }
 
 DataConverterOperationViewModel::~DataConverterOperationViewModel()
@@ -69,8 +75,7 @@ void DataConverterOperationViewModel::bindFromContext(
   ViewModelInstanceNumber* source = nullptr;
   if (dataContext != nullptr)
   {
-    auto propertyValue = dataContext->getViewModelProperty(
-        m_SourcePathIdsBuffer);
+    auto propertyValue = dataContext->getViewModelProperty(sourcePathIds());
     if (propertyValue != nullptr &&
         propertyValue->is<ViewModelInstanceNumber>())
     {

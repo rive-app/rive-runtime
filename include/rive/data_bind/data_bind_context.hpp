@@ -5,13 +5,17 @@
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/sidecar.hpp"
 #include <stdio.h>
 namespace rive
 {
 class DataBindContext : public DataBindContextBase
 {
 protected:
-  std::vector<uint32_t> m_SourcePathIdsBuffer;
+  // Shared with the bind this one was cloned from: instances of an artboard
+  // bind to the same paths, and only a name based path that resolves
+  // differently needs one of its own.
+  SharedSidecar<std::vector<uint32_t>> m_sourcePathIds;
 #ifdef WITH_RIVE_EDITOR
   std::vector<Id> m_editorSourcePath;
   bool m_hasEditorSourcePath = false;
@@ -27,7 +31,9 @@ public:
 #endif
   const std::vector<uint32_t>& sourcePathIds() const
   {
-    return m_SourcePathIdsBuffer;
+    static const std::vector<uint32_t> empty;
+    auto ids = m_sourcePathIds.get();
+    return ids != nullptr ? *ids : empty;
   }
   // The source path's length. A path the editor hydrated is kept apart and
   // leaves sourcePathIds empty.
@@ -39,7 +45,7 @@ public:
       return m_editorSourcePath.size();
     }
 #endif
-    return m_SourcePathIdsBuffer.size();
+    return sourcePathIds().size();
   }
 
 private:

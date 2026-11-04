@@ -4,6 +4,7 @@
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_value_dependent.hpp"
+#include "rive/sidecar.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -17,7 +18,8 @@ private:
   rcp<ViewModelInstanceNumber> m_source = nullptr;
 
 protected:
-  std::vector<uint32_t> m_SourcePathIdsBuffer;
+  // Shared with the converter this one was cloned from.
+  SharedSidecar<std::vector<uint32_t>> m_sourcePathIds;
 
 public:
   ~DataConverterOperationViewModel();
@@ -26,7 +28,12 @@ public:
   void decodeSourcePathIds(Span<const uint8_t> value) override;
   void copySourcePathIds(
       const DataConverterOperationViewModelBase& object) override;
-  const std::vector<uint32_t>& sourcePathIds() { return m_SourcePathIdsBuffer; }
+  const std::vector<uint32_t>& sourcePathIds() const
+  {
+    static const std::vector<uint32_t> empty;
+    auto ids = m_sourcePathIds.get();
+    return ids != nullptr ? *ids : empty;
+  }
   void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
   void unbind() override;
   void addDirt(ComponentDirt value, bool recurse) override;

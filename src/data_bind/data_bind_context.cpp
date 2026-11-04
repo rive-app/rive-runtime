@@ -19,17 +19,23 @@ using namespace rive;
 
 void DataBindContext::decodeSourcePathIds(Span<const uint8_t> value)
 {
+  if (value.size() == 0)
+  {
+    return;
+  }
   BinaryReader reader(value);
+  auto ids = m_sourcePathIds.ensureAllocated();
+  ids->reserve(BinaryReader::countVarUints(value));
   while (!reader.reachedEnd())
   {
     auto val = reader.readVarUintAs<uint32_t>();
-    m_SourcePathIdsBuffer.push_back(val);
+    ids->push_back(val);
   }
 }
 
 void DataBindContext::copySourcePathIds(const DataBindContextBase& object)
 {
-  m_SourcePathIdsBuffer = object.as<DataBindContext>()->m_SourcePathIdsBuffer;
+  m_sourcePathIds = object.as<DataBindContext>()->m_sourcePathIds;
   m_isPathResolved = object.as<DataBindContext>()->m_isPathResolved;
 #ifdef WITH_RIVE_EDITOR
   m_editorSourcePath = object.as<DataBindContext>()->m_editorSourcePath;
@@ -61,9 +67,10 @@ void DataBindContext::resolvePath()
     return;
   }
   m_isPathResolved = true;
-  if (m_SourcePathIdsBuffer.size() > 0)
+  const std::vector<uint32_t>& ids = sourcePathIds();
+  if (ids.size() > 0)
   {
-    auto pathId = m_SourcePathIdsBuffer[0];
+    auto pathId = ids[0];
     if (m_file)
     {
       auto dataResolver = m_file->dataResolver();
@@ -72,7 +79,7 @@ void DataBindContext::resolvePath()
         auto resolvedPath = dataResolver->resolvePath(pathId);
         if (!resolvedPath.empty())
         {
-          m_SourcePathIdsBuffer = resolvedPath;
+          *m_sourcePathIds.ensureAllocated() = resolvedPath;
         }
       }
     }
@@ -92,9 +99,9 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
 #endif
         isNameBased() && file()
             ? dataContext->getRelativeViewModelProperty(
-                  m_SourcePathIdsBuffer,
+                  sourcePathIds(),
                   file()->dataResolver())
-            : dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
+            : dataContext->getViewModelProperty(sourcePathIds());
     if (m_Source == nullptr || vmSource != m_Source.get())
     {
       if (vmSource != nullptr)
