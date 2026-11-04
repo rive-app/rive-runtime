@@ -1651,6 +1651,13 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                       offset:flushDesc.firstContour * sizeof(gpu::ContourData)
                      atIndex:METAL_BUFFER_IDX(CONTOUR_BUFFER_IDX)];
   }
+  if (flushDesc.virtualPatchCount > 0)
+  {
+    [encoder setVertexBuffer:mtl_buffer(virtualPatchBufferRing())
+                      offset:flushDesc.firstVirtualPatch *
+                             sizeof(gpu::VirtualPatchData)
+                     atIndex:METAL_BUFFER_IDX(VIRTUAL_PATCH_BUFFER_IDX)];
+  }
   if (flushDesc.interlockMode == gpu::InterlockMode::depthStencil &&
       m_metalFeatures.depthStencilRendersColorToBuffer(
           flushDesc.fixedFunctionColorOutput))
