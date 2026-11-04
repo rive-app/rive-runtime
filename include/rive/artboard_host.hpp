@@ -5,6 +5,9 @@
 #include "rive/data_bind_path_referencer.hpp"
 #include "rive/math/mat2d.hpp"
 #include <stdio.h>
+#ifdef WITH_RIVE_EDITOR
+#include <functional>
+#endif
 namespace rive
 {
 class ArtboardInstance;
@@ -17,6 +20,20 @@ class ArtboardHost : public DataBindPathReferencer
 public:
   virtual size_t artboardCount() = 0;
   virtual ArtboardInstance* artboardInstance(int index = 0) = 0;
+#ifdef WITH_RIVE_EDITOR
+  /// Every artboard the host owns, including any it keeps but doesn't show.
+  virtual void forEachHostedArtboard(
+      const std::function<void(ArtboardInstance*)>& visit)
+  {
+    for (size_t i = 0, count = artboardCount(); i < count; i++)
+    {
+      if (ArtboardInstance* hosted = artboardInstance((int)i))
+      {
+        visit(hosted);
+      }
+    }
+  }
+#endif
   virtual void internalDataContext(rcp<DataContext> dataContext) = 0;
   virtual void bindViewModelInstance(
       rcp<ViewModelInstance> viewModelInstance,
@@ -41,6 +58,9 @@ public:
   virtual Mat2D worldTransformForArtboard(ArtboardInstance*) = 0;
   virtual void markHostTransformDirty() = 0;
   virtual bool isLayoutProvider() { return false; }
+  // Whether the host syncs its layout parent's children itself once the
+  // artboards it hosts are in place, so hosting one needn't sync them.
+  virtual bool syncsLayoutChildren() { return false; }
   virtual void file(File* value) = 0;
   virtual File* file() const = 0;
   /// The file the hosted artboard was bound in from, when it isn't file().

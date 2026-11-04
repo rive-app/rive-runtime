@@ -44,6 +44,9 @@ private:
 public:
 #ifdef WITH_RIVE_EDITOR
   void editorPrepareForDestruction() override;
+  // The pooled rows too: they keep the list as their host.
+  void forEachHostedArtboard(
+      const std::function<void(ArtboardInstance*)>& visit) override;
 #endif
   ArtboardComponentList();
   ~ArtboardComponentList() override;
@@ -116,6 +119,9 @@ public:
 #endif
   void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false) override;
   bool isLayoutProvider() override { return true; }
+  // updateList syncs once all its rows are in, and a row realized on its own
+  // syncs once it's findable by its index.
+  bool syncsLayoutChildren() override { return true; }
   size_t numLayoutNodes() override { return m_listItems.size(); }
 #ifdef WITH_RIVE_LAYOUT
   void collectLayoutNodes(std::vector<void*>& out) override;
@@ -246,6 +252,10 @@ private:
   // the maps above, which own the instances, so per-row loops can reach a
   // row without hashing its item.
   std::vector<ArtboardInstance*> m_artboardInstancesByIndex;
+  // Sets a row's instance, and tells the instance its row.
+  void placeInRow(size_t index, ArtboardInstance* artboard);
+  // Whether a realized row holds artboard.
+  bool showsInARow(ArtboardInstance* artboard);
   std::vector<StateMachineInstance*> m_stateMachinesByIndex;
   // Points the row at index, and any other row showing the same item, at
   // the item's instances.
@@ -359,6 +369,8 @@ private:
 public:
   // Row passes skipped because the row was quiet, across every list.
   static uint64_t sm_quietRowSkips;
+  // Rows scanned for an artboard because the list repeats items.
+  static uint32_t sm_rowScans;
   // Lets a test run the same frames with and without quiet rows.
   static bool sm_quietRowsEnabled;
   // Lets a benchmark time quiet rows without checking each one every pass.

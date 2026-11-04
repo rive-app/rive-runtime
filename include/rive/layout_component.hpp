@@ -75,6 +75,9 @@ enum class LayoutComponentFlags : uint16_t
   // it from the style chases a pointer each time. Refreshed wherever the
   // style or its display changes (see refreshStyleDisplayHidden).
   StyleDisplayHidden = 1 << 14,
+  // Listed in its artboard's dirty layouts (see Artboard::markLayoutDirty), so
+  // marking it again doesn't list it twice.
+  DirtyLayoutListed = 1 << 15,
 };
 
 class Layout
@@ -357,6 +360,16 @@ public:
   StatusCode import(ImportStack& importStack) override;
   Core* clone() const override;
 
+  // Only the artboard listing this layout as dirty sets it.
+  bool dirtyLayoutListed() const
+  {
+    return hasLayoutFlag(LayoutComponentFlags::DirtyLayoutListed);
+  }
+  void dirtyLayoutListed(bool value)
+  {
+    setLayoutFlag(LayoutComponentFlags::DirtyLayoutListed, value);
+  }
+
   LayoutComponentStyle* style() { return m_style; }
   void style(LayoutComponentStyle* style)
   {
@@ -587,6 +600,13 @@ public:
   void* layoutNode(int index) override;
   void syncStyle();
   void syncLayoutChildren();
+#ifdef TESTING
+  // Syncs that found the children changed and rebuilt Yoga's list.
+  static uint32_t sm_layoutChildRebuilds;
+  // Counts the syncs of one layout, when set.
+  static LayoutComponent* sm_countSyncsOf;
+  static uint32_t sm_countedSyncs;
+#endif
   void clearLayoutChildren();
   virtual void propagateSize();
   void updateLayoutBounds(bool animate = true) override;

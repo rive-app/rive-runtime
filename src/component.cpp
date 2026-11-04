@@ -2,6 +2,8 @@
 #ifdef WITH_RIVE_EDITOR
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/focus_data.hpp"
+#include "rive/artboard_component_list.hpp"
+#include "rive/nested_artboard.hpp"
 #endif
 #include "rive/artboard.hpp"
 #include "rive/container_component.hpp"
@@ -188,6 +190,44 @@ void Component::clearDirtForEditor()
   {
     m_Artboard->collapseChanged();
   }
+}
+
+void Component::setArtboardForEditor(Artboard* ab)
+{
+  // A layout says in its flags that it's listed as dirty, and so does an
+  // artboard its host lays out. Left in the old artboard's list, it would
+  // keep saying so, and the new artboard would never list it; leaving no
+  // artboard, it would be freed still listed, as a host's artboard can't
+  // find the list without the host's. Only a listed one reaches the old
+  // artboard, which unlists its layouts if it goes first.
+  if (m_Artboard != nullptr && m_Artboard != ab && m_Artboard != this)
+  {
+    if (is<LayoutComponent>() && as<LayoutComponent>()->dirtyLayoutListed())
+    {
+      m_Artboard->cleanLayout(as<LayoutComponent>());
+    }
+    ArtboardHost* host = nullptr;
+    if (is<NestedArtboard>())
+    {
+      host = as<NestedArtboard>();
+    }
+    else if (is<ArtboardComponentList>())
+    {
+      host = as<ArtboardComponentList>();
+    }
+    if (host != nullptr)
+    {
+      Artboard* old = m_Artboard;
+      host->forEachHostedArtboard([old](ArtboardInstance* instance) {
+        Artboard* hosted = instance;
+        if (hosted->m_listedInHostDirtyLayout)
+        {
+          old->cleanLayout(hosted);
+        }
+      });
+    }
+  }
+  m_Artboard = ab;
 }
 #endif
 

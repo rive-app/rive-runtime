@@ -2062,6 +2062,158 @@ TEST_CASE(
   }
 }
 
+// A row's layout changing lists the row as dirty in the row and in the host
+// artboard, which syncs the row's list when it syncs its own.
+TEST_CASE(
+    "Component List rows are listed as dirty by the row and the host",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_rtl_row.riv");
+  auto artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 1);
+  auto row = list->artboardInstance(0);
+  REQUIRE(row != nullptr);
+  auto group = row->find<rive::LayoutComponent>("Group");
+  REQUIRE(group != nullptr);
+  REQUIRE(!row->hasDirtyLayout());
+  REQUIRE(!artboard->hasDirtyLayout());
+
+  for (int i = 0; i < 2; i++)
+  {
+    group->markLayoutNodeDirty();
+    row->markLayoutDirty(row);
+    CHECK(row->hasDirtyLayout());
+    CHECK(artboard->hasDirtyLayout());
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(!row->hasDirtyLayout());
+    CHECK(!artboard->hasDirtyLayout());
+  }
+
+  // Rows destroyed while listed leave both lists.
+  group->markLayoutNodeDirty();
+  row->markLayoutDirty(row);
+  REQUIRE(artboard->hasDirtyLayout());
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  while (!items->listItems().empty())
+  {
+    items->removeItem(items->listItems().back());
+  }
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(list->artboardCount() == 0);
+  CHECK(!artboard->hasDirtyLayout());
+}
+
+// Adding rows syncs the list's layout parent once, after they're all in.
+// Hosting each row used to sync the host artboard's root too.
+TEST_CASE(
+    "Component List adds rows without syncing the host's root per row",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_rtl_row.riv");
+  auto artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  for (int i = 0; i < 3; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+    items->addItem(item);
+  }
+  rive::LayoutComponent::sm_countSyncsOf = artboard.get();
+  rive::LayoutComponent::sm_countedSyncs = 0;
+  stateMachine->advanceAndApply(0.016f);
+  rive::LayoutComponent::sm_countSyncsOf = nullptr;
+  REQUIRE(list->artboardCount() == 4);
+  CHECK(
+      rive::LayoutComponent::sm_countedSyncs ==
+      (list->layoutParent() == artboard.get() ? 1u : 0u));
+  for (int i = 0; i < 4; i++)
+  {
+    auto row = list->artboardInstance(i);
+    REQUIRE(row != nullptr);
+    CHECK(row->find<rive::LayoutComponent>("A")->layoutX() == 50.0f);
+    CHECK(row->find<rive::LayoutComponent>("B")->layoutX() == 0.0f);
+  }
+}
+
+// A row's artboard knows the row it was put in, so a list without repeated
+// items tells whether it shows the artboard without scanning its rows.
+TEST_CASE(
+    "Component List finds a row's artboard without scanning its rows",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_rtl_row.riv");
+  auto artboard = file->artboardNamed("Host");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto list = artboard->find<rive::ArtboardComponentList>("Rows");
+  REQUIRE(list != nullptr);
+  auto items = viewModelInstance->propertyValue("rows")
+                   ->as<rive::ViewModelInstanceList>();
+  auto rowViewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  auto scans = rive::ArtboardComponentList::sm_rowScans;
+  for (int i = 0; i < 3; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(rowViewModel));
+    items->addItem(item);
+  }
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(list->artboardCount() == 4);
+  for (int i = 0; i < 4; i++)
+  {
+    REQUIRE(!artboard->hasDirtyLayout());
+    auto row = list->artboardInstance(i);
+    REQUIRE(row != nullptr);
+    row->find<rive::LayoutComponent>("Group")->markLayoutNodeDirty();
+    CHECK(artboard->hasDirtyLayout());
+    stateMachine->advanceAndApply(0.016f);
+  }
+  CHECK(rive::ArtboardComponentList::sm_rowScans == scans);
+
+  // Two rows showing one item share its artboard, and either can mark it.
+  items->addItem(items->listItems()[0]);
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(list->artboardCount() == 5);
+  REQUIRE(list->artboardInstance(4) == list->artboardInstance(0));
+  REQUIRE(!artboard->hasDirtyLayout());
+  list->artboardInstance(0)
+      ->find<rive::LayoutComponent>("Group")
+      ->markLayoutNodeDirty();
+  CHECK(artboard->hasDirtyLayout());
+}
+
 // The list's layout is right to left and the row sets no direction, so every
 // row inherits right to left from it. A's left margin then sits on its right,
 // the edge it starts from. A row added after the first frame has to inherit

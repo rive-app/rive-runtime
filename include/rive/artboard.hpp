@@ -189,11 +189,22 @@ private:
   bool m_FrameOrigin = true;
   // In the padding after the flags above; see quietHostRow.
   uint32_t m_quietHostRow = kNoQuietRow;
-  std::unordered_set<LayoutComponent*> m_dirtyLayout;
+  // Layouts whose style changed since the last sync, each once, in the order
+  // they were marked. Each says it's listed: a layout in its flags, and an
+  // artboard listed by its host in m_listedInHostDirtyLayout, as an artboard
+  // can be listed by its host and by itself at once.
+  std::vector<LayoutComponent*> m_dirtyLayout;
   bool m_isCleaningDirtyLayouts = false;
   // Set by an adoptFocusManager that left the tree to the host, cleared by the
   // next buildFocusTree. Sits in padding.
   bool m_focusTreeDeferred = false;
+  // In the padding too; see m_dirtyLayout.
+  bool m_listedInHostDirtyLayout = false;
+  // In the padding too; see listRow.
+  uint32_t m_listRow = kNoQuietRow;
+  bool listedAsDirty(LayoutComponent* layout);
+  void listedAsDirty(LayoutComponent* layout, bool value);
+  void leaveDirtyLayouts();
   std::unique_ptr<KeyFrameInterpolator> m_ownedInheritedInterpolator;
   // Live clones of the scripted interpolators this instance's layout styles
   // use. Allocated on first use; see statefulInterpolator().
@@ -390,6 +401,11 @@ public:
   static constexpr uint32_t kNoQuietRow = 0xFFFFFFFF;
   uint32_t quietHostRow() const { return m_quietHostRow; }
   void quietHostRow(uint32_t row) { m_quietHostRow = row; }
+  /// The row of its host list this artboard was last put in, kNoQuietRow
+  /// before any. The list may have moved it out since; see
+  /// ArtboardComponentList::showsInARow.
+  uint32_t listRow() const { return m_listRow; }
+  void listRow(uint32_t row) { m_listRow = row; }
   void wakeIfQuietRow()
   {
     if (m_quietHostRow != kNoQuietRow)

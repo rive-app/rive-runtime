@@ -74,7 +74,7 @@ TEST_CASE("an instance's lists are sized for its source's", "[instancing]")
   // Added one entry at a time, three children grow the list to room for
   // four and twelve dependents to room for sixteen; sized from the source,
   // each holds exactly what it ends up with.
-  auto rowFile = ReadRiveFile("assets/component_list_rtl_row.riv");
+  auto rowFile = ReadRiveFile("assets/component_list_rtl_host.riv");
   auto rowSource = rowFile->artboardNamed("Row");
   REQUIRE(rowSource != nullptr);
   auto row = rowSource->instance();

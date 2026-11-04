@@ -248,8 +248,10 @@ public:
   /// silently breaking dirt propagation into the artboard's
   /// component pass.
   /// `EditorFile::finalizeBatch` calls this after every Pass 1-5
-  /// completes, when the parent chain is fully hydrated.
-  void setArtboardForEditor(Artboard* ab) { m_Artboard = ab; }
+  /// completes, when the parent chain is fully hydrated. A layout moving
+  /// to another artboard, or to none, leaves the old one's dirty layouts,
+  /// and so do the artboards a host moving that way lays out.
+  void setArtboardForEditor(Artboard* ab);
   // Body in `editor_native/native/src/editor/component_editor.cpp`.
   // Resolves through `editorArena()` to convert pointer ↔ handle.
   void setParentForEditor(ContainerComponent* p);

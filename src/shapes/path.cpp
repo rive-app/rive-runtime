@@ -184,6 +184,18 @@ void Path::addRoundedRect(
   // limit.
   const float maxRadius = std::min(bounds.width(), bounds.height()) * 0.5f;
 
+  // Room for the whole outline at once: a move, a line into each other corner,
+  // a line back to the start and a close, plus a cubic for each rounded
+  // corner.
+  size_t rounded = 0;
+  for (const Corner& corner : corners)
+  {
+    rounded += corner.radius != 0.0f ? 1 : 0;
+  }
+  rawPath.reserve(
+      rawPath.verbs().size() + 6 + rounded,
+      rawPath.points().size() + 5 + 3 * rounded);
+
   Vec2D start;
   for (int i = 0; i < 4; i++)
   {

@@ -3,10 +3,12 @@
 
 #ifdef WITH_RIVE_LAYOUT
 #include "rive/layout/layout_style_applier.hpp"
-#include "rive/lazy_vector.hpp"
 #include "yoga/YGNode.h"
 #include "yoga/YGStyle.h"
 #include "yoga/Yoga.h"
+#include <algorithm>
+#include <cstdint>
+#include <vector>
 #endif
 #ifdef WITH_RIVE_TOOLS
 #include "rive/refcnt.hpp"
@@ -16,6 +18,66 @@
 
 namespace rive
 {
+#ifdef WITH_RIVE_LAYOUT
+/// The appliers of one layout item: the item itself, its style and its grid
+/// placement. Up to three live inline, so an item allocates nothing for them;
+/// a fourth moves the list to the heap.
+class LayoutStyleApplierList
+{
+public:
+  LayoutStyleApplierList() = default;
+  ~LayoutStyleApplierList()
+  {
+    if (spilled())
+    {
+      delete m_spill;
+    }
+  }
+  LayoutStyleApplierList(const LayoutStyleApplierList&) = delete;
+  LayoutStyleApplierList& operator=(const LayoutStyleApplierList&) = delete;
+
+  bool empty() const { return m_size == 0; }
+  std::size_t size() const { return m_size; }
+  LayoutStyleApplier* const* begin() const
+  {
+    return spilled() ? m_spill->data() : m_inline;
+  }
+  LayoutStyleApplier* const* end() const { return begin() + m_size; }
+
+  void pushUnique(LayoutStyleApplier* applier)
+  {
+    if (std::find(begin(), end(), applier) != end())
+    {
+      return;
+    }
+    if (m_size < kInline)
+    {
+      m_inline[m_size++] = applier;
+      return;
+    }
+    if (m_size == kInline)
+    {
+      m_spill = new std::vector<LayoutStyleApplier*>(
+          m_inline,
+          m_inline + kInline);
+    }
+    m_spill->push_back(applier);
+    m_size++;
+  }
+
+private:
+  static constexpr uint32_t kInline = 3;
+  bool spilled() const { return m_size > kInline; }
+
+  union
+  {
+    LayoutStyleApplier* m_inline[kInline] = {};
+    std::vector<LayoutStyleApplier*>* m_spill;
+  };
+  uint32_t m_size = 0;
+};
+#endif
+
 class LayoutData
 #ifdef WITH_RIVE_TOOLS
     : public RefCnt<LayoutData>
@@ -68,10 +130,9 @@ public:
   YGStyle& style() { return node.getStyle(); }
   const YGStyle& style() const { return node.getStyle(); }
 
-  /// Objects contributing to this item's style. Lazy, so an item with none
-  /// pays one null pointer. Unsorted — apply order comes from the phase
-  /// methods, not from list order, which follows file order.
-  LazyVector<LayoutStyleApplier*> appliers;
+  /// Objects contributing to this item's style. Unsorted — apply order comes
+  /// from the phase methods, not from list order, which follows file order.
+  LayoutStyleApplierList appliers;
 
   /// No matching remove: runtime objects live for the artboard's lifetime.
   void addApplier(LayoutStyleApplier* applier) { appliers.pushUnique(applier); }

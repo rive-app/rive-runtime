@@ -222,7 +222,7 @@ void ArtboardComponentList::setRowsForItem(
         m_listItems[index] == item)
     {
       resetQuietRow(index);
-      m_artboardInstancesByIndex[index] = artboard;
+      placeInRow(index, artboard);
       m_stateMachinesByIndex[index] = stateMachine;
       markRealized(index, artboard != nullptr);
     }
@@ -233,7 +233,7 @@ void ArtboardComponentList::setRowsForItem(
     if (m_listItems[i] == item)
     {
       resetQuietRow(i);
-      m_artboardInstancesByIndex[i] = artboard;
+      placeInRow(i, artboard);
       m_stateMachinesByIndex[i] = stateMachine;
       markRealized(i, artboard != nullptr);
     }
@@ -1091,7 +1091,7 @@ void ArtboardComponentList::updateList(
     {
       // Existing artboard - update index vectors
       resetQuietRow(index);
-      m_artboardInstancesByIndex[index] = itr->second.get();
+      placeInRow(index, itr->second.get());
       markRealized(index, itr->second != nullptr);
       auto smItr = m_stateMachinesMap.find(item);
       if (smItr != m_stateMachinesMap.end())
@@ -1597,18 +1597,49 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
   return AABB();
 }
 
+#ifdef TESTING
+uint32_t ArtboardComponentList::sm_rowScans = 0;
+#endif
+
+void ArtboardComponentList::placeInRow(size_t index, ArtboardInstance* artboard)
+{
+  m_artboardInstancesByIndex[index] = artboard;
+  if (artboard != nullptr)
+  {
+    artboard->listRow((uint32_t)index);
+  }
+}
+
+bool ArtboardComponentList::showsInARow(ArtboardInstance* artboard)
+{
+  // Putting an artboard in a row tells it the row. Without repeated items an
+  // artboard is in one row at most, the last one it was put in, so a row
+  // that no longer holds it means none does.
+  uint32_t row = artboard->listRow();
+  if (row < m_artboardInstancesByIndex.size() &&
+      m_artboardInstancesByIndex[row] == artboard)
+  {
+    return true;
+  }
+  if (!m_listHasDuplicateItems)
+  {
+    return false;
+  }
+#ifdef TESTING
+  sm_rowScans++;
+#endif
+  return std::any_of(
+      m_realizedIndices.begin(),
+      m_realizedIndices.end(),
+      [&](int i) { return m_artboardInstancesByIndex[i] == artboard; });
+}
+
 void ArtboardComponentList::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {
   // Only an artboard showing in a row joins the parent's layout. Artboards
   // in the pools get here too, whenever reusing one resets its properties.
-  if (artboardInstance != nullptr &&
-      std::any_of(
-          m_realizedIndices.begin(),
-          m_realizedIndices.end(),
-          [&](int i) {
-            return m_artboardInstancesByIndex[i] == artboardInstance;
-          }))
+  if (artboardInstance != nullptr && showsInARow(artboardInstance))
   {
     this->artboard()->markLayoutDirty(artboardInstance);
   }
@@ -2225,7 +2256,7 @@ void ArtboardComponentList::addArtboardAt(
       // updateList builds a non-virtualized list's rows in order and
       // gives an item's later rows the instances made for its first.
       resetQuietRow(index);
-      m_artboardInstancesByIndex[index] = artboardInstance;
+      placeInRow(index, artboardInstance);
       m_stateMachinesByIndex[index] = stateMachineInstance;
       markRealized(index, artboardInstance != nullptr);
     }
@@ -2704,6 +2735,28 @@ void ArtboardComponentList::editorPrepareForDestruction()
 {
   clear();
   Component::editorPrepareForDestruction();
+}
+
+void ArtboardComponentList::forEachHostedArtboard(
+    const std::function<void(ArtboardInstance*)>& visit)
+{
+  for (auto& item : m_artboardInstancesMap)
+  {
+    if (item.second != nullptr)
+    {
+      visit(item.second.get());
+    }
+  }
+  for (auto& pool : m_rowPool)
+  {
+    for (auto& row : pool.second)
+    {
+      if (row.artboard != nullptr)
+      {
+        visit(row.artboard.get());
+      }
+    }
+  }
 }
 
 #endif

@@ -6,10 +6,13 @@
 #include "rive/text/text.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "utils/no_op_factory.hpp"
+#include "yoga/YGNode.h"
+#include "yoga/YGStyle.h"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
+#include <algorithm>
 #include <cstdio>
 
 TEST_CASE("LayoutComponent FlexDirection row", "[layout]")
@@ -506,6 +509,117 @@ TEST_CASE("Prevent Margin Pct on Artboard", "[layout]")
 
   REQUIRE(artboard->layoutWidth() == 501.0f);
   REQUIRE(artboard->layoutHeight() == 512.0f);
+}
+
+// The style names its layout as its parent, so it joins the layout's children
+// on its own; the layout must not add it a second time.
+static void checkStyleIsChildOnce(rive::Artboard* artboard)
+{
+  int layouts = 0;
+  for (auto* object : artboard->objects())
+  {
+    if (object == nullptr || !object->is<rive::LayoutComponent>())
+    {
+      continue;
+    }
+    auto* layout = object->as<rive::LayoutComponent>();
+    REQUIRE(layout->style() != nullptr);
+    auto& children = layout->children();
+    CHECK(std::count(children.begin(), children.end(), layout->style()) == 1);
+    layouts++;
+  }
+  // The artboard and its three layouts.
+  REQUIRE(layouts == 4);
+}
+
+TEST_CASE("A layout's style is one of its children once", "[layout]")
+{
+  auto file = ReadRiveFile("assets/layout/layout_horizontal.riv");
+  checkStyleIsChildOnce(file->artboard());
+  auto instance = file->artboardDefault();
+  checkStyleIsChildOnce(instance.get());
+}
+
+// Yoga allocates a node's grid properties on their first write. While none
+// are allocated, the getters hand out one shared empty list.
+static bool hasGridStyle(const YGStyle& style)
+{
+  static const YGStyle unallocated;
+  return &style.gridTemplateColumns() != &unallocated.gridTemplateColumns();
+}
+
+TEST_CASE("Flex layouts leave Yoga's grid properties unallocated", "[layout]")
+{
+  auto file = ReadRiveFile("assets/layout/layout_horizontal.riv");
+  auto artboard = file->artboardDefault();
+  artboard->advance(0.0f);
+  int flexLayouts = 0;
+  for (auto* object : artboard->objects())
+  {
+    if (object == nullptr || !object->is<rive::LayoutComponent>())
+    {
+      continue;
+    }
+    auto* layout = object->as<rive::LayoutComponent>();
+    if (layout->style()->display() != YGDisplayFlex)
+    {
+      continue;
+    }
+    auto* node = static_cast<YGNode*>(layout->layoutNode(0));
+    REQUIRE(node != nullptr);
+    CHECK(!hasGridStyle(node->getStyle()));
+    flexLayouts++;
+  }
+  REQUIRE(flexLayouts == 4);
+}
+
+TEST_CASE("Syncing a layout's unchanged children keeps Yoga's list", "[layout]")
+{
+  auto file = ReadRiveFile("assets/layout/layout_horizontal.riv");
+  auto artboard = file->artboardDefault();
+  artboard->advance(0.0f);
+  auto target2 = artboard->find<rive::LayoutComponent>("LayoutComponent2");
+  auto target3 = artboard->find<rive::LayoutComponent>("LayoutComponent3");
+  REQUIRE(target2 != nullptr);
+  REQUIRE(target3 != nullptr);
+  REQUIRE(target2->worldTransform().decompose().x() == 100);
+  REQUIRE(target3->worldTransform().decompose().x() == 200);
+
+  auto rebuilds = rive::LayoutComponent::sm_layoutChildRebuilds;
+  artboard->syncLayoutChildren();
+  artboard->syncLayoutChildren();
+  CHECK(rive::LayoutComponent::sm_layoutChildRebuilds == rebuilds);
+  artboard->advance(0.0f);
+  CHECK(target2->worldTransform().decompose().x() == 100);
+  CHECK(target3->worldTransform().decompose().x() == 200);
+}
+
+TEST_CASE("A layout marked dirty twice is listed once", "[layout]")
+{
+  auto file = ReadRiveFile("assets/layout/layout_horizontal.riv");
+  auto artboard = file->artboardDefault();
+  artboard->advance(0.0f);
+  REQUIRE(!artboard->hasDirtyLayout());
+  auto layout = artboard->find<rive::LayoutComponent>("LayoutComponent1");
+  REQUIRE(layout != nullptr);
+
+  artboard->markLayoutDirty(layout);
+  artboard->markLayoutDirty(layout);
+  REQUIRE(artboard->hasDirtyLayout());
+  // Listed once, so cleaning it once empties the list.
+  artboard->cleanLayout(layout);
+  CHECK(!artboard->hasDirtyLayout());
+
+  // Cleaning cleared its mark, so it's listed again, and syncing empties the
+  // list for good.
+  artboard->markLayoutDirty(layout);
+  CHECK(artboard->hasDirtyLayout());
+  artboard->advance(0.0f);
+  CHECK(!artboard->hasDirtyLayout());
+  artboard->markLayoutDirty(layout);
+  CHECK(artboard->hasDirtyLayout());
+  artboard->advance(0.0f);
+  CHECK(!artboard->hasDirtyLayout());
 }
 
 TEST_CASE("Multiple layout collapsing and soloing in hierarchy.", "[silver]")

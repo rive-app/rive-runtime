@@ -192,3 +192,23 @@ TEST_CASE("rounded rect matches through ShapePaintPath", "[rawpath]")
     requireSamePath(*oldWay.rawPath(), *newWay.rawPath(), c.label);
   }
 }
+
+TEST_CASE("rounded rect sizes its path once", "[rawpath]")
+{
+  // No corners rounded, and three: a move, four lines and a close, and a
+  // cubic and its three points per rounded corner. Growing an entry at a time
+  // would leave the capacities at powers of two instead.
+  RawPath square;
+  Path::addRoundedRect(square, AABB(0.0f, 0.0f, 100.0f, 50.0f), 0, 0, 0, 0);
+  CHECK(square.verbs().size() == 6);
+  CHECK(square.points().size() == 5);
+  CHECK(square.verbCapacity() == 6);
+  CHECK(square.pointCapacity() == 5);
+
+  RawPath rounded;
+  Path::addRoundedRect(rounded, AABB(0.0f, 0.0f, 100.0f, 50.0f), 8, 8, 0, 8);
+  CHECK(rounded.verbs().size() == 9);
+  CHECK(rounded.points().size() == 14);
+  CHECK(rounded.verbCapacity() == 9);
+  CHECK(rounded.pointCapacity() == 14);
+}

@@ -303,7 +303,7 @@ Artboard::~Artboard()
       delete object;
     }
   }
-  m_dirtyLayout.clear();
+  leaveDirtyLayouts();
 }
 
 static bool canContinue(StatusCode code)
@@ -2109,6 +2109,13 @@ DataBind* Artboard::keyFrameSourceBind(const KeyFrame* keyframe) const
 void Artboard::host(ArtboardHost* artboardHost)
 {
   addedToHost();
+  if (m_listedInHostDirtyLayout && artboardHost != m_host)
+  {
+    if (Artboard* parent = parentArtboard())
+    {
+      parent->cleanLayout(this);
+    }
+  }
   m_host = artboardHost;
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
   // audioEngine(engine) only reaches artboards hosted at the time, so list
@@ -2131,7 +2138,10 @@ void Artboard::host(ArtboardHost* artboardHost)
   if (parent != nullptr)
   {
     parent->markLayoutDirty(this);
-    parent->syncLayoutChildren();
+    if (!m_host->syncsLayoutChildren())
+    {
+      parent->syncLayoutChildren();
+    }
   }
 #endif
 }
@@ -2430,9 +2440,13 @@ void Artboard::cleanLayout(LayoutComponent* layoutComponent)
     return;
   }
 
-  if (!m_dirtyLayout.empty())
+  if (listedAsDirty(layoutComponent))
   {
-    auto itr = m_dirtyLayout.find(layoutComponent);
+    listedAsDirty(layoutComponent, false);
+    auto itr = std::find(
+        m_dirtyLayout.begin(),
+        m_dirtyLayout.end(),
+        layoutComponent);
     if (itr != m_dirtyLayout.end())
     {
       m_dirtyLayout.erase(itr);
@@ -2448,6 +2462,58 @@ void Artboard::cleanLayout(LayoutComponent* layoutComponent)
       parent->cleanLayout(layoutComponent);
     }
   }
+}
+
+// An artboard is its own artboard(). Reading that tells a hosted artboard
+// from a layout without is<Artboard>(), a virtual call, which every mark
+// would make.
+static bool isHostedArtboard(const Artboard* host, LayoutComponent* layout)
+{
+  return layout != host && layout->artboard() == layout;
+}
+
+// An artboard can be listed by its host and by itself at once, so one listed
+// by its host says so on itself rather than in its layout flags.
+bool Artboard::listedAsDirty(LayoutComponent* layout)
+{
+  if (isHostedArtboard(this, layout))
+  {
+    return static_cast<Artboard*>(layout)->m_listedInHostDirtyLayout;
+  }
+  return layout->dirtyLayoutListed();
+}
+
+void Artboard::listedAsDirty(LayoutComponent* layout, bool value)
+{
+  if (isHostedArtboard(this, layout))
+  {
+    static_cast<Artboard*>(layout)->m_listedInHostDirtyLayout = value;
+  }
+  else
+  {
+    layout->dirtyLayoutListed(value);
+  }
+}
+
+// Called while the artboard is still whole: ~LayoutComponent skips an artboard,
+// whose list is gone by then. The layouts it owned left as they were deleted.
+void Artboard::leaveDirtyLayouts()
+{
+  if (m_listedInHostDirtyLayout)
+  {
+    if (Artboard* parent = parentArtboard())
+    {
+      parent->cleanLayout(this);
+    }
+  }
+  for (auto* layout : m_dirtyLayout)
+  {
+    if (layout != nullptr)
+    {
+      listedAsDirty(layout, false);
+    }
+  }
+  m_dirtyLayout.clear();
 }
 
 void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
@@ -2468,7 +2534,11 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
     m_layoutDirtyCallback(callbackUserData);
   }
 #endif
-  m_dirtyLayout.insert(layoutComponent);
+  if (!listedAsDirty(layoutComponent))
+  {
+    listedAsDirty(layoutComponent, true);
+    m_dirtyLayout.push_back(layoutComponent);
+  }
   if (isInstance())
   {
     if (sharesLayoutWithHost())
@@ -2524,6 +2594,7 @@ bool Artboard::syncStyleChanges()
       {
         continue;
       }
+      listedAsDirty(layout, false);
       switch (layout->coreType())
       {
         case ArtboardBase::typeKey:
@@ -5433,7 +5504,7 @@ void Artboard::editorPrepareForDestruction()
   m_DrawTargets.clear();
   m_Joysticks.clear();
   m_advancingComponents.clear();
-  m_dirtyLayout.clear();
+  leaveDirtyLayouts();
   m_host = nullptr;
   m_DependencyOrder.clear();
   m_editorResolver = nullptr;

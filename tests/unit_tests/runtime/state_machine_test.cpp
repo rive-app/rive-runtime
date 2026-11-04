@@ -299,13 +299,16 @@ TEST_CASE("Blend state animations with reset applied to them.", "[file]")
   stateMachineInstance->advanceAndApply(0.1f);
   abi->advance(0.1f);
 
-  auto rect1 = abi->children()[9]->as<rive::Shape>();
+  auto rect1 = abi->find<rive::Shape>("rect1");
+  REQUIRE(rect1 != nullptr);
   REQUIRE(rect1->name() == "rect1");
 
-  auto rect2 = abi->children()[7]->as<rive::Shape>();
+  auto rect2 = abi->find<rive::Shape>("rect2");
+  REQUIRE(rect2 != nullptr);
   REQUIRE(rect2->name() == "rect2");
 
-  auto triangle = abi->children()[5]->as<rive::Shape>();
+  auto triangle = abi->find<rive::Shape>("triangle");
+  REQUIRE(triangle != nullptr);
   REQUIRE(triangle->name() == "triangle");
 
   // This blend rotates 2 * Pi. At 50% it should have rotated 1 * Pi
@@ -388,11 +391,13 @@ TEST_CASE("Transitions with reset applied to them.", "[file]")
   stateMachineInstance->advanceAndApply(0.1f);
   abi->advance(0.1f);
 
-  auto rect = abi->children()[7]->as<rive::Shape>();
+  auto rect = abi->find<rive::Shape>("rectangle");
+  REQUIRE(rect != nullptr);
   REQUIRE(rect->name() == "rectangle");
   REQUIRE(rect->x() == 50);
 
-  auto ellipse = abi->children()[5]->as<rive::Shape>();
+  auto ellipse = abi->find<rive::Shape>("ellipse");
+  REQUIRE(ellipse != nullptr);
   REQUIRE(ellipse->name() == "ellipse");
   REQUIRE(ellipse->x() == Approx(440.31241));
 

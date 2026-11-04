@@ -26,6 +26,7 @@
 #include "yoga/YGEnums.h"
 #include "yoga/YGFloatOptional.h"
 #endif
+#include <algorithm>
 #include <vector>
 
 using namespace rive;
@@ -728,7 +729,12 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     return StatusCode::MissingObject;
   }
   m_style = static_cast<LayoutComponentStyle*>(coreStyle);
-  addChild(m_style);
+  // A style that names us as its parent joins our children on its own, so
+  // adding it here too would list it twice.
+  if (context->resolve(m_style->parentId()) != this)
+  {
+    addChild(m_style);
+  }
 #ifdef WITH_RIVE_LAYOUT
   refreshStyleDisplayHidden();
   // We contribute sizing the style cannot see; it contributes the rest.
@@ -1436,23 +1442,61 @@ void LayoutComponent::clearLayoutChildren()
   YGNodeRemoveAllChildren(&ourNode);
 }
 
+#ifdef TESTING
+uint32_t LayoutComponent::sm_layoutChildRebuilds = 0;
+LayoutComponent* LayoutComponent::sm_countSyncsOf = nullptr;
+uint32_t LayoutComponent::sm_countedSyncs = 0;
+#endif
+
 void LayoutComponent::syncLayoutChildren()
 {
+#ifdef TESTING
+  if (this == sm_countSyncsOf)
+  {
+    sm_countedSyncs++;
+  }
+#endif
   YGNode& ourNode = m_layoutData->node;
-  YGNodeRemoveAllChildren(&ourNode);
   std::vector<void*> nodes;
+  // A sync mostly finds the children it had, so this usually fits them.
+  nodes.reserve(ourNode.getChildren().size());
   forEachLayoutProvider(
       this,
       [&nodes](Component*, LayoutNodeProvider* provider) {
         provider->collectLayoutNodes(nodes);
       });
-  int index = 0;
-  for (auto* node : nodes)
+  const auto& children = ourNode.getChildren();
+  if (!children.empty() && nodes.size() == children.size() &&
+      std::equal(nodes.begin(), nodes.end(), children.begin()))
   {
-    auto* child = static_cast<YGNode*>(node);
-    ourNode.insertChild(child, index++);
-    child->setOwner(&ourNode);
+    // The same children in the same order: reset them as removing and adding
+    // them again would, but keep Yoga's list instead of freeing and regrowing
+    // it.
+    const bool owned = children.front()->getOwner() == &ourNode;
+    for (auto* child : children)
+    {
+      if (owned)
+      {
+        child->setLayout(YGNode().getLayout());
+      }
+      child->setOwner(&ourNode);
+    }
     ourNode.markDirtyAndPropagate();
+  }
+  else
+  {
+#ifdef TESTING
+    sm_layoutChildRebuilds++;
+#endif
+    YGNodeRemoveAllChildren(&ourNode);
+    int index = 0;
+    for (auto* node : nodes)
+    {
+      auto* child = static_cast<YGNode*>(node);
+      ourNode.insertChild(child, index++);
+      child->setOwner(&ourNode);
+      ourNode.markDirtyAndPropagate();
+    }
   }
   markLayoutNodeDirty();
 }
@@ -2267,7 +2311,8 @@ void LayoutComponent::calculateLayoutInternal(
 LayoutComponent::~LayoutComponent()
 {
   delete m_virtualGrid;
-  if (artboard() != nullptr)
+  // An artboard leaves the dirty layouts in ~Artboard, while it's still whole.
+  if (artboard() != nullptr && artboard() != this)
   {
     artboard()->cleanLayout(this);
   }
