@@ -988,10 +988,9 @@ public:
   lua_State* m_L = nullptr;
   int m_imageRef = LUA_NOREF;
   gpu::RenderContext* renderCtx = nullptr; // needed for resize()
-  // Size a resize() asked for while no device existed. Web attaches one per
-  // render texture after layout has already run, and a generator resizes
+  // Size asked for while no session or device could mint it. A generator sizes
   // once, so the request is held here and honoured on the first access after
-  // a device appears. Zero once satisfied.
+  // one can. Zero once satisfied.
   uint32_t pendingWidth = 0;
   uint32_t pendingHeight = 0;
 };
@@ -2278,12 +2277,16 @@ public:
 #ifdef RIVE_CANVAS
 // Allocates a script canvas backing, deferring when a session is recording
 // or the device was late bound, since either way the replay worker owns the
-// texture.
+// texture. Null when there is neither a session nor a device.
 rcp<gpu::RenderCanvas> allocScriptRenderCanvas(
     gpu::RenderContext* rc,
     ScriptingContext* ctx,
     uint32_t width,
     uint32_t height);
+void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self);
+#ifdef RIVE_ORE
+void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self);
+#endif
 #endif
 
 class ScopedScriptedObjectContext

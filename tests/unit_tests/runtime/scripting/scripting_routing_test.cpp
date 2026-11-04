@@ -169,7 +169,7 @@ TEST_CASE(
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 TEST_CASE(
-    "sized canvas construction goes pending until a device binds",
+    "a sized canvas waits on a host that cannot mint it yet",
     "[scripting]")
 {
   // The factory answers deferredCanvasHost(), the same derivation a session
@@ -201,7 +201,7 @@ end
 // The reachable symptom of the mismatch: without routing the script is
 // refused outright rather than recording for the device that binds later.
 TEST_CASE(
-    "a caller supplied VM's sized canvas goes pending, not refused",
+    "a caller supplied VM's sized canvas reaches its host, not refused",
     "[scripting]")
 {
   NoOpFactory constructionFactory;

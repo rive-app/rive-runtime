@@ -505,48 +505,19 @@ static int context_namecall(lua_State* L)
         {
           return 1;
         }
-        if (renderCtx == nullptr)
+        // A recording session mints the canvas with no device bound.
+        if (renderCtx == nullptr &&
+            scriptingCtx->deferredCanvasHost() == nullptr)
         {
-          // A recording session binds its device after import, and
-          // generators size their canvas at construction, before any
-          // texture exists. Record the request; satisfyPending
-          // materializes it on first use once the device arrives.
-          if (scriptingCtx->deferredCanvasHost() != nullptr)
-          {
-            handle->pendingWidth = cw;
-            handle->pendingHeight = ch;
-            return 1;
-          }
           luaL_error(
               L,
               "context:canvas() requires a RenderContext — call "
               "setRenderContext() first");
           return 0;
         }
-
-        auto canvas = allocScriptRenderCanvas(renderCtx, scriptingCtx, cw, ch);
-        if (!canvas)
-        {
-          luaL_error(L, "context:canvas() failed to create RenderCanvas");
-          return 0;
-        }
-        handle->canvas = std::move(canvas);
-        // Create a ScriptedImage backed by canvas->renderImage() so
-        // the script can composite it with renderer:drawImage()
-        auto* img = lua_newrive<ScriptedImage>(L);
-        img->image = ref_rcp(
-            static_cast<RenderImage*>(handle->canvas->renderImage()));
-        // Provenance: canvas images carry no distinguishing rtti, so
-        // this is the only reliable signal that Image:view() has a
-        // canvas rather than a decoded asset. satisfyPending sets it
-        // on the late bound path; set it here too or the two paths
-        // disagree. The field only exists with ore, matching where
-        // the recording dispatch that reads it lives.
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
-        img->sourceCanvas = handle->canvas;
-#endif
-        handle->m_imageRef = lua_ref(L, -1);
-        lua_pop(L, 1); // pop image, handle remains on top
+        handle->pendingWidth = cw;
+        handle->pendingHeight = ch;
+        canvas_satisfyPending(L, handle);
         return 1;
 #endif
       }
@@ -617,9 +588,7 @@ static int context_namecall(lua_State* L)
               "setRenderContext() first");
           return 0;
         }
-        auto* oreCtx = static_cast<ore::Context*>(
-            gpuScriptingCtx->oreContext());
-        if (oreCtx == nullptr)
+        if (gpuScriptingCtx->oreContext() == nullptr)
         {
           luaL_error(
               L,
@@ -627,40 +596,9 @@ static int context_namecall(lua_State* L)
               "scriptingWorkspaceSetOreContext() before requestVM()");
           return 0;
         }
-
-        auto canvas = allocScriptRenderCanvas(
-            gpuRenderCtx,
-            gpuScriptingCtx,
-            gw,
-            gh);
-        if (!canvas)
-        {
-          // A host that cannot mint before its device binds holds the size
-          // until one does.
-          if (gpuRenderCtx == nullptr)
-          {
-            handle->pendingWidth = gw;
-            handle->pendingHeight = gh;
-            return 1;
-          }
-          luaL_error(L, "context:gpuCanvas() failed to create RenderCanvas");
-          return 0;
-        }
-        auto colorView = oreCtx->wrapCanvasTexture(canvas.get());
-        if (!colorView)
-        {
-          luaL_error(L, "context:gpuCanvas() failed to wrap canvas texture");
-          return 0;
-        }
-        handle->canvas = std::move(canvas);
-        handle->oreColorView = std::move(colorView);
-
-        auto* img = lua_newrive<ScriptedImage>(L);
-        img->image = ref_rcp(
-            static_cast<RenderImage*>(handle->canvas->renderImage()));
-        img->sourceCanvas = handle->canvas;
-        handle->m_imageRef = lua_ref(L, -1);
-        lua_pop(L, 1); // pop image, handle remains on top
+        handle->pendingWidth = gw;
+        handle->pendingHeight = gh;
+        gpucanvas_satisfyPending(L, handle);
         return 1;
 #endif
       }

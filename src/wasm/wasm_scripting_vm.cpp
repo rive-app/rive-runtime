@@ -3282,6 +3282,26 @@ void imageDecodeCancelImpl(WasmScriptingVM* vm, uint32_t token)
   }
 }
 
+#ifdef RIVE_CANVAS
+// A deferred host mints a canvas before any device binds; only immediate
+// needs a render context.
+rcp<gpu::RenderCanvas> makeScriptCanvas(
+    WasmScriptingVM* vm,
+    uint32_t width,
+    uint32_t height)
+{
+  if (auto* deferredHost = vm->factory()->deferredCanvasHost())
+  {
+    return deferredHost->makeUnboundContentCanvas(width, height);
+  }
+  auto* renderContext = static_cast<gpu::RenderContext*>(
+      vm->factory()->renderContext());
+  return renderContext != nullptr
+             ? renderContext->makeRenderCanvas(width, height)
+             : nullptr;
+}
+#endif
+
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 struct HostGpuCanvas
 {
@@ -3383,24 +3403,6 @@ bool guardPassed(WasmScriptingVM* vm, bool passed, const std::string& error)
   return passed;
 }
 
-// A deferred host mints a canvas before any device binds; only immediate
-// needs a render context.
-rcp<gpu::RenderCanvas> makeGpuCanvas(
-    WasmScriptingVM* vm,
-    uint32_t width,
-    uint32_t height)
-{
-  if (auto* deferredHost = vm->factory()->deferredCanvasHost())
-  {
-    return deferredHost->makeUnboundContentCanvas(width, height);
-  }
-  auto* renderContext = static_cast<gpu::RenderContext*>(
-      vm->factory()->renderContext());
-  return renderContext != nullptr
-             ? renderContext->makeRenderCanvas(width, height)
-             : nullptr;
-}
-
 uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
 {
   if (vm == nullptr || vm->factory() == nullptr)
@@ -3420,7 +3422,7 @@ uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
   {
     return 0;
   }
-  auto canvas = makeGpuCanvas(vm, width, height);
+  auto canvas = makeScriptCanvas(vm, width, height);
   if (canvas == nullptr)
   {
     return 0;
@@ -3515,7 +3517,7 @@ uint32_t gpuCanvasResizeImpl(
   {
     return 0;
   }
-  auto canvas = makeGpuCanvas(vm, width, height);
+  auto canvas = makeScriptCanvas(vm, width, height);
   if (canvas == nullptr)
   {
     return 0;
@@ -5599,7 +5601,7 @@ HostRenderer* resolveHostRenderer(WasmScriptingVM* vm, uint32_t handle)
 struct HostCanvas
 {
   rcp<gpu::RenderCanvas> canvas;
-  // A size requested before the device bound, allocated on first use.
+  // A size no host could mint yet, allocated on first use.
   uint32_t pendingWidth = 0;
   uint32_t pendingHeight = 0;
   cmd::DeferredCanvasHost* frameHost = nullptr;
@@ -5617,29 +5619,23 @@ HostCanvas* resolveCanvas(WasmScriptingVM* vm, uint32_t handle)
       vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::canvas));
 }
 
-// Allocates a pending size once a device is there to allocate against.
-// False only when a device is present and refuses.
+// Allocates a pending size once a host can mint it. False only when a device
+// is present and refuses.
 bool canvasSatisfyPending(WasmScriptingVM* vm, HostCanvas* host)
 {
   if (host->pendingWidth == 0 || host->pendingHeight == 0)
   {
     return true;
   }
-  auto* renderContext = static_cast<gpu::RenderContext*>(
-      vm->factory()->renderContext());
-  if (renderContext == nullptr)
+  rcp<gpu::RenderCanvas> canvas = makeScriptCanvas(
+      vm,
+      host->pendingWidth,
+      host->pendingHeight);
+  if (canvas == nullptr && vm->factory()->renderContext() == nullptr)
   {
     return true;
   }
   // A refused size leaves the previous backing in place.
-  auto* deferredHost = vm->factory()->deferredCanvasHost();
-  rcp<gpu::RenderCanvas> canvas = deferredHost != nullptr
-                                      ? deferredHost->makeContentCanvas(
-                                            host->pendingWidth,
-                                            host->pendingHeight)
-                                      : renderContext->makeRenderCanvas(
-                                            host->pendingWidth,
-                                            host->pendingHeight);
   host->pendingWidth = 0;
   host->pendingHeight = 0;
   if (canvas == nullptr)
@@ -5661,7 +5657,7 @@ uint32_t canvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
   {
     host->pendingWidth = width;
     host->pendingHeight = height;
-    // A size only waits when a recording host will bind a device later.
+    // A size waits only on a recording host that can't mint it yet.
     if (!canvasSatisfyPending(vm, host) ||
         (host->canvas == nullptr &&
          vm->factory()->deferredCanvasHost() == nullptr))

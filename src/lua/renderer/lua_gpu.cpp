@@ -2993,7 +2993,10 @@ rcp<gpu::RenderCanvas> rive::allocScriptRenderCanvas(
   {
     return deferredHost->makeUnboundContentCanvas(width, height);
   }
-  assert(rc != nullptr);
+  if (rc == nullptr)
+  {
+    return nullptr;
+  }
   if (ctx->renderContextIsLateBound())
   {
     return rc->makeDeferredRenderCanvas(width, height);
@@ -3013,11 +3016,11 @@ static gpu::RenderContext* liveRenderContext(ScriptingContext* scriptingCtx)
   return static_cast<gpu::RenderContext*>(scriptingCtx->renderContext());
 }
 
-// Allocates the backing for a pending size, if there is one and a device has
-// turned up to allocate it against. Errors only on a device that is present and
-// refuses; a device that has not arrived yet leaves the request pending, which
-// is what makes a size-less canvas usable on a host that attaches late.
-static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
+// Allocates the backing for a pending size, if there is one and a session or
+// device can mint it. Errors only on a device that is present and refuses;
+// otherwise the request stays pending, which is what makes a size-less canvas
+// usable on a host that attaches late.
+void rive::gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
 {
   if (self->pendingWidth == 0 || self->pendingHeight == 0)
   {
@@ -3025,16 +3028,11 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
   }
   auto* scriptingCtx = static_cast<ScriptingContext*>(lua_getthreaddata(L));
   auto* renderCtx = liveRenderContext(scriptingCtx);
-  if (renderCtx == nullptr && scriptingCtx->deferredCanvasHost() == nullptr)
-  {
-    return;
-  }
   auto* oreCtx = getOreContext(L);
   if (oreCtx == nullptr)
   {
     return;
   }
-  self->renderCtx = renderCtx;
   uint32_t w = self->pendingWidth, h = self->pendingHeight;
 
   // Allocate and wrap the new backing BEFORE touching the existing
@@ -3048,12 +3046,12 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
     {
       return;
     }
-    luaL_error(L, "GPUCanvas:resize() failed to create RenderCanvas");
+    luaL_error(L, "GPUCanvas failed to create RenderCanvas");
   }
   auto newColorView = oreCtx->wrapCanvasTexture(newCanvas.get());
   if (!newColorView)
   {
-    luaL_error(L, "GPUCanvas:resize() failed to wrap canvas texture");
+    luaL_error(L, "GPUCanvas failed to wrap canvas texture");
   }
 
   if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
@@ -3063,6 +3061,7 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
   }
   self->canvas = std::move(newCanvas);
   self->oreColorView = std::move(newColorView);
+  self->renderCtx = renderCtx;
   self->pendingWidth = 0;
   self->pendingHeight = 0;
 
@@ -3252,9 +3251,8 @@ static int gpucanvashandle_namecall(lua_State* L)
 // ============================================================================
 
 // The 2D counterpart of gpucanvas_satisfyPending, for the same reason: a
-// size-less canvas is legal, and on web the device shows up after layout has
-// already handed the generator its real size.
-static void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
+// size-less canvas is legal, and a host that cannot mint yet holds the size.
+void rive::canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
 {
   if (self->pendingWidth == 0 || self->pendingHeight == 0)
   {
@@ -3262,11 +3260,6 @@ static void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
   }
   auto* scriptingCtx = static_cast<ScriptingContext*>(lua_getthreaddata(L));
   auto* renderCtx = liveRenderContext(scriptingCtx);
-  if (renderCtx == nullptr)
-  {
-    return;
-  }
-  self->renderCtx = renderCtx;
 
   // Allocate the new backing BEFORE touching the existing canvas/imageRef.
   // If allocation throws (via luaL_error), the canvas keeps its previous,
@@ -3278,7 +3271,12 @@ static void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
       self->pendingHeight);
   if (!newCanvas)
   {
-    luaL_error(L, "Canvas:resize() failed to create RenderCanvas");
+    // A host that cannot mint before its device binds keeps the size.
+    if (renderCtx == nullptr)
+    {
+      return;
+    }
+    luaL_error(L, "Canvas failed to create RenderCanvas");
   }
 
   if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
@@ -3287,6 +3285,7 @@ static void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
     self->m_imageRef = LUA_NOREF;
   }
   self->canvas = std::move(newCanvas);
+  self->renderCtx = renderCtx;
   self->pendingWidth = 0;
   self->pendingHeight = 0;
 
@@ -3347,10 +3346,6 @@ static int canvashandle_beginframe(lua_State* L)
 {
   auto* self = lua_torive<ScriptedCanvas>(L, 1);
   canvas_satisfyPending(L, self);
-  if (self->renderCtx == nullptr)
-  {
-    luaL_error(L, "Canvas: renderCtx not initialized");
-  }
   auto* scriptingContext = static_cast<ScriptingContext*>(lua_getthreaddata(L));
   // Recording brackets the content instead of opening a real frame; an
   // immediate context cannot nest one inside the open screen frame.
@@ -3399,6 +3394,10 @@ static int canvashandle_beginframe(lua_State* L)
   }
   else
   {
+    if (self->renderCtx == nullptr)
+    {
+      luaL_error(L, "Canvas: renderCtx not initialized");
+    }
     self->renderCtx->beginFrame(desc);
     // Allocate a RiveRenderer that issues into this render context. Deleted
     // in endFrame() (or in the destructor if endFrame is never called).
