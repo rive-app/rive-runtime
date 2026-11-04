@@ -38,7 +38,7 @@ protected:
 #endif
   Id m_ParentId = 0;
 #ifndef WITH_RIVE_EDITOR
-  Sidecar<ComponentNameSidecar> m_name;
+  SharedSidecar<ComponentNameSidecar> m_name;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR

@@ -82,6 +82,13 @@ public:
   // in the frame. A no-op when the bind is not dirty.
   void flushDataBind(DataBind* dataBind) { updateDataBind(dataBind, false); }
   const std::vector<DataBind*>& dataBinds() const { return m_dataBinds; }
+  // Room for [count] binds, and for all of them to be dirty at once, as they
+  // are when first bound, for a container about to get that many.
+  void reserveDataBinds(size_t count)
+  {
+    m_dataBinds.reserve(count);
+    m_dirtyDataBinds.reserve(count);
+  }
   virtual void addDirtyDataBind(DataBind* dataBind);
   virtual void rebind() {};
   virtual void relinkDataContext() {};

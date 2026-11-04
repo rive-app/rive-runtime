@@ -4409,6 +4409,7 @@ StateMachineInstance::StateMachineInstance(
   // instance. That enables binding each instance to its own context without
   // polluting the rest.
   auto dataBindCount = machine->dataBindCount();
+  reserveDataBinds(dataBindCount);
   for (size_t i = 0; i < dataBindCount; i++)
   {
     auto dataBind = machine->dataBind(i);

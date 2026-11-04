@@ -20,6 +20,7 @@
 #include "rive/dirtyable.hpp"
 #include "rive/enums.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <string>
@@ -74,9 +75,25 @@ private:
   std::vector<Unichar> m_value;
   std::vector<TextRun> m_runs;
 
+  template <typename T> static void growTo(std::vector<T>& list, size_t count)
+  {
+    if (count > list.capacity())
+    {
+      list.reserve(std::max(count, list.capacity() * 2));
+    }
+  }
+
 public:
   bool empty() const;
   void clear();
+  // Room for [unichars] characters in [runs] runs: exactly that the first
+  // time, and past it at least double, the way appending grows, so a text
+  // that grows a little at a time doesn't reallocate on every styling.
+  void reserve(size_t unichars, size_t runs)
+  {
+    growTo(m_value, unichars);
+    growTo(m_runs, runs);
+  }
   void append(
       rcp<Font> font,
       float size,

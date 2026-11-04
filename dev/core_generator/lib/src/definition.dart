@@ -827,12 +827,13 @@ class Definition {
       }
 
       // Lazily-allocated sidecar holders: one 8-byte pointer per cluster, null
-      // until a property in the cluster is authored. Runtime builds only.
+      // until a property in the cluster is authored, and shared with the
+      // object it was copied from until written. Runtime builds only.
       if (sidecars.isNotEmpty) {
         code.writeln('#ifndef $withRiveEditorPreprocessor');
         for (final entry in sidecars.entries) {
           final structName = _sidecarStructName(entry.value.first);
-          code.writeln('Sidecar<$structName> m_${entry.key};');
+          code.writeln('SharedSidecar<$structName> m_${entry.key};');
         }
         code.writeln('#endif');
       }
@@ -1153,7 +1154,7 @@ class Definition {
         }
         endPropertyGuards(copyBuf, property);
       }
-      // Deep-copy each sidecar cluster (Sidecar<T> handles null vs allocated).
+      // Share each sidecar cluster (SharedSidecar<T> copies it on write).
       if (sidecars.isNotEmpty) {
         code.writeln('#ifndef $withRiveEditorPreprocessor');
         for (final entry in sidecars.entries) {

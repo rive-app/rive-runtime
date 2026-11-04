@@ -1843,6 +1843,23 @@ void Artboard::reserveLikeSource(Core* clone, const Core* source)
   }
 }
 
+void Artboard::reserveListsLike(const Artboard& source)
+{
+  reserveDataBinds(source.dataBinds().size());
+  // Initialize fills these an entry at a time. The source's already hold its
+  // layout proxies, which the instance's get too.
+  m_Drawables.reserve(source.m_Drawables.size());
+  m_advancingComponents.reserve(source.m_advancingComponents.size());
+  m_hostDataContextConsumers.reserve(source.m_hostDataContextConsumers.size());
+  m_ArtboardHosts.reserve(source.m_ArtboardHosts.size());
+  m_NestedArtboards.reserve(source.m_NestedArtboards.size());
+  m_ComponentLists.reserve(source.m_ComponentLists.size());
+  m_clippingShapes.reserve(source.m_clippingShapes.size());
+  m_layerMasks.reserve(source.m_layerMasks.size());
+  m_DrawTargets.reserve(source.m_DrawTargets.size());
+  m_Joysticks.reserve(source.m_Joysticks.size());
+}
+
 void Artboard::cloneObjectDataBinds(
     const Core* object,
     Core* clone,

@@ -246,6 +246,10 @@ private:
   // the clone ends up with once initialized, so they don't grow an entry at
   // a time.
   static void reserveLikeSource(Core* clone, const Core* source);
+  // Sizes the lists an instance fills while it clones and initializes (its
+  // data binds, drawables, advancing components and the like) for the
+  // entries [source] has, which the instance ends up with too.
+  void reserveListsLike(const Artboard& source);
   // Lazily-built index of this artboard's data binds that target keyframes,
   // keyed by the (shared) keyframe. Keyframe binds live in dataBinds() but
   // are never applied directly (keyframes aren't Components); instead a
@@ -1096,6 +1100,7 @@ public:
     artboardClone->m_instanceCount = m_instanceCount;
 #endif
     artboardClone->m_artboardSource = isInstance() ? m_artboardSource : this;
+    artboardClone->reserveListsLike(*this);
     cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;

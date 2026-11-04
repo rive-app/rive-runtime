@@ -217,9 +217,9 @@ protected:
   float m_CornerRadiusBR = 0.0f;
 #endif
 #ifndef WITH_RIVE_EDITOR
-  Sidecar<LayoutComponentStyleBorderSidecar> m_border;
-  Sidecar<LayoutComponentStyleAbsolutePositionSidecar> m_absolutePosition;
-  Sidecar<LayoutComponentStyleCornerRadiusSidecar> m_cornerRadius;
+  SharedSidecar<LayoutComponentStyleBorderSidecar> m_border;
+  SharedSidecar<LayoutComponentStyleAbsolutePositionSidecar> m_absolutePosition;
+  SharedSidecar<LayoutComponentStyleCornerRadiusSidecar> m_cornerRadius;
 #endif
 public:
   inline float gapHorizontal() const { return m_GapHorizontal; }

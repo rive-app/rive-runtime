@@ -2011,6 +2011,21 @@ bool Text::makeStyled(
     float fontScale) const
 {
   styledText.clear();
+  // Room for the runs appended below, which skip a run with no font or no
+  // text. A run's UTF-8 bytes bound its characters.
+  size_t textBytes = 0;
+  size_t styledRuns = 0;
+  for (auto valueRun : m_allRuns)
+  {
+    auto style = valueRun->style();
+    if (style != nullptr && style->font() != nullptr &&
+        !valueRun->text().empty())
+    {
+      textBytes += valueRun->text().size();
+      styledRuns++;
+    }
+  }
+  styledText.reserve(textBytes, styledRuns);
   uint16_t runIndex = 0;
   for (auto valueRun : m_allRuns)
   {
@@ -2740,6 +2755,11 @@ Core* Text::clone() const
   Text* twin = TextBase::clone()->as<Text>();
   twin->m_fileFeatures = m_fileFeatures;
   twin->m_file = m_file;
+#ifdef WITH_RIVE_TEXT
+  // Its runs add themselves one at a time once cloned.
+  twin->m_runs.reserve(m_runs.size());
+  twin->m_allRuns.reserve(m_allRuns.size());
+#endif
   return twin;
 }
 

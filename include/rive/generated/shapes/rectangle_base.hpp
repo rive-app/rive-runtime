@@ -51,7 +51,7 @@ protected:
   float m_CornerRadiusBR = 0.0f;
 #endif
 #ifndef WITH_RIVE_EDITOR
-  Sidecar<RectangleCornerRadiusSidecar> m_cornerRadius;
+  SharedSidecar<RectangleCornerRadiusSidecar> m_cornerRadius;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR

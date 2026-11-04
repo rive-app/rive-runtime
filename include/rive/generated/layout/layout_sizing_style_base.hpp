@@ -87,7 +87,7 @@ protected:
   uint8_t m_JustifySelfValue = 6;
   uint8_t m_DisplayValue = 0;
 #ifndef WITH_RIVE_EDITOR
-  Sidecar<LayoutSizingStyleMinMaxSizingSidecar> m_minMaxSizing;
+  SharedSidecar<LayoutSizingStyleMinMaxSizingSidecar> m_minMaxSizing;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR
