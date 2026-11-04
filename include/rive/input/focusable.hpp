@@ -203,9 +203,8 @@ public:
   /// clipboard access).
   virtual bool selectedText(std::string& outText) const { return false; }
 
-  /// Whether this focusable consumes typed text (a text input). Lets hosts
-  /// decide to start routing the keyboard to the runtime when one takes
-  /// focus. Default: no.
+  /// Whether this focusable consumes typed text (a text input or text-input
+  /// listeners; keys alone don't). Hosts raise a soft keyboard for it.
   virtual bool acceptsTextInput() const { return false; }
 
   /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
@@ -234,8 +233,7 @@ public:
 
   /// Returns true if this focusable consumes keyboard input — either
   /// intrinsically (e.g. a text-editable input) or by having registered
-  /// key/text listeners. Hosts use this to decide whether to surface a
-  /// soft keyboard / IME when this element holds focus.
+  /// key/text listeners.
   virtual bool acceptsKeyboardInput() const { return false; }
 
   /// Whether a primary press landing outside this focusable takes focus

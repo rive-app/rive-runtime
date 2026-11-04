@@ -100,7 +100,7 @@ public:
   /// Forwards to the parent TextInput's selection (mirroring how
   /// key/text input special-case a TextInput parent).
   bool selectedText(std::string& outText) const override;
-  /// True when the parent is a TextInput (same special case).
+  /// A TextInput parent or text-input listeners.
   bool acceptsTextInput() const override;
   /// Forwards to the parent TextInput (same special case): it asks to blur
   /// on an outside press and owns the hit test for it.

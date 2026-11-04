@@ -240,7 +240,8 @@ bool FocusData::selectedText(std::string& outText) const
 bool FocusData::acceptsTextInput() const
 {
   Component* target = parent();
-  return target != nullptr && target->is<TextInput>();
+  return !m_textInputListeners.empty() ||
+         (target != nullptr && target->is<TextInput>());
 }
 
 bool FocusData::blursOnOutsidePress() const

@@ -548,6 +548,8 @@ public:
     /// TextInput, or a FocusData target with registered key/text-input
     /// listeners. False when nothing is focused.
     bool expectsKeyboardInput = false;
+    /// True if the focused element or an ancestor takes typed text.
+    bool expectsTextInput = false;
   };
   FocusState focusState() const;
 

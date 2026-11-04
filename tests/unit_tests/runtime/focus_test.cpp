@@ -2248,6 +2248,59 @@ TEST_CASE(
   auto state = smi.focusState();
   CHECK(state.hasFocus == true);
   CHECK(state.expectsKeyboardInput == true);
+  CHECK(state.expectsTextInput == false);
+}
+
+namespace
+{
+class TextAcceptingFocusable : public KeyboardAcceptingFocusable
+{
+public:
+  bool acceptsTextInput() const override { return true; }
+};
+} // namespace
+
+TEST_CASE(
+    "StateMachineInstance::focusState reports text expectation when the "
+    "focused focusable takes text",
+    "[FocusState]")
+{
+  NoOpFactory factory;
+  Artboard artboard(&factory);
+  auto instance = instanceWithFocus(artboard);
+  StateMachine machine;
+  StateMachineInstance smi(&machine, instance.get());
+
+  TextAcceptingFocusable tf;
+  auto node = make_rcp<FocusNode>(&tf);
+  smi.focusManager()->addChild(nullptr, node);
+  smi.focusManager()->setFocus(node);
+
+  auto state = smi.focusState();
+  CHECK(state.expectsKeyboardInput == true);
+  CHECK(state.expectsTextInput == true);
+}
+
+TEST_CASE(
+    "StateMachineInstance::focusState reports text expectation from an "
+    "ancestor that takes text",
+    "[FocusState]")
+{
+  NoOpFactory factory;
+  Artboard artboard(&factory);
+  auto instance = instanceWithFocus(artboard);
+  StateMachine machine;
+  StateMachineInstance smi(&machine, instance.get());
+
+  TextAcceptingFocusable parent;
+  KeyboardAcceptingFocusable child;
+  auto parentNode = make_rcp<FocusNode>(&parent);
+  auto childNode = make_rcp<FocusNode>(&child);
+  smi.focusManager()->addChild(nullptr, parentNode);
+  smi.focusManager()->addChild(parentNode, childNode);
+  smi.focusManager()->setFocus(childNode);
+
+  CHECK(smi.focusState().expectsTextInput == true);
 }
 
 TEST_CASE(
@@ -2516,6 +2569,21 @@ TEST_CASE(
   CHECK(focusData.keyInput(Key::a, KeyModifiers::none, true, false));
   CHECK(first.calls == 1);
   CHECK(second.calls == 1);
+}
+
+TEST_CASE(
+    "a focus data takes text only with a text-input listener",
+    "[FocusData]")
+{
+  FocusData focusData;
+  RecordingKeyboardListener keys(/*claims=*/true);
+  focusData.addKeyboardListener(&keys);
+  CHECK(focusData.acceptsKeyboardInput());
+  CHECK_FALSE(focusData.acceptsTextInput());
+
+  RecordingKeyboardListener text(/*claims=*/false);
+  focusData.addTextInputListener(&text);
+  CHECK(focusData.acceptsTextInput());
 }
 
 TEST_CASE(

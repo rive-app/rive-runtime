@@ -5246,6 +5246,8 @@ StateMachineInstance::FocusState StateMachineInstance::focusState() const
     return state;
   }
   state.hasFocus = true;
+  // Text bubbles up the focus tree, so an ancestor that takes it counts.
+  state.expectsTextInput = fm->primaryFocusAcceptsText();
   if (Focusable* focusable = focus->focusable())
   {
     state.expectsKeyboardInput = focusable->acceptsKeyboardInput();
