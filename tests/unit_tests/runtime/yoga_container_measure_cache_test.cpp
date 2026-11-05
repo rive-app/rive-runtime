@@ -15,6 +15,8 @@
 #include "yoga/Yoga.h"
 #include "yoga/event/event.h"
 #include <catch.hpp>
+#include <algorithm>
+#include <cmath>
 #include <functional>
 #include <unordered_map>
 
@@ -121,6 +123,31 @@ void checkRelayoutMatchesFresh(
   checkSameLayout(relaid, fresh);
   YGNodeFreeRecursive(relaid);
   YGNodeFreeRecursive(fresh);
+}
+
+// A leaf of [natural] width that wraps to another 16 high line for each
+// [natural] the space it's offered falls short by.
+YGSize measureWrappingText(
+    YGNodeRef node,
+    float width,
+    YGMeasureMode widthMode,
+    float,
+    YGMeasureMode)
+{
+  float natural = *static_cast<float*>(YGNodeGetContext(node));
+  float measured = widthMode == YGMeasureModeUndefined ? natural
+                   : widthMode == YGMeasureModeExactly
+                       ? width
+                       : std::min(natural, width);
+  return {measured, std::ceil(natural / measured) * 16};
+}
+
+YGNodeRef wrappingText(float* natural)
+{
+  YGNodeRef node = YGNodeNew();
+  YGNodeSetContext(node, natural);
+  YGNodeSetMeasureFunc(node, measureWrappingText);
+  return node;
 }
 
 // A row with a 10 margin all around and an empty row in it. Offered a height
@@ -393,5 +420,206 @@ TEST_CASE(
   CHECK(YGNodeLayoutGetWidth(image) == Approx(164));
   CHECK(YGNodeLayoutGetWidth(row) == Approx(184));
   CHECK(YGNodeLayoutGetWidth(column) == Approx(184));
+  YGNodeFreeRecursive(root);
+}
+
+TEST_CASE(
+    "a container that overflowed a limit is measured under a looser exact size",
+    "[layout][yoga-measure-cache]")
+{
+  // Offered at most 180, the 196 wide text wraps to two lines and the row
+  // overflows to 208. Offered exactly 208 next, the text fits on one line.
+  static float shortText = 28;
+  static float longText = 196;
+  YGNodeRef root = box(300, 300);
+  YGNodeRef limit = YGNodeNew();
+  YGNodeStyleSetFlexDirection(limit, YGFlexDirectionRow);
+  YGNodeStyleSetWidth(limit, 180);
+  // Stretching the row is what measures it at exactly 208.
+  YGNodeStyleSetAlignItems(limit, YGAlignStretch);
+  YGNodeRef row = hug(YGFlexDirectionRow);
+  add(row, wrappingText(&shortText));
+  YGNodeRef wrapping = wrappingText(&longText);
+  add(row, wrapping);
+  add(limit, row);
+  add(root, limit);
+
+  layout(root);
+
+  CHECK(YGNodeLayoutGetWidth(row) == Approx(208));
+  CHECK(YGNodeLayoutGetWidth(wrapping) == Approx(196));
+  CHECK(YGNodeLayoutGetHeight(wrapping) == Approx(16));
+  CHECK(YGNodeLayoutGetHeight(row) == Approx(16));
+  YGNodeFreeRecursive(root);
+}
+
+TEST_CASE(
+    "a wrapping container is measured under each limit",
+    "[layout][yoga-measure-cache]")
+{
+  // Offered at most 270, the boxes wrap onto two lines. Offered exactly 270,
+  // Yoga gives a lone child that grows and shrinks a basis of 0, so they
+  // share one line.
+  YGNodeRef root = YGNodeNew();
+  YGNodeStyleSetFlexDirection(root, YGFlexDirectionRow);
+  YGNodeStyleSetWidth(root, 270);
+  YGNodeRef row = hug(YGFlexDirectionRow);
+  YGNodeStyleSetFlexWrap(row, YGWrapWrap);
+  add(row, box(100, 40));
+  YGNodeRef fill = box(200, 20);
+  YGNodeStyleSetFlexGrow(fill, 1);
+  YGNodeStyleSetFlexShrink(fill, 1);
+  add(row, fill);
+  add(root, row);
+
+  layout(root);
+
+  CHECK(YGNodeLayoutGetHeight(row) == Approx(40));
+  CHECK(YGNodeLayoutGetTop(fill) == Approx(0));
+  YGNodeFreeRecursive(root);
+}
+
+TEST_CASE(
+    "a wrapping container relaid out under a new limit matches a fresh "
+    "layout",
+    "[layout][yoga-measure-cache]")
+{
+  // The column is measured at a narrower width while its row works out a
+  // flex basis, where it's taller than 95 and wraps.
+  static float text = 70;
+  auto fill = [](YGNodeRef row) {
+    YGNodeStyleSetAlignItems(row, YGAlignFlexStart);
+    YGNodeRef column = YGNodeNew();
+    YGNodeStyleSetFlexWrap(column, YGWrapWrap);
+    YGNodeStyleSetAlignItems(column, YGAlignFlexStart);
+    add(column, wrappingText(&text));
+    add(column, box(74, 71));
+    add(row, column);
+  };
+  checkRelayoutMatchesFresh(fill, {38, YGUndefined}, {38, 95});
+}
+
+TEST_CASE(
+    "a container is measured under an exact cross size that skips "
+    "clamping",
+    "[layout][yoga-measure-cache]")
+{
+  // Measured under an exact height, Yoga sizes the column from the box's
+  // unclamped 200 width without flexing it, so a measurement that clamped
+  // the box to 50 can't stand in for it.
+  YGNodeRef root = box(300, 300);
+  YGNodeStyleSetFlexDirection(root, YGFlexDirectionRow);
+  YGNodeRef column = hug(YGFlexDirectionColumn);
+  YGNodeStyleSetAlignItems(column, YGAlignFlexStart);
+  YGNodeRef row = hug(YGFlexDirectionRow);
+  YGNodeStyleSetAlignItems(row, YGAlignFlexStart);
+  YGNodeRef clamped = box(200, 20);
+  YGNodeStyleSetMaxWidth(clamped, 50);
+  add(row, clamped);
+  add(column, row);
+  add(root, column);
+
+  layout(root);
+
+  CHECK(YGNodeLayoutGetWidth(column) == Approx(200));
+  CHECK(YGNodeLayoutGetWidth(row) == Approx(50));
+  YGNodeFreeRecursive(root);
+}
+
+TEST_CASE(
+    "a hug container with a fill child is measured again once its owner "
+    "has a size",
+    "[layout][yoga-measure-cache]")
+{
+  // A fill child's 0 basis only applies once the column has a height, so
+  // the column measured without one can't stand in for it. The flex
+  // shorthand resolves to the same basis.
+  auto build = [](float rootHeight, bool shorthand) {
+    YGNodeRef root = YGNodeNew();
+    YGNodeStyleSetAlignItems(root, YGAlignFlexStart);
+    YGNodeStyleSetWidth(root, 300);
+    YGNodeStyleSetHeight(root, rootHeight);
+    YGNodeRef column = hug(YGFlexDirectionColumn);
+    YGNodeRef fill = YGNodeNew();
+    if (shorthand)
+    {
+      YGNodeStyleSetFlex(fill, 1);
+    }
+    else
+    {
+      YGNodeStyleSetFlexBasis(fill, 0);
+      YGNodeStyleSetFlexGrow(fill, 1);
+      YGNodeStyleSetFlexShrink(fill, 1);
+    }
+    YGNodeStyleSetMinHeight(fill, 0);
+    add(fill, box(50, 16));
+    add(column, fill);
+    add(root, column);
+    return root;
+  };
+  for (bool shorthand : {false, true})
+  {
+    YGNodeRef relaid = build(YGUndefined, shorthand);
+    layout(relaid);
+    YGNodeStyleSetHeight(relaid, 500);
+    layout(relaid);
+    YGNodeRef fresh = build(500, shorthand);
+    layout(fresh);
+    checkSameLayout(relaid, fresh);
+    YGNodeFreeRecursive(relaid);
+    YGNodeFreeRecursive(fresh);
+  }
+}
+
+TEST_CASE(
+    "a container with a percent padding is measured again only once its owner "
+    "resizes",
+    "[layout][yoga-measure-cache]")
+{
+  // Its padding resolves against its owner's width, so a measurement only
+  // answers under the owner width it was made in.
+  YGNodeRef root = YGNodeNew();
+  YGNodeStyleSetFlexDirection(root, YGFlexDirectionRow);
+  YGNodeStyleSetAlignItems(root, YGAlignFlexStart);
+  YGNodeStyleSetWidth(root, 300);
+  YGNodeRef padded = hug(YGFlexDirectionRow);
+  YGNodeStyleSetPaddingPercent(padded, YGEdgeLeft, 10);
+  add(padded, box(50, 20));
+  YGNodeRef sibling = box(10, 10);
+  add(root, padded);
+  add(root, sibling);
+  layout(root);
+
+  countMeasures();
+  YGNodeStyleSetWidth(sibling, 20);
+  layout(root);
+  CHECK(s_measures[padded] == 0);
+  YGNodeStyleSetWidth(root, 400);
+  layout(root);
+  s_counting = false;
+  CHECK(s_measures[padded] > 0);
+  CHECK(YGNodeLayoutGetPadding(padded, YGEdgeLeft) == Approx(40));
+  YGNodeFreeRecursive(root);
+}
+
+TEST_CASE(
+    "a measured leaf lays out its percent margin and padding under each owner "
+    "width",
+    "[layout][yoga-measure-cache]")
+{
+  float natural = 50;
+  YGNodeRef root = YGNodeNew();
+  YGNodeStyleSetFlexDirection(root, YGFlexDirectionRow);
+  YGNodeRef text = wrappingText(&natural);
+  YGNodeStyleSetMarginPercent(text, YGEdgeLeft, 10);
+  YGNodeStyleSetPaddingPercent(text, YGEdgeLeft, 10);
+  add(root, text);
+  for (float width : {300.0f, 400.0f, 300.0f})
+  {
+    YGNodeStyleSetWidth(root, width);
+    layout(root);
+    CHECK(YGNodeLayoutGetMargin(text, YGEdgeLeft) == Approx(width / 10));
+    CHECK(YGNodeLayoutGetPadding(text, YGEdgeLeft) == Approx(width / 10));
+  }
   YGNodeFreeRecursive(root);
 }

@@ -37,6 +37,8 @@
 #define YGDisplay rive_YGDisplay
 #define YGJustify rive_YGJustify
 #define YGLayoutNodeInternal rive_YGLayoutNodeInternal
+#define YGProbeSavesMark rive_YGProbeSavesMark
+#define YGProbeSavesRestore rive_YGProbeSavesRestore
 #define YGConfigGetDefault rive_YGConfigGetDefault
 #define YGBaseline rive_YGBaseline
 #define YGDefaultLog rive_YGDefaultLog
@@ -45,6 +47,7 @@
 #define YGNodelayoutImpl rive_YGNodelayoutImpl
 #define YGJustifyMainAxis rive_YGJustifyMainAxis
 #define YGCollectFlexItemsRowValues rive_YGCollectFlexItemsRowValues
+#define YGLineChildren rive_YGLineChildren
 #define YGMeasureModeName rive_YGMeasureModeName
 #define YGIsBaselineLayout rive_YGIsBaselineLayout
 #define YGRoundToPixelGrid rive_YGRoundToPixelGrid
