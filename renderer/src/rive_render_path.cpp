@@ -356,10 +356,34 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
   // Our math that flattens feathered curves relies on curves not rotating
   // more than 90 degrees.
   rotationBetweenJoins = std::min(rotationBetweenJoins, math::PI / 2);
+
+  // The copy depends on nothing but the geometry, the fill rule and
+  // rotationBetweenJoins, so the last one is still right while none of them
+  // changed.
+  if (m_softenedCopy != nullptr && !(m_dirt & kSoftenedCopyDirt) &&
+      m_softenedCopyRotation == rotationBetweenJoins &&
+      m_softenedCopy->m_fillRule == m_fillRule)
+  {
+    return m_softenedCopy;
+  }
+
   Mat2D rotationMatrix = Mat2D::fromRotation(rotationBetweenJoins);
   Mat2D reverseRotationMatrix = Mat2D::fromRotation(-rotationBetweenJoins);
 
-  RawPath featheredPath;
+  // Once no draw holds the last copy, only this path does, so it's rebuilt in
+  // place: a path that changes every frame reuses the copy's storage instead
+  // of allocating a new copy each time.
+  const bool rebuildInPlace = m_softenedCopy != nullptr &&
+                              m_softenedCopy->debugging_refcnt() == 1;
+  RawPath newPath;
+  if (rebuildInPlace)
+  {
+    // Pairs with the acq_rel unref of the last draw that let go, so whatever
+    // it read happens before this writes.
+    std::atomic_thread_fence(std::memory_order_acquire);
+    m_softenedCopy->rewind();
+  }
+  RawPath& featheredPath = rebuildInPlace ? m_softenedCopy->m_rawPath : newPath;
   // Reserve a generous amount of space upfront so we hopefully don't have to
   // reallocate -- enough for each verb to be chopped 4 times.
   featheredPath.reserve(
@@ -448,7 +472,22 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
         RIVE_UNREACHABLE();
     }
   }
-  return make_rcp<RiveRenderPath>(m_fillRule, featheredPath);
+  if (rebuildInPlace)
+  {
+    // What the constructor does for a new copy. rewind() already marked all
+    // of the copy's cached state dirty.
+    featheredPath.pruneEmptySegments();
+    m_softenedCopy->m_fillRule = m_fillRule;
+  }
+  else
+  {
+    // Replacing the previous copy releases it here, or once the last draw
+    // holding it lets go.
+    m_softenedCopy = make_rcp<RiveRenderPath>(m_fillRule, featheredPath);
+  }
+  m_softenedCopyRotation = rotationBetweenJoins;
+  m_dirt &= ~kSoftenedCopyDirt;
+  return m_softenedCopy;
 }
 
 // This is the only translation unit that sees both the shader constants and

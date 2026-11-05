@@ -76,6 +76,13 @@ public:
   // path with shorter, flatter curves that will more accurately depict a
   // gaussian blur when drawn with the given feather.
   //
+  // The path keeps the last copy it made, and returns that same copy while
+  // its geometry and fill rule are unchanged and feather * matrixMaxScale
+  // chops the same way, so a feathered fill drawn frame after frame builds it
+  // once. A copy is never changed while a draw holds it: a changed path then
+  // gets a new copy, and once no draw holds the last one it's rebuilt in
+  // place, so a path that changes every frame reuses its storage.
+  //
   // TODO: Move this work to the GPU.
   rcp<RiveRenderPath> makeSoftenedCopyForFeathering(
       float feather,
@@ -103,10 +110,16 @@ public:
       bool inkbleed = false) const;
 
 private:
-  FillRule m_fillRule = FillRule::nonZero;
+  // The copy makeSoftenedCopyForFeathering() last made, and the rotation
+  // between joins it was chopped for. It's stale once kSoftenedCopyDirt is
+  // set, or when the fill rule no longer matches the copy's.
+  // NOTE: Both sit in what used to be padding (after the base and after
+  // m_coarseArea), so they don't grow the path.
+  rcp<RiveRenderPath> m_softenedCopy;
   RawPath m_rawPath;
   mutable AABB m_bounds;
   mutable float m_coarseArea;
+  float m_softenedCopyRotation = 0;
   mutable uint64_t m_rawPathMutationID;
 
   // Cached inner-fan triangulation, in a dedicated allocator so it outlives
@@ -125,10 +138,13 @@ private:
     kPathBoundsDirt = 1 << 0,
     kRawPathMutationIDDirt = 1 << 1,
     kPathCoarseAreaDirt = 1 << 2,
+    kSoftenedCopyDirt = 1 << 3,
     kAllDirt = ~0,
   };
 
   mutable uint32_t m_dirt = kAllDirt;
+  // After m_dirt, in the tail padding, which leaves room for m_softenedCopy.
+  FillRule m_fillRule = FillRule::nonZero;
   RIVE_DEBUG_CODE(mutable int m_rawPathMutationLockCount = 0;)
 };
 } // namespace rive
