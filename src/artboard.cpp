@@ -2421,7 +2421,20 @@ bool Artboard::updateComponents()
 LayoutData* Artboard::takeLayoutData()
 {
 #ifdef WITH_RIVE_LAYOUT
-  m_updatesOwnLayout = false;
+  if (m_updatesOwnLayout)
+  {
+    m_updatesOwnLayout = false;
+    // Style changes made while we laid ourselves out, such as the size
+    // overrides of the nested artboard hosting us, wait in our own dirty
+    // list. A host only syncs that list for artboards whose layout it owns,
+    // and a collapsed artboard never updates itself, so one collected only
+    // now (a Solo option activated after load) would keep them unsynced and
+    // lay out at zero size. Sync them as the host takes the node.
+    if (!m_dirtyLayout.empty())
+    {
+      syncStyleChanges();
+    }
+  }
   return m_layoutData;
 #else
   return nullptr;

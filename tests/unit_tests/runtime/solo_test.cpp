@@ -9,6 +9,8 @@
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/nested_artboard_leaf.hpp>
+#include <rive/nested_artboard_layout.hpp>
+#include <rive/layout_component.hpp>
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
@@ -869,4 +871,47 @@ TEST_CASE("a legacy leaf under a Solo frames its own bounds", "[silver]")
       "solo_nested_artboard_leaf_solo",
       /*expectSolo=*/true,
       /*expectFitToLayoutParent=*/false);
+}
+
+// solo_nested_layout_switch.riv (built with rive-cli from
+// assets/rml/solo_nested_layout_switch.rml): "Main" lays out a 400x300 Host box
+// holding a Solo of two nested artboards, "A" and "B", both fill x fill, with
+// the Solo's active child bound to Pages.index. Each page is one Pane box, fill
+// x fill. Whichever page the Solo shows has to fill the Host, including one
+// that was inactive when the file loaded.
+TEST_CASE(
+    "Solo lays out a nested artboard it activates after load",
+    "[solo][layout]")
+{
+  auto file = ReadRiveFile("assets/solo_nested_layout_switch.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto index = vmi->propertyValue("index")->as<rive::ViewModelInstanceNumber>();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+
+  auto paneOf = [&](const char* page) -> rive::LayoutComponent* {
+    auto nested = artboard->find<rive::NestedArtboardLayout>(page);
+    REQUIRE(nested != nullptr);
+    auto instance = nested->artboardInstance();
+    REQUIRE(instance != nullptr);
+    auto pane = instance->find<rive::LayoutComponent>("Pane");
+    REQUIRE(pane != nullptr);
+    return pane;
+  };
+
+  CHECK(paneOf("A")->layoutWidth() == 400.0f);
+  CHECK(paneOf("A")->layoutHeight() == 300.0f);
+
+  index->propertyValue(1);
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(paneOf("B")->layoutWidth() == 400.0f);
+  CHECK(paneOf("B")->layoutHeight() == 300.0f);
+
+  index->propertyValue(0);
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(paneOf("A")->layoutWidth() == 400.0f);
+  CHECK(paneOf("A")->layoutHeight() == 300.0f);
 }

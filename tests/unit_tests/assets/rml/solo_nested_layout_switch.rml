@@ -1,0 +1,58 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/solo_nested_layout_switch.riv. Rebuild it from a
+      directory holding this scene.rml and a rive.yaml naming it (main: Main):
+
+          rive . --unsigned-riv
+
+      "Main" lays out a Host box (fill) holding a Solo of two nested artboards,
+      "A" and "B", both fill x fill. The Solo's active child is bound to
+      Pages.index. Each page is one Pane box (fill x fill) with a fill.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:50" viewModelInstanceId="0:51" width="400" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Main Style" id="0:5"/>
+        <LayoutComponent width="400" height="300" styleId="0:11" name="Host" id="0:10">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="Host Style" id="0:11"/>
+            <Solo activeComponentId="0:20" name="Pages" id="0:12">
+                <DataBindContext sourcePathIds="0:50-0:52" propertyKey="296"/>
+                <NestedArtboardLayout artboardId="0:30" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="A" id="0:20">
+                    <NestedStateMachine animationId="0:37" name="A Machine"/>
+                </NestedArtboardLayout>
+                <NestedArtboardLayout artboardId="0:40" instanceWidthScaleType="fill" instanceHeightScaleType="fill" name="B" id="0:21">
+                    <NestedStateMachine animationId="0:47" name="B Machine"/>
+                </NestedArtboardLayout>
+            </Solo>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="0:7">
+            <StateMachineLayer name="Layer 1" id="0:8"><AnyState/><ExitState/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="0:37" width="200" height="100" styleId="0:31" x="500" name="A" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="A Style" id="0:31"/>
+        <LayoutComponent width="200" height="100" styleId="0:33" name="Pane" id="0:32">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="Pane Style" id="0:33"/>
+            <Fill name="Fill"><SolidColor colorValue="FFB02020" name="Red"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="A Machine" id="0:37">
+            <StateMachineLayer name="Layer 1" id="0:38"><AnyState/><ExitState/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="0:47" width="200" height="100" styleId="0:41" x="800" name="B" id="0:40">
+        <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="B Style" id="0:41"/>
+        <LayoutComponent width="200" height="100" styleId="0:43" name="Pane" id="0:42">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" name="Pane Style" id="0:43"/>
+            <Fill name="Fill"><SolidColor colorValue="FF2040B0" name="Blue"/></Fill>
+        </LayoutComponent>
+        <StateMachine name="B Machine" id="0:47">
+            <StateMachineLayer name="Layer 1" id="0:48"><AnyState/><ExitState/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="A"/>
+    <ComponentAsset artboardId="0:40" name="B"/>
+    <ViewModel defaultInstanceId="0:51" name="Pages" id="0:50">
+        <ViewModelPropertyNumber name="index" id="0:52"/>
+        <ViewModelInstance exports="true" name="Instance" id="0:51">
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:52"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>
