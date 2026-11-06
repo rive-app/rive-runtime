@@ -436,12 +436,15 @@ void TextInput::controlSize(
   m_layoutWidth = size.x;
   m_layoutHeight = size.y;
 #ifdef WITH_RIVE_TEXT
+  bool hugsWidth = widthScaleType == LayoutScaleType::hug;
+#ifdef WITH_RIVE_LAYOUT
   // A legacy file encodes a hugging layout as fixed scales, so ask the layout
-  // sizing us rather than going by the scale type alone.
+  // sizing us rather than going by the scale type alone. Without the layout
+  // engine nothing sizes to content, so the scale type is all there is.
   LayoutComponent* layout = contentSizingLayout(parent());
-  m_rawTextInput.hugsWidth(
-      widthScaleType == LayoutScaleType::hug ||
-      (layout != nullptr && layout->hugsContentWidth()));
+  hugsWidth = hugsWidth || (layout != nullptr && layout->hugsContentWidth());
+#endif
+  m_rawTextInput.hugsWidth(hugsWidth);
 #endif
   updateMultiline();
 }
