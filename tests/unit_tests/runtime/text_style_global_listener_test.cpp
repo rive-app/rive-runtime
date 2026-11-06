@@ -1,6 +1,7 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
+#include "rive/event.hpp"
 #include "rive/file.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -375,4 +376,56 @@ TEST_CASE(
     artboard = nullptr;
   }
   CHECK(file->textStyleShares().liveCount() == 0);
+}
+
+// A host about to drop a machine delivers what it and the machines it passes
+// pointer events on to have reported (StateMachineInstance::
+// applyPendingReports, as a list does for a row as it goes). A Text's style
+// run machines are among those: the host's exit reaches them too.
+TEST_CASE(
+    "Pending reports are delivered in a Text's style run machines",
+    "[textStyleGlobal][textStyleGlobalListeners]")
+{
+  auto file = ReadRiveFile("assets/text_style_global_listeners.riv");
+  LinkScene scene(file.get());
+  std::vector<StateMachineInstance*> machines;
+  scene.links->runStateMachines(machines);
+  REQUIRE(machines.size() == 2);
+  Event event;
+  for (auto machine : machines)
+  {
+    machine->reportEvent(&event);
+    REQUIRE(machine->reportedEventCount() == 1);
+  }
+
+  scene.machine->applyPendingReports();
+  for (auto machine : machines)
+  {
+    CHECK(machine->reportedEventCount() == 0);
+  }
+}
+
+// A host's drag passes dragStart on to a Text's style run machines, which
+// turns the pointer off for them, and only the drag's end turns it back on.
+// A host about to drop its machine (dropPointer, as a list does for a row as
+// it goes) gets no drag end, so it turns them back on itself, and their exit
+// listeners still run.
+TEST_CASE(
+    "A dropped pointer leaves a Text's style runs mid drag",
+    "[textStyleGlobal][textStyleGlobalListeners]")
+{
+  auto file = ReadRiveFile("assets/text_style_global_listeners.riv");
+  LinkScene scene(file.get());
+  auto one = scene.run(0);
+  auto point = glyphAt(scene.links, 1);
+  scene.moveTo(point);
+  scene.frame();
+  REQUIRE(hovered(one));
+  REQUIRE(colorOf(one) == kHover);
+
+  scene.machine->dragStart(point, 0.0f, true, 0);
+  scene.machine->dropPointer(point, 0);
+  scene.frame();
+  CHECK(!hovered(one));
+  CHECK(colorOf(one) == kIdle);
 }

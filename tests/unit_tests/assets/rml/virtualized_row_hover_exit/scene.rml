@@ -1,0 +1,574 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/virtualized_row_hover_exit.riv. README.md, next
+      to this file, says how to rebuild it.
+
+      What it is for: a hovered list row that stops showing gets its pointer
+      exit (see virtualized_row_hover_exit_test.cpp). Main shows the same kind
+      of row in two scrolling lists: Virtual Rows, whose scroll virtualizes,
+      and Plain Rows, whose scroll doesn't. Each Row sets its item's hover
+      while the pointer is over its Hit shape, and hosts a Badge that sets
+      the item's badgeHover while the pointer is over its Dot. Leaving Hit
+      also fires the global Signals.rowLeft, which takes Main's machine from
+      idle to left, and the Row Left event, on which the row's machine sets
+      the item's leftEvent. Leaving Dot fires Badge Left, on which the row's
+      machine sets badgeLeftEvent. The badge's machine sets badgeSawLeft
+      once leftEvent changes. A press on Hit, and one on Dot, is taken
+      by a capture listener (which sets pressed), claiming the pointer from
+      the normal listeners there until its release.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="Lists" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="row" name="Lists Style" id="0:11"/>
+            <LayoutComponent clip="true" width="150" height="300" styleId="0:12" name="Virtual Viewport" id="0:13">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" name="Virtual Viewport Style" id="0:12"/>
+                <LayoutComponent clip="false" width="150" height="100" styleId="0:14" name="Virtual Content" id="0:15">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" flexDirectionValue="column" name="Virtual Content Style" id="0:14"/>
+                    <ArtboardComponentList name="Virtual Rows" id="0:16">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+                    </ArtboardComponentList>
+                    <ScrollConstraint directionValue="vertical" virtualize="true" name="Virtual Scroll" id="0:17"/>
+                </LayoutComponent>
+            </LayoutComponent>
+            <LayoutComponent clip="true" width="150" height="300" styleId="0:22" name="Plain Viewport" id="0:23">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" name="Plain Viewport Style" id="0:22"/>
+                <LayoutComponent clip="false" width="150" height="100" styleId="0:24" name="Plain Content" id="0:25">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" flexDirectionValue="column" name="Plain Content Style" id="0:24"/>
+                    <ArtboardComponentList name="Plain Rows" id="0:26">
+                        <DataBindContext sourcePathIds="0:40-0:46" propertyKey="800"/>
+                    </ArtboardComponentList>
+                    <ScrollConstraint directionValue="vertical" virtualize="false" name="Plain Scroll" id="0:27"/>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:19" id="0:20">
+                    <StateTransition stateToId="0:21">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyTrigger>
+                                    <DataBindContext sourcePathIds="0:80-0:81" propertyKey="686"/>
+                                </BindablePropertyTrigger>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueTriggerComparator/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:18" id="0:21"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:19"/>
+        <LinearAnimation duration="1" name="left" id="0:18"/>
+    </Artboard>
+
+    <!-- A row: Hit covers it, and Badge sits over its right end. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" x="400" width="150" height="60" styleId="0:35" name="Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="0:35"/>
+        <NestedArtboard artboardId="0:60" x="100" y="10" name="Badge" id="0:32">
+            <NestedStateMachine animationId="0:67" name="Badge Machine" id="0:33"/>
+        </NestedArtboard>
+        <Shape x="75" y="30" name="Hit" id="0:31">
+            <Rectangle width="150" height="60" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF303030" name="Color"/></Fill>
+        </Shape>
+        <Event name="Row Left" id="0:47"/>
+        <StateMachine name="Row Machine" id="0:37">
+            <StateMachineListenerSingle targetId="0:31" listenerTypeValue="enter" name="Hover in" id="0:44">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:51" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:31" listenerTypeValue="exit" name="Hover out" id="0:45">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:50-0:51" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange>
+                    <BindablePropertyTrigger propertyValue="1">
+                        <DataBindContext sourcePathIds="0:80-0:81" propertyKey="686" direction="true"/>
+                    </BindablePropertyTrigger>
+                </ListenerViewModelChange>
+                <ListenerFireEvent eventId="0:47"/>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:30" listenerTypeValue="event" eventId="0:47" name="On row left" id="0:48">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:53" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:32" listenerTypeValue="event" eventId="0:76" name="On badge left" id="0:49">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:54" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:31" listenerTypeValue="down" phaseValue="capture" name="Claim press" id="0:39">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:55" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="Layer" id="0:36">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:41"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:34" id="0:41"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:34"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Row"/>
+
+    <Artboard isComponent="true" defaultStateMachineId="0:67" viewModelId="0:50" x="600" width="40" height="40" styleId="0:65" name="Badge" id="0:60">
+        <LayoutComponentStyle name="Badge Style" id="0:65"/>
+        <Shape x="20" y="20" name="Dot" id="0:61">
+            <Rectangle width="40" height="40" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFE0A557" name="Color"/></Fill>
+        </Shape>
+        <Event name="Badge Left" id="0:76"/>
+        <StateMachine name="Badge Machine" id="0:67">
+            <StateMachineListener targetId="0:60" name="On left event" id="0:78">
+                <ListenerInputTypeViewModel viewModelPathIds="0:50-0:53" listenerTypeValue="viewModel"/>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:56" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+            <StateMachineListenerSingle targetId="0:61" listenerTypeValue="enter" name="Badge hover in" id="0:74">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:52" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:61" listenerTypeValue="exit" name="Badge hover out" id="0:75">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:50-0:52" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerFireEvent eventId="0:76"/>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:61" listenerTypeValue="down" phaseValue="capture" name="Claim badge press" id="0:77">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:50-0:55" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="Layer" id="0:66">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:71"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:64" id="0:71"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:64"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:60" name="Badge"/>
+
+    <ViewModel defaultInstanceId="0:1000" name="Item" id="0:50">
+        <ViewModelPropertyBoolean name="hover" id="0:51"/>
+        <ViewModelPropertyBoolean name="badgeHover" id="0:52"/>
+        <ViewModelPropertyBoolean name="leftEvent" id="0:53"/>
+        <ViewModelPropertyBoolean name="badgeLeftEvent" id="0:54"/>
+        <ViewModelPropertyBoolean name="pressed" id="0:55"/>
+        <ViewModelPropertyBoolean name="badgeSawLeft" id="0:56"/>
+        <ViewModelInstance exports="true" name="V0" id="0:1000">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V1" id="0:1001">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V2" id="0:1002">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V3" id="0:1003">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V4" id="0:1004">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V5" id="0:1005">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V6" id="0:1006">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V7" id="0:1007">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V8" id="0:1008">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V9" id="0:1009">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V10" id="0:1010">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V11" id="0:1011">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V12" id="0:1012">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V13" id="0:1013">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V14" id="0:1014">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V15" id="0:1015">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V16" id="0:1016">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V17" id="0:1017">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V18" id="0:1018">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="V19" id="0:1019">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P0" id="0:1020">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P1" id="0:1021">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P2" id="0:1022">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P3" id="0:1023">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P4" id="0:1024">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P5" id="0:1025">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P6" id="0:1026">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P7" id="0:1027">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P8" id="0:1028">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P9" id="0:1029">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P10" id="0:1030">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P11" id="0:1031">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P12" id="0:1032">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P13" id="0:1033">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P14" id="0:1034">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P15" id="0:1035">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P16" id="0:1036">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P17" id="0:1037">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P18" id="0:1038">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="P19" id="0:1039">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:53"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:54"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:55"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel viewModelType="global" defaultInstanceId="0:82" name="Signals" id="0:80">
+        <ViewModelPropertyTrigger name="rowLeft" id="0:81"/>
+        <ViewModelInstance exports="true" name="Signals" id="0:82">
+            <ViewModelInstanceTrigger viewModelPropertyId="0:81"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="virtualItems" id="0:42"/>
+        <ViewModelPropertyList name="plainItems" id="0:46"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1000"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1001"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1002"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1003"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1004"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1005"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1006"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1007"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1008"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1009"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1010"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1011"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1012"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1013"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1014"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1015"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1016"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1017"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1018"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1019"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceList viewModelPropertyId="0:46">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1020"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1021"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1022"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1023"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1024"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1025"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1026"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1027"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1028"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1029"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1030"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1031"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1032"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1033"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1034"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1035"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1036"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1037"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1038"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1039"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

@@ -78,6 +78,7 @@ public:
   // handle, as one: they share its instance.
   bool listensToRuns() const override;
   StateMachineInstance* runStateMachine() const override;
+  StateMachineInstance* styleStateMachine() const override;
   void listItem(const rcp<ViewModelInstance>& value) override;
 
   // The first TextStylePaint of a style artboard; null when the artboard is

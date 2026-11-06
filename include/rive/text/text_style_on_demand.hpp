@@ -83,6 +83,7 @@ public:
   TextStylePaint* resolvedPaint() override { return m_paint; }
   bool listensToRuns() const override;
   StateMachineInstance* runStateMachine() const override;
+  StateMachineInstance* styleStateMachine() const override;
   void listItem(const rcp<ViewModelInstance>& value) override;
 
 private:

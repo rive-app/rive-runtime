@@ -28,6 +28,9 @@ public:
   /// for all of them: hovering or pressing any of them restyles them all
   /// (see StateMachineInstance::serveTextStyle). Null when none listens.
   virtual StateMachineInstance* runStateMachine() const { return nullptr; }
+  /// The state machine of this style's instance, whether or not it listens
+  /// to the runs. Null when the style has none.
+  virtual StateMachineInstance* styleStateMachine() const { return nullptr; }
   /// The list item of the one list run drawn with this style, if any (see
   /// TextStyleInstance::listItem). Set by the Text.
   /// (By reference: the type is only declared here.)

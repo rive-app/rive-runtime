@@ -104,6 +104,11 @@ StateMachineInstance* TextStyleOnDemand::runStateMachine() const
   return listensToRuns() ? m_instance->stateMachine() : nullptr;
 }
 
+StateMachineInstance* TextStyleOnDemand::styleStateMachine() const
+{
+  return m_instance != nullptr ? m_instance->stateMachine() : nullptr;
+}
+
 void TextStyleOnDemand::listItem(const rcp<ViewModelInstance>& value)
 {
   if (m_instance != nullptr)

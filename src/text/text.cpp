@@ -1597,6 +1597,28 @@ void Text::runStateMachines(std::vector<StateMachineInstance*>& out)
   }
 }
 
+void Text::styleStateMachines(std::vector<StateMachineInstance*>& out)
+{
+  for (auto child : children())
+  {
+    if (child->is<TextStyleReference>())
+    {
+      if (auto stateMachine = child->as<TextStyleReference>()
+                                  ->styleStateMachine())
+      {
+        out.push_back(stateMachine);
+      }
+    }
+  }
+  for (auto& style : m_onDemandStyles)
+  {
+    if (auto stateMachine = style->styleStateMachine())
+    {
+      out.push_back(stateMachine);
+    }
+  }
+}
+
 void Text::styleReferenceDidChange()
 {
   // A handle now shows a different style: list runs that matched it by

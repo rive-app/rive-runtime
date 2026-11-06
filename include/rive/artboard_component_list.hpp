@@ -16,6 +16,7 @@
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/symbol_type.hpp"
 #include "rive/virtualizing_component.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/refcnt.hpp"
 #include <memory>
 #include <stdio.h>
@@ -65,6 +66,10 @@ public:
   int indexOfArtboardInstance(ArtboardInstance* instance) const;
   StateMachineInstance* stateMachineInstance(int index = 0);
   bool worldToLocal(Vec2D world, Vec2D* local, int index);
+  /// Where a pointer last was, in the space worldToLocal maps from, as the
+  /// host passes it on to the rows. Forgotten once it exits.
+  void notePointer(int pointerId, Vec2D position);
+  void forgetPointer(int pointerId);
   bool collapse(bool value) override;
   bool advanceComponent(
       float elapsedSeconds,
@@ -324,6 +329,21 @@ private:
   void clearArtboardOverride(ArtboardInstance*);
   // Whether some item shows on more than one row.
   bool m_listHasDuplicateItems = false;
+
+  // The pointers notePointer has seen and that haven't exited yet.
+  struct NotedPointer
+  {
+    int id;
+    Vec2D position;
+  };
+  LazyVector<NotedPointer> m_notedPointers;
+  // A row the list stops showing doesn't see the pointer leave, as the list
+  // passes it no more events. It gets every noted pointer's exit here
+  // instead, while it is still bound to the item its exit listeners write.
+  void exitNotedPointers(int index);
+  // The same for the rows of the items an update to list removes, while
+  // they are still where they were.
+  void exitRowsLeaving(const std::vector<rcp<ViewModelInstanceListItem>>& list);
 
   // Quiet rows: rows whose per-frame work (their state machine's advance,
   // tryChangeState and updateDataBinds, their artboard's advance, bind

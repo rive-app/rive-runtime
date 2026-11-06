@@ -153,6 +153,16 @@ private:
   /// claim on the same scope for another button). Everything, while the
   /// pointer is off from outside (isPointerDisabled).
   void applyPointerClaims(int pointerId);
+  /// Lets go of whatever turned pointerId off, here and in every machine
+  /// this one hosts: claims for every button, and from outside (a drag).
+  void releaseHostedPointer(int pointerId);
+  /// Calls visit with each machine this one hosts, once each: the ones it
+  /// passes pointer events on to (see HitComponent::hostedMachines), and
+  /// its Texts' styles'.
+  template <typename F> void forEachHostedMachine(F&& visit);
+  /// Applies what this machine and the machines it hosts have pending,
+  /// deepest first. True if there was anything.
+  bool applyHostedReports();
 
 public:
   StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
@@ -626,6 +636,17 @@ public:
   /// leaves the pointer off if it was: the drag or claim that turned it off
   /// still holds.
   HitResult hoverExit(Vec2D position, int pointerId = 0);
+  /// The exit a host sends a machine it is about to stop showing (a list
+  /// row going). Unlike pointerExit, nothing that turned the pointer off
+  /// for this machine or a machine it hosts (a drag, a capture claim) keeps
+  /// a listener from seeing the pointer leave: there is no release to wait
+  /// for.
+  HitResult dropPointer(Vec2D position, int pointerId = 0);
+  /// Delivers what this machine and the machines it hosts reported since
+  /// their advances (events, view model listener reports), deepest first as
+  /// their advances would, for a machine its host is about to drop or reset
+  /// while it is still bound to the data those reports act on.
+  void applyPendingReports();
   void dispose();
 
 private:
@@ -784,6 +805,9 @@ public:
   }
   virtual void enablePointerEvents(int pointerId = 0) {}
   virtual void disablePointerEvents(int pointerId = 0) {}
+  /// Appends the state machines this component passes pointer events on
+  /// to: a nested artboard's, the rows a list shows, a Text's style runs'.
+  virtual void hostedMachines(std::vector<StateMachineInstance*>& out) {}
   /// Scroll dispatch. wantsScroll is the interest test; scrollGestureActive
   /// keeps the latch alive between events.
   virtual bool wantsScroll(Vec2D position, const ScrollEvent& event)

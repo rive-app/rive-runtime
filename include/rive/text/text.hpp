@@ -417,6 +417,10 @@ public:
   /// Appends to [out] the state machines of this Text's styles that listen
   /// to the runs drawn with them (see TextStyleReference::runStateMachine).
   void runStateMachines(std::vector<StateMachineInstance*>& out);
+  /// Appends to [out] the state machines of all this Text's styles, whether
+  /// or not they listen to the runs (see
+  /// TextStyleReference::styleStateMachine).
+  void styleStateMachines(std::vector<StateMachineInstance*>& out);
 #ifdef TESTING
   size_t onDemandStyleCount() const { return m_onDemandStyles.size(); }
 #endif

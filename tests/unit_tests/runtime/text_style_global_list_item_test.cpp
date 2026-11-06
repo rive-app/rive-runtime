@@ -1,5 +1,6 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
+#include "rive/event.hpp"
 #include "rive/file.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/solid_color.hpp"
@@ -246,4 +247,28 @@ TEST_CASE(
   CHECK(pressedIn(valuesOf(visited)));
   CHECK(!pressedIn(valuesOf(other)));
   CHECK(!pressedIn(handle->styleViewModelInstance().get()));
+}
+
+// A host about to drop a machine delivers what every machine it hosts has
+// reported (StateMachineInstance::applyPendingReports, as a list does for a
+// row as it goes). A Text's styles have machines whether or not they listen
+// to their runs: Text Style2's only reads its run's item, and its runs pass
+// it no pointer events.
+TEST_CASE(
+    "Pending reports are delivered in a style that doesn't listen to its runs",
+    "[textStyleGlobal]")
+{
+  auto file = ReadRiveFile("assets/text_style_global_list_item.riv");
+  ListScene scene(file.get());
+  auto style = scene.run(1)->styleReference();
+  REQUIRE(style != nullptr);
+  REQUIRE(style->runStateMachine() == nullptr);
+  auto machine = style->styleStateMachine();
+  REQUIRE(machine != nullptr);
+  Event event;
+  machine->reportEvent(&event);
+  REQUIRE(machine->reportedEventCount() == 1);
+
+  scene.machine->applyPendingReports();
+  CHECK(machine->reportedEventCount() == 0);
 }

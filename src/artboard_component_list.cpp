@@ -1027,6 +1027,10 @@ void ArtboardComponentList::updateList(
   {
     return;
   }
+  if (!m_notedPointers.empty())
+  {
+    exitRowsLeaving(*list);
+  }
   const std::vector<rcp<ViewModelInstanceListItem>> preListItems = m_listItems;
   const std::vector<rcp<FocusNode>> preRowNodes = m_listRowFocusNodes;
   // Laying out a virtualized list below realizes rows, which would sync the
@@ -2450,11 +2454,79 @@ void ArtboardComponentList::virtualizableChanged()
   }
 }
 
+void ArtboardComponentList::notePointer(int pointerId, Vec2D position)
+{
+  m_notedPointers.eraseIf(
+      [pointerId](const NotedPointer& noted) { return noted.id == pointerId; });
+  m_notedPointers.push_back({pointerId, position});
+}
+
+void ArtboardComponentList::forgetPointer(int pointerId)
+{
+  m_notedPointers.eraseIf(
+      [pointerId](const NotedPointer& noted) { return noted.id == pointerId; });
+}
+
+void ArtboardComponentList::exitNotedPointers(int index)
+{
+  auto stateMachine = stateMachineInstance(index);
+  if (stateMachine == nullptr || m_notedPointers.empty())
+  {
+    return;
+  }
+  // A copy: the exit listeners may do anything.
+  const std::vector<NotedPointer> pointers = m_notedPointers.view();
+  for (const auto& pointer : pointers)
+  {
+    // Where the pointer now is relative to the row, as the next event would
+    // have put it, or where it was if the row can't map it.
+    Vec2D local = pointer.position;
+    worldToLocal(pointer.position, &local, index);
+    // Whatever turned the pointer off for the row (a drag scrolling the
+    // list, a claim) can't turn it back on once the row is gone, and a
+    // listener that is off misses its exit.
+    stateMachine->dropPointer(local, pointer.id);
+  }
+  // What the exits reported would otherwise wait for an advance: one the
+  // row doesn't get once destroyed, or gets bound to another item once
+  // reused.
+  stateMachine->applyPendingReports();
+}
+
+void ArtboardComponentList::exitRowsLeaving(
+    const std::vector<rcp<ViewModelInstanceListItem>>& list)
+{
+  const auto staying = sortedItems(list);
+  // Rows showing the same item share its machine, which leaves once.
+  std::vector<StateMachineInstance*> exited;
+  for (size_t i = 0; i < m_listItems.size(); i++)
+  {
+    auto stateMachine = stateMachineInstance((int)i);
+    if (stateMachine == nullptr || std::binary_search(
+                                       staying.begin(),
+                                       staying.end(),
+                                       m_listItems[i].get()))
+    {
+      continue;
+    }
+    if (m_listHasDuplicateItems)
+    {
+      if (std::find(exited.begin(), exited.end(), stateMachine) != exited.end())
+      {
+        continue;
+      }
+      exited.push_back(stateMachine);
+    }
+    exitNotedPointers((int)i);
+  }
+}
+
 void ArtboardComponentList::removeVirtualizable(int index)
 {
   auto listItem = this->listItem(index);
   if (listItem != nullptr)
   {
+    exitNotedPointers(index);
     // The rows let go of the item's instances before they move to the
     // pool.
     setRowsForItem(index, listItem, nullptr, nullptr);

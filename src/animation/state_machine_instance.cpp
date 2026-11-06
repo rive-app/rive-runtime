@@ -2109,6 +2109,11 @@ public:
     return result;
   }
 
+  void hostedMachines(std::vector<StateMachineInstance*>& out) override
+  {
+    forEachStateMachine([&](StateMachineInstance* smi) { out.push_back(smi); });
+  }
+
 private:
   HostedPointersOff m_pointersOff;
 
@@ -2455,6 +2460,12 @@ public:
     {
       // See HitNestedArtboard::processEvent.
       m_pointersOff.remove(pointerId);
+      componentList->forgetPointer(pointerId);
+    }
+    else
+    {
+      // For a row the list stops showing, which gets its exit then.
+      componentList->notePointer(pointerId, position);
     }
     if (componentList->isCollapsed() || componentList->isHidden())
     {
@@ -2634,6 +2645,20 @@ public:
   void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
       override
   {}
+
+  // The rows processEvent passes events on to: in a virtualized list, the
+  // ones in the window.
+  void hostedMachines(std::vector<StateMachineInstance*>& out) override
+  {
+    auto componentList = m_component->as<ArtboardComponentList>();
+    for (int i : componentList->orderedListIndices())
+    {
+      if (auto stateMachine = componentList->stateMachineInstance(i))
+      {
+        out.push_back(stateMachine);
+      }
+    }
+  }
 
   void enablePointerEvents(int pointerId) override
   {
@@ -2922,6 +2947,11 @@ public:
   void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
       override
   {}
+
+  void hostedMachines(std::vector<StateMachineInstance*>& out) override
+  {
+    text()->runStateMachines(out);
+  }
 
 private:
   // Reused across events.
@@ -6386,6 +6416,90 @@ HitResult StateMachineInstance::hoverExit(Vec2D position, int pointerId)
     disablePointerEvents(pointerId);
   }
   return result;
+}
+
+template <typename F> void StateMachineInstance::forEachHostedMachine(F&& visit)
+{
+  std::vector<StateMachineInstance*> machines;
+  for (const auto& hitComponent : m_hitComponents)
+  {
+    hitComponent->hostedMachines(machines);
+  }
+#ifdef WITH_RIVE_TEXT
+  // A style has a machine whether or not its runs pass it pointer events,
+  // and what an exit writes can reach any of them.
+  if (m_artboardInstance != nullptr)
+  {
+    for (auto text : m_artboardInstance->objects<Text>())
+    {
+      text->styleStateMachines(machines);
+    }
+  }
+#endif
+  // Text runs drawn with one style share its machine.
+  std::sort(machines.begin(), machines.end());
+  machines.erase(std::unique(machines.begin(), machines.end()), machines.end());
+  for (auto machine : machines)
+  {
+    visit(machine);
+  }
+}
+
+void StateMachineInstance::releaseHostedPointer(int pointerId)
+{
+  releasePointerClaims(pointerId, PointerButton::primary, true);
+  forEachHostedMachine([pointerId](StateMachineInstance* machine) {
+    machine->releaseHostedPointer(pointerId);
+  });
+  // Last: enablePointerEvents applies the claims again, which are gone by
+  // now, here and below. A hosted machine a hit component doesn't pass
+  // enabling on to (a Text's style runs, which a host's drag still turns
+  // off) was turned on above.
+  enablePointerEvents(pointerId);
+}
+
+HitResult StateMachineInstance::dropPointer(Vec2D position, int pointerId)
+{
+  releaseHostedPointer(pointerId);
+  return pointerExit(position, pointerId);
+}
+
+bool StateMachineInstance::applyHostedReports()
+{
+  bool applied = false;
+  // A hosted machine's events reach this one's listeners as they apply.
+  forEachHostedMachine([&applied](StateMachineInstance* machine) {
+    if (machine->applyHostedReports())
+    {
+      applied = true;
+    }
+  });
+  if (hasPendingReports())
+  {
+    applyEvents();
+    applied = true;
+  }
+  return applied;
+}
+
+void StateMachineInstance::applyPendingReports()
+{
+  // What one machine applies can queue more anywhere in the tree (a write
+  // here that a hosted machine listens to), so passes run until one finds
+  // nothing, as frames of advances would.
+  int passes = 0;
+  while (applyHostedReports())
+  {
+    if (++passes == 100)
+    {
+      fprintf(
+          stderr,
+          "%s StateMachine exceeded max report passes on artboard %s\n",
+          stateMachine()->name().c_str(),
+          artboard()->name().c_str());
+      break;
+    }
+  }
 }
 
 BindableProperty* StateMachineInstance::bindablePropertyInstance(
