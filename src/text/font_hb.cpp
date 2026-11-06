@@ -754,7 +754,21 @@ HBFont::HBFont(
     std::unordered_map<hb_tag_t, float> axisValues,
     std::unordered_map<hb_tag_t, uint32_t> featureValues,
     std::vector<hb_feature_t> features)
-    : Font(make_lmx(font))
+    : HBFont(
+          font,
+          make_lmx(font),
+          std::move(axisValues),
+          std::move(featureValues),
+          std::move(features))
+{}
+
+HBFont::HBFont(
+    hb_font_t* font,
+    const LineMetrics& lineMetrics,
+    std::unordered_map<hb_tag_t, float> axisValues,
+    std::unordered_map<hb_tag_t, uint32_t> featureValues,
+    std::vector<hb_feature_t> features)
+    : Font(lineMetrics)
     , m_font(font)
     , m_features(features)
     , m_featureValues(featureValues)
@@ -1160,6 +1174,57 @@ rive::rcp<rive::Font> HBFont::makeVariant(
   return rive::rcp<rive::Font>(variant);
 }
 
+rive::rcp<rive::Font> HBFont::forThisThread() const
+{
+  const uint64_t thread = threadToken();
+  // Left at zero when this thread is the first to ask.
+  uint64_t first = 0;
+  m_firstThread.compare_exchange_strong(
+      first,
+      thread,
+      std::memory_order_relaxed);
+  if (first == 0 || first == thread)
+  {
+    return rive::ref_rcp<rive::Font>(const_cast<HBFont*>(this));
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(m_variantsMutex);
+    auto range = m_variants.equal_range(thread);
+    for (auto itr = range.first; itr != range.second; itr++)
+    {
+      // A copy whose count already reached zero waits on this lock to leave
+      // the map, as a variant does; tryRef then refuses it.
+      HBFont* copy = itr->second;
+      if (copy->m_isCopy && copy->m_madeOn == thread && copy->tryRef())
+      {
+        return rive::rcp<rive::Font>(copy);
+      }
+    }
+  }
+
+  // A sub font starts at this font's scale and coordinates, which a
+  // subclass may set without listing them in m_axisValues (CoreTextHBFont),
+  // so unlike a variant, a copy sets none of its own. It gets the font
+  // functions HBFont's constructor gives the fonts it measures.
+  hb_font_t* font = hb_font_create_sub_font(m_font);
+  hb_ot_font_set_funcs(font);
+  auto copy = new HBFont(
+      font,
+      lineMetrics(),
+      m_axisValues,
+      m_featureValues,
+      m_features);
+  copy->m_variantOf = rive::ref_rcp(this);
+  copy->m_madeOn = thread;
+  copy->m_variantKey = thread;
+  copy->m_firstThread.store(thread, std::memory_order_relaxed);
+  copy->m_isCopy = true;
+  std::lock_guard<std::mutex> lock(m_variantsMutex);
+  m_variants.emplace(thread, copy);
+  return rive::rcp<rive::Font>(copy);
+}
+
 rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
 {
   return glyphPath(glyph);
@@ -1200,6 +1265,11 @@ size_t HBFont::glyphPathCacheRoom() const
 
 rive::RawPath HBFont::drawGlyphPath(rive::GlyphID glyph) const
 {
+  if (m_isCopy)
+  {
+    // Drawing keeps nothing, so the font copied draws on any thread.
+    return m_variantOf->drawGlyphPath(glyph);
+  }
   rive::RawPath rpath;
   hb_font_draw_glyph(m_font, glyph, m_drawFuncs, &rpath);
   return rpath;
@@ -1495,6 +1565,7 @@ static void perform_fallback(
     const uint32_t fallbackIndex)
 {
   assert(orig.glyphs.size() > 0);
+  const size_t firstRun = gruns.size();
   const size_t count = orig.glyphs.size();
   size_t startI = 0;
   while (startI < count)
@@ -1542,6 +1613,22 @@ static void perform_fallback(
       gruns.add(extract_subset(orig, startI, endI));
     }
     startI = endI;
+  }
+
+  // The proc hands every thread this font, so the runs it shaped here draw
+  // with this thread's own (see HBFont::forThisThread). Fonts it fell back
+  // to in turn swapped theirs in their own calls.
+  rive::rcp<rive::Font> drawnHere;
+  for (auto run = gruns.begin() + firstRun; run != gruns.end(); run++)
+  {
+    if (run->font == fallbackFont)
+    {
+      if (drawnHere == nullptr)
+      {
+        drawnHere = static_cast<HBFont*>(fallbackFont.get())->forThisThread();
+      }
+      run->font = drawnHere;
+    }
   }
 }
 

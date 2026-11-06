@@ -101,6 +101,16 @@ public:
       rive::Span<const Coord> variableAxes,
       rive::Span<const Feature> features) const override;
 
+  // The font for the runs this font shapes as a fallback on the calling
+  // thread. gFallbackProc hands every thread the same fonts, and a font's
+  // caches aren't locked (see Font::sharedWithOptions), so only the first
+  // thread to ask gets this font, and a host that shapes on one thread
+  // draws the fonts its proc returns. Any other thread gets a copy of its
+  // own, which its runs share while one holds it. A copy keeps this font's
+  // face, coordinates, features and metrics, and draws its outlines through
+  // this font, as a subclass may draw them its own way.
+  rive::rcp<rive::Font> forThisThread() const;
+
   bool hasGlyph(const rive::Unichar) const override;
   std::vector<rive::Unichar> codepoints() const override;
 
@@ -148,6 +158,14 @@ public:
 private:
   HBFont(
       hb_font_t* font,
+      std::unordered_map<uint32_t, float> axisValues,
+      std::unordered_map<uint32_t, uint32_t> featureValues,
+      std::vector<hb_feature_t> features);
+  // With [lineMetrics] rather than measuring [font], for a copy, which
+  // measures as the font it copies does.
+  HBFont(
+      hb_font_t* font,
+      const LineMetrics& lineMetrics,
       std::unordered_map<uint32_t, float> axisValues,
       std::unordered_map<uint32_t, uint32_t> featureValues,
       std::vector<hb_feature_t> features);
@@ -209,19 +227,24 @@ private:
   // coverage level, thousands on a long text. Not owned: a variant holds
   // this font (m_variantOf) and takes itself out as it is destroyed. Fonts
   // withOptions makes aren't listed, so one its caller hands to another
-  // thread is never handed out again.
+  // thread is never handed out again. The copies forThisThread made are
+  // listed too, each keyed by its thread.
   mutable std::mutex m_variantsMutex;
   mutable std::unordered_multimap<uint64_t, HBFont*> m_variants;
-  // The font sharedWithOptions made this one from, if it did, and this
-  // one's key in that font's m_variants.
+  // The font sharedWithOptions or forThisThread made this one from, if one
+  // did, and this one's key in that font's m_variants.
   rive::rcp<const HBFont> m_variantOf;
   uint64_t m_variantKey = 0;
-  // The thread sharedWithOptions made this one on, as a number no later
-  // thread gets (a std::thread::id can be reused once its thread ends). Its
-  // caches aren't locked, as a base font's aren't, so it is only shared on
-  // that thread. One base font can serve files that advance on different
-  // threads, whose styles each get a font of their own.
+  // The thread sharedWithOptions or forThisThread made this one on, as a
+  // number no later thread gets (a std::thread::id can be reused once its
+  // thread ends). Its caches aren't locked, as a base font's aren't, so it
+  // is only shared on that thread. One base font can serve files that
+  // advance on different threads, whose styles each get a font of their own.
   uint64_t m_madeOn = 0;
+  // The thread forThisThread first asked on, which keeps this font, or zero.
+  mutable std::atomic<uint64_t> m_firstThread{0};
+  // Whether forThisThread made this font, a copy of m_variantOf.
+  bool m_isCopy = false;
 };
 
 #endif
