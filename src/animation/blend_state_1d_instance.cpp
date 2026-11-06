@@ -69,6 +69,11 @@ int BlendState1DInstance::animationIndex(float value)
 
 void BlendState1DInstance::apply(ArtboardInstance* instance, float mix)
 {
+  // At zero weight the reset baseline would overwrite what lies underneath.
+  if (mix == 0.0f)
+  {
+    return;
+  }
   if (m_AnimationReset != nullptr)
   {
     m_AnimationReset->seed(instance, m_accumulator);

@@ -995,7 +995,8 @@ public:
         m_holdAnimation = instance->animation();
         m_holdTime = instance->time();
       }
-      m_mixFrom = m_mix;
+      // An interrupted mix's blend is already in the reset values.
+      m_mixFrom = !m_transitionCompleted && m_mix < 1.0f ? 0.0f : m_mix;
 
       // Keep mixing last animation that was mixed in.
       if (m_mix != 0.0f)
@@ -1059,7 +1060,8 @@ public:
 
     if (m_stateFrom != nullptr && m_mix < 1.0f)
     {
-      auto fromMix = interpolator != nullptr
+      // Zero stays zero: elastic curves map 0 slightly above it.
+      auto fromMix = interpolator != nullptr && m_mixFrom != 0.0f
                          ? interpolator->transform(m_mixFrom)
                          : m_mixFrom;
       m_stateFrom->apply(artboardInstance, fromMix);

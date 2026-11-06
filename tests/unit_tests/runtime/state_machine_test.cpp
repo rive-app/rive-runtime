@@ -23,6 +23,8 @@
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 using namespace rive;
@@ -1015,4 +1017,95 @@ TEST_CASE(
   }
 
   CHECK(silver.matches("paused_nested_artboard_opacity"));
+}
+
+TEST_CASE("Early exit reversal starts from the blended pose", "[file]")
+{
+  // box.x: 20 "Off" <-> 280 "On", 500 ms early-exit transitions on "on".
+  auto file = ReadRiveFile("assets/early_exit_reversal.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto on = vmi->propertyValue("on")->as<ViewModelInstanceBoolean>();
+  stateMachine->bindViewModelInstance(vmi);
+  auto box = artboard->find<rive::Shape>("box");
+  REQUIRE(box != nullptr);
+
+  const float frame = 1.0f / 60.0f;
+  stateMachine->advanceAndApply(frame);
+  REQUIRE(box->x() == Approx(20.0f));
+
+  on->propertyValue(true);
+  for (int i = 0; i < 15; i++)
+  {
+    stateMachine->advanceAndApply(frame);
+  }
+  float halfway = box->x();
+  REQUIRE(halfway > 100.0f);
+  REQUIRE(halfway < 200.0f);
+
+  // A jump shows as a step larger than one frame of travel (260 / 30 px).
+  on->propertyValue(false);
+  float previous = halfway;
+  float largestStep = 0.0f;
+  for (int i = 0; i < 45; i++)
+  {
+    stateMachine->advanceAndApply(frame);
+    largestStep = std::max(largestStep, std::abs(box->x() - previous));
+    previous = box->x();
+  }
+  REQUIRE(largestStep < 260.0f / 30.0f + 0.5f);
+  REQUIRE(box->x() == Approx(20.0f));
+}
+
+// Off (x 20) <-> 1D blend with reset (x 100 at 0, 300 at 100, input 50).
+static void expectSmoothBlendReversal(const char* path, int checkedFrames)
+{
+  auto file = ReadRiveFile(path);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto on = stateMachine->getBool("on");
+  REQUIRE(on != nullptr);
+  auto box = artboard->find<rive::Shape>("box");
+  REQUIRE(box != nullptr);
+
+  const float frame = 1.0f / 60.0f;
+  stateMachine->advanceAndApply(frame);
+  REQUIRE(box->x() == Approx(20.0f));
+
+  on->value(true);
+  for (int i = 0; i < 15; i++)
+  {
+    stateMachine->advanceAndApply(frame);
+  }
+  float halfway = box->x();
+  REQUIRE(halfway > 60.0f);
+  REQUIRE(halfway < 160.0f);
+
+  on->value(false);
+  float previous = halfway;
+  float largestStep = 0.0f;
+  for (int i = 0; i < 45; i++)
+  {
+    stateMachine->advanceAndApply(frame);
+    if (i < checkedFrames)
+    {
+      largestStep = std::max(largestStep, std::abs(box->x() - previous));
+    }
+    previous = box->x();
+  }
+  REQUIRE(largestStep < 180.0f / 30.0f + 0.5f);
+  REQUIRE(box->x() == Approx(20.0f));
+}
+
+TEST_CASE("Early exit reversal out of a blend state with reset", "[file]")
+{
+  expectSmoothBlendReversal("assets/early_exit_reversal_blend.riv", 45);
+}
+
+TEST_CASE("Early exit reversal with an elastic curve", "[file]")
+{
+  expectSmoothBlendReversal("assets/early_exit_reversal_blend_elastic.riv", 5);
 }
