@@ -10,6 +10,7 @@
 
 #include <rive/artboard.hpp>
 #include <rive/layer_mask.hpp>
+#include <rive/nested_artboard.hpp>
 #include <rive/offscreen_raster.hpp>
 #include <rive/node.hpp>
 #include <rive/drawable_flag.hpp>
@@ -22,6 +23,7 @@
 #include <rive/draw_target_placement.hpp>
 #include <rive/draw_target.hpp>
 #include <rive/solo.hpp>
+#include <rive/viewmodel/viewmodel_instance_artboard.hpp>
 #include <utils/no_op_factory.hpp>
 #include <utils/no_op_renderer.hpp>
 
@@ -1512,5 +1514,348 @@ TEST_CASE(
   masked->x(3.0f);
   REQUIRE(frame() == 2);
   REQUIRE(frame() == 0);
+}
+
+namespace
+{
+// A 20x20 artboard with a badge at its centre, for nesting. Hosted at
+// (50, 50) by addNestedHost, the badge lands on (60, 60) in the outer
+// artboard -- where the plain shapes these cases overlap it with sit.
+std::unique_ptr<rive::Artboard> makeBadgeArtboard(rive::Factory* factory)
+{
+  auto artboard = std::make_unique<rive::Artboard>(factory);
+  artboard->addObject(artboard.get());
+  auto* badge = makeShape(*artboard, "Badge");
+  badge->parentId(0);
+  badge->x(10.0f);
+  badge->y(10.0f);
+  REQUIRE(artboard->initialize() == rive::StatusCode::Ok);
+  artboard->width(20.0f);
+  artboard->height(20.0f);
+  return artboard;
+}
+
+rive::NestedArtboard* addNestedHost(rive::Artboard& artboard, float x = 50.0f)
+{
+  auto* host = new rive::NestedArtboard();
+  artboard.addObject(host);
+  host->parentId(artboard.idOf(&artboard));
+  host->x(x);
+  host->y(50.0f);
+  return host;
+}
+
+// A plain shape under its own group at (60, 60), over the nested badge.
+rive::Node* addBadgeCover(rive::Artboard& artboard, const char* name)
+{
+  auto* group = new rive::Node();
+  artboard.addObject(group);
+  group->parentId(artboard.idOf(&artboard));
+  group->x(60.0f);
+  group->y(60.0f);
+  auto* shape = makeShape(artboard, name);
+  shape->parentId(artboard.idOf(group));
+  return group;
+}
+
+// Mounts a fresh instance of `source` on `host` after the outer artboard has
+// initialized, as a file load does, and hands back the instance's badge: the
+// shape a case moves or recolours from outside.
+rive::Shape* mount(rive::NestedArtboard* host, rive::Artboard& source)
+{
+  auto instance = source.instance<rive::ArtboardInstance>();
+  rive::Shape* badge = instance->find<rive::Shape>("Badge");
+  host->referencedArtboard(instance.release());
+  return badge;
+}
+} // namespace
+
+TEST_CASE(
+    "changes inside a masked nested artboard rebuild the raster",
+    "[layer-mask]")
+{
+  // A nested artboard's content raises dirt in its own artboard's dependency
+  // graph, not the host's, and NestedArtboard lifts it onto itself without
+  // recursing to dependents. So none of it reached the mask: the first raster
+  // was composited for good while the nested content animated underneath.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  rive::NestedArtboard* host = addNestedHost(artboard);
+  rive::Node* sourceGroup = addBadgeCover(artboard, "Src");
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(host));
+  mask->sourceId(artboard.idOf(sourceGroup));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  rive::Shape* badge = mount(host, *badgeArtboard);
+  REQUIRE(badge != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+
+  // Twice each, for the reason the recolour cases give: a path that reports
+  // only its first change would pass a single assertion.
+  badge->x(12.0f);
+  CHECK(frame() == 2);
+  badge->x(13.0f);
+  CHECK(frame() == 2);
+  CHECK(frame() == 0);
+
+  // A recolour raises no dirt even inside the nested artboard -- only
+  // Artboard::changed() -- so lifting the nested artboard's dirt alone would
+  // still miss it.
+  REQUIRE_FALSE(badge->shapePaints().empty());
+  rive::Component* mutator = badge->shapePaints()[0]->paint();
+  REQUIRE(mutator != nullptr);
+  REQUIRE(mutator->is<rive::SolidColor>());
+  auto* color = mutator->as<rive::SolidColor>();
+  color->colorValue(0xFF00FF00);
+  CHECK(frame() == 2);
+  color->colorValue(0xFF0000FF);
+  CHECK(frame() == 2);
+  CHECK(frame() == 0);
+}
+
+TEST_CASE(
+    "changes inside a nested artboard mask source rebuild the raster",
+    "[layer-mask]")
+{
+  // The coverage half of the same gap: the source's pixels come from another
+  // artboard just the same.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  rive::Node* masked = addBadgeCover(artboard, "Content");
+  rive::NestedArtboard* host = addNestedHost(artboard);
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(masked));
+  mask->sourceId(artboard.idOf(host));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  rive::Shape* badge = mount(host, *badgeArtboard);
+  REQUIRE(badge != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+
+  badge->x(12.0f);
+  CHECK(frame() == 2);
+  badge->x(13.0f);
+  CHECK(frame() == 2);
+  CHECK(frame() == 0);
+}
+
+TEST_CASE(
+    "mounting another instance on a masked host rebuilds the raster",
+    "[layer-mask]")
+{
+  // A data-bound artboard swap, or a list handing a row to another item,
+  // replaces everything the host draws. A fresh instance of the same artboard
+  // can carry the same change count as the one it replaces, so this cannot
+  // rest on comparing counts alone.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  rive::NestedArtboard* host = addNestedHost(artboard);
+  rive::Node* sourceGroup = addBadgeCover(artboard, "Src");
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(host));
+  mask->sourceId(artboard.idOf(sourceGroup));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  REQUIRE(mount(host, *badgeArtboard) != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+
+  REQUIRE(mount(host, *badgeArtboard) != nullptr);
+  CHECK(frame() == 2);
+  CHECK(frame() == 0);
+}
+
+TEST_CASE(
+    "clearing a masked host's bound artboard marks the mask stale",
+    "[layer-mask]")
+{
+  // A bound artboard set to null unmounts the instance without mounting
+  // another, and with nothing mounted no later sync can notice. Asked of the
+  // mask directly: the emptied range draws nothing, so a rebuild opens no
+  // canvases either, and counting them could not tell the two apart.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  rive::NestedArtboard* host = addNestedHost(artboard);
+  rive::Node* sourceGroup = addBadgeCover(artboard, "Src");
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(host));
+  mask->sourceId(artboard.idOf(sourceGroup));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  REQUIRE(mount(host, *badgeArtboard) != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+  REQUIRE_FALSE(mask->testDirty());
+
+  rive::ViewModelInstanceArtboard clear;
+  clear.propertyValue(-1);
+  host->updateArtboard(&clear);
+  REQUIRE(host->artboardInstance() == nullptr);
+  CHECK(mask->testDirty());
+}
+
+TEST_CASE(
+    "recolouring inside a paused masked host rebuilds the raster",
+    "[layer-mask]")
+{
+  // A paused host skips its advance, and the recolour raises no dirt to
+  // schedule an update, yet the paused instance still draws the new colour.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  rive::NestedArtboard* host = addNestedHost(artboard);
+  rive::Node* sourceGroup = addBadgeCover(artboard, "Src");
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(host));
+  mask->sourceId(artboard.idOf(sourceGroup));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  rive::Shape* badge = mount(host, *badgeArtboard);
+  REQUIRE(badge != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+
+  host->isPaused(true);
+  REQUIRE(frame() == 0);
+
+  REQUIRE_FALSE(badge->shapePaints().empty());
+  rive::Component* mutator = badge->shapePaints()[0]->paint();
+  REQUIRE(mutator != nullptr);
+  REQUIRE(mutator->is<rive::SolidColor>());
+  auto* color = mutator->as<rive::SolidColor>();
+  color->colorValue(0xFF00FF00);
+  CHECK(frame() == 2);
+  color->colorValue(0xFF0000FF);
+  CHECK(frame() == 2);
+  CHECK(frame() == 0);
+}
+
+TEST_CASE(
+    "a change inside an unrelated nested artboard leaves the rasters alone",
+    "[layer-mask]")
+{
+  // Telling masks about nested changes must stay as narrow as the graph is:
+  // a nested artboard outside the masked range and the source is a stranger.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  session.bindRenderContext(renderContext.get());
+
+  auto badgeArtboard = makeBadgeArtboard(&session);
+  rive::Artboard artboard(&session);
+  MaskFixture f = buildMaskFixture(artboard);
+  rive::NestedArtboard* host = addNestedHost(artboard, 150.0f);
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  rive::Shape* badge = mount(host, *badgeArtboard);
+  REQUIRE(badge != nullptr);
+
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    size_t opens = countCanvasOpens(session.commandBuffer());
+    session.resetFrame();
+    return opens;
+  };
+
+  REQUIRE(frame() == 2);
+  REQUIRE(frame() == 0);
+
+  badge->x(12.0f);
+  CHECK(frame() == 0);
+  badge->x(13.0f);
+  CHECK(frame() == 0);
+
+  // And the mask still rebuilds for its own content.
+  f.masked->x(3.0f);
+  CHECK(frame() == 2);
 }
 #endif

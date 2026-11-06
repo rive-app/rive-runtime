@@ -77,10 +77,15 @@ private:
   // that must be unref'd by this NestedArtboard.
   bool m_ownsActiveVmi = false;
   NestedArtboardHostFlags m_hostFlags = NestedArtboardHostFlags::none;
+  // The mounted instance's changeSerial() when this host last told its layer
+  // masks about it. See syncLayerMasks.
+  uint32_t m_layerMaskSerial = 0;
   // Something may have changed this host: wake the artboard it is in if a
   // host had it quiet.
   void wakeRow();
   void nest(Artboard* artboard);
+  void syncLayerMasks();
+  void invalidateLayerMasks();
   void detectArtboardDataBinding();
   bool tryScheduleBindStateful();
   void bindStateful();

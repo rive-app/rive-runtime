@@ -244,7 +244,9 @@ public:
 
   // "Your cached pixels are stale." For the handful of changes that alter
   // what a shape paints without raising any ComponentDirt, so the graph
-  // cannot carry the news -- see SolidColor::colorValueChanged.
+  // cannot carry the news -- see SolidColor::colorValueChanged -- and for a
+  // nested artboard, whose changes raise dirt in another artboard's graph --
+  // see NestedArtboard::syncLayerMasks.
   void markRasterDirty();
 
   // Proxy pooling, mirroring ClippingShape: sortDrawOrder runs on every

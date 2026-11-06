@@ -10,6 +10,7 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/focus_data.hpp"
+#include "rive/layer_mask.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/nested_animation.hpp"
@@ -153,6 +154,49 @@ void NestedArtboard::nest(Artboard* artboard)
   // A row that went quiet with no instance here, or another one, has this
   // one to advance.
   wakeRow();
+  // Everything this host draws was just replaced. Told outright, because a
+  // fresh instance of the same artboard can carry the same change serial as
+  // the one it replaces, and syncLayerMasks would see nothing to report.
+  m_layerMaskSerial = m_referencedArtboard->changeSerial();
+  invalidateLayerMasks();
+}
+
+// A layer mask caches the pixels of what it masks and of its source, and
+// learns they are stale from dirt reaching it through its artboard's
+// dependency graph. What this host draws changes in another artboard: that
+// dirt is raised in the instance's own graph, and advanceComponent lifts
+// Components onto this host without recursing, so a mask over or sourced from
+// a nested artboard kept compositing its first raster. The instance's change
+// serial counts every change that reaches it, a dirt-free recolour included,
+// so a new one is exactly "these pixels may have moved".
+void NestedArtboard::syncLayerMasks()
+{
+  if (m_referencedArtboard == nullptr)
+  {
+    return;
+  }
+  const uint32_t serial = m_referencedArtboard->changeSerial();
+  if (serial == m_layerMaskSerial)
+  {
+    return;
+  }
+  m_layerMaskSerial = serial;
+  invalidateLayerMasks();
+}
+
+// Told directly, as SolidColor::colorValueChanged tells them: there is no
+// spare dirt bit, and cascading one from here would reach every other
+// dependent of this host too.
+void NestedArtboard::invalidateLayerMasks()
+{
+  for (LayerMask* mask : layerMasks())
+  {
+    mask->markRasterDirty();
+  }
+  for (LayerMask* mask : sourceOfLayerMasks())
+  {
+    mask->markRasterDirty();
+  }
 }
 
 void NestedArtboard::applyOriginOverride()
@@ -303,6 +347,9 @@ void NestedArtboard::updateArtboard(
     {
       m_meshHost->resetRaster();
     }
+    // Nothing mounted means nothing to sync from again, so the masks hear
+    // about the empty host now or never.
+    invalidateLayerMasks();
     setActiveViewModelInstance(nullptr, false);
     return;
   }
@@ -783,6 +830,9 @@ void NestedArtboard::update(ComponentDirt value)
     // animations/statemachines can re-add it.
     m_referencedArtboard->updatePass(false);
   }
+  // The pass above applies data binds and host opacity, after
+  // advanceComponent last looked.
+  syncLayerMasks();
 }
 
 bool NestedArtboard::collapse(bool value)
@@ -1146,6 +1196,9 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     }
 #endif
     m_inactiveChangeSequence = ViewModelInstanceValue::latestChangeSequence();
+    // A paused instance still draws, and a write into it that raises no
+    // dirt, like a recolour, shows without advancing it.
+    syncLayerMasks();
     if (isCollapsed() && m_Instance != nullptr &&
         !enums::is_flag_set(
             m_hostFlags,
@@ -1223,6 +1276,9 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     // The animation(s) caused the artboard to need an update.
     addDirt(ComponentDirt::Components);
   }
+  // Here and not only in update(): a recolour raises no dirt, so nothing
+  // would schedule that.
+  syncLayerMasks();
 
   return keepGoing;
 }
