@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include "rive/advancing_component.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/sidecar.hpp"
 
@@ -105,6 +106,11 @@ public:
   // advances. Cached until a bind here changes (dataBindsChanged) or a
   // converter whose answer is cached does (mayAdvanceChanged).
   bool mayAdvanceDataBinds() const;
+  // Whether advanceDataBinds would currently do nothing (`quiet`), would do
+  // work (`busy`), or some converter can't say (`never`). A converter that
+  // is quiet stays so until a change dirties the bind it converts for, which
+  // reaches this container through addDirtyDataBind.
+  AdvancingComponent::QuietState dataBindsQuietState() const;
   // A bind was added or removed, or one changed the converter it uses.
   virtual void dataBindsChanged();
   // Every cached mayAdvanceDataBinds answer may be stale: a converter's answer

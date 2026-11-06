@@ -1,0 +1,166 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/quiet_interpolator_rows.riv. README.md, next to
+      this file, says how to rebuild it.
+
+      What it is for: list rows whose binds ease through
+      DataConverterInterpolators going quiet once every eased value has
+      landed, and easing to a new value after (see quiet_rows_test.cpp):
+      - Rows: each Eased Row draws its item's n as Box's x through Ease, and
+        as its y through Ease Twice (a group: doubled, then eased). Box's
+        color eases to the item's tint through Fade. These are the
+        artboard's binds; its machine does nothing.
+      - Gates: each Gated Row's machine reads its gate item's n through Ease
+        Gate, a bind of the machine's own, and turns Flag green once that
+        reaches 50.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+            <ArtboardComponentList name="Gates" id="0:13">
+                <DataBindContext sourcePathIds="0:40-0:46" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <Artboard isComponent="true" defaultStateMachineId="0:37" viewModelId="0:50" x="400" width="300" height="60" styleId="0:35" name="Eased Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Eased Row Style" id="0:35"/>
+        <Shape x="0" y="0" name="Box" id="0:31">
+            <DataBindContext sourcePathIds="0:50-0:51" propertyKey="13" converterId="0:91"/>
+            <DataBindContext sourcePathIds="0:50-0:51" propertyKey="14" converterId="0:94"/>
+            <Rectangle width="10" height="10" name="Path"/>
+            <Fill name="Fill">
+                <SolidColor colorValue="FF808080" name="Color" id="0:32">
+                    <DataBindContext sourcePathIds="0:50-0:52" propertyKey="37" converterId="0:97"/>
+                </SolidColor>
+            </Fill>
+        </Shape>
+        <StateMachine name="Eased Row Machine" id="0:37">
+            <StateMachineLayer name="Layer" id="0:36">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:41"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:34" id="0:41"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Rest" id="0:34"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Eased Row"/>
+
+    <Artboard isComponent="true" defaultStateMachineId="0:67" viewModelId="0:70" x="800" width="300" height="60" styleId="0:65" name="Gated Row" id="0:60">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Gated Row Style" id="0:65"/>
+        <Shape x="200" y="30" name="Flag" id="0:61">
+            <Ellipse width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Flag Color" id="0:62"/></Fill>
+        </Shape>
+        <StateMachine name="Gated Row Machine" id="0:67">
+            <StateMachineLayer name="Gate" id="0:66">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:44"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:38" id="0:44">
+                    <StateTransition stateToId="0:45">
+                        <TransitionViewModelCondition opValue="greaterThanOrEqual">
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:70-0:71" propertyKey="636" converterId="0:98"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="50"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:39" id="0:45">
+                    <StateTransition stateToId="0:44">
+                        <TransitionViewModelCondition opValue="lessThan">
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:70-0:71" propertyKey="636" converterId="0:98"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="50"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Low" id="0:38">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF808080"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="High" id="0:39">
+            <KeyedObject objectId="0:62">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF3BA55C"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="0:60" name="Gated Row"/>
+
+    <DataConverterInterpolator interpolationType="linear" duration="0.25" name="Ease" id="0:91"/>
+    <DataConverterOperationValue operationType="multiply" operationValue="2" name="Double" id="0:92"/>
+    <DataConverterInterpolator interpolationType="linear" duration="0.25" name="Ease Doubled" id="0:93"/>
+    <DataConverterGroup name="Ease Twice" id="0:94">
+        <DataConverterGroupItem converterId="0:92" id="0:95"/>
+        <DataConverterGroupItem converterId="0:93" id="0:96"/>
+    </DataConverterGroup>
+    <DataConverterInterpolator interpolationType="linear" duration="0.25" name="Fade" id="0:97"/>
+    <DataConverterInterpolator interpolationType="linear" duration="0.25" name="Ease Gate" id="0:98"/>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyNumber name="n" id="0:51"/>
+        <ViewModelPropertyColor name="tint" id="0:52"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceNumber propertyValue="10" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceColor propertyValue="FF808080" viewModelPropertyId="0:52"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceNumber propertyValue="60" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceColor propertyValue="FF2060E0" viewModelPropertyId="0:52"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:76" name="GateItem" id="0:70">
+        <ViewModelPropertyNumber name="n" id="0:71"/>
+        <ViewModelInstance exports="true" name="GA" id="0:76">
+            <ViewModelInstanceNumber propertyValue="10" viewModelPropertyId="0:71"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="GB" id="0:77">
+            <ViewModelInstanceNumber propertyValue="60" viewModelPropertyId="0:71"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelPropertyList name="gates" id="0:46"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+            <ViewModelInstanceList viewModelPropertyId="0:46">
+                <ViewModelInstanceListItem viewModelId="0:70" viewModelInstanceId="0:76"/>
+                <ViewModelInstanceListItem viewModelId="0:70" viewModelInstanceId="0:77"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

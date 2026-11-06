@@ -218,6 +218,38 @@ bool DataBindContainer::mayAdvanceDataBinds() const
   return m_mayAdvanceDataBinds;
 }
 
+AdvancingComponent::QuietState DataBindContainer::dataBindsQuietState() const
+{
+  using QuietState = AdvancingComponent::QuietState;
+  if (!mayAdvanceDataBinds())
+  {
+    return QuietState::quiet;
+  }
+  auto state = QuietState::quiet;
+  for (auto dataBind : m_dataBinds)
+  {
+    auto converter = dataBind->converter();
+    // DataBind::advance skips a bind with no source. A collapsed bind is
+    // asked all the same: its converter may have stopped mid tween, and
+    // uncollapsing a clean bind wakes nothing.
+    if (converter == nullptr || dataBind->source() == nullptr)
+    {
+      continue;
+    }
+    switch (converter->advanceQuietState())
+    {
+      case QuietState::never:
+        return QuietState::never;
+      case QuietState::busy:
+        state = QuietState::busy;
+        break;
+      case QuietState::quiet:
+        break;
+    }
+  }
+  return state;
+}
+
 void DataBindContainer::dataBindsChanged() { m_mayAdvanceEpoch = 0; }
 
 void DataBindContainer::mayAdvanceChanged()

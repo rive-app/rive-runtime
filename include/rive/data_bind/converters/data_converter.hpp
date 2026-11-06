@@ -36,6 +36,10 @@ public:
   // converters, so a bind using a converter whose binds use none never
   // needs advancing.
   virtual bool mayAdvance() const;
+  // Whether advance would currently do nothing, for a converter that
+  // mayAdvance (see DataBindContainer::dataBindsQuietState). The base asks
+  // its binds' converters.
+  virtual AdvancingComponent::QuietState advanceQuietState() const;
   void dataBindsChanged() override;
   void addDirtyDataBind(DataBind*) override;
   virtual void reset() {};

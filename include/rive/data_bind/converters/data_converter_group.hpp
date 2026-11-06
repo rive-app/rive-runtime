@@ -40,6 +40,7 @@ public:
   void update() override;
   bool advance(float elapsedSeconds) override;
   bool mayAdvance() const override;
+  AdvancingComponent::QuietState advanceQuietState() const override;
   void reset() override;
 
 private:

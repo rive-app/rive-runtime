@@ -2,8 +2,11 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/data_bind/converters/data_converter_group.hpp"
+#include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
+#include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -194,6 +197,155 @@ TEST_CASE(
     stepInterpolator(converter, 0);
   }
   tweenTo(converter, 300);
+}
+
+namespace
+{
+// One frame as stepInterpolator runs it, checking that a converter that said
+// it was quiet does nothing in it: its advance reports no work and the value
+// stays on its target. Returns whether it was quiet.
+bool stepChecked(
+    DataConverter& converter,
+    float target,
+    AdvancingComponent::QuietState& state)
+{
+  state = converter.advanceQuietState();
+  DataValueNumber input(target);
+  bool advanced = converter.advance(1.0f / 60.0f);
+  float value = converter.convert(&input, nullptr)
+                    ->as<DataValueNumber>()
+                    ->value();
+  if (state == AdvancingComponent::QuietState::quiet)
+  {
+    CHECK_FALSE(advanced);
+    CHECK(value == target);
+  }
+  return state == AdvancingComponent::QuietState::quiet;
+}
+} // namespace
+
+// A list row skips its frame while every converter its binds use would do
+// nothing (see quiet_rows_test.cpp). An interpolator would do nothing once its
+// value has landed, until convert gives it a new one, which only happens for a
+// dirty bind, and that wakes the row.
+TEST_CASE(
+    "data converter interpolator is quiet once its value lands",
+    "[data binding]")
+{
+  using QuietState = AdvancingComponent::QuietState;
+  DataConverterInterpolator converter;
+  converter.duration(0.375f);
+  // Nothing to animate yet, and advance reports work while it has nothing.
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  DataValueNumber initial(0);
+  converter.convert(&initial, nullptr);
+  // The first run snaps to the value, and its advances count the frames that
+  // decide that.
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  stepInterpolator(converter, 0);
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  stepInterpolator(converter, 0);
+  CHECK(converter.advanceQuietState() == QuietState::quiet);
+
+  auto state = QuietState::never;
+  // A new value is in flight until it lands.
+  DataValueNumber target(300);
+  converter.convert(&target, nullptr);
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  int frames = 0;
+  while (!stepChecked(converter, 300, state) && frames < 600)
+  {
+    CHECK(state == QuietState::busy);
+    frames++;
+  }
+  CHECK(frames > 1);
+
+  // A new value mid tween smooths from the old one, and stays in flight until
+  // the smoothed one lands.
+  for (int i = 0; i < 12; i++)
+  {
+    stepInterpolator(converter, 0);
+  }
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  DataValueNumber retarget(300);
+  converter.convert(&retarget, nullptr);
+  frames = 0;
+  while (!stepChecked(converter, 300, state) && frames < 600)
+  {
+    CHECK(state == QuietState::busy);
+    frames++;
+  }
+  CHECK(frames > 12);
+  CHECK(converter.advanceQuietState() == QuietState::quiet);
+}
+
+// A group is as quiet as its items' converters.
+TEST_CASE(
+    "data converter group is quiet once its interpolator lands",
+    "[data binding]")
+{
+  using QuietState = AdvancingComponent::QuietState;
+  DataConverterGroup group;
+  auto interpolator = new DataConverterInterpolator();
+  interpolator->duration(0.375f);
+  auto item = new DataConverterGroupItem();
+  item->converter(interpolator);
+  item->ownsConverter(true);
+  group.addItem(item);
+
+  DataValueNumber initial(0);
+  group.convert(&initial, nullptr);
+  CHECK(group.advanceQuietState() == QuietState::busy);
+  auto state = QuietState::never;
+  int frames = 0;
+  while (!stepChecked(group, 0, state) && frames < 600)
+  {
+    frames++;
+  }
+  CHECK(frames == 2);
+  DataValueNumber target(300);
+  group.convert(&target, nullptr);
+  CHECK(group.advanceQuietState() == QuietState::busy);
+  frames = 0;
+  while (!stepChecked(group, 300, state) && frames < 600)
+  {
+    frames++;
+  }
+  CHECK(frames > 1);
+  CHECK(interpolator->advanceQuietState() == QuietState::quiet);
+}
+
+// An interpolator given a value it can't ease, such as a group's string, never
+// sets up anything to animate, and its advance reports work on every frame.
+// It can't go quiet, so it says never, which a list caches for the row,
+// instead of busy, which would have the row asked again every frame.
+TEST_CASE(
+    "data converter interpolator that can't ease its value is never quiet",
+    "[data binding]")
+{
+  using QuietState = AdvancingComponent::QuietState;
+  DataConverterInterpolator converter;
+  converter.duration(0.375f);
+  // Before its first value: one is about to arrive.
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  DataValueString text("label");
+  CHECK(converter.convert(&text, nullptr) == &text);
+  CHECK(converter.advanceQuietState() == QuietState::never);
+  for (int i = 0; i < 4; i++)
+  {
+    CHECK(converter.advance(1.0f / 60.0f));
+    converter.convert(&text, nullptr);
+    CHECK(converter.advanceQuietState() == QuietState::never);
+  }
+
+  // A rebind resets it, and a number it can ease lets it go quiet again.
+  converter.reset();
+  CHECK(converter.advanceQuietState() == QuietState::busy);
+  DataValueNumber initial(5);
+  converter.convert(&initial, nullptr);
+  stepInterpolator(converter, 5);
+  stepInterpolator(converter, 5);
+  CHECK(converter.advanceQuietState() == QuietState::quiet);
 }
 
 TEST_CASE(

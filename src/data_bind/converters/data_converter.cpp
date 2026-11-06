@@ -76,6 +76,11 @@ bool DataConverter::advance(float elapsedTime)
 
 bool DataConverter::mayAdvance() const { return mayAdvanceDataBinds(); }
 
+AdvancingComponent::QuietState DataConverter::advanceQuietState() const
+{
+  return dataBindsQuietState();
+}
+
 void DataConverter::dataBindsChanged()
 {
   // The binds and converters that use this converter may have cached answers

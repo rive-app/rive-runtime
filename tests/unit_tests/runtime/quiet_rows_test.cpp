@@ -10,6 +10,7 @@
 #include <rive/solo.hpp>
 #include <rive/viewmodel/viewmodel_instance.hpp>
 #include <rive/viewmodel/viewmodel_instance_boolean.hpp>
+#include <rive/viewmodel/viewmodel_instance_color.hpp>
 #include <rive/viewmodel/viewmodel_instance_list.hpp>
 #include <rive/viewmodel/viewmodel_instance_list_item.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
@@ -589,4 +590,149 @@ TEST_CASE(
   // Still, then played: grey, then gold.
   CHECK(awake.first == 0xFF808080);
   CHECK(awake.second == 0xFFE0A557);
+}
+
+namespace
+{
+// quiet_interpolator_rows.riv's Main: a list of Eased Rows, whose artboard
+// binds ease, and a list of Gated Rows, whose machine's bind does.
+struct EasedRows : HostingRows
+{
+  ArtboardComponentList* gates = nullptr;
+
+  explicit EasedRows(bool quietRows)
+      : HostingRows(quietRows, "assets/quiet_interpolator_rows.riv")
+  {
+    gates = artboard->find<ArtboardComponentList>("Gates");
+    REQUIRE(gates != nullptr);
+    REQUIRE(gates->artboardCount() == 2);
+  }
+
+  // Each Eased Row's Box x (n through Ease), y (n doubled, then eased,
+  // through a group) and color (tint through Fade), then each Gated Row's
+  // Flag color, which its machine turns green once its eased n reaches 50.
+  std::vector<double> drawn()
+  {
+    std::vector<double> values;
+    for (int i = 0; i < 2; i++)
+    {
+      auto box = row(i)->find<Shape>("Box");
+      values.push_back(box->x());
+      values.push_back(box->y());
+      values.push_back(
+          (uint32_t)row(i)->find<SolidColor>("Color")->colorValue());
+    }
+    for (int i = 0; i < 2; i++)
+    {
+      values.push_back((uint32_t)gates->artboardInstance(i)
+                           ->find<SolidColor>("Flag Color")
+                           ->colorValue());
+    }
+    return values;
+  }
+
+  bool allQuiet()
+  {
+    for (auto rows : {list, gates})
+    {
+      for (int i = 0; i < 2; i++)
+      {
+        if (rows->artboardInstance(i)->quietHostRow() != (uint32_t)i)
+        {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  // Gives the first item, and the first gate, new values.
+  void retarget(float n, int tint)
+  {
+    item(0)->propertyValue("n")->as<ViewModelInstanceNumber>()->propertyValue(
+        n);
+    item(0)->propertyValue("tint")->as<ViewModelInstanceColor>()->propertyValue(
+        tint);
+    gates->listItem(0)
+        ->viewModelInstance()
+        ->propertyValue("n")
+        ->as<ViewModelInstanceNumber>()
+        ->propertyValue(n);
+  }
+};
+} // namespace
+
+// A bind that eases through a DataConverterInterpolator, the row artboard's
+// or its machine's, only advances while its value is on the way. A row whose
+// eased values have all landed goes quiet.
+TEST_CASE(
+    "List rows with eased binds go quiet once their values land",
+    "[component_list]")
+{
+  EasedRows scene(true);
+  auto skips = ArtboardComponentList::sm_quietRowSkips;
+  scene.advance(10);
+  CHECK(ArtboardComponentList::sm_quietRowSkips > skips);
+  CHECK(scene.allQuiet());
+  CHECK(
+      scene.drawn() == std::vector<double>{
+                           10,
+                           20,
+                           0xFF808080,
+                           60,
+                           120,
+                           0xFF2060E0,
+                           0xFF808080,
+                           0xFF3BA55C});
+}
+
+// A quiet row's eased values ease to a new value frame by frame as an awake
+// row's do, through a change of target mid way, and the row goes quiet again
+// once they land.
+TEST_CASE("Quiet rows with eased binds ease to a new value", "[component_list]")
+{
+  auto play = [](bool quietRows) {
+    EasedRows scene(quietRows);
+    std::vector<std::vector<double>> frames;
+    // Past the gate, with a new tint.
+    scene.retarget(80, (int)0xFFE0A557);
+    for (int i = 0; i < 8; i++)
+    {
+      scene.advance(1);
+      frames.push_back(scene.drawn());
+    }
+    // Back below the gate before those values land.
+    scene.retarget(30, (int)0xFF2060E0);
+    for (int i = 0; i < 40; i++)
+    {
+      scene.advance(1);
+      frames.push_back(scene.drawn());
+    }
+    return std::make_pair(frames, scene.allQuiet());
+  };
+  auto quiet = play(true);
+  auto awake = play(false);
+  CHECK(quiet.first == awake.first);
+  CHECK(quiet.second);
+  // The values have to ease, and the gate to open and close, or matching
+  // proves nothing.
+  REQUIRE(quiet.first.size() == 48);
+  CHECK(quiet.first[3][0] > 10);
+  CHECK(quiet.first[3][0] < 80);
+  bool gateOpened = false;
+  for (auto& frame : quiet.first)
+  {
+    gateOpened = gateOpened || frame[6] == 0xFF3BA55C;
+  }
+  CHECK(gateOpened);
+  CHECK(
+      quiet.first.back() == std::vector<double>{
+                                30,
+                                60,
+                                0xFF2060E0,
+                                60,
+                                120,
+                                0xFF2060E0,
+                                0xFF808080,
+                                0xFF3BA55C});
 }

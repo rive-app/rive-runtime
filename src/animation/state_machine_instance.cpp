@@ -6036,8 +6036,8 @@ AdvancingComponent::QuietState StateMachineInstance::rowQuietState()
       return QuietState::busy;
     }
   }
-  // Converters that advance can't say whether they would.
-  return mayAdvanceDataBinds() ? QuietState::never : QuietState::quiet;
+  // Converters that advance say whether they would.
+  return dataBindsQuietState();
 }
 
 void StateMachineInstance::addDirtyDataBind(DataBind* dataBind)

@@ -53,7 +53,7 @@ public:
     m_animationDataB.initialize<T>();
     m_currentValue = new T();
   }
-  bool initialized() { return m_initialized; }
+  bool initialized() const { return m_initialized; }
   void dispose();
   void resetValues(DataValue* input)
   {
@@ -108,6 +108,14 @@ public:
   }
   void advanceAnimationData(float elapsedTime);
   bool advance(float elapsedTime);
+  // Whether the value reached its target, so advance does nothing until
+  // updateValues gives it a new one.
+  bool settled() const
+  {
+    auto animationData = m_isSmoothingAnimation ? &m_animationDataB
+                                                : &m_animationDataA;
+    return animationData->to->compare(m_currentValue);
+  }
 
 private:
   InterpolatorAnimationData m_animationDataA;
@@ -144,6 +152,7 @@ public:
   DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
   bool advance(float elapsedTime) override;
   bool mayAdvance() const override { return true; }
+  AdvancingComponent::QuietState advanceQuietState() const override;
   void reset() override;
   void copy(const DataConverterInterpolatorBase& object);
   void durationChanged() override;
@@ -160,7 +169,10 @@ public:
 private:
   DataValue* m_output = nullptr;
   uint8_t m_advanceCount = 0;
-  bool isFirstRun() { return m_advanceCount < 2; }
+  // convert took a value it can't ease (neither a number nor a color), so it
+  // never set up the advancer. In the padding after m_advanceCount.
+  bool m_cannotEase = false;
+  bool isFirstRun() const { return m_advanceCount < 2; }
 
   InterpolatorAdvancer m_advancer;
 

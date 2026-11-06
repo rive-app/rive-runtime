@@ -196,6 +196,28 @@ bool DataConverterInterpolator::advance(float elapsedTime)
   return m_advancer.advance(elapsedTime) || didAdvanceBinds;
 }
 
+AdvancingComponent::QuietState DataConverterInterpolator::advanceQuietState()
+    const
+{
+  using QuietState = AdvancingComponent::QuietState;
+  auto state = Super::advanceQuietState();
+  // Given a value it can't ease, advance reports work on every frame and
+  // never sets up anything to settle.
+  if (state == QuietState::never || m_cannotEase)
+  {
+    return QuietState::never;
+  }
+  // advance counts its first frames, which decide whether a new value
+  // animates, and reports work until it has a value to animate, which is
+  // about to arrive. Once its value has landed it does nothing until convert
+  // takes a new one, which only happens for a dirty bind.
+  if (isFirstRun() || !m_advancer.initialized() || !m_advancer.settled())
+  {
+    return QuietState::busy;
+  }
+  return state;
+}
+
 DataValue* DataConverterInterpolator::convert(
     DataValue* input,
     DataBind* dataBind)
@@ -217,8 +239,10 @@ DataValue* DataConverterInterpolator::convert(
     }
     else
     {
+      m_cannotEase = true;
       return input;
     }
+    m_cannotEase = false;
   }
   if (m_output != nullptr &&
       (input->is<DataValueNumber>() || input->is<DataValueColor>()))
@@ -240,6 +264,7 @@ DataValue* DataConverterInterpolator::convert(
 void DataConverterInterpolator::reset()
 {
   m_advanceCount = 0;
+  m_cannotEase = false;
   m_advancer.reset();
 }
 

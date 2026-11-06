@@ -54,6 +54,11 @@ public:
                            AdvanceFlags::NewFrame) override;
   bool advance(float elapsedSeconds) override;
   bool mayAdvance() const override { return true; }
+  // The script's advance does work this can't see into.
+  AdvancingComponent::QuietState advanceQuietState() const override
+  {
+    return AdvancingComponent::QuietState::never;
+  }
   StatusCode import(ImportStack& importStack) override;
   void addProperty(CustomProperty* prop) override;
   Core* clone() const override;

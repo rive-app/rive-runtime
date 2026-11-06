@@ -133,6 +133,35 @@ bool DataConverterGroup::mayAdvance() const
   return Super::mayAdvance();
 }
 
+AdvancingComponent::QuietState DataConverterGroup::advanceQuietState() const
+{
+  using QuietState = AdvancingComponent::QuietState;
+  auto state = Super::advanceQuietState();
+  if (state == QuietState::never)
+  {
+    return state;
+  }
+  for (auto& item : m_items)
+  {
+    auto converter = item->converter();
+    if (converter == nullptr)
+    {
+      continue;
+    }
+    switch (converter->advanceQuietState())
+    {
+      case QuietState::never:
+        return QuietState::never;
+      case QuietState::busy:
+        state = QuietState::busy;
+        break;
+      case QuietState::quiet:
+        break;
+    }
+  }
+  return state;
+}
+
 bool DataConverterGroup::advance(float elapsedSeconds)
 {
   bool didUpdate = Super::advance(elapsedSeconds);

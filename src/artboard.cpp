@@ -1962,10 +1962,10 @@ AdvancingComponent::QuietState Artboard::rowQuietState()
         break;
     }
   }
-  if (state == QuietState::quiet && mayAdvanceDataBinds())
+  if (state == QuietState::quiet)
   {
-    // Converters that advance can't say whether they would.
-    return QuietState::never;
+    // Converters that advance say whether they would.
+    return dataBindsQuietState();
   }
   return state;
 }
