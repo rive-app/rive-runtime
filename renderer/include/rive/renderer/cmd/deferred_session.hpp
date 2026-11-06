@@ -253,8 +253,8 @@ public:
     }
     return m_nextScreenTarget++;
   }
-  // The host is gone, so its recorder is too. Callers drain first, and a
-  // queued frame holds bytes rather than the recorder.
+  // The host is gone, so its recorder is too. A frame still queued for the
+  // target holds bytes rather than the recorder.
   void releaseScreenTarget(uint64_t target)
   {
     m_screenRenderers.erase(target);
