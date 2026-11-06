@@ -161,6 +161,22 @@ public:
   // Clear bounds (mark as unavailable)
   void clearWorldBounds() { m_worldBounds = AABB(); }
 
+#ifdef WITH_RIVE_TOOLS
+  // Only at edit time: a node whose owner lives outside the runtime (the
+  // editor's FocusData) has no Focusable to report a position, so the owner
+  // pushes one down. Directional traversal scores it as a point, the way a
+  // runtime FocusData with a non-layout parent is scored, rather than as
+  // bounds.
+  bool hasWorldPosition() const { return m_hasWorldPosition; }
+  const Vec2D& worldPosition() const { return m_worldPosition; }
+  void worldPosition(const Vec2D& position)
+  {
+    m_worldPosition = position;
+    m_hasWorldPosition = true;
+  }
+  void clearWorldPosition() { m_hasWorldPosition = false; }
+#endif
+
   // === Hierarchy ===
 
   FocusNode* parent() const { return m_parent; }
@@ -276,6 +292,8 @@ private:
   int16_t m_tabIndex = 0;
 #ifdef WITH_RIVE_TOOLS
   bool m_isCollapsed = false;
+  bool m_hasWorldPosition = false;
+  Vec2D m_worldPosition;
 #endif
 };
 

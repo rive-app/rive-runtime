@@ -5237,3 +5237,36 @@ TEST_CASE(
   CHECK(external.primaryFocus() == nullptr);
   CHECK(external.hasFocusableContent() == false);
 }
+
+#ifdef WITH_RIVE_TOOLS
+// The editor's nodes have no Focusable, so their owner pushes geometry down.
+// A non-layout owner pushes a position, and it must score as a point, the
+// way the runtime scores a FocusData whose parent is not a layout. As
+// bounds, even tiny ones, a shape inside a layout overlaps the layout's edge
+// and is rejected.
+TEST_CASE(
+    "an external node's world position scores as a point",
+    "[FocusManager]")
+{
+  rive::FocusManager manager;
+  auto layout = rive::make_rcp<rive::FocusNode>();
+  auto shape = rive::make_rcp<rive::FocusNode>();
+  layout->worldBounds(rive::AABB(0, 0, 100, 100));
+  shape->worldPosition(rive::Vec2D(75, 50));
+  manager.addChild(nullptr, layout);
+  manager.addChild(nullptr, shape);
+
+  manager.setFocus(layout);
+  CHECK(manager.focusRight());
+  CHECK(manager.hasPrimaryFocus(shape));
+
+  // And back the other way, from a point to the layout's centre.
+  CHECK(manager.focusLeft());
+  CHECK(manager.hasPrimaryFocus(layout));
+
+  // A cleared position takes the node out of directional traversal.
+  shape->clearWorldPosition();
+  CHECK_FALSE(manager.focusRight());
+  CHECK(manager.hasPrimaryFocus(layout));
+}
+#endif

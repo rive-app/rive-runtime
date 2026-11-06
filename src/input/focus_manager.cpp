@@ -725,6 +725,13 @@ static bool getRootPosition(FocusNode* node, Vec2D& outPosition)
     outPosition = node->worldBounds().center();
     return true;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (node->hasWorldPosition())
+  {
+    outPosition = node->worldPosition();
+    return true;
+  }
+#endif
   return false;
 }
 
