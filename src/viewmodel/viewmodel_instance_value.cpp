@@ -87,17 +87,19 @@ ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
 
 void ViewModelInstanceValue::addDependent(ViewModelValueDependent* value)
 {
-  m_DependencyHelper.addDependent(value);
+  m_dependents.add(value);
 }
 
 void ViewModelInstanceValue::removeDependent(ViewModelValueDependent* value)
 {
-  m_DependencyHelper.removeDependent(value);
+  m_dependents.remove(value);
 }
 
 void ViewModelInstanceValue::addDirt(ComponentDirt value)
 {
-  m_DependencyHelper.addDirtToDependents(value);
+  m_dependents.forEach([value](ViewModelValueDependent* dependent) {
+    dependent->addDirt(value, true);
+  });
 }
 
 void ViewModelInstanceValue::setRoot(rcp<ViewModelInstance> viewModelInstance)
