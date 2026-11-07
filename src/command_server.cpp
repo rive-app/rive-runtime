@@ -20,6 +20,8 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 
+#include <algorithm>
+
 namespace rive
 {
 
@@ -1044,6 +1046,12 @@ bool CommandServer::processCommands()
           m_globalAssetRegistry->addFileAssets(handle, fileAssets);
           m_globalAssetRegistry->applyResourcesToFileAssets(fileAssets);
           m_files[handle] = file;
+#ifdef WITH_RIVE_SCRIPTING_WASM
+          if (!file->wasmVMs().empty())
+          {
+            m_scriptFiles.push_back(file);
+          }
+#endif
 
           std::unique_lock<std::mutex> messageLock(
               m_commandQueue->m_messageMutex);
@@ -4678,12 +4686,48 @@ bool CommandServer::processCommands()
     drawPair.second(drawPair.first, this);
   }
 
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  collectScriptHeaps(!m_uniqueDraws.empty());
+#endif
   m_uniqueDraws.clear();
 
   checkPropertySubscriptions();
 
   return !m_wasDisconnectReceived;
 }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+// Script heaps grow without bound unless collected once a frame, after
+// everything drew; a host that advances without drawing still needs them.
+void CommandServer::collectScriptHeaps(bool drew)
+{
+  constexpr uint32_t kBatchesWithoutDraw = 16;
+  if (!drew && ++m_batchesSinceCollection < kBatchesWithoutDraw)
+  {
+    return;
+  }
+  m_batchesSinceCollection = 0;
+  // Only this list still holds a file whose handle and artboards are gone.
+  m_scriptFiles.erase(
+      std::remove_if(
+          m_scriptFiles.begin(),
+          m_scriptFiles.end(),
+          [](const rcp<File>& file) { return file->unique(); }),
+      m_scriptFiles.end());
+  for (const rcp<File>& file : m_scriptFiles)
+  {
+    const char* report = file->frameBoundary();
+#ifndef NDEBUG
+    if (report != nullptr)
+    {
+      fprintf(stderr, "%s\n", report);
+    }
+#else
+    (void)report;
+#endif
+  }
+}
+#endif
+
 CommandServer::SynchronizedStateMachine::~SynchronizedStateMachine()
 {
   std::unique_lock<std::mutex> lock(m_mutex);

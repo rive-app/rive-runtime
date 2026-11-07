@@ -65,6 +65,10 @@ public:
     }
   }
 
+  // True when the caller holds the only reference; acquire so writes made
+  // before other owners let go are visible.
+  bool unique() const { return m_refcnt.load(std::memory_order_acquire) == 1; }
+
   // not reliable in actual threaded scenarios, but useful (perhaps) for
   // debugging
   int32_t debugging_refcnt() const

@@ -303,6 +303,15 @@ private:
 
   std::unordered_map<DrawKey, CommandServerDrawCallback> m_uniqueDraws;
 
+#ifdef WITH_RIVE_SCRIPTING_WASM
+  // Collects every script heap after a batch that drew, or after a run of
+  // batches with no draw.
+  void collectScriptHeaps(bool drew);
+  uint32_t m_batchesSinceCollection = 0;
+  // Files with script VMs, held until nothing else does.
+  std::vector<rcp<File>> m_scriptFiles;
+#endif
+
   class CommandFileAssetLoader;
   rcp<GlobalAssetRegistry> m_globalAssetRegistry;
   rcp<FileAssetLoader> m_internalFileAssetLoader;
