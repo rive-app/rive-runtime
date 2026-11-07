@@ -340,7 +340,7 @@ bool ArtboardPaintSource::applyTo(
   paint->modulatedImage(image.get(), sampler, imageTransform);
   return true;
 #else
-  // Offscreen canvases are compiled out; the paint draws without an image.
+  // Offscreen canvases are compiled out; the paint has no image to draw.
   (void)host;
   (void)paint;
   (void)sampler;

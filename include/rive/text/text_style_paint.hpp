@@ -23,7 +23,12 @@ public:
   {
     m_geometry.reserve(verbs, points, allOpaque);
   }
-  void draw(Renderer* renderer, const Mat2D& worldTransform);
+  /// [imageBounds] is what a paint image fits to, in the glyphs' space: the
+  /// drawing Text's layout box (see Text::glyphSpaceBounds).
+  void draw(
+      Renderer* renderer,
+      const Mat2D& worldTransform,
+      const AABB& imageBounds);
 
   /// Draws [geometry] (some Text's glyphs) with this paint. A paint shared
   /// by several Texts draws each one's own geometry, modulated by that
@@ -33,7 +38,8 @@ public:
       Renderer* renderer,
       const Mat2D& worldTransform,
       TextStyleGeometry& geometry,
-      float opacityModifier);
+      float opacityModifier,
+      const AABB& imageBounds);
 
   /// Whether this is the paint of a style instance every Text using it
   /// draws (see SharedTextStyle): it never holds any Text's glyphs, each

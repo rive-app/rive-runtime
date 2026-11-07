@@ -22,16 +22,20 @@ bool TextStylePaint::addPath(
   return m_geometry.addPath(rawPath, opacity, transform);
 }
 
-void TextStylePaint::draw(Renderer* renderer, const Mat2D& worldTransform)
+void TextStylePaint::draw(
+    Renderer* renderer,
+    const Mat2D& worldTransform,
+    const AABB& imageBounds)
 {
-  drawGeometry(renderer, worldTransform, m_geometry, 1.0f);
+  drawGeometry(renderer, worldTransform, m_geometry, 1.0f, imageBounds);
 }
 
 void TextStylePaint::drawGeometry(
     Renderer* renderer,
     const Mat2D& worldTransform,
     TextStyleGeometry& geometry,
-    float opacityModifier)
+    float opacityModifier,
+    const AABB& imageBounds)
 {
   // A paint shared by several Texts (opacityModifier carries the drawing
   // Text's opacity) never has its own render paints touched: every bucket,
@@ -44,6 +48,9 @@ void TextStylePaint::drawGeometry(
     {
       continue;
     }
+    // A PaintImage fits every bucket to the same box, so the image lines up
+    // across glyphs whatever their opacity.
+    const bool modulated = shapePaint->paintImage() != nullptr;
     // A global text style's paint lives under the style Artboard, not a
     // Text; keep its shape paint's own (default) blend mode in that case.
     if (owned && parent()->is<Text>())
@@ -52,27 +59,35 @@ void TextStylePaint::drawGeometry(
       shapePaint->blendMode(text->blendMode(), text->additiveAmount());
     }
 
-    auto drawPooled =
-        [&](ShapePaintPath* path, float opacity, uint32_t paintIndex) {
-          RenderPaint* renderPaint = geometry.pooledPaint(paintIndex);
-          shapePaint->applyTo(renderPaint, opacity * opacityModifier);
-          // Pooled paints are shared across shape paints; always set
-          // feather and blend mode so one paint's settings don't leak into
-          // the others. Pooled draws take the shape paint's own mode (a
-          // global style's paint has no Text to inherit from).
-          auto feather = shapePaint->feather();
-          renderPaint->feather(feather != nullptr ? feather->strength() : 0.0f);
-          if (!owned)
-          {
-            BlendMode mode = shapePaint->inheritsBlendMode()
-                                 ? BlendMode::srcOver
-                                 : shapePaint->blendMode();
-            uint8_t amount = shapePaint->additiveAmount();
-            renderPaint->blendMode(renderBlendModeFor(mode, amount));
-            renderPaint->additiveness(additivenessFor(mode, amount));
-          }
-          shapePaint->draw(renderer, path, worldTransform, true, renderPaint);
-        };
+    auto drawPooled = [&](ShapePaintPath* path,
+                          float opacity,
+                          uint32_t paintIndex) {
+      RenderPaint* renderPaint = geometry.pooledPaint(paintIndex, modulated);
+      shapePaint->applyTo(renderPaint, opacity * opacityModifier);
+      // Pooled paints are shared across shape paints; always set
+      // feather and blend mode so one paint's settings don't leak into
+      // the others. Pooled draws take the shape paint's own mode (a
+      // global style's paint has no Text to inherit from).
+      auto feather = shapePaint->feather();
+      renderPaint->feather(feather != nullptr ? feather->strength() : 0.0f);
+      if (!owned)
+      {
+        BlendMode mode = shapePaint->inheritsBlendMode()
+                             ? BlendMode::srcOver
+                             : shapePaint->blendMode();
+        uint8_t amount = shapePaint->additiveAmount();
+        renderPaint->blendMode(renderBlendModeFor(mode, amount));
+        renderPaint->additiveness(additivenessFor(mode, amount));
+      }
+      shapePaint->draw(
+          renderer,
+          path,
+          worldTransform,
+          true,
+          renderPaint,
+          true,
+          &imageBounds);
+    };
 
     // An effect (dash, trim...) is built from every glyph and replaces
     // whichever bucket's path ShapePaint::draw is handed, so drawing it per
@@ -89,7 +104,14 @@ void TextStylePaint::drawGeometry(
       float opacity = opacityPaths.rbegin()->first;
       if (owned && opacity == 1.0f)
       {
-        shapePaint->draw(renderer, geometry.path(), worldTransform, true);
+        shapePaint->draw(
+            renderer,
+            geometry.path(),
+            worldTransform,
+            true,
+            nullptr,
+            true,
+            &imageBounds);
       }
       else
       {
@@ -104,7 +126,14 @@ void TextStylePaint::drawGeometry(
     if (owned && itr != opacityPaths.end())
     {
       ShapePaintPath& path = itr->second;
-      shapePaint->draw(renderer, &path, worldTransform, true);
+      shapePaint->draw(
+          renderer,
+          &path,
+          worldTransform,
+          true,
+          nullptr,
+          true,
+          &imageBounds);
     }
 
     geometry.reservePaints(artboard()->factory());

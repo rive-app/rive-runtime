@@ -1234,6 +1234,9 @@ void Text::draw(Renderer* renderer)
     renderer->clipPath(m_clipPath.renderPath(this));
   }
   auto worldTransform = shapeWorldTransform();
+  // A paint image on the styles fits the layout box, as the editor draws it,
+  // wherever the glyphs fall in it.
+  const AABB imageBounds = glyphSpaceBounds();
   // Backgrounds first so they sit behind every glyph, in style child order.
   for (TextStylePaint* style : m_textStylePaints)
   {
@@ -1261,11 +1264,12 @@ void Text::draw(Renderer* renderer)
             renderer,
             worldTransform,
             *cmd.geometry,
-            renderOpacity());
+            renderOpacity(),
+            imageBounds);
       }
       else
       {
-        cmd.style->draw(renderer, worldTransform);
+        cmd.style->draw(renderer, worldTransform, imageBounds);
       }
     }
     else
@@ -2648,6 +2652,17 @@ AABB Text::localBounds() const
       height);
 }
 
+AABB Text::glyphSpaceBounds() const
+{
+  Mat2D inverse;
+  if (!m_transform.invert(&inverse))
+  {
+    // Scaled to nothing to fit, so nothing fit to this shows.
+    return localBounds();
+  }
+  return inverse.mapBoundingBox(localBounds());
+}
+
 Core* Text::hitTest(HitInfo*, const Mat2D&)
 {
   if (renderOpacity() == 0.0f)
@@ -2724,6 +2739,7 @@ const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
 }
 void Text::paragraphSpacingChanged() {}
 AABB Text::localBounds() const { return AABB(); }
+AABB Text::glyphSpaceBounds() const { return AABB(); }
 void Text::originValueChanged() {}
 void Text::originXChanged() {}
 void Text::originYChanged() {}

@@ -16,6 +16,7 @@ namespace rive
 class RenderPaint;
 class ShapePaintMutator;
 class Feather;
+class PaintImage;
 class ShapePaintContainer;
 class TransformComponent;
 class ShapePaint : public ShapePaintBase,
@@ -63,15 +64,24 @@ public:
     return (int)(pathFlags() & flags) != 0x00;
   }
 
+  /// [overridePaint] draws in place of this paint's own render paint; a
+  /// PaintImage child modulates it too, but clearing an image it no longer
+  /// needs is up to its owner. [imageBounds] is what that child fits to, when
+  /// it isn't [shapePaintPath]'s own bounds: a text draws its glyphs bucketed
+  /// by opacity, and fits the image to all of them.
   virtual void draw(
       Renderer* renderer,
       ShapePaintPath* shapePaintPath,
       const Mat2D& transform,
       bool usePathFillRule = false,
       RenderPaint* overridePaint = nullptr,
-      bool needsSaveOperation = true);
+      bool needsSaveOperation = true,
+      const AABB* imageBounds = nullptr);
 
   RenderPaint* renderPaint() { return m_RenderPaint.get(); }
+
+  /// The optional PaintImage child modulating this paint.
+  PaintImage* paintImage();
 
   /// Get the component that represents the ShapePaintMutator for this
   /// ShapePaint. It'll be one of SolidColor, LinearGradient, or
@@ -122,14 +132,20 @@ public:
   TransformComponent* parentTransformComponent() const;
 
 private:
-  /// Install (or clear) the modulating image contributed by the optional
-  /// PaintImage child onto m_RenderPaint, fit to [path]'s bounds. The bounds
-  /// walk every point, so they are only measured when that child exists.
-  /// [target] receives the renderer the path has to be drawn through, which
-  /// is [renderer] unless an artboard source had to reroute it.
-  void applyModulatedImage(
+  /// Install the modulating image contributed by the optional PaintImage
+  /// child onto [paint], fit to [bounds], or to [path]'s bounds without them.
+  /// Those walk every point, so they are only measured when that child
+  /// exists. A stale image is cleared off m_RenderPaint here; off any other
+  /// paint by its owner. [target] receives the renderer the path has to be
+  /// drawn through, which is [renderer] unless an artboard source had to
+  /// reroute it. Returns false when the child is there but resolves no image
+  /// (none picked, not decoded yet, or an artboard source that can't raster):
+  /// the path isn't drawn.
+  bool applyModulatedImage(
       Renderer* renderer,
+      RenderPaint* paint,
       const ShapePaintPath* path,
+      const AABB* bounds,
       ModulatedDrawTarget* target);
 
   Feather* m_feather = nullptr;

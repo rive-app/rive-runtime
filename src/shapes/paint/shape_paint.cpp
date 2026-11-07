@@ -143,7 +143,8 @@ void ShapePaint::draw(
     const Mat2D& transform,
     bool usePathFillRule,
     RenderPaint* overridePaint,
-    bool needsSaveOperation)
+    bool needsSaveOperation,
+    const AABB* imageBounds)
 {
   RIVE_PROF_SCOPE_L(2)
 
@@ -251,17 +252,24 @@ void ShapePaint::draw(
       renderPath->fillRule((FillRule)as<Fill>()->fillRule());
     }
 
-    // Modulate this paint with the (optional) PaintImage child, fit to the
-    // shape's local bounds. Skipped when drawing with an external override
-    // paint. The child is discovered by type rather than cached.
+    // Modulate the paint with the (optional) PaintImage child, fit to
+    // [imageBounds], or the shape's local bounds without them. The child is
+    // discovered by type rather than cached. A child with no image to show
+    // leaves the path undrawn rather than in its bare color.
+    RenderPaint* paint = overridePaint != nullptr ? overridePaint
+                                                  : renderPaint();
     ModulatedDrawTarget target;
     target.renderer = renderer;
-    if (overridePaint == nullptr)
+    if (!applyModulatedImage(
+            renderer,
+            paint,
+            shapePaintPath,
+            imageBounds,
+            &target))
     {
-      applyModulatedImage(renderer, shapePaintPath, &target);
+      // Nothing to draw; still restore below.
     }
-
-    if (target.renderer != renderer)
+    else if (target.renderer != renderer)
     {
       // An artboard source rasterized on an immediate host, which leaves
       // [renderer] unable to sample the result; draw through the clean
@@ -270,14 +278,12 @@ void ShapePaint::draw(
       target.renderer->save();
       target.renderer->transform(target.transform);
       target.renderer->modulateOpacity(target.opacity);
-      target.renderer->drawPath(renderPath, renderPaint());
+      target.renderer->drawPath(renderPath, paint);
       target.renderer->restore();
     }
     else
     {
-      renderer->drawPath(
-          renderPath,
-          overridePaint != nullptr ? overridePaint : renderPaint());
+      renderer->drawPath(renderPath, paint);
     }
   }
 
@@ -287,24 +293,38 @@ void ShapePaint::draw(
   }
 }
 
-void ShapePaint::applyModulatedImage(
-    Renderer* renderer,
-    const ShapePaintPath* path,
-    ModulatedDrawTarget* target)
+PaintImage* ShapePaint::paintImage()
 {
 #ifdef WITH_RIVE_EDITOR
-  PaintImage* image = firstChild<PaintImage>();
+  return firstChild<PaintImage>();
 #else
-  PaintImage* image = m_hasPaintImage ? firstChild<PaintImage>() : nullptr;
+  return m_hasPaintImage ? firstChild<PaintImage>() : nullptr;
 #endif
+}
+
+bool ShapePaint::applyModulatedImage(
+    Renderer* renderer,
+    RenderPaint* paint,
+    const ShapePaintPath* path,
+    const AABB* bounds,
+    ModulatedDrawTarget* target)
+{
+  PaintImage* image = paintImage();
+  const bool ownPaint = paint == renderPaint();
   if (image != nullptr &&
-      image
-          ->applyTo(renderer, renderPaint(), path->rawPath()->bounds(), target))
+      image->applyTo(
+          renderer,
+          paint,
+          bounds != nullptr ? *bounds : path->rawPath()->bounds(),
+          target))
   {
-    m_hasModulatedImage = true;
-    return;
+    if (ownPaint)
+    {
+      m_hasModulatedImage = true;
+    }
+    return true;
   }
-  if (m_hasModulatedImage)
+  if (ownPaint && m_hasModulatedImage)
   {
     // No image to modulate with any more -- the child was removed, its
     // asset cleared, or the replacement hasn't decoded yet. The RenderPaint
@@ -315,6 +335,7 @@ void ShapePaint::applyModulatedImage(
         Mat2D());
     m_hasModulatedImage = false;
   }
+  return image == nullptr;
 }
 
 void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)

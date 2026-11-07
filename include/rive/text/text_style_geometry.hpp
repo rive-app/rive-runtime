@@ -42,17 +42,26 @@ public:
   /// Makes sure there's a pooled render paint for every opacity bucket.
   void reservePaints(Factory* factory);
   /// The render paint for the [index]th pooled draw (see reservePaints).
-  RenderPaint* pooledPaint(size_t index) { return m_paintPool[index].get(); }
+  /// [modulated]: the draw modulates it with an image, which then stays on
+  /// it; a draw that doesn't gets any image left there cleared first, as
+  /// every paint of the style draws through the same pool.
+  RenderPaint* pooledPaint(size_t index, bool modulated);
 
 private:
   ShapePaintPath& opacityPath(float opacity);
+
+  struct PooledPaint
+  {
+    rcp<RenderPaint> paint;
+    bool modulated = false;
+  };
 
   std::map<float, ShapePaintPath> m_opacityPaths;
   // The opaque bucket, kept with its storage across a rewind: most Texts
   // draw every glyph opaque, and the next build fills it again. It draws
   // through a new render path, as a new bucket did.
   std::map<float, ShapePaintPath>::node_type m_spareOpaquePath;
-  std::vector<rcp<RenderPaint>> m_paintPool;
+  std::vector<PooledPaint> m_paintPool;
   ShapePaintPath m_path;
   bool m_hasContents = false;
 };

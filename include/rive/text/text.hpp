@@ -315,6 +315,10 @@ public:
   BoundsFidelity paintedWorldBounds(AABB* out) override;
 
   AABB localBounds() const override;
+  /// localBounds() in the space the glyphs are drawn in, before m_transform
+  /// offsets them by the origin and scales them to fit. What a paint image
+  /// on this text's styles fits to.
+  AABB glyphSpaceBounds() const;
   AABB constraintBounds() const override { return localBounds(); }
   void originXChanged() override;
   void originYChanged() override;

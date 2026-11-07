@@ -86,7 +86,20 @@ void TextStyleGeometry::reservePaints(Factory* factory)
     m_paintPool.reserve(m_opacityPaths.size());
     while (m_paintPool.size() < m_opacityPaths.size())
     {
-      m_paintPool.emplace_back(factory->makeRenderPaint());
+      m_paintPool.push_back({factory->makeRenderPaint()});
     }
   }
+}
+
+RenderPaint* TextStyleGeometry::pooledPaint(size_t index, bool modulated)
+{
+  PooledPaint& pooled = m_paintPool[index];
+  // Only cleared when one was left there: some backends record or forward
+  // every call.
+  if (pooled.modulated && !modulated)
+  {
+    pooled.paint->modulatedImage(nullptr, ImageSampler::LinearClamp(), Mat2D());
+  }
+  pooled.modulated = modulated;
+  return pooled.paint.get();
 }

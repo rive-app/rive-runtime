@@ -114,8 +114,9 @@ public:
   /// Modulate [paint] with this image, auto-fit to [bounds] (the shape's
   /// local bounds) and adjusted by the image transform (scale/offset/rotation
   /// about the bounds center). Returns false (leaving [paint] untouched) when
-  /// no image is resolved -- the caller owns clearing any stale image, as it
-  /// also has to handle this component being removed entirely.
+  /// no image is resolved -- the caller skips the draw, and owns clearing any
+  /// stale image, as it also has to handle this component being removed
+  /// entirely.
   ///
   /// [renderer] is what the path is about to be drawn with: an artboard
   /// source sizes its raster from its transform. [target] receives the
