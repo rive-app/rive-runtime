@@ -82,6 +82,13 @@ LinearAnimationInstance::~LinearAnimationInstance()
   // Each StatefulScriptedInterpolator removes + deletes the binds it parked
   // on the artboard before it destroys its clone.
   extras.scriptedInterpolators.clear();
+  releaseKeyFrameValueBinds();
+  m_bindingExtras.reset();
+}
+
+void LinearAnimationInstance::releaseKeyFrameValueBinds()
+{
+  auto& extras = *m_bindingExtras;
   if (m_artboardInstance != nullptr)
   {
     // Keyframe value bind clones target the holders below, so remove +
@@ -101,8 +108,6 @@ LinearAnimationInstance::~LinearAnimationInstance()
     delete pair.second;
   }
   extras.keyFrameValueHolders.clear();
-
-  m_bindingExtras.reset();
 }
 
 // The BindableProperty value property key matching a keyframe's value type, or
@@ -487,6 +492,36 @@ void LinearAnimationInstance::reset(float speedMultiplier = 1.0)
 {
   m_time = (speedMultiplier >= 0) ? m_animation->startTime()
                                   : m_animation->endTime();
+}
+
+bool LinearAnimationInstance::restart(float speedMultiplier)
+{
+  if (m_bindingExtras != nullptr)
+  {
+    // A scripted interpolator's clone keeps script state of its own.
+    if (!m_bindingExtras->scriptedInterpolators.empty())
+    {
+      return false;
+    }
+    // A new instance has no keyframe value binds until it applies a bound
+    // keyframe, which makes and binds them then. Kept, a bind could hold
+    // what a new one wouldn't: a converter's state (an interpolator's ease),
+    // a value a bind-once bind took before its source changed, a value
+    // bound before the view model was unbound. So they go, to be made anew.
+    releaseKeyFrameValueBinds();
+  }
+  m_time = (speedMultiplier >= 0) ? m_animation->startTime()
+                                  : m_animation->endTime();
+  m_speedDirection = (speedMultiplier >= 0) ? 1 : -1;
+  m_totalTime = 0.0f;
+  m_lastTotalTime = 0.0f;
+  m_spilledTime = 0.0f;
+  m_direction = 1;
+  m_didLoop = false;
+  m_loopValue = -1;
+  m_blendAccumulator = nullptr;
+  m_accumulatorSuspended = false;
+  return true;
 }
 
 uint32_t LinearAnimationInstance::fps() const { return m_animation->fps(); }

@@ -36,6 +36,10 @@ public:
   /// layers key (see StateMachineInstance): what this state applies to
   /// those properties goes to it.
   virtual void layerAccumulator(BlendAccumulator* accumulator) {}
+  /// Starts the state over, as a new instance of it would, so a layer going
+  /// back to it can reuse this one. False if it can't: the layer then makes
+  /// a new one.
+  virtual bool restart() { return false; }
 
   const LayerState* state() const;
 };

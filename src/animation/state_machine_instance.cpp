@@ -786,9 +786,29 @@ public:
           m_currentState->state()->listenerActions());
     }
 
-    m_currentState = stateTo == nullptr
-                         ? nullptr
-                         : stateTo->makeInstance(artboardOf(smi)).release();
+    // Going back to the state the layer last left: its instance, about to
+    // be dropped as the state mixed from, starts over instead of a new one
+    // being made.
+    bool reuse = stateTo != nullptr && m_stateFrom != nullptr &&
+                 m_stateFrom != m_anyStateInstance &&
+                 m_stateFrom->state() == stateTo;
+#ifdef TESTING
+    reuse = reuse && StateMachineInstance::sm_reuseStateInstances;
+#endif
+    if (reuse && m_stateFrom->restart())
+    {
+#ifdef TESTING
+      StateMachineInstance::sm_reusedStateInstances++;
+#endif
+      m_currentState = m_stateFrom;
+      m_stateFrom = nullptr;
+    }
+    else
+    {
+      m_currentState = stateTo == nullptr
+                           ? nullptr
+                           : stateTo->makeInstance(artboardOf(smi)).release();
+    }
     if (m_currentState != nullptr && smi->m_layerWrites.get() != nullptr)
     {
       m_currentState->layerAccumulator(smi->m_layerWrites.get());
@@ -5655,6 +5675,11 @@ bool StateMachineInstance::advanceAndApply(
 }
 
 bool StateMachineInstance::sm_layerAccumulatorEnabled = true;
+
+#ifdef TESTING
+bool StateMachineInstance::sm_reuseStateInstances = true;
+uint64_t StateMachineInstance::sm_reusedStateInstances = 0;
+#endif
 
 void StateMachineInstance::flushLayerWrites()
 {

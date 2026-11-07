@@ -1,5 +1,10 @@
 #include "rive/animation/animation_reset.hpp"
 #include "rive/animation/blend_accumulator.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/keyframe_color.hpp"
+#include "rive/animation/keyframe_double.hpp"
+#include "rive/animation/linear_animation.hpp"
 #include "rive/core/vector_binary_writer.hpp"
 #include "rive/generated/core_registry.hpp"
 
@@ -31,6 +36,173 @@ void AnimationReset::writePropertyValue(float value)
 }
 
 void AnimationReset::clear() { m_binaryWriter.clear(); }
+
+namespace
+{
+// What AnimationReset::build works in, one set per thread, so that a reset
+// held for long (a 1D blend state's) carries none of it.
+struct BuildScratch
+{
+  struct Entry
+  {
+    uint32_t objectIndex;
+    bool isBaseline;
+    const KeyedProperty* property;
+  };
+  std::vector<uint32_t> objectIds;
+  std::vector<Entry> entries;
+  std::vector<Entry> byObject;
+  std::vector<uint32_t> objectStarts;
+};
+} // namespace
+
+void AnimationReset::build(
+    const LinearAnimation* const* animations,
+    size_t count,
+    Artboard* artboard,
+    bool useFirstAsBaseline)
+{
+  static thread_local BuildScratch scratch;
+  auto& objectIds = scratch.objectIds;
+  auto& entries = scratch.entries;
+  auto& byObject = scratch.byObject;
+  auto& objectStarts = scratch.objectStarts;
+  objectIds.clear();
+  entries.clear();
+  for (size_t a = 0; a < count; a++)
+  {
+    auto animation = animations[a];
+    const bool isBaseline = useFirstAsBaseline && a == 0;
+    for (size_t o = 0, objects = animation->numKeyedObjects(); o < objects; o++)
+    {
+      auto keyedObject = animation->getObject(o);
+      auto objectId = keyedObject->objectId();
+      uint32_t objectIndex = 0;
+      while (objectIndex < objectIds.size() &&
+             objectIds[objectIndex] != objectId)
+      {
+        objectIndex++;
+      }
+      if (objectIndex == objectIds.size())
+      {
+        objectIds.push_back(objectId);
+      }
+      for (size_t k = 0, keyed = keyedObject->numKeyedProperties(); k < keyed;
+           k++)
+      {
+        auto property = keyedObject->getProperty(k);
+        switch (CoreRegistry::propertyFieldId(property->propertyKey()))
+        {
+          case CoreDoubleType::id:
+          case CoreColorType::id:
+            entries.push_back({objectIndex, isBaseline, property});
+            break;
+        }
+      }
+    }
+  }
+
+  // Group the entries by object, keeping their order within each.
+  const size_t objectCount = objectIds.size();
+  objectStarts.assign(objectCount + 1, 0);
+  for (const auto& entry : entries)
+  {
+    objectStarts[entry.objectIndex + 1]++;
+  }
+  for (size_t i = 0; i < objectCount; i++)
+  {
+    objectStarts[i + 1] += objectStarts[i];
+  }
+  byObject.resize(entries.size());
+  for (const auto& entry : entries)
+  {
+    byObject[objectStarts[entry.objectIndex]++] = entry;
+  }
+  // Placing moved each start to its object's end: shift them back.
+  for (size_t i = objectCount; i > 0; i--)
+  {
+    objectStarts[i] = objectStarts[i - 1];
+  }
+  objectStarts[0] = 0;
+
+  for (size_t i = 0; i < objectCount; i++)
+  {
+    auto begin = byObject.begin() + objectStarts[i];
+    auto end = byObject.begin() + objectStarts[i + 1];
+    // A property a later animation keys again keeps its first entry.
+    auto last = begin;
+    for (auto it = begin; it != end; ++it)
+    {
+      auto key = it->property->propertyKey();
+      bool seen = false;
+      for (auto kept = begin; kept != last; ++kept)
+      {
+        if (kept->property->propertyKey() == key)
+        {
+          seen = true;
+          break;
+        }
+      }
+      if (!seen)
+      {
+        *last++ = *it;
+      }
+    }
+    if (last == begin)
+    {
+      continue;
+    }
+    auto objectId = objectIds[i];
+    auto object = artboard->resolve(objectId);
+    if (object == nullptr)
+    {
+      continue;
+    }
+    auto component = object->as<Component>();
+    writeObjectId(objectId);
+    writeTotalProperties((uint32_t)(last - begin));
+    for (auto it = begin; it != last; ++it)
+    {
+      auto keyedProperty = it->property;
+      auto propertyKey = keyedProperty->propertyKey();
+      // As before, a baseline property without keyframes writes its key
+      // and no value.
+      switch (CoreRegistry::propertyFieldId(propertyKey))
+      {
+        case CoreDoubleType::id:
+          writePropertyKey(propertyKey);
+          if (it->isBaseline)
+          {
+            if (auto first = keyedProperty->first())
+            {
+              writePropertyValue(first->as<KeyFrameDouble>()->value());
+            }
+          }
+          else
+          {
+            writePropertyValue(CoreRegistry::getDouble(component, propertyKey));
+          }
+          break;
+        case CoreColorType::id:
+          writePropertyKey(propertyKey);
+          if (it->isBaseline)
+          {
+            if (auto first = keyedProperty->first())
+            {
+              writePropertyValue((float)first->as<KeyFrameColor>()->value());
+            }
+          }
+          else
+          {
+            writePropertyValue(
+                (float)CoreRegistry::getColor(component, propertyKey));
+          }
+          break;
+      }
+    }
+  }
+  complete();
+}
 
 void AnimationReset::complete()
 {

@@ -590,6 +590,11 @@ public:
   static bool sm_layerAccumulatorEnabled;
 
 #ifdef TESTING
+  // Whether a layer going back to the state it just left reuses that
+  // state's instance (see StateInstance::restart). On by default.
+  static bool sm_reuseStateInstances;
+  // State instances reused that way, across every machine.
+  static uint64_t sm_reusedStateInstances;
   // Whether this instance collects its layers' shared writes.
   bool hasLayerAccumulator() const { return m_layerWrites.get() != nullptr; }
   size_t hitComponentsCount() { return m_hitComponents.size(); };

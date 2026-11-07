@@ -1,0 +1,295 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/state_return_reuse.riv. README.md, next to
+      this file, says how to rebuild it.
+
+      What it is for: a state machine whose layers go back to states they
+      just left, with transitions that mix, so a test can run it with and
+      without reusing the state left (see state_change_reuse_test.cpp).
+      - Side: Left (Box drifting right, red, looping) and Right (Box moving
+        and lowered, blue, ping pong), switched by right, mixing over 300 ms.
+        Left to Right can be cut short (enableEarlyExit); Right to Left
+        can't.
+      - Cycle: A, B and C (Dot at three places and colors, one shot), led by
+        step: A to B at 1, B to C at 2, C to A and B to A at 0, mixing over
+        200 ms. A to B can be cut short.
+      - Bound: P (Mark at target, a keyframe value bound through Ease
+        Target, which eases it over 500 ms) and Q (Mark parked), switched
+        instantly by flip. Q also sets Mark's y from level, bound once. A
+        machine going back to P while Mark is still easing has to start the
+        ease over, and back to Q take level as it is then, as new instances
+        would.
+      - Input: U (Pin at target, bound) and V (Pin parked), switched by the
+        go input, which still works once the view model is unbound. Back in
+        U after an unbind, Pin has no bound value, as in a new instance.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" name="Main" id="0:2">
+        <Shape x="50" y="50" name="Box" id="0:10">
+            <Rectangle width="40" height="40" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Box Color" id="0:11"/></Fill>
+        </Shape>
+        <Shape x="0" y="270" name="Mark" id="0:55">
+            <Rectangle width="20" height="20" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="Mark Color"/></Fill>
+        </Shape>
+        <Shape x="0" y="290" name="Pin" id="0:66">
+            <Rectangle width="10" height="10" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FFFFE040" name="Pin Color"/></Fill>
+        </Shape>
+        <Shape x="50" y="200" name="Dot" id="0:12">
+            <Ellipse width="30" height="30" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF808080" name="Dot Color" id="0:13"/></Fill>
+        </Shape>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineBool name="go" id="0:60"/>
+            <StateMachineLayer name="Side" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:30" id="0:20">
+                    <StateTransition stateToId="0:21" duration="300" enableEarlyExit="true">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:31" id="0:21">
+                    <StateTransition stateToId="0:20" duration="300">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Cycle" id="0:9">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="400" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:22"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:32" id="0:22">
+                    <StateTransition stateToId="0:23" duration="200" enableEarlyExit="true">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="1"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:33" id="0:23">
+                    <StateTransition stateToId="0:24" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="2"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="0:22" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="0"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="300" animationId="0:34" id="0:24">
+                    <StateTransition stateToId="0:22" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber>
+                                    <DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/>
+                                </BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="0"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Bound" id="0:50">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:51"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:53" id="0:51">
+                    <StateTransition stateToId="0:52">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:40-0:47" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:54" id="0:52">
+                    <StateTransition stateToId="0:51">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:40-0:47" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Input" id="0:61">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="300" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:62"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:64" id="0:62">
+                    <StateTransition stateToId="0:63">
+                        <TransitionBoolCondition inputId="0:60" opValue="equal"/>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:65" id="0:63">
+                    <StateTransition stateToId="0:62">
+                        <TransitionBoolCondition inputId="0:60" opValue="notEqual"/>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="60" loopValue="loop" name="Hold" id="0:64">
+            <KeyedObject objectId="0:66">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="0">
+                        <DataBindContext sourcePathIds="0:40-0:46" propertyKey="70"/>
+                    </KeyFrameDouble>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="60" loopValue="loop" name="Rest" id="0:65">
+            <KeyedObject objectId="0:66">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="290"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="60" loopValue="loop" name="Track" id="0:53">
+            <KeyedObject objectId="0:55">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="0">
+                        <DataBindContext sourcePathIds="0:40-0:46" propertyKey="70" converterId="0:56"/>
+                    </KeyFrameDouble>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="60" loopValue="loop" name="Park" id="0:54">
+            <KeyedObject objectId="0:55">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="280"/>
+                </KeyedProperty>
+                <KeyedProperty propertyKey="14">
+                    <KeyFrameDouble frame="0" value="0">
+                        <DataBindContext sourcePathIds="0:40-0:48" propertyKey="70" once="true"/>
+                    </KeyFrameDouble>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="60" loopValue="loop" name="Left" id="0:30">
+            <KeyedObject objectId="0:10">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="50"/>
+                    <KeyFrameDouble frame="30" value="80"/>
+                    <KeyFrameDouble frame="60" value="50"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:11">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FFE04040"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="60" loopValue="pingPong" name="Right" id="0:31">
+            <KeyedObject objectId="0:10">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="250"/>
+                    <KeyFrameDouble frame="60" value="200"/>
+                </KeyedProperty>
+                <KeyedProperty propertyKey="14">
+                    <KeyFrameDouble frame="0" value="100"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:11">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF4060E0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="30" name="A" id="0:32">
+            <KeyedObject objectId="0:12">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="40"/>
+                    <KeyFrameDouble frame="30" value="50"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:13">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF40C060"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="30" name="B" id="0:33">
+            <KeyedObject objectId="0:12">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="140"/>
+                    <KeyFrameDouble frame="30" value="150"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:13">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FFE0A040"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="30" name="C" id="0:34">
+            <KeyedObject objectId="0:12">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble frame="0" value="240"/>
+                    <KeyFrameDouble frame="30" value="250"/>
+                </KeyedProperty>
+                <KeyedProperty propertyKey="14">
+                    <KeyFrameDouble frame="0" value="220"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:13">
+                <KeyedProperty propertyKey="37"><KeyFrameColor value="FF8040E0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+
+    <DataConverterInterpolator interpolationType="linear" duration="0.5" name="Ease Target" id="0:56"/>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyBoolean name="right" id="0:41"/>
+        <ViewModelPropertyNumber name="step" id="0:42"/>
+        <ViewModelPropertyNumber name="target" id="0:46"/>
+        <ViewModelPropertyBoolean name="flip" id="0:47"/>
+        <ViewModelPropertyNumber name="level" id="0:48"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:41"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:42"/>
+            <ViewModelInstanceNumber propertyValue="40" viewModelPropertyId="0:46"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:47"/>
+            <ViewModelInstanceNumber propertyValue="250" viewModelPropertyId="0:48"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

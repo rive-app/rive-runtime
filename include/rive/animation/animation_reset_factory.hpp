@@ -16,11 +16,6 @@ class AnimationResetFactory
   static std::vector<std::unique_ptr<AnimationReset>> m_resources;
   static std::mutex m_mutex;
 
-private:
-  static void fromState(
-      StateInstance* stateInstance,
-      std::vector<const LinearAnimation*>& animations);
-
 public:
   static std::unique_ptr<AnimationReset> getInstance();
   static std::unique_ptr<AnimationReset> fromStates(

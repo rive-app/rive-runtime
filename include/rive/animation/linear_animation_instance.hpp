@@ -169,6 +169,10 @@ public:
   bool advanceAndApply(float seconds) override;
   std::string name() const override;
   void reset(float speedMultiplier);
+  // Back to where the constructor leaves it, for a state machine reusing
+  // this instance. False when it can't be: a scripted interpolator's clone
+  // keeps state of its own.
+  bool restart(float speedMultiplier);
   void reportEvent(Event* event, float secondsDelay = 0.0f) override;
 
 private:
@@ -205,6 +209,9 @@ private:
 
   // Allocates the cold cluster on first use and returns it.
   LAIBindingExtras& ensureBindingExtras() const;
+  // Removes this instance's keyframe value binds from the artboard and
+  // deletes them, then the holders they target. Needs m_bindingExtras.
+  void releaseKeyFrameValueBinds();
 
   // keyFrameValueHolder past its no-binds check.
   BindableProperty* resolveKeyFrameValueHolder(const KeyFrame* keyframe) const;
