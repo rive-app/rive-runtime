@@ -235,6 +235,46 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(
 #endif
 }
 
+namespace detail
+{
+// clang 23 deprecates __builtin_elementwise_min/max on floats in favor of
+// minnum/maxnum: the same operations, which return the operand that is not
+// NaN as min() and max() below promise. Integers stay on min/max.
+#if __has_builtin(__builtin_elementwise_min)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> elementwise_min(gvec<T, N> a, gvec<T, N> b)
+{
+#if __has_builtin(__builtin_elementwise_minnum)
+  if constexpr (std::is_floating_point_v<T>)
+  {
+    return __builtin_elementwise_minnum(a, b);
+  }
+  else
+#endif
+  {
+    return __builtin_elementwise_min(a, b);
+  }
+}
+#endif
+
+#if __has_builtin(__builtin_elementwise_max)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> elementwise_max(gvec<T, N> a, gvec<T, N> b)
+{
+#if __has_builtin(__builtin_elementwise_maxnum)
+  if constexpr (std::is_floating_point_v<T>)
+  {
+    return __builtin_elementwise_maxnum(a, b);
+  }
+  else
+#endif
+  {
+    return __builtin_elementwise_max(a, b);
+  }
+}
+#endif
+} // namespace detail
+
 // Similar to std::min(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
 template <typename T, int N>
@@ -253,13 +293,13 @@ SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
   else
 #endif
   {
-    return __builtin_elementwise_min(a, b);
+    return detail::elementwise_min(a, b);
   }
 #else
   return if_then_else(b < a || isnan(a), b, a);
 #endif
 #elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_min)
-  return __builtin_elementwise_min(a, b);
+  return detail::elementwise_min(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message(                                                               \
@@ -287,13 +327,13 @@ SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
   else
 #endif
   {
-    return __builtin_elementwise_max(a, b);
+    return detail::elementwise_max(a, b);
   }
 #else
   return if_then_else(a < b || isnan(a), b, a);
 #endif
 #elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_max)
-  return __builtin_elementwise_max(a, b);
+  return detail::elementwise_max(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
 #pragma message(                                                               \
