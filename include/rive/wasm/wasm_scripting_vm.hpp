@@ -598,6 +598,9 @@ public:
 
   /// Current size of the module's linear memory in 64KB wasm pages.
   uint32_t memoryPages() const;
+  /// Gives the system back the whole pages in [start, start + length) of
+  /// the module's memory, which read as zero when touched again.
+  void releasePages(uint32_t start, uint32_t length);
 
   /// Backend seams: host code reaches module memory and module functions
   /// only through these, so a browser backend can substitute staged
@@ -1018,6 +1021,10 @@ private:
   /// Module exports __riveFrameRelease: its reap queues the handles it
   /// finds dead and the host releases them right after each collection.
   bool m_frameRelease = false;
+  /// Module exports __riveFrameTrim, which hands idle free chunks to
+  /// releasePages.
+  bool m_frameTrim = false;
+  uint32_t m_boundariesSinceTrim = 0;
   /// Module exports __riveHeapUsed; the leak watch reads bump bytes
   /// instead of page counts.
   bool m_heapUsedProbe = false;

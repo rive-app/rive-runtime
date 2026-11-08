@@ -206,6 +206,7 @@ uint32_t rtUtcOffsetImpl(WasmScriptingVM* vm, double epochSeconds);
 uint32_t rtIsDstImpl(WasmScriptingVM* vm, double epochSeconds);
 uint32_t rtZoneNameImpl(WasmScriptingVM* vm, double epochSeconds, char* buffer, uint32_t capacity);
 uint32_t rtArgImpl(WasmScriptingVM* vm, const char* name, uint32_t nameLength, char* buffer, uint32_t capacity);
+void rtReleasePagesImpl(WasmScriptingVM* vm, uint32_t start, uint32_t length);
 uint32_t dataViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataRootViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataGlobalViewModelImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
@@ -681,6 +682,11 @@ uint32_t rtArg(wasm_exec_env_t env, const char* name, uint32_t nameLength, char*
     WasmScriptingVM* vm = bootVmFromEnv(env);
     WasmStringArg nameUtf8(vm, name, nameLength);
     return rtArgImpl(vm, nameUtf8.data(), nameUtf8.size(), buffer, capacity);
+}
+void rtReleasePages(wasm_exec_env_t env, uint32_t start, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rtReleasePagesImpl(vm, start, length);
 }
 uint32_t dataViewModel(wasm_exec_env_t env, uint32_t object)
 {
@@ -2682,6 +2688,7 @@ NativeSymbol kRtNatives[] = {
     {"is_dst", (void*)rtIsDst, "(F)i", nullptr},
     {"zone_name", (void*)rtZoneName, "(F*~)i", nullptr},
     {"arg", (void*)rtArg, "(*~*~)i", nullptr},
+    {"release_pages", (void*)rtReleasePages, "(ii)", nullptr},
 };
 
 NativeSymbol kDataNatives[] = {

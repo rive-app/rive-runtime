@@ -312,6 +312,10 @@ NAMESPACES = [
         op('arg', [string('name', 'nameLength'),
                    mutbuf('char', 'buffer', 'capacity')],
            ret='u32', stub='zero', boot=True),
+        # The frame collector's long idle free chunks: the host gives their
+        # pages back to the system, which a browser cannot.
+        op('release_pages', [u32('start'), u32('length')],
+           web_js='undefined'),
     ]),
     # Data binding tracer: numbers only; more property types, listeners, and
     # the valueChanged callback channel land with the properties namespace.

@@ -178,6 +178,7 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
                     stackRestore(mark);
                 }
             },
+            'release_pages': () => undefined,
         },
         'rive_data_v1': want('rive_data_v1') && {
             'view_model': calls.rive_data_view_model,
