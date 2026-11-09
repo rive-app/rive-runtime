@@ -393,6 +393,10 @@ public:
   static uint32_t sm_rowScans;
   // Lets a test run the same frames with and without quiet rows.
   static bool sm_quietRowsEnabled;
+  // Whether a row that its machine's advance leaves quiet goes quiet then,
+  // skipping its artboard's advance, instead of at the next frame's start.
+  // On by default.
+  static bool sm_requietAfterMachine;
   // Lets a benchmark time quiet rows without checking each one every pass.
   static bool sm_verifyQuietRows;
   // Lets a test run the same frames with and without handing rows that host

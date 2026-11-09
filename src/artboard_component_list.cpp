@@ -1160,11 +1160,23 @@ void ArtboardComponentList::syncLayoutChildren()
 #ifdef TESTING
 uint64_t ArtboardComponentList::sm_quietRowSkips = 0;
 bool ArtboardComponentList::sm_quietRowsEnabled = true;
+bool ArtboardComponentList::sm_requietAfterMachine = true;
 bool ArtboardComponentList::sm_verifyQuietRows = true;
 bool ArtboardComponentList::sm_reuseHostingRows = true;
 uint64_t ArtboardComponentList::sm_reusedHostingRows = 0;
 bool ArtboardComponentList::sm_verifyingQuietRow = false;
 #endif
+
+// Whether a row that its machine's advance leaves quiet goes quiet then (see
+// advanceComponent). Tests can turn it off.
+static bool requietAfterMachine()
+{
+#ifdef TESTING
+  return ArtboardComponentList::sm_requietAfterMachine;
+#else
+  return true;
+#endif
+}
 
 static size_t lowestSetBit(uint64_t bits)
 {
@@ -1534,6 +1546,13 @@ bool ArtboardComponentList::advanceComponent(
           if (stateMachine->advance(elapsedSeconds, newFrame))
           {
             keepGoing = true;
+          }
+          // A row woken only for its machine to search again, which found
+          // nothing to change, would go quiet at the next frame's start,
+          // before its artboard does any more work. It goes quiet now.
+          else if (requietAfterMachine() && tryQuietRow(row))
+          {
+            continue;
           }
         }
       }

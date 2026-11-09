@@ -590,6 +590,14 @@ public:
   static bool sm_layerAccumulatorEnabled;
 
 #ifdef TESTING
+  // Whether instances made from here on share one bindable among the binds
+  // that always hold the same value (see StateMachine::bindableTwins). On by
+  // default.
+  static bool sm_shareBindables;
+  // Whether a layer whose held pose a change unsettled searches before it
+  // re-applies the pose, and stays as it is when the search changes
+  // nothing. On by default.
+  static bool sm_searchBeforeReapply;
   // Whether a layer going back to the state it just left reuses that
   // state's instance (see StateInstance::restart). On by default.
   static bool sm_reuseStateInstances;

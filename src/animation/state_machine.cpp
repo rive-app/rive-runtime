@@ -67,9 +67,13 @@
 #include "rive/generated/shapes/vertex_base.hpp"
 #include "rive/generated/transform_component_base.hpp"
 #include "rive/generated/world_transform_component_base.hpp"
+#include "rive/data_bind/data_bind_context.hpp"
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <set>
+#include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #endif
 
@@ -491,6 +495,127 @@ const std::vector<StateMachine::LayerConflict>& StateMachine::layerConflicts()
   }
   m_layerConflictsReady.store(true, std::memory_order_release);
   return m_layerConflicts;
+}
+
+// The bindable's type and the value it holds before (or without) a bind, as
+// a key, for the types whose instances can share. False for the others.
+static bool bindableShareKey(
+    const BindableProperty* bindable,
+    std::string& value)
+{
+  auto put = [&value](const void* bytes, size_t size) {
+    value.assign(static_cast<const char*>(bytes), size);
+  };
+  switch (bindable->coreType())
+  {
+    case BindablePropertyNumberBase::typeKey:
+    {
+      float v = bindable->as<BindablePropertyNumber>()->propertyValue();
+      put(&v, sizeof(v));
+      return true;
+    }
+    case BindablePropertyIntegerBase::typeKey:
+    {
+      uint32_t v = bindable->as<BindablePropertyInteger>()->propertyValue();
+      put(&v, sizeof(v));
+      return true;
+    }
+    case BindablePropertyBooleanBase::typeKey:
+    {
+      bool v = bindable->as<BindablePropertyBoolean>()->propertyValue();
+      put(&v, sizeof(v));
+      return true;
+    }
+    case BindablePropertyColorBase::typeKey:
+    {
+      int v = bindable->as<BindablePropertyColor>()->propertyValue();
+      put(&v, sizeof(v));
+      return true;
+    }
+    case BindablePropertyEnumBase::typeKey:
+    {
+      auto v = bindable->as<BindablePropertyEnum>()->propertyValue();
+      put(&v, sizeof(v));
+      return true;
+    }
+    case BindablePropertyStringBase::typeKey:
+      value = bindable->as<BindablePropertyString>()->propertyValue();
+      return true;
+    default:
+      return false;
+  }
+}
+
+const std::vector<int32_t>& StateMachine::bindableTwins() const
+{
+  if (m_bindableTwinsReady.load(std::memory_order_acquire))
+  {
+    return m_bindableTwins;
+  }
+  static std::mutex mutex;
+  std::lock_guard<std::mutex> lock(mutex);
+  if (m_bindableTwinsReady.load(std::memory_order_relaxed))
+  {
+    return m_bindableTwins;
+  }
+  // A bindable shares only if one bind writes it, and that bind is a plain
+  // source-to-target one: a listener action's bindable also takes the
+  // action's input and writes it back through a bind to source.
+  const auto unshared = DataBindFlags::ToSource | DataBindFlags::TwoWay |
+                        DataBindFlags::NameBased;
+  std::unordered_map<const Core*, int> bindsInto;
+  for (auto& dataBind : m_dataBinds)
+  {
+    if (dataBind->target() != nullptr)
+    {
+      bindsInto[dataBind->target()]++;
+    }
+  }
+  using Key = std::
+      tuple<uint16_t, uint32_t, uint32_t, std::vector<uint32_t>, std::string>;
+  std::map<Key, int32_t> first;
+  std::vector<int32_t> twins(m_dataBinds.size(), -1);
+  bool anyTwins = false;
+  std::string value;
+  for (size_t i = 0; i < m_dataBinds.size(); i++)
+  {
+    const DataBind* dataBind = m_dataBinds[i].get();
+    const Core* target = dataBind->target();
+    if (target == nullptr || !target->is<BindableProperty>() ||
+        bindsInto[target] != 1 || !dataBind->is<DataBindContext>() ||
+        dataBind->converter() != nullptr ||
+        (static_cast<DataBindFlags>(dataBind->flags()) & unshared) !=
+            DataBindFlags::None)
+    {
+      continue;
+    }
+    const auto& path = dataBind->as<DataBindContext>()->sourcePathIds();
+    if (path.empty() ||
+        !bindableShareKey(target->as<BindableProperty>(), value))
+    {
+      continue;
+    }
+    Key key{
+        target->coreType(),
+        dataBind->flags(),
+        dataBind->propertyKey(),
+        path,
+        value};
+    auto found = first.find(key);
+    if (found == first.end())
+    {
+      first.emplace(std::move(key), static_cast<int32_t>(i));
+      continue;
+    }
+    twins[i] = found->second;
+    anyTwins = true;
+  }
+  if (anyTwins)
+  {
+    m_bindableTwins = std::move(twins);
+  }
+  m_bindableTwinsReady.store(true, std::memory_order_release);
+  return m_bindableTwins;
 }
 #endif
 

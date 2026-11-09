@@ -156,6 +156,7 @@ public:
       , m_stateMachineChangedOnAdvance(false)
       , m_waitingForExit(false)
       , m_settled(false)
+      , m_poseApplied(false)
   {}
 
   ~StateMachineLayerInstance()
@@ -271,7 +272,14 @@ public:
   // advance started.
   bool isFrozen(const StateMachineInstance* smi, uint32_t poseSince) const
   {
-    if (!m_settled || m_mix != 1.0f || m_animationReset != nullptr ||
+    return m_settled && isPoseHeld(smi, poseSince);
+  }
+
+  // Everything isFrozen asks but whether the layer is settled: advancing
+  // and applying it would write what is already in place.
+  bool isPoseHeld(const StateMachineInstance* smi, uint32_t poseSince) const
+  {
+    if (m_mix != 1.0f || m_animationReset != nullptr ||
         m_holdAnimation != nullptr ||
         (m_transition != nullptr && !m_transitionCompleted) ||
         m_currentState == nullptr || m_currentState->keepGoing())
@@ -501,17 +509,30 @@ public:
 #endif
       return false;
     }
-    m_currentState->advance(seconds, smi);
-    updateMix(smi, seconds);
-
-    if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
+    // Held but not settled, with its pose applied: a change to something
+    // its transitions read unsettled it (see
+    // StateMachineInstance::unsettleLayers), or they read what can't
+    // settle. Advancing and applying first would write the pose that is
+    // already in place, so it searches first, and stays as it is, as a
+    // frozen layer does, unless the search changes state.
+    bool searchFirst = m_poseApplied && isPoseHeld(smi, poseSince);
+#ifdef TESTING
+    searchFirst = searchFirst && StateMachineInstance::sm_searchBeforeReapply;
+#endif
+    if (!searchFirst)
     {
-      // This didn't advance during our updateState, but it should now
-      // that we realize we need to mix it in.
-      m_stateFrom->advance(seconds, smi);
-    }
+      m_currentState->advance(seconds, smi);
+      updateMix(smi, seconds);
 
-    apply(smi);
+      if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
+      {
+        // This didn't advance during our updateState, but it should now
+        // that we realize we need to mix it in.
+        m_stateFrom->advance(seconds, smi);
+      }
+
+      apply(smi);
+    }
 
     bool changedState = false;
 
@@ -809,6 +830,7 @@ public:
                            ? nullptr
                            : stateTo->makeInstance(artboardOf(smi)).release();
     }
+    m_poseApplied = false;
     if (m_currentState != nullptr && smi->m_layerWrites.get() != nullptr)
     {
       m_currentState->layerAccumulator(smi->m_layerWrites.get());
@@ -1091,6 +1113,7 @@ public:
       auto mix = interpolator != nullptr ? interpolator->transform(m_mix)
                                          : m_mix;
       m_currentState->apply(artboardInstance, mix);
+      m_poseApplied = true;
     }
   }
 
@@ -1152,6 +1175,10 @@ private:
   // The last search found nothing and nothing it read has changed since,
   // so the next one would find nothing too. See updateState.
   bool m_settled : 1;
+  // The current state has been applied since the layer entered it. Until
+  // then a pose can read as held (isPoseHeld) without being in place: the
+  // change serials it compares start equal.
+  bool m_poseApplied : 1;
 };
 
 // Instances with a capture-phase pointer listener of their own. While there are
@@ -4461,7 +4488,23 @@ StateMachineInstance::StateMachineInstance(
   // instance. That enables binding each instance to its own context without
   // polluting the rest.
   auto dataBindCount = machine->dataBindCount();
+#ifndef WITH_RIVE_EDITOR
+#ifdef TESTING
+  static const std::vector<int32_t> noTwins;
+  const std::vector<int32_t>& twins = sm_shareBindables
+                                          ? machine->bindableTwins()
+                                          : noTwins;
+#else
+  const std::vector<int32_t>& twins = machine->bindableTwins();
+#endif
+  reserveDataBinds(
+      dataBindCount -
+      std::count_if(twins.begin(), twins.end(), [](int32_t twin) {
+        return twin >= 0;
+      }));
+#else
   reserveDataBinds(dataBindCount);
+#endif
   for (size_t i = 0; i < dataBindCount; i++)
   {
     auto dataBind = machine->dataBind(i);
@@ -4469,6 +4512,22 @@ StateMachineInstance::StateMachineInstance(
     {
       continue;
     }
+#ifndef WITH_RIVE_EDITOR
+    if (!twins.empty() && twins[i] >= 0)
+    {
+      // Its bindable always holds what its twin's does, so the twin's clone
+      // stands in for it and its bind isn't made. The twin is an earlier
+      // bind with a target, so its clone is made.
+      auto& bindables = ensureBindables();
+      auto twin = machine->dataBind(twins[i])->target()->as<BindableProperty>();
+      BindableProperty* twinClone = bindables.propertyInstances.find(twin);
+      assert(twinClone != nullptr);
+      bindables.propertyInstances.insertTwin(
+          dataBind->target()->as<BindableProperty>(),
+          twinClone);
+      continue;
+    }
+#endif
     auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
     dataBindClone->file(dataBind->file());
     if (dataBind->converter() != nullptr)
@@ -5008,6 +5067,8 @@ StateMachineInstance::~StateMachineInstance()
   // so they are deleted here rather than by the cluster's destructor.
   if (auto* bindables = m_bindables.get())
   {
+    // Each clone once: twins hold one between them. The machine itself may
+    // be gone by now (a script can hold an artboard past its file's).
     bindables->propertyInstances.forEachInstance(
         [](BindableProperty* instance) { delete instance; });
     for (auto& outer : bindables->transitionPropertyInstances)
@@ -5677,6 +5738,8 @@ bool StateMachineInstance::advanceAndApply(
 bool StateMachineInstance::sm_layerAccumulatorEnabled = true;
 
 #ifdef TESTING
+bool StateMachineInstance::sm_shareBindables = true;
+bool StateMachineInstance::sm_searchBeforeReapply = true;
 bool StateMachineInstance::sm_reuseStateInstances = true;
 uint64_t StateMachineInstance::sm_reusedStateInstances = 0;
 #endif

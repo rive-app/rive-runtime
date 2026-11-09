@@ -4,6 +4,7 @@
 #include "rive/file.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
+#include <algorithm>
 
 static const char* sizingFiles[] = {
     "assets/data_binding_test.riv",
@@ -54,9 +55,18 @@ TEST_CASE(
         auto machine = source->stateMachine(m);
         auto machineInstance = instance->stateMachineAt(m);
         REQUIRE(machineInstance != nullptr);
+        // Less the binds whose bindable shares a twin's, which aren't made
+        // (see StateMachine::bindableTwins).
+        size_t shared = 0;
+#ifndef WITH_RIVE_EDITOR
+        const auto& twins = machine->bindableTwins();
+        shared = std::count_if(twins.begin(), twins.end(), [](int32_t twin) {
+          return twin >= 0;
+        });
+#endif
         CHECK(
             machineInstance->dataBinds().capacity() ==
-            machine->dataBindCount());
+            machine->dataBindCount() - shared);
         checked += machine->dataBindCount();
       }
     }

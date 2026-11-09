@@ -26,6 +26,7 @@
 #include "rive/pointer_button.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -110,14 +111,44 @@ public:
     m_count++;
   }
 
+  /// Adds [shared] -> [instance] where another entry already holds
+  /// [instance]: its twin's (see StateMachine::bindableTwins).
+  void insertTwin(BindableProperty* shared, BindableProperty* instance)
+  {
+    insert(shared, instance);
+    m_hasTwins = true;
+  }
+
+  /// Visits each instance once, twins' included.
   template <typename F> void forEachInstance(F&& visit) const
   {
+    if (!m_hasTwins)
+    {
+      for (const Entry& entry : m_entries)
+      {
+        if (entry.shared != nullptr)
+        {
+          visit(entry.instance);
+        }
+      }
+      return;
+    }
+    std::vector<BindableProperty*> instances;
+    instances.reserve(m_count);
     for (const Entry& entry : m_entries)
     {
       if (entry.shared != nullptr)
       {
-        visit(entry.instance);
+        instances.push_back(entry.instance);
       }
+    }
+    std::sort(instances.begin(), instances.end());
+    instances.erase(
+        std::unique(instances.begin(), instances.end()),
+        instances.end());
+    for (BindableProperty* instance : instances)
+    {
+      visit(instance);
     }
   }
 
@@ -125,6 +156,7 @@ public:
   {
     m_entries.clear();
     m_count = 0;
+    m_hasTwins = false;
   }
 
 private:
@@ -169,7 +201,9 @@ private:
 
   // Power-of-two size; a null shared pointer marks an empty entry.
   std::vector<Entry> m_entries;
-  size_t m_count = 0;
+  // 32 bits, so the flag shares their 8 bytes.
+  uint32_t m_count = 0;
+  bool m_hasTwins = false;
 };
 
 /// Which view model changes are pending for one layer of a state machine
@@ -188,7 +222,8 @@ struct SMILayerChangeWindow
 /// Allocated only when a state machine data bind targets one of them.
 struct SMIBindables
 {
-  /// Shared BindableProperty -> this instance's owned clone.
+  /// Shared BindableProperty -> this instance's owned clone. Twins hold
+  /// one clone between them (see StateMachine::bindableTwins).
   BindablePropertyInstances propertyInstances;
   std::unordered_map<BindableProperty*, DataBind*> dataBindsToTarget;
   std::unordered_map<BindableProperty*, DataBind*> dataBindsToSource;
