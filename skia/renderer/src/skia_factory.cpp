@@ -312,15 +312,15 @@ void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
     // Apply modulated opacity using a color filter on the paint.
     // This is more efficient than saveLayer as it doesn't allocate
     // an offscreen buffer.
-    // We scale all color components (RGBA) by opacity since Skia uses
-    // pre-multiplied alpha.
+    // Only alpha is scaled: a matrix color filter works on unpremultiplied
+    // colors, so scaling R, G and B too would darken the color as well.
     SkPaint modulatedPaint(skiaRenderPaint->paint());
 
     float matrix[20] = {
         // clang-format off
-            modulatedOpacity, 0, 0, 0, 0,  // R
-            0, modulatedOpacity, 0, 0, 0,  // G
-            0, 0, modulatedOpacity, 0, 0,  // B
+            1, 0, 0, 0, 0,  // R
+            0, 1, 0, 0, 0,  // G
+            0, 0, 1, 0, 0,  // B
             0, 0, 0, modulatedOpacity, 0,  // A
         // clang-format on
     };
