@@ -119,8 +119,7 @@ do
     -- The tail-dup knobs need llvm 19; older clangs build correct but
     -- slower dispatch, still caught by the dispatch-site guard where it runs.
     -- The probe runs host clang; cross toolchains (the NDK's) may reject
-    -- the knobs the host accepts, and iOS embeds bitcode, which refuses
-    -- -mllvm, so those builds keep default dispatch.
+    -- the knobs the host accepts, so those builds keep default dispatch.
     local devNull = os.ishost('windows') and 'NUL' or '/dev/null'
     local _, tailDupProbe = os.outputof(
         'clang -fsyntax-only -x c ' .. devNull ..
@@ -130,13 +129,17 @@ do
     if
         tailDupProbe == 0
         and _OPTIONS['for_android'] == nil
-        and _OPTIONS['os'] ~= 'ios'
         and not isNx
     then
         buildoptions({
             '-mllvm -tail-dup-pred-size=5000',
             '-mllvm -tail-dup-succ-size=5000',
         })
+        -- Apple's clang merges every dispatch without the knobs, and bitcode
+        -- refuses -mllvm, so this library builds without it.
+        filter({ 'system:ios' })
+        removebuildoptions({ '-fembed-bitcode ' })
+        filter({})
     end
     defines(wamrConfigDefines)
     filter({ 'system:macosx or system:ios' })
