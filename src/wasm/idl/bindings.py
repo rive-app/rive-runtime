@@ -1034,6 +1034,12 @@ NAMESPACES = [
         op('decode', [buf('uint8_t', 'bytes', 'byteCount'), u32('token')],
            ret='u32', stub='hook'),
         op('decode_cancel', [u32('token')]),
+        # Decodes encoded image bytes into a new image through the host's
+        # factory, on the calling thread, for context:loadImage. Returns 0
+        # when the host has no factory or a native one cannot decode the
+        # bytes; the web and deferred factories return an image that decodes
+        # later, blank when the bytes are bad.
+        op('load', [buf('uint8_t', 'bytes', 'byteCount')], ret='u32'),
     ]),
     # The Luau Font builtin: metrics, variable instances and glyph outlines.
     ns('rive_font_v1', 'font', [

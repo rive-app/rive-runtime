@@ -379,4 +379,60 @@ int context_decodeImage_impl(lua_State* L)
 
 #endif // __EMSCRIPTEN__
 
+// ============================================================================
+// loadImage — encoded bytes straight to a drawable Image
+// ============================================================================
+
+// Decodes through the factory the file was imported with, the one its image
+// assets decode through, so the Image draws wherever an asset's would and can
+// be assigned to a view model image property. The promise settles before this
+// returns; returning one keeps the signature free to move the work off the
+// thread later. Native factories decode here and return null on bad bytes.
+// The web and Flutter factories and the deferred one hand back an image that
+// decodes later, as they do for assets: it resolves while its size still
+// reads 0, and bytes that never decode leave it blank. None of them reports
+// when that decode finishes or fails, so there is nothing to wait on.
+int context_loadImage_impl(lua_State* L)
+{
+  using namespace rive;
+
+  size_t len = 0;
+  const void* data = nullptr;
+  if (lua_isbuffer(L, 2))
+    data = lua_tobuffer(L, 2, &len);
+  else
+  {
+    luaL_typeerror(L, 2, "buffer");
+    return 0;
+  }
+  if (!data || len == 0)
+  {
+    luaL_error(L, "loadImage: empty buffer");
+    return 0;
+  }
+
+  auto* ctx = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  Factory* factory = ctx != nullptr ? ctx->factory() : nullptr;
+  rcp<RenderImage> image;
+  if (factory != nullptr)
+  {
+    image = factory->decodeImage(
+        Span<const uint8_t>(static_cast<const uint8_t*>(data), len));
+  }
+
+  auto* promise = lua_newrive<ScriptedPromise>(L, lua_mainthread(L));
+  if (image == nullptr)
+  {
+    lua_pushstring(L, "failed to decode image data");
+    promise->reject(L, lua_gettop(L));
+  }
+  else
+  {
+    ScriptedImage::luaNew(L)->image = std::move(image);
+    promise->resolve(L, lua_gettop(L));
+  }
+  lua_pop(L, 1);
+  return 1;
+}
+
 #endif // WITH_RIVE_SCRIPTING

@@ -359,6 +359,7 @@ enum class LuaAtoms : int16_t
 
   // Image decode
   decodeImage,
+  loadImage,
 
   // Mat4
   transpose,

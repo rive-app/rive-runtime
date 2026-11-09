@@ -289,6 +289,7 @@ constexpr LuaAtomName atoms[] = {
     {"onCancel", (int16_t)LuaAtoms::onCancel},
     {"getStatus", (int16_t)LuaAtoms::getStatus},
     {"decodeImage", (int16_t)LuaAtoms::decodeImage},
+    {"loadImage", (int16_t)LuaAtoms::loadImage},
     // Mat4
     {"transpose", (int16_t)LuaAtoms::transpose},
     {"transformPoint", (int16_t)LuaAtoms::transformPoint},

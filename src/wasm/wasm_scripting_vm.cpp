@@ -3283,6 +3283,27 @@ void imageDecodeCancelImpl(WasmScriptingVM* vm, uint32_t token)
   }
 }
 
+uint32_t imageLoadImpl(
+    WasmScriptingVM* vm,
+    const uint8_t* bytes,
+    uint32_t byteCount)
+{
+  if (vm == nullptr || vm->factory() == nullptr || bytes == nullptr ||
+      byteCount == 0)
+  {
+    return 0;
+  }
+  auto image = vm->factory()->decodeImage(
+      Span<const uint8_t>(bytes, byteCount));
+  if (image == nullptr)
+  {
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::image,
+      new HostImage{std::move(image)});
+}
+
 #ifdef RIVE_CANVAS
 // A deferred host mints a canvas before any device binds; only immediate
 // needs a render context.
