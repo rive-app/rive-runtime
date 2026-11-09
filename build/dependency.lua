@@ -1,15 +1,4 @@
-local m = {}
-
-local last_str = ''
-
-function iop(str)
-    io.write(('\b \b'):rep(#last_str)) -- erase old line
-    io.write(str) -- write new line
-    io.flush()
-    last_str = str
-end
-
-newoption({ trigger = 'no-download-progress', description = 'Hide progress?' })
+local module = {}
 
 -- The patch set a clone was built with, one "<name> <bytes>" line per patch,
 -- sorted. Written into the clone after patching and compared on every later
@@ -48,7 +37,7 @@ local function readStamp(stampPath)
     return contents
 end
 
-function m.github(project, tag, opts)
+function module.github(project, tag, opts)
     local dependencies = os.getenv('DEPENDENCIES')
     if dependencies == nil then
         dependencies = path.getabsolute(_WORKING_DIR) .. '/dependencies'
@@ -74,16 +63,16 @@ function m.github(project, tag, opts)
         if os.isdir(dependency_path) then
             error(
                 '\nCould not remove '
-                    .. dependency_path
-                    .. '\nDelete it and build again.'
+                .. dependency_path
+                .. '\nDelete it and build again.'
             )
         end
     end
     if not os.isdir(dependency_path) then
         print('Fetching dependency ' .. project .. ' at tag ' .. tag .. '...')
-        local gitcmd = 'git -c advice.detachedHead=false -C '
+        local gitcmd = 'git -c advice.detachedHead=false -c checkout.workers=4 -C '
             .. dependencies
-            .. ' clone --depth 1 --branch '
+            .. ' clone --depth 1 --single-branch --branch '
             .. tag
             .. ' https://github.com/'
             .. project
@@ -118,9 +107,9 @@ function m.github(project, tag, opts)
     end
     assert(os.isdir(dependency_path))
     if opts ~= nil and opts.submodules ~= nil and #opts.submodules > 0 then
-        local gitcmd = 'git -C '
+        local gitcmd = 'git -c advice.detachedHead=false -c checkout.workers=4 -C '
             .. dependency_path
-            .. ' submodule update --init --depth 1 -- '
+            .. ' submodule update --init --recursive --depth 1 --single-branch --jobs 4 -- '
             .. table.concat(opts.submodules, ' ')
         if not os.execute(gitcmd) then
             error('\nError executing command:\n  ' .. gitcmd)
@@ -128,4 +117,5 @@ function m.github(project, tag, opts)
     end
     return dependency_path
 end
-return m
+
+return module
