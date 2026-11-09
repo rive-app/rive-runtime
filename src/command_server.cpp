@@ -3439,21 +3439,8 @@ bool CommandServer::processCommands()
               }
               if (property.type == DataType::viewModel)
               {
-                // Get the type of the view model property
-                auto viewModelTmp = modelInstance->propertyViewModel(
-                    property.name);
-                if (viewModelTmp)
-                {
-                  m_commandQueue->m_messageNames
-                      << viewModelTmp->instance()->viewModel()->name();
-                }
-                else
-                {
-                  // If we can't determine the name we still
-                  // need to send something because the
-                  // command queue is expecting a name.
-                  m_commandQueue->m_messageNames << "Unkown";
-                }
+                // From the property, so an unassigned one still has a type.
+                m_commandQueue->m_messageNames << property.viewModelName;
               }
             }
           }
