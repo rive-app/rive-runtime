@@ -8,9 +8,11 @@
 #include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/context/context_target_value.hpp"
 #include <algorithm>
+#include <cmath>
 #include <new>
 #include <stdio.h>
 #include <utility>
+#include <type_traits>
 namespace rive
 {
 class DataBindContextValue
@@ -122,11 +124,34 @@ public:
           dataBind);
       if (value)
       {
-        // Apply value to source
+        // A validator may rewrite the source synchronously while
+        // applyValue notifies its delegates. Keep the requested value before
+        // those callbacks can change it.
+        const U appliedValue = value->template as<T>()->value();
         dataBind->suppressDirt(true);
         auto source = dataBind->source();
         source->as<V>()->applyValue(value->template as<T>());
         dataBind->suppressDirt(false);
+        // Scalar properties expose the value just applied. View-model
+        // references have a separate replacement path, not a scalar setter.
+        if constexpr (
+            std::is_arithmetic<U>::value || std::is_same<U, std::string>::value)
+        {
+          const auto& sourceValue = source->as<V>()->propertyValue();
+          bool corrected = sourceValue != appliedValue;
+          if constexpr (std::is_floating_point<U>::value)
+          {
+            // NaN != NaN does not mean a callback changed the value.
+            corrected = corrected &&
+                        !(std::isnan(sourceValue) && std::isnan(appliedValue));
+          }
+          if (corrected)
+          {
+            // Suppression avoids echoing our own write, but the validator's
+            // correction must reach the target through the two-way bind.
+            dataBind->addDirt(ComponentDirt::Bindings, false);
+          }
+        }
         m_isValid = true;
       }
     }

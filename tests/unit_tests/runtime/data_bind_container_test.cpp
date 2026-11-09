@@ -1,7 +1,17 @@
 #include <catch.hpp>
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include "rive/component_dirt.hpp"
+#include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_color.hpp"
+#include "rive/custom_property_enum.hpp"
+#include "rive/custom_property_number.hpp"
+#include "rive/custom_property_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/data_bind/converters/data_converter_formula.hpp"
@@ -626,4 +636,196 @@ TEST_CASE(
   }
 
   delete bind;
+}
+
+TEST_CASE(
+    "TwoWay string validation reaches the target after a source callback",
+    "[data_bind_container]")
+{
+  struct HexFilter : ViewModelInstanceValueDelegate
+  {
+    ViewModelInstanceString* source;
+    void valueChanged() override
+    {
+      auto text = source->propertyValue();
+      text.erase(std::remove(text.begin(), text.end(), 'G'), text.end());
+      source->propertyValue(text);
+    }
+  } filter;
+
+  auto source = make_rcp<ViewModelInstanceString>();
+  source->propertyValue("123456");
+  filter.source = source.get();
+  source->addDelegate(&filter);
+  CustomPropertyString target;
+  target.propertyValue("123456");
+  TestContainer container;
+  auto* bind = new DataBind();
+  const bool sourceFirst = GENERATE(false, true);
+  CAPTURE(sourceFirst);
+  auto flags = DataBindFlags::TwoWay;
+  if (sourceFirst)
+  {
+    flags = flags | DataBindFlags::SourceToTargetRunsFirst;
+  }
+  bind->flags(static_cast<uint32_t>(flags));
+  bind->propertyKey(CustomPropertyString::propertyValuePropertyKey);
+  bind->target(&target);
+  bind->source(source);
+  bind->bind();
+  container.addDataBind(bind);
+  // A newly constructed bind is already dirty before it has a container.
+  container.addDirtyDataBind(bind);
+  container.updateDataBinds();
+  REQUIRE(target.propertyValue() == "123456");
+
+  target.propertyValue("12G3456");
+  container.updateDataBinds();
+  // Reentrant writes are queued for the next data-bind pass, just as a
+  // state machine advancing the text field drains them before drawing.
+  container.updateDataBinds();
+  CHECK(source->propertyValue() == "123456");
+  CHECK(target.propertyValue() == "123456");
+
+  // A later valid edit must still propagate; the correction cannot leave a
+  // stale cached target or keep feeding back forever.
+  target.propertyValue("ABCDEF");
+  container.updateDataBinds();
+  CHECK(source->propertyValue() == "ABCDEF");
+  CHECK(target.propertyValue() == "ABCDEF");
+  CHECK(bind->dirt() == ComponentDirt::None);
+  source->removeDelegate(&filter);
+  container.deleteDataBinds();
+}
+
+namespace
+{
+template <typename Source, typename Target, typename Value>
+void checkScalarValidation(Value initial, Value rejected, Value corrected)
+{
+  struct Validator : ViewModelInstanceValueDelegate
+  {
+    Source* source;
+    Value rejected;
+    Value corrected;
+    bool enabled = true;
+    void valueChanged() override
+    {
+      if (enabled && source->propertyValue() == rejected)
+      {
+        source->propertyValue(corrected);
+      }
+    }
+  } validator;
+
+  auto source = make_rcp<Source>();
+  source->propertyValue(initial);
+  validator.source = source.get();
+  validator.rejected = rejected;
+  validator.corrected = corrected;
+  source->addDelegate(&validator);
+  Target target;
+  target.propertyValue(initial);
+  TestContainer container;
+  auto* bind = new DataBind();
+  const bool sourceFirst = GENERATE(false, true);
+  CAPTURE(sourceFirst);
+  auto flags = DataBindFlags::TwoWay;
+  if (sourceFirst)
+  {
+    flags = flags | DataBindFlags::SourceToTargetRunsFirst;
+  }
+  bind->flags(static_cast<uint32_t>(flags));
+  bind->propertyKey(Target::propertyValuePropertyKey);
+  bind->target(&target);
+  bind->source(source);
+  bind->bind();
+  container.addDataBind(bind);
+  container.addDirtyDataBind(bind);
+  container.updateDataBinds();
+  REQUIRE(target.propertyValue() == initial);
+
+  target.propertyValue(rejected);
+  container.updateDataBinds();
+  container.updateDataBinds();
+  CHECK(source->propertyValue() == corrected);
+  CHECK(target.propertyValue() == corrected);
+  CHECK(bind->dirt() == ComponentDirt::None);
+
+  // Accept that same value next time: the corrected target cache must not
+  // mistake the next edit for the earlier rejected one.
+  validator.enabled = false;
+  target.propertyValue(rejected);
+  container.updateDataBinds();
+  CHECK(source->propertyValue() == rejected);
+  CHECK(target.propertyValue() == rejected);
+  CHECK(bind->dirt() == ComponentDirt::None);
+  source->removeDelegate(&validator);
+  container.deleteDataBinds();
+}
+} // namespace
+
+TEST_CASE(
+    "TwoWay number validation reaches the target",
+    "[data_bind_container]")
+{
+  checkScalarValidation<ViewModelInstanceNumber, CustomPropertyNumber>(
+      5.0f,
+      150.0f,
+      100.0f);
+}
+
+TEST_CASE(
+    "TwoWay boolean validation reaches the target",
+    "[data_bind_container]")
+{
+  checkScalarValidation<ViewModelInstanceBoolean, CustomPropertyBoolean>(
+      false,
+      true,
+      false);
+}
+
+TEST_CASE("TwoWay color validation reaches the target", "[data_bind_container]")
+{
+  checkScalarValidation<ViewModelInstanceColor, CustomPropertyColor>(
+      0x00112233,
+      0x00445566,
+      0x00778899);
+}
+
+TEST_CASE("TwoWay enum validation reaches the target", "[data_bind_container]")
+{
+  checkScalarValidation<ViewModelInstanceEnum, CustomPropertyEnum>(0u, 5u, 2u);
+}
+
+TEST_CASE(
+    "An unchanged NaN does not queue a source correction",
+    "[data_bind_container]")
+{
+  auto source = make_rcp<ViewModelInstanceNumber>();
+  CustomPropertyNumber target;
+  TestContainer container;
+  auto* bind = new DataBind();
+  const bool sourceFirst = GENERATE(false, true);
+  CAPTURE(sourceFirst);
+  auto flags = DataBindFlags::TwoWay;
+  if (sourceFirst)
+  {
+    flags = flags | DataBindFlags::SourceToTargetRunsFirst;
+  }
+  bind->flags(static_cast<uint32_t>(flags));
+  bind->propertyKey(CustomPropertyNumber::propertyValuePropertyKey);
+  bind->target(&target);
+  bind->source(source);
+  bind->bind();
+  container.addDataBind(bind);
+  container.addDirtyDataBind(bind);
+  container.updateDataBinds();
+
+  target.propertyValue(std::numeric_limits<float>::quiet_NaN());
+  container.updateDataBinds();
+  CHECK(std::isnan(source->propertyValue()));
+  CHECK(std::isnan(target.propertyValue()));
+  CHECK(bind->dirt() == ComponentDirt::None);
+  container.deleteDataBinds();
 }
