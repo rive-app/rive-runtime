@@ -430,6 +430,9 @@ private:
   bool m_advancesNested = true;
   // Set while restartRows runs: the rows it pools stay for the next update.
   bool m_keepPools = false;
+  // Whether the rows were told the list is fully transparent, through their
+  // host opacity. Any other opacity applies when the list draws them.
+  bool m_rowsHidden = false;
   /// Always paint / scroll order (ascending drawIndex when enabled).
   std::vector<int> m_cachedOrderedListIndices;
   std::unordered_map<

@@ -1835,9 +1835,19 @@ const std::vector<int>& ArtboardComponentList::orderedListIndices()
 
 void ArtboardComponentList::draw(Renderer* renderer)
 {
-  if (needsSaveOperation())
+  // The rows keep their own opacity and get the list's here, so a fade
+  // doesn't walk every component in every row. Content drawn from an
+  // offscreen raster inside a row (a bitmap cache, a mask) fades as a group.
+  const float opacity = renderOpacity();
+  const bool modulates = opacity != 1.0f;
+  const bool saves = needsSaveOperation() || modulates;
+  if (saves)
   {
     renderer->save();
+  }
+  if (modulates)
+  {
+    renderer->modulateOpacity(opacity);
   }
   if (virtualizationEnabled())
   {
@@ -1877,7 +1887,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
       }
     }
   }
-  if (needsSaveOperation())
+  if (saves)
   {
     renderer->restore();
   }
@@ -1943,6 +1953,17 @@ Mat2D ArtboardComponentList::worldTransformForArtboard(
 void ArtboardComponentList::update(ComponentDirt value)
 {
   Super::update(value);
+  // The rows draw with the list's opacity (see draw) and only hear when it
+  // turns fully transparent: content at 0 isn't hit, focused or selected,
+  // and defers its path updates. Tracked with no rows too, for rows added
+  // later (see addArtboardAt).
+  bool hidesOrShowsRows = false;
+  if (hasDirt(value, ComponentDirt::RenderOpacity))
+  {
+    const bool hidden = renderOpacity() <= 0.0f;
+    hidesOrShowsRows = hidden != m_rowsHidden;
+    m_rowsHidden = hidden;
+  }
   if (artboardCount() == 0)
   {
     return;
@@ -1957,13 +1978,16 @@ void ArtboardComponentList::update(ComponentDirt value)
       artboard->markSemanticBoundaryTransformDirty();
     });
   }
-  if (hasDirt(value, ComponentDirt::RenderOpacity))
+  if (hidesOrShowsRows)
   {
+    const float hostOpacity = m_rowsHidden ? 0.0f : 1.0f;
     forEachRealized([&](int, ArtboardInstance* artboard) {
-      artboard->opacity(renderOpacity());
+      artboard->hostOpacity(hostOpacity);
     });
   }
-  if (hasDirt(value, ComponentDirt::Components))
+  // Rows resolve a host opacity change in this update, or they show a frame
+  // late.
+  if (hidesOrShowsRows || hasDirt(value, ComponentDirt::Components))
   {
     const size_t count = m_listItems.size();
     for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
@@ -2216,6 +2240,8 @@ void ArtboardComponentList::addArtboardAt(
     if (artboardInstance != nullptr)
     {
       artboardInstance->host(this);
+      // A pooled row may still carry the opacity it last had here.
+      artboardInstance->hostOpacity(m_rowsHidden ? 0.0f : 1.0f);
       artboardInstance->frameOrigin(false);
       artboardInstance->parentIsRow(mainAxisIsRow());
       artboardInstance->parentIsStack(isStack());
