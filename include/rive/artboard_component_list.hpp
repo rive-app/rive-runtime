@@ -223,6 +223,11 @@ private:
       ArtboardInstance* artboard);
   void computeLayoutBounds();
   bool isWithinVisibleWindow(int index) const;
+  bool viewportCullsBufferedRows(
+      Renderer* renderer,
+      const Mat2D& listTransform,
+      Mat2D* listToDevice,
+      AABB* deviceViewport);
   void createArtboardRecorders(const Artboard*);
   void applyRecorders(Artboard* artboard, const Artboard* sourceArtboard);
   void applyRecorders(

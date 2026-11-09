@@ -3463,6 +3463,18 @@ bool Artboard::drawMasked(
     DrawingGuard(LayerMask& m) : mask(m) { mask.m_isDrawing = true; }
     ~DrawingGuard() { mask.m_isDrawing = false; }
   } drawingGuard(mask);
+  // Restored rather than cleared: a mask nested in this one's range draws
+  // inside this one's canvas.
+  struct MaskedRangeGuard
+  {
+    Artboard& artboard;
+    bool was;
+    MaskedRangeGuard(Artboard& a) : artboard(a), was(a.m_drawsMaskedRange)
+    {
+      artboard.m_drawsMaskedRange = true;
+    }
+    ~MaskedRangeGuard() { artboard.m_drawsMaskedRange = was; }
+  } maskedRangeGuard(*this);
 
   // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
   // rasterize into. No host means nobody can give us an offscreen frame (a

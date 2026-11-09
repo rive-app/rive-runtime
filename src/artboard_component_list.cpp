@@ -1833,6 +1833,72 @@ const std::vector<int>& ArtboardComponentList::orderedListIndices()
   return m_cachedOrderedListIndices;
 }
 
+// A buffered row is realized just outside the scroll viewport, so it is
+// mounted and advancing before it scrolls in. While the viewport's clip is on
+// the renderer, a row that clips its own content can't show there, so drawing
+// it is wasted. Only the clip on the renderer counts: a draw rule can draw the
+// list outside its viewport's. Rows are measured in device space, which needs
+// a renderer that reports its transform; without one every row draws. So does
+// every row of a visited draw: the visitor can transform the list after the
+// viewport clipped, and the renderer's transform then no longer places the
+// clip. And so does every row a layer mask draws into its canvas: the
+// viewport's clip may be on the frame's renderer instead, and the canvas is
+// reused until the masked range changes, which the viewport isn't part of.
+bool ArtboardComponentList::viewportCullsBufferedRows(
+    Renderer* renderer,
+    const Mat2D& listTransform,
+    Mat2D* listToDevice,
+    AABB* deviceViewport)
+{
+  if (artboard()->hasDrawVisitor() || artboard()->drawsMaskedRange())
+  {
+    return false;
+  }
+  auto scroll = scrollConstraint();
+  if (scroll == nullptr || !scroll->hasLayoutParent())
+  {
+    return false;
+  }
+  auto viewport = scroll->content()->parent();
+  if (viewport == nullptr || !viewport->is<LayoutComponent>() ||
+      !viewport->as<LayoutComponent>()->clipsDrawing())
+  {
+    return false;
+  }
+  Mat2D toDevice;
+  if (!renderer->currentTransform(&toDevice))
+  {
+    return false;
+  }
+  auto layout = viewport->as<LayoutComponent>();
+  *listToDevice = toDevice * listTransform;
+  *deviceViewport = (toDevice * layout->worldTransform())
+                        .mapBoundingBox(layout->localBounds());
+  return true;
+}
+
+// Whether a row clipped to its bounds stays clear of the viewport by more than
+// antialiasing can bridge. A row drawn from its own bitmap cache composites a
+// raster that can sample past its bounds, and one with its own rotation or
+// scale clips in its rotated frame: both always draw.
+static bool rowMissesViewport(
+    ArtboardInstance* artboard,
+    const Mat2D& rowToDevice,
+    const AABB& viewport)
+{
+  if (!artboard->clip() || artboard->hasSelfTransform() ||
+      artboard->bitmapCache() != nullptr)
+  {
+    return false;
+  }
+  constexpr float margin = 2.0f;
+  const AABB row = rowToDevice.mapBoundingBox(artboard->bounds());
+  return row.maxX + margin <= viewport.minX ||
+         viewport.maxX + margin <= row.minX ||
+         row.maxY + margin <= viewport.minY ||
+         viewport.maxY + margin <= row.minY;
+}
+
 void ArtboardComponentList::draw(Renderer* renderer)
 {
   // The rows keep their own opacity and get the list's here, so a fade
@@ -1851,8 +1917,17 @@ void ArtboardComponentList::draw(Renderer* renderer)
   }
   if (virtualizationEnabled())
   {
-    renderer->transform(
-        parent()->as<WorldTransformComponent>()->worldTransform());
+    const Mat2D& listTransform = parent()
+                                     ->as<WorldTransformComponent>()
+                                     ->worldTransform();
+    Mat2D listToDevice;
+    AABB deviceViewport;
+    const bool culls = viewportCullsBufferedRows(
+        renderer,
+        listTransform,
+        &listToDevice,
+        &deviceViewport);
+    renderer->transform(listTransform);
     if (!m_windowOrder.empty())
     {
       // We need to render in the correct order so we get the correct
@@ -1862,8 +1937,17 @@ void ArtboardComponentList::draw(Renderer* renderer)
         auto artboard = artboardInstance(i);
         if (artboard != nullptr)
         {
-          renderer->save();
           auto transform = m_artboardTransforms[artboard];
+          if (culls && !isWithinVisibleWindow(i) &&
+              rowMissesViewport(
+                  artboard,
+                  listToDevice * transform,
+                  deviceViewport))
+          {
+            artboard->skipDraw();
+            continue;
+          }
+          renderer->save();
           renderer->transform(transform);
           Component::artboard()->drawHosted(artboard, renderer);
           renderer->restore();

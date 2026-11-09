@@ -214,6 +214,9 @@ private:
   bool m_updatesOwnLayout = true;
   bool m_hostTransformMarkedDirty = false;
   bool m_didChange = true;
+  // Set while a layer mask draws a range of this artboard into its own canvas;
+  // see drawsMaskedRange. The last byte of padding before m_changeSerial.
+  bool m_drawsMaskedRange = false;
   // In the padding after the flags above. Bumped by every change that
   // reaches this artboard -- component dirt, changed() and its own
   // rotation/scale, which m_contentRevision leaves out -- so a state machine
@@ -571,6 +574,14 @@ public:
   bool validateObjects();
   StatusCode initialize();
   bool didChange() { return m_didChange; }
+  // For a host that leaves this artboard undrawn because none of it can
+  // show: takes the change as a draw would, so the next one reaches the
+  // parent artboard again.
+  void skipDraw() { m_didChange = false; }
+  // Whether a layer mask is drawing a range of this artboard into its own
+  // canvas. A clip pushed on the frame's renderer before the range isn't on
+  // that canvas's renderer, though its owner still reads as clipping.
+  bool drawsMaskedRange() const { return m_drawsMaskedRange; }
   uint32_t changeSerial() const { return m_changeSerial; }
   // Moves the change serial alone: a value the artboard's objects will be
   // set to changed (see BlendAccumulator's layer mode), so a pose resting on

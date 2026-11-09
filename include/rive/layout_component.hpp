@@ -370,6 +370,13 @@ public:
     setLayoutFlag(LayoutComponentFlags::DirtyLayoutListed, value);
   }
 
+  // Whether this layout's clip is on the renderer right now: its proxy has
+  // clipped and its draw hasn't restored yet.
+  bool clipsDrawing() const
+  {
+    return hasLayoutFlag(LayoutComponentFlags::ClipSaved);
+  }
+
   LayoutComponentStyle* style() { return m_style; }
   void style(LayoutComponentStyle* style)
   {
