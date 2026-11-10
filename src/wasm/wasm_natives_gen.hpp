@@ -291,6 +291,8 @@ void artboardBoundsImpl(WasmScriptingVM* vm, uint32_t artboard, float* out, uint
 uint32_t artboardPointerEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
 uint32_t artboardScrollEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
 uint32_t artboardGamepadEventImpl(WasmScriptingVM* vm, uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
+uint32_t artboardKeyboardEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t key, uint32_t modifiers, uint32_t isPressed, uint32_t isRepeat);
+uint32_t artboardTextEventImpl(WasmScriptingVM* vm, uint32_t artboard, const char* text, uint32_t length);
 uint32_t artboardAnimationImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardAnimationReleaseImpl(WasmScriptingVM* vm, uint32_t animation);
 float artboardAnimationDurationImpl(WasmScriptingVM* vm, uint32_t animation);
@@ -1138,6 +1140,17 @@ uint32_t artboardGamepadEvent(wasm_exec_env_t env, uint32_t artboard, const uint
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return artboardGamepadEventImpl(vm, artboard, payload, byteCount);
+}
+uint32_t artboardKeyboardEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t key, uint32_t modifiers, uint32_t isPressed, uint32_t isRepeat)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardKeyboardEventImpl(vm, artboard, key, modifiers, isPressed, isRepeat);
+}
+uint32_t artboardTextEvent(wasm_exec_env_t env, uint32_t artboard, const char* text, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg textUtf8(vm, text, length);
+    return artboardTextEventImpl(vm, artboard, textUtf8.data(), textUtf8.size());
 }
 uint32_t artboardAnimation(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
@@ -2792,6 +2805,8 @@ NativeSymbol kArtboardNatives[] = {
     {"pointer_event", (void*)artboardPointerEvent, "(iiiff)i", nullptr},
     {"scroll_event", (void*)artboardScrollEvent, "(iiffffiif)i", nullptr},
     {"gamepad_event", (void*)artboardGamepadEvent, "(i*~)i", nullptr},
+    {"keyboard_event", (void*)artboardKeyboardEvent, "(iiiii)i", nullptr},
+    {"text_event", (void*)artboardTextEvent, "(i*~)i", nullptr},
     {"animation", (void*)artboardAnimation, "(i*~)i", nullptr},
     {"animation_release", (void*)artboardAnimationRelease, "(i)", nullptr},
     {"animation_duration", (void*)artboardAnimationDuration, "(i)f", nullptr},

@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "ef6a8f497148090e"
+#define RIVE_BINDINGS_V1_CONTRACT "4d6b9edb63e5d0fc"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -416,6 +416,10 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "scroll_event")
 uint32_t rive_artboard_scroll_event(uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "gamepad_event")
 uint32_t rive_artboard_gamepad_event(uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "keyboard_event")
+uint32_t rive_artboard_keyboard_event(uint32_t artboard, uint32_t key, uint32_t modifiers, uint32_t isPressed, uint32_t isRepeat);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "text_event")
+uint32_t rive_artboard_text_event(uint32_t artboard, const char* text, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation")
 uint32_t rive_artboard_animation(uint32_t artboard, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_release")

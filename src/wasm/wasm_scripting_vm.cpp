@@ -8180,6 +8180,44 @@ uint32_t artboardGamepadEventImpl(
       dispatched);
 }
 
+// The Luau artboard:keyboardEvent/textEvent path: keys and text go to the
+// artboard's focused control through its own focus manager.
+uint32_t artboardKeyboardEventImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t key,
+    uint32_t modifiers,
+    uint32_t isPressed,
+    uint32_t isRepeat)
+{
+  auto host = resolveArtboard(vm, handle);
+  if (host == nullptr || host->stateMachine == nullptr)
+  {
+    return 0;
+  }
+  return host->stateMachine->keyInput(
+             (Key)(uint16_t)key,
+             (KeyModifiers)(uint8_t)modifiers,
+             isPressed != 0,
+             isRepeat != 0)
+             ? 1
+             : 0;
+}
+
+uint32_t artboardTextEventImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    const char* text,
+    uint32_t length)
+{
+  auto host = resolveArtboard(vm, handle);
+  if (host == nullptr || host->stateMachine == nullptr)
+  {
+    return 0;
+  }
+  return host->stateMachine->textInput(std::string(text, length)) ? 1 : 0;
+}
+
 HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
 {
   if (vm == nullptr)

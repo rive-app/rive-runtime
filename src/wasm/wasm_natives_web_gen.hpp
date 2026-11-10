@@ -514,6 +514,17 @@ uint32_t rive_web_artboard_gamepad_event(uint32_t vmHandle, uint32_t artboard, c
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return artboardGamepadEventImpl(vm, artboard, payload, byteCount);
 }
+uint32_t rive_web_artboard_keyboard_event(uint32_t vmHandle, uint32_t artboard, uint32_t key, uint32_t modifiers, uint32_t isPressed, uint32_t isRepeat)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardKeyboardEventImpl(vm, artboard, key, modifiers, isPressed, isRepeat);
+}
+uint32_t rive_web_artboard_text_event(uint32_t vmHandle, uint32_t artboard, const char* text, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg textUtf8(vm, text, length);
+    return artboardTextEventImpl(vm, artboard, textUtf8.data(), textUtf8.size());
+}
 uint32_t rive_web_artboard_animation(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1992,6 +2003,8 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_artboard_pointer_event,
     (void*)rive_web_artboard_scroll_event,
     (void*)rive_web_artboard_gamepad_event,
+    (void*)rive_web_artboard_keyboard_event,
+    (void*)rive_web_artboard_text_event,
     (void*)rive_web_artboard_animation,
     (void*)rive_web_artboard_animation_release,
     (void*)rive_web_artboard_animation_duration,

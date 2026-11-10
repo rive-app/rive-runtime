@@ -508,6 +508,32 @@ static int apply_gamepad_event(lua_State* L, int atom)
   return 1;
 }
 
+// Keys and text go to whatever holds focus in the artboard's own focus
+// manager, as they do for a top-level state machine. Returns whether it was
+// handled, so a host's keyboardEvent/textEvent can return it to stop
+// propagation.
+static int apply_keyboard_event(lua_State* L)
+{
+  auto machine = lua_torive<ScriptedArtboard>(L, 1)->stateMachine();
+  auto event = lua_torive<ScriptedKeyboardInvocation>(L, 2);
+  bool handled = machine != nullptr && machine->keyInput(
+                                           event->m_key,
+                                           event->m_modifiers,
+                                           event->m_isPressed,
+                                           event->m_isRepeat);
+  lua_pushboolean(L, handled ? 1 : 0);
+  return 1;
+}
+
+static int apply_text_event(lua_State* L)
+{
+  auto machine = lua_torive<ScriptedArtboard>(L, 1)->stateMachine();
+  auto event = lua_torive<ScriptedTextInputInvocation>(L, 2);
+  bool handled = machine != nullptr && machine->textInput(event->text());
+  lua_pushboolean(L, handled ? 1 : 0);
+  return 1;
+}
+
 static int artboard_advance(lua_State* L)
 {
   auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
@@ -616,6 +642,14 @@ static int artboard_namecall(lua_State* L)
       case (int)LuaAtoms::gamepadDisconnected:
       {
         return apply_gamepad_event(L, atom);
+      }
+      case (int)LuaAtoms::keyboardEvent:
+      {
+        return apply_keyboard_event(L);
+      }
+      case (int)LuaAtoms::textEvent:
+      {
+        return apply_text_event(L);
       }
     }
   }

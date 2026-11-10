@@ -508,6 +508,19 @@ NAMESPACES = [
         op('gamepad_event', [handle('artboard'),
                              buf('uint8_t', 'payload', 'byteCount')],
            ret='u32'),
+        # artboard:keyboardEvent: key is rive::Key, modifiers KeyModifiers
+        # bits; returns 1 when the artboard's focused control took it.
+        op('keyboard_event', [
+            handle('artboard'),
+            u32('key'),
+            u32('modifiers'),
+            u32('isPressed'),
+            u32('isRepeat'),
+        ], ret='u32'),
+        # artboard:textEvent: UTF-8 text for the focused text input; returns
+        # 1 when it was taken.
+        op('text_event', [handle('artboard'), string('text', 'length')],
+           ret='u32'),
         op('animation', [handle('artboard'), string('name', 'length')],
            ret='u32'),
         op('animation_release', [handle('animation')]),

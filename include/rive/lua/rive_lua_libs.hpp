@@ -507,6 +507,10 @@ enum class LuaAtoms : int16_t
   delta,
   precise,
   pointerScroll,
+
+  // Keyboard and text input forwarded to a script's artboard
+  keyboardEvent,
+  textEvent,
 };
 
 struct ScriptedMat2D
