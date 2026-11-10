@@ -50,6 +50,7 @@ export function laneConsole(memory, log, timers = new Map()) {
         }
         log(`${label}: ${(monotonicNow() - started).toFixed(3)}ms`);
     };
+    env['console.caller'] = () => {};
     env['console.time'] = (ptr) => timers.set(text(ptr), monotonicNow());
     env['console.timeLog'] = report(false);
     env['console.timeEnd'] = report(true);

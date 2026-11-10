@@ -2982,7 +2982,12 @@ public:
 #ifdef WITH_RIVE_TOOLS
     if (error)
     {
-      printBeginLine(state);
+      // Type 1 marks an error line, as the editor's own context writes it.
+      // The message names its site; the frame here is the error builtin.
+      BinaryWriter writer(&m_consoleBuffer);
+      writer.write((uint8_t)1);
+      writer.write("");
+      writer.writeVarUint((uint32_t)0);
       print(Span<const char>(error, strlen(error)));
       printEndLine();
     }

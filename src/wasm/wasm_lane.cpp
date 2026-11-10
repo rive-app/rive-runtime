@@ -232,11 +232,18 @@ WasmLane* WasmLane::setCurrent(WasmLane* lane)
   return outer;
 }
 
+// A line's file length byte that stands for the previous line's file.
+constexpr uint32_t kSameLogFile = 255;
+
 // Never waits on the reader: a line that does not fit is dropped.
-void WasmLane::writeLine(const Text& text)
+void WasmLane::writeLine(const Text& text, std::string_view file, uint32_t line)
 {
   // Cut, so a line always fits an empty ring.
   constexpr uint32_t kLineBytes = 1024;
+  file = file.substr(0, kSameLogFile - 1);
+  bool sameFile = file == m_logWriteFile;
+  uint32_t fileLength = sameFile ? 0 : (uint32_t)file.size();
+  uint32_t header = 7 + fileLength;
   uint32_t write = m_logWrite.load(std::memory_order_relaxed);
   uint32_t read = m_logRead.load(std::memory_order_acquire);
   uint32_t space = m_logCapacity - (write - read);
@@ -245,17 +252,33 @@ void WasmLane::writeLine(const Text& text)
   uint32_t length = text.encode(
       kLineBytes,
       m_logBytes.get(),
-      write + 2,
-      space - std::min(space, 2u),
+      write + header,
+      space - std::min(space, header),
       mask);
-  if (2 + length > space)
+  if (header + length > space)
   {
     m_logsDropped.fetch_add(1);
     return;
   }
-  m_logBytes[write & mask] = (uint8_t)length;
-  m_logBytes[(write + 1) & mask] = (uint8_t)(length >> 8);
-  m_logWrite.store(write + 2 + length, std::memory_order_release);
+  auto put = [&](uint32_t at, uint32_t byte) {
+    m_logBytes[(write + at) & mask] = (uint8_t)byte;
+  };
+  put(0, length);
+  put(1, length >> 8);
+  put(2, sameFile ? kSameLogFile : fileLength);
+  for (uint32_t i = 0; i < 4; i++)
+  {
+    put(3 + i, line >> (8 * i));
+  }
+  for (uint32_t i = 0; i < fileLength; i++)
+  {
+    put(7 + i, (uint8_t)file[i]);
+  }
+  m_logWrite.store(write + header + length, std::memory_order_release);
+  if (!sameFile)
+  {
+    m_logWriteFile.assign(file.data(), file.size());
+  }
 }
 
 void WasmLane::writeFailure(const Text& text)
@@ -296,7 +319,11 @@ void WasmLane::failUtf16(const uint8_t* text, uint32_t bytes)
 }
 
 void WasmLane::takeLogs(
-    void (*deliver)(void* context, std::string_view line),
+    void (*deliver)(
+        void* context,
+        std::string_view file,
+        uint32_t line,
+        std::string_view text),
     void* context)
 {
   std::lock_guard<std::mutex> lock(m_logReaderMutex);
@@ -313,8 +340,26 @@ void WasmLane::takeLogs(
   for (size_t at = 0; at < lines.size();)
   {
     size_t length = (uint8_t)lines[at] | ((uint8_t)lines[at + 1] << 8);
-    deliver(context, std::string_view(lines.data() + at + 2, length));
-    at += 2 + length;
+    size_t fileLength = (uint8_t)lines[at + 2];
+    if (fileLength == kSameLogFile)
+    {
+      fileLength = 0;
+    }
+    else
+    {
+      m_logReadFile.assign(lines.data() + at + 7, fileLength);
+    }
+    uint32_t line = 0;
+    for (uint32_t i = 0; i < 4; i++)
+    {
+      line |= (uint32_t)(uint8_t)lines[at + 3 + i] << (8 * i);
+    }
+    deliver(
+        context,
+        m_logReadFile,
+        line,
+        std::string_view(lines.data() + at + 7 + fileLength, length));
+    at += 7 + fileLength + length;
   }
   if (dropped != 0)
   {
@@ -326,7 +371,7 @@ void WasmLane::takeLogs(
         "handovers",
         dropped,
         m_logCapacity / 1024);
-    deliver(context, name() + note);
+    deliver(context, {}, 0, name() + note);
   }
 }
 
@@ -858,13 +903,28 @@ static std::string_view consoleUtf16(void* execEnv, uint32_t text)
                          : std::string_view();
 }
 
-void WasmLane::logConsole(void* execEnv, uint32_t text)
+void WasmLane::logConsole(
+    void* execEnv,
+    uint32_t text,
+    std::string_view file,
+    uint32_t line)
 {
-  std::string_view line = consoleUtf16(execEnv, text);
-  if (line.data() != nullptr)
+  std::string_view utf16 = consoleUtf16(execEnv, text);
+  if (utf16.data() != nullptr)
   {
-    logUtf16((const uint8_t*)line.data(), (uint32_t)line.size());
+    writeLine(
+        {(const uint8_t*)utf16.data(), (uint32_t)utf16.size(), true},
+        file,
+        line);
   }
+}
+
+void WasmLane::consoleText(void* execEnv, uint32_t text, std::string& out)
+{
+  std::string_view utf16 = consoleUtf16(execEnv, text);
+  Text units{(const uint8_t*)utf16.data(), (uint32_t)utf16.size(), true};
+  out.resize(units.encode(UINT32_MAX, nullptr, 0, 0, 0));
+  units.encode(UINT32_MAX, (uint8_t*)out.data(), 0, UINT32_MAX, UINT32_MAX);
 }
 
 void WasmLane::consoleTimer(
@@ -873,10 +933,8 @@ void WasmLane::consoleTimer(
     bool report,
     bool end)
 {
-  std::string_view utf16 = consoleUtf16(execEnv, label);
-  Text text{(const uint8_t*)utf16.data(), (uint32_t)utf16.size(), true};
-  std::string name(text.encode(UINT32_MAX, nullptr, 0, 0, 0), '\0');
-  text.encode(UINT32_MAX, (uint8_t*)name.data(), 0, UINT32_MAX, UINT32_MAX);
+  std::string name;
+  consoleText(execEnv, label, name);
   if (!report)
   {
     startConsoleTimer(m_consoleTimers, name);

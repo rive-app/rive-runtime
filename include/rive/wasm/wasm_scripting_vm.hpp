@@ -748,6 +748,10 @@ public:
   void setDebugHooks(WasmDebugHooks* hooks) { m_debugHooks = hooks; }
   WasmDebugHooks* debugHooks() const { return m_debugHooks; }
 
+  /// The file and line the std's console named as the caller of the line
+  /// this thread is writing, false for a line that names none.
+  static bool consoleCaller(std::string& file, uint32_t& line);
+
   /// Runs for every VM made on the calling thread, after its print sink
   /// is set and before its module starts, with the module as baked: the
   /// place to install debug hooks and a print sink that see module

@@ -6,6 +6,7 @@
 
 // The console imports every lane gets.
 export const kLaneConsole = [
+    'console.caller',
     'console.log',
     'console.debug',
     'console.info',
@@ -24,6 +25,7 @@ const kLaneImportRules = [
     ['rive_lane_v1', null, ['job', 'worker', 'processor'], null],
     ['rive_job_v1', null, ['job'], null],
     ['rive_worker_v1', null, ['worker'], null],
+    ['env', 'console.caller', ['job', 'worker', 'processor'], null],
     ['env', 'console.log', ['job', 'worker', 'processor'], null],
     ['env', 'console.debug', ['job', 'worker', 'processor'], null],
     ['env', 'console.info', ['job', 'worker', 'processor'], null],

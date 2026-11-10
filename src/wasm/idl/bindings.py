@@ -1418,7 +1418,7 @@ LANE_IMPORTS = [
     lane_import('rive_job_v1', ('job',)),
     lane_import('rive_worker_v1', ('worker',)),
 ] + [lane_import('env', LANES, 'console.' + level)
-     for level in ('log', 'debug', 'info', 'warn', 'error')] + [
+     for level in ('caller', 'log', 'debug', 'info', 'warn', 'error')] + [
     lane_import('env', ('job', 'worker'), 'console.' + timer)
     for timer in ('time', 'timeLog', 'timeEnd')]
 

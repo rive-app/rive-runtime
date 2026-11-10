@@ -807,8 +807,23 @@ namespace
 {
 // Module calls live on this thread, any VM's.
 thread_local uint32_t t_moduleCalls = 0;
+// Where the std's console says the line this thread writes next was called
+// from, until the write takes it.
+thread_local std::string t_consoleFile;
+thread_local uint32_t t_consoleLine = 0;
 using Clock = std::chrono::steady_clock;
 } // namespace
+
+bool WasmScriptingVM::consoleCaller(std::string& file, uint32_t& line)
+{
+  if (t_consoleFile.empty())
+  {
+    return false;
+  }
+  file = t_consoleFile;
+  line = t_consoleLine;
+  return true;
+}
 
 // What the module call on this thread has left of its budget, infinity
 // when nothing bounds it.
@@ -2267,11 +2282,25 @@ std::string consoleString(wasm_exec_env_t env, uint32_t text)
   return std::string(utf8.data(), utf8.size());
 }
 
+void consoleCaller(wasm_exec_env_t env, uint32_t file, int32_t line)
+{
+  if (WasmLane* lane = WasmLane::current())
+  {
+    lane->consoleText(env, file, t_consoleFile);
+  }
+  else
+  {
+    t_consoleFile = consoleString(env, file);
+  }
+  t_consoleLine = line > 0 ? (uint32_t)line : 0;
+}
+
 void consoleLog(wasm_exec_env_t env, uint32_t text)
 {
   if (WasmLane* lane = WasmLane::current())
   {
-    lane->logConsole(env, text);
+    lane->logConsole(env, text, t_consoleFile, t_consoleLine);
+    t_consoleFile.clear();
     return;
   }
   consoleWrite(vmFromEnv(env), consoleString(env, text));
@@ -2322,6 +2351,7 @@ void envTrace(
 }
 
 NativeSymbol kEnvNatives[] = {
+    {"console.caller", (void*)consoleCaller, "(ii)", nullptr},
     {"console.log", (void*)consoleLog, "(i)", nullptr},
     {"console.debug", (void*)consoleLog, "(i)", nullptr},
     {"console.info", (void*)consoleLog, "(i)", nullptr},
@@ -6290,6 +6320,7 @@ void rtLogImpl(
   auto lock = WasmScriptingVMNatives::lockPrint(vm);
   WasmScriptingVMNatives::print(vm, message, length);
   WasmScriptingVMNatives::print(vm, "\n", 1);
+  t_consoleFile.clear();
 }
 
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
@@ -12564,9 +12595,16 @@ void WasmScriptingVM::deliverAllLaneOutput()
   });
 }
 
-static void printLaneLine(void* vm, std::string_view line)
+// Names the line by its lane's call site, as the main lane's console does.
+static void printLaneLine(
+    void* vm,
+    std::string_view file,
+    uint32_t line,
+    std::string_view text)
 {
-  rtLogImpl((WasmScriptingVM*)vm, 0, line.data(), (uint32_t)line.size());
+  t_consoleFile.assign(file.data(), file.size());
+  t_consoleLine = line;
+  rtLogImpl((WasmScriptingVM*)vm, 0, text.data(), (uint32_t)text.size());
 }
 
 void WasmScriptingVM::watchLanes()

@@ -11,6 +11,7 @@
 
 // The console imports every lane gets.
 const kLaneConsole = [
+    'console.caller',
     'console.log',
     'console.debug',
     'console.info',
@@ -29,6 +30,7 @@ const kLaneImportRules = [
     ['rive_lane_v1', null, ['job', 'worker', 'processor'], null],
     ['rive_job_v1', null, ['job'], null],
     ['rive_worker_v1', null, ['worker'], null],
+    ['env', 'console.caller', ['job', 'worker', 'processor'], null],
     ['env', 'console.log', ['job', 'worker', 'processor'], null],
     ['env', 'console.debug', ['job', 'worker', 'processor'], null],
     ['env', 'console.info', ['job', 'worker', 'processor'], null],
@@ -822,6 +824,7 @@ function laneConsole(memory, log, timers = new Map()) {
         }
         log(`${label}: ${(monotonicNow() - started).toFixed(3)}ms`);
     };
+    env['console.caller'] = () => {};
     env['console.time'] = (ptr) => timers.set(text(ptr), monotonicNow());
     env['console.timeLog'] = report(false);
     env['console.timeEnd'] = report(true);

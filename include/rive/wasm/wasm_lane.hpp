@@ -193,10 +193,14 @@ public:
   void failUtf16(const uint8_t* text, uint32_t bytes);
 
   /// Frees the ring, then hands deliver each console line since the last
-  /// take and a note of any it dropped. On the VM's thread, or the stall
-  /// flusher's for a stalled VM.
+  /// take, with the file and line its console call named, and a note of any
+  /// it dropped. On the VM's thread, or the stall flusher's for a stalled VM.
   void takeLogs(
-      void (*deliver)(void* context, std::string_view line),
+      void (*deliver)(
+          void* context,
+          std::string_view file,
+          uint32_t line,
+          std::string_view text),
       void* context);
   // On the VM's thread.
   std::string failure() const;
@@ -252,8 +256,16 @@ public:
   bool dropShared(uint32_t id);
 
 #ifndef __EMSCRIPTEN__
-  /// The std's console string (UTF-16 after its byte length) as a line.
-  void logConsole(void* execEnv, uint32_t text);
+  /// The std's console string (UTF-16 after its byte length) as a line,
+  /// named by the call site the std's console reported.
+  void logConsole(
+      void* execEnv,
+      uint32_t text,
+      std::string_view file,
+      uint32_t line);
+  /// The std's console string as UTF-8 into out, reusing its capacity so
+  /// an audio thread's console call allocates once.
+  void consoleText(void* execEnv, uint32_t text, std::string& out);
   /// console.time on the lane's own timers, or with report timeLog, and
   /// timeEnd with end too.
   void consoleTimer(void* execEnv, uint32_t label, bool report, bool end);
@@ -321,7 +333,10 @@ protected:
 
 private:
   struct Text;
-  void writeLine(const Text& text);
+  void writeLine(
+      const Text& text,
+      std::string_view file = {},
+      uint32_t line = 0);
   void writeFailure(const Text& text);
 
   LaneKind m_kind;
@@ -332,14 +347,17 @@ private:
   std::mutex m_holdsMutex;
   std::vector<uint32_t> m_holds;
   std::vector<uint32_t> m_created;
-  // Console lines, each a two byte length then its bytes: one writer and
-  // one reader at a time, so the writer never waits.
+  // Console lines, each a two byte length, a one byte file length (255 for
+  // the previous line's file), a four byte line, the file, then its bytes:
+  // one writer and one reader at a time, so the writer never waits.
   std::mutex m_logReaderMutex;
   const uint32_t m_logCapacity;
   std::unique_ptr<uint8_t[]> m_logBytes;
   std::atomic<uint32_t> m_logWrite{0};
   std::atomic<uint32_t> m_logRead{0};
   std::atomic<uint32_t> m_logsDropped{0};
+  std::string m_logWriteFile;
+  std::string m_logReadFile;
 #ifdef __EMSCRIPTEN__
   // When a stop's interrupt is due, in steady clock nanoseconds: a web call
   // ends only at its own fuel check.

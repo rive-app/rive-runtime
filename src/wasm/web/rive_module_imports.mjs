@@ -107,6 +107,8 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
                 stageManaged(message, (text_p, length) =>
                     calls.rive_trace(text_p, length, n, a0, a1, a2, a3, a4)
                 ),
+            // A browser's console shows no call site.
+            'console.caller': () => {},
             'console.log': consoleCall(0),
             'console.debug': consoleCall(0),
             'console.info': consoleCall(0),
