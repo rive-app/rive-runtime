@@ -27,6 +27,11 @@ void DataBindContextValueList::apply(
     auto consumer = DataBindListItemConsumer::from(target);
     if (consumer != nullptr)
     {
+      // A converter's list can depend on the row it's made in (an operand
+      // bound to the row's own values), so its source alone doesn't say
+      // what it holds.
+      consumer->boundListSource(
+          dataBind->converter() == nullptr ? dataBind->source() : nullptr);
       consumer->updateList(value);
     }
   }

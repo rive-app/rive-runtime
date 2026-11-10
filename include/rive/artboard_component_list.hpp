@@ -91,6 +91,20 @@ public:
   }
   void updateWorldTransform() override;
   void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
+  void boundListSource(const Core* source) override { m_listSource = source; }
+  const Core* hostedRowsSource() const override { return m_listSource; }
+
+  // How deep rows may nest while one is built: building a row binds it, and
+  // the lists inside it build their rows right then, on the same stack. A
+  // row that ends up hosting rows of itself would otherwise recurse until
+  // the stack overflows (RIVE_NATIVE-18W). Lower where files are authored,
+  // so a runaway nesting stops before it has built many rows.
+#ifdef WITH_RIVE_TOOLS
+  static constexpr uint32_t maxRowNesting = 16;
+#else
+  static constexpr uint32_t maxRowNesting = 64;
+#endif
+
   void draw(Renderer* renderer) override;
   bool willDraw() override;
   Core* hitTest(HitInfo*, const Mat2D&) override;
@@ -204,6 +218,10 @@ private:
   void poolListItem(const rcp<ViewModelInstanceListItem>& listItem);
   // Builds the row for the item at index, from the pool when one is there.
   void createOrReuseArtboardAt(int index);
+  // True when a row of source, built now, would nest in itself: past
+  // maxRowNesting, or inside a row of the same artboard that a list made
+  // from the same source as this one, whose rows would repeat it forever.
+  bool refusesNestedRow(const Artboard* source) const;
   // Destroys the pooled rows, state machines first.
   void releasePools();
   // Takes every row out of the list into the pools, as an update to no items
@@ -438,6 +456,9 @@ private:
   // Whether the rows were told the list is fully transparent, through their
   // host opacity. Any other opacity applies when the list draws them.
   bool m_rowsHidden = false;
+  // What the bound list comes from (see boundListSource); null when unbound
+  // or when a converter makes the list.
+  const Core* m_listSource = nullptr;
   /// Always paint / scroll order (ascending drawIndex when enabled).
   std::vector<int> m_cachedOrderedListIndices;
   std::unordered_map<

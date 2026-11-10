@@ -47,6 +47,9 @@ public:
   virtual void hostedRowWoke(Artboard* artboard, uint32_t row) {}
   // The artboard that contains this ArtboardHost
   virtual Artboard* parentArtboard() = 0;
+  // What the artboards this host shows were made from, when they are a list's
+  // rows: the list's bind source (see ArtboardComponentList::refusesNestedRow).
+  virtual const Core* hostedRowsSource() const { return nullptr; }
   virtual bool hitTestHost(
       const Vec2D& position,
       bool skipOnUnclipped,

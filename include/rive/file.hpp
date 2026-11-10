@@ -418,7 +418,22 @@ public:
   /// shared instances (see TextStyleShareCache).
   TextStyleShareCache& textStyleShares() const { return *m_textStyleShares; }
 
+  /// Rows this file's lists did not build because they would have nested in
+  /// themselves (see ArtboardComponentList::maxRowNesting). An editor that
+  /// sees it grow can tell its user why rows are missing.
+  uint32_t refusedNestedListRows() const
+  {
+    return m_refusedNestedListRows.load(std::memory_order_relaxed);
+  }
+  void noteRefusedNestedListRow()
+  {
+    m_refusedNestedListRows.fetch_add(1, std::memory_order_relaxed);
+  }
+
 private:
+  // Atomic: rows of one file can be built on several threads.
+  std::atomic<uint32_t> m_refusedNestedListRows{0};
+
   ImportResult read(BinaryReader&, const RuntimeHeader&);
   ImportResult readObjects(
       BinaryReader&,

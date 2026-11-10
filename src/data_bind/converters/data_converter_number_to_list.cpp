@@ -56,10 +56,7 @@ DataValue* DataConverterNumberToList::convert(
 
 void DataConverterNumberToList::clearItems()
 {
-  for (auto& item : m_listItems)
-  {
-    item->unref();
-  }
+  // The rcps let go of the items; lists still showing them keep their own.
   m_listItems.clear();
 }
 

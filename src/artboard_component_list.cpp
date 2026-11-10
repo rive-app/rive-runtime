@@ -39,6 +39,44 @@
 
 using namespace rive;
 
+namespace
+{
+// A row being built on this thread. Building a row binds it, and the lists
+// inside it build their rows during that bind, so the rows still being built
+// are exactly the ones on the stack: each links to the one it is built in.
+// A row's host is set only once its bind returns, so this chain is the only
+// record of where they nest. They live in the frames that build them, so
+// tracking them allocates nothing.
+struct RowBuild
+{
+  const Artboard* source;
+  const Core* listSource;
+  // The list building the row.
+  const ArtboardComponentList* list;
+  const RowBuild* outer;
+};
+thread_local const RowBuild* s_rowBuild = nullptr;
+
+class RowBuildScope
+{
+public:
+  RowBuildScope(
+      const Artboard* source,
+      const Core* listSource,
+      const ArtboardComponentList* list)
+      : m_build{source, listSource, list, s_rowBuild}
+  {
+    s_rowBuild = &m_build;
+  }
+  ~RowBuildScope() { s_rowBuild = m_build.outer; }
+  RowBuildScope(const RowBuildScope&) = delete;
+  RowBuildScope& operator=(const RowBuildScope&) = delete;
+
+private:
+  RowBuild m_build;
+};
+} // namespace
+
 namespace rive
 {
 /// Marks the hosting list dirty when a list item's drawIndex VM value changes.
@@ -1103,8 +1141,11 @@ void ArtboardComponentList::updateList(
         m_stateMachinesByIndex[index] = smItr->second.get();
       }
     }
-    else if (!virtualized)
+    else if (!virtualized && !refusesNestedRow(artboard))
     {
+      // What the row builds while it binds, and while its state machine
+      // enters its first state, nests in it.
+      RowBuildScope build(artboard, m_listSource, this);
       createOrReuseArtboardAt(index);
       // Enter the new row's initial state now, the way the settle pass would
       // a step later, so the first layout solve and text shape already see
@@ -1176,6 +1217,59 @@ static bool requietAfterMachine()
 #else
   return true;
 #endif
+}
+
+bool ArtboardComponentList::refusesNestedRow(const Artboard* source) const
+{
+  if (source == nullptr)
+  {
+    return false;
+  }
+  // A row of the same artboard, made from the same source, around this one:
+  // say a row whose own list is bound to the list that made it, found through
+  // the parent context. This row would hold the same rows that one does, this
+  // one among them, without end. Rows of an artboard nested in its own rows
+  // from other sources -- a tree, each row listing its children -- are left to
+  // the depth cap: their data can end. So are lists a converter makes, which
+  // report no source (see boundListSource).
+  auto repeats = [&](const Artboard* aroundSource,
+                     const Core* aroundListSource) {
+    return m_listSource != nullptr && aroundSource == source &&
+           aroundListSource == m_listSource;
+  };
+  uint32_t depth = 0;
+  bool refuses = false;
+  // First the rows around this one still being built, innermost first...
+  const ArtboardComponentList* outermost = this;
+  for (const RowBuild* build = s_rowBuild; build != nullptr && !refuses;
+       build = build->outer)
+  {
+    refuses = repeats(build->source, build->listSource) ||
+              ++depth >= maxRowNesting;
+    outermost = build->list;
+  }
+  // ...then the hosted artboards the outermost of them is in, up to the root.
+  // A row a virtualized list realizes on a later pass, or that a later data
+  // change builds, is built outside any other row's build, and nests in those
+  // alone. Only list rows count: the walk goes through nested artboards, but
+  // one can't nest itself, so it can't make a loop on its own.
+  for (const Artboard* around = outermost->artboard();
+       !refuses && around != nullptr && around->host() != nullptr;
+       around = around->host()->parentArtboard())
+  {
+    const ArtboardHost* host = around->host();
+    if (host->type() != ArtboardComponentListBase::typeKey)
+    {
+      continue;
+    }
+    refuses = repeats(around->artboardSource(), host->hostedRowsSource()) ||
+              ++depth >= maxRowNesting;
+  }
+  if (refuses && m_file != nullptr)
+  {
+    m_file->noteRefusedNestedListRow();
+  }
+  return refuses;
 }
 
 static size_t lowestSetBit(uint64_t bits)
@@ -2535,8 +2629,9 @@ void ArtboardComponentList::addVirtualizable(int index)
   if (listItem != nullptr)
   {
     auto artboard = findArtboard(listItem);
-    if (artboard != nullptr)
+    if (artboard != nullptr && !refusesNestedRow(artboard))
     {
+      RowBuildScope build(artboard, m_listSource, this);
       createArtboardRecorders(artboard);
       auto& pool = m_rowPool[artboard];
       if (pool.empty())
