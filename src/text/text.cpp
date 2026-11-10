@@ -1699,15 +1699,13 @@ TextStyleReference* Text::globalStyleReference(
   rcp<const File> crossFile;
   if (value->asset() != nullptr)
   {
-    auto artboard = value->asset()->artboard();
-    if (artboard != nullptr)
+    source = value->asset()->source()->artboardSource();
+    // A bindable over a source artboard (no instance) is this file's own.
+    auto instance = value->asset()->artboard();
+    auto assetFile = instance != nullptr ? instance->file() : nullptr;
+    if (assetFile != nullptr && assetFile.get() != m_file)
     {
-      source = artboard->artboardSource();
-      auto assetFile = artboard->file();
-      if (assetFile != nullptr && assetFile.get() != m_file)
-      {
-        crossFile = assetFile;
-      }
+      crossFile = assetFile;
     }
   }
   else if (m_file != nullptr && value->propertyValue() != (uint32_t)-1)

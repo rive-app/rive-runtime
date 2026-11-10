@@ -8,3 +8,5 @@ BindableArtboard::BindableArtboard(
     : m_file(file)
     , m_artboard(std::move(artboard))
 {}
+
+BindableArtboard::BindableArtboard(Artboard* source) : m_source(source) {}

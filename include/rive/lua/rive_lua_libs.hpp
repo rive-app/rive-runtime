@@ -2605,8 +2605,10 @@ private:
   rcp<T> m_key;
 };
 
-#ifdef WITH_RIVE_SCRIPTNET
-// ── Decoded Rive files (context:decodeFile) ────────────────────────────────
+// ── Bindable artboards and decoded Rive files ──────────────────────────────
+//
+// The artboard property, BindableArtboard and context:bindableArtboard need
+// no networking; only context:decodeFile does (WITH_RIVE_SCRIPTNET).
 
 class BindableArtboard;
 class ViewModelInstanceArtboard;
@@ -2627,8 +2629,9 @@ public:
 };
 
 /// An artboard of a decoded file, with an instance of the view model its
-/// binds read from that same file. Assigning it to a view model artboard
-/// property binds both.
+/// binds read from that same file, or one of the host file's own artboards
+/// from context:bindableArtboard, with none. Assigning it to a view model
+/// artboard property binds both.
 class ScriptedBindableArtboard
 {
 public:
@@ -2665,7 +2668,6 @@ public:
   /// Assigns the BindableArtboard (or nil) at valueIdx.
   void setValue(lua_State* L, int valueIdx);
 };
-#endif
 
 class ScriptedContext
 {

@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "dd65124c46874cfe"
+#define RIVE_BINDINGS_V1_CONTRACT "ef6a8f497148090e"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -890,6 +890,8 @@ RIVE_BINDING_IMPORT("rive_file_v1", "bindable_name")
 uint32_t rive_file_bindable_name(uint32_t bindable, char* buffer, uint32_t capacity);
 RIVE_BINDING_IMPORT("rive_file_v1", "bindable_data")
 uint32_t rive_file_bindable_data(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "host_bindable")
+uint32_t rive_file_host_bindable(uint32_t object, const char* name, uint32_t nameLength, uint32_t useDefault);
 RIVE_BINDING_IMPORT("rive_file_v1", "bindable_equal")
 uint32_t rive_file_bindable_equal(uint32_t a, uint32_t b);
 

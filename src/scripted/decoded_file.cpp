@@ -39,3 +39,12 @@ DecodedBindable rive::decodedBindable(const File& file, const char* name)
   }
   return bindable;
 }
+
+rcp<BindableArtboard> rive::hostBindableArtboard(
+    const File& file,
+    const char* name)
+{
+  Artboard* artboard = name != nullptr ? file.artboard(std::string(name))
+                                       : file.artboard();
+  return artboard != nullptr ? make_rcp<BindableArtboard>(artboard) : nullptr;
+}

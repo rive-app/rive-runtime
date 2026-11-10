@@ -34,9 +34,9 @@ int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
 int luaopen_rive_audio(lua_State* L);
+int luaopen_rive_file(lua_State* L);
 #ifdef WITH_RIVE_SCRIPTNET
 int luaopen_rive_scriptnet(lua_State* L);
-int luaopen_rive_file(lua_State* L);
 #endif
 extern "C" int luaopen_rive_buffer_ext(lua_State* L);
 
@@ -60,9 +60,9 @@ static const luaL_Reg lualibs[] = {
     {"dataContext", luaopen_rive_data_context},
     {"audio", luaopen_rive_audio},
     {"promise", luaopen_rive_promise},
+    {"riveFile", luaopen_rive_file},
 #ifdef WITH_RIVE_SCRIPTNET
     {"scriptnet", luaopen_rive_scriptnet},
-    {"riveFile", luaopen_rive_file},
 #endif
     {NULL, NULL},
 };

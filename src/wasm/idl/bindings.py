@@ -1208,7 +1208,9 @@ NAMESPACES = [
         op('fetch_cancel', [u32('token')]),
     ]),
     # context:decodeFile and what it returns: decoded files and their
-    # bindable artboards are host objects behind handles.
+    # bindable artboards are host objects behind handles. The bindable ops
+    # and host_bindable need no networking; decode answers unavailable
+    # without it.
     ns('rive_file_v1', 'file', [
         # 0 when no file results, with statusOut[0] set to the
         # FileDecodeWire status saying why.
@@ -1233,6 +1235,12 @@ NAMESPACES = [
         # The instance of the artboard's own view model as a rive_data_v1
         # vmi handle; 0 when the artboard has none.
         op('bindable_data', [handle('bindable')], ret='u32'),
+        # One of the script's own file's artboards (context.bindableArtboard),
+        # by name or the default artboard when useDefault is set, pinned to
+        # no file and with no view model of its own, so a host binds it as
+        # it binds an authored artboard id; 0 when absent.
+        op('host_bindable', [handle('object'), string('name', 'nameLength'),
+                             u32('useDefault')], ret='u32'),
         # Both handles carry the same bindable artboard.
         op('bindable_equal', [handle('a'), handle('b')], ret='u32'),
     ]),

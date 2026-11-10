@@ -15,11 +15,9 @@
 #include "rive/viewmodel/viewmodel_instance_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_blob.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_blob.hpp"
-#ifdef WITH_RIVE_SCRIPTNET
 #include "rive/bindable_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_property_artboard.hpp"
-#endif
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -135,7 +133,6 @@ static void pushViewModelInstanceValue(
           ref_rcp(propValue->as<ViewModelInstanceAssetBlob>()));
       break;
     }
-#ifdef WITH_RIVE_SCRIPTNET
     case ViewModelInstanceArtboardBase::typeKey:
     {
       lua_newrive<ScriptedPropertyArtboard>(
@@ -144,7 +141,6 @@ static void pushViewModelInstanceValue(
           ref_rcp(propValue->as<ViewModelInstanceArtboard>()));
       break;
     }
-#endif
     default:
       lua_pushnil(L);
       break;
@@ -506,9 +502,7 @@ static ScriptedProperty* scriptedPropertyOrNull(lua_State* L, int idx)
     case ScriptedPropertyImage::luaTag:
     case ScriptedPropertyFont::luaTag:
     case ScriptedPropertyBlob::luaTag:
-#ifdef WITH_RIVE_SCRIPTNET
     case ScriptedPropertyArtboard::luaTag:
-#endif
       return (ScriptedProperty*)lua_touserdata(L, idx);
     case ScriptedPropertyViewModel::luaTag:
       // Two bases, so the upcast goes through the concrete type rather
@@ -605,11 +599,9 @@ int ScriptedViewModel::pushValue(lua_State* L, const char* name, int coreType)
         case ViewModelPropertySymbolListIndexBase::typeKey:
           lua_pushinteger(L, 1);
           break;
-#ifdef WITH_RIVE_SCRIPTNET
         case ViewModelPropertyArtboardBase::typeKey:
           lua_newrive<ScriptedPropertyArtboard>(L, L, nullptr);
           break;
-#endif
         default:
           lua_pushnil(L);
           break;
@@ -1050,7 +1042,6 @@ static int vm_namecall(lua_State* L)
         assert(vm->state() == lua_mainthread(L));
         return vm->pushValue(L, name, ViewModelInstanceAssetBlobBase::typeKey);
       }
-#ifdef WITH_RIVE_SCRIPTNET
       case (int)LuaAtoms::getArtboard:
       {
         size_t namelen = 0;
@@ -1058,7 +1049,6 @@ static int vm_namecall(lua_State* L)
         assert(vm->state() == lua_mainthread(L));
         return vm->pushValue(L, name, ViewModelInstanceArtboardBase::typeKey);
       }
-#endif
       case (int)LuaAtoms::instance:
       case (int)LuaAtoms::newAtom:
       {
@@ -1142,11 +1132,9 @@ static int property_namecall(lua_State* L)
       case ScriptedPropertyBlob::luaTag:
         name = ScriptedPropertyBlob::luaName;
         break;
-#ifdef WITH_RIVE_SCRIPTNET
       case ScriptedPropertyArtboard::luaTag:
         name = ScriptedPropertyArtboard::luaName;
         break;
-#endif
       default:
         luaL_typeerror(L, 1, name);
         break;
@@ -1663,7 +1651,6 @@ int ScriptedPropertyBlob::pushValue(lua_State* L)
   return 1;
 }
 
-#ifdef WITH_RIVE_SCRIPTNET
 ScriptedPropertyArtboard::ScriptedPropertyArtboard(
     lua_State* L,
     rcp<ViewModelInstanceArtboard> value)
@@ -1710,7 +1697,6 @@ int ScriptedPropertyArtboard::pushValue(lua_State* L)
   m_cachedValueRef = lua_ref(L, -1);
   return 1;
 }
-#endif
 
 int ScriptedEnumValues::pushValue(lua_State* L, int index)
 {
@@ -2219,7 +2205,6 @@ static int property_blob_newindex(lua_State* L)
   return 0;
 }
 
-#ifdef WITH_RIVE_SCRIPTNET
 static int property_artboard_index(lua_State* L)
 {
   int atom;
@@ -2262,7 +2247,6 @@ static int property_artboard_newindex(lua_State* L)
   }
   return 0;
 }
-#endif
 
 static int vm_eq(lua_State* L)
 {
@@ -2481,7 +2465,6 @@ int luaopen_rive_properties(lua_State* L)
     lua_pop(L, 1); // pop the metatable
   }
 
-#ifdef WITH_RIVE_SCRIPTNET
   {
     lua_register_rive<ScriptedPropertyArtboard>(L);
 
@@ -2497,7 +2480,6 @@ int luaopen_rive_properties(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
   }
-#endif
 
   {
     lua_register_rive<ScriptedEnumValues>(L);

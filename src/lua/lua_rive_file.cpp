@@ -1,6 +1,8 @@
-#if defined(WITH_RIVE_SCRIPTING) && defined(WITH_RIVE_SCRIPTNET)
+#ifdef WITH_RIVE_SCRIPTING
 
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/scripted/scripted_object.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "rive/artboard.hpp"
 #include "rive/bindable_artboard.hpp"
 #include "rive/file.hpp"
@@ -122,7 +124,7 @@ int bindableArtboardIndex(lua_State* L)
   {
     case (int)LuaAtoms::name:
     {
-      const std::string& name = self->artboard->artboard()->name();
+      const std::string& name = self->artboard->source()->name();
       lua_pushlstring(L, name.data(), name.size());
       return 1;
     }
@@ -149,6 +151,36 @@ int bindableArtboardEq(lua_State* L)
 }
 } // namespace
 
+// ── context:bindableArtboard(name) ─────────────────────────────────────────
+
+// One of the script's own file's artboards, the way RiveFile:bindableArtboard
+// answers a decoded file's, but with no view model of its own: the host binds
+// it as it binds an authored artboard id.
+int context_bindableArtboard_impl(lua_State* L)
+{
+  const char* artboardName = lua_isnoneornil(L, 2) ? nullptr
+                                                   : luaL_checkstring(L, 2);
+  auto* context = lua_torive<ScriptedContext>(L, 1);
+  auto* object = context != nullptr ? context->scriptedObject() : nullptr;
+  auto* scriptAsset = object != nullptr ? object->scriptAsset() : nullptr;
+  File* file = scriptAsset != nullptr ? scriptAsset->file() : nullptr;
+  if (file == nullptr)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+  auto* bindable = lua_newrive<ScriptedBindableArtboard>(L);
+  bindable->artboard = hostBindableArtboard(*file, artboardName);
+  if (bindable->artboard == nullptr)
+  {
+    lua_pop(L, 1);
+    lua_pushnil(L);
+    return 1;
+  }
+  return 1;
+}
+
+#ifdef WITH_RIVE_SCRIPTNET
 // ── context:decodeFile(data) ───────────────────────────────────────────────
 
 // Decodes on the calling thread: import calls into the Factory and runs the
@@ -216,6 +248,7 @@ int context_decodeFile_impl(lua_State* L)
   lua_pushvalue(L, promiseIdx);
   return 1;
 }
+#endif
 
 int luaopen_rive_file(lua_State* L)
 {

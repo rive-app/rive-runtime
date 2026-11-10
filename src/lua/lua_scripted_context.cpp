@@ -681,6 +681,13 @@ static int context_namecall(lua_State* L)
         return context_loadImage_impl(L);
       }
 
+      case (int)LuaAtoms::bindableArtboard:
+      {
+        // Defined in lua_rive_file.cpp.
+        extern int context_bindableArtboard_impl(lua_State * L);
+        return context_bindableArtboard_impl(L);
+      }
+
 #ifdef WITH_RIVE_SCRIPTNET
       case (int)LuaAtoms::decodeFile:
       {

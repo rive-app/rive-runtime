@@ -1657,6 +1657,12 @@ uint32_t rive_web_file_bindable_data(uint32_t vmHandle, uint32_t bindable)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return fileBindableDataImpl(vm, bindable);
 }
+uint32_t rive_web_file_host_bindable(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileHostBindableImpl(vm, object, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
 uint32_t rive_web_file_bindable_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2280,6 +2286,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_file_bindable_release,
     (void*)rive_web_file_bindable_name,
     (void*)rive_web_file_bindable_data,
+    (void*)rive_web_file_host_bindable,
     (void*)rive_web_file_bindable_equal,
     (void*)rive_web_lanes_start,
     (void*)rive_web_lanes_state,

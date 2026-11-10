@@ -9271,12 +9271,13 @@ uint32_t blobAssetBytesImpl(
   return (uint32_t)bytes.size();
 }
 
-// --- rive_file_v1 and artboard properties: context:decodeFile ---------------
+// --- rive_file_v1 and artboard properties -----------------------------------
 //
-// The Luau lane's decodeFile, RiveFile, BindableArtboard and
-// Property<BindableArtboard> (lua_rive_file.cpp, ScriptedPropertyArtboard),
-// with the file and its bindables held host side. Like the Luau lane they
-// exist only where fetch() does; elsewhere every op answers none.
+// The Luau lane's decodeFile, RiveFile, BindableArtboard,
+// context:bindableArtboard and Property<BindableArtboard> (lua_rive_file.cpp,
+// ScriptedPropertyArtboard), with the file and its bindables held host side.
+// Like the Luau lane, only decodeFile needs fetch()'s build; elsewhere it
+// answers unavailable while the host file's own artboards still bind.
 
 struct HostRiveFile
 {
@@ -9433,7 +9434,7 @@ uint32_t fileBindableNameImpl(
   }
   return fillModuleString(
       vm,
-      host->artboard->artboard()->name(),
+      host->artboard->source()->name(),
       buffer,
       capacity);
 }
@@ -9460,25 +9461,51 @@ uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
              : 0;
 }
 
+// context.bindableArtboard: one of the script's own file's artboards, with no
+// view model of its own, so the host binds it as an authored artboard id.
+uint32_t fileHostBindableImpl(
+    WasmScriptingVM* vm,
+    uint32_t objectHandle,
+    const char* name,
+    uint32_t nameLength,
+    uint32_t useDefault)
+{
+  if (vm == nullptr)
+  {
+    return 0;
+  }
+  auto object = static_cast<ScriptedObject*>(vm->handles().resolve(
+      objectHandle,
+      WasmScriptingVM::HandleTable::Tag::object));
+  if (object == nullptr || object->scriptAsset() == nullptr ||
+      object->scriptAsset()->file() == nullptr)
+  {
+    return 0;
+  }
+  std::string named(name, nameLength);
+  auto bindable = hostBindableArtboard(
+      *object->scriptAsset()->file(),
+      useDefault != 0 ? nullptr : named.c_str());
+  if (bindable == nullptr)
+  {
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::bindableArtboard,
+      new HostBindableArtboard{std::move(bindable), nullptr});
+}
+
 uint32_t dataVmiArtboardImpl(
     WasmScriptingVM* vm,
     uint32_t vmiHandle,
     const char* name,
     uint32_t length)
 {
-#ifdef WITH_RIVE_SCRIPTNET
   return mintInstanceValue<ViewModelInstanceArtboard>(
       vm,
       vmiHandle,
       name,
       length);
-#else
-  (void)vm;
-  (void)vmiHandle;
-  (void)name;
-  (void)length;
-  return 0;
-#endif
 }
 
 // Mirrors ScriptedPropertyArtboard::pushValue: nil while the property names

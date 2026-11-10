@@ -22,10 +22,10 @@ Artboard* ArtboardReferencer::findArtboard(
   }
   if (viewModelInstanceArtboard->asset() != nullptr)
   {
-    if (!parentArtboard || !parentArtboard->isAncestor(
-                               viewModelInstanceArtboard->asset()->artboard()))
+    Artboard* source = viewModelInstanceArtboard->asset()->source();
+    if (!parentArtboard || !parentArtboard->isAncestor(source))
     {
-      return viewModelInstanceArtboard->asset()->artboard();
+      return source;
     }
     return nullptr;
   }
