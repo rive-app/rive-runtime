@@ -1,0 +1,105 @@
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index b993f1c..0bbb109 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -9334,6 +9334,46 @@ fail:
+         || (last_op == WASM_OP_F64_REINTERPRET_I64)                            \
+         || (last_op == EXT_OP_COPY_STACK_TOP_I64)
+ 
++#if WASM_ENABLE_SIMDE != 0
++/* rive: whether a simd op's code ends with a v128 dst, which a following
++   local.set or local.tee can retarget like a scalar producer's */
++static bool
++simd_op_outputs_v128(uint32 op)
++{
++    switch (op) {
++        case SIMD_v128_store:
++        case SIMD_i8x16_extract_lane_s:
++        case SIMD_i8x16_extract_lane_u:
++        case SIMD_i16x8_extract_lane_s:
++        case SIMD_i16x8_extract_lane_u:
++        case SIMD_i32x4_extract_lane:
++        case SIMD_i64x2_extract_lane:
++        case SIMD_f32x4_extract_lane:
++        case SIMD_f64x2_extract_lane:
++        case SIMD_v128_any_true:
++        case SIMD_v128_store8_lane:
++        case SIMD_v128_store16_lane:
++        case SIMD_v128_store32_lane:
++        case SIMD_v128_store64_lane:
++        case SIMD_i8x16_all_true:
++        case SIMD_i8x16_bitmask:
++        case SIMD_i16x8_all_true:
++        case SIMD_i16x8_bitmask:
++        case SIMD_i32x4_all_true:
++        case SIMD_i32x4_bitmask:
++        case SIMD_i64x2_all_true:
++        case SIMD_i64x2_bitmask:
++            return false;
++        default:
++            /* past a byte the op keeps the prefix encoding */
++            return op <= UINT8_MAX;
++    }
++}
++
++#define LAST_OP_OUTPUT_V128() \
++    (last_op == WASM_OP_SIMD_PREFIX && simd_op_outputs_v128(last_simd_op))
++#endif
++
+ #define GET_CONST_OFFSET(type, val)                                    \
+     do {                                                               \
+         if (!(wasm_loader_get_const_offset(loader_ctx, type, &val,     \
+@@ -11775,6 +11815,9 @@ wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
+ #if WASM_ENABLE_FAST_INTERP != 0
+     int16 operand_offset = 0;
+     uint8 last_op = 0;
++#if WASM_ENABLE_SIMDE != 0
++    uint32 last_simd_op = 0;
++#endif
+ #if WASM_LOADER_FUSE_ARITH != 0
+     /* pending fusable producer: its opcode, dst slot, and how many single
+        cell pushes (consts / local gets) landed above it since */
+@@ -14091,6 +14134,16 @@ re_scan:
+                         loader_ctx->frame_offset -= 2;
+                         loader_ctx->dynamic_offset -= 2;
+                     }
++#if WASM_ENABLE_SIMDE != 0
++                    else if ((!preserve_local) && local_type == VALUE_TYPE_V128
++                             && LAST_OP_OUTPUT_V128()) {
++                        if (loader_ctx->p_code_compiled)
++                            STORE_U16(loader_ctx->p_code_compiled - 2,
++                                      local_offset);
++                        loader_ctx->frame_offset -= 4;
++                        loader_ctx->dynamic_offset -= 4;
++                    }
++#endif
+                     else {
+                         if (is_32bit_type(local_type)) {
+                             emit_label(EXT_OP_SET_LOCAL_FAST);
+@@ -14200,6 +14253,16 @@ re_scan:
+                         loader_ctx->dynamic_offset -= 2;
+                     }
+ #if WASM_ENABLE_SIMDE != 0
++                    else if ((!preserve_local)
++                             && !cur_block->is_stack_polymorphic
++                             && local_type == VALUE_TYPE_V128
++                             && LAST_OP_OUTPUT_V128()) {
++                        if (loader_ctx->p_code_compiled)
++                            STORE_U16(loader_ctx->p_code_compiled - 2,
++                                      local_offset);
++                        *(loader_ctx->frame_offset - 4) = (int16)local_offset;
++                        loader_ctx->dynamic_offset -= 4;
++                    }
+                     else if (local_type == VALUE_TYPE_V128) {
+                         emit_label(EXT_OP_TEE_LOCAL_FAST_V128);
+                         emit_byte(loader_ctx, (uint8)local_offset);
+@@ -16361,6 +16424,9 @@ re_scan:
+ 
+                 pb_read_leb_uint32(p, p_end, opcode1);
+ 
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_ENABLE_SIMDE != 0
++                last_simd_op = opcode1;
++#endif
+ #if WASM_ENABLE_FAST_INTERP != 0
+ #if WASM_ENABLE_LABELS_AS_VALUES != 0 && WASM_ENABLE_SIMDE != 0
+                 /* rive patch: the sub op's own label replaces the prefix

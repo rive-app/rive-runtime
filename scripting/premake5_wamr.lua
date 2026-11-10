@@ -110,6 +110,11 @@ do
     -- Compiled code may call the host with only this guard of stack left,
     -- and WAMR's 1 to 3 KB default cannot hold a printf.
     defines({ 'WASM_STACK_GUARD_SIZE=65536' })
+    -- Fused float pairs must round twice, like the wasm ops they replace;
+    -- clang-cl under msbuild never contracts across statements anyway.
+    filter({ 'action:not vs*' })
+    buildoptions({ '-ffp-contract=off' })
+    filter({})
     -- Replicated per-handler dispatch is what makes the fast interpreter
     -- fast; default heuristics tail-merge the computed gotos into a single
     -- indirect branch (+27% on box2d). Guarded by bench/check_dispatch_sites.

@@ -1,0 +1,237 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index 1597457..307f200 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1642,6 +1642,7 @@ wasm_interp_dump_op_count()
+ 
+ #if WASM_ENABLE_LABELS_AS_VALUES != 0
+ static void **global_handle_table;
++static void **global_f32_pair_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+ static void **global_simd_handle_table;
+ #endif
+@@ -2003,7 +2004,20 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+         [SIMD_f64x2_convert_low_i32x4_u] = &&HANDLE_SIMD_SIMD_f64x2_convert_low_i32x4_u,
+     };
+ #endif
++    /* rive: fused f32 pairs, in a table of their own as the opcode space is
++       full. Entry producer * 4 + consumer, producers add, sub, mul and load,
++       consumers add, sub with the producer as lhs, sub with it as rhs and
++       mul. */
++    static const void *f32_pair_handle_table[16] = {
++        &&F32_PAIR_ADD_ADD,  &&F32_PAIR_ADD_SUB,  &&F32_PAIR_ADD_RSUB,
++        &&F32_PAIR_ADD_MUL,  &&F32_PAIR_SUB_ADD,  &&F32_PAIR_SUB_SUB,
++        &&F32_PAIR_SUB_RSUB, &&F32_PAIR_SUB_MUL,  &&F32_PAIR_MUL_ADD,
++        &&F32_PAIR_MUL_SUB,  &&F32_PAIR_MUL_RSUB, &&F32_PAIR_MUL_MUL,
++        &&F32_PAIR_LOAD_ADD, &&F32_PAIR_LOAD_SUB, &&F32_PAIR_LOAD_RSUB,
++        &&F32_PAIR_LOAD_MUL,
++    };
+     if (exec_env == NULL) {
++        global_f32_pair_handle_table = (void **)f32_pair_handle_table;
+         global_handle_table = (void **)handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+         global_simd_handle_table = (void **)simd_handle_table;
+@@ -2256,6 +2270,55 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                 HANDLE_OP_END();
+             }
+ 
++#if WASM_ENABLE_LABELS_AS_VALUES != 0
++/* rive: t is the producer's result and c the consumer's other operand,
++   rounded twice like the pair. Of two NaN inputs, add and mul may return
++   the other one, which wasm allows. */
++#define F32_PAIR_EXPR_ADD (c + t)
++#define F32_PAIR_EXPR_SUB (t - c)
++#define F32_PAIR_EXPR_RSUB (c - t)
++#define F32_PAIR_EXPR_MUL (c * t)
++#define DEF_F32_PAIR(producer, op, consumer)                              \
++    F32_PAIR_##producer##_##consumer:                                     \
++    {                                                                     \
++        float32 t =                                                       \
++            GET_OPERAND(float32, F32, 2) op GET_OPERAND(float32, F32, 0); \
++        float32 c = GET_OPERAND(float32, F32, 4);                         \
++        SET_OPERAND(F32, 6, F32_PAIR_EXPR_##consumer);                    \
++        frame_ip += 8;                                                    \
++        HANDLE_OP_END();                                                  \
++    }
++#define DEF_F32_LOAD_PAIR(consumer)                                   \
++    F32_PAIR_LOAD_##consumer:                                         \
++    {                                                                 \
++        uint32 offset, addr, bits;                                    \
++        float32 t, c;                                                 \
++        offset = read_uint32(frame_ip);                               \
++        addr = GET_OPERAND(uint32, I32, 0);                           \
++        c = GET_OPERAND(float32, F32, 2);                             \
++        frame_ip += 4;                                                \
++        addr_ret = GET_OFFSET();                                      \
++        CHECK_MEMORY_OVERFLOW(4);                                     \
++        bits = LOAD_I32(maddr);                                       \
++        memcpy(&t, &bits, sizeof(t));                                 \
++        *(float32 *)(frame_lp + addr_ret) = F32_PAIR_EXPR_##consumer; \
++        HANDLE_OP_END();                                              \
++    }
++#define DEF_F32_PAIRS(producer, op)  \
++    DEF_F32_PAIR(producer, op, ADD)  \
++    DEF_F32_PAIR(producer, op, SUB)  \
++    DEF_F32_PAIR(producer, op, RSUB) \
++    DEF_F32_PAIR(producer, op, MUL)
++
++            DEF_F32_PAIRS(ADD, +)
++            DEF_F32_PAIRS(SUB, -)
++            DEF_F32_PAIRS(MUL, *)
++            DEF_F32_LOAD_PAIR(ADD)
++            DEF_F32_LOAD_PAIR(SUB)
++            DEF_F32_LOAD_PAIR(RSUB)
++            DEF_F32_LOAD_PAIR(MUL)
++#endif
++
+             HANDLE_OP(EXT_OP_I32_LOAD_ADD)
+             {
+                 uint32 offset, addr;
+@@ -8497,6 +8560,13 @@ wasm_interp_get_handle_table(void)
+     return global_handle_table;
+ }
+ 
++void **
++wasm_interp_get_f32_pair_handle_table(void)
++{
++    wasm_interp_get_handle_table();
++    return global_f32_pair_handle_table;
++}
++
+ #if WASM_ENABLE_SIMDE != 0
+ void **
+ wasm_interp_get_simd_handle_table(void)
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index 0bbb109..0e631e6 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -6116,6 +6116,10 @@ void **
+ wasm_interp_get_handle_table(void);
+ 
+ static void **handle_table;
++void **
++wasm_interp_get_f32_pair_handle_table(void);
++
++static void **f32_pair_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+ void **
+ wasm_interp_get_simd_handle_table(void);
+@@ -6498,6 +6502,7 @@ load_from_sections(WASMModule *module, WASMSection *sections,
+ 
+ #if WASM_ENABLE_FAST_INTERP != 0 && WASM_ENABLE_LABELS_AS_VALUES != 0
+     handle_table = wasm_interp_get_handle_table();
++    f32_pair_handle_table = wasm_interp_get_f32_pair_handle_table();
+ #if WASM_ENABLE_SIMDE != 0
+     simd_handle_table = wasm_interp_get_simd_handle_table();
+ #endif
+@@ -9687,6 +9692,17 @@ wasm_loader_fuse_pop_offsets(WASMLoaderContext *ctx, uint32 cells)
+             ctx->dynamic_offset--;
+     }
+ }
++
++/* rive: entry of a fused float pair in the interpreter's pair tables. The
++   producer is add 0, sub 1, mul 2 or load 3; a sub consumer takes the
++   producer as lhs when a push landed above it, else as rhs. */
++static uint32
++fused_pair_index(uint32 producer, bool consumer_add, bool consumer_mul,
++                 uint8 depth)
++{
++    uint32 consumer = consumer_add ? 0 : consumer_mul ? 3 : depth ? 1 : 2;
++    return producer * 4 + consumer;
++}
+ #endif
+ 
+ static bool
+@@ -14543,7 +14559,8 @@ re_scan:
+                 }
+ #if WASM_ENABLE_FAST_INTERP != 0
+ #if WASM_LOADER_FUSE_ARITH != 0
+-                if (opcode == WASM_OP_I32_LOAD
++                /* rive: an f32 load copies the same four bytes */
++                if ((opcode == WASM_OP_I32_LOAD || opcode == WASM_OP_F32_LOAD)
+                     && fuse_prod_op == WASM_OP_I32_ADD && fuse_prod_depth == 0
+                     && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
+                     && loader_ctx->stack_cell_num
+@@ -14560,7 +14577,10 @@ re_scan:
+                     emit_uint32(loader_ctx, mem_offset);
+                     wasm_loader_fuse_pop_offsets(loader_ctx, 1);
+                     POP_TYPE(VALUE_TYPE_I32);
+-                    PUSH_I32();
++                    if (opcode == WASM_OP_F32_LOAD)
++                        PUSH_F32();
++                    else
++                        PUSH_I32();
+                     fuse_suppress = true;
+ #if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
+                     func->has_memory_operations = true;
+@@ -14910,6 +14930,45 @@ re_scan:
+             case WASM_OP_F32_ADD:
+             case WASM_OP_F32_SUB:
+             case WASM_OP_F32_MUL:
++#if WASM_LOADER_FUSE_ARITH != 0
++                if ((fuse_prod_op == WASM_OP_F32_ADD
++                     || fuse_prod_op == WASM_OP_F32_SUB
++                     || fuse_prod_op == WASM_OP_F32_MUL
++                     || fuse_prod_op == WASM_OP_F32_LOAD)
++                    && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                    && loader_ctx->stack_cell_num
++                               - (loader_ctx->frame_csp - 1)->stack_cell_num
++                           >= 2
++                    && *(loader_ctx->frame_offset - 1 - fuse_prod_depth)
++                           == fuse_prod_off) {
++                    /* the f32 opcodes run add, sub, mul */
++                    uint32 producer = fuse_prod_op == WASM_OP_F32_LOAD
++                                          ? 3
++                                          : fuse_prod_op - WASM_OP_F32_ADD;
++                    skip_label();
++                    if (loader_ctx->p_code_compiled) {
++                        /* as the arith pairs: the producer's label becomes
++                           the pair's and its dst slot the other operand */
++                        uint32 prod_bytes = producer == 3 ? 8 : 6;
++                        int16 other_off =
++                            *(loader_ctx->frame_offset - 2 + fuse_prod_depth);
++                        *(void **)(loader_ctx->p_code_compiled - prod_bytes
++                                   - sizeof(void *)) =
++                            f32_pair_handle_table[fused_pair_index(
++                                producer, opcode == WASM_OP_F32_ADD,
++                                opcode == WASM_OP_F32_MUL, fuse_prod_depth)];
++                        STORE_U16(loader_ctx->p_code_compiled - 2,
++                                  (uint16)other_off);
++                    }
++                    wasm_loader_fuse_pop_offsets(loader_ctx, 2);
++                    POP_TYPE(VALUE_TYPE_F32);
++                    POP_TYPE(VALUE_TYPE_F32);
++                    PUSH_F32();
++                    fuse_suppress = true;
++                    break;
++                }
++#endif
++                /* fall through */
+             case WASM_OP_F32_DIV:
+             case WASM_OP_F32_MIN:
+             case WASM_OP_F32_MAX:
+@@ -17321,6 +17380,10 @@ re_scan:
+                 case WASM_OP_I32_SHR_U:
+                 case WASM_OP_I32_LOAD:
+                 case WASM_OP_I32_LOAD8_U:
++                case WASM_OP_F32_ADD:
++                case WASM_OP_F32_SUB:
++                case WASM_OP_F32_MUL:
++                case WASM_OP_F32_LOAD:
+                     if (!(loader_ctx->frame_csp - 1)->is_stack_polymorphic
+                         && loader_ctx->stack_cell_num
+                                > (loader_ctx->frame_csp - 1)->stack_cell_num) {
+@@ -17332,11 +17395,13 @@ re_scan:
+                         fuse_prod_op = 0;
+                     break;
+                 case WASM_OP_I32_CONST:
++                case WASM_OP_F32_CONST:
+                 case WASM_OP_GET_LOCAL:
+                     /* the rewrite expects the producer to be the last code
+                        emitted, which an inlined constant is not */
+                     if (fuse_prod_depth == 0 && disable_emit
+                         && (opcode == WASM_OP_I32_CONST
++                            || opcode == WASM_OP_F32_CONST
+                             || is_32bit_type(local_type)))
+                         fuse_prod_depth = 1;
+                     else

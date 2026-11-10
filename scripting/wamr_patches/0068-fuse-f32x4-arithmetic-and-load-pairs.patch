@@ -1,0 +1,248 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index 307f200..f91298b 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1645,6 +1645,7 @@ static void **global_handle_table;
+ static void **global_f32_pair_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+ static void **global_simd_handle_table;
++static void **global_f32x4_pair_handle_table;
+ #endif
+ #endif
+ 
+@@ -2016,7 +2017,21 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+         &&F32_PAIR_LOAD_ADD, &&F32_PAIR_LOAD_SUB, &&F32_PAIR_LOAD_RSUB,
+         &&F32_PAIR_LOAD_MUL,
+     };
++#if WASM_ENABLE_SIMDE != 0
++    /* rive: fused f32x4 pairs, laid out as f32_pair_handle_table */
++    static const void *f32x4_pair_handle_table[16] = {
++        &&F32X4_PAIR_ADD_ADD,  &&F32X4_PAIR_ADD_SUB,  &&F32X4_PAIR_ADD_RSUB,
++        &&F32X4_PAIR_ADD_MUL,  &&F32X4_PAIR_SUB_ADD,  &&F32X4_PAIR_SUB_SUB,
++        &&F32X4_PAIR_SUB_RSUB, &&F32X4_PAIR_SUB_MUL,  &&F32X4_PAIR_MUL_ADD,
++        &&F32X4_PAIR_MUL_SUB,  &&F32X4_PAIR_MUL_RSUB, &&F32X4_PAIR_MUL_MUL,
++        &&F32X4_PAIR_LOAD_ADD, &&F32X4_PAIR_LOAD_SUB, &&F32X4_PAIR_LOAD_RSUB,
++        &&F32X4_PAIR_LOAD_MUL,
++    };
++#endif
+     if (exec_env == NULL) {
++#if WASM_ENABLE_SIMDE != 0
++        global_f32x4_pair_handle_table = (void **)f32x4_pair_handle_table;
++#endif
+         global_f32_pair_handle_table = (void **)f32_pair_handle_table;
+         global_handle_table = (void **)handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+@@ -8004,6 +8019,62 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                         SIMD_DOUBLE_OP(simde_wasm_f32x4_mul);
+                         HANDLE_SIMD_OP_END();
+                     }
++
++#if WASM_ENABLE_LABELS_AS_VALUES != 0
++/* rive: the f32 pairs' rules, lane wise */
++#define F32X4_PAIR_EXPR_ADD simde_wasm_f32x4_add(c, t)
++#define F32X4_PAIR_EXPR_SUB simde_wasm_f32x4_sub(t, c)
++#define F32X4_PAIR_EXPR_RSUB simde_wasm_f32x4_sub(c, t)
++#define F32X4_PAIR_EXPR_MUL simde_wasm_f32x4_mul(c, t)
++#define PUT_F32X4_PAIR(consumer)                                \
++    do {                                                        \
++        simde_v128_t simde_result = F32X4_PAIR_EXPR_##consumer; \
++        V128 result;                                            \
++        SIMDE_V128_TO_SIMD_V128(simde_result, result);          \
++        PUT_V128_TO_ADDR(frame_lp + addr_ret, result);          \
++    } while (0)
++#define DEF_F32X4_PAIR(producer, simde_func, consumer)            \
++    F32X4_PAIR_##producer##_##consumer:                           \
++    {                                                             \
++        V128 v2 = POP_V128();                                     \
++        V128 v1 = POP_V128();                                     \
++        V128 v3 = POP_V128();                                     \
++        addr_ret = GET_OFFSET();                                  \
++        simde_v128_t t = simde_func(SIMD_V128_TO_SIMDE_V128(v1),  \
++                                    SIMD_V128_TO_SIMDE_V128(v2)); \
++        simde_v128_t c = SIMD_V128_TO_SIMDE_V128(v3);             \
++        PUT_F32X4_PAIR(consumer);                                 \
++        HANDLE_OP_END();                                          \
++    }
++#define DEF_F32X4_LOAD_PAIR(consumer)                     \
++    F32X4_PAIR_LOAD_##consumer:                           \
++    {                                                     \
++        uint32 offset, addr;                              \
++        offset = read_uint32(frame_ip);                   \
++        addr = POP_I32();                                 \
++        V128 v3 = POP_V128();                             \
++        addr_ret = GET_OFFSET();                          \
++        CHECK_MEMORY_OVERFLOW(16);                        \
++        V128 loaded = LOAD_V128(maddr);                   \
++        simde_v128_t t = SIMD_V128_TO_SIMDE_V128(loaded); \
++        simde_v128_t c = SIMD_V128_TO_SIMDE_V128(v3);     \
++        PUT_F32X4_PAIR(consumer);                         \
++        HANDLE_OP_END();                                  \
++    }
++#define DEF_F32X4_PAIRS(producer, simde_func)  \
++    DEF_F32X4_PAIR(producer, simde_func, ADD)  \
++    DEF_F32X4_PAIR(producer, simde_func, SUB)  \
++    DEF_F32X4_PAIR(producer, simde_func, RSUB) \
++    DEF_F32X4_PAIR(producer, simde_func, MUL)
++
++                    DEF_F32X4_PAIRS(ADD, simde_wasm_f32x4_add)
++                    DEF_F32X4_PAIRS(SUB, simde_wasm_f32x4_sub)
++                    DEF_F32X4_PAIRS(MUL, simde_wasm_f32x4_mul)
++                    DEF_F32X4_LOAD_PAIR(ADD)
++                    DEF_F32X4_LOAD_PAIR(SUB)
++                    DEF_F32X4_LOAD_PAIR(RSUB)
++                    DEF_F32X4_LOAD_PAIR(MUL)
++#endif
+                     HANDLE_SIMD_OP(SIMD_f32x4_div)
+                     {
+                         SIMD_DOUBLE_OP(simde_wasm_f32x4_div);
+@@ -8568,6 +8639,13 @@ wasm_interp_get_f32_pair_handle_table(void)
+ }
+ 
+ #if WASM_ENABLE_SIMDE != 0
++void **
++wasm_interp_get_f32x4_pair_handle_table(void)
++{
++    wasm_interp_get_handle_table();
++    return global_f32x4_pair_handle_table;
++}
++
+ void **
+ wasm_interp_get_simd_handle_table(void)
+ {
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index 0e631e6..d222800 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -6125,6 +6125,10 @@ void **
+ wasm_interp_get_simd_handle_table(void);
+ 
+ static void **simd_handle_table;
++void **
++wasm_interp_get_f32x4_pair_handle_table(void);
++
++static void **f32x4_pair_handle_table;
+ #endif
+ #endif
+ 
+@@ -6505,6 +6509,7 @@ load_from_sections(WASMModule *module, WASMSection *sections,
+     f32_pair_handle_table = wasm_interp_get_f32_pair_handle_table();
+ #if WASM_ENABLE_SIMDE != 0
+     simd_handle_table = wasm_interp_get_simd_handle_table();
++    f32x4_pair_handle_table = wasm_interp_get_f32x4_pair_handle_table();
+ #endif
+ #endif
+ 
+@@ -9703,6 +9708,19 @@ fused_pair_index(uint32 producer, bool consumer_add, bool consumer_mul,
+     uint32 consumer = consumer_add ? 0 : consumer_mul ? 3 : depth ? 1 : 2;
+     return producer * 4 + consumer;
+ }
++
++#if WASM_ENABLE_SIMDE != 0
++/* pop a v128's offset without emitting it, for an operand a fused op
++   absorbed */
++static void
++wasm_loader_fuse_pop_v128(WASMLoaderContext *ctx)
++{
++    ctx->frame_offset -= 4;
++    if ((*ctx->frame_offset > ctx->start_dynamic_offset)
++        && (*ctx->frame_offset < ctx->max_dynamic_offset))
++        ctx->dynamic_offset -= 4;
++}
++#endif
+ #endif
+ 
+ static bool
+@@ -11833,6 +11851,14 @@ wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
+     uint8 last_op = 0;
+ #if WASM_ENABLE_SIMDE != 0
+     uint32 last_simd_op = 0;
++#if WASM_LOADER_FUSE_ARITH != 0
++    /* pending f32x4 producer as fuse_prod_op is for scalars: its simd op or
++       -1, its dst slot, and whether a v128 local get landed above it */
++    int32 v128_prod_op = -1;
++    uint8 v128_prod_depth = 0;
++    int16 v128_prod_off = 0;
++    bool v128_fuse_suppress = false;
++#endif
+ #endif
+ #if WASM_LOADER_FUSE_ARITH != 0
+     /* pending fusable producer: its opcode, dst slot, and how many single
+@@ -17148,6 +17174,48 @@ re_scan:
+                     case SIMD_f32x4_pmin:
+                     case SIMD_f32x4_pmax:
+                     {
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_LOADER_FUSE_ARITH != 0 \
++    && WASM_ENABLE_SIMDE != 0
++                        if (opcode1 <= SIMD_f32x4_mul && v128_prod_op >= 0
++                            && !(loader_ctx->frame_csp - 1)
++                                    ->is_stack_polymorphic
++                            && loader_ctx->stack_cell_num
++                                       - (loader_ctx->frame_csp - 1)
++                                             ->stack_cell_num
++                                   >= 8
++                            && *(loader_ctx->frame_offset - 4
++                                 - 4 * v128_prod_depth)
++                                   == v128_prod_off) {
++                            /* the f32x4 simd ops run add, sub, mul */
++                            uint32 producer =
++                                v128_prod_op == SIMD_v128_load
++                                    ? 3
++                                    : (uint32)v128_prod_op - SIMD_f32x4_add;
++                            /* this op's label goes, the producer's becomes
++                               the pair's */
++                            skip_label();
++                            if (loader_ctx->p_code_compiled) {
++                                uint32 prod_bytes = producer == 3 ? 8 : 6;
++                                int16 other_off = *(loader_ctx->frame_offset - 8
++                                                    + 4 * v128_prod_depth);
++                                *(void **)(loader_ctx->p_code_compiled
++                                           - prod_bytes - sizeof(void *)) =
++                                    f32x4_pair_handle_table[fused_pair_index(
++                                        producer, opcode1 == SIMD_f32x4_add,
++                                        opcode1 == SIMD_f32x4_mul,
++                                        v128_prod_depth)];
++                                STORE_U16(loader_ctx->p_code_compiled - 2,
++                                          (uint16)other_off);
++                            }
++                            wasm_loader_fuse_pop_v128(loader_ctx);
++                            wasm_loader_fuse_pop_v128(loader_ctx);
++                            POP_TYPE(VALUE_TYPE_V128);
++                            POP_TYPE(VALUE_TYPE_V128);
++                            PUSH_V128();
++                            v128_fuse_suppress = true;
++                            break;
++                        }
++#endif
+                         POP2_AND_PUSH(VALUE_TYPE_V128, VALUE_TYPE_V128);
+                         break;
+                     }
+@@ -17365,6 +17433,29 @@ re_scan:
+ #if WASM_ENABLE_FAST_INTERP != 0
+         last_op = opcode;
+ #endif
++#if WASM_ENABLE_SIMDE != 0 && WASM_LOADER_FUSE_ARITH != 0
++        if (v128_fuse_suppress) {
++            v128_fuse_suppress = false;
++            v128_prod_op = -1;
++        }
++        else if (opcode == WASM_OP_SIMD_PREFIX
++                 && (last_simd_op == SIMD_v128_load
++                     || (last_simd_op >= SIMD_f32x4_add
++                         && last_simd_op <= SIMD_f32x4_mul))
++                 && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                 && loader_ctx->stack_cell_num
++                        >= (loader_ctx->frame_csp - 1)->stack_cell_num + 4) {
++            v128_prod_op = (int32)last_simd_op;
++            v128_prod_depth = 0;
++            v128_prod_off = *(loader_ctx->frame_offset - 4);
++        }
++        else if (opcode == WASM_OP_GET_LOCAL && v128_prod_op >= 0
++                 && v128_prod_depth == 0 && disable_emit
++                 && local_type == VALUE_TYPE_V128)
++            v128_prod_depth = 1;
++        else
++            v128_prod_op = -1;
++#endif
+ #if WASM_LOADER_FUSE_ARITH != 0
+         if (fuse_suppress) {
+             /* an op fused this iteration left a non-standard encoding, so
