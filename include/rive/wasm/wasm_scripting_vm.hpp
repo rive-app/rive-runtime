@@ -298,8 +298,10 @@ public:
   void deliverHeldOutcomes();
   /// deliverHeldOutcomes() for every VM on this thread holding some.
   static void deliverAllHeldOutcomes();
-  /// True while a decode or fetch this VM started has yet to reach the
-  /// module, held outcomes included.
+  /// True while work this VM started still needs a poll to reach the module:
+  /// a decode or fetch out, held outcomes, a main lane wait, an unfinished
+  /// job, a worker due a step, a processor starting, or an audio stream to
+  /// top up.
   bool hasPendingAsyncWork() const;
 
   /// The module's jobs section, null when it carries none.

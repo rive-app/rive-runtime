@@ -31,13 +31,19 @@ public:
     {
       return;
     }
+    bool settled = false;
     if (ScriptedPromise* promise = pushPendingPromise(L))
     {
       lua_newrive<ScriptedHttpResponse>(L, std::move(response));
       promise->resolve(L, lua_gettop(L));
       lua_pop(L, 2);
+      settled = true;
     }
     release(L);
+    if (settled)
+    {
+      ScriptingContext::asyncWorkDelivered(L);
+    }
   }
 
   void onError(const scriptnet::NetError& error) override
@@ -47,6 +53,7 @@ public:
     {
       return;
     }
+    bool settled = false;
     if (ScriptedPromise* promise = pushPendingPromise(L))
     {
       lua_pushfstring(
@@ -56,8 +63,13 @@ public:
           error.message.c_str());
       promise->reject(L, lua_gettop(L));
       lua_pop(L, 2);
+      settled = true;
     }
     release(L);
+    if (settled)
+    {
+      ScriptingContext::asyncWorkDelivered(L);
+    }
   }
 
   // The script cancelled the promise, whose cancel hook releases the ref,

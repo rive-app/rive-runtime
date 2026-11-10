@@ -150,3 +150,121 @@ TEST_CASE(
   drawable.advanceComponent(0.016f, advanceFlags);
   CHECK(readCounter(L, "getAdvanceCount") == 2);
 }
+
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/async/work_pool.hpp"
+#include "rive/scriptnet/net.hpp"
+
+namespace
+{
+// Holds requests until a test answers them with scriptnet::complete.
+class HoldingProvider : public scriptnet::Provider
+{
+public:
+  std::vector<scriptnet::RequestId> starts;
+  void start(scriptnet::RequestId id, const scriptnet::HttpRequest&) override
+  {
+    starts.push_back(id);
+  }
+};
+
+// The continuation only stores what it got: nothing it touches raises
+// dirt, so only the delivery itself can bring advance() and draw() back.
+constexpr const char* fetchScript =
+    R"(type MyDrawing = {}
+local advanceCount = 0
+local status = 0
+
+function init(self: MyDrawing, context: Context): boolean
+  fetch("https://example.com/data"):andThen(function(response)
+    status = response.status
+  end)
+  return true
+end
+
+function advance(self: MyDrawing, seconds: number): boolean
+  advanceCount += 1
+  return false -- idle immediately
+end
+
+function getAdvanceCount(): number
+  return advanceCount
+end
+
+function getStatus(): number
+  return status
+end
+
+return function(): Node<MyDrawing>
+  return {
+    init = init,
+    advance = advance,
+  }
+end
+)";
+} // namespace
+
+TEST_CASE(
+    "a settled fetch re-arms an idle scripted drawable's advance loop",
+    "[scripting]")
+{
+  auto provider = make_rcp<HoldingProvider>();
+  scriptnet::setProvider(provider);
+  scriptnet::setLimits(scriptnet::NetLimits());
+  {
+    ScriptingTest vm(fetchScript);
+    lua_State* L = vm.state();
+
+    WakeTestScriptedDrawable drawable;
+    // advances (1 << 0) + inits (1 << 9)
+    drawable.implementedMethods((1 << 0) | (1 << 9));
+    drawable.setAsset(make_rcp<ScriptAsset>());
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+    // Runs init, which starts the fetch.
+    REQUIRE(drawable.hydrateScriptInputs());
+    REQUIRE(provider->starts.size() == 1);
+
+    parkAdvanceLoop(drawable, L);
+
+    scriptnet::HttpResponse response;
+    response.status = 200;
+    response.url = "https://example.com/data";
+    scriptnet::complete(provider->starts[0], std::move(response));
+    rive_pollAsyncWork();
+    CHECK(readCounter(L, "getStatus") == 200);
+
+    // The delivery re-armed the loop: the next frame advances the script.
+    drawable.advanceComponent(0.016f, advanceFlags);
+    CHECK(readCounter(L, "getAdvanceCount") == 2);
+  }
+  scriptnet::setProvider(nullptr);
+}
+#endif
+
+#include "rive/scripted/scripted_path_effect.hpp"
+
+namespace
+{
+// Records the dirt a path effect asks for instead of reaching an artboard.
+class DirtRecordingPathEffect : public ScriptedPathEffect
+{
+public:
+  ComponentDirt dirt = ComponentDirt::None;
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+  {
+    dirt = dirt | value;
+    return true;
+  }
+};
+} // namespace
+
+// A path effect shows only what update() builds, and caches it: a
+// continuation's state reaches the drawn path only through another update.
+TEST_CASE("a settled async result asks a path effect to update", "[scripting]")
+{
+  DirtRecordingPathEffect effect;
+  effect.asyncWorkDelivered();
+  CHECK(
+      (effect.dirt & ComponentDirt::ScriptUpdate) ==
+      ComponentDirt::ScriptUpdate);
+}

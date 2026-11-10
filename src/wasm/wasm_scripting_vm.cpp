@@ -12202,6 +12202,7 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
     {
       guestFree(pixelsPtr);
     }
+    asyncWorkDelivered();
     return;
   }
   uint32_t messagePtr = guestString(result.error.c_str());
@@ -12212,6 +12213,7 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
   uint32_t args[3] = {m_L, result.token, messagePtr};
   callModule("host_image_decode_failed", 3, args);
   guestFree(messagePtr);
+  asyncWorkDelivered();
 }
 
 void WasmScriptingVM::resolveImageDecode(
@@ -12434,6 +12436,7 @@ void WasmScriptingVM::resolveFetch(
   uint32_t args[4] = {m_L, token, responsePtr, byteCount};
   callModule("host_fetch_resolved", 4, args);
   guestFree(responsePtr);
+  asyncWorkDelivered();
 }
 
 void WasmScriptingVM::rejectFetch(
@@ -12466,6 +12469,7 @@ void WasmScriptingVM::deliverFetchFailure(
   uint32_t args[4] = {m_L, token, code, messagePtr};
   callModule("host_fetch_failed", 4, args);
   guestFree(messagePtr);
+  asyncWorkDelivered();
 }
 
 bool WasmScriptingVM::inModuleCall() const { return m_callDepth != 0; }
@@ -12910,6 +12914,7 @@ void WasmScriptingVM::wakeMain(uint32_t token, double value)
     double args[3] = {(double)m_L, (double)token, value};
     double unused = 0;
     callF64("host_lane_wake", args, 3, &unused);
+    asyncWorkDelivered();
   });
 }
 

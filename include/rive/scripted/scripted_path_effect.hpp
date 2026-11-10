@@ -57,6 +57,10 @@ public:
   StatusCode import(ImportStack& importStack) override;
   Core* clone() const override;
   void markNeedsUpdate() override;
+  // Neither an idle advance nor the cached path sees what a continuation
+  // stored. Updating again invalidates the effect and re-arms advance (see
+  // update), and its dirt wakes a resting artboard.
+  void asyncWorkDelivered() override { markNeedsUpdate(); }
   Component* component() override { return this; }
   EffectsContainer* parentPaint() override;
 

@@ -29,6 +29,16 @@ void ScriptBackend::displayScale(float scale)
   }
 }
 
+void ScriptBackend::asyncWorkDelivered()
+{
+  // Unlike displayScale, no script runs here, so the set can't change while
+  // it is walked.
+  for (ScriptedObject* object : m_scriptedObjects)
+  {
+    object->asyncWorkDelivered();
+  }
+}
+
 void ScriptBackend::registerScriptedObject(ScriptedObject* object)
 {
   if (object != nullptr)

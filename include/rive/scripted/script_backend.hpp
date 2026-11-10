@@ -55,6 +55,13 @@ public:
   void displayScale(float scale);
   float displayScale() const { return m_displayScale; }
 
+  /// Async work a script started on this backend (a fetch, an image decode,
+  /// a lane's result) just settled its promise, outside any call into the
+  /// objects. The continuation may have changed state an object reads, so
+  /// each one runs what it would otherwise skip until something changed (see
+  /// ScriptedObject::asyncWorkDelivered).
+  void asyncWorkDelivered();
+
   /// The editor stores generator refs per context; backends without that
   /// remap return the ref unchanged.
   virtual int resolveGeneratorRef(int ref) const { return ref; }

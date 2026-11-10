@@ -2,6 +2,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/scripted/script_backend.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/async/work_pool.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
@@ -283,6 +284,10 @@ ScriptingVM::ScriptingVM(std::unique_ptr<ScriptingContext> context)
 {
   m_state = lua_newstate(l_alloc, nullptr);
   init(m_state, m_ownedContext.get());
+  if (m_ownedContext != nullptr)
+  {
+    m_ownedContext->scriptBackend(this);
+  }
 }
 
 ScriptingVM::~ScriptingVM() { closeLuaState(); }
@@ -321,6 +326,10 @@ void ScriptingVM::replaceContext(std::unique_ptr<ScriptingContext> newContext)
 #endif
   m_ownedContext = std::move(newContext);
   lua_setthreaddata(m_state, m_ownedContext.get());
+  if (m_ownedContext != nullptr)
+  {
+    m_ownedContext->scriptBackend(this);
+  }
 }
 
 void ScriptingVM::addModule(ModuleDetails* moduleDetails)
@@ -808,6 +817,22 @@ ScriptingContext* ScriptingContext::from(lua_State* L)
         lua_getthreaddata(lua_mainthread(L)));
   }
   return context;
+}
+
+void ScriptingContext::asyncWorkDelivered()
+{
+  if (m_scriptBackend != nullptr)
+  {
+    m_scriptBackend->asyncWorkDelivered();
+  }
+}
+
+void ScriptingContext::asyncWorkDelivered(lua_State* L)
+{
+  if (auto* context = from(L))
+  {
+    context->asyncWorkDelivered();
+  }
 }
 
 uint64_t ScriptingContext::acquireOwnerId()

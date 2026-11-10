@@ -67,6 +67,8 @@ public:
     markConverterDirty();
     return true;
   }
+  // A continuation may have changed what the script's convert returns.
+  void asyncWorkDelivered() override { markConverterDirty(); }
   ScriptProtocol scriptProtocol() override { return ScriptProtocol::converter; }
   Component* component() override { return nullptr; }
   bool addDataBindFromScriptedObject(DataBind*) override;

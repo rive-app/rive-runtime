@@ -71,6 +71,9 @@ public:
   // script; the handler may have changed state (e.g. fired a trigger on a
   // scripted artboard) that only the next scriptAdvance can consume.
   void wakeAdvance();
+  // A continuation is a handler too: what it stored only advance() and
+  // draw() can show.
+  void asyncWorkDelivered() override { wakeAdvance(); }
   /// Whether a scroll gesture this script claimed is still in flight.
   bool scrollLatched() const { return m_scrollLatched; }
   void scrollLatched(bool value)

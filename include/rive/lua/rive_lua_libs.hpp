@@ -72,6 +72,7 @@ class Artboard;
 class ArtboardInstance;
 class NestedArtboard;
 class Factory;
+class ScriptBackend;
 class File;
 class ModuleDetails;
 class ScriptedObject;
@@ -2125,6 +2126,16 @@ public:
   // on mainThread. Other contexts' work doesn't count.
   bool hasPendingAsyncWork(lua_State* mainThread) const;
 
+  // The backend the scripted objects running on this context register with:
+  // the ScriptingVM that owns it, or null for a bare lua_State.
+  void scriptBackend(ScriptBackend* backend) { m_scriptBackend = backend; }
+  // A promise async work this context started settled (a fetch answered, a
+  // decode finished): tells the backend's objects, whose continuation may
+  // have changed state they read (see ScriptBackend::asyncWorkDelivered).
+  void asyncWorkDelivered();
+  // asyncWorkDelivered() for L's context, if it has one.
+  static void asyncWorkDelivered(lua_State* L);
+
   // WebGL/WASM only: whether an ore frame is currently open for this VM.
   // riveLuaPCall uses this to auto-open a mini-frame when Lua callbacks
   // fire outside the normal render boundary (e.g. Coop stream events).
@@ -2218,6 +2229,7 @@ private:
 
 private:
   Factory* m_renderContext = nullptr;
+  ScriptBackend* m_scriptBackend = nullptr;
   uint64_t m_ownerId = 0;
   bool m_oreFrameOpen = false;
   bool m_gpuCanvasDeferOnly = false;

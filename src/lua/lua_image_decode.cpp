@@ -56,6 +56,7 @@ public:
     if (!m_state || m_promiseRef == LUA_NOREF)
       return;
     lua_State* L = m_state;
+    bool settled = false;
     lua_rawgeti(L, LUA_REGISTRYINDEX, m_promiseRef);
     auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
     lua_pop(L, 1);
@@ -72,6 +73,7 @@ public:
         m_bitmap.reset();
         lua_unref(L, m_promiseRef);
         m_promiseRef = LUA_NOREF;
+        ScriptingContext::asyncWorkDelivered(L);
         return;
       }
       lua_newtable(L);
@@ -85,6 +87,7 @@ public:
       lua_setfield(L, -2, "height");
       promise->resolve(L, lua_gettop(L));
       lua_pop(L, 1);
+      settled = true;
     }
     // Release decoded bitmap immediately — the pixels have been
     // copied to the Lua buffer. The TaskRef userdata in the onCancel
@@ -95,6 +98,10 @@ public:
     m_encodedData.shrink_to_fit();
     lua_unref(L, m_promiseRef);
     m_promiseRef = LUA_NOREF;
+    if (settled)
+    {
+      ScriptingContext::asyncWorkDelivered(L);
+    }
   }
 
   void onError(const std::string& error) override
@@ -105,7 +112,8 @@ public:
     lua_rawgeti(L, LUA_REGISTRYINDEX, m_promiseRef);
     auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
     lua_pop(L, 1);
-    if (promise && promise->isPending())
+    bool settled = promise && promise->isPending();
+    if (settled)
     {
       lua_pushstring(L, error.c_str());
       promise->reject(L, lua_gettop(L));
@@ -113,6 +121,10 @@ public:
     }
     lua_unref(L, m_promiseRef);
     m_promiseRef = LUA_NOREF;
+    if (settled)
+    {
+      ScriptingContext::asyncWorkDelivered(L);
+    }
   }
 
   void onCancel() override
@@ -247,6 +259,7 @@ void settleDecode(
   }
   auto [L, promiseRef] = it->second;
   s_pendingDecodes.erase(it);
+  bool settled = false;
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, promiseRef);
   auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
@@ -276,8 +289,15 @@ void settleDecode(
       promise->resolve(L, lua_gettop(L));
     }
     lua_pop(L, 1);
+    settled = true;
   }
   lua_unref(L, promiseRef);
+  // Settled from a browser callback, between frames: the continuation's
+  // changes wait for an advance only a wake asks for.
+  if (settled)
+  {
+    ScriptingContext::asyncWorkDelivered(L);
+  }
 }
 
 } // namespace
