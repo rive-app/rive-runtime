@@ -1,0 +1,39 @@
+From: rive
+Subject: [PATCH 0072] copy a v128 whole where unaligned access is off
+
+Targets without unaligned access, of which we build 32-bit ARM, store a
+v128 into the frame one 32-bit lane at a time, and that macro read its
+value argument again for every lane. The stack copy hands it a read of the
+source slot, so when the destination sat one to three cells above the
+source, the later lanes were read back from cells the earlier stores had
+just overwritten. The loader emits exactly that copy when a block that
+takes parameters ends with a single v128 result lying below the block's
+result slot, so such a block returned a vector with its first lanes
+repeated. The value is read once now. Every 64-bit target copies the whole
+vector in one assignment and never had the fault.
+
+diff --git a/core/iwasm/common/wasm_runtime_common.h b/core/iwasm/common/wasm_runtime_common.h
+index 4d0042d..fc76c29 100644
+--- a/core/iwasm/common/wasm_runtime_common.h
++++ b/core/iwasm/common/wasm_runtime_common.h
+@@ -95,13 +95,16 @@ STORE_V128(void *addr, V128 value)
+ 
+ #else /* WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0 */
+ 
++/* rive patch: value is read once, since a stack copy to a slot one to three
++   cells up would otherwise read back lanes it has already written. */
+ #define PUT_V128_TO_ADDR(addr, value)        \
+     do {                                     \
+         uint32 *addr_u32 = (uint32 *)(addr); \
+-        addr_u32[0] = (value).i32x4[0];      \
+-        addr_u32[1] = (value).i32x4[1];      \
+-        addr_u32[2] = (value).i32x4[2];      \
+-        addr_u32[3] = (value).i32x4[3];      \
++        V128 value_v128 = (value);           \
++        addr_u32[0] = value_v128.i32x4[0];   \
++        addr_u32[1] = value_v128.i32x4[1];   \
++        addr_u32[2] = value_v128.i32x4[2];   \
++        addr_u32[3] = value_v128.i32x4[3];   \
+     } while (0)
+ 
+ #define PUT_I64_TO_ADDR(addr, value)         \
