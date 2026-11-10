@@ -73,6 +73,19 @@ _PointerData* ListenerGroup::findPointerData(int id)
   return itr == m_pointers.end() ? nullptr : itr->second;
 }
 
+bool ListenerGroup::hasPressedPointerOtherThan(int pointerId)
+{
+  for (auto& entry : m_pointers)
+  {
+    if (entry.first != pointerId &&
+        entry.second->phase == GestureClickPhase::down)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Ends any gesture this pointer has in flight, for when the contents the group
 // lives in stop existing mid-gesture (an artboard collapsed to a 0 scale).
 // Being occluded doesn't do this -- a drag has to survive the pointer passing

@@ -40,6 +40,8 @@ public:
   ~TrackDraggableProxy() {}
   bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
   bool drag(Vec2D mousePosition, float timeStamp = 0) override { return true; }
+  // A track press acts once, so another finger taking over presses nothing.
+  void restartDrag(Vec2D position, float timeStamp) override {}
   bool endDrag(Vec2D mousePosition, float timeStamp = 0) override
   {
     return true;

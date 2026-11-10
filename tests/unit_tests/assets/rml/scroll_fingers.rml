@@ -1,0 +1,214 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/scroll_fingers.riv. Not an editor export: rebuild
+      the .riv from this file with the CLI, from a directory holding this
+      scene.rml and a rive.yaml naming it, then copy
+      build/scroll_fingers.riv into assets/.
+
+          rive . --unsigned-riv
+
+      Every artboard is 300 tall with a 1000 tall list, so the list scrolls from
+      0 to -700. Elastic and Clamped differ only in their physics. Bar adds a
+      scroll bar: its track spans x 180..200 and its thumb starts at the top.
+
+      Rows lays Button, a nested artboard flipping Clicked on click, over the
+      top 100 of the same kind of list. Nest holds Elastic as a nested artboard
+      and List Host holds a list of one Row, both 40 to the right, so a test can
+      hide the scroll view during a press. Elastic and Row move their Mark to
+      where a pointer exits them.
+    -->
+    <Artboard defaultStateMachineId="1:7" width="200" height="300" isComponent="true" styleId="1:5" name="Elastic" id="1:2">
+        <LayoutComponentStyle name="Artboard Style" id="1:5"/>
+        <ElasticScrollPhysics name="Physics" id="1:90"/>
+        <LayoutComponent width="200" height="300" clip="true" styleId="1:11" name="Viewport" id="1:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="1:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="1:13" name="Content" id="1:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="1:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="1:90" name="Scroll" id="1:14"/>
+                <LayoutComponent width="200" height="1000" styleId="1:21" name="Row" id="1:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="1:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <Shape x="100" y="150" name="Pad" id="1:30">
+            <Rectangle width="200" height="300" name="Path" id="1:31"/>
+        </Shape>
+        <Node name="Mark" id="1:32"/>
+        <StateMachine name="SM" id="1:7">
+            <StateMachineLayer name="L" id="1:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="1:30" name="Exit" id="1:33">
+                <ListenerInputType listenerTypeValue="exit" id="1:34"/>
+                <ListenerAlignTarget targetId="1:32" id="1:35"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="2:7" x="300" width="200" height="300" styleId="2:5" name="Clamped" id="2:2">
+        <LayoutComponentStyle name="Artboard Style" id="2:5"/>
+        <ClampedScrollPhysics name="Physics" id="2:90"/>
+        <LayoutComponent width="200" height="300" clip="true" styleId="2:11" name="Viewport" id="2:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="2:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="2:13" name="Content" id="2:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="2:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="2:90" name="Scroll" id="2:14"/>
+                <LayoutComponent width="200" height="1000" styleId="2:21" name="Row" id="2:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="2:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="2:7">
+            <StateMachineLayer name="L" id="2:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="3:7" x="600" width="200" height="300" styleId="3:5" name="Bar" id="3:2">
+        <LayoutComponentStyle flexDirectionValue="row" name="Artboard Style" id="3:5"/>
+        <ClampedScrollPhysics name="Physics" id="3:90"/>
+        <LayoutComponent width="180" height="300" clip="true" styleId="3:11" name="Viewport" id="3:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="3:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="180" styleId="3:13" name="Content" id="3:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="3:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="3:90" name="Scroll" id="3:14"/>
+                <LayoutComponent width="180" height="1000" styleId="3:21" name="Row" id="3:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="3:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <LayoutComponent width="20" height="300" styleId="3:31" name="Track" id="3:30">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Track Style" id="3:31"/>
+            <Fill name="Fill"><SolidColor colorValue="FF2A2F3A" name="C"/></Fill>
+            <LayoutComponent width="20" height="60" styleId="3:33" name="Thumb" id="3:32">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Thumb Style" id="3:33"/>
+                <Fill name="Fill"><SolidColor colorValue="FF57A5E0" name="C"/></Fill>
+                <ScrollBarConstraint scrollConstraintId="3:14" directionValue="vertical" name="Bar" id="3:34"/>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="3:7">
+            <StateMachineLayer name="L" id="3:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="4:7" x="900" width="200" height="100" isComponent="true" styleId="4:5" name="Button" id="4:2">
+        <LayoutComponentStyle name="Artboard Style" id="4:5"/>
+        <Shape x="100" y="50" name="Pad" id="4:10">
+            <Rectangle width="200" height="100" name="Path" id="4:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FFD9884A" name="C"/></Fill>
+        </Shape>
+        <StateMachine name="SM" id="4:7">
+            <StateMachineBool name="Clicked" id="4:9"/>
+            <StateMachineLayer name="L" id="4:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="4:10" name="Click" id="4:12">
+                <ListenerInputType listenerTypeValue="click" id="4:13"/>
+                <ListenerBoolChange inputId="4:9" value="true" id="4:14"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="5:7" x="1200" width="200" height="300" styleId="5:5" name="Rows" id="5:2">
+        <LayoutComponentStyle name="Artboard Style" id="5:5"/>
+        <ElasticScrollPhysics name="Physics" id="5:90"/>
+        <NestedArtboard artboardId="4:2" name="Button" id="5:40">
+            <NestedStateMachine animationId="4:7" name="SM" id="5:41"/>
+        </NestedArtboard>
+        <LayoutComponent width="200" height="300" clip="true" styleId="5:11" name="Viewport" id="5:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="5:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="5:13" name="Content" id="5:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="5:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="5:90" name="Scroll" id="5:14"/>
+                <LayoutComponent width="200" height="1000" styleId="5:21" name="Row" id="5:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="5:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="5:7">
+            <StateMachineLayer name="L" id="5:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="6:7" x="1500" width="200" height="300" styleId="6:5" name="Nest" id="6:2">
+        <LayoutComponentStyle name="Artboard Style" id="6:5"/>
+        <NestedArtboard artboardId="1:2" x="40" name="List" id="6:40">
+            <NestedStateMachine animationId="1:7" name="SM" id="6:41"/>
+        </NestedArtboard>
+        <StateMachine name="SM" id="6:7">
+            <StateMachineLayer name="L" id="6:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="7:7" x="1800" width="200" height="300" isComponent="true" viewModelId="9:1" styleId="7:5" name="Row" id="7:2">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Artboard Style" id="7:5"/>
+        <ElasticScrollPhysics name="Physics" id="7:90"/>
+        <LayoutComponent width="200" height="300" clip="true" styleId="7:11" name="Viewport" id="7:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="7:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="7:13" name="Content" id="7:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="7:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="7:90" name="Scroll" id="7:14"/>
+                <LayoutComponent width="200" height="1000" styleId="7:21" name="Long" id="7:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Long Style" id="7:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <Shape x="100" y="150" name="Pad" id="7:30">
+            <Rectangle width="200" height="300" name="Path" id="7:31"/>
+        </Shape>
+        <Node name="Mark" id="7:32"/>
+        <StateMachine name="SM" id="7:7">
+            <StateMachineLayer name="L" id="7:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="7:30" name="Exit" id="7:33">
+                <ListenerInputType listenerTypeValue="exit" id="7:34"/>
+                <ListenerAlignTarget targetId="7:32" id="7:35"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+    <ComponentAsset artboardId="7:2" name="Row"/>
+
+    <Artboard defaultStateMachineId="8:7" x="2100" width="200" height="300" viewModelId="9:10" styleId="8:5" name="List Host" id="8:2">
+        <LayoutComponentStyle name="Artboard Style" id="8:5"/>
+        <LayoutComponent width="200" height="300" styleId="8:11" name="List" id="8:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" paddingLeft="40" name="List Style" id="8:11"/>
+            <ArtboardComponentList name="Rows" id="8:12">
+                <DataBindContext sourcePathIds="9:10-9:11" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="SM" id="8:7">
+            <StateMachineLayer name="L" id="8:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <ViewModel defaultInstanceId="9:2" name="Item" id="9:1">
+        <ViewModelInstance exports="true" name="A" id="9:2"/>
+    </ViewModel>
+    <ViewModel defaultInstanceId="9:12" name="Root" id="9:10">
+        <ViewModelPropertyList name="items" id="9:11"/>
+        <ViewModelInstance exports="true" name="Default" id="9:12">
+            <ViewModelInstanceList viewModelPropertyId="9:11">
+                <ViewModelInstanceListItem viewModelId="9:1" viewModelInstanceId="9:2"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

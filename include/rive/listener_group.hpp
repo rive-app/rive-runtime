@@ -106,6 +106,8 @@ protected:
   /// The data for an already-tracked pointer, or nullptr. Unlike
   /// pointerData() this never starts tracking one.
   _PointerData* findPointerData(int id);
+  /// Whether a pointer other than pointerId is pressed on this group.
+  bool hasPressedPointerOtherThan(int pointerId);
 
 private:
   // Consumed listeners aren't processed again in the current frame

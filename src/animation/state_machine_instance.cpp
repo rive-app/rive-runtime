@@ -1591,12 +1591,8 @@ public:
   }
 };
 
-// The pointers a host turned off (its capture claim, or a drag above it) for
-// the machines a hit component hosts. Those machines can change while one is
-// off -- a list realizes or adds a row, a nested artboard swaps its machine --
-// so each is turned off as an event reaches it, not only when the host turned
-// the pointer off.
-class HostedPointersOff
+// A set of pointer ids a hit component keeps for the machines it hosts.
+class HostedPointers
 {
 public:
   void add(int pointerId) { m_ids.pushUnique(pointerId); }
@@ -1606,6 +1602,19 @@ public:
     const auto& ids = m_ids.view();
     return std::find(ids.begin(), ids.end(), pointerId) != ids.end();
   }
+
+private:
+  LazyVector<int> m_ids;
+};
+
+// The pointers a host turned off (its capture claim, or a drag above it) for
+// the machines a hit component hosts. Those machines can change while one is
+// off -- a list realizes or adds a row, a nested artboard swaps its machine --
+// so each is turned off as an event reaches it, not only when the host turned
+// the pointer off.
+class HostedPointersOff : public HostedPointers
+{
+public:
   void keepOff(StateMachineInstance* machine, int pointerId) const
   {
     if (machine != nullptr && has(pointerId) &&
@@ -1614,9 +1623,6 @@ public:
       machine->disablePointerEvents(pointerId);
     }
   }
-
-private:
-  LazyVector<int> m_ids;
 };
 
 class HitNestedArtboard : public HitComponent
@@ -1920,17 +1926,44 @@ public:
       // The pointer left: the machines below forget it, and so does this.
       m_pointersOff.remove(pointerId);
     }
-    if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
-        nestedArtboard->isPaused())
+    // A lift for a press this host passed down has to reach the machines
+    // below, or the press stays behind in their listener groups.
+    const bool lifted = hitType == ListenerType::up ||
+                        hitType == ListenerType::exit;
+    const bool liftsPress = lifted && m_pressed.has(pointerId);
+    if (lifted)
+    {
+      m_pressed.remove(pointerId);
+    }
+    const bool shown = !nestedArtboard->isCollapsed() &&
+                       !nestedArtboard->isHidden() &&
+                       !nestedArtboard->isPaused();
+    if (!shown && !liftsPress)
     {
       return hitResult;
     }
     Vec2D nestedPosition;
     bool offMesh;
-    if (!nestedArtboard->worldToLocal(position, &nestedPosition, &offMesh))
+    // False when the mounted artboard isn't ready or has a 0 scale transform.
+    bool mapped = nestedArtboard->worldToLocal(
+        position,
+        &nestedPosition,
+        &offMesh);
+    if (!shown || !mapped)
     {
-      // Mounted artboard isn't ready or has a 0 scale transform.
+      // Sent as an exit, at the raw position when a 0 scale has no local one.
+      if (liftsPress)
+      {
+        forEachStateMachine([&](StateMachineInstance* smi) {
+          HostDispatchScope dispatch(smi);
+          smi->pointerExit(mapped ? nestedPosition : position, pointerId);
+        });
+      }
       return hitResult;
+    }
+    if (hitType == ListenerType::down)
+    {
+      m_pressed.add(pointerId);
     }
     // Past the edge of the mesh it's drawn through, or while this machine
     // misses the pointer itself, nothing in the artboard can be hit, but a
@@ -2163,6 +2196,8 @@ public:
 
 private:
   HostedPointersOff m_pointersOff;
+  // Pointers pressed through this host and not yet lifted.
+  HostedPointers m_pressed;
 
   template <typename F> void forEachStateMachine(F&& visit)
   {
@@ -2514,21 +2549,42 @@ public:
       // For a row the list stops showing, which gets its exit then.
       componentList->notePointer(pointerId, position);
     }
-    if (componentList->isCollapsed() || componentList->isHidden())
+    // See HitNestedArtboard::processEvent.
+    const bool lifted = hitType == ListenerType::up ||
+                        hitType == ListenerType::exit;
+    const bool liftsPress = lifted && m_pressed.has(pointerId);
+    if (lifted)
+    {
+      m_pressed.remove(pointerId);
+    }
+    const bool hidden = componentList->isCollapsed() ||
+                        componentList->isHidden();
+    if (hidden && !liftsPress)
     {
       return hitResult;
+    }
+    if (hitType == ListenerType::down && !hidden)
+    {
+      m_pressed.add(pointerId);
     }
     const auto& order = componentList->orderedListIndices();
     for (auto it = order.rbegin(); it != order.rend(); ++it)
     {
       const int i = *it;
       Vec2D listPosition;
-      bool hit = componentList->worldToLocal(position, &listPosition, i);
-      if (!hit)
+      bool mapped = componentList->worldToLocal(position, &listPosition, i);
+      auto stateMachine = componentList->stateMachineInstance(i);
+      if (hidden || !mapped)
       {
+        if (liftsPress && stateMachine != nullptr)
+        {
+          HostDispatchScope dispatch(stateMachine);
+          stateMachine->pointerExit(
+              mapped ? listPosition : position,
+              pointerId);
+        }
         continue;
       }
-      auto stateMachine = componentList->stateMachineInstance(i);
       if (stateMachine != nullptr)
       {
         m_pointersOff.keepOff(stateMachine, pointerId);
@@ -2833,6 +2889,8 @@ public:
 
 private:
   HostedPointersOff m_pointersOff;
+  // See HitNestedArtboard.
+  HostedPointers m_pressed;
 };
 
 #ifdef WITH_RIVE_TEXT
