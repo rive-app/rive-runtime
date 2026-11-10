@@ -334,6 +334,12 @@ struct rive::WasmScriptingVMNatives
 #endif
   static std::unordered_map<std::string, int64_t>& consoleTimers(
       WasmScriptingVM* vm);
+#ifdef WITH_RIVE_TOOLS
+  static bool& warnedSampledOpenCanvas(WasmScriptingVM* vm)
+  {
+    return vm->m_warnedSampledOpenCanvas;
+  }
+#endif
 };
 
 #ifndef __EMSCRIPTEN__
@@ -3228,6 +3234,30 @@ HostImage* resolveImage(WasmScriptingVM* vm, uint32_t handle)
   return static_cast<HostImage*>(
       vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::image));
 }
+
+#if defined(WITH_RIVE_TOOLS) && defined(RIVE_CANVAS)
+static void warnIfCanvasFrameOpen(
+    WasmScriptingVM* vm,
+    const Renderer* reader,
+    const HostImage* image)
+{
+  bool& warned = WasmScriptingVMNatives::warnedSampledOpenCanvas(vm);
+  cmd::DeferredCanvasHost* host = vm->factory()->deferredCanvasHost();
+  if (warned || host == nullptr || image->sourceCanvas == nullptr ||
+      !host->canvasContentOpen(image->sourceCanvas.get(), reader))
+  {
+    return;
+  }
+  warned = true;
+  consoleWrite(vm, cmd::kSampledOpenCanvasWarning);
+}
+#else
+static void warnIfCanvasFrameOpen(
+    WasmScriptingVM*,
+    const Renderer*,
+    const HostImage*)
+{}
+#endif
 
 uint32_t imageFromAssetImpl(
     WasmScriptingVM* vm,
@@ -6131,6 +6161,7 @@ void rendererDrawImageImpl(
   {
     return;
   }
+  warnIfCanvasFrameOpen(vm, renderer, host);
   renderer->drawImage(
       host->image.get(),
       ImageSampler::SamplerFromKey((uint8_t)samplerKey),
@@ -6160,6 +6191,7 @@ void rendererDrawImageMeshImpl(
   {
     return;
   }
+  warnIfCanvasFrameOpen(vm, renderer, image);
   renderer->drawImageMesh(
       image->image.get(),
       ImageSampler::SamplerFromKey((uint8_t)samplerKey),
@@ -6194,6 +6226,7 @@ void rendererDrawImageMeshInstancedImpl(
   {
     return;
   }
+  warnIfCanvasFrameOpen(vm, renderer, image);
   renderer->drawImageMeshInstanced(
       image->image.get(),
       ImageSampler::SamplerFromKey((uint8_t)samplerKey),

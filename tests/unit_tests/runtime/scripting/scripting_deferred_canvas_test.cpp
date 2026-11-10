@@ -202,4 +202,44 @@ end
       &factory);
   CHECK(runInit(vm));
 }
+
+#ifdef WITH_RIVE_TOOLS
+TEST_CASE(
+    "tooling warns once when a script samples a canvas mid frame",
+    "[scripting][deferred]")
+{
+  cmd::DeferredSession session(ore::ReplayCaps{});
+  ScriptingTest vm(
+      R"(
+function init(self, context)
+  local a = context:canvas({ width = 8, height = 8 })
+  local b = context:canvas({ width = 8, height = 8 })
+  local sampler = ImageSampler('clamp', 'clamp', 'nearest')
+  -- Quiet: a is closed, a draws itself, and a ends before b.
+  local rb = b:beginFrame()
+  rb:drawImage(a.image, sampler, 'srcOver', 1)
+  b:endFrame()
+  local ra = a:beginFrame()
+  ra:drawImage(a.image, sampler, 'srcOver', 1)
+  rb = b:beginFrame()
+  a:endFrame()
+  rb:drawImage(a.image, sampler, 'srcOver', 1)
+  -- Warns once: b samples a while a is open.
+  a:beginFrame()
+  rb:drawImage(a.image, sampler, 'srcOver', 1)
+  rb:drawImage(a.image, sampler, 'srcOver', 1)
+  a:endFrame()
+  b:endFrame()
+  return true
+end
+)",
+      1,
+      false,
+      {},
+      true,
+      &session);
+  CHECK(runInit(vm));
+  CHECK(vm.errors == std::vector<std::string>{cmd::kSampledOpenCanvasWarning});
+}
+#endif
 #endif

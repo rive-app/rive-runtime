@@ -75,13 +75,53 @@ struct StreamBuilder
         {Target::canvas, canvasId, begin, static_cast<uint32_t>(bytes.size())});
   }
 
+  std::vector<DeferredOreSegment> ore;
+
+  // An Ore run recorded at this point in the 2D stream.
+  void oreRun(
+      std::initializer_list<uint64_t> reads,
+      std::initializer_list<uint64_t> writes,
+      bool pinned = false)
+  {
+    uint32_t begin = ore.empty() ? 0 : ore.back().end;
+    ore.push_back(
+        {begin,
+         begin + 16,
+         static_cast<uint32_t>(bytes.size()),
+         reads,
+         writes,
+         pinned});
+  }
+
   CanvasSchedule schedule() const
   {
     return scheduleCanvases(
         Span<const uint8_t>(bytes.data(), bytes.size()),
-        segments);
+        segments,
+        ore);
   }
 };
+
+bool sameRuns(
+    const std::vector<CanvasSchedule::OreRun>& runs,
+    std::initializer_list<CanvasSchedule::OreRun> expected)
+{
+  if (runs.size() != expected.size())
+  {
+    return false;
+  }
+  size_t i = 0;
+  for (const CanvasSchedule::OreRun& want : expected)
+  {
+    const CanvasSchedule::OreRun& got = runs[i++];
+    if (got.before != want.before || got.begin != want.begin ||
+        got.end != want.end)
+    {
+      return false;
+    }
+  }
+  return true;
+}
 } // namespace
 
 TEST_CASE("in-order sampler keeps record order", "[cmd][canvas-dag]")
@@ -92,7 +132,6 @@ TEST_CASE("in-order sampler keeps record order", "[cmd][canvas-dag]")
   auto s = b.schedule();
   REQUIRE(s.order == std::vector<uint64_t>{1, 2});
   CHECK_FALSE(s.hadCycle);
-  CHECK_FALSE(s.multiWriteFallback);
 }
 
 TEST_CASE("reader recorded before its writer reorders", "[cmd][canvas-dag]")
@@ -147,16 +186,17 @@ TEST_CASE("sampling an unwritten id adds no edge", "[cmd][canvas-dag]")
 }
 
 TEST_CASE(
-    "read between two writes of one canvas falls back",
+    "a read between two writes of one canvas sees its finished frame",
     "[cmd][canvas-dag]")
 {
   StreamBuilder b;
-  b.canvasRange(1, {});  // A@v1
+  b.canvasRange(2, {});  // B opens first
+  b.canvasRange(1, {});  // A
   b.canvasRange(2, {1}); // B samples A mid-frame
   b.canvasRange(1, {});  // A writes again
   auto s = b.schedule();
   REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-  CHECK(s.multiWriteFallback);
+  CHECK_FALSE(s.hadCycle);
 }
 
 TEST_CASE("drawImageMesh creates edges like drawImage", "[cmd][canvas-dag]")
@@ -451,3 +491,234 @@ TEST_CASE(
 
   CHECK(sink.openedTargets() == 0);
 }
+
+TEST_CASE(
+    "a canvas that samples ore output replays after the run that wrote it",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.oreRun({}, {9}); // a GPU canvas written by Ore
+  b.canvasRange(2, {9});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{2});
+  CHECK(sameRuns(s.earlyOre, {{0, 0, 16}}));
+  CHECK(s.lateOreBegin == 16);
+  CHECK_FALSE(s.orePinned);
+}
+
+TEST_CASE(
+    "ore no canvas samples stays in the screen frame",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.oreRun({}, {9});
+  b.canvasRange(2, {});
+  auto s = b.schedule();
+  CHECK(s.order == std::vector<uint64_t>{2});
+  CHECK(s.earlyOre.empty());
+  CHECK(s.lateOreBegin == 0);
+}
+
+TEST_CASE(
+    "a sampled ore run pulls every earlier one ahead with it",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.oreRun({}, {8});
+  b.oreRun({}, {9});
+  b.oreRun({}, {7}); // after the sampled one, so it stays late
+  b.canvasRange(2, {9});
+  auto s = b.schedule();
+  CHECK(sameRuns(s.earlyOre, {{0, 0, 32}}));
+  CHECK(s.lateOreBegin == 32);
+}
+
+TEST_CASE(
+    "an ore run replays after the canvases it samples",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.canvasRange(1, {});
+  b.oreRun({1}, {9});
+  b.canvasRange(2, {9});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK(sameRuns(s.earlyOre, {{1, 0, 16}}));
+}
+
+TEST_CASE(
+    "a reader recorded before the ore run it samples still follows it",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.canvasRange(2, {9});
+  b.oreRun({}, {9});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{2});
+  CHECK(sameRuns(s.earlyOre, {{0, 0, 16}}));
+  CHECK_FALSE(s.hadCycle);
+}
+
+TEST_CASE(
+    "a cycle keeps an ore run recorded just before its reader first",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.oreRun({2}, {9}); // closes at the very offset canvas 2 opens at
+  b.canvasRange(2, {9});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{2});
+  CHECK(s.hadCycle);
+  CHECK(sameRuns(s.earlyOre, {{0, 0, 16}}));
+}
+
+TEST_CASE(
+    "nested masks run each combine between its canvases",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.canvasRange(11, {});    // outer coverage
+  b.canvasRange(10, {});    // outer content, interrupted by the inner mask
+  b.canvasRange(21, {});    // inner coverage
+  b.canvasRange(20, {});    // inner content
+  b.oreRun({20, 21}, {22}); // inner combine
+  b.canvasRange(10, {22});  // outer content resumes and draws the inner result
+  b.oreRun({10, 11}, {12}); // outer combine, only the screen samples it
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{11, 21, 20, 10});
+  CHECK(sameRuns(s.earlyOre, {{3, 0, 16}}));
+  CHECK(s.lateOreBegin == 16);
+  CHECK_FALSE(s.hadCycle);
+}
+
+TEST_CASE(
+    "a read between two writes keeps the frame's ore early",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.canvasRange(1, {});
+  b.canvasRange(2, {1, 9}); // reads 1 between its two writes
+  b.canvasRange(1, {});
+  b.oreRun({}, {9});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK(sameRuns(s.earlyOre, {{1, 0, 16}}));
+  CHECK(s.lateOreBegin == 16);
+}
+
+TEST_CASE(
+    "a host target ore run ahead of a sampled one keeps ore late",
+    "[cmd][canvas-dag][ore]")
+{
+  StreamBuilder b;
+  b.oreRun({}, {}, true);
+  b.oreRun({}, {9});
+  b.canvasRange(2, {9});
+  auto s = b.schedule();
+  CHECK(s.orePinned);
+  CHECK(s.earlyOre.empty());
+  CHECK(s.lateOreBegin == 0);
+}
+
+#if defined(RIVE_DEFERRED_ORE) && defined(RIVE_CANVAS)
+namespace
+{
+rcp<ore::BindGroup> sampleGroup(ore::Context& ore, ore::TextureView* view)
+{
+  ore::BindGroupLayoutEntry entry{};
+  entry.binding = 0;
+  entry.kind = ore::BindingKind::sampledTexture;
+  ore::BindGroupLayoutDesc layoutDesc{};
+  layoutDesc.entries = &entry;
+  layoutDesc.entryCount = 1;
+  rcp<ore::BindGroupLayout> layout = ore.makeBindGroupLayout(layoutDesc);
+  REQUIRE(layout != nullptr);
+  ore::BindGroupDesc::TexEntry tex{0, view};
+  ore::BindGroupDesc groupDesc{};
+  groupDesc.layout = layout.get();
+  groupDesc.textures = &tex;
+  groupDesc.textureCount = 1;
+  return ore.makeBindGroup(groupDesc);
+}
+
+ore::RenderPassDesc passInto(ore::TextureView* view)
+{
+  ore::RenderPassDesc desc{};
+  desc.colorAttachments[0].view = view;
+  desc.colorCount = 1;
+  return desc;
+}
+} // namespace
+
+TEST_CASE(
+    "an ore pass names the canvases it samples and writes",
+    "[cmd][canvas-dag][ore]")
+{
+  DeferredSession session(ore::ReplayCaps{});
+  auto& ore = session.oreContext();
+  rcp<gpu::RenderCanvas> sampled = session.makeUnboundContentCanvas(4, 4);
+  rcp<gpu::RenderCanvas> written = session.makeUnboundContentCanvas(4, 4);
+  REQUIRE(sampled != nullptr);
+  REQUIRE(written != nullptr);
+  rcp<ore::TextureView> sampledView = ore.wrapCanvasTexture(sampled.get());
+  rcp<ore::BindGroup> group = sampleGroup(ore, sampledView.get());
+  REQUIRE(group != nullptr);
+  rcp<ore::TextureView> writtenView = ore.wrapCanvasTexture(written.get());
+
+  auto pass = ore.beginRenderPass(passInto(writtenView.get()));
+  REQUIRE(pass != nullptr);
+  pass->setBindGroup(0, group.get());
+  CHECK(session.oreSegments().empty());
+  pass->finish();
+
+  REQUIRE(session.oreSegments().size() == 1);
+  const DeferredOreSegment& seg = session.oreSegments()[0];
+  auto idOf = [&](gpu::RenderCanvas* canvas) -> uint64_t {
+    return session.canvases().imageDrawId(canvas->renderImage()) &
+           kCanvasHandleMask;
+  };
+  CHECK(seg.begin == 0);
+  CHECK(seg.end == ore.stream().commandBytes().size());
+  CHECK(seg.reads == std::vector<uint64_t>{idOf(sampled.get())});
+  CHECK(seg.writes == std::vector<uint64_t>{idOf(written.get())});
+  CHECK_FALSE(seg.pinned);
+}
+
+TEST_CASE(
+    "a nested ore pass shares its outer pass's run",
+    "[cmd][canvas-dag][ore]")
+{
+  DeferredSession session(ore::ReplayCaps{});
+  auto& ore = session.oreContext();
+  rcp<gpu::RenderCanvas> outer = session.makeUnboundContentCanvas(4, 4);
+  rcp<gpu::RenderCanvas> inner = session.makeUnboundContentCanvas(4, 4);
+  rcp<ore::TextureView> outerView = ore.wrapCanvasTexture(outer.get());
+  rcp<ore::TextureView> innerView = ore.wrapCanvasTexture(inner.get());
+
+  auto outerPass = ore.beginRenderPass(passInto(outerView.get()));
+  auto innerPass = ore.beginRenderPass(passInto(innerView.get()));
+  innerPass->finish();
+  CHECK(session.oreSegments().empty());
+  outerPass->finish();
+
+  REQUIRE(session.oreSegments().size() == 1);
+  CHECK(session.oreSegments()[0].writes.size() == 2);
+  CHECK(session.oreSegments()[0].end == ore.stream().commandBytes().size());
+}
+
+TEST_CASE(
+    "a frame keeps the run of an ore pass left open",
+    "[cmd][canvas-dag][ore]")
+{
+  DeferredSession session(ore::ReplayCaps{});
+  auto& ore = session.oreContext();
+  rcp<gpu::RenderCanvas> written = session.makeUnboundContentCanvas(4, 4);
+  rcp<ore::TextureView> view = ore.wrapCanvasTexture(written.get());
+  auto pass = ore.beginRenderPass(passInto(view.get()));
+  REQUIRE(pass != nullptr);
+
+  DeferredFrame frame = takeFrame(session);
+  REQUIRE(frame.oreSegments.size() == 1);
+  CHECK(frame.oreSegments[0].end == frame.oreCommands.size());
+}
+#endif

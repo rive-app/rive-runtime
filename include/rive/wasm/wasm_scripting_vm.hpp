@@ -881,6 +881,9 @@ private:
   };
   std::vector<OpenCanvasFrame> m_openCanvasFrames;
   uint64_t m_nextCanvasFrameToken = 1;
+#ifdef WITH_RIVE_TOOLS
+  bool m_warnedSampledOpenCanvas = false;
+#endif
   /// Object handles minted for the init scoped context, released once init
   /// completes or the context ref is released.
   std::unordered_map<int, uint32_t> m_contextObjects;

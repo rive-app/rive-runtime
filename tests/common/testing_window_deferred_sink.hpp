@@ -43,6 +43,10 @@ public:
 
   rive::gpu::RenderContext* renderContext() override { return m_rc; }
 
+  void beginOreFrame() override { m_window->beginOreFrame(); }
+  void endOreFrame() override { m_window->endOreFrame(); }
+  void afterOreFrame() override { m_rc->impl()->scrubStateAfterOre(); }
+
   // The window owns one main render target.
   rive::Renderer* beginScreenFrame(uint64_t target) override
   {

@@ -58,7 +58,8 @@ public:
   // this at begin rather than end, and backends that record into a command
   // buffer cannot open a frame without it: D3D12 fails the frame, Vulkan
   // and WGPU assert. The zero default suits the backends that do not (D3D11,
-  // GL, Metal), where zero serials also disable backing reuse.
+  // GL, Metal), where zero serials also disable backing reuse. Asked once per
+  // Ore frame, and WGPU takes the encoder, so lend a fresh one each time.
   virtual rive::ore::Context::FrameDescriptor oreFrame() { return {}; }
   void afterOreFrame() override;
   void setTargetPreserved(bool preserved) override

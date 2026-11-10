@@ -52,11 +52,15 @@ public:
   // texture's target, since target 0 may belong to a different one.
   virtual uint64_t defaultScreenTarget() { return 0; }
 
-  // Bracket the recorded Ore passes with the backend's Ore frame.
+  // Bracket the recorded Ore passes with the backend's Ore frame. A frame can
+  // hold several, some opening before the screen frame.
   virtual void beginOreFrame() {}
   virtual void endOreFrame() {}
   // Backend state fix up after an Ore frame, such as a GL state invalidate.
   virtual void afterOreFrame() {}
+  // False keeps every Ore pass in the screen frame, so canvases sample it a
+  // frame late.
+  virtual bool canOpenOreFrameEarly() { return true; }
 
   // The render target Ore's target view wraps this frame, null where the
   // host exposes none to scripts.
@@ -98,6 +102,7 @@ struct DeferredFrame
   std::vector<rcp<rive::gpu::GPUResource>> oreReals; // unflagged real id
   // Assembled scheduler segments; byte ranges index the streams above.
   std::vector<DeferredSegment> segments;
+  std::vector<DeferredOreSegment> oreSegments;
   // The caps the recording answered with, so a replay far from the session
   // can still verify it runs on the device the stream was declared for.
   ore::ReplayCaps oreCaps;
@@ -113,6 +118,7 @@ inline void snapshotFrameState(DeferredSession& session, DeferredFrame& f)
   f.retiredCanvasBackings = session.takeRetiredCanvasBackings();
   f.oreReals = session.oreContext().realResources();
   f.segments = session.schedulerSegments();
+  f.oreSegments = session.oreSegments();
   f.oreCaps = session.oreContext().caps();
   f.oreTargetSize = session.oreContext().drawnTargetSize();
 }
@@ -169,6 +175,7 @@ public:
         session.oreContext().realResources(),
         sink,
         session.schedulerSegments(),
+        session.oreSegments(),
         session.oreContext().caps(),
         session.oreContext().drawnTargetSize());
   }
@@ -192,6 +199,7 @@ public:
         frame.oreReals,
         sink,
         frame.segments,
+        frame.oreSegments,
         frame.oreCaps,
         frame.oreTargetSize);
   }
@@ -227,6 +235,7 @@ private:
       const std::vector<rcp<rive::gpu::GPUResource>>& oreReals,
       DeferredFrameSink& sink,
       const std::vector<DeferredSegment>& segments,
+      const std::vector<DeferredOreSegment>& oreSegments,
       const ore::ReplayCaps& oreCaps,
       uint32_t oreTargetSize)
   {
@@ -306,10 +315,10 @@ private:
       return Span<const uint8_t>(s.data() + begin, end - begin);
     };
 
-    // The whole Ore stream replays as one frame. Splitting it per pass
-    // would risk breaking a create use destroy resource lifecycle.
-    auto replayOre = [&]() {
-      if (oreCommands.empty())
+    // Ore runs replay in record order, so creates still precede their uses.
+    // An early run replays before the screen frame, so it gets no host target.
+    auto replayOre = [&](uint32_t begin, uint32_t end, bool early) {
+      if (begin >= end)
       {
         return;
       }
@@ -320,9 +329,9 @@ private:
         // One shot content like a canvas wrap never re-records, so a
         // skipped stream is permanent loss, never silent.
         RIVE_WARN_THROTTLED(
-            "rive deferred: no ore context, dropping %zu ore command "
+            "rive deferred: no ore context, dropping %u ore command "
             "bytes (canvas content will be lost)\n",
-            oreCommands.size());
+            end - begin);
         return;
       }
       // A host that declared caps recorded against them; a replay
@@ -337,10 +346,10 @@ private:
         assert(false && "replay device does not match declared caps");
       }
       sink.beginOreFrame();
-      realOre->setRenderTarget(sink.targetRenderTarget());
+      realOre->setRenderTarget(early ? nullptr : sink.targetRenderTarget());
       ore::cmd::replayOreStream(
           *realOre,
-          oreCommands,
+          subSpan(oreCommands, begin, end),
           oreBlobs,
           m_ore,
           [&](ore::cmd::ResourceHandle h) -> rive::gpu::GPUResource* {
@@ -367,8 +376,13 @@ private:
           });
       realOre->setRenderTarget(nullptr);
       sink.endOreFrame();
-      m_ore.releaseFrameTargets();
+      if (!early)
+      {
+        m_ore.releaseFrameTargets();
+      }
       sink.afterOreFrame();
+#else
+      (void)early;
 #endif
     };
 
@@ -387,9 +401,7 @@ private:
     hooks.filter = ReplayFilter::draws;
 
     // Partition the 2D segments canvas before screen; the backend allows
-    // one open frame at a time. Ore passes must run inside the screen
-    // frame right after it opens or the ramp upload finds no texture
-    // bound.
+    // one open frame at a time.
     const std::vector<DeferredSegment> live = liveSegments(segments);
     std::vector<const DeferredSegment*> screenSegments;
     std::unordered_map<uint64_t, std::vector<const DeferredSegment*>>
@@ -406,14 +418,26 @@ private:
     // Canvas groups replay in dependency order, so a sampler sees this
     // frame's content regardless of record order. Cycles keep record
     // order on the back edge: previous frame sampling, by contract.
-    CanvasSchedule schedule = scheduleCanvases(commands, live);
+    static const std::vector<DeferredOreSegment> kNoOreSegments;
+    const bool oreEarly = !oreSegments.empty() && sink.canOpenOreFrameEarly();
+    CanvasSchedule schedule = scheduleCanvases(
+        commands,
+        live,
+        oreEarly ? oreSegments : kNoOreSegments);
     if (schedule.hadCycle)
     {
       RIVE_WARN_THROTTLED("rive deferred: canvas sample cycle, the "
                           "back edge samples the previous frame\n");
     }
+    if (schedule.orePinned)
+    {
+      RIVE_WARN_THROTTLED("rive deferred: a canvas samples ore output "
+                          "recorded after a host target pass, so it "
+                          "samples the previous frame\n");
+    }
     const std::vector<uint64_t>& canvasOrder = schedule.order;
-    // Ore replays once for the whole session frame, inside the first
+    // The Ore a canvas samples runs ahead of it in its own Ore frame. The
+    // rest replays once for the whole session frame, inside the first
     // screen frame opened. A script writes canvases, which reach a target
     // through 2D draws that sample them, and the host's one target view,
     // which lands under every draw. Running it in whichever screen frame
@@ -433,13 +457,29 @@ private:
       // Never consume them when the host failed to open that screen.
       if (entry.first->second != nullptr && !oreReplayed)
       {
-        replayOre();
+        replayOre(
+            schedule.lateOreBegin,
+            static_cast<uint32_t>(oreCommands.size()),
+            false);
         oreReplayed = true;
       }
       return entry.first->second;
     };
-    for (uint64_t canvasId : canvasOrder)
+    size_t nextOreRun = 0;
+    for (size_t i = 0; i <= canvasOrder.size(); i++)
     {
+      for (; nextOreRun < schedule.earlyOre.size() &&
+             schedule.earlyOre[nextOreRun].before == i;
+           nextOreRun++)
+      {
+        const CanvasSchedule::OreRun& run = schedule.earlyOre[nextOreRun];
+        replayOre(run.begin, run.end, true);
+      }
+      if (i == canvasOrder.size())
+      {
+        break;
+      }
+      const uint64_t canvasId = canvasOrder[i];
       for (const DeferredSegment* seg : canvasRanges[canvasId])
       {
         replayRenderCommands(
@@ -474,7 +514,8 @@ private:
     // Work no screen segment claimed still falls to the default target:
     // ore has nowhere else to run, and a canvas only frame still owes the
     // host the screen frame its clear and present live in.
-    if (openScreens.empty() && (!oreCommands.empty() || !canvasRanges.empty()))
+    if (openScreens.empty() &&
+        (oreCommands.size() > schedule.lateOreBegin || !canvasRanges.empty()))
     {
       openScreenAndOre(sink.defaultScreenTarget());
     }

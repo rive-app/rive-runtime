@@ -255,12 +255,17 @@ public:
       std::string* /*outError*/ = nullptr) override
   {
     bool drawsTarget = false;
+    std::vector<rcp<RenderImage>> writes;
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
       const ColorAttachment& c = desc.colorAttachments[i];
       for (TextureView* view : {c.view, c.resolveTarget})
       {
         auto* d = rive::lite_rtti_cast<DeferredTextureView*>(view);
+        if (d != nullptr && d->canvasImage != nullptr)
+        {
+          writes.push_back(d->canvasImage);
+        }
         if (d == nullptr || !d->hostTarget)
         {
           continue;
@@ -285,8 +290,25 @@ public:
       recordWrapTargetView();
     }
     m_targetDrawn = m_targetDrawn || drawsTarget;
-    return std::make_unique<RenderPassRecording>(this, &m_render, desc);
+    m_segmentDeps.pinned = m_segmentDeps.pinned || drawsTarget;
+    m_segmentDeps.writes.insert(
+        m_segmentDeps.writes.end(),
+        writes.begin(),
+        writes.end());
+    return std::make_unique<TrackedRenderPass>(this, desc);
   }
+
+  // The canvases one Ore run reads and writes. A run ends when no pass is left
+  // open, so a nested pass counts toward its outer one.
+  struct SegmentDeps
+  {
+    std::vector<rcp<RenderImage>> reads;
+    std::vector<rcp<RenderImage>> writes;
+    bool pinned = false;
+  };
+  // Told where each Ore run ends, so replay can move it ahead of the canvases
+  // that sample what it wrote.
+  std::function<void(size_t end, SegmentDeps&& deps)> segmentObserver;
 
   // The host declares its target before scripts record. A changed target
   // gets a new view, since the view carries its size and format. A host
@@ -388,15 +410,18 @@ public:
       ResourceHandle id,
       uint32_t generation,
       uint32_t width,
-      uint32_t height)
+      uint32_t height,
+      RenderImage* image = nullptr)
   {
-    return makeProxyView(
+    rcp<DeferredTextureView> view = makeProxyView(
         id,
         generation,
         width,
         height,
         m_caps.canvasTargetFormat,
         1);
+    view->canvasImage = ref_rcp(image);
+    return view;
   }
   rcp<DeferredTextureView> makeProxyView(
       ResourceHandle id,
@@ -449,7 +474,12 @@ public:
         a.generation,
         canvasId,
         WrapCanvasViewMode::colorView);
-    return makeReservedCanvasView(a.id, a.generation, c->width(), c->height());
+    return makeReservedCanvasView(
+        a.id,
+        a.generation,
+        c->width(),
+        c->height(),
+        c->renderImage());
   }
 
   // Same reserve as wrapCanvasTexture but tagged sampleView so the consumer
@@ -476,7 +506,12 @@ public:
         a.generation,
         canvasId,
         WrapCanvasViewMode::sampleView);
-    return makeReservedCanvasView(a.id, a.generation, width, height);
+    return makeReservedCanvasView(
+        a.id,
+        a.generation,
+        width,
+        height,
+        canvas->renderImage());
   }
 
   // A foreign image has no mint id, so the registry assigns one. The flag
@@ -496,7 +531,7 @@ public:
         a.generation,
         imageId,
         WrapCanvasViewMode::imageView);
-    return makeReservedCanvasView(a.id, a.generation, width, height);
+    return makeReservedCanvasView(a.id, a.generation, width, height, image);
   }
 
   // Decoded image view: the consumer resolves the resident image and wraps
@@ -628,6 +663,7 @@ public:
   {
     // A pass still open would append its finish into the next frame.
     finishOpenRenderPassesFrom(0);
+    m_segmentDeps = {};
     m_render.reset();
     m_targetWrapped = false;
     m_targetDrawn = false;
@@ -657,6 +693,70 @@ public:
   }
 
 private:
+  // Feeds the replay scheduler what each Ore run samples.
+  class TrackedRenderPass final : public RenderPassRecording
+  {
+  public:
+    TrackedRenderPass(DeferredOreContext* owner, const RenderPassDesc& desc)
+        : RenderPassRecording(owner, &owner->m_render, desc)
+        , m_owner(owner)
+    {}
+    // The base destructor would only reach its own finish.
+    ~TrackedRenderPass() override { finish(); }
+
+    void setBindGroup(
+        uint32_t groupIndex,
+        BindGroup* bg,
+        const uint32_t* dynamicOffsets = nullptr,
+        uint32_t dynamicOffsetCount = 0) override
+    {
+      RenderPassRecording::setBindGroup(
+          groupIndex,
+          bg,
+          dynamicOffsets,
+          dynamicOffsetCount);
+      auto* group = rive::lite_rtti_cast<DeferredBindGroup*>(bg);
+      // Passes often rebind one group per draw.
+      if (group != nullptr && group != m_lastGroup.get())
+      {
+        m_lastGroup = ref_rcp(group);
+        auto& reads = m_owner->m_segmentDeps.reads;
+        reads.insert(
+            reads.end(),
+            group->canvasImages.begin(),
+            group->canvasImages.end());
+      }
+    }
+
+    void finish() override
+    {
+      if (m_finished)
+      {
+        return;
+      }
+      RenderPassRecording::finish();
+      m_owner->closeSegmentIfIdle();
+    }
+
+  private:
+    DeferredOreContext* m_owner;
+    rcp<DeferredBindGroup> m_lastGroup;
+  };
+
+  void closeSegmentIfIdle()
+  {
+    if (hasOpenRenderPasses())
+    {
+      return;
+    }
+    SegmentDeps deps = std::move(m_segmentDeps);
+    m_segmentDeps = {};
+    if (segmentObserver)
+    {
+      segmentObserver(m_render.commandBytes().size(), std::move(deps));
+    }
+  }
+
   // The replay device's capabilities are the ones a recording script has to
   // see: it is the device the recorded branch will run on. Copied rather
   // than forwarded so features() stays a non-virtual field read, and the
@@ -711,6 +811,7 @@ private:
         packTargetSize(m_target.width, m_target.height),
         WrapCanvasViewMode::targetView);
     m_targetWrapped = true;
+    m_segmentDeps.pinned = true;
   }
 
   // Resolves a flagged real id to its retained real object.
@@ -781,6 +882,7 @@ private:
   bool m_targetDrawn = false;
   bool m_targetHidden = true;
   bool m_exposesTarget = true;
+  SegmentDeps m_segmentDeps;
 };
 
 } // namespace rive::ore::cmd

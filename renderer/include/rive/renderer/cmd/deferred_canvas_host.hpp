@@ -93,7 +93,23 @@ public:
 
   // Emits the content end bracket and releases the renderer.
   virtual void endCanvasContent(gpu::RenderCanvas* canvas) = 0;
+
+#ifdef WITH_RIVE_TOOLS
+  // Replay only has a canvas's finished frame, so tooling warns a script
+  // whose reader samples one while its frame is open.
+  virtual bool canvasContentOpen(gpu::RenderCanvas*, const Renderer* /*reader*/)
+      const
+  {
+    return false;
+  }
+#endif
 };
+
+#ifdef WITH_RIVE_TOOLS
+inline constexpr char kSampledOpenCanvasWarning[] =
+    "A canvas image was drawn while that canvas's frame was open, so it shows "
+    "the canvas's finished frame. Call endFrame() before drawing its image.";
+#endif
 
 } // namespace cmd
 } // namespace rive

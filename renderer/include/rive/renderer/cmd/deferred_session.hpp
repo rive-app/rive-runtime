@@ -54,6 +54,7 @@ public:
   uint32_t drawnTargetSize() const { return 0; }
   void setTarget(const ore::Context::TargetDesc&) {}
   void drainPendingDestroys() {}
+  void finishOpenRenderPassesFrom(uint64_t) {}
   void resetFrame() {}
 
 private:
@@ -81,6 +82,21 @@ struct DeferredSegment
   uint32_t end;
   // Opened by beginCanvasContent. Replay keeps a canvas's last frame only.
   bool startsFrame = false;
+};
+
+// A run of Ore passes, closed once none is open, with the canvases it samples
+// and writes, so replay can move it ahead of a canvas that samples its output.
+struct DeferredOreSegment
+{
+  uint32_t begin;
+  uint32_t end;
+  // The 2D stream size when it closed, which ranks it against canvases no
+  // edge orders.
+  uint32_t recordPos;
+  std::vector<uint64_t> reads;
+  std::vector<uint64_t> writes;
+  // Touches the host target, which only exists inside the screen frame.
+  bool pinned = false;
 };
 
 // A host that keeps a raw session pointer across frames. The session tells it
@@ -356,11 +372,13 @@ public:
     m_activeStartsFrame = false;
   }
 
-  // Snapshots call this too since an errored script can leave a range open.
+  // Every capture calls this first, so a range or Ore pass left open lands in
+  // the frame it reads.
   void closeOpenRange()
   {
     closeActiveRange();
     reopenUnroutedRange();
+    m_ore.finishOpenRenderPassesFrom(0);
   }
 
   // ---- DeferredCanvasHost ----
@@ -369,8 +387,7 @@ public:
   Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t clearColor)
       override
   {
-    RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
-                      kCanvasHandleMask;
+    RenderHandle id = canvasIdOf(canvas->renderImage());
     assert(
         std::find(m_canvasStack.begin(), m_canvasStack.end(), id) ==
             m_canvasStack.end() &&
@@ -412,15 +429,17 @@ public:
   {
     // A script's draw visit can end its frame while an artboard still
     // draws into it with saves open.
-    auto recorder = m_canvasRenderers.find(
-        m_canvases.imageDrawId(canvas->renderImage()) & kCanvasHandleMask);
+    const RenderHandle id = canvasIdOf(canvas->renderImage());
+    auto recorder = m_canvasRenderers.find(id);
     if (recorder != m_canvasRenderers.end())
     {
       recorder->second->endContent();
     }
-    if (!m_canvasStack.empty())
+    // Scripts may end frames in any order.
+    auto open = std::find(m_canvasStack.rbegin(), m_canvasStack.rend(), id);
+    if (open != m_canvasStack.rend())
     {
-      m_canvasStack.pop_back();
+      m_canvasStack.erase(std::next(open).base());
     }
     if (!m_canvasStack.empty())
     {
@@ -438,6 +457,24 @@ public:
     closeActiveRange();
     reopenUnroutedRange();
   }
+
+#ifdef WITH_RIVE_TOOLS
+  bool canvasContentOpen(gpu::RenderCanvas* canvas, const Renderer* reader)
+      const override
+  {
+    for (uint64_t id : m_canvasStack)
+    {
+      auto it = m_contentCanvases.find(static_cast<RenderHandle>(id));
+      if (it != m_contentCanvases.end() && it->second.get() == canvas)
+      {
+        // A canvas drawing itself reads its last frame by contract.
+        auto own = m_canvasRenderers.find(static_cast<RenderHandle>(id));
+        return own == m_canvasRenderers.end() || own->second.get() != reader;
+      }
+    }
+    return false;
+  }
+#endif
 
   // Destroys enter the stream only at a frame boundary, so an idle session
   // strands them. Drains them now and returns a copy of just those bytes;
@@ -471,6 +508,8 @@ public:
   {
     DeferredFactory::resetFrame();
     m_ore.resetFrame();
+    m_oreSegments.clear();
+    m_oreSegmentBegin = 0;
     // A snapshot already carried these to its frame; an inline replay,
     // done on this thread, drops what is left here.
     m_canvasRetirer->take();
@@ -542,6 +581,13 @@ public:
   // content exists so an otherwise empty frame still replays.
   void recordOreReplayMarker() { m_hasOreMarker = true; }
 
+  // Closed Ore runs in record order. Bytes past the last one replay in the
+  // screen frame.
+  const std::vector<DeferredOreSegment>& oreSegments() const
+  {
+    return m_oreSegments;
+  }
+
   // Render thread lookups for the replay hooks.
   gpu::RenderCanvas* contentCanvasAt(RenderHandle id) const
   {
@@ -566,20 +612,48 @@ public:
   }
 
 private:
+  RenderHandle canvasIdOf(RenderImage* image)
+  {
+    return m_canvases.imageDrawId(image) & kCanvasHandleMask;
+  }
+
+  std::vector<uint64_t> canvasIdsOf(const std::vector<rcp<RenderImage>>& images)
+  {
+    std::vector<uint64_t> ids;
+    ids.reserve(images.size());
+    for (const rcp<RenderImage>& image : images)
+    {
+      ids.push_back(canvasIdOf(image.get()));
+    }
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
+  }
+
   void wireOreCanvases()
   {
 #ifdef RIVE_DEFERRED_ORE
     // Register wrapped canvases under the shared 2D id space so the
     // consumer can perform the real wrap at replay.
     m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
-      RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
-                        kCanvasHandleMask;
+      RenderHandle id = canvasIdOf(canvas->renderImage());
       m_contentCanvases[id] = ref_rcp(canvas);
       return id;
     };
     // Lets view() on a canvas backed image resolve its canvas id off the
     // registry.
     m_ore.canvasRegistry = &m_canvases;
+    m_ore.segmentObserver =
+        [this](size_t end, OreRecorder::SegmentDeps&& deps) {
+          m_oreSegments.push_back(
+              {m_oreSegmentBegin,
+               static_cast<uint32_t>(end),
+               streamSize(),
+               canvasIdsOf(deps.reads),
+               canvasIdsOf(deps.writes),
+               deps.pinned});
+          m_oreSegmentBegin = static_cast<uint32_t>(end);
+        };
 #endif
     // The 2D stream shares the ore stream's single writer contract.
     commandBuffer().bindRecordingThread();
@@ -684,6 +758,8 @@ private:
   bool m_hasOreMarker = false;
   // Scheduler segments recorded this frame, in script issue order.
   std::vector<DeferredSegment> m_segments;
+  std::vector<DeferredOreSegment> m_oreSegments;
+  uint32_t m_oreSegmentBegin = 0;
   uint64_t m_activeTarget = kScreenTarget; // target of the open range
   // False while the open range belongs to no target, which is how a frame
   // starts and where creates outside any renderer land.

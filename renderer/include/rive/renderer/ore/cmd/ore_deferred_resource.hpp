@@ -16,6 +16,7 @@
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
+#include "rive/renderer.hpp"
 #include <cassert>
 #include <functional>
 #include <unordered_map>
@@ -168,6 +169,9 @@ public:
 
   // Stands in for the host render target, wrapped anew each frame.
   bool hostTarget = false;
+  // The canvas or foreign image this view wraps, so the scheduler sees what a
+  // pass reads and writes.
+  rcp<RenderImage> canvasImage;
 };
 
 class DeferredSampler : public LITE_RTTI_OVERRIDE(Sampler, DeferredSampler),
@@ -257,7 +261,18 @@ public:
       }
     }
     recordDynamicRanges(desc);
+    for (uint32_t i = 0; i < desc.textureCount; ++i)
+    {
+      auto* view = lite_rtti_cast<DeferredTextureView*>(desc.textures[i].view);
+      if (view != nullptr && view->canvasImage != nullptr)
+      {
+        canvasImages.push_back(view->canvasImage);
+      }
+    }
   }
+
+  // Canvases a pass reads when it binds this group.
+  std::vector<rcp<RenderImage>> canvasImages;
 };
 
 } // namespace rive::ore::cmd

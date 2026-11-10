@@ -43,6 +43,7 @@ public:
   }
   void beginOreFrame() override { TestingWindow::Get()->beginOreFrame(); }
   void endOreFrame() override { TestingWindow::Get()->endOreFrame(); }
+  void afterOreFrame() override { m_rc->impl()->scrubStateAfterOre(); }
   rive::gpu::RenderTarget* targetRenderTarget() override
   {
     TestingWindow* window = TestingWindow::Get();

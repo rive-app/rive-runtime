@@ -2091,6 +2091,9 @@ public:
   {
     return m_factory != nullptr ? m_factory->deferredCanvasHost() : nullptr;
   }
+#ifdef WITH_RIVE_TOOLS
+  bool warnedSampledOpenCanvas = false;
+#endif
 
   // WorkPool for async operations (image decode, etc.).
   // Lazily created on first access. Shared across all contexts via a

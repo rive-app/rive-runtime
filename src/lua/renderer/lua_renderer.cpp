@@ -1,5 +1,8 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#if defined(WITH_RIVE_TOOLS) && defined(RIVE_CANVAS) && defined(RIVE_ORE)
+#include "rive/renderer/cmd/deferred_canvas_host.hpp"
+#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -76,6 +79,35 @@ void ScriptedRenderer::modulateColor(lua_State* L, ColorInt color, bool replace)
   m_renderer->modulateColor(color, replace);
 }
 
+#if defined(WITH_RIVE_TOOLS) && defined(RIVE_CANVAS) && defined(RIVE_ORE)
+static void warnIfCanvasFrameOpen(
+    lua_State* L,
+    const Renderer* reader,
+    const ScriptedImage* image)
+{
+  auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  cmd::DeferredCanvasHost* host = context != nullptr
+                                      ? context->deferredCanvasHost()
+                                      : nullptr;
+  if (host == nullptr || context->warnedSampledOpenCanvas ||
+      image->sourceCanvas == nullptr ||
+      !host->canvasContentOpen(image->sourceCanvas.get(), reader))
+  {
+    return;
+  }
+  context->warnedSampledOpenCanvas = true;
+  lua_pushstring(L, cmd::kSampledOpenCanvasWarning);
+  context->printError(L);
+  lua_pop(L, 1);
+}
+#else
+static void warnIfCanvasFrameOpen(
+    lua_State*,
+    const Renderer*,
+    const ScriptedImage*)
+{}
+#endif
+
 static int renderer_drawImage(lua_State* L)
 {
   auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
@@ -85,6 +117,7 @@ static int renderer_drawImage(lua_State* L)
   auto opacity = float(luaL_checknumber(L, 5));
 
   auto renderer = scriptedRenderer->validate(L);
+  warnIfCanvasFrameOpen(L, renderer, scriptedImage);
   renderer->drawImage(
       scriptedImage->image.get(),
       scriptedSampler->sampler,
@@ -114,6 +147,7 @@ static int renderer_drawImageMesh(lua_State* L)
   scriptedTriangleBuffer->update(factory);
 
   auto renderer = scriptedRenderer->validate(L);
+  warnIfCanvasFrameOpen(L, renderer, scriptedImage);
   renderer->drawImageMesh(
       scriptedImage->image.get(),
       scriptedSampler->sampler,
@@ -150,6 +184,7 @@ static int renderer_drawImageMeshInstanced(lua_State* L)
   // Everything set() and resize() staged since the last draw goes over in
   // one commit.
   scriptedInstances->commit();
+  warnIfCanvasFrameOpen(L, renderer, scriptedImage);
   renderer->drawImageMeshInstanced(
       scriptedImage->image.get(),
       scriptedSampler->sampler,
