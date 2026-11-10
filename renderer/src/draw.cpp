@@ -157,23 +157,24 @@ RIVE_ALWAYS_INLINE constexpr uint8_t simpleChopKey(uint8_t n)
 
 // Produces a cubic equivalent to the given line, for which Wang's formula also
 // returns 1.
-RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(
-    const Vec2D line[2])
+RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convertLineToCubic(float4 endPts)
 {
-  float4 endPts = simd::load4f(line);
   float4 controlPts = simd::mix(endPts, endPts.zwxy, float4(1 / 3.f));
+  // This data gets read in TessVertexSpan::set(), typically using 16-byte
+  // reads, so if we use matching 16-byte writes (rather than multiple smaller
+  // writes), we can avoid store forwarding stalls.
   std::array<Vec2D, 4> cubic;
-  cubic[0] = line[0];
-  simd::store(&cubic[1], controlPts);
-  cubic[3] = line[1];
+  simd::store(&cubic[0], simd::join(endPts.xy, controlPts.xy));
+  simd::store(&cubic[2], simd::join(controlPts.zw, endPts.zw));
   return cubic;
 }
-RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(
-    Vec2D p0,
-    Vec2D p1)
+RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convertLineToCubic(const Vec2D line[2])
 {
-  Vec2D line[2] = {p0, p1};
-  return convert_line_to_cubic(line);
+  return convertLineToCubic(simd::load4f(line));
+}
+RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convertLineToCubic(Vec2D p0, Vec2D p1)
+{
+  return convertLineToCubic(simd::join(simd::load2f(&p0), simd::load2f(&p1)));
 }
 
 // Room for the pieces of any chopped cubic. Two cusp chops require storage for
@@ -590,16 +591,24 @@ RIVE_NEVER_INLINE static void countPolarSegments(
 
 // Finds the parametric segment count of every piece, four at a time, and, when
 // given tangentPairs, the tangents at both ends of each piece, which go to the
-// piece's rotation slot. Returns the total parametric segment count.
+// piece's rotation slot. When testChords is true, pieces that stay within
+// tolerance of their chords get one segment. Returns the total parametric
+// segment count.
 static uint32_t processPieces(
     const float4* blocks,
     size_t pieceCount,
     float parametricPrecision,
+    bool testChords,
     const wangs_formula::VectorXform& vectorXform,
     uint32_t* parametricSegmentCounts,
     std::array<Vec2D, 2>* tangentPairs,
     const uint32_t* rotationSlots)
 {
+  // Wang's formula tends not to use all of its tolerance, but the chord test
+  // can use all of its tolerance. Use a lower tolerance for the chord test so
+  // that it better matches what Wang's does in practice. (1/4 of the Wang's
+  // tolerance still keeps most of the savings.)
+  float chordTolerance = .25f / parametricPrecision;
   uint4 total = 0;
   for (size_t first = 0; first < pieceCount; first += 4)
   {
@@ -608,24 +617,54 @@ static uint32_t processPieces(
         reinterpret_cast<const float*>(block));
     auto [p2x, p2y, p3x, p3y] = simd::load4x4f(
         reinterpret_cast<const float*>(block + 4));
-    uint4 counts = wangs_formula::cubicSegmentCounts<kMaxParametricSegments>(
-        p0x,
-        p0y,
-        p1x,
-        p1y,
-        p2x,
-        p2y,
-        p3x,
-        p3y,
-        parametricPrecision,
-        vectorXform);
+    uint4 counts;
+    if (testChords)
+    {
+      auto [d1x, d1y] = vectorXform(p1x - p0x, p1y - p0y);
+      auto [d2x, d2y] = vectorXform(p2x - p0x, p2y - p0y);
+      auto [d3x, d3y] = vectorXform(p3x - p0x, p3y - p0y);
+      counts = wangs_formula::cubicSegmentCounts<kMaxParametricSegments>(
+          d2x - 2.f * d1x,
+          d2y - 2.f * d1y,
+          d1x - 2.f * d2x + d3x,
+          d1y - 2.f * d2y + d3y,
+          parametricPrecision);
+      // Wang's formula takes into account not just the parametric acceleration
+      // perpendicular to the curve but also parallel to it, so it often asks
+      // for more segments than a nearly flat piece needs.
+      if (simd::any(simd::cast<int32_t>(counts) > 1))
+      {
+        int4 fitsChord = math::cubicsFitChords4(
+            d1x,
+            d1y,
+            d2x,
+            d2y,
+            d3x,
+            d3y,
+            chordTolerance);
+        counts = simd::if_then_else(fitsChord, uint4(1), counts);
+      }
+    }
+    else
+    {
+      // Wang's formula on its own only needs two transforms.
+      auto [v0x, v0y] = vectorXform(
+          p2x - 2.f * p1x + p0x,
+          p2y - 2.f * p1y + p0y);
+      auto [v1x, v1y] = vectorXform(
+          p1x - 2.f * p2x + p3x,
+          p1y - 2.f * p2y + p3y);
+      counts = wangs_formula::cubicSegmentCounts<kMaxParametricSegments>(
+          v0x,
+          v0y,
+          v1x,
+          v1y,
+          parametricPrecision);
+    }
+
     // parametricSegmentCounts has room for whole blocks.
     simd::store(parametricSegmentCounts + first, counts);
-    // Padding lanes don't count toward the total.
-    total += simd::if_then_else(
-        uint4{0, 1, 2, 3} + uint32_t(first) < uint32_t(pieceCount),
-        counts,
-        uint4(0));
+    total += counts;
     if (tangentPairs == nullptr)
     {
       continue;
@@ -653,7 +692,14 @@ static uint32_t processPieces(
           pairs.cols[lane]);
     }
   }
-  return simd::reduce_add(total);
+  // Remove segment counts that came from SIMD padding lanes.
+  uint32_t paddingTotal = 0;
+  for (size_t i = pieceCount; i < math::round_up_to_multiple_of<4>(pieceCount);
+       ++i)
+  {
+    paddingTotal += parametricSegmentCounts[i];
+  }
+  return simd::reduce_add(total) - paddingTotal;
 }
 } // namespace
 
@@ -1726,6 +1772,7 @@ void PathDraw::initForMidpointFan(
       cubicBatch.points.data(),
       curveIdx,
       parametricPrecision,
+      !isStrokeOrFeather(),
       vectorXform,
       m_parametricSegmentCounts,
       isStroke() ? m_tangentPairs : nullptr,
@@ -2660,7 +2707,7 @@ void PathDraw::pushMidpointFanTessellationData(
         case StyledVerb::filledLine:
         line_common:
         {
-          std::array<Vec2D, 4> cubic = convert_line_to_cubic(iter.linePts());
+          std::array<Vec2D, 4> cubic = convertLineToCubic(iter.linePts());
           if (needsFirstEmulatedCapAsJoin)
           {
             // Emulate the start cap as a 180-degree join before the
@@ -2847,7 +2894,7 @@ void PathDraw::pushMidpointFanTessellationData(
           math::bit_cast<uint64_t>(implicitClose[1]))
       {
         // Draw a line back to the beginning of the contour.
-        std::array<Vec2D, 4> cubic = convert_line_to_cubic(implicitClose);
+        std::array<Vec2D, 4> cubic = convertLineToCubic(implicitClose);
         // Closing join back to the beginning of the contour.
         if (roundJoinStroked)
         {
@@ -2945,7 +2992,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           if (tessWriter != nullptr)
           {
             tessWriter->pushCubic(
-                convert_line_to_cubic(pts[-1], p0).data(),
+                convertLineToCubic(pts[-1], p0).data(),
                 m_contourDirections,
                 {0, 0},
                 OuterCubicPatchSegmentSpan,
@@ -2973,7 +3020,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           if (tessWriter != nullptr)
           {
             tessWriter->pushCubic(
-                convert_line_to_cubic(pts).data(),
+                convertLineToCubic(pts).data(),
                 m_contourDirections,
                 {0, 0},
                 OuterCubicPatchSegmentSpan,
@@ -3086,7 +3133,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
     if (tessWriter != nullptr)
     {
       tessWriter->pushCubic(
-          convert_line_to_cubic(lastPt, p0).data(),
+          convertLineToCubic(lastPt, p0).data(),
           m_contourDirections,
           {0, 0},
           OuterCubicPatchSegmentSpan,

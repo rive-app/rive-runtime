@@ -1362,5 +1362,100 @@ TEST_CASE("findCubicTangents4", "[bezier_utils]")
     }
   }
 }
+
+TEST_CASE("cubicsFitChords4", "[bezier_utils]")
+{
+  auto fits = [](const Vec2D pts[4], float tol) {
+    Vec2D d1 = pts[1] - pts[0];
+    Vec2D d2 = pts[2] - pts[0];
+    Vec2D chord = pts[3] - pts[0];
+    return cubicsFitChords4(d1.x, d1.y, d2.x, d2.y, chord.x, chord.y, tol)[0];
+  };
+
+  constexpr float Tol = 0.25f;
+  float nan = std::numeric_limits<float>::quiet_NaN();
+
+  const Vec2D straight[4] =
+      {{0.0f, 0.0f}, {3.0f, 0.0f}, {7.0f, 0.0f}, {10.0f, 0.0f}};
+  CHECK(fits(straight, Tol));
+
+  // Within tolerance of the chord, on either side.
+  const Vec2D sCurve[4] =
+      {{0.0f, 0.0f}, {3.0f, 0.3f}, {7.0f, -0.3f}, {10.0f, 0.0f}};
+  CHECK(fits(sCurve, Tol));
+
+  // 3/4 of this control point's distance is more than the tolerance.
+  const Vec2D bowed[4] =
+      {{0.0f, 0.0f}, {3.0f, 0.4f}, {7.0f, 0.4f}, {10.0f, 0.0f}};
+  CHECK_FALSE(fits(bowed, Tol));
+
+  // Runs past the end of the chord.
+  const Vec2D overshoots[4] =
+      {{0.0f, 0.0f}, {3.0f, 0.0f}, {20.0f, 0.0f}, {10.0f, 0.0f}};
+  CHECK_FALSE(fits(overshoots, Tol));
+
+  // Starts out behind the beginning of the chord.
+  const Vec2D backsUp[4] =
+      {{0.0f, 0.0f}, {-5.0f, 0.0f}, {7.0f, 0.0f}, {10.0f, 0.0f}};
+  CHECK_FALSE(fits(backsUp, Tol));
+
+  // A loop has no chord to fit.
+  const Vec2D loop[4] =
+      {{0.0f, 0.0f}, {10.0f, 10.0f}, {-10.0f, 10.0f}, {0.0f, 0.0f}};
+  CHECK_FALSE(fits(loop, Tol));
+  const Vec2D point[4] =
+      {{1.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f}};
+  CHECK_FALSE(fits(point, Tol));
+  const Vec2D hasNaN[4] =
+      {{0.0f, 0.0f}, {nan, 0.0f}, {7.0f, 0.0f}, {10.0f, 0.0f}};
+  CHECK_FALSE(fits(hasNaN, Tol));
+
+  // The cases above pick the answer by hand. This checks the guarantee itself,
+  // that any cubic that passes really does stay within tolerance of its chord.
+  Rand rando;
+  rando.seed(5);
+  int passCount = 0;
+  for (int i = 0; i < 100000; ++i)
+  {
+    // Scatter the controls on both sides of each limit, a little past the ends
+    // of the chord and up to a few tolerances off of it, so that many cubics
+    // land close to the point where the answer changes.
+    float length = rando.f32(0.1f, 50.0f);
+    Vec2D chord = Vec2D{rando.f32(-1.0f, 1.0f), rando.f32(-1.0f, 1.0f)} *
+                  length;
+    Vec2D normal = Vec2D{-chord.y, chord.x} * (Tol * 2.0f / length);
+    Vec2D base = {rando.f32(-100.0f, 100.0f), rando.f32(-100.0f, 100.0f)};
+    Vec2D pts[] = {
+        base,
+        base + chord * rando.f32(-0.1f, 1.1f) + normal * rando.f32(-1.0f, 1.0f),
+        base + chord * rando.f32(-0.1f, 1.1f) + normal * rando.f32(-1.0f, 1.0f),
+        base + chord,
+    };
+
+    if (!fits(pts, Tol))
+    {
+      continue;
+    }
+
+    ++passCount;
+    // Sample the real curve instead of reusing the test's own math.
+    EvalCubic evalCubic(pts);
+    Vec2D p3 = pts[3] - pts[0];
+    float p3LengthSqr = p3.lengthSquared();
+    for (float t = 0.0f; t <= 1.0f; t += 1.0f / 32.0f)
+    {
+      float4 eval = evalCubic(float4(t));
+      Vec2D p = Vec2D{eval.x, eval.y} - pts[0];
+      // Clamping measures distance to the chord itself rather than the infinite
+      // line through it, so running past an end also counts as straying.
+      float along = std::clamp(Vec2D::dot(p, p3) / p3LengthSqr, 0.0f, 1.0f);
+      // Single precision rounding at these coordinates needs a little room.
+      CHECK((p - p3 * along).length() <= Tol + 1e-4f);
+    }
+  }
+  // Failing everything would also get through the loop above, so make sure
+  // enough cubics actually passed for it to mean something.
+  CHECK(passCount > 1000);
+}
 } // namespace math
 } // namespace rive

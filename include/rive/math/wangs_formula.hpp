@@ -122,8 +122,8 @@ private:
   float4 m_skew;
 };
 
-// Returns Wang's formula, raised to the 4th power, specialized for a quadratic
-// curve.
+// Returns the result of Wang's formula, raised to the 4th power, specialized
+// for a quadratic curve.
 AI static float quadraticPow4(
     float2 p0,
     float2 p1,
@@ -149,7 +149,7 @@ AI static float quadraticPow4(
       vectorXform);
 }
 
-// Returns Wang's formula specialized for a quadratic curve.
+// Returns the result of Wang's formula specialized for a quadratic curve.
 AI static float quadratic(
     const Vec2D pts[],
     float precision,
@@ -169,8 +169,8 @@ AI static int quadraticLog2(
   return nextlog16(quadraticPow4(pts, precision, vectorXform));
 }
 
-// Returns Wang's formula, raised to the 4th power, specialized for a cubic
-// curve.
+// Returns the result of Wang's formula, raised to the 4th power, specialized
+// for a cubic curve.
 AI static float cubicPow4(
     const Vec2D pts[],
     float precision,
@@ -185,8 +185,23 @@ AI static float cubicPow4(
   return std::max(vv[0] + vv[1], vv[2] + vv[3]) * lengthTermPow2<3>(precision);
 }
 
-// Returns Wang's formula, raised to the 4th power, for four cubics at once.
-// Points are given as separate x and y components, one cubic per lane.
+// Returns the result of Wang's formula, raised to the 4th power, for four
+// cubics at once, given the vectors p0 - 2*p1 + p2 and p1 - 2*p2 + p3.
+AI static float4 cubicPow4(
+    float4 v0x,
+    float4 v0y,
+    float4 v1x,
+    float4 v1y,
+    float precision)
+{
+  float4 v0LengthSqr = v0x * v0x + v0y * v0y;
+  float4 v1LengthSqr = v1x * v1x + v1y * v1y;
+  return simd::maxFast(v0LengthSqr, v1LengthSqr) * lengthTermPow2<3>(precision);
+}
+
+// Returns the result of Wang's formula, raised to the 4th power, for four
+// cubics at once. Points are given as separate x and y components, one cubic
+// per lane.
 AI static float4 cubicPow4(
     float4 p0x,
     float4 p0y,
@@ -201,41 +216,21 @@ AI static float4 cubicPow4(
 {
   auto [v0x, v0y] = vectorXform(-2.f * p1x + p0x + p2x, -2.f * p1y + p0y + p2y);
   auto [v1x, v1y] = vectorXform(-2.f * p2x + p1x + p3x, -2.f * p2y + p1y + p3y);
-  float4 v0xSqr = v0x * v0x;
-  float4 v0ySqr = v0y * v0y;
-  float4 v1xSqr = v1x * v1x;
-  float4 v1ySqr = v1y * v1y;
-  float4 v0LengthSqr = v0xSqr + v0ySqr;
-  float4 v1LengthSqr = v1xSqr + v1ySqr;
-  return simd::maxFast(v0LengthSqr, v1LengthSqr) * lengthTermPow2<3>(precision);
+  return cubicPow4(v0x, v0y, v1x, v1y, precision);
 }
 
-// Returns Wang's formula for four cubics at once. The result is whole numbers
-// of parametric segments (rounded up), one per cubic.
+// Returns the result of Wang's formula for four cubics at once. The result is
+// whole numbers of parametric segments (rounded up), one per cubic, given the
+// vectors p0 - 2*p1 + p2 and p1 - 2*p2 + p3.
 template <uint32_t MaxParametricSegments>
 AI static uint4 cubicSegmentCounts(
-    float4 p0x,
-    float4 p0y,
-    float4 p1x,
-    float4 p1y,
-    float4 p2x,
-    float4 p2y,
-    float4 p3x,
-    float4 p3y,
-    float precision,
-    const VectorXform& vectorXform = VectorXform())
+    float4 v0x,
+    float4 v0y,
+    float4 v1x,
+    float4 v1y,
+    float precision)
 {
-  float4 segmentCountsPow4 = cubicPow4(
-      p0x,
-      p0y,
-      p1x,
-      p1y,
-      p2x,
-      p2y,
-      p3x,
-      p3y,
-      precision,
-      vectorXform);
+  float4 segmentCountsPow4 = cubicPow4(v0x, v0y, v1x, v1y, precision);
 
 #ifdef RIVE_HAS_FAST_INVERSE_SQRT
   // Because sqrt(sqrt(x)) == 1/sqrt(1/sqrt(x)), we can use the fast inverse
@@ -247,10 +242,12 @@ AI static uint4 cubicSegmentCounts(
   float4 n = simd::ceil(simd::sqrt(simd::sqrt(segmentCountsPow4)));
 #endif
   n = simd::clamp(n, float4(1), float4(MaxParametricSegments));
-  return simd::cast<uint32_t>(n);
+  // x86 has no vector float-to-unsigned conversion before AVX-512, so convert
+  // to signed int instead.
+  return simd::cast<uint32_t>(simd::cast<int32_t>(n));
 }
 
-// Returns Wang's formula specialized for a cubic curve.
+// Returns the result of Wang's formula specialized for a cubic curve.
 AI static float cubic(
     const Vec2D pts[],
     float precision,
@@ -302,8 +299,8 @@ AI static int worstCaseCubicLog2(
   return nextlog16(worstCaseCubicPow4(devWidth, devHeight, precision));
 }
 
-// Returns Wang's formula specialized for a conic curve, raised to the second
-// power. Input points should be in projected space.
+// Returns the result of Wang's formula specialized for a conic curve, raised to
+// the second power. Input points should be in projected space.
 //
 // This is not actually due to Wang, but is an analogue from (Theorem 3,
 // corollary 1):

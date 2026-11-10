@@ -129,9 +129,20 @@ namespace simd
 // ==, !=, <=, >=, <, >
 //
 
-// Returns true if all elements in x are equal to 0.
+// Returns true if any elements in x are equal to ~0.
 template <typename T, int N> SIMD_ALWAYS_INLINE bool any(gvec<T, N> x)
 {
+  static_assert(std::is_integral_v<T>);
+#if defined(__ARM_NEON) && !defined(__aarch64__)
+  // 32-bit NEON has no horizontal OR, and __builtin_reduce_or() moves each lane
+  // out of its vector register separately. One 64-bit move is much cheaper.
+  if constexpr (N == 4 && sizeof(T) == sizeof(int32_t))
+  {
+    uint64x2_t v;
+    SIMD_INLINE_MEMCPY(&v, &x, sizeof(v));
+    return vget_lane_u64(vorr_u64(vget_low_u64(v), vget_high_u64(v)), 0) != 0;
+  }
+#endif
 #if __has_builtin(__builtin_reduce_or) && SIMD_NATIVE_GVEC
   return __builtin_reduce_or(x);
 #else
@@ -180,6 +191,19 @@ SIMD_ALWAYS_INLINE uint32_t bitmask(gvec<int32_t, 4> x)
 // Returns true if all elements in x are equal to ~0.
 template <typename T, int N> SIMD_ALWAYS_INLINE bool all(gvec<T, N> x)
 {
+  static_assert(std::is_integral_v<T>);
+#if defined(__ARM_NEON) && !defined(__aarch64__)
+  // 32-bit NEON has no horizontal AND, and __builtin_reduce_and() moves each
+  // lane out of its vector register separately. One 64-bit move is much
+  // cheaper.
+  if constexpr (N == 4 && sizeof(T) == sizeof(int32_t))
+  {
+    uint64x2_t v;
+    SIMD_INLINE_MEMCPY(&v, &x, sizeof(v));
+    return vget_lane_u64(vand_u64(vget_low_u64(v), vget_high_u64(v)), 0) ==
+           ~uint64_t(0);
+  }
+#endif
 #if __has_builtin(__builtin_reduce_and) && SIMD_NATIVE_GVEC
   return __builtin_reduce_and(x);
 #else

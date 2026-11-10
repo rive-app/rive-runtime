@@ -239,6 +239,39 @@ RIVE_ALWAYS_INLINE simd::gvec4x4<float> findCubicTangents4(
   return {tan0x, tan0y, tan1x, tan1y};
 }
 
+// Tests whether each cubic, one per lane, stays within `tol` of a single chord
+// connecting the two endpoints. Wang's formula also takes into account
+// acceleration in the direction parallel to the curve which adds unnecessary
+// segments to relatively flat curves, so this test removes over-tessellation
+// when only a single segment is necessary. d1 = p1 - p0, d2 = p2 - p0, and
+// chord = p3 - p0.
+RIVE_ALWAYS_INLINE int4 cubicsFitChords4(
+    float4 d1x,
+    float4 d1y,
+    float4 d2x,
+    float4 d2y,
+    float4 chordx,
+    float4 chordy,
+    float tol)
+{
+  // A cubic's distance from its chord's line is
+  // 3*(1 - t)^2*t*h1 + 3*(1 - t)*t^2*h2, where h1 and h2 are the signed
+  // distances of p1 and p2 from that line. By shuffling things around, you can
+  // bound this to 3/4*max(|h1|, |h2|). Then, if p1 and p2 project inside the
+  // chord, so does the whole cubic, so you can use this as a bound for the
+  // whole cubic's distance from its chord.
+  float maxHeight = 4.f / 3.f * tol;
+  float4 chordLengthSqr = chordx * chordx + chordy * chordy;
+  float4 s1 = d1x * chordx + d1y * chordy;
+  float4 s2 = d2x * chordx + d2y * chordy;
+  float4 maxCross = simd::maxFast(
+      simd::abs(chordx * d1y - chordy * d1x),
+      simd::abs(chordx * d2y - chordy * d2x));
+  return (simd::minFast(s1, s2) >= .0f) &
+         (simd::maxFast(s1, s2) <= chordLengthSqr) &
+         (maxCross * maxCross < maxHeight * maxHeight * chordLengthSqr);
+}
+
 RIVE_ALWAYS_INLINE constexpr float pow2(float x) { return x * x; }
 RIVE_ALWAYS_INLINE constexpr float pow3(float x) { return x * pow2(x); }
 RIVE_ALWAYS_INLINE constexpr float lengthPow2(Vec2D v)
