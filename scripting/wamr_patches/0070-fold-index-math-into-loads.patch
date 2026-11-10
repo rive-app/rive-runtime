@@ -1,0 +1,179 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index 61289a7..ca3a867 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -2031,6 +2031,10 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+ #endif
+     static const void *fused_handle_table[RIVE_FUSED_OP_NUM] = {
+         [RIVE_OP_I32_ADD_BR0] = &&FUSED_I32_ADD_BR0,
++        [RIVE_OP_I32_LOAD_SHL_ADD] = &&FUSED_I32_LOAD_SHL_ADD,
++#if WASM_ENABLE_SIMDE != 0
++        [RIVE_OP_V128_LOAD_ADD] = &&FUSED_V128_LOAD_ADD,
++#endif
+     };
+     if (exec_env == NULL) {
+         global_fused_handle_table = (void **)fused_handle_table;
+@@ -2365,6 +2369,23 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                 HANDLE_OP_END();
+             }
+ 
++#if WASM_ENABLE_LABELS_AS_VALUES != 0
++            /* rive: an array element, the shl_add's address loaded */
++            FUSED_I32_LOAD_SHL_ADD:
++            {
++                uint32 offset, addr;
++                addr = GET_OPERAND(uint32, I32, 4)
++                       + (GET_OPERAND(uint32, I32, 2)
++                          << (GET_OPERAND(uint32, I32, 0) % 32));
++                frame_ip += 6;
++                offset = read_uint32(frame_ip);
++                addr_ret = GET_OFFSET();
++                CHECK_MEMORY_OVERFLOW(4);
++                frame_lp[addr_ret] = LOAD_I32(maddr);
++                HANDLE_OP_END();
++            }
++#endif
++
+             HANDLE_OP(EXT_OP_I32_LOAD_SHR_U)
+             {
+                 uint32 offset, addr, shift;
+@@ -6608,6 +6629,21 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                         PUT_V128_TO_ADDR(frame_lp + addr_ret, LOAD_V128(maddr));
+                         HANDLE_SIMD_OP_END();
+                     }
++#if WASM_ENABLE_LABELS_AS_VALUES != 0
++                    /* rive: the address add folded in, as for i32 loads */
++                    FUSED_V128_LOAD_ADD:
++                    {
++                        uint32 offset, addr;
++                        addr = GET_OPERAND(uint32, I32, 2)
++                               + GET_OPERAND(uint32, I32, 0);
++                        frame_ip += 4;
++                        offset = read_uint32(frame_ip);
++                        addr_ret = GET_OFFSET();
++                        CHECK_MEMORY_OVERFLOW(16);
++                        PUT_V128_TO_ADDR(frame_lp + addr_ret, LOAD_V128(maddr));
++                        HANDLE_OP_END();
++                    }
++#endif
+ #define SIMD_LOAD_OP(simde_func)                       \
+     do {                                               \
+         uint32 offset, addr;                           \
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index d2af120..dd9fa0e 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -11880,6 +11880,9 @@ wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
+        else 0; and where the current op's code began */
+     uintptr_t latch_add_end = 0, op_start_pos = 0;
+     bool latch_add_now = false;
++    /* the dst of a shl_add the last op fused, which a load may take over */
++    int16 shl_add_off = 0;
++    bool shl_add_last = false, shl_add_now = false;
+ #endif
+     bool disable_emit, preserve_local = false, if_condition_available = true;
+ #if WASM_LOADER_FUSE_BR != 0
+@@ -14613,6 +14616,33 @@ re_scan:
+                 }
+ #if WASM_ENABLE_FAST_INTERP != 0
+ #if WASM_LOADER_FUSE_ARITH != 0
++                /* rive: so does an array index from a fused shl_add, whose
++                   dst gives way to the memarg */
++                if ((opcode == WASM_OP_I32_LOAD || opcode == WASM_OP_F32_LOAD)
++                    && shl_add_last
++                    && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                    && loader_ctx->stack_cell_num
++                           > (loader_ctx->frame_csp - 1)->stack_cell_num
++                    && *(loader_ctx->frame_offset - 1) == shl_add_off) {
++                    skip_label();
++                    wasm_loader_emit_backspace(loader_ctx, 2);
++                    if (loader_ctx->p_code_compiled)
++                        *(void **)(loader_ctx->p_code_compiled - 6
++                                   - sizeof(void *)) =
++                            fused_handle_table[RIVE_OP_I32_LOAD_SHL_ADD];
++                    emit_uint32(loader_ctx, mem_offset);
++                    wasm_loader_fuse_pop_offsets(loader_ctx, 1);
++                    POP_TYPE(VALUE_TYPE_I32);
++                    if (opcode == WASM_OP_F32_LOAD)
++                        PUSH_F32();
++                    else
++                        PUSH_I32();
++                    fuse_suppress = true;
++#if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
++                    func->has_memory_operations = true;
++#endif
++                    break;
++                }
+                 /* rive: an f32 load copies the same four bytes */
+                 if ((opcode == WASM_OP_I32_LOAD || opcode == WASM_OP_F32_LOAD)
+                     && fuse_prod_op == WASM_OP_I32_ADD && fuse_prod_depth == 0
+@@ -14937,6 +14967,10 @@ re_scan:
+                     POP_TYPE(VALUE_TYPE_I32);
+                     PUSH_I32();
+                     fuse_suppress = true;
++                    if (fused_arith == EXT_OP_I32_SHL_ADD) {
++                        shl_add_off = *(loader_ctx->frame_offset - 1);
++                        shl_add_now = true;
++                    }
+                     break;
+                 }
+                 POP2_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_I32);
+@@ -16588,6 +16622,34 @@ re_scan:
+                         pb_read_leb_mem_offset(p, p_end,
+                                                mem_offset); /* offset */
+ 
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_LOADER_FUSE_ARITH != 0 \
++    && WASM_ENABLE_SIMDE != 0
++                        /* rive: the address add folds in as for i32 loads;
++                           the result then seeds no f32x4 pair, whose rewrite
++                           expects a plain load */
++                        if (opcode1 == SIMD_v128_load
++                            && fuse_prod_op == WASM_OP_I32_ADD
++                            && fuse_prod_depth == 0
++                            && !(loader_ctx->frame_csp - 1)
++                                    ->is_stack_polymorphic
++                            && loader_ctx->stack_cell_num
++                                   > (loader_ctx->frame_csp - 1)->stack_cell_num
++                            && *(loader_ctx->frame_offset - 1)
++                                   == fuse_prod_off) {
++                            skip_label();
++                            wasm_loader_emit_backspace(loader_ctx, 2);
++                            if (loader_ctx->p_code_compiled)
++                                *(void **)(loader_ctx->p_code_compiled - 4
++                                           - sizeof(void *)) =
++                                    fused_handle_table[RIVE_OP_V128_LOAD_ADD];
++                            emit_uint32(loader_ctx, mem_offset);
++                            wasm_loader_fuse_pop_offsets(loader_ctx, 1);
++                            POP_TYPE(VALUE_TYPE_I32);
++                            PUSH_V128();
++                            v128_fuse_suppress = true;
++                            break;
++                        }
++#endif
+ #if WASM_ENABLE_FAST_INTERP != 0
+                         emit_uint32(loader_ctx, mem_offset);
+ #endif
+@@ -17498,6 +17560,8 @@ re_scan:
+                    && LOADER_CODE_POS() == op_start_pos))
+             latch_add_end = 0;
+         latch_add_now = false;
++        shl_add_last = shl_add_now;
++        shl_add_now = false;
+         if (fuse_suppress) {
+             /* an op fused this iteration left a non-standard encoding, so
+                its result must not seed another fusion */
+diff --git a/core/iwasm/interpreter/wasm_opcode.h b/core/iwasm/interpreter/wasm_opcode.h
+index db937d1..e766a1f 100644
+--- a/core/iwasm/interpreter/wasm_opcode.h
++++ b/core/iwasm/interpreter/wasm_opcode.h
+@@ -324,7 +324,9 @@ typedef enum WASMOpcode {
+ /* rive: fused ops past the full opcode space, indices into the fast
+    interpreter's fused_handle_table */
+ typedef enum RiveFusedOp {
+-    RIVE_OP_I32_ADD_BR0, /* dst = a + b, then br */
++    RIVE_OP_I32_ADD_BR0,      /* dst = a + b, then br */
++    RIVE_OP_I32_LOAD_SHL_ADD, /* dst = mem32[moff + c + (a << b)] */
++    RIVE_OP_V128_LOAD_ADD,    /* dst = mem128[moff + a + b] */
+     RIVE_FUSED_OP_NUM,
+ } RiveFusedOp;
+ 

@@ -1,0 +1,179 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index f91298b..61289a7 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1643,6 +1643,7 @@ wasm_interp_dump_op_count()
+ #if WASM_ENABLE_LABELS_AS_VALUES != 0
+ static void **global_handle_table;
+ static void **global_f32_pair_handle_table;
++static void **global_fused_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+ static void **global_simd_handle_table;
+ static void **global_f32x4_pair_handle_table;
+@@ -2028,7 +2029,11 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+         &&F32X4_PAIR_LOAD_MUL,
+     };
+ #endif
++    static const void *fused_handle_table[RIVE_FUSED_OP_NUM] = {
++        [RIVE_OP_I32_ADD_BR0] = &&FUSED_I32_ADD_BR0,
++    };
+     if (exec_env == NULL) {
++        global_fused_handle_table = (void **)fused_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+         global_f32x4_pair_handle_table = (void **)f32x4_pair_handle_table;
+ #endif
+@@ -2129,6 +2134,19 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                 HANDLE_OP_END();
+             }
+ 
++#if WASM_ENABLE_LABELS_AS_VALUES != 0
++            /* rive: a loop latch, the counter's add then the branch back */
++            FUSED_I32_ADD_BR0:
++            {
++                DEF_OP_NUMERIC(uint32, uint32, I32, +);
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                frame_ip = (uint8 *)LOAD_PTR(frame_ip);
++                HANDLE_OP_END();
++            }
++#endif
++
+             HANDLE_OP(EXT_OP_BR_IF0)
+             {
+ #if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+@@ -8631,6 +8649,13 @@ wasm_interp_get_handle_table(void)
+     return global_handle_table;
+ }
+ 
++void **
++wasm_interp_get_fused_handle_table(void)
++{
++    wasm_interp_get_handle_table();
++    return global_fused_handle_table;
++}
++
+ void **
+ wasm_interp_get_f32_pair_handle_table(void)
+ {
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index d222800..d2af120 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -6120,6 +6120,10 @@ void **
+ wasm_interp_get_f32_pair_handle_table(void);
+ 
+ static void **f32_pair_handle_table;
++void **
++wasm_interp_get_fused_handle_table(void);
++
++static void **fused_handle_table;
+ #if WASM_ENABLE_SIMDE != 0
+ void **
+ wasm_interp_get_simd_handle_table(void);
+@@ -6507,6 +6511,7 @@ load_from_sections(WASMModule *module, WASMSection *sections,
+ #if WASM_ENABLE_FAST_INTERP != 0 && WASM_ENABLE_LABELS_AS_VALUES != 0
+     handle_table = wasm_interp_get_handle_table();
+     f32_pair_handle_table = wasm_interp_get_f32_pair_handle_table();
++    fused_handle_table = wasm_interp_get_fused_handle_table();
+ #if WASM_ENABLE_SIMDE != 0
+     simd_handle_table = wasm_interp_get_simd_handle_table();
+     f32x4_pair_handle_table = wasm_interp_get_f32x4_pair_handle_table();
+@@ -9698,6 +9703,11 @@ wasm_loader_fuse_pop_offsets(WASMLoaderContext *ctx, uint32 cells)
+     }
+ }
+ 
++/* rive: where the next code lands, in either pass */
++#define LOADER_CODE_POS()                                                 \
++    (loader_ctx->p_code_compiled ? (uintptr_t)loader_ctx->p_code_compiled \
++                                 : (uintptr_t)loader_ctx->code_compiled_size)
++
+ /* rive: entry of a fused float pair in the interpreter's pair tables. The
+    producer is add 0, sub 1, mul 2 or load 3; a sub consumer takes the
+    producer as lhs when a push landed above it, else as rhs. */
+@@ -11866,6 +11876,10 @@ wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
+     uint8 fuse_prod_op = 0, fuse_prod_depth = 0;
+     int16 fuse_prod_off = 0;
+     bool fuse_suppress = false;
++    /* where a plain i32.add's code ended, while a br may still fuse with it,
++       else 0; and where the current op's code began */
++    uintptr_t latch_add_end = 0, op_start_pos = 0;
++    bool latch_add_now = false;
+ #endif
+     bool disable_emit, preserve_local = false, if_condition_available = true;
+ #if WASM_LOADER_FUSE_BR != 0
+@@ -12046,6 +12060,9 @@ re_scan:
+ #if WASM_ENABLE_FAST_INTERP != 0
+         p_org = p;
+         disable_emit = false;
++#if WASM_LOADER_FUSE_ARITH != 0
++        op_start_pos = LOADER_CODE_POS();
++#endif
+         emit_label(opcode);
+ #endif
+         switch (opcode) {
+@@ -12826,7 +12843,18 @@ re_scan:
+                     && wasm_loader_branch_arity_zero(loader_ctx, peek_depth)) {
+                     compact_br = true;
+                     skip_label();
+-                    emit_label(EXT_OP_BR0);
++#if WASM_LOADER_FUSE_ARITH != 0
++                    /* the add's label becomes the latch's and the target
++                       follows its dst */
++                    if (latch_add_end && LOADER_CODE_POS() == latch_add_end) {
++                        if (loader_ctx->p_code_compiled)
++                            *(void **)(loader_ctx->p_code_compiled - 6
++                                       - sizeof(void *)) =
++                                fused_handle_table[RIVE_OP_I32_ADD_BR0];
++                    }
++                    else
++#endif
++                        emit_label(EXT_OP_BR0);
+                 }
+ 
+                 if (!(frame_csp_tmp = check_branch_block(
+@@ -14912,6 +14940,11 @@ re_scan:
+                     break;
+                 }
+                 POP2_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_I32);
++                /* the latch rewrite needs the add's whole code, which dead
++                   code missing its operands lacks */
++                latch_add_now =
++                    opcode == WASM_OP_I32_ADD
++                    && LOADER_CODE_POS() - op_start_pos == sizeof(void *) + 6;
+                 break;
+             }
+ #else
+@@ -17457,6 +17490,14 @@ re_scan:
+             v128_prod_op = -1;
+ #endif
+ #if WASM_LOADER_FUSE_ARITH != 0
++        /* a latch add stays fusable across local writes that emitted no
++           code; anything else, a block end above all, may be a target */
++        if (latch_add_now)
++            latch_add_end = LOADER_CODE_POS();
++        else if (!((opcode == WASM_OP_SET_LOCAL || opcode == WASM_OP_TEE_LOCAL)
++                   && LOADER_CODE_POS() == op_start_pos))
++            latch_add_end = 0;
++        latch_add_now = false;
+         if (fuse_suppress) {
+             /* an op fused this iteration left a non-standard encoding, so
+                its result must not seed another fusion */
+diff --git a/core/iwasm/interpreter/wasm_opcode.h b/core/iwasm/interpreter/wasm_opcode.h
+index c10aaf5..db937d1 100644
+--- a/core/iwasm/interpreter/wasm_opcode.h
++++ b/core/iwasm/interpreter/wasm_opcode.h
+@@ -321,6 +321,13 @@ typedef enum WASMOpcode {
+     WASM_OP_ATOMIC_PREFIX = 0xfe,
+ } WASMOpcode;
+ 
++/* rive: fused ops past the full opcode space, indices into the fast
++   interpreter's fused_handle_table */
++typedef enum RiveFusedOp {
++    RIVE_OP_I32_ADD_BR0, /* dst = a + b, then br */
++    RIVE_FUSED_OP_NUM,
++} RiveFusedOp;
++
+ typedef enum WASMGCEXTOpcode {
+     WASM_OP_STRUCT_NEW = 0x00,         /* struct.new */
+     WASM_OP_STRUCT_NEW_DEFAULT = 0x01, /* struct.new_default */
