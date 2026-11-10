@@ -24,8 +24,13 @@
 
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
+#include "rive/assets/image_asset.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/bitmap_cache.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
+#include "rive/shapes/image.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/offscreen_raster.hpp"
 #include "rive/file.hpp"
 #include "rive/generated/core_registry.hpp"
@@ -795,6 +800,328 @@ TEST_CASE(
   Census shown = h.frame(0.0f);
   CHECK(shown.canvasOpens() == 1);
   CHECK(h.rasterCount() == 2);
+}
+
+namespace
+{
+struct CachedAncestorHarness
+{
+  std::unique_ptr<gpu::RenderContext>
+      context = RenderContextNULL::MakeContext();
+  CountingSession session{rive::ore::ReplayCaps{}};
+  Artboard childSource{&session};
+  Artboard cachedSource{&session};
+  Artboard root{&session};
+  ArtboardInstance* cached = nullptr;
+  NestedArtboard* childHost = nullptr;
+  ArtboardInstance* child = nullptr;
+
+  CachedAncestorHarness()
+  {
+    session.bindRenderContext(context.get());
+    childSource.addObject(&childSource);
+  }
+
+  void initialize()
+  {
+    auto initializeArtboard = [](Artboard& artboard) {
+      REQUIRE(artboard.initialize() == StatusCode::Ok);
+      artboard.width(100);
+      artboard.height(100);
+    };
+    initializeArtboard(childSource);
+
+    cachedSource.addObject(&cachedSource);
+    auto* cache = new BitmapCache();
+    cache->parentId(0);
+    cachedSource.addObject(cache);
+    auto* sourceChildHost = new NestedArtboard();
+    sourceChildHost->name("child host");
+    sourceChildHost->parentId(0);
+    cachedSource.addObject(sourceChildHost);
+    initializeArtboard(cachedSource);
+
+    root.addObject(&root);
+    auto* cachedHost = new NestedArtboard();
+    cachedHost->parentId(0);
+    root.addObject(cachedHost);
+    initializeArtboard(root);
+    cachedHost->referencedArtboard(
+        cachedSource.instance<ArtboardInstance>().release());
+    cached = cachedHost->artboardInstance();
+    REQUIRE(cached != nullptr);
+    childHost = cached->find<NestedArtboard>("child host");
+    REQUIRE(childHost != nullptr);
+    childHost->referencedArtboard(
+        childSource.instance<ArtboardInstance>().release());
+    child = childHost->artboardInstance();
+    REQUIRE(child != nullptr);
+  }
+
+  void draw()
+  {
+    root.draw(session.screenRenderer());
+    session.resetFrame();
+  }
+
+  size_t rasterCount() const { return session.rasters.size(); }
+};
+} // namespace
+
+TEST_CASE(
+    "independent child updates invalidate a cached ancestor",
+    "[bitmap-cache][redraw]")
+{
+  CachedAncestorHarness h;
+  auto* sourceNode = new Node();
+  sourceNode->name("moving node");
+  sourceNode->parentId(0);
+  h.childSource.addObject(sourceNode);
+  h.initialize();
+  auto* node = h.child->find<Node>("moving node");
+  REQUIRE(node != nullptr);
+
+  h.root.advance(0.0f);
+  h.draw();
+  REQUIRE(h.rasterCount() == 1);
+  REQUIRE_FALSE(h.child->didChange());
+
+  const float before = node->worldTransform()[4];
+  node->x(node->x() + 20);
+  h.draw();
+  // The cache hit never visits the child, so its local flag is still set.
+  REQUIRE(h.rasterCount() == 1);
+  REQUIRE(h.child->didChange());
+  REQUIRE(node->worldTransform()[4] == before);
+  REQUIRE_FALSE(h.cached->didChange());
+  REQUIRE_FALSE(h.root.didChange());
+
+  SECTION("the cached ancestor is clean") {}
+  SECTION("the cached ancestor already has local dirt")
+  {
+    h.childHost->x(h.childHost->x() + 5);
+    REQUIRE(h.cached->didChange());
+    REQUIRE_FALSE(h.root.didChange());
+  }
+
+  h.child->advance(0.0f);
+  CHECK(node->worldTransform()[4] == Approx(before + 20));
+  CHECK(h.root.didChange());
+  CHECK(h.cached->didChange());
+  h.draw();
+  CHECK(h.rasterCount() == 2);
+  h.root.advance(0.0f);
+  h.draw();
+  const auto settledRasters = h.rasterCount();
+  h.root.advance(0.0f);
+  CHECK_FALSE(h.root.didChange());
+  h.draw();
+  CHECK(h.rasterCount() == settledRasters);
+}
+
+TEST_CASE(
+    "a first same-size child image binding invalidates a cached ancestor",
+    "[bitmap-cache][redraw]")
+{
+  CachedAncestorHarness h;
+  auto* sourceImage = new Image();
+  sourceImage->name("bound image");
+  sourceImage->parentId(0);
+  h.childSource.addObject(sourceImage);
+  h.initialize();
+  auto* image = h.child->find<Image>("bound image");
+  REQUIRE(image != nullptr);
+
+  // Decode the same bytes twice for distinct image identities of equal size.
+  const auto bytes = ReadFile("assets/open_source.jpg");
+  auto original = h.session.decodeImage(bytes);
+  auto replacement = h.session.decodeImage(bytes);
+  REQUIRE(original != nullptr);
+  REQUIRE(replacement != nullptr);
+  REQUIRE(original != replacement);
+  REQUIRE(original->width() > 0);
+  REQUIRE(original->height() > 0);
+  auto asset = make_rcp<ImageAsset>();
+  asset->renderImage(original);
+  image->setAsset(asset);
+  h.root.advance(0.0f);
+  h.draw();
+  REQUIRE(h.rasterCount() == 1);
+  REQUIRE_FALSE(h.child->didChange());
+  const Mat2D before = image->worldTransform();
+
+  auto property = make_rcp<ViewModelInstanceAssetImage>();
+  auto* binding = new DataBind();
+  binding->propertyKey(Image::assetIdPropertyKey);
+  binding->target(image);
+  binding->source(property);
+  h.child->addDataBind(binding);
+  binding->bind();
+  property->value(replacement.get());
+  REQUIRE(h.child->didChange());
+  REQUIRE(image->imageAsset()->renderImage() == original.get());
+
+  SECTION("the child advances before the root draws") {}
+  SECTION("the root first reuses its cached raster")
+  {
+    h.draw();
+    REQUIRE(h.rasterCount() == 1);
+    REQUIRE(h.child->didChange());
+    REQUIRE(image->imageAsset()->renderImage() == original.get());
+  }
+
+  h.child->advance(0.0f);
+  REQUIRE(image->imageAsset()->renderImage() == replacement.get());
+  CHECK(image->width() == original->width());
+  CHECK(image->height() == original->height());
+  for (int i = 0; i < 6; ++i)
+  {
+    CHECK(image->worldTransform()[i] == before[i]);
+  }
+  CHECK(h.cached->didChange());
+  CHECK(h.root.didChange());
+  h.draw();
+  CHECK(h.rasterCount() == 2);
+  h.root.advance(0.0f);
+  CHECK_FALSE(h.root.didChange());
+  h.draw();
+  CHECK(h.rasterCount() == 2);
+}
+
+TEST_CASE(
+    "pending content updates survive an early invisible cached draw",
+    "[bitmap-cache][redraw]")
+{
+  Harness h;
+  h.setResolution(1.0f);
+  h.frame(0.0f);
+  REQUIRE(h.rasterCount() == 1);
+
+  h.artboard->hostOpacity(0.0f);
+  h.frame(0.0f);
+  REQUIRE_FALSE(h.artboard->didChange());
+  REQUIRE(h.rasterCount() == 1);
+
+  Node* node = nullptr;
+  for (Core* object : h.artboard->objects())
+  {
+    if (object != nullptr && object->is<Node>() && !object->is<Artboard>())
+    {
+      node = object->as<Node>();
+      break;
+    }
+  }
+  REQUIRE(node != nullptr);
+  const float localBefore = node->transform()[4];
+  node->x(node->x() + 10.0f);
+  REQUIRE(h.artboard->didChange());
+
+  // The invisible path consumes the notification without rasterizing or
+  // applying the pending child transform. Its later update still needs a
+  // notification, even though there are no visible pixels to submit yet.
+  h.artboard->drawInternal(h.session.screenRenderer());
+  h.session.resetFrame();
+  REQUIRE_FALSE(h.artboard->didChange());
+  REQUIRE(node->transform()[4] == localBefore);
+  REQUIRE(h.rasterCount() == 1);
+
+  h.stateMachine->advanceAndApply(0.0f);
+  CHECK(node->transform()[4] == Approx(localBefore + 10.0f));
+  CHECK(h.artboard->didChange());
+  h.artboard->drawInternal(h.session.screenRenderer());
+  h.session.resetFrame();
+  CHECK_FALSE(h.artboard->didChange());
+  CHECK(h.rasterCount() == 1);
+
+  for (int i = 0; i < 3; ++i)
+  {
+    CHECK(h.frame(0.0f).canvasOpens() == 0);
+    CHECK_FALSE(h.artboard->didChange());
+    CHECK(h.rasterCount() == 1);
+  }
+
+  // Visibility restores the updated content, not the raster from before
+  // the hidden mutation. Subsequent idle frames reuse that new raster.
+  h.artboard->hostOpacity(1.0f);
+  CHECK(h.frame(0.0f).canvasOpens() == 1);
+  CHECK(h.rasterCount() == 2);
+  CHECK(node->transform()[4] == Approx(localBefore + 10.0f));
+  CHECK(h.frame(0.0f).canvasOpens() == 0);
+  CHECK(h.rasterCount() == 2);
+  CHECK_FALSE(h.artboard->didChange());
+}
+
+TEST_CASE(
+    "updating content after an early cached draw invalidates its raster again",
+    "[bitmap-cache][redraw]")
+{
+  Harness h;
+  h.setResolution(1.0f);
+  h.frame(0.0f);
+  h.frame(0.0f);
+  REQUIRE_FALSE(h.artboard->didChange());
+  Node* node = nullptr;
+  for (Core* object : h.artboard->objects())
+  {
+    if (object != nullptr && object->is<Node>() && !object->is<Artboard>())
+    {
+      node = object->as<Node>();
+      break;
+    }
+  }
+  REQUIRE(node != nullptr);
+  const float before = node->worldTransform()[4];
+  const float localBefore = node->transform()[4];
+  const size_t rasters = h.rasterCount();
+
+  node->x(node->x() + 10.0f);
+  // Record before advancing: this consumes the initial invalidation while
+  // the node still has its old world transform, and caches that stale draw.
+  h.artboard->drawInternal(h.session.screenRenderer());
+  h.session.resetFrame();
+  REQUIRE(h.rasterCount() == rasters + 1);
+  REQUIRE_FALSE(h.artboard->didChange());
+  REQUIRE(node->worldTransform()[4] == before);
+
+  SECTION("without an intervening artboard transform") {}
+  SECTION("after an intervening artboard rotation")
+  {
+    // Self transforms can request a composite redraw without invalidating
+    // the cached content. Pending child work must still invalidate it.
+    h.artboard->rotation(0.3f);
+    REQUIRE(h.artboard->didChange());
+  }
+  SECTION("after an intervening artboard scale")
+  {
+    h.artboard->scaleX(0.5f);
+    REQUIRE(h.artboard->didChange());
+  }
+  SECTION("after another premature cached draw and an artboard rotation")
+  {
+    // A cache hit also consumes the draw flag. It must preserve knowledge
+    // that the first draw ran before the pending child update.
+    h.artboard->drawInternal(h.session.screenRenderer());
+    h.session.resetFrame();
+    REQUIRE(h.rasterCount() == rasters + 1);
+    REQUIRE_FALSE(h.artboard->didChange());
+    h.artboard->rotation(0.3f);
+    REQUIRE(h.artboard->didChange());
+  }
+
+  h.stateMachine->advanceAndApply(0.0f);
+  REQUIRE(node->transform()[4] == Approx(localBefore + 10.0f));
+  CHECK(h.artboard->didChange());
+  h.artboard->drawInternal(h.session.screenRenderer());
+  h.session.resetFrame();
+  CHECK(h.rasterCount() == rasters + 2);
+  CHECK_FALSE(h.artboard->didChange());
+
+  // Once the updated contents have been rasterized, idle frames still reuse
+  // that raster; re-arming a consumed change must not create a redraw loop.
+  h.frame(0.0f);
+  h.frame(0.0f);
+  CHECK(h.rasterCount() == rasters + 2);
+  CHECK_FALSE(h.artboard->didChange());
 }
 
 TEST_CASE(

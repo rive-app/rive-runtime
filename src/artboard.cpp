@@ -2361,6 +2361,7 @@ bool Artboard::updateComponents()
   const int maxSteps = 100;
   int step = 0;
   auto count = m_DependencyOrder.size();
+  bool didUpdate = false;
   while (hasDirt(ComponentDirt::Components) && step < maxSteps)
   {
     m_Dirt = m_Dirt & ~ComponentDirt::Components;
@@ -2404,6 +2405,7 @@ bool Artboard::updateComponents()
       }
       component->m_Dirt = ComponentDirt::None;
       component->update(d);
+      didUpdate = true;
 
       // If the update changed the dirt depth by adding dirt
       // to something before us (in the DAG), early out and
@@ -2414,6 +2416,33 @@ bool Artboard::updateComponents()
       }
     }
     step++;
+  }
+  if (didUpdate)
+  {
+    // A draw can consume the change notification before pending updates
+    // apply. Request another draw if the updates did not already do so.
+    if (!m_didChange)
+    {
+      changed();
+    }
+    // Applied values can make an earlier raster stale, even when a self
+    // transform has already requested a composite-only redraw.
+    ++m_contentRevision;
+    // A cache hit can clear an ancestor's draw flag without visiting this
+    // artboard. Invalidate every enclosing raster and re-arm any cleared
+    // flags, including those beyond an ancestor that is already dirty.
+    for (Artboard* ancestor = parentArtboard(); ancestor != nullptr;
+         ancestor = ancestor->parentArtboard())
+    {
+      if (ancestor->m_didChange)
+      {
+        ++ancestor->m_contentRevision;
+      }
+      else
+      {
+        ancestor->changed();
+      }
+    }
   }
   return true;
 }

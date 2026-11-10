@@ -167,6 +167,7 @@ void Image::setAsset(rcp<FileAsset> asset)
 {
   if (asset != nullptr && asset->is<ImageAsset>())
   {
+    const bool assetChanged = m_fileAsset.get() != asset.get();
     FileAssetReferencer::setAsset(asset);
 
     // If we have a mesh and we're in the source artboard, let's initialize
@@ -176,6 +177,14 @@ void Image::setAsset(rcp<FileAsset> asset)
       m_Mesh->onAssetLoaded(imageAsset()->renderImage());
     }
     updateImageScale();
+    if (assetChanged && artboard() != nullptr)
+    {
+      // An asset swap changes pixels even when fit and measurement stay
+      // the same. Keep the immediate redraw and schedule a paint update so
+      // enclosing caches are invalidated when a nested artboard advances.
+      artboard()->changed();
+      addDirt(ComponentDirt::Paint);
+    }
   }
 }
 
