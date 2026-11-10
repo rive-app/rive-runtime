@@ -26,6 +26,10 @@ public:
 enum class ValueFlags : uint8_t
 {
   none = 0,
+  // A change happened while deferring; flushDeferredDelegation reports it.
+  pendingDelegation = 1 << 0,
+  // Delegates are held back until flushDeferredDelegation.
+  deferring = 1 << 1,
   delegatesChanged = 1 << 2,
   delegating = 1 << 3,
 };
@@ -69,6 +73,13 @@ protected:
   void restoreDelegation();
 
 public:
+  // Holds this value's delegates back: a change made while deferred is
+  // remembered instead of reported. flushDeferredDelegation reports it once
+  // and lets delegates run again. For a caller that changes several values
+  // and wants all of them written before any delegate sees the first.
+  void deferDelegation() { m_changeFlags |= ValueFlags::deferring; }
+  void flushDeferredDelegation();
+
   StatusCode onAddedDirty(CoreContext* context) override;
   StatusCode import(ImportStack& importStack) override;
   void viewModelProperty(ViewModelProperty* value);

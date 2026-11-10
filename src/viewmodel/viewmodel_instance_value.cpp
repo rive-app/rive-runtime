@@ -168,6 +168,16 @@ void ViewModelInstanceValue::restoreDelegation()
   m_changeFlags &= ~ValueFlags::delegating;
 }
 
+void ViewModelInstanceValue::flushDeferredDelegation()
+{
+  m_changeFlags &= ~ValueFlags::deferring;
+  if (enums::is_flag_set(m_changeFlags, ValueFlags::pendingDelegation))
+  {
+    m_changeFlags &= ~ValueFlags::pendingDelegation;
+    onValueChanged();
+  }
+}
+
 void ViewModelInstanceValue::onValueChanged()
 {
   // One sequence for every value, so a state machine can tell the changes
@@ -179,6 +189,13 @@ void ViewModelInstanceValue::onValueChanged()
   // logic entirely.
   if (m_delegates.empty())
   {
+    return;
+  }
+
+  if (enums::is_flag_set(m_changeFlags, ValueFlags::deferring))
+  {
+    // Held back by deferDelegation; reported by flushDeferredDelegation.
+    m_changeFlags |= ValueFlags::pendingDelegation;
     return;
   }
 

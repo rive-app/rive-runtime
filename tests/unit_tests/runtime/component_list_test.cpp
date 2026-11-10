@@ -12,6 +12,8 @@
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -343,6 +345,667 @@ TEST_CASE("Number To List Artboards Data Context", "[component_list]")
     REQUIRE(index == i);
   }
 }
+
+namespace
+{
+// An item whose view model declares a List Index property, built without a
+// file: the instance carries one ViewModelInstanceSymbolListIndex, registered
+// under SymbolType::itemIndex the way a loaded or created instance's is.
+rive::rcp<rive::ViewModelInstanceListItem> makeIndexedItem(
+    rive::ViewModelPropertySymbolListIndex* indexProperty)
+{
+  auto instance = rive::make_rcp<rive::ViewModelInstance>();
+  auto* index = new rive::ViewModelInstanceSymbolListIndex();
+  index->viewModelProperty(indexProperty);
+  instance->addValue(index);
+  auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  item->viewModelInstance(instance);
+  return item;
+}
+
+// An item whose view model declares no index at all.
+rive::rcp<rive::ViewModelInstanceListItem> makePlainItem()
+{
+  auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  item->viewModelInstance(rive::make_rcp<rive::ViewModelInstance>());
+  return item;
+}
+
+int indexOf(const rive::rcp<rive::ViewModelInstanceListItem>& item)
+{
+  auto symbol = item->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  if (symbol == nullptr)
+  {
+    return -1;
+  }
+  return (int)symbol->as<rive::ViewModelInstanceSymbolListIndex>()
+      ->propertyValue();
+}
+} // namespace
+
+// A list item's index symbol follows the data list itself, so a script or an
+// app that pushes, inserts, removes or swaps reads the right position at once,
+// with no host rebuilding rows first. There is no artboard or file here at
+// all; a plain item sits in the list too, to show an undeclared index is
+// skipped rather than tripped over.
+TEST_CASE("List index follows data changes without a host", "[component_list]")
+{
+  // Declared first so it outlives the values that point at it.
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+
+  auto allInOrder = [&]() {
+    auto items = list->listItems();
+    for (size_t i = 0; i < items.size(); i++)
+    {
+      int index = indexOf(items[i]);
+      if (index != -1 && index != (int)i)
+      {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // A pushed item knows its position in the same call.
+  auto plain = makePlainItem();
+  list->addItem(plain);
+  CHECK(indexOf(plain) == -1);
+  auto a = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  CHECK(indexOf(a) == 1);
+  auto b = makeIndexedItem(&indexProperty);
+  list->addItem(b);
+  CHECK(indexOf(b) == 2);
+
+  // Inserting at the front renumbers everything after it.
+  auto c = makeIndexedItem(&indexProperty);
+  REQUIRE(list->addItemAt(c, 0));
+  CHECK(indexOf(c) == 0);
+  CHECK(indexOf(a) == 2);
+  CHECK(indexOf(b) == 3);
+  CHECK(allInOrder());
+
+  // Swapping writes both positions.
+  list->swap(0, 3);
+  CHECK(indexOf(c) == 3);
+  CHECK(indexOf(b) == 0);
+  CHECK(allInOrder());
+  list->swap(0, 3);
+  CHECK(indexOf(c) == 0);
+  CHECK(allInOrder());
+
+  // Removing by index, by item, by instance, and from either end.
+  list->removeItem(0);
+  CHECK(indexOf(a) == 1);
+  CHECK(indexOf(b) == 2);
+  CHECK(allInOrder());
+  list->removeItem(a);
+  CHECK(indexOf(b) == 1);
+  CHECK(allInOrder());
+  auto d = makeIndexedItem(&indexProperty);
+  REQUIRE(list->addItemAt(d, 0));
+  auto e = makeIndexedItem(&indexProperty);
+  REQUIRE(list->addItemAt(e, 1));
+  CHECK(indexOf(d) == 0);
+  CHECK(indexOf(e) == 1);
+  CHECK(indexOf(b) == 3);
+  CHECK(allInOrder());
+  list->removeAllItemsWithViewModelInstance(d->viewModelInstance().get());
+  CHECK(indexOf(e) == 0);
+  CHECK(indexOf(b) == 2);
+  CHECK(allInOrder());
+  auto shifted = list->shift();
+  REQUIRE(shifted == e);
+  CHECK(indexOf(b) == 1);
+  CHECK(allInOrder());
+  auto popped = list->pop();
+  REQUIRE(popped == b);
+  CHECK(list->listItems().size() == 1);
+  CHECK(list->listItems()[0] == plain);
+
+  // Replacing the whole list numbers the new contents.
+  std::vector<rive::rcp<rive::ViewModelInstanceListItem>> replacement = {
+      b,
+      e,
+      plain,
+      a,
+  };
+  list->updateList(&replacement);
+  CHECK(indexOf(b) == 0);
+  CHECK(indexOf(e) == 1);
+  CHECK(indexOf(a) == 3);
+  CHECK(allInOrder());
+}
+
+// One instance shown by several items has one index symbol. The host's pass
+// leaves it at the last item showing the instance, and so does every mutation
+// here, whichever side of the change the surviving occurrence is on.
+TEST_CASE(
+    "List index of an instance in several items follows its last occurrence",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a1 = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto a2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  a2->viewModelInstance(a1->viewModelInstance());
+
+  list->addItem(a1);
+  list->addItem(b);
+  list->addItem(a2); // [a, b, a]
+  CHECK(indexOf(a1) == 2);
+  CHECK(indexOf(b) == 1);
+
+  list->swap(0, 1); // [b, a, a]
+  CHECK(indexOf(b) == 0);
+  CHECK(indexOf(a1) == 2);
+  list->swap(0, 1); // [a, b, a]
+  CHECK(indexOf(b) == 1);
+  CHECK(indexOf(a1) == 2);
+
+  // Taking the last occurrence out leaves the earlier one as the index.
+  auto popped = list->pop(); // [a, b]
+  REQUIRE(popped == a2);
+  CHECK(indexOf(a1) == 0);
+  list->addItem(a2); // [a, b, a]
+  CHECK(indexOf(a1) == 2);
+  list->removeItem(a2); // [a, b]
+  CHECK(indexOf(a1) == 0);
+
+  // Inserting a second occurrence ahead of the first.
+  REQUIRE(list->addItemAt(a2, 0)); // [a, a, b]
+  CHECK(indexOf(a1) == 1);
+  CHECK(indexOf(b) == 2);
+  list->removeItem(0); // [a, b]
+  CHECK(indexOf(a1) == 0);
+  CHECK(indexOf(b) == 1);
+
+  list->removeAllItemsWithViewModelInstance(a1->viewModelInstance().get());
+  REQUIRE(list->listItems().size() == 1);
+  CHECK(indexOf(b) == 0);
+}
+
+namespace
+{
+// A listener that takes the last item off the list when the value it watches
+// changes, the way a script's listener on an index could.
+struct PopOnChange : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceList* list = nullptr;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    if (list != nullptr && list->listItems().size() > 1)
+    {
+      list->pop();
+    }
+  }
+};
+} // namespace
+
+// An index write runs the value's listeners at once, and one may change the
+// list under the write that is still going. The remaining writes must stay
+// in bounds and leave the list it finds numbered.
+TEST_CASE(
+    "List index writes survive a listener that changes the list",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  PopOnChange popper;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b); // [a, b]
+
+  auto watched = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  REQUIRE(watched != nullptr);
+  popper.list = list.get();
+  watched->addDelegate(&popper);
+
+  // Swapping writes b first (now at 0), whose listener pops a. The write
+  // that would have followed for position 1 finds no item there.
+  list->swap(0, 1);
+  CHECK(popper.calls == 1);
+  REQUIRE(list->listItems().size() == 1);
+  CHECK(list->listItems()[0] == b);
+  CHECK(indexOf(b) == 0);
+
+  // The same through an insert at the front: a's write at 0 is quiet (a has
+  // no listener), b's at 1 pops b itself.
+  REQUIRE(list->addItemAt(a, 0)); // [a, b] -> listener pops b
+  CHECK(popper.calls == 2);
+  REQUIRE(list->listItems().size() == 1);
+  CHECK(list->listItems()[0] == a);
+  CHECK(indexOf(a) == 0);
+
+  watched->removeDelegate(&popper);
+}
+
+namespace
+{
+// A listener that appends one more item showing the same instance whenever
+// the value it watches changes. Capped so a pass that failed to stop would
+// still end, and the test would then fail on the count rather than hang.
+struct AppendOnChange : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceList* list = nullptr;
+  rive::rcp<rive::ViewModelInstance> instance;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    if (list != nullptr && calls <= 8)
+    {
+      auto more = rive::make_rcp<rive::ViewModelInstanceListItem>();
+      more->viewModelInstance(instance);
+      list->addItem(more);
+    }
+  }
+};
+} // namespace
+
+// With one instance in two items, a listener on its index that appends the
+// instance again changes the index with every write. Listeners run only
+// once the pass has written every index, so this one runs once, for the one
+// change it is told of; its append is numbered by the append, and the pass
+// does not go on to it.
+TEST_CASE(
+    "List index listeners run after the pass, not inside it",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  AppendOnChange appender;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a1 = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto a2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  a2->viewModelInstance(a1->viewModelInstance());
+  list->addItem(a1);
+  list->addItem(b);
+  list->addItem(a2); // [a, b, a]
+
+  auto watched = a1->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  REQUIRE(watched != nullptr);
+  appender.list = list.get();
+  appender.instance = a1->viewModelInstance();
+  watched->addDelegate(&appender);
+
+  // [b, a, a]: a is written at 1 and at 2 with its listener held back, then
+  // told once; its append puts a at 3, the last occurrence.
+  list->swap(0, 1);
+  CHECK(appender.calls == 1);
+  REQUIRE(list->listItems().size() == 4);
+  CHECK(indexOf(b) == 0);
+  CHECK(indexOf(a1) == 3);
+
+  watched->removeDelegate(&appender);
+}
+
+// The listener is on another item: with [a, b], b's index listener appends a
+// once during a swap. The append happens after a's index at 1 was written,
+// so a ends at 2, its last occurrence, not at the 1 the pass wrote.
+TEST_CASE(
+    "List index stays at the last occurrence when a listener appends it",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  AppendOnChange appender;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b); // [a, b]
+
+  auto watched = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  REQUIRE(watched != nullptr);
+  appender.list = list.get();
+  appender.instance = a->viewModelInstance();
+  watched->addDelegate(&appender);
+
+  list->swap(0, 1); // [b, a] then the listener makes it [b, a, a]
+  CHECK(appender.calls == 1);
+  REQUIRE(list->listItems().size() == 3);
+  CHECK(indexOf(b) == 0);
+  CHECK(indexOf(a) == 2);
+
+  watched->removeDelegate(&appender);
+}
+
+namespace
+{
+// Counts the changes it is told of.
+struct CountChanges : public rive::ViewModelInstanceValueDelegate
+{
+  int calls = 0;
+  void valueChanged() override { calls++; }
+};
+} // namespace
+
+// An item a listener removes while the pass is reporting must not keep its
+// listeners held back: it is told of its change as it leaves, and hears
+// later changes as usual.
+TEST_CASE(
+    "List index of an item removed mid-report still notifies",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  PopOnChange popper;
+  CountChanges counter;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto c = makeIndexedItem(&indexProperty);
+  list->addItem(c);
+  list->addItem(a);
+  list->addItem(b); // [c, a, b]
+
+  auto bIndex = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  auto cIndex = c->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  REQUIRE(bIndex != nullptr);
+  REQUIRE(cIndex != nullptr);
+  popper.list = list.get();
+  bIndex->addDelegate(&popper);
+  cIndex->addDelegate(&counter);
+
+  // [b, a, c] is written in full, c's change (0 to 2) held back. Reporting
+  // b's change pops c before its turn; c is told as it leaves.
+  list->swap(0, 2);
+  CHECK(popper.calls == 1);
+  CHECK(counter.calls == 1);
+  REQUIRE(list->listItems().size() == 2);
+  CHECK(indexOf(b) == 0);
+  CHECK(indexOf(a) == 1);
+
+  // Nothing stays held back: c hears its next change.
+  list->addItem(c); // [b, a, c]: c is 2 already, no change to report
+  CHECK(counter.calls == 1);
+  list->removeItem(0); // [a, c]: c moves to 1
+  CHECK(counter.calls == 2);
+  CHECK(indexOf(c) == 1);
+
+  bIndex->removeDelegate(&popper);
+  cIndex->removeDelegate(&counter);
+}
+
+namespace
+{
+// Listeners that change the whole list from inside an index report: clear
+// it, take out every item showing an instance, or replace its contents.
+struct ClearOnChange : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceList* list = nullptr;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    if (list != nullptr)
+    {
+      list->removeAllItems();
+    }
+  }
+};
+
+struct RemoveInstanceOnChange : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceList* list = nullptr;
+  rive::ViewModelInstance* instance = nullptr;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    if (list != nullptr)
+    {
+      list->removeAllItemsWithViewModelInstance(instance);
+    }
+  }
+};
+
+struct ReplaceOnChange : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceList* list = nullptr;
+  std::vector<rive::rcp<rive::ViewModelInstanceListItem>> replacement;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    if (list != nullptr)
+    {
+      list->updateList(&replacement);
+    }
+  }
+};
+} // namespace
+
+// Reporting an index change may run a listener that clears the list, and
+// clearing reports the other items' held-back changes, one of which clears
+// it again. Neither pass may be holding an iterator into the list by then.
+TEST_CASE("List cleared twice from inside an index report", "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  ClearOnChange clearA;
+  ClearOnChange clearB;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto c = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b);
+  list->addItem(c); // [a, b, c]
+  auto aIndex = a->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  auto bIndex = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  clearA.list = list.get();
+  clearB.list = list.get();
+  aIndex->addDelegate(&clearA);
+  bIndex->addDelegate(&clearB);
+
+  // [b, a, c]: b's report clears the list; clearing reports a, whose
+  // listener clears the already empty list.
+  list->swap(0, 1);
+  CHECK(clearB.calls == 1);
+  CHECK(clearA.calls == 1);
+  CHECK(list->listItems().empty());
+
+  aIndex->removeDelegate(&clearA);
+  bIndex->removeDelegate(&clearB);
+}
+
+// A front insertion's report runs a listener that takes out every item
+// showing another instance, whose own report clears the list under the
+// compaction that was about to run.
+TEST_CASE(
+    "List compaction after a listener clears the list",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  RemoveInstanceOnChange removeB;
+  ClearOnChange clearAll;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto c = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b); // [a, b]
+  auto aIndex = a->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  auto bIndex = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  removeB.list = list.get();
+  removeB.instance = b->viewModelInstance().get();
+  clearAll.list = list.get();
+  aIndex->addDelegate(&removeB);
+  bIndex->addDelegate(&clearAll);
+
+  // [c, a, b]: a's report (0 to 1) removes b's items; b's held-back change
+  // (1 to 2) is reported first and clears the list.
+  REQUIRE(list->addItemAt(c, 0));
+  CHECK(removeB.calls == 1);
+  CHECK(clearAll.calls == 1);
+  CHECK(list->listItems().empty());
+
+  aIndex->removeDelegate(&removeB);
+  bIndex->removeDelegate(&clearAll);
+}
+
+// A listener replaces the list while another item's change is still held
+// back; reporting that change clears the list under the replacement.
+TEST_CASE("List replaced from inside an index report", "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  ReplaceOnChange replace;
+  ClearOnChange clearAll;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto c = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b); // [a, b]
+  auto aIndex = a->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  auto bIndex = b->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  replace.list = list.get();
+  replace.replacement = {c};
+  clearAll.list = list.get();
+  bIndex->addDelegate(&replace);
+  aIndex->addDelegate(&clearAll);
+
+  // [b, a]: b's report replaces the list with [c]; the replacement first
+  // reports a's held-back change, whose listener clears the list, then
+  // installs c.
+  list->swap(0, 1);
+  CHECK(replace.calls == 1);
+  CHECK(clearAll.calls == 1);
+  REQUIRE(list->listItems().size() == 1);
+  CHECK(list->listItems()[0] == c);
+  CHECK(indexOf(c) == 0);
+
+  bIndex->removeDelegate(&replace);
+  aIndex->removeDelegate(&clearAll);
+}
+
+namespace
+{
+// Records another value's index at the moment the watched one changes.
+struct RecordOtherIndex : public rive::ViewModelInstanceValueDelegate
+{
+  rive::ViewModelInstanceValue* other = nullptr;
+  int seen = -1;
+  int calls = 0;
+  void valueChanged() override
+  {
+    calls++;
+    seen = (int)other->as<rive::ViewModelInstanceSymbolListIndex>()
+               ->propertyValue();
+  }
+};
+} // namespace
+
+// Removing one of an instance's items writes its surviving position before
+// anything is reported, so a listener told of another item's change reads
+// the shared index already refreshed, not the slot that was just removed.
+TEST_CASE(
+    "List removal refreshes a shared index before reporting",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  RecordOtherIndex recorder;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a1 = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  auto a2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
+  a2->viewModelInstance(a1->viewModelInstance());
+  auto c = makeIndexedItem(&indexProperty);
+  list->addItem(a1);
+  list->addItem(b);
+  list->addItem(a2);
+  list->addItem(c); // [a, b, a, c], a reads 2
+  auto aIndex = a1->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  auto cIndex = c->viewModelInstance()->propertyValue(
+      rive::SymbolType::itemIndex);
+  recorder.other = aIndex;
+  cIndex->addDelegate(&recorder);
+
+  // [a, b, c]: c's report sees a already at 0, not still at 2.
+  list->removeItem(2);
+  CHECK(recorder.calls == 1);
+  CHECK(recorder.seen == 0);
+  CHECK(indexOf(a1) == 0);
+  CHECK(indexOf(c) == 2);
+
+  // The same through removal by item, with the surviving occurrence after
+  // the removed one: [a, b, c] + a at 0 -> [a, a, b, c]; taking the first a
+  // out leaves a at 0 again, which c's report must see.
+  list->addItem(a2);          // [a, b, c, a], a reads 3
+  list->removeItem(a2);       // [a, b, c]
+  CHECK(recorder.calls == 1); // c did not move
+  CHECK(indexOf(a1) == 0);
+  REQUIRE(list->addItemAt(a2, 0)); // [a, a, b, c], a reads 1, c 3
+  CHECK(recorder.calls == 2);
+  list->removeItem(a2); // [a, b, c]: c moves to 2 and sees a at 0
+  CHECK(recorder.calls == 3);
+  CHECK(recorder.seen == 0);
+
+  cIndex->removeDelegate(&recorder);
+}
+
+#ifdef WITH_RIVE_TOOLS
+namespace
+{
+// A tools build reports an index change to its change callback at once,
+// ahead of the held-back listeners. This one pops the list it is given.
+rive::ViewModelInstanceList* s_popOnToolsChange = nullptr;
+void popOnToolsChange(rive::ViewModelInstanceSymbolListIndex*, uint32_t)
+{
+  if (s_popOnToolsChange != nullptr &&
+      s_popOnToolsChange->listItems().size() > 1)
+  {
+    s_popOnToolsChange->pop();
+  }
+}
+} // namespace
+
+// The write half of a pass must not assume the list keeps its size: the
+// tools callback is not held back and may take items out.
+TEST_CASE(
+    "List index write pass survives a tools callback that pops",
+    "[component_list]")
+{
+  rive::ViewModelPropertySymbolListIndex indexProperty;
+  auto list = rive::make_rcp<rive::ViewModelInstanceList>();
+  auto a = makeIndexedItem(&indexProperty);
+  auto b = makeIndexedItem(&indexProperty);
+  list->addItem(a);
+  list->addItem(b); // [a, b]
+  auto* bIndex = b->viewModelInstance()
+                     ->propertyValue(rive::SymbolType::itemIndex)
+                     ->as<rive::ViewModelInstanceSymbolListIndex>();
+  s_popOnToolsChange = list.get();
+  bIndex->onChanged(popOnToolsChange);
+
+  // [b, a]: writing b at 0 pops a inside the write pass; the pass finds no
+  // item at 1 and stops.
+  list->swap(0, 1);
+  REQUIRE(list->listItems().size() == 1);
+  CHECK(list->listItems()[0] == b);
+  CHECK(indexOf(b) == 0);
+
+  bIndex->onChanged(nullptr);
+  s_popOnToolsChange = nullptr;
+}
+#endif
 
 TEST_CASE("Number to List Artboards Labels", "[component_list]")
 {
