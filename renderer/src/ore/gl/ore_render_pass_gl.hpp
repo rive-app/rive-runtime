@@ -1,6 +1,7 @@
 #pragma once
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
+#include "ore_sampler_gl.hpp"
 #include "rive/refcnt.hpp"
 #include <cstdint>
 #include <vector>
@@ -72,6 +73,16 @@ private:
   // Deferred to draw time: the pairing comes from the pipeline, which may
   // be set after the bind groups.
   void applySamplerBindings();
+
+  // What each unit holds this pass, so a draw binds only what changed.
+  // Holding the sampler stops a new one taking its address meanwhile.
+  struct UnitSampler
+  {
+    rcp<SamplerGL> bound;
+    bool known = false;
+  };
+  std::vector<UnitSampler> m_unitSamplers;
+  SamplerGL* pairedSampler(uint32_t group, uint32_t binding) const;
 
   // Per draw, since any bound group can hold a view of the same texture.
   void applySampledLevels();

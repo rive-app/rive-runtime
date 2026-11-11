@@ -7,9 +7,7 @@
  * layout and could not be bound at all.
  */
 
-#include "common/testing_window.hpp"
-#include "gm/ore_gm_helper.hpp"
-#include <catch.hpp>
+#include "ore_test_backends.hpp"
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_VK) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_D3D12) ||                 \
@@ -17,10 +15,6 @@
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
-#include <cstdlib>
-#ifdef __APPLE__
-#include <dlfcn.h>
-#endif
 #define ORE_SPLIT_STAGE_TEST_ACTIVE
 #endif
 
@@ -59,30 +53,6 @@ const TestingWindow::Backend kOreBackends[] = {
     TestingWindow::Backend::dawn,
 #endif
 };
-
-// `TestingWindow::Init` aborts on a backend it cannot bring up rather than
-// declining it, which would take every test in the binary with it. So check
-// what each GL flavor needs before asking for it.
-//
-// The EGL path only speaks ANGLE: it dlsyms `eglGetPlatformDisplayEXT`,
-// which Mesa's libEGL does not export, and Android trips an
-// `angleRenderer == EGL_NONE` assert. Hence ANGLE on Apple, a real GLFW
-// window everywhere else.
-bool backendCanStart(TestingWindow::Backend backend)
-{
-  if (backend == TestingWindow::Backend::gl)
-  {
-    return getenv("DISPLAY") != nullptr || getenv("WAYLAND_DISPLAY") != nullptr;
-  }
-#ifdef __APPLE__
-  if (backend == TestingWindow::Backend::angle)
-  {
-    // Held for the process; MakeEGL dlopens it again anyway.
-    return dlopen("libEGL.dylib", RTLD_LAZY) != nullptr;
-  }
-#endif
-  return true;
-}
 
 struct Uniforms
 {
@@ -344,31 +314,17 @@ void runDepthSamplerSetScenario(TestingWindow* window)
           &depthOnSampler0)
           .get() == first.get());
 }
+
+void runDepthSamplerScenarios(TestingWindow* window)
+{
+  runDepthSamplerScenario(window);
+  runDepthSamplerSetScenario(window);
+}
 } // namespace
 
 TEST_CASE("ore binds a fragment compiled apart from its vertex", "[ore]")
 {
-  int ran = 0;
-  for (auto backend : kOreBackends)
-  {
-    if (!backendCanStart(backend))
-      continue;
-    auto* window = TestingWindow::Init(
-        backend,
-        {},
-        TestingWindow::Visibility::headless);
-    if (window == nullptr || window->renderContext() == nullptr ||
-        !ore_gm::isOreBackendActive())
-    {
-      TestingWindow::Destroy();
-      continue;
-    }
-    INFO("backend " << TestingWindow::BackendName(backend));
-    runScenario(window);
-    ++ran;
-    TestingWindow::Destroy();
-  }
-  if (ran == 0)
+  if (ore_test::runOnBackends(kOreBackends, &runScenario) == 0)
     WARN("no Ore backend available headless; skipping");
 }
 
@@ -376,28 +332,7 @@ TEST_CASE(
     "ore layouts declare non-filtering samplers for depth-only use",
     "[ore]")
 {
-  int ran = 0;
-  for (auto backend : kOreBackends)
-  {
-    if (!backendCanStart(backend))
-      continue;
-    auto* window = TestingWindow::Init(
-        backend,
-        {},
-        TestingWindow::Visibility::headless);
-    if (window == nullptr || window->renderContext() == nullptr ||
-        !ore_gm::isOreBackendActive())
-    {
-      TestingWindow::Destroy();
-      continue;
-    }
-    INFO("backend " << TestingWindow::BackendName(backend));
-    runDepthSamplerScenario(window);
-    runDepthSamplerSetScenario(window);
-    ++ran;
-    TestingWindow::Destroy();
-  }
-  if (ran == 0)
+  if (ore_test::runOnBackends(kOreBackends, &runDepthSamplerScenarios) == 0)
     WARN("no Ore backend available headless; skipping");
 }
 #endif // ORE_SPLIT_STAGE_TEST_ACTIVE

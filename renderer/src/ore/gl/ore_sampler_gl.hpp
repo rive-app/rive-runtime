@@ -4,6 +4,7 @@
 namespace rive::ore
 {
 class ContextGL;
+class RenderPassGL;
 
 class SamplerGL : public LITE_RTTI_OVERRIDE(Sampler, SamplerGL)
 {
@@ -13,6 +14,7 @@ public:
 
 private:
   friend class ContextGL;
+  friend class RenderPassGL;
   unsigned int m_glSampler = 0; // GLuint
 };
 } // namespace rive::ore

@@ -26,9 +26,7 @@
  * elsewhere, same as ore_split_stage_test.
  */
 
-#include "common/testing_window.hpp"
-#include "gm/ore_gm_helper.hpp"
-#include <catch.hpp>
+#include "ore_test_backends.hpp"
 
 #if defined(ORE_BACKEND_GL)
 #include "rive/renderer/render_context.hpp"
@@ -37,13 +35,9 @@
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
-#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
-#ifdef __APPLE__
-#include <dlfcn.h>
-#endif
 #define ORE_SCRATCH_PASS_OBJECTS_TEST_ACTIVE
 #endif
 
@@ -54,36 +48,6 @@ using namespace rive::ore;
 
 namespace
 {
-// Only GL has scratch pass objects. Apple's GL is ANGLE (desktop GL caps at
-// 4.1 and the GLFW path asks for 4.2), everywhere else it is a real GL window.
-const TestingWindow::Backend kGLBackends[] = {
-#if defined(__APPLE__)
-    TestingWindow::Backend::angle,
-#else
-    TestingWindow::Backend::gl,
-#endif
-};
-
-// `TestingWindow::Init` aborts on a backend it cannot bring up rather than
-// declining it, which would take every test in the binary with it. So check
-// what each GL flavor needs before asking for it. Mirrors
-// ore_split_stage_test.cpp.
-bool backendCanStart(TestingWindow::Backend backend)
-{
-  if (backend == TestingWindow::Backend::gl)
-  {
-    return getenv("DISPLAY") != nullptr || getenv("WAYLAND_DISPLAY") != nullptr;
-  }
-#ifdef __APPLE__
-  if (backend == TestingWindow::Backend::angle)
-  {
-    // Held for the process; MakeEGL dlopens it again anyway.
-    return dlopen("libEGL.dylib", RTLD_LAZY) != nullptr;
-  }
-#endif
-  return true;
-}
-
 // A channel is "high" near 255 and "low" near 0, with slack for rgba8 rounding
 // and the srcOver composite of the canvas onto the window target.
 bool high(uint8_t c) { return c >= 0xf0; }
@@ -453,37 +417,11 @@ void runOverlapScenario(TestingWindow* window)
       true); // magenta
 }
 
-// Brings a GL window up, runs `scenario` on it, and tears it down. Returns
-// false when no GL flavor could be started here.
-bool runOnGL(void (*scenario)(TestingWindow*))
-{
-  bool ran = false;
-  for (auto backend : kGLBackends)
-  {
-    if (!backendCanStart(backend))
-      continue;
-    auto* window = TestingWindow::Init(
-        backend,
-        {},
-        TestingWindow::Visibility::headless);
-    if (window == nullptr || window->renderContext() == nullptr ||
-        !ore_gm::isOreBackendActive())
-    {
-      TestingWindow::Destroy();
-      continue;
-    }
-    INFO("backend " << TestingWindow::BackendName(backend));
-    scenario(window);
-    ran = true;
-    TestingWindow::Destroy();
-  }
-  return ran;
-}
 } // namespace
 
 TEST_CASE("ore GL hands a reused render pass FBO over scrubbed", "[ore][gl]")
 {
-  if (!runOnGL(&runScrubScenario))
+  if (ore_test::runOnBackends(ore_test::kGLBackends, &runScrubScenario) == 0)
     WARN("no Ore GL backend available headless; skipping");
 }
 
@@ -491,7 +429,7 @@ TEST_CASE(
     "ore GL mints its own pass objects when the scratch pair is lent",
     "[ore][gl]")
 {
-  if (!runOnGL(&runOverlapScenario))
+  if (ore_test::runOnBackends(ore_test::kGLBackends, &runOverlapScenario) == 0)
     WARN("no Ore GL backend available headless; skipping");
 }
 #endif // ORE_SCRATCH_PASS_OBJECTS_TEST_ACTIVE

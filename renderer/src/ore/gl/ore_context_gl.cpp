@@ -1050,7 +1050,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     BindGroupGL::GLSamplerBinding binding{};
     auto* samp = lite_rtti_cast<SamplerGL*>(entry.sampler);
     assert(samp);
-    binding.sampler = samp->m_glSampler;
+    binding.sampler = samp;
     binding.binding = entry.slot;
     bg->m_glSamplers.push_back(binding);
     bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));

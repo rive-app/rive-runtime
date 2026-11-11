@@ -78,6 +78,7 @@
 #if ORE_GM_HAS_BACKEND
 #include "ore_gm_shaders.rstb.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
+#include "rive/renderer/ore/ore_shader_asset_modules.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
@@ -308,6 +309,8 @@ enum OreGMShader : uint32_t
   kDepthSampleWitness = 13,
   kLayoutSlotsLit = 14,
   kLayoutSlotsShadow = 15,
+  kUnitCompare = 16,
+  kUnitFetch = 17,
 };
 
 struct OreGMShaderResult
@@ -478,19 +481,8 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
   auto fsGLFixupBlob = (target == 1) ? asset.findShader(15)
                                      : rive::Span<const uint8_t>{};
 
-  auto propagatePairs = [&](rive::ore::ShaderModule* mod) {
-    if (!mod)
-      return;
-    auto pairs = asset.textureSamplerPairs();
-    for (size_t i = 0; i < pairs.size(); i++)
-    {
-      mod->m_textureSamplerPairs.push_back(
-          {pairs[i].texGroup,
-           pairs[i].texBinding,
-           pairs[i].sampGroup,
-           pairs[i].sampBinding});
-    }
-  };
+  // Through the desc, so a recording context replays them too.
+  const std::vector<uint8_t> pairBytes = textureSamplerPairBytes(asset);
 
   auto names = wgslEntryPoints(shaderId);
 
@@ -513,6 +505,8 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
       desc.shaderAssetId = kOreGMShaderAssetIdBase + shaderId;
       desc.bindingMapBytes = bindingMapBytes;
       desc.bindingMapSize = bindingMapSize;
+      desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
+      desc.texSamplerPairSize = static_cast<uint32_t>(pairBytes.size());
       if (target == 3)
       {
         desc.hlslSource = reinterpret_cast<const char*>(v.source);
@@ -528,7 +522,6 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
         desc.glFixupSize = static_cast<uint32_t>(fx.size());
       }
       auto mod = ctx.makeShaderModule(desc);
-      propagatePairs(mod.get());
       if (isVtx)
         result.vsModule = mod;
       else
@@ -556,11 +549,12 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     desc.language = ShaderLanguage::wgsl;
   desc.bindingMapBytes = bindingMapBytes;
   desc.bindingMapSize = bindingMapSize;
+  desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
+  desc.texSamplerPairSize = static_cast<uint32_t>(pairBytes.size());
   result.vsModule = ctx.makeShaderModule(desc);
   result.psModule = result.vsModule; // Same module for VS + PS.
   result.vsEntryPoint = names.first;
   result.fsEntryPoint = names.second;
-  propagatePairs(result.vsModule.get());
   return result;
 }
 

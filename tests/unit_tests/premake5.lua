@@ -167,6 +167,7 @@ do
         files({
             'renderer/deferred_ore_canvas_order_test.mm',
             'renderer/ore_buffer_race_test.mm',
+            'renderer/ore_gl_sampler_units_test.mm',
             'renderer/ore_layout_intern_test.mm',
             'renderer/ore_layout_native_slots_test.mm',
             'renderer/ore_scratch_pass_objects_test.mm',
@@ -175,6 +176,7 @@ do
         removefiles({
             'renderer/deferred_ore_canvas_order_test.cpp',
             'renderer/ore_buffer_race_test.cpp',
+            'renderer/ore_gl_sampler_units_test.cpp',
             'renderer/ore_layout_intern_test.cpp',
             'renderer/ore_layout_native_slots_test.cpp',
             'renderer/ore_scratch_pass_objects_test.cpp',

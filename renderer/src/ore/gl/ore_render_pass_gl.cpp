@@ -497,6 +497,26 @@ void RenderPassGL::applyBindGroup(uint32_t groupIndex)
   }
 }
 
+SamplerGL* RenderPassGL::pairedSampler(uint32_t group, uint32_t binding) const
+{
+  for (const auto& pair : m_currentPipeline->m_textureSamplerPairs)
+  {
+    if (pair.textureGroup != group || pair.textureBinding != binding ||
+        pair.samplerGroup >= kMaxBindGroups)
+      continue;
+    auto* glBg = lite_rtti_cast<BindGroupGL*>(
+        m_boundGroups[pair.samplerGroup].get());
+    if (glBg == nullptr)
+      continue;
+    for (const auto& samp : glBg->m_glSamplers)
+    {
+      if (samp.binding == pair.samplerBinding)
+        return samp.sampler;
+    }
+  }
+  return nullptr;
+}
+
 // GLSL folds a texture and its sampler into one uniform at the texture's unit,
 // so a sampler binds to every unit whose texture it serves.
 void RenderPassGL::applySamplerBindings()
@@ -505,76 +525,28 @@ void RenderPassGL::applySamplerBindings()
     return;
   m_samplerBindingsDirty = false;
 
-  const std::vector<ShaderModule::TextureSamplerPair>*
-      pairs = m_currentPipeline != nullptr
-                  ? &m_currentPipeline->m_textureSamplerPairs
-                  : nullptr;
-
-  auto bindTo = [this](uint32_t slot, unsigned int sampler) {
-    glBindSampler(slot, sampler);
-    if (!m_usedSamplers || slot > m_maxSamplerSlot)
-      m_maxSamplerSlot = slot;
-    m_usedSamplers = true;
-  };
-
-  auto forEachPairedUnit =
-      [&](uint32_t group, uint32_t binding, const auto& fn) {
-        bool paired = false;
-        if (pairs == nullptr)
-          return paired;
-        for (const auto& pair : *pairs)
-        {
-          if (pair.samplerGroup != group || pair.samplerBinding != binding)
-            continue;
-          auto* texBg = lite_rtti_cast<BindGroupGL*>(
-              m_boundGroups[pair.textureGroup].get());
-          if (texBg == nullptr)
-            continue;
-          const uint16_t unit = glUnit(m_currentPipeline->slots(
-              pair.textureGroup,
-              pair.textureBinding,
-              SlotSpace::texture));
-          if (unit == BindingMap::kAbsent)
-            continue;
-          for (const auto& tex : texBg->m_glTextures)
-          {
-            if (tex.binding != pair.textureBinding)
-              continue;
-            fn(unit);
-            paired = true;
-          }
-        }
-        return paired;
-      };
-
-  // Unpaired samplers bind first, so one this pipeline never samples through
-  // cannot take a unit from one it does.
-  for (bool pairedPass : {false, true})
+  for (uint32_t group = 0; group < kMaxBindGroups; ++group)
   {
-    for (uint32_t group = 0; group < kMaxBindGroups; ++group)
+    auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+    if (glBg == nullptr)
+      continue;
+    for (const auto& tex : glBg->m_glTextures)
     {
-      auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
-      if (glBg == nullptr)
+      const uint16_t unit = glUnit(
+          m_currentPipeline->slots(group, tex.binding, SlotSpace::texture));
+      if (unit == BindingMap::kAbsent)
         continue;
-
-      for (const auto& samp : glBg->m_glSamplers)
-      {
-        if (pairedPass)
-        {
-          forEachPairedUnit(group, samp.binding, [&](uint32_t slot) {
-            bindTo(slot, samp.sampler);
-          });
-        }
-        else if (!forEachPairedUnit(group, samp.binding, [](uint32_t) {}))
-        {
-          const uint16_t unit = glUnit(m_currentPipeline->slots(
-              group,
-              samp.binding,
-              SlotSpace::sampler));
-          if (unit != BindingMap::kAbsent)
-            bindTo(unit, samp.sampler);
-        }
-      }
+      // A fetch gets no sampler, since WebGL rejects a depth fetch through a
+      // comparison sampler an earlier draw left on its unit.
+      SamplerGL* sampler = pairedSampler(group, tex.binding);
+      if (unit >= m_unitSamplers.size())
+        m_unitSamplers.resize(unit + 1u);
+      UnitSampler& held = m_unitSamplers[unit];
+      if (held.known && held.bound.get() == sampler)
+        continue;
+      glBindSampler(unit, sampler != nullptr ? sampler->m_glSampler : 0);
+      held.bound = ref_rcp(sampler);
+      held.known = true;
     }
   }
 }
@@ -761,6 +733,7 @@ void RenderPassGL::finish()
     }
     glActiveTexture(GL_TEXTURE0);
   }
+  m_unitSamplers.clear();
 
   // Disabling an array leaves its buffer binding on the VAO until the next
   // borrower overwrites the slot: deliberate, since a disabled array cannot

@@ -7,6 +7,7 @@ namespace rive::ore
 {
 class ContextGL;
 class RenderPassGL;
+class SamplerGL;
 class TextureGL;
 
 class BindGroupGL : public LITE_RTTI_OVERRIDE(BindGroup, BindGroupGL)
@@ -32,8 +33,8 @@ public:
   };
   struct GLSamplerBinding
   {
-    unsigned int sampler = 0; // GLuint
-    uint32_t binding = 0;     // WGSL @binding, for pair lookup
+    SamplerGL* sampler = nullptr; // held by m_retainedSamplers
+    uint32_t binding = 0;         // WGSL @binding, for pair lookup
   };
 
   BindGroupGL() = default;
