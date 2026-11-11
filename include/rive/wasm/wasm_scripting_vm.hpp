@@ -329,6 +329,12 @@ public:
   /// job, a worker due a step, a processor starting, or an audio stream to
   /// top up.
   bool hasPendingAsyncWork() const;
+  /// hasPendingAsyncWork() for the VMs this thread's polls reach: those
+  /// holding outcomes, and those whose lanes, main waits or streams started
+  /// here. For a host that polls the thread as a whole, like the editor,
+  /// rather than through artboards. Fetches and native decodes are
+  /// rive_hasPendingAsyncWork()'s.
+  static bool hasPendingAsyncWorkOnThread();
 
   /// The module's jobs section, null when it carries none.
   WasmJobs* jobs() const { return m_jobs.get(); }

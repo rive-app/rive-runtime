@@ -13206,6 +13206,26 @@ void WasmScriptingVM::deliverAllHeldOutcomes()
   t_holdingVMs->deliver([](WasmScriptingVM* vm) { vm->deliverHeldOutcomes(); });
 }
 
+bool WasmScriptingVM::hasPendingAsyncWorkOnThread()
+{
+  {
+    VMPollList::Lock lock(*t_holdingVMs);
+    if (!t_holdingVMs->vms.empty())
+    {
+      return true;
+    }
+  }
+  VMPollList::Lock lock(*t_laneVMs);
+  for (WasmScriptingVM* vm : t_laneVMs->vms)
+  {
+    if (vm->hasPendingAsyncWork())
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 void WasmScriptingVM::setBootHook(BootHook hook)
 {
   s_bootHook = std::move(hook);
