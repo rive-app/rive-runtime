@@ -1983,6 +1983,26 @@ void Artboard::markHostedQuiet()
   }
 }
 
+bool Artboard::markQuietAwaitingAsync()
+{
+  // Settled, the scene's advance would do nothing, scripts included; what's
+  // left is to hear every change that could undo that. A bind this polls,
+  // or a change still waiting in a queue, would not wake it.
+  if (m_host != nullptr || hasDirt(ComponentDirt::Components) ||
+      !m_dirtyLayout.empty() || m_hostTransformMarkedDirty ||
+      m_instanceValueBindsPending || hasDataBindWork() ||
+      !hostedSkippableWhileCollapsed())
+  {
+    return false;
+  }
+  // Rows and collapsed nested artboards mark their trees the same way, so
+  // the wakes already route here (see wakeQuietRow), and a root, with no
+  // host to tell, just drops the mark.
+  m_quietHostRow = 0;
+  markHostedQuiet();
+  return true;
+}
+
 bool Artboard::hostedSkippableWhileCollapsed() const
 {
   // The hosts that aren't nested artboards or lists are artboard paints.

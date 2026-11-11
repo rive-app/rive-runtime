@@ -303,13 +303,16 @@ public:
   /// or a node's focusable backing / canFocus flag.
   void markFocusableContentDirty() { m_focusableContentDirty = true; }
 
+  /// Whether a focus request for rootArtboard's tree is waiting for an
+  /// advance to apply it (see processPendingFocusRequests).
+  bool hasPendingFocusRequests(const Artboard* rootArtboard) const;
+
 private:
   void enqueueFocusRequest(PendingFocusRequest request);
   void drainPendingFocusRequests(
       const Artboard* rootArtboard,
       bool keepUnapplied,
       bool allRoots);
-  bool hasPendingFocusRequests(const Artboard* rootArtboard) const;
   bool applyFocusTraversal(uint32_t traversalKind);
   /// @returns true when the request is done with — it took effect, or it
   /// never can (its target is gone). False means "try again later".

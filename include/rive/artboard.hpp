@@ -416,6 +416,20 @@ public:
       wakeQuietRow();
     }
   }
+  /// For a root artboard whose state machine settled with only its scripts'
+  /// async work outstanding (see StateMachineInstance::advanceAndApply): marks
+  /// it, and the artboards it hosts, quiet as a list does a quiet row, so
+  /// whatever could change any of them wakes it, and returns true. Returns
+  /// false, marking nothing, when a change could go unheard: it is hosted
+  /// itself, has work of its own waiting, polls a bind, or hosts something
+  /// that can't report a change (see hostedSkippableWhileCollapsed).
+  bool markQuietAwaitingAsync();
+  /// Whether the mark markQuietAwaitingAsync set is still there: nothing
+  /// has woken this root since.
+  bool quietAwaitingAsync() const
+  {
+    return m_host == nullptr && m_quietHostRow != kNoQuietRow;
+  }
   /// Whether this artboard's own per-frame work as a row (advanceInternal,
   /// updateDataBinds, reset and updatePass) would currently do nothing,
   /// what it hosts included. `never` for artboards whose content can't say

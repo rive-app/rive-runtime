@@ -637,6 +637,14 @@ public:
   // Machines visited by capturePointer, across every instance. Stays put
   // while nothing in the process has a capture listener.
   static uint64_t sm_capturePassVisits;
+  // Advances advanceAndApply(float) skipped, across every instance, because
+  // the machine had settled with only its scripts' async work outstanding
+  // and nothing woke it since (see Artboard::markQuietAwaitingAsync).
+  static uint64_t sm_asyncSkips;
+  // Whether each skipped advance runs anyway and stops loudly if it did
+  // work, as ArtboardComponentList::sm_verifyQuietRows does for quiet rows.
+  // On by default.
+  static bool sm_verifyAsyncSkips;
 #endif
   void enablePointerEvents(int pointerId = 0);
   void disablePointerEvents(int pointerId = 0);
@@ -693,6 +701,10 @@ private:
   bool m_captureRunByHost : 1;
   // See inPointerMiss.
   bool m_inPointerMiss : 1;
+  // The last advanceAndApply(float) settled with only its scripts' async
+  // work outstanding and marked the artboard quiet, so frames skip the
+  // advance until something wakes it (see skipWhileAwaitingAsync).
+  bool m_awaitingAsync : 1;
   // The artboard's changeSerial() when the last advance started. A layer
   // resting on a pose re-applies it only if the serial moved since then
   // (see StateMachineLayerInstance::isFrozen).
@@ -774,6 +786,22 @@ private:
   const Artboard* rootArtboard() const;
 
   void processSemanticEvents();
+
+public:
+  // Whether a transition condition of this machine runs a script. Its
+  // answer reads script state that changes without any dirt or report, so
+  // its layers search every frame (see StateMachine::readsPendingChanges'
+  // settle-safety) and nothing could wake a skipped one.
+  bool ownsScriptedConditions() const;
+
+private:
+  // advanceAndApply(float) settled with only its scripts' async work
+  // keeping it going: marks the artboard so any change wakes it.
+  void armAwaitingAsync();
+  // Whether advanceAndApply(float) can skip this frame's advance: armed, and
+  // nothing woke the artboard, queued work here or moved the view model
+  // change sequence since, while the async work is still out.
+  bool skipWhileAwaitingAsync(float seconds);
 
 #ifdef WITH_RIVE_TOOLS
 public:

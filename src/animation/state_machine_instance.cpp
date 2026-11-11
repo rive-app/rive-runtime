@@ -4284,6 +4284,8 @@ uint64_t StateMachineInstance::sm_settledLayerSkips = 0;
 uint64_t StateMachineInstance::sm_capturePassVisits = 0;
 uint64_t StateMachineInstance::sm_frozenLayerAdvances = 0;
 uint64_t StateMachineInstance::sm_frozenPoseAdvances = 0;
+uint64_t StateMachineInstance::sm_asyncSkips = 0;
+bool StateMachineInstance::sm_verifyAsyncSkips = true;
 
 const LayerState* StateMachineInstance::layerState(size_t index)
 {
@@ -4450,6 +4452,7 @@ StateMachineInstance::StateMachineInstance(
     , m_hostDispatching(false)
     , m_captureRunByHost(false)
     , m_inPointerMiss(false)
+    , m_awaitingAsync(false)
 {
   const auto count = machine->inputCount();
   m_inputInstances.resize(count);
@@ -5710,14 +5713,151 @@ bool StateMachineInstance::advanceAndApply(float seconds)
     // its first frame is ready the instant the watermark ends, but don't
     // let it animate forward. Reporting "keep going" matters here, a false
     // would read as settled and stop the host's ticker mid pre-roll.
+    m_awaitingAsync = false;
     advanceAndApply(0.0f, true);
+    return true;
+  }
+  // Settled but for its scripts' async work, with nothing changed since,
+  // this frame's advance would do nothing: the poll above was all it had.
+  if (skipWhileAwaitingAsync(seconds))
+  {
+    return true;
+  }
+  if (advanceAndApply(seconds, true))
+  {
+    m_awaitingAsync = false;
     return true;
   }
   // Keep going while this artboard's scripts have async work outstanding,
   // even once settled: a host that stops ticking on false would never poll
   // the result in.
-  return advanceAndApply(seconds, true) ||
-         m_artboardInstance->hasPendingAsyncWork();
+  if (!m_artboardInstance->hasPendingAsyncWork())
+  {
+    m_awaitingAsync = false;
+    return false;
+  }
+  armAwaitingAsync();
+  return true;
+}
+
+bool StateMachineInstance::ownsScriptedConditions() const
+{
+  if (auto* scripting = m_scripting.get())
+  {
+    for (const auto& pair : scripting->objects)
+    {
+      if (pair.second != nullptr &&
+          pair.second->scriptProtocol() == ScriptProtocol::transitionCondition)
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Whether a machine in one of artboard's nested artboards, at any depth, owns
+// a scripted transition condition. A list's rows need no look: one whose
+// machine runs scripts never goes quiet, so markQuietAwaitingAsync refuses
+// its list.
+static bool hostsScriptedConditions(Artboard* artboard)
+{
+  for (auto* nestedArtboard : artboard->nestedArtboards())
+  {
+    for (auto* animation : nestedArtboard->nestedAnimations())
+    {
+      if (!animation->is<NestedStateMachine>())
+      {
+        continue;
+      }
+      auto* machine = animation->as<NestedStateMachine>()
+                          ->stateMachineInstance();
+      if (machine != nullptr && machine->ownsScriptedConditions())
+      {
+        return true;
+      }
+    }
+    auto* instance = nestedArtboard->artboardInstance();
+    if (instance != nullptr && hostsScriptedConditions(instance))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+void StateMachineInstance::armAwaitingAsync()
+{
+  // A row's machine never comes through advanceAndApply(float), and a
+  // machine that reads pending changes needs its bindables' baseline to
+  // hear the ones that report no wake (a component trigger fired directly).
+  // Events still reported (reportedEventCount, those applied during the
+  // last applyEvents loop included) stay visible until the next advance,
+  // so skipping would hand a host the same ones every frame.
+  m_awaitingAsync = !m_needsAdvance && !m_bindsPending &&
+                    !hasPendingReports() && reportedEventCount() == 0 &&
+                    !hasDataBindWork(/*applyTargetToSource=*/false) &&
+                    (!m_machine->readsPendingChanges() ||
+                     m_bindables.get() != nullptr) &&
+                    !ownsScriptedConditions() &&
+                    !hostsScriptedConditions(m_artboardInstance) &&
+                    m_artboardInstance->markQuietAwaitingAsync();
+}
+
+bool StateMachineInstance::skipWhileAwaitingAsync(float seconds)
+{
+  if (!m_awaitingAsync)
+  {
+    return false;
+  }
+  // What wakes a quiet row wakes the artboard (dirt, binds, layout, its
+  // data context, this machine's inputs and listeners); the rest is
+  // checked here. The change sequence moves for every view model change,
+  // anyone's, so it also catches one this machine reads without a wake.
+  // The mark is the artboard's, so another machine advancing it can set it
+  // again after a change this one hasn't seen; the artboard's change serial
+  // against where it stood when this machine last advanced catches that.
+  auto* bindables = m_bindables.get();
+  auto* focus = focusManager();
+  if (!m_artboardInstance->quietAwaitingAsync() ||
+      m_advanceChangeSerial != m_artboardInstance->changeSerial() ||
+      m_needsAdvance || m_bindsPending || hasPendingReports() ||
+      m_drawOrderChangeCounter !=
+          m_artboardInstance->drawOrderChangeCounter() ||
+      (bindables != nullptr &&
+       bindables->listenerBaseline !=
+           ViewModelInstanceValue::latestChangeSequence()) ||
+      (focus != nullptr && focus->hasPendingFocusRequests(rootArtboard())) ||
+      !m_artboardInstance->hasPendingAsyncWork())
+  {
+    m_awaitingAsync = false;
+    return false;
+  }
+#ifdef TESTING
+  sm_asyncSkips++;
+  if (sm_verifyAsyncSkips)
+  {
+    // Advancing by 0 always reports keep going (see the overload below).
+    auto dirt = Artboard::sm_dirtNotifications;
+    auto sequence = ViewModelInstanceValue::latestChangeSequence();
+    bool keepGoing = advanceAndApply(seconds, true) && seconds != 0.0f;
+    if (keepGoing || dirt != Artboard::sm_dirtNotifications ||
+        sequence != ViewModelInstanceValue::latestChangeSequence() ||
+        stateChangedCount() != 0 || m_needsAdvance || hasPendingReports())
+    {
+      fprintf(
+          stderr,
+          "State machine %s on artboard %s skipped an advance awaiting "
+          "async work, but the advance did work\n",
+          m_machine->name().c_str(),
+          m_artboardInstance->name().c_str());
+      abort();
+    }
+  }
+#else
+  (void)seconds;
+#endif
+  return true;
 }
 
 bool StateMachineInstance::advanceAndApply(
