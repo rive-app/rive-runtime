@@ -3,6 +3,7 @@
 #include "rive/generated/text/text_base.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/text/text_value_run.hpp"
+#include "rive/text/text_language.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/simple_array.hpp"
@@ -100,7 +101,8 @@ public:
       float lineHeight,
       float letterSpacing,
       const std::string& text,
-      uint16_t styleId);
+      uint16_t styleId,
+      TextLanguageId language = TextLanguages::none);
   const std::vector<Unichar>& unichars() const { return m_value; }
   const std::vector<TextRun>& runs() const { return m_runs; }
 
@@ -245,6 +247,15 @@ public:
 
   void file(File* value) { m_file = value; }
   File* file() const { return m_file; }
+
+  StatusCode onAddedDirty(CoreContext* context) override;
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override;
+  // A file carries languageId in place of language, resolved into it while
+  // decoding (see deserialize), so there is no index to keep.
+  void setLanguageId(uint32_t value) override {}
+  uint32_t languageId() override { return -1; }
+  /// The Text's interned language, none when it inherits the system's.
+  TextLanguageId languageSlot() const { return m_languageSlot; }
 
   void draw(Renderer* renderer) override;
   Core* hitTest(HitInfo*, const Mat2D&) override;
@@ -464,6 +475,7 @@ public:
 #endif
 
 protected:
+  void languageChanged() override;
   void alignValueChanged() override;
   void sizingValueChanged() override;
   void overflowValueChanged() override;
@@ -690,10 +702,17 @@ private:
     all = layoutSizesBox | fitFontSizeResizesBox,
   };
   FileFeatures m_fileFeatures = FileFeatures::all;
+  TextLanguageId m_languageSlot = TextLanguages::none;
+  // TextLanguages::generation() when the shape was last marked for it, so a
+  // change to the system languages reshapes on the next advance.
+  uint32_t m_languageGeneration = 0;
 #ifdef WITH_RIVE_TEXT
   // Font::fallbackGeneration(), read before m_shape was made (see
   // reusableShape); here for the padding after m_fileFeatures.
   uint32_t m_shapeFallbacks = 0;
+  // Font::fallbackFontsGeneration() when the shape was last marked for it,
+  // so new fallback fonts reshape on the next advance.
+  uint32_t m_fallbackFontsGeneration = 0;
 #endif
   bool hasFileFeature(FileFeatures feature) const
   {

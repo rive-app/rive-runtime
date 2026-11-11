@@ -1,0 +1,99 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/quiet_nested_list_text.riv. Rebuild the .riv
+      from this file with the CLI, from a directory holding this scene.rml, a
+      rive.yaml naming it and Inter.ttf (a copy of
+      assets/fonts/Inter_18pt-Regular.ttf), then copy
+      build/quiet_nested_list_text.riv into assets/.
+
+          rive . --once
+
+      What it is for: a quiet list row whose only work is a list of its own,
+      whose rows hold text that inherits the system languages (see
+      text_language_test.cpp). Each Outer Row lists its item's words, and
+      each Word is a text.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row: nothing but a list of its item's words. -->
+    <Artboard isComponent="true" viewModelId="0:50" x="400" width="300" height="60" styleId="0:35" name="Outer Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Outer Row Style" id="0:35"/>
+        <LayoutComponent width="300" height="60" styleId="0:39" name="Word Strip" id="0:38">
+            <LayoutComponentStyle flexDirectionValue="row" layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Word Strip Style" id="0:39"/>
+            <ArtboardComponentList name="Words" id="0:33">
+                <DataBindContext sourcePathIds="0:50-0:53" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Outer Row"/>
+
+    <!-- Word: a text with no language of its own. -->
+    <Artboard isComponent="true" viewModelId="0:80" x="800" width="100" height="40" styleId="0:85" name="Word" id="0:81">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Word Style" id="0:85"/>
+        <Text sizingValue="2" width="100" height="40" name="Label" id="0:82">
+            <TextStylePaint fontSize="20" fontAssetId="0:16" familyName="Inter" styleName="Regular" name="Style" id="0:83">
+                <Fill fillRule="2">
+                    <SolidColor colorValue="FF000000"/>
+                </Fill>
+            </TextStylePaint>
+            <TextValueRun styleId="0:83" text="word" name="Run" id="0:84"/>
+        </Text>
+    </Artboard>
+    <ComponentAsset artboardId="0:81" name="Word"/>
+
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="0:16"/>
+
+    <ViewModel defaultInstanceId="0:86" name="Word" id="0:80">
+        <ViewModelPropertyNumber name="n" id="0:89"/>
+        <ViewModelInstance exports="true" name="W1" id="0:86">
+            <ViewModelInstanceNumber propertyValue="1" viewModelPropertyId="0:89"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="W2" id="0:87">
+            <ViewModelInstanceNumber propertyValue="2" viewModelPropertyId="0:89"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyList name="words" id="0:53"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:86"/>
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:87"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceList viewModelPropertyId="0:53">
+                <ViewModelInstanceListItem viewModelId="0:80" viewModelInstanceId="0:87"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

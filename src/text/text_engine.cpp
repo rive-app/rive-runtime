@@ -35,6 +35,7 @@ GlyphRun::GlyphRun(const GlyphRun& other)
     , breaks(other.breaks)
     , styleId(other.styleId)
     , level(other.level)
+    , language(other.language)
     , joiners(other.joiners)
 {
   if (other.xpos.data() == nullptr)
@@ -56,6 +57,7 @@ GlyphRun::GlyphRun(GlyphRun&& other) noexcept
     , breaks(std::move(other.breaks))
     , styleId(other.styleId)
     , level(other.level)
+    , language(other.language)
     , joiners(std::move(other.joiners))
 {
   takeGlyphs(other);
@@ -73,6 +75,7 @@ GlyphRun& GlyphRun::operator=(GlyphRun&& other) noexcept
     breaks = std::move(other.breaks);
     styleId = other.styleId;
     level = other.level;
+    language = other.language;
     joiners = std::move(other.joiners);
     takeGlyphs(other);
   }
@@ -387,6 +390,9 @@ float OrderedLine::buildEllipsisRuns(
 
   rcp<Font> ellipsisFont = nullptr;
   float ellipsisFontSize = 0.0f;
+  // The language shapes the ellipsis too (its forms and fallback), so a run
+  // in another one reshapes it like another font would.
+  uint8_t ellipsisLanguage = 0;
 
   GlyphRun ellipsisRun = {};
   float ellipsisWidth = 0.0f;
@@ -398,12 +404,14 @@ float OrderedLine::buildEllipsisRuns(
   for (uint32_t i = line.startRunIndex; i < line.endRunIndex + 1; i++)
   {
     const GlyphRun& run = glyphRuns[i];
-    if (run.font != ellipsisFont || run.size != ellipsisFontSize)
+    if (run.font != ellipsisFont || run.size != ellipsisFontSize ||
+        run.language != ellipsisLanguage)
     {
       // Track the latest we've checked (even if we discard it so we don't
       // try to do this again for this ellipsis).
       ellipsisFont = run.font;
       ellipsisFontSize = run.size;
+      ellipsisLanguage = run.language;
 
       // Get the next shape so we can check if it fits, otherwise keep
       // using the last one.
@@ -415,6 +423,8 @@ float OrderedLine::buildEllipsisRuns(
           (uint32_t)ellipsisCodePoints.size(),
           0, // default, TextRun.script
           run.styleId,
+          0, // TextRun.level, from the paragraph below
+          run.language,
       }};
       // Shape in the paragraph's direction so the ellipsis resolves to the
       // paragraph's level and reorders to its end edge (the left of a right

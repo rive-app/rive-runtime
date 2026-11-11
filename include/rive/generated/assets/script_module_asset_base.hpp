@@ -29,6 +29,7 @@ public:
     }
     RIVE_EDITOR_CHANGING(languagePropertyKey, &m_Language, &value);
     m_Language = value;
+    RIVE_EDITOR_CHANGED(languageChanged());
     notifyPropertyChanged(languagePropertyKey);
   }
 
@@ -51,6 +52,7 @@ public:
   }
 
 protected:
+  virtual void languageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/script_module_asset_ext.inl"
 #endif

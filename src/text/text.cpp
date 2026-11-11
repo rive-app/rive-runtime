@@ -1880,6 +1880,22 @@ void Text::pruneOnDemandStyles()
 bool Text::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
   syncStyleListItems();
+  // Inherited language shapes with the system's, which a host may change.
+  uint32_t languages = TextLanguages::generation();
+  bool reshape = languages != m_languageGeneration;
+  m_languageGeneration = languages;
+#ifdef WITH_RIVE_TEXT
+  // So may the fallback fonts, such as one a host fetched for the text's
+  // language once it was in use. Every text reshapes for them, whether or
+  // not it fell back.
+  uint32_t fallbacks = Font::fallbackFontsGeneration();
+  reshape |= fallbacks != m_fallbackFontsGeneration;
+  m_fallbackFontsGeneration = fallbacks;
+#endif
+  if (reshape)
+  {
+    markShapeDirty();
+  }
   bool keepGoing = false;
   bool changed = false;
   for (auto& style : m_onDemandStyles)
@@ -1900,6 +1916,18 @@ bool Text::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 
 AdvancingComponent::QuietState Text::quietState()
 {
+  // New system languages or fallback fonts not reshaped for yet (see
+  // advanceComponent).
+  if (TextLanguages::generation() != m_languageGeneration)
+  {
+    return QuietState::busy;
+  }
+#ifdef WITH_RIVE_TEXT
+  if (Font::fallbackFontsGeneration() != m_fallbackFontsGeneration)
+  {
+    return QuietState::busy;
+  }
+#endif
   auto state = QuietState::quiet;
   for (auto& style : m_onDemandStyles)
   {
@@ -1918,6 +1946,12 @@ AdvancingComponent::QuietState Text::quietState()
 }
 
 void Text::alignValueChanged() { markShapeDirty(); }
+
+void Text::languageChanged()
+{
+  m_languageSlot = TextLanguages::intern(language());
+  markShapeDirty();
+}
 
 void Text::sizingValueChanged() { markShapeDirty(); }
 
@@ -1996,7 +2030,8 @@ bool StyledText::sameAs(const StyledText& other) const
     if (a.font != b.font || a.size != b.size || a.lineHeight != b.lineHeight ||
         a.letterSpacing != b.letterSpacing ||
         a.unicharCount != b.unicharCount || a.script != b.script ||
-        a.styleId != b.styleId || a.level != b.level)
+        a.styleId != b.styleId || a.level != b.level ||
+        a.language != b.language)
     {
       return false;
     }
@@ -2010,7 +2045,8 @@ void StyledText::append(
     float lineHeight,
     float letterSpacing,
     const std::string& text,
-    uint16_t styleId)
+    uint16_t styleId,
+    TextLanguageId language)
 {
   const uint8_t* ptr = (const uint8_t*)text.data();
   const uint8_t* end = ptr + text.size();
@@ -2026,7 +2062,15 @@ void StyledText::append(
     return;
   }
   m_runs.push_back(
-      {std::move(font), size, lineHeight, letterSpacing, n, 0, styleId});
+      {std::move(font),
+       size,
+       lineHeight,
+       letterSpacing,
+       n,
+       0,
+       styleId,
+       0,
+       language});
 }
 
 bool Text::makeStyled(
@@ -2071,13 +2115,16 @@ bool Text::makeStyled(
     {
       lineHeight *= fontScale;
     }
+    // A run's own language wins over its Text's, like lang in HTML.
+    TextLanguageId language = valueRun->languageSlot();
     styledText.append(
         style->font(),
         style->fontSize() * fontScale,
         lineHeight,
         style->letterSpacing() * fontScale,
         text,
-        runIndex++);
+        runIndex++,
+        language != TextLanguages::none ? language : m_languageSlot);
   }
   if (withModifiers)
   {
@@ -2473,7 +2520,7 @@ uint64_t Text::measureKey(const StyledText& styled, float fontScale) const
     mix(bits(run.size) | bits(run.lineHeight) << 32);
     mix(bits(run.letterSpacing) | (uint64_t)run.unicharCount << 32);
     mix((uint64_t)run.script | (uint64_t)run.styleId << 32 |
-        (uint64_t)run.level << 48);
+        (uint64_t)run.level << 48 | (uint64_t)run.language << 56);
   }
   const auto& unichars = styled.unichars();
   mix(unichars.size());
@@ -2722,6 +2769,7 @@ AdvancingComponent::QuietState Text::quietState() { return QuietState::quiet; }
 void Text::update(ComponentDirt value) {}
 void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
+void Text::languageChanged() {}
 void Text::sizingValueChanged() {}
 void Text::wordBreakValueChanged() {}
 void Text::overflowValueChanged() {}
@@ -2797,6 +2845,31 @@ Core* Text::clone() const
   twin->m_allRuns.reserve(m_allRuns.size());
 #endif
   return twin;
+}
+
+StatusCode Text::onAddedDirty(CoreContext* context)
+{
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
+  m_languageSlot = TextLanguages::intern(language());
+  m_languageGeneration = TextLanguages::generation();
+#ifdef WITH_RIVE_TEXT
+  m_fallbackFontsGeneration = Font::fallbackFontsGeneration();
+#endif
+  return StatusCode::Ok;
+}
+
+bool Text::deserialize(uint16_t propertyKey, BinaryReader& reader)
+{
+  if (propertyKey == languageIdPropertyKey)
+  {
+    m_Language = TextLanguages::readManifestTag(reader);
+    return true;
+  }
+  return TextBase::deserialize(propertyKey, reader);
 }
 
 Vec2D Text::layoutBaseTranslation(LayoutParticipant* participant) const

@@ -431,6 +431,21 @@ void RawTextInput::font(rcp<Font> value)
   flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
+void RawTextInput::language(TextLanguageId value)
+{
+  if (m_textRun.language == value)
+  {
+    return;
+  }
+  m_textRun.language = value;
+  markShapeDirty();
+}
+
+void RawTextInput::markShapeDirty()
+{
+  flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
 void RawTextInput::computeVisualPositionFromCursor()
 {
   m_cursorVisualPosition = cursorVisualPosition(m_cursor.end());

@@ -1,8 +1,10 @@
 #ifndef _RIVE_TEXT_BASE_HPP_
 #define _RIVE_TEXT_BASE_HPP_
+#include <string>
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/field_types/core_string_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/core/id.hpp"
 #include "rive/drawable.hpp"
@@ -43,6 +45,8 @@ public:
   static const uint16_t verticalTrimBottomValuePropertyKey = 1028;
   static const uint32_t verticalTrimBottomValueBitOffset = 8;
   static const uint32_t verticalTrimBottomValueFieldMask = 65280u;
+  static const uint16_t languagePropertyKey = 1126;
+  static const uint16_t languageIdPropertyKey = 1127;
 
 protected:
   uint8_t m_AlignValue = 0;
@@ -61,6 +65,7 @@ protected:
   bool m_FitFontSizeResizesBox = true;
   Id m_TextRunListSource = kEmptyId;
   uint16_t m_VerticalTrimValue = 0;
+  std::string m_Language = "";
 
 public:
   inline uint8_t alignValue() const { return m_AlignValue; }
@@ -330,6 +335,31 @@ public:
     RIVE_EDITOR_CHANGED(verticalTrimValueChanged());
     notifyPropertyChanged(verticalTrimValuePropertyKey);
   }
+  inline const std::string& language() const { return m_Language; }
+  void language(std::string value)
+  {
+    if (m_Language == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_STRING_CHANGING(languagePropertyKey, m_Language, value);
+    m_Language = value;
+    RIVE_EDITOR_CHANGED(languageChanged());
+    notifyPropertyChanged(languagePropertyKey);
+  }
+
+  virtual void setLanguageId(uint32_t value) = 0;
+  virtual uint32_t languageId() = 0;
+  void languageId(uint32_t value)
+  {
+    if (languageId() == value)
+    {
+      return;
+    }
+    setLanguageId(value);
+    notifyPropertyChanged(languageIdPropertyKey);
+  }
+
   Core* clone() const override;
   void copy(const TextBase& object)
   {
@@ -349,6 +379,7 @@ public:
     m_FitFontSizeResizesBox = object.m_FitFontSizeResizesBox;
     m_TextRunListSource = object.m_TextRunListSource;
     m_VerticalTrimValue = object.m_VerticalTrimValue;
+    m_Language = object.m_Language;
     RIVE_EDITOR_COPY(object);
     Drawable::copy(object);
   }
@@ -405,6 +436,9 @@ public:
       case verticalTrimValuePropertyKey:
         m_VerticalTrimValue = CoreUintType::deserialize(reader);
         return true;
+      case languagePropertyKey:
+        m_Language = CoreStringType::deserialize(reader);
+        return true;
     }
     RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
     return Drawable::deserialize(propertyKey, reader);
@@ -424,6 +458,7 @@ protected:
   virtual void verticalAlignValueChanged() {}
   virtual void fitFontSizeResizesBoxChanged() {}
   virtual void verticalTrimValueChanged() {}
+  virtual void languageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_ext.inl"
 #endif

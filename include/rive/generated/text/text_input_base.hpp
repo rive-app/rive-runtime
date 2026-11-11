@@ -30,6 +30,8 @@ public:
   static const uint16_t selectAllOnFocusPropertyKey = 1099;
   static const uint16_t maxCharactersPropertyKey = 489;
   static const uint16_t maxLinesPropertyKey = 490;
+  static const uint16_t languagePropertyKey = 1124;
+  static const uint16_t languageIdPropertyKey = 1125;
 
 protected:
   std::string m_Text = "";
@@ -41,6 +43,7 @@ protected:
   bool m_SelectAllOnFocus = false;
   uint32_t m_MaxCharacters = 0;
   uint32_t m_MaxLines = 0;
+  std::string m_Language = "";
 
 public:
   inline const std::string& text() const { return m_Text; }
@@ -168,6 +171,31 @@ public:
     notifyPropertyChanged(maxLinesPropertyKey);
   }
 
+  inline const std::string& language() const { return m_Language; }
+  void language(std::string value)
+  {
+    if (m_Language == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_STRING_CHANGING(languagePropertyKey, m_Language, value);
+    m_Language = value;
+    RIVE_EDITOR_CHANGED(languageChanged());
+    notifyPropertyChanged(languagePropertyKey);
+  }
+
+  virtual void setLanguageId(uint32_t value) = 0;
+  virtual uint32_t languageId() = 0;
+  void languageId(uint32_t value)
+  {
+    if (languageId() == value)
+    {
+      return;
+    }
+    setLanguageId(value);
+    notifyPropertyChanged(languageIdPropertyKey);
+  }
+
   Core* clone() const override;
   void copy(const TextInputBase& object)
   {
@@ -180,6 +208,7 @@ public:
     m_SelectAllOnFocus = object.m_SelectAllOnFocus;
     m_MaxCharacters = object.m_MaxCharacters;
     m_MaxLines = object.m_MaxLines;
+    m_Language = object.m_Language;
     RIVE_EDITOR_COPY(object);
     Drawable::copy(object);
   }
@@ -215,6 +244,9 @@ public:
       case maxLinesPropertyKey:
         m_MaxLines = CoreUintType::deserialize(reader);
         return true;
+      case languagePropertyKey:
+        m_Language = CoreStringType::deserialize(reader);
+        return true;
     }
     RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
     return Drawable::deserialize(propertyKey, reader);
@@ -229,6 +261,7 @@ protected:
   virtual void obscuredChanged() {}
   virtual void maxCharactersChanged() {}
   virtual void maxLinesChanged() {}
+  virtual void languageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_input_ext.inl"
 #endif

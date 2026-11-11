@@ -4,6 +4,7 @@
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/core/id.hpp"
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/editor_field_types.hpp"
@@ -22,10 +23,13 @@ public:
 
   static const uint16_t styleIdPropertyKey = 272;
   static const uint16_t textPropertyKey = 268;
+  static const uint16_t languagePropertyKey = 1128;
+  static const uint16_t languageIdPropertyKey = 1129;
 
 protected:
   Id m_StyleId = kEmptyId;
   std::string m_Text = "";
+  std::string m_Language = "";
 
 public:
   inline Id styleId() const { return m_StyleId; }
@@ -54,11 +58,37 @@ public:
     notifyPropertyChanged(textPropertyKey);
   }
 
+  inline const std::string& language() const { return m_Language; }
+  void language(std::string value)
+  {
+    if (m_Language == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_STRING_CHANGING(languagePropertyKey, m_Language, value);
+    m_Language = value;
+    RIVE_EDITOR_CHANGED(languageChanged());
+    notifyPropertyChanged(languagePropertyKey);
+  }
+
+  virtual void setLanguageId(uint32_t value) = 0;
+  virtual uint32_t languageId() = 0;
+  void languageId(uint32_t value)
+  {
+    if (languageId() == value)
+    {
+      return;
+    }
+    setLanguageId(value);
+    notifyPropertyChanged(languageIdPropertyKey);
+  }
+
   Core* clone() const override;
   void copy(const TextValueRunBase& object)
   {
     m_StyleId = object.m_StyleId;
     m_Text = object.m_Text;
+    m_Language = object.m_Language;
     RIVE_EDITOR_COPY(object);
     Component::copy(object);
   }
@@ -73,6 +103,9 @@ public:
       case textPropertyKey:
         m_Text = CoreStringType::deserialize(reader);
         return true;
+      case languagePropertyKey:
+        m_Language = CoreStringType::deserialize(reader);
+        return true;
     }
     RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
     return Component::deserialize(propertyKey, reader);
@@ -81,6 +114,7 @@ public:
 protected:
   virtual void styleIdChanged() {}
   virtual void textChanged() {}
+  virtual void languageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_value_run_ext.inl"
 #endif

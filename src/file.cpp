@@ -24,6 +24,7 @@
 #include "rive/importers/data_converter_formula_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
+#include "rive/importers/manifest_asset_importer.hpp"
 #include "rive/importers/text_asset_importer.hpp"
 #include "rive/text/text_style_global.hpp"
 #include "rive/text/text.hpp"
@@ -833,12 +834,14 @@ ImportResult File::readObjects(
       }
 #endif
       case ManifestAsset::typeKey:
-        stackObject = std::make_unique<FileAssetImporter>(
+        stackObject = std::make_unique<ManifestAssetImporter>(
             object->as<FileAsset>(),
-            m_assetLoader,
             m_factory);
         stackType = FileAsset::typeKey;
         m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
+        // Decoded as soon as its contents are read, so every object after
+        // them can resolve its names while deserializing.
+        reader.dataResolver(object->as<ManifestAsset>());
         break;
       case ViewModel::typeKey:
       {
@@ -1023,6 +1026,11 @@ ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
   }
 
   BinaryReader reader(bytes);
+  // The run carries no manifest; its objects resolve names from the file's.
+  if (m_manifest != nullptr)
+  {
+    reader.dataResolver(m_manifest->as<ManifestAsset>());
+  }
   ImportStack importStack;
   importStack.version(m_header.majorVersion(), m_header.minorVersion());
 

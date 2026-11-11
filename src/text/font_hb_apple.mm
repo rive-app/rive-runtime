@@ -11,6 +11,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/text/text_language.hpp"
 #include "rive/text/utf.hpp"
 
 #include "hb-coretext.h"
@@ -390,6 +391,18 @@ void CoreTextHBFont::shapeFallbackRun(
       &kCFTypeDictionaryKeyCallBacks,
       &kCFTypeDictionaryValueCallBacks);
   CFDictionaryAddValue(attr.get(), kCTFontAttributeName, ctFont);
+  // Shape for the run's language, as harfbuzz does (see shape_run).
+  std::string language = rive::TextLanguages::shapingLanguage(textRun.language);
+  if (!language.empty())
+  {
+    AutoCF<CFStringRef> languageString = CFStringCreateWithCString(
+        kCFAllocatorDefault, language.c_str(), kCFStringEncodingUTF8);
+    if (languageString.get() != nullptr)
+    {
+      CFDictionaryAddValue(
+          attr.get(), kCTLanguageAttributeName, languageString.get());
+    }
+  }
 
   AutoCF<CFMutableAttributedStringRef>
       attrString = CFAttributedStringCreateMutable(
@@ -399,8 +412,11 @@ void CoreTextHBFont::shapeFallbackRun(
   CFAttributedStringSetAttributes(
       attrString.get(), CFRangeMake(0, utf16Length), attr.get(), false);
 
+  // level is one byte, and the language follows it: widen it before
+  // CFNumberCreate reads an int.
+  int level = textRun.level;
   AutoCF<CFNumberRef> level_number = CFNumberCreate(
-      kCFAllocatorDefault, kCFNumberIntType, &textRun.level);
+      kCFAllocatorDefault, kCFNumberIntType, &level);
   AutoCF<CFDictionaryRef> options = CFDictionaryCreate(
       kCFAllocatorDefault,
       (const void**)&kCTTypesetterOptionForcedEmbeddingLevel,
@@ -432,6 +448,7 @@ void CoreTextHBFont::shapeFallbackRun(
       gr.letterSpacing = textRun.letterSpacing;
       gr.styleId = textRun.styleId;
       gr.level = textRun.level;
+      gr.language = textRun.language;
 
       CTRunGetGlyphs(run, {0, count}, gr.glyphs.data());
       if (!isEvenLevel)

@@ -11,6 +11,7 @@
 #include "rive/span.hpp"
 #include "rive/simple_array.hpp"
 
+#include <string>
 #include <vector>
 
 namespace rive
@@ -421,15 +422,48 @@ public:
       const uint32_t fallbackIndex,
       const rive::Font*);
   static FallbackProc gFallbackProc;
+
+  // What a FallbackRequestProc is asked for. It can grow, so a host keeps
+  // working when it does.
+  struct FallbackRequest
+  {
+    // The first codepoint this font has no glyph for.
+    Unichar missing;
+    // 0 for the first fallback asked for this text, and one more for each
+    // fallback asked for what the previous one was missing.
+    uint32_t fallbackIndex;
+    const Font* font;
+    // The run's script, as an ISO 15924 tag (hb_script_t).
+    uint32_t script;
+    // Most preferred first: the text's own language when it has one, then
+    // the system languages (see TextLanguages). Usually BCP 47 tags, but
+    // passed on exactly as authored, so a host may use formats of its own.
+    Span<const std::string> languages;
+    // Whether languages[0] is the text's own language. When it isn't, a
+    // host's own idea of the language (a hint it was configured with) can
+    // reasonably come before the system ones.
+    bool hasTextLanguage;
+  };
+  using FallbackRequestProc =
+      rive::rcp<rive::Font> (*)(const FallbackRequest& request);
+  // Preferred over gFallbackProc when both are set.
+  static FallbackRequestProc gFallbackRequestProc;
   static bool gFallbackProcEnabled;
   static constexpr unsigned kRegularWeight = 400;
 
   // Changes whenever fallback fonts may be picked differently than before:
-  // a new gFallbackProc or gFallbackProcEnabled, which hosts assign directly
+  // a new gFallbackProc, gFallbackRequestProc or gFallbackProcEnabled, which
+  // hosts assign directly
   // and this notices, or a host telling fallbackFontsChanged() that the
   // fonts its proc picks from changed. A shape is only reused under the
   // generation it was made in.
   static uint32_t fallbackGeneration();
+  // Changes with fallbackGeneration(), except for gFallbackProcEnabled: when
+  // the fonts fallbacks are picked from may have changed, not whether they
+  // are used. Every Text and TextInput reshapes on its next advance once it
+  // moves. The editor turns fallbacks off and on around its own shaping,
+  // which mustn't reshape every text each time.
+  static uint32_t fallbackFontsGeneration();
   static void fallbackFontsChanged();
 #ifdef TESTING
   // Shapes made by any font, for tests to count.
@@ -463,6 +497,9 @@ struct TextRun
   uint32_t script;
   uint16_t styleId;
   uint8_t level;
+  // TextLanguageId of the run's language, 0 to inherit the system one. Sits
+  // in what was padding, so the struct the bindings mirror keeps its size.
+  uint8_t language = 0;
 };
 
 // One of a GlyphRun's per-glyph arrays: a view into the one block the run
@@ -567,6 +604,9 @@ struct GlyphRun
 
   // Bidi level (even is LTR, odd is RTL)
   uint8_t level;
+
+  // TextLanguageId the run was shaped with (see TextRun::language).
+  uint8_t language = 0;
 
   // List of indices where words are joined by a word-joiner character.
   // During text breaking, these joins should be honored and not split at

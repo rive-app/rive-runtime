@@ -2,6 +2,7 @@
 #define _RIVE_TEXT_VALUE_RUN_HPP_
 #include "rive/generated/text/text_value_run_base.hpp"
 #include "rive/text/utf.hpp"
+#include "rive/text/text_language.hpp"
 #include "rive/text/text_style_reference.hpp"
 #include "rive/math/rectangles_to_contour.hpp"
 #include "rive/refcnt.hpp"
@@ -21,6 +22,13 @@ public:
   ~TextValueRun() override;
   StatusCode onAddedClean(CoreContext* context) override;
   StatusCode onAddedDirty(CoreContext* context) override;
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override;
+  // A file carries languageId in place of language, resolved into it while
+  // decoding (see deserialize), so there is no index to keep.
+  void setLanguageId(uint32_t value) override {}
+  uint32_t languageId() override { return -1; }
+  /// The run's interned language, none when it inherits its Text's.
+  TextLanguageId languageSlot() const { return m_languageSlot; }
   // Resolves lazily so a global style whose nested-artboard instance is
   // created after this run is added still returns the current paint.
   TextStylePaint* style()
@@ -84,6 +92,7 @@ public:
 protected:
   void textChanged() override;
   void styleIdChanged() override;
+  void languageChanged() override;
 
 private:
   std::unique_ptr<RectanglesToContour> m_rectanglesToContour;
@@ -94,6 +103,7 @@ private:
   // The text style view model value a data bind on styleId holds, if any.
   rcp<ViewModelInstanceArtboard> m_boundStyleValue;
   uint32_t m_length = -1;
+  TextLanguageId m_languageSlot = TextLanguages::none;
   bool canHitTest() const;
   TextStyleReference* authoredStyle() const;
   Text* m_textComponent = nullptr;

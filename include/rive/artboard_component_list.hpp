@@ -385,6 +385,19 @@ private:
   bool tryQuietRow(size_t row);
   // Quiets every row while none are realized; realizing a row wakes it.
   void quietUnrealizedRows();
+  // Wakes every quiet row, for a change none of them can see coming.
+  void wakeQuietRows();
+  // TextLanguages::generation() the rows last advanced under: text in a
+  // quiet row inherits the system languages too, so a change wakes them.
+  uint32_t m_languageGeneration = 0;
+#ifdef WITH_RIVE_TEXT
+  // Font::fallbackFontsGeneration() the rows last advanced under, for the
+  // same reason: text in a quiet row reshapes for new fallback fonts too.
+  uint32_t m_fallbackFontsGeneration = 0;
+#endif
+  // Whether the system languages or fallback fonts changed since the rows
+  // last advanced.
+  bool textEnvironmentChanged() const;
   // Whether the row's work would do nothing right now.
   AdvancingComponent::QuietState rowQuietState(size_t row);
   // Wakes the row and forgets it can't be quiet: its instances are about to

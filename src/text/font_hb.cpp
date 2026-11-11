@@ -10,6 +10,7 @@
 #include "rive/factory.hpp"
 #include "rive/renderer_utils.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include "rive/text/text_language.hpp"
 
 #include "hb.h"
 #include "hb-ot.h"
@@ -36,6 +37,7 @@ extern "C"
 
 // Initialized to null. Client can set this to a callback.
 rive::Font::FallbackProc rive::Font::gFallbackProc;
+rive::Font::FallbackRequestProc rive::Font::gFallbackRequestProc;
 
 bool rive::Font::gFallbackProcEnabled = true;
 
@@ -49,11 +51,13 @@ std::atomic<uint64_t> HBFont::sm_variantsCompared{0};
 namespace
 {
 std::atomic<uint32_t> g_fallbackGeneration{0};
+std::atomic<uint32_t> g_fallbackFontsGeneration{0};
 // The proc and flag the generation last moved for. Written under
 // g_fallbackMutex, and only after the generation moved, so a caller that
 // reads them equal to the current ones also reads that generation or a
 // later one.
 std::atomic<rive::Font::FallbackProc> g_seenFallbackProc{nullptr};
+std::atomic<rive::Font::FallbackRequestProc> g_seenFallbackRequestProc{nullptr};
 std::atomic<bool> g_seenFallbackProcEnabled{true};
 std::mutex g_fallbackMutex;
 } // namespace
@@ -61,26 +65,50 @@ std::mutex g_fallbackMutex;
 uint32_t rive::Font::fallbackGeneration()
 {
   if (g_seenFallbackProc.load(std::memory_order_acquire) != gFallbackProc ||
+      g_seenFallbackRequestProc.load(std::memory_order_acquire) !=
+          gFallbackRequestProc ||
       g_seenFallbackProcEnabled.load(std::memory_order_acquire) !=
           gFallbackProcEnabled)
   {
     std::lock_guard<std::mutex> lock(g_fallbackMutex);
     FallbackProc proc = gFallbackProc;
+    FallbackRequestProc requestProc = gFallbackRequestProc;
     bool enabled = gFallbackProcEnabled;
     if (g_seenFallbackProc.load(std::memory_order_relaxed) != proc ||
+        g_seenFallbackRequestProc.load(std::memory_order_relaxed) !=
+            requestProc ||
         g_seenFallbackProcEnabled.load(std::memory_order_relaxed) != enabled)
     {
       g_fallbackGeneration.fetch_add(1, std::memory_order_relaxed);
+      // Another proc picks from other fonts; turning them off or on doesn't
+      // (see fallbackFontsGeneration).
+      if (g_seenFallbackProc.load(std::memory_order_relaxed) != proc ||
+          g_seenFallbackRequestProc.load(std::memory_order_relaxed) !=
+              requestProc)
+      {
+        g_fallbackFontsGeneration.fetch_add(1, std::memory_order_release);
+      }
       g_seenFallbackProc.store(proc, std::memory_order_release);
+      g_seenFallbackRequestProc.store(requestProc, std::memory_order_release);
       g_seenFallbackProcEnabled.store(enabled, std::memory_order_release);
     }
   }
   return g_fallbackGeneration.load(std::memory_order_acquire);
 }
 
+uint32_t rive::Font::fallbackFontsGeneration()
+{
+  // Notices a new proc first.
+  fallbackGeneration();
+  return g_fallbackFontsGeneration.load(std::memory_order_acquire);
+}
+
 void rive::Font::fallbackFontsChanged()
 {
+  // fallbackGeneration first: text that reshapes for the new fonts then
+  // also sees that its cached shapes are stale.
   g_fallbackGeneration.fetch_add(1, std::memory_order_acq_rel);
+  g_fallbackFontsGeneration.fetch_add(1, std::memory_order_acq_rel);
 }
 
 namespace
@@ -1488,7 +1516,14 @@ static rive::GlyphRun shape_run(
       buf,
       tr.level & 1 ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
   hb_buffer_set_script(buf, (hb_script_t)tr.script);
-  hb_buffer_set_language(buf, hb_language_get_default());
+  // The run's language, else the system's, else the process locale. It's
+  // what makes a font's locl forms apply.
+  std::string language = rive::TextLanguages::shapingLanguage(tr.language);
+  hb_buffer_set_language(
+      buf,
+      language.empty()
+          ? hb_language_get_default()
+          : hb_language_from_string(language.data(), (int)language.size()));
 
   auto hbfont = (HBFont*)tr.font.get();
 
@@ -1512,6 +1547,7 @@ static rive::GlyphRun shape_run(
   gr.letterSpacing = tr.letterSpacing;
   gr.styleId = tr.styleId;
   gr.level = tr.level;
+  gr.language = tr.language;
 
   const float scale = tr.size / kStdScale;
   for (unsigned int i = 0; i < glyph_count; i++)
@@ -1550,10 +1586,47 @@ static rive::GlyphRun extract_subset(
   subset.lineHeight = orig.lineHeight;
   subset.letterSpacing = orig.letterSpacing;
   subset.level = orig.level;
+  subset.language = orig.language;
   subset.xpos.back() = 0; // since we're now the end of a run
   subset.styleId = orig.styleId;
 
   return subset;
+}
+
+static bool hasFallback()
+{
+  return (rive::Font::gFallbackRequestProc != nullptr ||
+          rive::Font::gFallbackProc != nullptr) &&
+         rive::Font::gFallbackProcEnabled;
+}
+
+// Asks the host for a font with [missing] in it, through the request proc
+// when there is one.
+static rive::rcp<rive::Font> requestFallback(
+    rive::Unichar missing,
+    uint32_t fallbackIndex,
+    const rive::Font* font,
+    const rive::TextRun& run)
+{
+  if (rive::Font::gFallbackRequestProc != nullptr)
+  {
+    std::vector<std::string> languages = rive::TextLanguages::fallbackLanguages(
+        run.language);
+    rive::Font::FallbackRequest request = {
+        missing,
+        fallbackIndex,
+        font,
+        run.script,
+        languages,
+        !rive::TextLanguages::tag(run.language).empty(),
+    };
+    return rive::Font::gFallbackRequestProc(request);
+  }
+  if (rive::Font::gFallbackProc != nullptr)
+  {
+    return rive::Font::gFallbackProc(missing, fallbackIndex, font);
+  }
+  return nullptr;
 }
 
 static void perform_fallback(
@@ -1593,6 +1666,7 @@ static void perform_fallback(
           origTextRun.script,
           orig.styleId,
           orig.level,
+          orig.language,
       };
 
       static_cast<HBFont*>(fallbackFont.get())
@@ -1656,7 +1730,7 @@ void HBFont::shapeFallbackRun(
     // font-fallback
     size_t index = iter - gr.glyphs.begin();
     rive::Unichar missing = text[gr.textIndices[index]];
-    auto fallback = HBFont::gFallbackProc(missing, fallbackIndex, this);
+    auto fallback = requestFallback(missing, fallbackIndex, this, textRun);
     if (fallback && fallback.get() != this)
     {
       perform_fallback(fallback, gruns, text, gr, textRun, fallbackIndex + 1);
@@ -1741,6 +1815,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
           (uint32_t)lastScript,
           tr.styleId,
           (uint8_t)lastLevel,
+          tr.language,
       };
 
       runStartTextIndex = textIndex;
@@ -1786,6 +1861,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
               (uint32_t)script,
               back.styleId,
               (uint8_t)lastLevel,
+              back.language,
           };
           runStartTextIndex = textIndex;
           bidiRuns.push_back(backRun);
@@ -1824,7 +1900,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
       // force such glyphs to 0 here — but only when a color emoji
       // fallback font is actually available for that codepoint, to avoid
       // regressing the rendering when no emoji font is loaded.
-      if (gFallbackProc && gFallbackProcEnabled && !hasColorGlyphs())
+      if (hasFallback() && !hasColorGlyphs())
       {
         for (size_t gi = 0; gi < gr.glyphs.size(); ++gi)
         {
@@ -1833,7 +1909,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
             auto textPos = gr.textIndices[gi];
             if (textPos + 1 < text.size() && text[textPos + 1] == 0xFE0F)
             {
-              auto emojiFont = gFallbackProc(text[textPos], 0, this);
+              auto emojiFont = requestFallback(text[textPos], 0, this, tr);
               if (emojiFont && emojiFont->hasColorGlyphs())
               {
                 gr.glyphs[gi] = 0;
@@ -1845,7 +1921,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
 
       auto end = gr.glyphs.end();
       auto iter = std::find(gr.glyphs.begin(), end, 0);
-      if (!gFallbackProc || iter == end || !gFallbackProcEnabled)
+      if (iter == end || !hasFallback())
       {
         if (gr.glyphs.size() > 0)
         {
@@ -1859,7 +1935,7 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
         size_t index = iter - gr.glyphs.begin();
         rive::Unichar missing = text[gr.textIndices[index]];
         // todo: consider sending more chars if that helps choose a font
-        auto fallback = gFallbackProc(missing, 0, this);
+        auto fallback = requestFallback(missing, 0, this, tr);
         if (fallback)
         {
           perform_fallback(fallback, gruns, text.data(), gr, tr, 1);

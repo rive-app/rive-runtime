@@ -73,6 +73,15 @@ public:
   rcp<Font> font() const { return m_textRun.font; }
   void font(rcp<Font> value);
 
+  /// The interned language the text shapes with (see TextLanguages), none
+  /// to inherit the system's.
+  TextLanguageId language() const { return m_textRun.language; }
+  void language(TextLanguageId value);
+
+  /// Shapes again on the next update, for a change the input can't see
+  /// itself, like new system languages.
+  void markShapeDirty();
+
   float paragraphSpacing() const { return m_paragraphSpacing; }
   void paragraphSpacing(float value);
 

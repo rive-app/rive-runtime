@@ -1,5 +1,7 @@
 #include "rive/component.hpp"
 #include "rive/file.hpp"
+#include "rive/text/text_language.hpp"
+#include "rive/text_engine.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -1365,6 +1367,14 @@ AdvancingComponent::QuietState ArtboardComponentList::quietState()
   {
     return QuietState::quiet;
   }
+  // New system languages or fallback fonts: the next advance wakes the rows,
+  // whose text shapes with them (see advanceComponent). Collapsed, that
+  // waits until the list shows, and whatever shows it wakes the row hosting
+  // it.
+  if (!isCollapsed() && textEnvironmentChanged())
+  {
+    return QuietState::busy;
+  }
   // Collapsed, the advance only notes where the change sequence stands, for
   // the rows' machines once they run again. That too is nothing while every
   // row is quiet: a change one of them reads wakes it, and so this list's
@@ -1376,6 +1386,21 @@ AdvancingComponent::QuietState ArtboardComponentList::quietState()
 bool ArtboardComponentList::allRowsQuiet() const
 {
   return nextAwakeRow(0) >= m_listItems.size();
+}
+
+bool ArtboardComponentList::textEnvironmentChanged() const
+{
+  if (TextLanguages::generation() != m_languageGeneration)
+  {
+    return true;
+  }
+#ifdef WITH_RIVE_TEXT
+  if (Font::fallbackFontsGeneration() != m_fallbackFontsGeneration)
+  {
+    return true;
+  }
+#endif
+  return false;
 }
 
 bool ArtboardComponentList::canQuietRows() const
@@ -1401,6 +1426,23 @@ void ArtboardComponentList::quietUnrealizedRows()
   if (size_t tail = m_listItems.size() & 63)
   {
     m_quietRows.back() = (uint64_t(1) << tail) - 1;
+  }
+}
+
+void ArtboardComponentList::wakeQuietRows()
+{
+  for (size_t word = 0; word < m_quietRows.size(); word++)
+  {
+    for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
+    {
+      const size_t row = (word << 6) + lowestSetBit(quiet);
+      if (row < m_artboardInstancesByIndex.size() &&
+          m_artboardInstancesByIndex[row] != nullptr)
+      {
+        m_artboardInstancesByIndex[row]->quietHostRow(Artboard::kNoQuietRow);
+      }
+    }
+    m_quietRows[word] = 0;
   }
 }
 
@@ -1605,6 +1647,15 @@ bool ArtboardComponentList::advanceComponent(
                        AdvanceFlags::AdvanceNested;
   bool newFrame = (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
   auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
+  // New system languages and fallback fonts reshape text, in quiet rows too.
+  if (textEnvironmentChanged())
+  {
+    m_languageGeneration = TextLanguages::generation();
+#ifdef WITH_RIVE_TEXT
+    m_fallbackFontsGeneration = Font::fallbackFontsGeneration();
+#endif
+    wakeQuietRows();
+  }
   const size_t count = m_listItems.size();
   for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
   {

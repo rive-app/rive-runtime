@@ -15,6 +15,25 @@ void TextValueRun::textChanged()
   textComponent()->markShapeDirty();
 }
 
+void TextValueRun::languageChanged()
+{
+  m_languageSlot = TextLanguages::intern(language());
+  if (Text* text = textComponent())
+  {
+    text->markShapeDirty();
+  }
+}
+
+bool TextValueRun::deserialize(uint16_t propertyKey, BinaryReader& reader)
+{
+  if (propertyKey == languageIdPropertyKey)
+  {
+    m_Language = TextLanguages::readManifestTag(reader);
+    return true;
+  }
+  return TextValueRunBase::deserialize(propertyKey, reader);
+}
+
 Text* TextValueRun::textComponent() const
 {
   if (m_textComponent)
@@ -48,6 +67,7 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
   {
     return code;
   }
+  m_languageSlot = TextLanguages::intern(language());
   auto coreObject = context->resolve(styleId());
   if (coreObject == nullptr || !coreObject->is<TextStyleReference>())
   {

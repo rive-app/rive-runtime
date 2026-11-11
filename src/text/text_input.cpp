@@ -1,4 +1,5 @@
 #include "rive/text/text_input.hpp"
+#include "rive/text/text_language.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_input_cursor.hpp"
 #include "rive/text/text_input_drawable.hpp"
@@ -103,6 +104,24 @@ void TextInput::selectionRadiusChanged()
 }
 
 void TextInput::multilineChanged() { updateMultiline(true); }
+
+void TextInput::languageChanged()
+{
+#ifdef WITH_RIVE_TEXT
+  m_rawTextInput.language(TextLanguages::intern(language()));
+#endif
+  markShapeDirty();
+}
+
+bool TextInput::deserialize(uint16_t propertyKey, BinaryReader& reader)
+{
+  if (propertyKey == languageIdPropertyKey)
+  {
+    m_Language = TextLanguages::readManifestTag(reader);
+    return true;
+  }
+  return TextInputBase::deserialize(propertyKey, reader);
+}
 
 void TextInput::obscuredChanged()
 {
@@ -299,8 +318,11 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
   m_rawTextInput.obscured(obscured());
   m_rawTextInput.maxCharacters(maxCharacters());
   m_rawTextInput.maxLines(maxLines());
+  m_rawTextInput.language(TextLanguages::intern(language()));
   syncDisplayedTextFromSource(false);
+  m_fallbackFontsGeneration = Font::fallbackFontsGeneration();
 #endif
+  m_languageGeneration = TextLanguages::generation();
 
   if (parent() != nullptr)
   {
@@ -1069,6 +1091,26 @@ bool TextInput::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
   if (updateAlignment())
   {
     addDirt(ComponentDirt::TextShape);
+  }
+  // Inherited language shapes with the system's, which a host may change,
+  // and so may the fallback fonts (see Text::advanceComponent).
+  uint32_t languages = TextLanguages::generation();
+  bool reshape = languages != m_languageGeneration;
+  m_languageGeneration = languages;
+#ifdef WITH_RIVE_TEXT
+  uint32_t fallbacks = Font::fallbackFontsGeneration();
+  reshape |= fallbacks != m_fallbackFontsGeneration;
+  m_fallbackFontsGeneration = fallbacks;
+#endif
+  if (reshape)
+  {
+#ifdef WITH_RIVE_TEXT
+    m_rawTextInput.markShapeDirty();
+#endif
+    addDirt(ComponentDirt::TextShape);
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
   }
   bool keepGoing = advanceDrag(elapsedSeconds);
   if ((flags & AdvanceFlags::Animate) == AdvanceFlags::Animate &&
