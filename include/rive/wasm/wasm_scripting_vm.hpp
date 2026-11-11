@@ -81,6 +81,32 @@ public:
   virtual void onDetach(WasmScriptingVM& vm) = 0;
 };
 
+#ifdef WITH_RIVE_TOOLS
+/// The objects behind a path effect's node handles for a host whose shapes
+/// are not runtime TransformComponents, like the editor's Dart stage. Ids
+/// are the source's own, 0 is none; they and every node they back hold for
+/// the one update that lent the shape.
+class WasmNodeSource
+{
+public:
+  virtual ~WasmNodeSource() = default;
+  /// x, y, rotation, scaleX, scaleY.
+  virtual void transform(uint32_t node, float out[5]) = 0;
+  /// An ArtboardWire node field.
+  virtual void set(uint32_t node, uint32_t field, float v0, float v1) = 0;
+  virtual void worldTransform(uint32_t node, float out[6]) = 0;
+  virtual void setWorldTransform(uint32_t node, const float values[6]) = 0;
+  /// Sets the local transform that puts the node at world.
+  virtual void decompose(uint32_t node, const float world[6]) = 0;
+  /// False when the node is not a path.
+  virtual bool path(uint32_t node, RawPath& out) = 0;
+  /// 0 when the parent is not a node.
+  virtual uint32_t parent(uint32_t node) = 0;
+  /// The children that are nodes, in order.
+  virtual void children(uint32_t node, std::vector<uint32_t>& out) = 0;
+};
+#endif
+
 class WasmScriptingVM : public ScriptBackend
 {
 public:
@@ -417,6 +443,17 @@ public:
       const PathEffectPaintWire& paint,
       TransformComponent* shape,
       RawPath* outPath);
+#ifdef WITH_RIVE_TOOLS
+  /// The same call with the shape behind source, under its id shape.
+  bool callPathEffectUpdate(
+      ScriptedObject* object,
+      int selfRef,
+      const RawPath& sourcePath,
+      const PathEffectPaintWire& paint,
+      WasmNodeSource* source,
+      uint32_t shape,
+      RawPath* outPath);
+#endif
   bool callDataConvert(
       ScriptedObject* object,
       int selfRef,
@@ -836,6 +873,14 @@ protected:
   uint32_t mintTransitionChild(const TransitionChildRef& ref);
   void releaseTransitionChild(uint32_t handle);
   void releaseScopedNodes(size_t from);
+  // Runs update with node, a handle the caller scoped to this call or 0.
+  bool callPathEffectWithNode(
+      ScriptedObject* object,
+      int selfRef,
+      const RawPath& sourcePath,
+      const PathEffectPaintWire& paint,
+      uint32_t node,
+      RawPath* outPath);
   // A method name in guest memory: made once per instance when the module
   // can keep it past the frame, else copied for this call alone.
   class GuestName

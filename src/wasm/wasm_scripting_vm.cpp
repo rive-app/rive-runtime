@@ -8121,6 +8121,17 @@ struct HostNode
 {
   rcp<HostArtboard> owner;
   TransformComponent* component;
+#ifdef WITH_RIVE_TOOLS
+  // Set in place of component when a host's source backs the node, always
+  // borrowed. The guest reads a path's verbs and points, and a node's child
+  // count and handles, in separate calls, so each is asked for once.
+  WasmNodeSource* source = nullptr;
+  uint32_t sourceId = 0;
+  bool sourcePathRead = false;
+  std::unique_ptr<RawPath> sourcePath;
+  bool sourceChildrenRead = false;
+  std::vector<uint32_t> sourceChildren;
+#endif
 };
 
 uint32_t mintNode(
@@ -8138,6 +8149,47 @@ uint32_t mintNode(
   }
   return handle;
 }
+
+#ifdef WITH_RIVE_TOOLS
+uint32_t mintSourceNode(
+    WasmScriptingVM* vm,
+    WasmNodeSource* source,
+    uint32_t id)
+{
+  auto node = new HostNode{nullptr, nullptr};
+  node->source = source;
+  node->sourceId = id;
+  uint32_t handle = vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::node,
+      node);
+  vm->scopedNodes().push_back(handle);
+  return handle;
+}
+
+const RawPath* sourceNodePath(HostNode* host)
+{
+  if (!host->sourcePathRead)
+  {
+    host->sourcePathRead = true;
+    auto path = std::make_unique<RawPath>();
+    if (host->source->path(host->sourceId, *path))
+    {
+      host->sourcePath = std::move(path);
+    }
+  }
+  return host->sourcePath.get();
+}
+
+const std::vector<uint32_t>& sourceNodeChildren(HostNode* host)
+{
+  if (!host->sourceChildrenRead)
+  {
+    host->sourceChildrenRead = true;
+    host->source->children(host->sourceId, host->sourceChildren);
+  }
+  return host->sourceChildren;
+}
+#endif
 
 uint32_t artboardNodeImpl(
     WasmScriptingVM* vm,
@@ -8289,6 +8341,13 @@ void artboardNodeTransformImpl(
     memcpy(out, identity, sizeof(identity));
     return;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    host->source->transform(host->sourceId, out);
+    return;
+  }
+#endif
   out[0] = host->component->x();
   out[1] = host->component->y();
   out[2] = host->component->rotation();
@@ -8333,6 +8392,13 @@ void artboardNodeSetImpl(
   {
     return;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    host->source->set(host->sourceId, field, v0, v1);
+    return;
+  }
+#endif
   TransformComponent* component = host->component;
   switch (field)
   {
@@ -8373,6 +8439,13 @@ void artboardNodeWorldTransformImpl(
     return;
   }
   auto host = resolveNode(vm, handle);
+#ifdef WITH_RIVE_TOOLS
+  if (host != nullptr && host->source != nullptr)
+  {
+    host->source->worldTransform(host->sourceId, out);
+    return;
+  }
+#endif
   Mat2D world = host != nullptr ? host->component->worldTransform() : Mat2D();
   for (int i = 0; i < 6; i++)
   {
@@ -8391,6 +8464,13 @@ void artboardNodeSetWorldTransformImpl(
   {
     return;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    host->source->setWorldTransform(host->sourceId, values);
+    return;
+  }
+#endif
   host->component->mutableWorldTransform() = Mat2D(
       values[0],
       values[1],
@@ -8411,6 +8491,13 @@ void artboardNodeDecomposeImpl(
   {
     return;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    host->source->decompose(host->sourceId, values);
+    return;
+  }
+#endif
   TransformComponent* component = host->component;
   Mat2D world = getParentWorld(*component).invertOrIdentity() * Mat2D(
                                                                     values[0],
@@ -8427,21 +8514,39 @@ void artboardNodeDecomposeImpl(
   component->rotation(components.rotation());
 }
 
+// Null when the node is stale or not a path.
+const RawPath* nodeRawPath(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = resolveNode(vm, handle);
+  if (host == nullptr)
+  {
+    return nullptr;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    return sourceNodePath(host);
+  }
+#endif
+  if (!host->component->is<Path>())
+  {
+    return nullptr;
+  }
+  return &host->component->as<Path>()->rawPath();
+}
+
 uint32_t artboardNodePathVerbsImpl(
     WasmScriptingVM* vm,
     uint32_t handle,
     uint8_t* out,
     uint32_t outCount)
 {
-  auto host = resolveNode(vm, handle);
-  if (host == nullptr || !host->component->is<Path>())
+  auto rawPath = nodeRawPath(vm, handle);
+  if (rawPath == nullptr)
   {
     return ~0u;
   }
-  return fillOut(
-      pathVerbBytes(host->component->as<Path>()->rawPath()),
-      out,
-      outCount);
+  return fillOut(pathVerbBytes(*rawPath), out, outCount);
 }
 
 uint32_t artboardNodePathPointsImpl(
@@ -8450,15 +8555,12 @@ uint32_t artboardNodePathPointsImpl(
     float* out,
     uint32_t outCount)
 {
-  auto host = resolveNode(vm, handle);
-  if (host == nullptr || !host->component->is<Path>())
+  auto rawPath = nodeRawPath(vm, handle);
+  if (rawPath == nullptr)
   {
     return ~0u;
   }
-  return fillOut(
-      pathFloats(host->component->as<Path>()->rawPath()),
-      out,
-      outCount);
+  return fillOut(pathFloats(*rawPath), out, outCount);
 }
 
 uint32_t artboardNodePaintImpl(
@@ -8468,7 +8570,9 @@ uint32_t artboardNodePaintImpl(
     uint32_t outCount)
 {
   auto host = resolveNode(vm, handle);
-  if (host == nullptr || !host->component->is<ShapePaint>() || outCount < 7)
+  // A source backed node is a shape or one of its kin, never a paint.
+  if (host == nullptr || host->component == nullptr ||
+      !host->component->is<ShapePaint>() || outCount < 7)
   {
     return 0;
   }
@@ -8517,7 +8621,28 @@ uint32_t artboardNodeChildrenImpl(
     uint32_t outCount)
 {
   auto host = resolveNode(vm, handle);
-  if (host == nullptr || !host->component->is<ContainerComponent>())
+  if (host == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    WasmNodeSource* source = host->source;
+    const std::vector<uint32_t>& ids = sourceNodeChildren(host);
+    uint32_t idCount = (uint32_t)ids.size();
+    if (idCount > outCount)
+    {
+      return idCount;
+    }
+    for (uint32_t i = 0; i < idCount; i++)
+    {
+      out[i] = mintSourceNode(vm, source, ids[i]);
+    }
+    return idCount;
+  }
+#endif
+  if (!host->component->is<ContainerComponent>())
   {
     return 0;
   }
@@ -8552,6 +8677,13 @@ uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
   {
     return 0;
   }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    uint32_t parentId = host->source->parent(host->sourceId);
+    return parentId == 0 ? 0 : mintSourceNode(vm, host->source, parentId);
+  }
+#endif
   auto parent = host->component->parent();
   if (parent == nullptr || !parent->is<TransformComponent>())
   {
@@ -14494,6 +14626,61 @@ bool WasmScriptingVM::callPathEffectUpdate(
   {
     return false;
   }
+  // _v2 also gets a node over the shape, the Luau lane's NodeData; modules
+  // built before it get the paint alone.
+  size_t scopeStart = m_scopedNodes.size();
+  uint32_t node = m_pathEffectV2 && shape != nullptr
+                      ? mintNode(this, nullptr, shape)
+                      : 0;
+  bool ok = callPathEffectWithNode(
+      object,
+      selfRef,
+      sourcePath,
+      paint,
+      node,
+      outPath);
+  releaseScopedNodes(scopeStart);
+  return ok;
+}
+
+#ifdef WITH_RIVE_TOOLS
+bool WasmScriptingVM::callPathEffectUpdate(
+    ScriptedObject* object,
+    int selfRef,
+    const RawPath& sourcePath,
+    const PathEffectPaintWire& paint,
+    WasmNodeSource* source,
+    uint32_t shape,
+    RawPath* outPath)
+{
+  if (!valid() || outPath == nullptr)
+  {
+    return false;
+  }
+  size_t scopeStart = m_scopedNodes.size();
+  uint32_t node = m_pathEffectV2 && source != nullptr && shape != 0
+                      ? mintSourceNode(this, source, shape)
+                      : 0;
+  bool ok = callPathEffectWithNode(
+      object,
+      selfRef,
+      sourcePath,
+      paint,
+      node,
+      outPath);
+  releaseScopedNodes(scopeStart);
+  return ok;
+}
+#endif
+
+bool WasmScriptingVM::callPathEffectWithNode(
+    ScriptedObject* object,
+    int selfRef,
+    const RawPath& sourcePath,
+    const PathEffectPaintWire& paint,
+    uint32_t node,
+    RawPath* outPath)
+{
   uint32_t verbCount = (uint32_t)sourcePath.verbs().size();
   uint32_t floatCount = (uint32_t)sourcePath.points().size() * 2;
   uint32_t pointBytes = floatCount * (uint32_t)sizeof(float);
@@ -14513,15 +14700,6 @@ bool WasmScriptingVM::callPathEffectUpdate(
       sourcePath.verbs().data(),
       verbCount);
   m_pathEffectOut = outPath;
-  // _v2 also gets a node over the shape, the Luau lane's NodeData; modules
-  // built before it get the paint alone.
-  bool withNode = m_pathEffectV2;
-  size_t scopeStart = m_scopedNodes.size();
-  uint32_t nodeHandle = 0;
-  if (withNode && shape != nullptr)
-  {
-    nodeHandle = mintNode(this, nullptr, shape);
-  }
   uint32_t args[8] = {
       m_L,
       (uint32_t)selfRef,
@@ -14530,10 +14708,9 @@ bool WasmScriptingVM::callPathEffectUpdate(
       dataPtr + (uint32_t)sizeof(paint),
       floatCount,
       dataPtr,
-      nodeHandle};
-  uint32_t ok = withNode ? callModule("host_obj_path_effect_v2", 8, args)
-                         : callModule("host_obj_path_effect", 7, args);
-  releaseScopedNodes(scopeStart);
+      node};
+  uint32_t ok = m_pathEffectV2 ? callModule("host_obj_path_effect_v2", 8, args)
+                               : callModule("host_obj_path_effect", 7, args);
   m_pathEffectOut = nullptr;
   guestFree(dataPtr);
   return ok != 0;
