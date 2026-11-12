@@ -5,7 +5,11 @@
 
 using namespace rive;
 
-void ScriptedEffectPath::invalidateEffect() { m_path.rewind(); }
+void ScriptedEffectPath::invalidateEffect()
+{
+  m_isValid = false;
+  m_path.rewind();
+}
 
 #ifdef WITH_RIVE_SCRIPTING
 
@@ -42,7 +46,7 @@ void ScriptedPathEffect::updateEffect(
     auto trimEffectPath = static_cast<ScriptedEffectPath*>(
         effectPathIt->second);
     auto path = trimEffectPath->path();
-    if (path->hasRenderPath())
+    if (trimEffectPath->isValid())
     {
       // Previous result hasn't been invalidated, it's still good.
       return;
@@ -53,6 +57,13 @@ void ScriptedPathEffect::updateEffect(
     {
       return;
     }
+    // Marked before the call, so an invalidation during it still counts. A
+    // script that fails keeps its empty result until the next invalidation
+    // instead of failing again on every update.
+    trimEffectPath->markValid();
+#ifdef TESTING
+    computeCount++;
+#endif
     setInUpdatePhase(true);
     RawPath effectPath;
     if (!m_vm->callPathEffectUpdate(

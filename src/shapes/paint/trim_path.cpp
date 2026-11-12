@@ -7,6 +7,7 @@ using namespace rive;
 
 void TrimEffectPath::invalidateEffect()
 {
+  m_isValid = false;
   m_path.rewind();
   m_contours.clear();
 }
@@ -224,12 +225,16 @@ void TrimPath::updateEffect(
   {
     auto trimEffectPath = static_cast<TrimEffectPath*>(effectPathIt->second);
     auto path = trimEffectPath->path();
-    if (path->hasRenderPath())
+    if (trimEffectPath->isValid())
     {
       // Previous result hasn't been invalidated, it's still good.
       return;
     }
     path->rewind(source->isLocal(), source->fillRule());
+    trimEffectPath->markValid();
+#ifdef TESTING
+    computeCount++;
+#endif
     trimPath(
         path,
         trimEffectPath->contours(),

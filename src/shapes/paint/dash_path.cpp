@@ -24,7 +24,11 @@ void DashPath::sortDashesForEditor()
 }
 #endif
 
-void DashEffectPath::invalidateEffect() { m_path.rewind(); }
+void DashEffectPath::invalidateEffect()
+{
+  m_isValid = false;
+  m_path.rewind();
+}
 
 void DashEffectPath::createPathMeasure(const RawPath* source)
 {
@@ -154,11 +158,15 @@ void DashPath::updateEffect(
   {
     auto dashEffectPath = static_cast<DashEffectPath*>(effectPathIt->second);
     auto path = dashEffectPath->path();
-    if (path->hasRenderPath())
+    if (dashEffectPath->isValid())
     {
       return;
     }
     path->rewind(source->isLocal());
+    dashEffectPath->markValid();
+#ifdef TESTING
+    computeCount++;
+#endif
     // Dash is not supported on fills so it will use the source as output
     if (shapePaint->paintType() == ShapePaintType::fill)
     {

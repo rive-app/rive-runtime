@@ -22,6 +22,16 @@ public:
   virtual ~EffectPath() = default;
   virtual void invalidateEffect() {}
   virtual ShapePaintPath* path() { return nullptr; }
+
+  // Whether path() still holds the result for the current source. An effect
+  // sets it once it has computed the result and invalidateEffect clears it.
+  // Having a render path says nothing here: only the last effect's path is
+  // ever drawn, so the ones before it never get one.
+  bool isValid() const { return m_isValid; }
+  void markValid() { m_isValid = true; }
+
+protected:
+  bool m_isValid = false;
 };
 
 // A PathProvider is any object that will be used to map a unique EffectPath.
@@ -55,6 +65,11 @@ public:
 protected:
   virtual EffectPath* createEffectPath() { return new EffectPath(); }
   std::unordered_map<PathProvider*, EffectPath*> m_effectPaths;
+#ifdef TESTING
+public:
+  // How many times updateEffect computed a result instead of reusing one.
+  int computeCount = 0;
+#endif
 };
 } // namespace rive
 #endif
