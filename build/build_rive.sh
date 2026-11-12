@@ -26,7 +26,7 @@
 # Specify build targets after "--":
 #
 #   build_rive.sh -- gms goldens
-#   build_rive.sh ninja release -- imagediff
+#   build_rive.sh ninja release -- goldens
 #
 # Build for android:
 #

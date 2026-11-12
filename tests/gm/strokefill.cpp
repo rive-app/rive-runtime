@@ -253,12 +253,6 @@ float scalarInterpFunc(
   assert(length > 0);
   assert(keys != nullptr);
   assert(values != nullptr);
-#ifdef RIVE_DEBUG
-  for (int i = 1; i < length; i++)
-  {
-    assert(keys[i - 1] <= keys[i]);
-  }
-#endif
   int right = 0;
   while (right < length && keys[right] < searchKey)
   {

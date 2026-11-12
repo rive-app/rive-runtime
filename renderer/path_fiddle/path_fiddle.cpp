@@ -287,7 +287,6 @@ API api =
     ;
 
 bool angle = false;
-bool skia = false;
 
 void makeContext()
 {
@@ -312,8 +311,7 @@ void makeContext()
       fiddleContext = FiddleContext::MakeVulkanPLS(options);
       break;
     case API::gl:
-      fiddleContext = skia ? FiddleContext::MakeGLSkia()
-                           : FiddleContext::MakeGLPLS();
+      fiddleContext = FiddleContext::MakeGLPLS();
       break;
   }
 }
@@ -389,21 +387,7 @@ static void key_callback(
         doClose = !doClose;
         break;
       case GLFW_KEY_S:
-        if (shift)
-        {
-          // Toggle Skia.
-          clear_scenes();
-          rivFile = nullptr;
-          skia = !skia;
-          fiddleContext = skia ? FiddleContext::MakeGLSkia()
-                               : FiddleContext::MakeGLPLS();
-          lastWidth = 0;
-          lastHeight = 0;
-          fpsLastTime = 0;
-          fpsFrames = 0;
-          needsTitleUpdate = true;
-        }
-        else
+        if (!shift)
         {
           disableStroke = !disableStroke;
         }
@@ -694,10 +678,6 @@ int main(int argc, const char** argv)
       angle = true;
     }
 #endif
-    else if (!strcmp(argv[i], "--skia"))
-    {
-      skia = true;
-    }
     else if (sscanf(argv[i], "-a%i", &animation) == 1)
     {
       // Already updated animation.
@@ -914,14 +894,7 @@ static void update_window_title(
   {
     title << " (x" << instances << " instances)";
   }
-  if (skia)
-  {
-    title << " | SKIA Renderer";
-  }
-  else
-  {
-    title << " | RIVE Renderer";
-  }
+  title << " | RIVE Renderer";
   if (msaa)
   {
     if (inkbleed)

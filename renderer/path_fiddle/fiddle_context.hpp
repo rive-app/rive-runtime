@@ -93,7 +93,6 @@ public:
   virtual void hotloadShaders() {};
 
   static std::unique_ptr<FiddleContext> MakeGLPLS(FiddleContextOptions = {});
-  static std::unique_ptr<FiddleContext> MakeGLSkia();
 #ifdef RIVE_MACOSX
   static std::unique_ptr<FiddleContext> MakeMetalPLS(FiddleContextOptions = {});
 #else

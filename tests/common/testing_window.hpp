@@ -79,7 +79,6 @@ public:
     dawn,
     wgpu,
     external,
-    skia,
     canvas2d,
     svg,
     null,
@@ -442,7 +441,6 @@ public:
   static TestingWindow* MakePlatformVulkan(const BackendParams&);
   static TestingWindow* MakeWGPU(const BackendParams&);
   static TestingWindow* MakeSVG();
-  static TestingWindow* MakeSkia();
   static TestingWindow* MakeCanvas2D();
   static TestingWindow* MakeNULL();
 

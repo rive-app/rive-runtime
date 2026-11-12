@@ -54,10 +54,6 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
-      - name: Build glfw
-        working-directory: skia/dependencies/
-        run: ./make_glfw.sh
-
       - name: Tests
         if: matrix.platform == 'macOS'
         run: |

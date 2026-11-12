@@ -26,11 +26,6 @@ dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_glfw_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/decoders/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DOFILE_DIR .. '/renderer/premake5_pls_renderer.lua')
 
-newoption({ trigger = 'with-skia', description = 'use skia' })
-if _OPTIONS['with-skia'] then
-    dofile(RIVE_RUNTIME_DOFILE_DIR .. '/skia/renderer/premake5_v2.lua')
-end
-
 newoption({
     trigger = 'with-canvas-2d',
     description = 'build the Canvas2D renderer from packages/runtime_wasm',
@@ -188,17 +183,6 @@ function rive_tools_project(name, project_kind)
         externalincludedirs({
             glfw .. '/include',
         })
-    end
-
-    filter('options:with-skia')
-    do
-        includedirs({
-            RIVE_RUNTIME_DIR .. '/skia/renderer/include',
-            RIVE_RUNTIME_DIR .. '/skia/dependencies',
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/skia',
-        })
-        defines({ 'RIVE_SKIA' })
-        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/skia/out/static' })
     end
 
     filter('options:with-svg')
@@ -404,11 +388,6 @@ function rive_tools_project(name, project_kind)
     })
     do
         links({ 'IOSurface.framework' })
-    end
-
-    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-skia' })
-    do
-        links({ 'skia', 'rive_skia_renderer' })
     end
 
     filter({ 'options:for_unreal' })

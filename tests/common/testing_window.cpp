@@ -74,8 +74,6 @@ const char* TestingWindow::BackendName(Backend backend)
       return "wgpu";
     case Backend::external:
       return "external";
-    case Backend::skia:
-      return "skia";
     case Backend::canvas2d:
       return "canvas2d";
     case Backend::svg:
@@ -392,10 +390,6 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->inkbleed = true;
     return Backend::wgpu;
   }
-  if (nameStr == "skia")
-  {
-    return Backend::skia;
-  }
   if (nameStr == "external" || nameStr == "ext" || nameStr == "x")
   {
     return Backend::external;
@@ -599,9 +593,6 @@ TestingWindow* TestingWindow::Init(
       s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
       break;
     case Backend::external:
-      break;
-    case Backend::skia:
-      s_TestingWindow = MakeSkia();
       break;
     case Backend::canvas2d:
       s_TestingWindow = MakeCanvas2D();

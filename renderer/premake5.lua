@@ -5,11 +5,6 @@ dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_glfw_v2.lua')
 
-newoption({ trigger = 'with-skia', description = 'use skia' })
-if _OPTIONS['with-skia'] then
-    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/premake5_v2.lua')
-end
-
 if not _OPTIONS['with-webgpu'] then
     project('path_fiddle')
     do
@@ -76,18 +71,6 @@ if not _OPTIONS['with-webgpu'] then
         filter({ 'toolset:not msc' })
         do
             buildoptions({ '-Wshorten-64-to-32' })
-        end
-
-        filter('options:with-skia')
-        do
-            includedirs({
-                RIVE_RUNTIME_DIR .. '/skia/renderer/include',
-                RIVE_RUNTIME_DIR .. '/skia/dependencies',
-                RIVE_RUNTIME_DIR .. '/skia/dependencies/skia',
-            })
-            defines({ 'RIVE_SKIA', 'SK_GL' })
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/skia/out/static' })
-            links({ 'skia', 'rive_skia_renderer' })
         end
 
         filter('system:windows')

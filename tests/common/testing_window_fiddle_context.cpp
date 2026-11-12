@@ -372,7 +372,6 @@ public:
     switch (backend)
     {
       case Backend::wgpu:
-      case Backend::skia:
       case Backend::canvas2d:
       case Backend::svg:
       case Backend::external:
