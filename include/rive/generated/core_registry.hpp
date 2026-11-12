@@ -1624,6 +1624,9 @@ public:
       case StateMachineListenerBase::phaseValuePropertyKey:
         object->as<StateMachineListenerBase>()->phaseValue(value);
         break;
+      case StateMachineListenerBase::listenerFlagsPropertyKey:
+        object->as<StateMachineListenerBase>()->listenerFlags(value);
+        break;
       case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
         object->as<StateMachineListenerSingleBase>()->listenerTypeValue(value);
         break;
@@ -3795,6 +3798,8 @@ public:
         return object->as<BlendAnimationDirectBase>()->blendSource();
       case StateMachineListenerBase::phaseValuePropertyKey:
         return object->as<StateMachineListenerBase>()->phaseValue();
+      case StateMachineListenerBase::listenerFlagsPropertyKey:
+        return object->as<StateMachineListenerBase>()->listenerFlags();
       case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
         return object->as<StateMachineListenerSingleBase>()
             ->listenerTypeValue();
@@ -5168,6 +5173,7 @@ public:
       case KeyFrameUintBase::valuePropertyKey:
       case BlendAnimationDirectBase::blendSourcePropertyKey:
       case StateMachineListenerBase::phaseValuePropertyKey:
+      case StateMachineListenerBase::listenerFlagsPropertyKey:
       case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
       case KeyedPropertyBase::propertyKeyPropertyKey:
       case TransitionPropertyArtboardComparatorBase::propertyTypePropertyKey:
@@ -6114,6 +6120,8 @@ public:
       case BlendAnimationDirectBase::blendSourcePropertyKey:
         return BlendAnimationDirectBase::typeKey;
       case StateMachineListenerBase::phaseValuePropertyKey:
+        return StateMachineListenerBase::typeKey;
+      case StateMachineListenerBase::listenerFlagsPropertyKey:
         return StateMachineListenerBase::typeKey;
       case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
         return StateMachineListenerSingleBase::typeKey;

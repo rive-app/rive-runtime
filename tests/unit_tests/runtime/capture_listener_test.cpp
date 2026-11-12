@@ -5,8 +5,10 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/drawable_flag.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/listener_phase.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/text/cursor.hpp"
@@ -21,7 +23,8 @@ using namespace rive;
 // assets/capture_listeners.riv, source assets/rml/capture_listeners.rml. Every
 // listener in it is in the normal phase; a test flips the ones it needs before
 // instancing, since a state machine instance reads the phase once, when it
-// registers its listeners.
+// registers its listeners. A capture press only claims with stopPropagation,
+// so a test that needs a claim sets that too.
 //
 // In Host's space: Slot A spans x 20..240, y 20..68, holding Field A; Slot B
 // spans x 20..240, y 88..136, holding Field B; the opaque Overlay covers
@@ -48,7 +51,10 @@ const Vec2D kUnderListOverlay(200.0f, 44.0f);
 const Vec2D kOnSecondListRow(100.0f, 80.0f);
 const Vec2D kOnLeaf(40.0f, 30.0f);
 
-void capture(File* file, const char* artboardName, const char* listenerName)
+StateMachineListener* listenerNamed(
+    File* file,
+    const char* artboardName,
+    const char* listenerName)
 {
   auto artboard = file->artboard(artboardName);
   REQUIRE(artboard != nullptr);
@@ -60,13 +66,28 @@ void capture(File* file, const char* artboardName, const char* listenerName)
       auto listener = machine->listener(i);
       if (listener->name() == listenerName)
       {
-        const_cast<StateMachineListener*>(listener)->phaseValue(
-            (uint32_t)ListenerPhase::capture);
-        return;
+        return const_cast<StateMachineListener*>(listener);
       }
     }
   }
   FAIL("no listener named " << listenerName);
+  return nullptr;
+}
+
+void capture(File* file, const char* artboardName, const char* listenerName)
+{
+  listenerNamed(file, artboardName, listenerName)
+      ->phaseValue((uint32_t)ListenerPhase::capture);
+}
+
+// Lets a capture listener with a press type claim the press.
+void stopPropagation(
+    File* file,
+    const char* artboardName,
+    const char* listenerName)
+{
+  listenerNamed(file, artboardName, listenerName)
+      ->listenerFlags((uint8_t)ListenerFlags::stopPropagation);
 }
 
 struct Field
@@ -380,6 +401,7 @@ TEST_CASE(
 {
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Host", "Slot B Press");
+  stopPropagation(file.get(), "Host", "Slot B Press");
   HostScene scene(file.get());
   CHECK(StateMachineInstance::liveCaptureMachines() == 1);
   scene.b.caret(2);
@@ -419,12 +441,36 @@ TEST_CASE(
   CHECK(scene.flag("slotAPressed"));
 }
 
+TEST_CASE("a capture press without stopPropagation only observes", "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  capture(file.get(), "Host", "Slot B Press");
+  // An opaque target doesn't claim either: opacity keeps the press from what
+  // is drawn below a hit, not from what is inside its target.
+  if (GENERATE(false, true))
+  {
+    auto slot = file->artboard("Host")->find<LayoutComponent>("Slot B");
+    REQUIRE(slot != nullptr);
+    slot->drawableFlags(slot->drawableFlags() | (uint16_t)DrawableFlag::Opaque);
+  }
+  HostScene scene(file.get());
+
+  // The slot's listener runs first and claims nothing, so the press goes on
+  // to the field: its text input takes focus.
+  CHECK(scene.machine->pointerDown(kOnFieldBText) != HitResult::none);
+  scene.machine->pointerUp(kOnFieldBText);
+  scene.machine->advanceAndApply(0.0f);
+  CHECK(scene.flag("slotBPressed"));
+  CHECK(scene.b.input->isFocused());
+}
+
 TEST_CASE(
     "a nested machine's capture listener runs under a host without one",
     "[capture]")
 {
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Field", "Viewport Down");
+  stopPropagation(file.get(), "Field", "Viewport Down");
   HostScene scene(file.get());
   // The user left the caret at the start, where focus coming back keeps it.
   scene.focus(scene.b);
@@ -489,6 +535,7 @@ TEST_CASE("a capture claim holds one pointer only", "[capture]")
 {
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Host", "Slot B Press");
+  stopPropagation(file.get(), "Host", "Slot B Press");
   HostScene scene(file.get());
   scene.b.caret(2);
 
@@ -520,6 +567,7 @@ TEST_CASE(
 {
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Host", "Slot B Press");
+  stopPropagation(file.get(), "Host", "Slot B Press");
   HostScene scene(file.get());
 
   // Primary presses Field B and is claimed. Secondary joins it, and lets go
@@ -550,6 +598,7 @@ TEST_CASE("a capture drag's release stays off the claimed field", "[capture]")
     REQUIRE(scene.a.flag("fieldReleased"));
   }
   capture(file.get(), "Host", "Slot A Drag");
+  stopPropagation(file.get(), "Host", "Slot A Drag");
   HostScene scene(file.get());
   const Vec2D dragged = kOnFieldAViewport + Vec2D(5.0f, 0.0f);
   scene.machine->pointerDown(kOnFieldAViewport);
@@ -572,6 +621,7 @@ TEST_CASE(
 {
   auto file = ReadRiveFile("assets/capture_listeners.riv");
   capture(file.get(), "Host", "Slot B Press");
+  stopPropagation(file.get(), "Host", "Slot B Press");
   SECTION("the field's own listeners") {}
   SECTION("a capture listener in the field")
   {
@@ -609,6 +659,7 @@ TEST_CASE(
     REQUIRE_FALSE(scene.rowHovered());
   }
   capture(file.get(), "List Host", "List Slot Press");
+  stopPropagation(file.get(), "List Host", "List Slot Press");
   ListScene scene(file.get());
   scene.machine->pointerDown(kOnListRow);
   scene.machine->advanceAndApply(0.0f);
@@ -631,6 +682,8 @@ TEST_CASE(
   capture(file.get(), "Claims", "Outer Secondary Press");
   capture(file.get(), "Claims", "Inner Press");
   capture(file.get(), "Claims", "Leaf Move");
+  stopPropagation(file.get(), "Claims", "Outer Secondary Press");
+  stopPropagation(file.get(), "Claims", "Inner Press");
   auto artboard = file->artboardNamed("Claims");
   REQUIRE(artboard != nullptr);
   auto machine = artboard->stateMachineAt(0);
@@ -667,6 +720,8 @@ TEST_CASE(
   // the host's Slot B, which turns the whole field off.
   capture(file.get(), "Field", "Viewport Down");
   capture(file.get(), "Host", "Slot B Secondary Press");
+  stopPropagation(file.get(), "Field", "Viewport Down");
+  stopPropagation(file.get(), "Host", "Slot B Secondary Press");
   HostScene scene(file.get());
   scene.machine->pointerDown(kOnFieldBViewport, 0, PointerButton::primary);
   scene.machine->pointerDown(kOnFieldBViewport, 0, PointerButton::secondary);
@@ -695,6 +750,7 @@ TEST_CASE("a list row added during a claim is under it too", "[capture]")
     REQUIRE(scene.rowHovered(1));
   }
   capture(file.get(), "List Host", "List Slot Press");
+  stopPropagation(file.get(), "List Host", "List Slot Press");
   ListScene scene(file.get());
   scene.machine->pointerDown(kOnListRow);
   scene.machine->advanceAndApply(0.0f);

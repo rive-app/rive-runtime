@@ -18,10 +18,12 @@ public:
 
   static const uint16_t targetIdPropertyKey = 224;
   static const uint16_t phaseValuePropertyKey = 535;
+  static const uint16_t listenerFlagsPropertyKey = 1137;
 
 protected:
   Id m_TargetId = kEmptyId;
-  uint32_t m_PhaseValue = 0;
+  uint8_t m_PhaseValue = 0;
+  uint8_t m_ListenerFlags = 0;
 
 public:
   inline Id targetId() const { return m_TargetId; }
@@ -36,8 +38,8 @@ public:
     notifyPropertyChanged(targetIdPropertyKey);
   }
 
-  inline uint32_t phaseValue() const { return m_PhaseValue; }
-  void phaseValue(uint32_t value)
+  inline uint8_t phaseValue() const { return m_PhaseValue; }
+  void phaseValue(uint8_t value)
   {
     if (m_PhaseValue == value)
     {
@@ -48,11 +50,24 @@ public:
     notifyPropertyChanged(phaseValuePropertyKey);
   }
 
+  inline uint8_t listenerFlags() const { return m_ListenerFlags; }
+  void listenerFlags(uint8_t value)
+  {
+    if (m_ListenerFlags == value)
+    {
+      return;
+    }
+    RIVE_EDITOR_CHANGING(listenerFlagsPropertyKey, &m_ListenerFlags, &value);
+    m_ListenerFlags = value;
+    notifyPropertyChanged(listenerFlagsPropertyKey);
+  }
+
   Core* clone() const override;
   void copy(const StateMachineListenerBase& object)
   {
     m_TargetId = object.m_TargetId;
     m_PhaseValue = object.m_PhaseValue;
+    m_ListenerFlags = object.m_ListenerFlags;
     StateMachineComponent::copy(object);
   }
 
@@ -65,6 +80,9 @@ public:
         return true;
       case phaseValuePropertyKey:
         m_PhaseValue = CoreUintType::deserialize(reader);
+        return true;
+      case listenerFlagsPropertyKey:
+        m_ListenerFlags = CoreUintType::deserialize(reader);
         return true;
     }
     return StateMachineComponent::deserialize(propertyKey, reader);

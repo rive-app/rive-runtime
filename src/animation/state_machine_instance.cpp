@@ -3662,8 +3662,11 @@ HitResult StateMachineInstance::captureLocalPointer(
     if (canHit && group->isPointerHovered(pointerId))
     {
       result = HitResult::hit;
+      // Only a listener that stops propagation claims; any other capture
+      // listener only observes, and the press goes on inward.
       if (hitType == ListenerType::down &&
-          group->listener()->claimsPress(button))
+          group->listener()->claimsPress(button) &&
+          group->listener()->stopsPropagation())
       {
         claimPointer(captureHit.target, pointerId, button);
       }

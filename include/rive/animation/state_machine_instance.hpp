@@ -298,9 +298,12 @@ public:
   /// The capture phase of a pointer event: this machine's capture listeners
   /// and then those of every machine nested in it, outermost first, all
   /// ahead of the normal phase. A capture listener that includes a press
-  /// type and is hovered on a down claims that pointer's gesture: until its
-  /// release, normal handling under the listener's target -- its hit
-  /// components and whole nested machines -- is off for that pointer.
+  /// type, stops propagation and is hovered on a down claims that pointer's
+  /// gesture: until its release, normal handling under the listener's target
+  /// -- its hit components and whole nested machines -- is off for that
+  /// pointer. Without stopPropagation it only observes the press, though a
+  /// drag type still takes the gesture once it starts dragging, as any drag
+  /// listener here does.
   /// A capture target under an opaque hit drawn above it, from outside its
   /// own target, doesn't fire.
   ///
