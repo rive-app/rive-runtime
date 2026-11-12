@@ -41,6 +41,7 @@ class KeyFrame;
 class ArtboardComponentList;
 class ArtboardHost;
 class File;
+struct DeferredArtboardBody;
 class Drawable;
 class Factory;
 namespace gpu
@@ -264,15 +265,8 @@ private:
   // data binds, drawables, advancing components and the like) for the
   // entries [source] has, which the instance ends up with too.
   void reserveListsLike(const Artboard& source);
-  // Lazily-built index of this artboard's data binds that target keyframes,
-  // keyed by the (shared) keyframe. Keyframe binds live in dataBinds() but
-  // are never applied directly (keyframes aren't Components); instead a
-  // playing LinearAnimationInstance clones them onto per-instance holders and
-  // resolves them via keyFrameValueHolder. Built once from dataBinds(); the
-  // source artboard's binds don't change at runtime. `mutable` so the const
-  // accessors below can populate it on first use.
-  // Source-only state: animations, state machines, rejected objects and the
-  // keyframe-bind index. Null on every instance. See ArtboardSourceState.
+  // Source-only state: animations, state machines, rejected objects and a
+  // deferred body. Null on every instance. See ArtboardSourceState.
   mutable Sidecar<ArtboardSourceState> m_sourceState;
   // Views onto this artboard's own source state, each falling back to a
   // shared empty when none was allocated -- every instance, and any artboard
@@ -281,8 +275,34 @@ private:
   const std::vector<LinearAnimation*>& ownAnimations() const;
   const std::vector<StateMachine*>& ownStateMachines() const;
   const std::vector<Core*>& ownInvalidObjects() const;
-  void buildKeyFrameSourceBindsIndex() const;
   void initScriptedObjects();
+
+  // File::import hands a source the body it skipped, to decode on first use.
+  // Takes ownership of [body].
+  void deferBody(
+      File* file,
+      DeferredArtboardBody* body,
+      bool hasTextStylePaint,
+      bool hasStateMachineListener);
+  // Frees what a body that failed to decode had imported, leaving the record
+  // alone, for initialize() to make an empty artboard of it.
+  void discardBody();
+  // A new, initialized artboard with this one's record and nothing else,
+  // to stand in for it once its body failed part way through initialize
+  // (ArtboardDeferral::standIn).
+  Artboard* makeEmptyStandIn() const;
+  // The artboard whose body this thread is decoding, if any (see
+  // File::decodeArtboardBody).
+  static const Artboard*& decodingArtboard();
+  // Fails when a pending body is read by anything but its own decode: every
+  // path to a source's body must decode it first. Defined in every build, as
+  // code built with TESTING may link a runtime built without it.
+  void assertBodyAvailable() const;
+#ifdef TESTING
+#define RIVE_ASSERT_ARTBOARD_BODY() assertBodyAvailable()
+#else
+#define RIVE_ASSERT_ARTBOARD_BODY()
+#endif
 
   // Variable that tracks whenever the draw order changes. It is used by the
   // state machine controllers to sort their hittable components when they are
@@ -385,13 +405,8 @@ public:
   static void incFrameId() { sm_frameId++; }
 #endif
   void updateDataBinds(bool applyTargetToSource = true) override;
-  // The data bind (if any) targeting the given keyframe's value, resolved
-  // from this artboard's serialized keyframe binds. Used by
-  // LinearAnimationInstance to lazily build per-instance value holders. Call
-  // on the source artboard (see Artboard::artboardSource()).
-  DataBind* keyFrameSourceBind(const KeyFrame* keyframe) const;
-  // True if any of this artboard's data binds target a keyframe. Cheap gate
-  // so playback in files without keyframe binds does no per-keyframe work.
+  // True if any of this artboard's animations has a bind on a keyframe
+  // (LinearAnimation::keyFrameBinds). A cheap gate, which decodes nothing.
   bool hasKeyFrameSourceBinds() const;
   void host(ArtboardHost* artboardHost);
   ArtboardHost* host() const;
@@ -924,19 +939,61 @@ public:
   const ShapePaintPath* backgroundPath() { return &mutableRenderPaths().local; }
 #endif
 
-  const std::vector<Core*>& objects() const { return m_Objects; }
+  const std::vector<Core*>& objects() const
+  {
+    RIVE_ASSERT_ARTBOARD_BODY();
+    return m_Objects;
+  }
   template <typename T> TypedChildren<T> objects()
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     return TypedChildren<T>(Span<Core*>(m_Objects.data(), m_Objects.size()));
   }
 
+  /// Whether File::import skipped this source's body (its components,
+  /// animations and state machines; see FileImportOptions) and it
+  /// isn't decoded yet. The record is always there: name, size, view model,
+  /// default state machine.
+  bool hasDeferredBody() const;
+  /// Decodes the body if the import deferred it. instance() and the File's
+  /// artboard() accessors do, so only code reaching a source some other way
+  /// (a reference's artboard) and reading its body needs to (decoded()).
+  /// Safe on any thread.
+  void ensureDecoded() const;
+  /// Decodes the body if the import deferred it, and returns the artboard
+  /// to use: this one, or, when its body failed part way through initialize
+  /// (a malformed file), an empty artboard with the same record standing in
+  /// for it. instance() and the File's artboard() accessors go through it.
+  const Artboard* decoded() const;
+  Artboard* decoded()
+  {
+    return const_cast<Artboard*>(static_cast<const Artboard*>(this)->decoded());
+  }
+  /// Whether decoded() hands out [artboard]: this one, or what stands in for
+  /// a body that failed. Never decodes; a body still pending has handed out
+  /// nothing but this.
+  bool handsOut(const Artboard* artboard) const;
+  /// Whether the body failed to decode (a malformed file), which leaves the
+  /// artboard, or the one decoded() hands out in its place, empty.
+  bool failedToDecode() const;
+  /// What the import saw in a body it deferred: whether it may hold a text
+  /// style paint or a state machine listener. Always true once decoded,
+  /// when the objects themselves can be looked at.
+  bool mayHaveTextStylePaint() const;
+  bool mayHaveStateMachineListener() const;
+
   const std::vector<NestedArtboard*>& nestedArtboards() const
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     return m_NestedArtboards.view();
   }
   /// Whether this artboard holds nested artboards or artboard lists, which
   /// make state machines of their own as they advance.
-  bool hostsArtboards() const { return !m_ArtboardHosts.empty(); }
+  bool hostsArtboards() const
+  {
+    RIVE_ASSERT_ARTBOARD_BODY();
+    return !m_ArtboardHosts.empty();
+  }
   /// Whether this artboard runs scripts: scripted components, scripts in its
   /// state machines, or scripted converters on their data binds, those on
   /// its animations' keyframes included. Each instance keeps its scripts'
@@ -944,6 +1001,7 @@ public:
   bool usesScripts() const;
   const std::vector<ArtboardHost*>& artboardHosts() const
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     return m_ArtboardHosts;
   }
   const std::vector<ArtboardComponentList*>& artboardComponentLists() const
@@ -1019,6 +1077,7 @@ public:
 
   template <typename T = Component> T* find(const std::string& name)
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     for (auto object : m_Objects)
     {
       if (object != nullptr && object->is<T>() &&
@@ -1032,6 +1091,7 @@ public:
 
   template <typename T = Component> size_t count()
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     size_t count = 0;
     for (auto object : m_Objects)
     {
@@ -1045,6 +1105,7 @@ public:
 
   template <typename T = Component> T* objectAt(size_t index)
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     size_t count = 0;
     for (auto object : m_Objects)
     {
@@ -1061,6 +1122,7 @@ public:
 
   int objectIndex(Core* component) const
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     int count = 0;
     for (auto object : m_Objects)
     {
@@ -1075,6 +1137,7 @@ public:
 
   template <typename T = Component> std::vector<T*> find()
   {
+    RIVE_ASSERT_ARTBOARD_BODY();
     std::vector<T*> results;
     for (auto object : m_Objects)
     {
@@ -1126,6 +1189,14 @@ public:
   template <typename T = ArtboardInstance>
   std::unique_ptr<T> instance(Factory* factory = nullptr) const
   {
+    // A source whose body the import deferred is decoded by its first
+    // instance (with its own factory, not the override). One whose body
+    // failed part way through initialize instances what stands in for it.
+    const Artboard* source = decoded();
+    if (source != this)
+    {
+      return source->instance<T>(factory);
+    }
     std::unique_ptr<T> artboardClone(new T);
     artboardClone->copy(*this);
 

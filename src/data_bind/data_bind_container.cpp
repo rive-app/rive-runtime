@@ -35,6 +35,14 @@ void DataBindContainer::deleteDataBinds()
   }
 }
 
+void DataBindContainer::discardDataBinds()
+{
+  deleteDataBinds();
+  m_dataBinds.clear();
+  m_dirtyDataBinds.clear();
+  m_queues.reset();
+}
+
 void DataBindContainer::unbindDataBinds()
 {
   for (auto& dataBind : m_dataBinds)

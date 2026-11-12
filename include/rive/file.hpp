@@ -3,6 +3,9 @@
 
 #include "rive/artboard.hpp"
 #include "rive/runtime_header.hpp"
+#include "rive/animation/deferred_animation_body.hpp"
+#include "rive/deferred_artboard_body.hpp"
+#include "rive/viewmodel/deferred_viewmodel_instance_body.hpp"
 #include "rive/backboard.hpp"
 #include "rive/selection_style.hpp"
 #include "rive/scripting_slots.hpp"
@@ -40,6 +43,8 @@ class ViewModelInstance;
 #endif
 class BinaryReader;
 class DataBind;
+class ImportStack;
+class LinearAnimation;
 class RuntimeHeader;
 class Factory;
 class ScrollPhysics;
@@ -64,6 +69,45 @@ enum class ImportResult
   unsupportedVersion,
   /// Indicates that the there is a formatting problem in the file itself.
   malformed
+};
+
+/// How File::import reads a file.
+struct FileImportOptions
+{
+  /// Decode parts of the file the first time they're used instead of at
+  /// import, keeping a copy of their bytes until then. Off by default: the
+  /// whole file is decoded up front.
+  ///
+  /// - Animations: each LinearAnimation's keyed body (its keyed objects,
+  ///   properties, keyframes and their binds) decodes the first time the
+  ///   animation is used (LinearAnimation::ensureDecoded).
+  /// - Artboards: each keeps its own record (name, size, view model, default
+  ///   state machine) and decodes the rest of its run (components,
+  ///   animations, state machines) the first time it's used: instanced, or
+  ///   handed out by File::artboard(). The default artboard (the first)
+  ///   still decodes at import: a player opens it first anyway.
+  /// - File level view model instances: each keeps its record (name, view
+  ///   model) and decodes its values, list items and binds the first time
+  ///   its view model hands it out (ViewModel::instance(), defaultInstance(),
+  ///   instances()), which every copy of it goes through. Instances inside
+  ///   an artboard (a nested artboard's stateful ones) decode with it.
+  ///
+  /// Parts that can't wait decode at import as usual (see AnimationBodySkim,
+  /// ArtboardBodySkim and ViewModelInstanceBodySkim). A decode runs on
+  /// whichever thread first uses the part, and does what instancing does
+  /// there: it calls the factory, runs scripted interpolators' generators
+  /// and adds to the referencer lists of the file's assets.
+  bool deferDecoding = false;
+#ifdef TESTING
+  /// Which parts deferDecoding defers, for tests that hold one part at a
+  /// time to an eager import.
+  bool testing_deferAnimations = true;
+  bool testing_deferArtboards = true;
+  bool testing_deferViewModelInstances = true;
+  /// Defers the default artboard too, so that files with a single artboard
+  /// test artboard deferral.
+  bool testing_deferDefaultArtboard = false;
+#endif
 };
 
 #ifdef WITH_RIVE_TOOLS
@@ -114,6 +158,56 @@ public:
   /// The seed scripts' random numbers start from while deterministicMode
   /// is on, so the same run draws the same sequence every time.
   static int deterministicSeed;
+  /// What the import did with each LinearAnimation's keyed body when it
+  /// deferred animation decoding (FileImportOptions).
+  struct DeferredAnimationStats
+  {
+    /// Bodies by outcome, indexed by AnimationBodySkim.
+    uint32_t outcomes[kAnimationBodySkimCount] = {};
+    /// Bytes copied for the deferred bodies.
+    size_t deferredBytes = 0;
+  };
+
+  /// What the import did with each artboard's body when it deferred
+  /// artboard decoding (FileImportOptions).
+  struct DeferredArtboardStats
+  {
+    /// Bodies by outcome, indexed by ArtboardBodySkim.
+    uint32_t outcomes[kArtboardBodySkimCount] = {};
+    /// Bytes copied for the deferred bodies.
+    size_t deferredBytes = 0;
+    /// Deferred bodies that failed to decode (malformed files), which left
+    /// their artboards empty.
+    std::atomic<uint32_t> decodeFailures{0};
+  };
+
+  /// What the import did with each file level view model instance's values
+  /// when it deferred view model instance decoding (FileImportOptions).
+  struct DeferredViewModelInstanceStats
+  {
+    /// Bodies by outcome, indexed by ViewModelInstanceBodySkim.
+    uint32_t outcomes[kViewModelInstanceBodySkimCount] = {};
+    /// Bytes copied for the deferred bodies.
+    size_t deferredBytes = 0;
+    /// Values, list items and binds the deferred bodies hold.
+    size_t deferredRecords = 0;
+    /// Deferred bodies that failed to decode (malformed files).
+    std::atomic<uint32_t> decodeFailures{0};
+  };
+#ifdef TESTING
+  /// How many deferred artboard bodies have been decoded, by any file.
+  static std::atomic<int> deferredArtboardDecodeCount;
+  /// How many deferred view model instance bodies have been decoded, by any
+  /// file.
+  static std::atomic<int> deferredViewModelInstanceDecodeCount;
+  /// The options import uses when given none. RIVE_LAZY_DECODING=1 turns
+  /// deferral on for the whole suite.
+  static FileImportOptions testing_defaultImportOptions;
+#endif
+  /// The options import uses when given none: FileImportOptions' defaults.
+  /// (Out of line: code built with TESTING may link a runtime built without
+  /// it.)
+  static const FileImportOptions& defaultImportOptions();
 
   File(Factory*, rcp<FileAssetLoader>);
 
@@ -136,6 +230,8 @@ public:
   /// (WITH_RIVE_TOOLS). Set it for bytes that did not come from the
   /// embedder, such as a file a script downloaded. Wasm modules are never
   /// gated.
+  /// @param options chooses how the file is read; by default it's decoded
+  /// whole, up front.
   /// @returns a pointer to the file, or null on failure.
   static rcp<File> import(
       Span<const uint8_t> data,
@@ -143,7 +239,8 @@ public:
       ImportResult* result = nullptr,
       FileAssetLoader* assetLoader = nullptr,
       ScriptingVM* vm = nullptr,
-      bool requireSignedScripts = false)
+      bool requireSignedScripts = false,
+      const FileImportOptions& options = defaultImportOptions())
   {
     return import(
         data,
@@ -151,7 +248,8 @@ public:
         result,
         ref_rcp(assetLoader),
         vm,
-        requireSignedScripts);
+        requireSignedScripts,
+        options);
   }
 
   static rcp<File> import(
@@ -160,10 +258,24 @@ public:
       ImportResult* result,
       rcp<FileAssetLoader> assetLoader,
       ScriptingVM* vm = nullptr,
-      bool requireSignedScripts = false);
+      bool requireSignedScripts = false,
+      const FileImportOptions& options = defaultImportOptions());
 
   /// @returns the file's backboard. All files have exactly one backboard.
   Backboard* backboard() const { return m_backboard; }
+
+  const DeferredAnimationStats& deferredAnimationStats() const
+  {
+    return m_deferredAnimationStats;
+  }
+  const DeferredArtboardStats& deferredArtboardStats() const
+  {
+    return m_deferredArtboardStats;
+  }
+  const DeferredViewModelInstanceStats& deferredViewModelInstanceStats() const
+  {
+    return m_deferredViewModelInstanceStats;
+  }
 
   // File resources; the first is currently the default selection style.
   size_t selectionStyleCount() const { return m_selectionStyles.size(); }
@@ -176,6 +288,14 @@ public:
   /// @returns the number of artboards in the file.
   size_t artboardCount() const { return m_artboards.size(); }
   std::string artboardNameAt(size_t index) const;
+  /// The artboard at [index] as its record describes it (name, size, view
+  /// model, default state machine), without decoding a body the import
+  /// deferred (see FileImportOptions), or null if the index is out of
+  /// range. For lookups that need nothing more; artboard() decodes.
+  const Artboard* artboardHeader(size_t index) const
+  {
+    return index < m_artboards.size() ? m_artboards[index] : nullptr;
+  }
 
   Span<const rcp<FileAsset>> assets() const;
 
@@ -315,6 +435,8 @@ public:
   const std::vector<DataEnum*>& enums() const;
   rcp<FileAsset> asset(size_t index);
 
+  /// Every artboard as artboardHeader() hands it out: a body the import
+  /// deferred is not decoded (see Artboard::ensureDecoded).
   std::vector<Artboard*> artboards() { return m_artboards; };
 
   bool hasAudio() const { return m_hasAudio; };
@@ -439,7 +561,11 @@ private:
       BinaryReader&,
       const RuntimeHeader&,
       ImportStack&,
-      Artboard** capturedArtboard);
+      Artboard** capturedArtboard,
+      Artboard* body = nullptr,
+      bool* resolveFailed = nullptr,
+      LinearAnimation* animationBody = nullptr,
+      ViewModelInstance* instanceBody = nullptr);
   std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
   /// Gives instance a watermark pre-roll when this file's manifest carries
   /// one and instance isn't itself the watermark. Only applied to the top
@@ -475,9 +601,86 @@ private:
   void deleteUnusedRetiredArtboards();
   /// Parallel to m_artboards; see artboardByteRange().
   std::vector<ArtboardByteRange> m_artboardByteRanges;
-  /// Retained from read() so a single artboard can be decoded later.
-  RuntimeHeader m_header;
 #endif
+  /// Retained from read() so a single artboard, or a deferred animation
+  /// body, can be decoded later: its table of contents types the properties
+  /// this runtime doesn't know.
+  RuntimeHeader m_header;
+  /// FileImportOptions::deferDecoding, for animations, as this file was
+  /// imported.
+  bool m_deferAnimations = false;
+  DeferredAnimationStats m_deferredAnimationStats;
+  /// Skims the body of the [animation] just read, deferring it when it can.
+  void deferAnimationBody(
+      BinaryReader& reader,
+      ImportStack& importStack,
+      LinearAnimation* animation);
+
+  /// FileImportOptions::deferDecoding, for artboards, as this file was
+  /// imported. The default artboard is deferred only in tests
+  /// (testing_deferDefaultArtboard).
+  bool m_deferArtboards = false;
+  bool m_deferDefaultArtboard = false;
+  DeferredArtboardStats m_deferredArtboardStats;
+  /// Set for the length of the import. A deferred body decodes during it
+  /// only inside the import's own read (a reference looking up an instance,
+  /// a Joystick reading its animations), whose BackboardImporter resolves
+  /// what the body registers once the file is complete.
+  bool m_importing = false;
+  /// Kept from the import when it deferred artboards, for their bodies to
+  /// resolve against: artboards by the ids the file's references use (which
+  /// still count artboards that failed to import), and each artboard's
+  /// component in the file's whole nesting graph.
+  std::unordered_map<int, Artboard*> m_artboardLookup;
+  std::unordered_map<const Artboard*, int> m_nestingComponents;
+  /// Skims the body of the [artboard] just read and defers it when it can.
+  /// Returns whether it did.
+  bool deferArtboardBody(
+      BinaryReader& reader,
+      ImportStack& importStack,
+      Artboard* artboard);
+  /// Decodes a body deferArtboardBody deferred. Artboard::ensureDecoded.
+  void decodeArtboardBody(Artboard* artboard);
+  /// Lists and, once scripts have registered, initializes the scripted
+  /// interpolators of an artboard decoded after the import.
+  void adoptScriptedInterpolators(Artboard* artboard);
+  /// Reads the keyed body deferAnimationBody deferred into [animation]
+  /// (LinearAnimation::ensureDecoded, which holds the lock and initializes
+  /// what this reads). Returns whether it read cleanly.
+  bool decodeAnimationBody(
+      LinearAnimation* animation,
+      const DeferredAnimationBody& body);
+
+  /// FileImportOptions::deferDecoding, for file level view model instances,
+  /// as this file was imported.
+  bool m_deferViewModelInstances = false;
+  DeferredViewModelInstanceStats m_deferredViewModelInstanceStats;
+  /// Skims the values of the file level [instance] just read and defers
+  /// them when it can. Returns whether it did.
+  bool deferViewModelInstanceBody(
+      BinaryReader& reader,
+      ImportStack& importStack,
+      ViewModelInstance* instance);
+  /// Reads the values deferViewModelInstanceBody deferred into [instance]
+  /// (ViewModel::ensureDecoded, which holds the lock). Returns whether it
+  /// read cleanly.
+  bool decodeViewModelInstanceBody(
+      ViewModelInstance* instance,
+      const DeferredViewModelInstanceBody& body);
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+  /// registerScripts initialized the scripted interpolators, so those of an
+  /// artboard decoded later are initialized as it decodes.
+  bool m_scriptedInterpolatorsInitialized = false;
+#endif
+  /// The import's artboard lookup and nesting components, which its
+  /// BackboardImporter hands over as it resolves.
+  void keepArtboardResolution(
+      std::unordered_map<int, Artboard*> lookup,
+      std::unordered_map<const Artboard*, int> nestingComponents);
+  friend class Artboard;
+  friend class BackboardImporter;
+  friend class LinearAnimation;
+  friend class ViewModel;
 
   /// List of view models in the file. They may outlive the file if viewmodel
   /// instances are still needed after the file is destroyed

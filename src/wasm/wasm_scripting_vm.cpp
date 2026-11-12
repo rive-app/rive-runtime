@@ -9584,7 +9584,7 @@ uint32_t fileArtboardNameImpl(
   }
   return fillModuleString(
       vm,
-      host->file->artboard(index)->name(),
+      host->file->artboardHeader(index)->name(),
       buffer,
       capacity);
 }

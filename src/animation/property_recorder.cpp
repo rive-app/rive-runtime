@@ -89,6 +89,9 @@ void PropertyRecorder::complete(
 
 void PropertyRecorder::recordArtboard(const Artboard* artboard)
 {
+  // Reached through a nested artboard's source, which may not have been
+  // instanced (and so decoded) yet.
+  artboard = artboard->decoded();
   // The machine a list row runs: the artboard's default, else the first (see
   // ArtboardComponentList::createStateMachineInstance). Recording another one
   // resets the wrong inputs and properties when the row is reused.

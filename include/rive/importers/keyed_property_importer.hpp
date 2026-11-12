@@ -16,9 +16,13 @@ private:
   KeyedProperty* m_KeyedProperty;
 
 public:
+  /// A null [keyedProperty] stands in for the last one of a body the import
+  /// deferred (see File::readObjects): it swallows unknown objects as the
+  /// real one would, but takes no keyframes.
   KeyedPropertyImporter(
       LinearAnimation* animation,
       KeyedProperty* keyedProperty);
+  bool hasKeyedProperty() const { return m_KeyedProperty != nullptr; }
   void addKeyFrame(std::unique_ptr<KeyFrame>);
   bool readNullObject() override;
 };

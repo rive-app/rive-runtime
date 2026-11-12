@@ -27,6 +27,13 @@ private:
   LazyVector<DataBindContainer*> m_dependents;
   std::vector<std::pair<SymbolType, ViewModelInstanceValue*>> m_propertySymbols;
   ViewModel* m_ViewModel = nullptr;
+#ifdef TESTING
+  /// Set while the import deferred this file level instance's values
+  /// (ViewModel::deferInstanceBody), to catch whatever reads them before
+  /// they are decoded.
+  bool m_testingBodyDeferred = false;
+  friend class ViewModel;
+#endif
   void rebindDependents();
   void rebindProperties();
 

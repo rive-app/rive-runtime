@@ -40,7 +40,11 @@ LinearAnimationInstance::LinearAnimationInstance(
     , m_lastTotalTime(0.0f)
     , m_spilledTime(0.0f)
     , m_direction(1)
-{}
+{
+  // Playing an animation is what first needs its keyframes, so this is where
+  // a body the import deferred gets decoded (FileImportOptions).
+  animation->ensureDecoded();
+}
 
 LinearAnimationInstance::LinearAnimationInstance(
     LinearAnimationInstance const& lhs)
@@ -187,22 +191,21 @@ BindableProperty* LinearAnimationInstance::resolveKeyFrameValueHolder(
       return it->second;
     }
   }
-  // Lazily resolve from the source artboard's keyframe data binds. The gate
-  // keeps playback in files without any keyframe binds free of per-keyframe
-  // work (hasKeyFrameSourceBinds() is a cached O(1) check).
+  // Lazily resolve from the animation's keyframe binds, which it owns. The
+  // gate keeps playback of animations without any free of per-keyframe work
+  // (hasKeyFrameBinds() is a flag).
   if (m_artboardInstance == nullptr)
   {
     return nullptr;
   }
-  const Artboard* source = m_artboardInstance->artboardSource();
-  if (source == nullptr || !source->hasKeyFrameSourceBinds())
+  if (!m_animation->hasKeyFrameBinds())
   {
 #ifndef WITH_RIVE_EDITOR
     m_noKeyFrameBinds = true;
 #endif
     return nullptr;
   }
-  DataBind* sourceBind = source->keyFrameSourceBind(keyframe);
+  DataBind* sourceBind = m_animation->keyFrameBind(keyframe);
   if (sourceBind == nullptr)
   {
     return nullptr;

@@ -20,7 +20,18 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind_flags.hpp"
 
+#include <cassert>
+
 using namespace rive;
+
+#ifdef TESTING
+// Fails when the values the import deferred are read before they are decoded:
+// every path to a file level instance must go through its view model, which
+// decodes them (ViewModel::instance).
+#define RIVE_ASSERT_INSTANCE_BODY() assert(!m_testingBodyDeferred)
+#else
+#define RIVE_ASSERT_INSTANCE_BODY()
+#endif
 
 ViewModelInstance::~ViewModelInstance()
 {
@@ -149,6 +160,7 @@ bool ViewModelInstance::removeValue(uint32_t propertyId)
 
 ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
 {
+  RIVE_ASSERT_INSTANCE_BODY();
   for (auto value : m_PropertyValues)
   {
     if (value->viewModelPropertyId() == id)
@@ -257,6 +269,7 @@ void ViewModelInstance::propertyValue(
 ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const SymbolType symbolType)
 {
+  RIVE_ASSERT_INSTANCE_BODY();
 
   for (auto& entry : m_propertySymbols)
   {
@@ -271,6 +284,7 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
 ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const std::string& name)
 {
+  RIVE_ASSERT_INSTANCE_BODY();
   for (auto value : m_PropertyValues)
   {
     if (value->viewModelProperty() &&
@@ -315,11 +329,13 @@ void ViewModelInstance::setRoot(rcp<ViewModelInstance> value)
 const std::vector<rcp<ViewModelInstanceValue>>& ViewModelInstance::
     propertyValues()
 {
+  RIVE_ASSERT_INSTANCE_BODY();
   return m_PropertyValues;
 }
 
 Core* ViewModelInstance::clone() const
 {
+  RIVE_ASSERT_INSTANCE_BODY();
   auto cloned = new ViewModelInstance();
   cloned->copy(*this);
 
@@ -375,10 +391,13 @@ StatusCode ViewModelInstance::import(ImportStack& importStack)
     return StatusCode::MissingObject;
   }
 
-  backboardImporter->addViewModelInstance(this);
-
   auto artboardImporter = importStack.latest<ArtboardImporter>(
       ArtboardBase::typeKey);
+  // Only file level instances are listed in their view model: the exporter
+  // numbers those. One inside an artboard (a nested artboard's stateful
+  // instance) belongs to the artboard, and a deferred artboard would list it
+  // whenever it decodes, on whichever thread, while others read the list.
+  backboardImporter->addViewModelInstance(this, artboardImporter == nullptr);
   if (artboardImporter != nullptr)
   {
     return Super::import(importStack);

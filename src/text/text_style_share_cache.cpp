@@ -1,4 +1,5 @@
 #include "rive/text/text_style_share_cache.hpp"
+#include "rive/animation/linear_animation.hpp"
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
@@ -174,6 +175,7 @@ TextStyleShareInfo TextStyleShareCache::analyze(
   {
     return info;
   }
+  source = source->decoded();
   uint32_t ownViewModelId = source->viewModelId();
   // Whether [dataBind] reads nothing but the style's own view model.
   auto readsOwnViewModel = [ownViewModelId](const DataBind* dataBind) {
@@ -186,8 +188,7 @@ TextStyleShareInfo TextStyleShareCache::analyze(
   };
   bool onlyOwnViewModel = true;
   bool staticBinds = true;
-  for (auto dataBind : source->dataBinds())
-  {
+  auto visitBind = [&](const DataBind* dataBind) {
     if (!readsOwnViewModel(dataBind))
     {
       onlyOwnViewModel = false;
@@ -196,6 +197,18 @@ TextStyleShareInfo TextStyleShareCache::analyze(
         !isStaticConverter(dataBind->converter()))
     {
       staticBinds = false;
+    }
+  };
+  for (auto dataBind : source->dataBinds())
+  {
+    visitBind(dataBind);
+  }
+  // Its animations' keyframe binds, which they own, read the same context.
+  for (size_t i = 0; i < source->animationCount(); i++)
+  {
+    for (auto dataBind : source->animation(i)->keyFrameBinds())
+    {
+      visitBind(dataBind);
     }
   }
   // The state machine's binds (its conditions, listener actions) read the
@@ -254,6 +267,14 @@ TextStyleShareInfo TextStyleShareCache::analyze(
 
 TextStyleShareInfo TextStyleShareCache::info(const Artboard* source)
 {
+  // The answer is cached for good, so it must come from the decoded body
+  // and its animations' keyframe binds. Decoded outside the lock, which the
+  // decodes never take.
+  source = source->decoded();
+  for (size_t i = 0; i < source->animationCount(); i++)
+  {
+    source->animation(i)->keyFrameBinds();
+  }
   std::lock_guard<std::mutex> lock(m_mutex);
   auto itr = m_info.find(source);
   if (itr != m_info.end())
@@ -279,7 +300,10 @@ bool TextStyleShareCache::anyListensToRuns()
   {
     for (auto artboard : m_file->artboards())
     {
-      if (TextStyleGlobal::firstTextStylePaint(artboard) != nullptr &&
+      // Listening to runs takes a listener, so a deferred body without one
+      // needn't be decoded to rule it out.
+      if (artboard->mayHaveStateMachineListener() &&
+          TextStyleGlobal::firstTextStylePaint(artboard) != nullptr &&
           info(artboard).listensToRuns)
       {
         any = true;

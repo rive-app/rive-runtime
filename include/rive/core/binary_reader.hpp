@@ -32,6 +32,8 @@ public:
 
   size_t lengthInBytes() const;
   const uint8_t* position() const;
+  /// One past the last byte the reader can read.
+  const uint8_t* endPosition() const { return m_Bytes.end(); }
 
   std::string readString();
   std::string readString(size_t length);

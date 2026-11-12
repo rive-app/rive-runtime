@@ -131,11 +131,13 @@ std::vector<PropertyData> ViewModelRuntime::properties()
 
 std::vector<std::string> ViewModelRuntime::instanceNames() const
 {
-  auto instances = m_viewModel->instances();
+  // Names only: listing them shouldn't decode the instances' values.
   std::vector<std::string> names;
-  for (auto instance : instances)
+  size_t count = m_viewModel->instanceCount();
+  names.reserve(count);
+  for (size_t i = 0; i < count; i++)
   {
-    names.push_back(instance->name());
+    names.push_back(m_viewModel->instanceName(i));
   }
   return names;
 }

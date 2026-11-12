@@ -1,4 +1,4 @@
-#include "rive/animation/keyframe.hpp"
+#include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
@@ -2586,20 +2586,21 @@ TEST_CASE("Artboard knows whether it runs scripts", "[component_list]")
   REQUIRE(plain->artboard("Row") != nullptr);
   CHECK_FALSE(plain->artboard("Row")->usesScripts());
 
-  // An instance's binds on keyframes stay on its source, and its animations
-  // clone them, converters included, as they apply.
+  // Binds on keyframes belong to the source's animations, and an instance's
+  // animations clone them, converters included, as they apply.
   auto keyframes = ReadRiveFile("assets/data_bind_keyframes_test.riv");
   auto instance = keyframes->artboardDefault();
   REQUIRE(instance != nullptr);
-  REQUIRE(instance->artboardSource() != nullptr);
+  const rive::Artboard* source = instance->artboardSource();
+  REQUIRE(source != nullptr);
   rive::DataBind* keyFrameBind = nullptr;
-  for (auto* dataBind : instance->artboardSource()->dataBinds())
+  for (size_t i = 0; i < source->animationCount() && keyFrameBind == nullptr;
+       i++)
   {
-    if (dataBind->target() != nullptr &&
-        dataBind->target()->is<rive::KeyFrame>())
+    const auto& binds = source->animation(i)->keyFrameBinds();
+    if (!binds.empty())
     {
-      keyFrameBind = dataBind;
-      break;
+      keyFrameBind = binds.front();
     }
   }
   REQUIRE(keyFrameBind != nullptr);

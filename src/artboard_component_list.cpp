@@ -2971,7 +2971,8 @@ void ArtboardComponentList::attachArtboardOverride(ArtboardInstance* instance)
   auto source = instance->artboardSource();
   for (size_t i = 0, count = m_file->artboardCount(); i < count; i++)
   {
-    if (m_file->artboard(i) == source)
+    // Without decoding the artboards before it.
+    if (m_file->artboardHeader(i)->handsOut(source))
     {
       artboardIndex = static_cast<int>(i);
       break;

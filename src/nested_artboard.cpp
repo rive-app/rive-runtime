@@ -1436,6 +1436,12 @@ void NestedArtboard::remount()
   addDirt(ComponentDirt::Filthy);
 }
 
+Artboard* NestedArtboard::sourceArtboard()
+{
+  return m_referencedArtboard != nullptr ? m_referencedArtboard->decoded()
+                                         : nullptr;
+}
+
 void NestedArtboard::referencedArtboard(Artboard* artboard)
 {
   assert(artboard != nullptr);

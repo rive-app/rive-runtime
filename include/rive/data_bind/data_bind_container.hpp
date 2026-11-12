@@ -137,6 +137,9 @@ protected:
   // binds are walked; it follows this with bindDataBindsFromContext().
   void dataBindContext(rcp<DataContext> dataContext);
   void deleteDataBinds();
+  // Deletes every data bind and forgets them: for binds added but never
+  // bound, dropped with the rest of a body that failed to decode.
+  void discardDataBinds();
   bool advanceDataBinds(float);
   bool isProcessingDataBinds() const { return m_isProcessing; }
   // Sets the context and re-points every DataBindContext at it.

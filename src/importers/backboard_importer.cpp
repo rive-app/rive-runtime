@@ -90,40 +90,76 @@ std::vector<int> stronglyConnectedComponents(
   return component;
 }
 
-// Flags each referencer whose reference lies on a nested artboard cycle, which
-// would make instancing recurse without end. The editor never exports those.
-std::vector<bool> closesNestedArtboardCycle(
+// The strongly connected components of the nesting graph: an edge from each
+// referencer's nesting artboard to the artboard it references, plus the
+// edges of bodies the import deferred. Only artboards on an edge get one. A
+// reference closes a cycle, which would make instancing recurse without end,
+// when both its ends share a component. The editor never exports those.
+std::unordered_map<const Artboard*, int> computeNestingComponents(
     const std::vector<ArtboardReferencer*>& referencers,
+    const std::vector<std::pair<Artboard*, int>>& deferredEdges,
     const std::unordered_map<int, Artboard*>& artboards)
 {
+  std::vector<Artboard*> artboardOf;
   std::unordered_map<Artboard*, int> nodes;
   auto node = [&](Artboard* artboard) {
-    return nodes.emplace(artboard, (int)nodes.size()).first->second;
+    auto inserted = nodes.emplace(artboard, (int)nodes.size());
+    if (inserted.second)
+    {
+      artboardOf.push_back(artboard);
+    }
+    return inserted.first->second;
   };
-  std::vector<std::pair<int, int>> references(referencers.size(), {-1, -1});
   std::vector<std::vector<int>> edges;
-  for (size_t i = 0; i < referencers.size(); i++)
-  {
-    Artboard* nesting = referencers[i]->nestingArtboard();
-    auto nested = artboards.find(referencers[i]->referencedArtboardId());
+  auto addEdge = [&](Artboard* nesting, int referencedArtboardId) {
+    auto nested = artboards.find(referencedArtboardId);
     if (nesting == nullptr || nested == artboards.end() ||
         nested->second == nullptr)
     {
-      continue;
+      return;
     }
-    references[i] = {node(nesting), node(nested->second)};
+    int from = node(nesting);
+    int to = node(nested->second);
     edges.resize(nodes.size());
-    edges[references[i].first].push_back(references[i].second);
+    edges[from].push_back(to);
+  };
+  for (auto referencer : referencers)
+  {
+    addEdge(referencer->nestingArtboard(), referencer->referencedArtboardId());
+  }
+  for (auto& edge : deferredEdges)
+  {
+    addEdge(edge.first, edge.second);
   }
 
-  // A reference closes a cycle when both its ends share a component.
   auto component = stronglyConnectedComponents(edges);
+  std::unordered_map<const Artboard*, int> components;
+  for (size_t i = 0; i < component.size(); i++)
+  {
+    components[artboardOf[i]] = component[i];
+  }
+  return components;
+}
+
+// Flags each referencer whose reference lies on a nesting cycle: both its
+// ends share a component.
+std::vector<bool> closesNestedArtboardCycle(
+    const std::vector<ArtboardReferencer*>& referencers,
+    const std::unordered_map<int, Artboard*>& artboards,
+    const std::unordered_map<const Artboard*, int>& components)
+{
   std::vector<bool> closesCycle(referencers.size(), false);
   for (size_t i = 0; i < referencers.size(); i++)
   {
-    closesCycle[i] = references[i].first != -1 &&
-                     component[references[i].first] ==
-                         component[references[i].second];
+    auto nesting = components.find(referencers[i]->nestingArtboard());
+    auto nested = artboards.find(referencers[i]->referencedArtboardId());
+    if (nesting == components.end() || nested == artboards.end())
+    {
+      continue;
+    }
+    auto nestedComponent = components.find(nested->second);
+    closesCycle[i] = nestedComponent != components.end() &&
+                     nestedComponent->second == nesting->second;
   }
   return closesCycle;
 }
@@ -258,11 +294,59 @@ void BackboardImporter::addArtboard(Artboard* artboard)
 
 void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
+void BackboardImporter::addDeferredNestingEdge(
+    Artboard* nesting,
+    int referencedArtboardId)
+{
+  m_deferredNestingEdges.push_back({nesting, referencedArtboardId});
+}
+
+void BackboardImporter::seedArtboardLookup(
+    const std::unordered_map<int, Artboard*>& lookup)
+{
+  // Outlives this importer: the file's, or the decode's own.
+  m_seededArtboardLookup = &lookup;
+}
+
+void BackboardImporter::seedFileAssets(
+    const std::vector<rcp<FileAsset>>& assets)
+{
+  // Their ids were made unique when the file imported them (addFileAsset).
+  // Outlives this importer, as the lookup does.
+  m_seededFileAssets = &assets;
+}
+
+void BackboardImporter::seedDataConverters(
+    const std::vector<DataConverter*>& converters)
+{
+  m_DataConverters = converters;
+  m_convertersSeeded = true;
+}
+
 StatusCode BackboardImporter::resolve()
 {
+  if (m_forwardTo != nullptr)
+  {
+    for (auto referencer : m_DataConverterReferencers)
+    {
+      m_forwardTo->addDataConverterReferencer(referencer);
+    }
+    m_DataConverterReferencers.clear();
+  }
+  std::unordered_map<const Artboard*, int> computed;
+  if (m_nestingComponents == nullptr)
+  {
+    computed = computeNestingComponents(
+        m_ArtboardsReferencers,
+        m_deferredNestingEdges,
+        artboardLookup());
+  }
+  const auto& components = m_nestingComponents != nullptr ? *m_nestingComponents
+                                                          : computed;
   auto closesCycle = closesNestedArtboardCycle(
       m_ArtboardsReferencers,
-      m_ArtboardLookup);
+      artboardLookup(),
+      components);
   for (size_t i = 0; i < m_ArtboardsReferencers.size(); i++)
   {
     if (closesCycle[i])
@@ -270,8 +354,8 @@ StatusCode BackboardImporter::resolve()
       continue;
     }
     auto nestedArtboard = m_ArtboardsReferencers[i];
-    auto itr = m_ArtboardLookup.find(nestedArtboard->referencedArtboardId());
-    if (itr != m_ArtboardLookup.end())
+    auto itr = artboardLookup().find(nestedArtboard->referencedArtboardId());
+    if (itr != artboardLookup().end())
     {
       auto artboard = itr->second;
       if (artboard != nullptr)
@@ -283,16 +367,23 @@ StatusCode BackboardImporter::resolve()
   for (auto referencer : m_FileAssetReferencers)
   {
     auto index = (size_t)referencer->assetId();
-    if (index >= m_FileAssets.size())
+    const std::vector<rcp<FileAsset>>& fileAssets = *assets();
+    if (index >= fileAssets.size())
     {
       continue;
     }
-    auto asset = m_FileAssets[index];
+    auto asset = fileAssets[index];
     referencer->setAsset(asset);
   }
 
+  // Seeded converters were bound when the file imported them; binding them
+  // again would only rewrite what other threads may be reading.
   for (auto converter : m_DataConverters)
   {
+    if (m_convertersSeeded)
+    {
+      break;
+    }
     if (converter->is<DataConverterRangeMapper>())
     {
       size_t converterId = converter->as<DataConverterRangeMapper>()
@@ -325,7 +416,12 @@ StatusCode BackboardImporter::resolve()
     // incomplete
     referencer->converter(m_DataConverters[index]);
   }
-  auto converterDataBinds = resolveConverterDataBinds(m_DataConverters);
+  // Seeded converters' own binds resolved when the file imported them too.
+  std::unordered_set<DataBind*> converterDataBinds;
+  if (!m_convertersSeeded)
+  {
+    converterDataBinds = resolveConverterDataBinds(m_DataConverters);
+  }
   for (auto referencer : m_DataConverterReferencers)
   {
     if (converterDataBinds.count(referencer) != 0)
@@ -341,6 +437,10 @@ StatusCode BackboardImporter::resolve()
         m_DataConverters[index]->clone()->as<DataConverter>());
   }
 
+  if (m_keepsResolution && m_file != nullptr)
+  {
+    m_file->keepArtboardResolution(m_ArtboardLookup, std::move(computed));
+  }
   return StatusCode::Ok;
 }
 
@@ -378,16 +478,26 @@ void BackboardImporter::addPhysics(ScrollPhysics* physics)
   m_physics.push_back(physics);
 }
 
-void BackboardImporter::addViewModelInstance(ViewModelInstance* instance)
+void BackboardImporter::addViewModelInstance(
+    ViewModelInstance* instance,
+    bool listed)
 {
   if (m_file == nullptr)
   {
     return;
   }
   auto viewModel = m_file->viewModel((size_t)instance->viewModelId());
-  if (viewModel != nullptr)
+  if (viewModel == nullptr)
+  {
+    return;
+  }
+  if (listed)
   {
     viewModel->addInstance(instance);
+  }
+  else
+  {
+    instance->viewModel(viewModel);
   }
 }
 

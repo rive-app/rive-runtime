@@ -62,7 +62,7 @@ int riveFileIndex(lua_State* L)
       lua_createtable(L, (int)count, 0);
       for (size_t i = 0; i < count; i++)
       {
-        const std::string& name = self->file->artboard(i)->name();
+        const std::string& name = self->file->artboardHeader(i)->name();
         lua_pushlstring(L, name.data(), name.size());
         lua_rawseti(L, -2, (int)i + 1);
       }

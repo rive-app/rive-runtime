@@ -47,10 +47,14 @@ int TextStyleGlobal::referencedArtboardId() { return artboardId(); }
 
 TextStylePaint* TextStyleGlobal::firstTextStylePaint(const Artboard* artboard)
 {
-  if (artboard == nullptr)
+  // A body the import deferred is only decoded when it may hold one: most
+  // artboards a text names by index, or anyListensToRuns looks through, are
+  // not style artboards.
+  if (artboard == nullptr || !artboard->mayHaveTextStylePaint())
   {
     return nullptr;
   }
+  artboard = artboard->decoded();
   for (Core* object : artboard->objects())
   {
     if (object != nullptr && object->is<TextStylePaint>())

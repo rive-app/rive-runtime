@@ -63,7 +63,9 @@ public:
   // So the importer's cycle cut covers paint sources as well as nested
   // artboards.
   Artboard* nestingArtboard() override { return artboard(); }
-  Artboard* sourceArtboard() const { return m_referencedArtboard; }
+  /// The artboard this paint fills with, decoded if the import deferred its
+  /// body (Artboard::decoded; it may not have been instanced yet).
+  Artboard* sourceArtboard() const;
 
   // AdvancingComponent: plays the artboard source. An image source never
   // advances, so it never keeps a list row from going quiet.

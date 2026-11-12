@@ -1,4 +1,7 @@
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/importers/linear_animation_importer.hpp"
 #include "rive/artboard.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/data_bind_flags.hpp"
@@ -137,6 +140,20 @@ StatusCode DataBind::import(ImportStack& importStack)
         }
         default:
         {
+          // A keyframe's binds belong to its animation, which is the one
+          // being read: playing it clones them per instance (see
+          // LinearAnimation::addKeyFrameBind).
+          if (target()->is<KeyFrame>())
+          {
+            auto animationImporter = importStack
+                                         .latest<LinearAnimationImporter>(
+                                             LinearAnimationBase::typeKey);
+            if (animationImporter != nullptr)
+            {
+              animationImporter->animation()->addKeyFrameBind(this);
+              return Super::import(importStack);
+            }
+          }
           // Prefer the artboard that actually owns the target object.
           // Relying on latest<ArtboardImporter> can attach binds to
           // the wrong source artboard when multiple artboards are

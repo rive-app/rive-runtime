@@ -420,7 +420,13 @@ public:
   // resolves, guaranteeing a proxy before the artboard's first sort.
   void markClipMayBeDynamic()
   {
-    setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
+    // Marked again by a deferred animation body as it decodes, while other
+    // threads may be cloning this source and reading its flags: only write
+    // when there's something to change.
+    if (!hasLayoutFlag(LayoutComponentFlags::ForceDrawableProxy))
+    {
+      setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
+    }
   }
   // Called from a scroll/scrollbar constraint's buildDependencies() (which
   // runs before the artboard's one-time proxy injection, on every instance)

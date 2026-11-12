@@ -44,7 +44,7 @@ public:
   // Returns the per-instance holder receiving the data-bound value for the
   // given keyframe in this animation instance, lazily building it on first
   // request. On first use for a keyframe that has a source data bind (see
-  // Artboard::keyFrameSourceBind), it clones that bind onto a freshly created
+  // LinearAnimation::keyFrameBind), it clones that bind onto a freshly created
   // BindableProperty holder, parks the clone on the artboard's data-bind
   // container (advanced with the rest each frame), and caches the holder.
   // Returns nullptr when the keyframe is not data bound; keyframes then fall

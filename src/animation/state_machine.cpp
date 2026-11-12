@@ -36,9 +36,8 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/blend_animation.hpp"
 #include "rive/animation/blend_state.hpp"
-#include "rive/animation/keyed_object.hpp"
-#include "rive/animation/keyed_property.hpp"
 #include "rive/animation/linear_animation.hpp"
+#include "rive/deferred_decode_lock.hpp"
 #include "rive/generated/bones/bone_base.hpp"
 #include "rive/generated/bones/root_bone_base.hpp"
 #include "rive/generated/constraints/constraint_base.hpp"
@@ -422,20 +421,12 @@ static void addKeyed(
   {
     return;
   }
-  for (size_t o = 0; o < animation->numKeyedObjects(); o++)
-  {
-    const KeyedObject* object = animation->getObject(o);
-    for (size_t p = 0; p < object->numKeyedProperties(); p++)
-    {
-      const KeyedProperty* property = object->getProperty(p);
-      if (property->numKeyFrames() != 0)
-      {
-        keyed.insert(
-            {object->objectId(),
-             (uint16_t)BlendAccumulator::storageKey(property->propertyKey())});
-      }
-    }
-  }
+  // Without decoding a deferred body: this runs as the machine's first
+  // instance is made, before any of its states play.
+  animation->forEachKeyedProperty([&](uint32_t objectId, uint32_t propertyKey) {
+    keyed.insert(
+        {objectId, (uint16_t)BlendAccumulator::storageKey((int)propertyKey)});
+  });
 }
 
 const std::vector<StateMachine::LayerConflict>& StateMachine::layerConflicts()
@@ -445,6 +436,10 @@ const std::vector<StateMachine::LayerConflict>& StateMachine::layerConflicts()
   {
     return m_layerConflicts;
   }
+  // The decode lock first: reading deferred bodies takes it
+  // (LinearAnimation::forEachKeyedProperty), and a decode on this thread may
+  // already hold it, so the two are always taken in this order.
+  std::lock_guard<std::recursive_mutex> decodeLock(deferredDecodeMutex());
   static std::mutex mutex;
   std::lock_guard<std::mutex> lock(mutex);
   if (m_layerConflictsReady.load(std::memory_order_relaxed))

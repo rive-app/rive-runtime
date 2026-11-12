@@ -17,7 +17,7 @@ StatusCode KeyFrame::import(ImportStack& importStack)
 {
   auto importer = importStack.latest<KeyedPropertyImporter>(
       KeyedProperty::typeKey);
-  if (importer == nullptr)
+  if (importer == nullptr || !importer->hasKeyedProperty())
   {
     return StatusCode::MissingObject;
   }

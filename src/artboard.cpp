@@ -1,5 +1,6 @@
 #include "rive/artboard.hpp"
 #include "rive/artboard_clusters.hpp"
+#include "rive/deferred_artboard_body.hpp"
 #include "rive/data_bind/host_data_context_consumer.hpp"
 #include "rive/file.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
@@ -136,6 +137,13 @@ Artboard::Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
 
 Artboard::~Artboard()
 {
+  // A body the import deferred and nothing decoded: none of it was imported,
+  // so only its bytes go. What stood in for a body that failed goes too.
+  if (ArtboardSourceState* state = m_sourceState.get())
+  {
+    delete state->deferral.body.exchange(nullptr);
+    delete state->deferral.standIn;
+  }
   // The boundary node can outlive this artboard: a virtualized list row
   // destroyed from the pool never leaves the semantic tree. Flattening reads
   // this pointer to see whether the host is collapsed, so it must not dangle.
@@ -440,6 +448,14 @@ StatusCode Artboard::initialize()
       if (!canContinue(code = object->onAddedDirty(this)))
       {
         return code;
+      }
+    }
+    for (auto animation : ownAnimations())
+    {
+      if (animation->hasKeyFrameBinds())
+      {
+        m_sourceState.ensureAllocated()->hasKeyFrameBinds = true;
+        break;
       }
     }
     if (ownAnimations().empty() && ownStateMachines().empty())
@@ -1601,6 +1617,11 @@ static bool converterRunsScript(DataConverter* converter)
 
 bool Artboard::usesScripts() const
 {
+  const Artboard* source = decoded();
+  if (source != this)
+  {
+    return source->usesScripts();
+  }
   for (auto* object : m_Objects)
   {
     if (object != nullptr && ScriptedObject::from(object) != nullptr)
@@ -1629,17 +1650,12 @@ bool Artboard::usesScripts() const
       return true;
     }
   }
-  // An instance's binds on keyframes stay on its source; its animations
-  // clone them, converters included, as they apply.
-  const Artboard* source = artboardSource();
-  if (source != nullptr && source != this && source->hasKeyFrameSourceBinds())
+  for (auto* animation : animationSource()->ownAnimations())
   {
-    for (const auto& entry : source->m_sourceState.get()->keyFrameBinds)
+    // Without decoding a deferred body.
+    if (animation->anyKeyFrameBindConverter(converterRunsScript))
     {
-      if (converterRunsScript(entry.second->converter()))
-      {
-        return true;
-      }
+      return true;
     }
   }
   return false;
@@ -2050,6 +2066,7 @@ template <typename T> const std::vector<T>& emptySourceList()
 
 const std::vector<LinearAnimation*>& Artboard::ownAnimations() const
 {
+  RIVE_ASSERT_ARTBOARD_BODY();
   const ArtboardSourceState* state = m_sourceState.get();
   return state != nullptr ? state->animations
                           : emptySourceList<LinearAnimation*>();
@@ -2057,9 +2074,147 @@ const std::vector<LinearAnimation*>& Artboard::ownAnimations() const
 
 const std::vector<StateMachine*>& Artboard::ownStateMachines() const
 {
+  RIVE_ASSERT_ARTBOARD_BODY();
   const ArtboardSourceState* state = m_sourceState.get();
   return state != nullptr ? state->stateMachines
                           : emptySourceList<StateMachine*>();
+}
+
+bool Artboard::hasDeferredBody() const
+{
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr &&
+         state->deferral.body.load(std::memory_order_acquire) != nullptr;
+}
+
+void Artboard::ensureDecoded() const
+{
+  if (hasDeferredBody())
+  {
+    // The decode checks again under its lock: another thread may be
+    // decoding it right now.
+    m_sourceState.get()->deferral.file->decodeArtboardBody(
+        const_cast<Artboard*>(this));
+  }
+}
+
+const Artboard* Artboard::decoded() const
+{
+  ensureDecoded();
+  // Once decoded nothing changes it (a failed decode set it before
+  // publishing the body as null), so it reads without the lock.
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr && state->deferral.standIn != nullptr
+             ? state->deferral.standIn
+             : this;
+}
+
+bool Artboard::handsOut(const Artboard* artboard) const
+{
+  if (artboard == this)
+  {
+    return true;
+  }
+  // The stand-in is set before the body is published as null.
+  const ArtboardSourceState* state = m_sourceState.get();
+  return artboard != nullptr && state != nullptr && !hasDeferredBody() &&
+         state->deferral.standIn == artboard;
+}
+
+Artboard* Artboard::makeEmptyStandIn() const
+{
+  auto standIn = new Artboard();
+  standIn->copy(*this);
+  standIn->m_Factory = m_Factory;
+  standIn->m_originalWidth = m_originalWidth;
+  standIn->m_originalHeight = m_originalHeight;
+#ifdef WITH_RIVE_TOOLS
+  standIn->m_artboardId = m_artboardId;
+  standIn->m_instanceCount = m_instanceCount;
+#endif
+  // Artboards are always their first object (Component::import).
+  standIn->addObject(standIn);
+  standIn->initialize();
+  return standIn;
+}
+
+bool Artboard::failedToDecode() const
+{
+  const ArtboardSourceState* state = m_sourceState.get();
+  return state != nullptr && state->deferral.failed;
+}
+
+bool Artboard::mayHaveTextStylePaint() const
+{
+  return !hasDeferredBody() || m_sourceState.get()->deferral.hasTextStylePaint;
+}
+
+bool Artboard::mayHaveStateMachineListener() const
+{
+  return !hasDeferredBody() ||
+         m_sourceState.get()->deferral.hasStateMachineListener;
+}
+
+void Artboard::deferBody(
+    File* file,
+    DeferredArtboardBody* body,
+    bool hasTextStylePaint,
+    bool hasStateMachineListener)
+{
+  ArtboardDeferral& deferral = m_sourceState.ensureAllocated()->deferral;
+  assert(deferral.body.load(std::memory_order_relaxed) == nullptr);
+  deferral.file = file;
+  deferral.hasTextStylePaint = hasTextStylePaint;
+  deferral.hasStateMachineListener = hasStateMachineListener;
+  deferral.body.store(body, std::memory_order_release);
+}
+
+void Artboard::discardBody()
+{
+  // The decode failed while reading, before anything was initialized, so
+  // only what the importers handed the artboard needs to go. Objects are
+  // owned by the artboard, keyed objects and layers by their animations and
+  // state machines. View model instances (and their values) are ref counted,
+  // so they stay for the destructor, which releases them with its rejected
+  // objects the way it releases its own.
+  ArtboardSourceState* state = m_sourceState.ensureAllocated();
+  for (size_t i = 1; i < m_Objects.size(); i++)
+  {
+    Core* object = m_Objects[i];
+    if (object == nullptr)
+    {
+      continue;
+    }
+    if (object->is<ViewModelInstance>() || object->is<ViewModelInstanceValue>())
+    {
+      state->invalidObjects.push_back(object);
+      continue;
+    }
+    delete object;
+  }
+  m_Objects.resize(1);
+  discardDataBinds();
+  for (auto animation : state->animations)
+  {
+    delete animation;
+  }
+  state->animations.clear();
+  for (auto stateMachine : state->stateMachines)
+  {
+    delete stateMachine;
+  }
+  state->stateMachines.clear();
+}
+
+const Artboard*& Artboard::decodingArtboard()
+{
+  static thread_local const Artboard* artboard = nullptr;
+  return artboard;
+}
+
+void Artboard::assertBodyAvailable() const
+{
+  assert(!hasDeferredBody() || decodingArtboard() == this);
 }
 
 const std::vector<Core*>& Artboard::ownInvalidObjects() const
@@ -2086,44 +2241,10 @@ void Artboard::clearStateMachines()
 }
 #endif
 
-void Artboard::buildKeyFrameSourceBindsIndex() const
-{
-  ArtboardSourceState* state = m_sourceState.ensureAllocated();
-  state->keyFrameBindsBuilt = true;
-  for (auto dataBind : dataBinds())
-  {
-    auto target = dataBind->target();
-    if (target == nullptr || !target->is<KeyFrame>())
-    {
-      continue;
-    }
-    // A keyframe holds a single value, so keep the first bind per target
-    // (emplace does not overwrite an existing key).
-    state->keyFrameBinds.emplace(target->as<KeyFrame>(), dataBind);
-  }
-}
-
 bool Artboard::hasKeyFrameSourceBinds() const
 {
-  const ArtboardSourceState* state = m_sourceState.get();
-  if (state == nullptr || !state->keyFrameBindsBuilt)
-  {
-    buildKeyFrameSourceBindsIndex();
-    state = m_sourceState.get();
-  }
-  return !state->keyFrameBinds.empty();
-}
-
-DataBind* Artboard::keyFrameSourceBind(const KeyFrame* keyframe) const
-{
-  const ArtboardSourceState* state = m_sourceState.get();
-  if (state == nullptr || !state->keyFrameBindsBuilt)
-  {
-    buildKeyFrameSourceBindsIndex();
-    state = m_sourceState.get();
-  }
-  auto it = state->keyFrameBinds.find(keyframe);
-  return it != state->keyFrameBinds.end() ? it->second : nullptr;
+  const ArtboardSourceState* state = animationSource()->m_sourceState.get();
+  return state != nullptr && state->hasKeyFrameBinds;
 }
 
 void Artboard::host(ArtboardHost* artboardHost)
@@ -4275,6 +4396,8 @@ bool Artboard::hasAudio() const
 
 bool Artboard::isTranslucent(const LinearAnimation* anim) const
 {
+  // Reads the keyed objects directly, so decode a deferred body first.
+  anim->ensureDecoded();
   // For now we're conservative/lazy -- if we see that any of our paints are
   // animated we assume that might make it non-opaque, so we early out
   for (const auto& obj : anim->m_KeyedObjects)

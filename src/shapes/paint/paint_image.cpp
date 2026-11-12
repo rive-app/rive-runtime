@@ -12,6 +12,12 @@
 
 using namespace rive;
 
+Artboard* PaintImage::sourceArtboard() const
+{
+  return m_referencedArtboard != nullptr ? m_referencedArtboard->decoded()
+                                         : nullptr;
+}
+
 PaintImage::PaintImage() = default;
 PaintImage::~PaintImage() = default;
 

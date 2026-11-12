@@ -177,7 +177,9 @@ public:
   }
   BoundsFidelity paintedWorldBounds(AABB* out) override;
 
-  Artboard* sourceArtboard() { return m_referencedArtboard; }
+  /// The artboard this one nests, decoded if the import deferred its body
+  /// (Artboard::decoded; it may not have been instanced yet).
+  Artboard* sourceArtboard();
 
   // Pushes the optional ComponentOrigin child's origin (if any) onto the
   // mounted artboard instance. No-op when there is no override child, so

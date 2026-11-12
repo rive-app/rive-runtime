@@ -29,7 +29,7 @@ public:
   void addStateMachine(StateMachine* stateMachine);
   void addDataBind(DataBind* dataBind);
   StatusCode resolve() override;
-  const Artboard* artboard() const { return m_Artboard; }
+  Artboard* artboard() const { return m_Artboard; }
 
   bool readNullObject() override;
 };
