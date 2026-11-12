@@ -974,8 +974,8 @@ private:
       uint32_t argc,
       HitResult* outResult);
   /// In-flight fetches: module token to scriptnet request id, for
-  /// cancellation. The owner id scopes this VM's rate limits and lets
-  /// teardown cancel everything it started.
+  /// cancellation. The owner id scopes this VM's limits and lets teardown
+  /// cancel everything it started.
   std::unordered_map<uint32_t, uint32_t> m_pendingFetches;
   uint64_t m_netOwnerId = 0;
   void deliverFetchFailure(

@@ -11,16 +11,14 @@
 namespace rive::scriptnet
 {
 
-/// Host-configurable ceilings. Requests past the in-flight or rate limit wait
-/// in their VM's queue and start in order, as a browser holds requests past
-/// its connection limit; only a full queue, the policy or the size limits
-/// reject one.
+/// Host-configurable ceilings. Requests past the in-flight limit wait in
+/// their VM's queue and start in order, as a browser holds requests past its
+/// connection limit; only a full queue, the policy or the size limits reject
+/// one.
 struct NetLimits
 {
   /// Requests one VM may have with the transport at once.
   uint32_t maxInFlightPerOwner = 8;
-  /// Requests one VM may start in any 60 second window, 0 for no limit.
-  uint32_t maxRequestsPerMinutePerOwner = 0;
   /// Requests one VM may have waiting, and the request body bytes they may
   /// hold together; past either, a request is rejected.
   uint32_t maxQueuedPerOwner = 1024;

@@ -363,33 +363,6 @@ TEST_CASE(
   CHECK(state.number("rejected") == 0);
 }
 
-TEST_CASE(
-    "a per-minute limit holds requests rather than rejecting",
-    "[scripting][fetch]")
-{
-  MockNetwork network;
-  scriptnet::NetLimits limits;
-  limits.maxRequestsPerMinutePerOwner = 2;
-  scriptnet::setLimits(limits);
-  ScriptingTest test(R"(
-        local state = { rejected = false }
-        for i = 1, 3 do
-            fetch("https://example.com/" .. i):catch(function(err)
-                state.rejected = true
-            end)
-        end
-        return state
-    )");
-  ScriptState state(test.state());
-  CHECK(network.provider->starts.size() == 2);
-  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
-  rive_pollAsyncWork();
-  // The slot is free but the minute is not over.
-  CHECK(network.provider->starts.size() == 2);
-  CHECK_FALSE(state.boolean("rejected"));
-  CHECK(scriptnet::hasPendingWork());
-}
-
 TEST_CASE("fetch rejects once its queue is full", "[scripting][fetch]")
 {
   MockNetwork network;
@@ -450,7 +423,7 @@ TEST_CASE(
   limits.maxInFlightPerOwner = 2;
   scriptnet::setLimits(limits);
   ScriptingTest test(R"(
-        for _, name in { "a", "b", "c", "d" } do
+        for _, name in { "a", "b", "c", "d", "e" } do
             fetch("https://example.com/" .. name)
         end
         return 0
@@ -463,8 +436,10 @@ TEST_CASE(
   scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
   scriptnet::complete(network.provider->starts[1].id, textResponse(200, "b"));
   rive_pollAsyncWork();
-  REQUIRE(network.provider->starts.size() == 3);
+  // d's slot goes to e in the same poll.
+  REQUIRE(network.provider->starts.size() == 4);
   CHECK(network.provider->starts[2].request.url == "https://example.com/c");
+  CHECK(network.provider->starts[3].request.url == "https://example.com/e");
   CHECK(network.provider->aborts.empty());
 }
 
@@ -517,34 +492,6 @@ TEST_CASE(
         return 0
     )");
   CHECK(network.provider->starts.size() == 2);
-}
-
-TEST_CASE(
-    "a fetch dropped before it is sent gives back its rate limit start",
-    "[scripting][fetch]")
-{
-  MockNetwork network;
-  scriptnet::NetLimits limits;
-  limits.maxInFlightPerOwner = 2;
-  limits.maxRequestsPerMinutePerOwner = 4;
-  scriptnet::setLimits(limits);
-  ScriptingTest test(R"(
-        for _, name in { "a", "b", "c", "d", "e" } do
-            fetch("https://example.com/" .. name)
-        end
-        return 0
-    )");
-  REQUIRE(network.provider->starts.size() == 2);
-  network.provider->onStart = [](scriptnet::RequestId id) {
-    scriptnet::cancel(id + 1);
-  };
-  scriptnet::complete(network.provider->starts[0].id, textResponse(200, "a"));
-  scriptnet::complete(network.provider->starts[1].id, textResponse(200, "b"));
-  rive_pollAsyncWork();
-  // c was sent and d dropped, so e still fits in the minute.
-  REQUIRE(network.provider->starts.size() == 4);
-  CHECK(network.provider->starts[2].request.url == "https://example.com/c");
-  CHECK(network.provider->starts[3].request.url == "https://example.com/e");
 }
 
 TEST_CASE(

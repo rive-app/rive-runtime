@@ -147,10 +147,6 @@ struct Outstanding
   // Holding one of its owner's in-flight slots, from its start until the
   // transport answers.
   bool counted = false;
-  // When begin() took a start from the rate limit's minute, until the
-  // provider has it; a request dropped before then gives it back.
-  Clock::time_point began;
-  bool unsent = false;
   // Answered and counted against its owner's undelivered budget, with its
   // body's bytes, until poll() delivers or drops it.
   bool undelivered = false;
@@ -171,8 +167,6 @@ struct Owner
 {
   // Requests the transport has yet to answer, for the in-flight limit.
   uint32_t inFlight = 0;
-  // Start times in the last minute, for the rate limit.
-  std::deque<Clock::time_point> recentStarts;
   // Requests waiting for a slot, oldest first, and their bodies' bytes.
   std::deque<RequestId> waiting;
   size_t waitingBodyBytes = 0;
@@ -231,7 +225,6 @@ public:
         }
       }
     }
-    unbegin(it->second);
     release(it->second);
     auto owner = owners.find(it->second.ownerId);
     if (it->second.undelivered && owner != owners.end())
@@ -275,31 +268,6 @@ public:
       owner->second.undeliveredBytes += bytes;
       entry.undelivered = true;
       entry.undeliveredBytes = bytes;
-    }
-  }
-
-  // Gives back the rate limit's start for a request dropped before the
-  // provider had it.
-  void unbegin(Outstanding& entry)
-  {
-    if (!entry.unsent)
-    {
-      return;
-    }
-    entry.unsent = false;
-    auto owner = owners.find(entry.ownerId);
-    if (owner == owners.end())
-    {
-      return;
-    }
-    std::deque<Clock::time_point>& starts = owner->second.recentStarts;
-    for (auto at = starts.begin(); at != starts.end(); ++at)
-    {
-      if (*at == entry.began)
-      {
-        starts.erase(at);
-        break;
-      }
     }
   }
 
@@ -387,46 +355,26 @@ public:
     return NetPolicy::check(request, limits, error);
   }
 
-  // Whether `owner` has a slot free, room for more answers than poll() has
-  // yet delivered and, with a rate limit set, room in the last minute.
-  bool canStart(Owner& owner, Clock::time_point now)
+  // Whether `owner` has a slot free and room for more answers than poll()
+  // has yet delivered.
+  bool canStart(const Owner& owner) const
   {
     // Requests in flight hold a place among the answers, as each will
     // become one.
-    if (owner.inFlight >= limits.maxInFlightPerOwner ||
-        owner.undelivered + owner.inFlight >= limits.maxUndeliveredPerOwner ||
-        owner.undeliveredBytes >= limits.maxUndeliveredBytesPerOwner)
-    {
-      return false;
-    }
-    if (limits.maxRequestsPerMinutePerOwner == 0)
-    {
-      return true;
-    }
-    std::deque<Clock::time_point>& starts = owner.recentStarts;
-    while (!starts.empty() && now - starts.front() >= std::chrono::minutes(1))
-    {
-      starts.pop_front();
-    }
-    return starts.size() < limits.maxRequestsPerMinutePerOwner;
+    return owner.inFlight < limits.maxInFlightPerOwner &&
+           owner.undelivered + owner.inFlight < limits.maxUndeliveredPerOwner &&
+           owner.undeliveredBytes < limits.maxUndeliveredBytesPerOwner;
   }
 
   // Takes a slot for the entry about to be handed to the provider.
   void begin(Owner& owner, Outstanding& entry, uint32_t timeoutMs)
   {
-    Clock::time_point now = Clock::now();
-    if (limits.maxRequestsPerMinutePerOwner != 0)
-    {
-      owner.recentStarts.push_back(now);
-    }
     owner.inFlight++;
     entry.counted = true;
-    entry.began = now;
-    entry.unsent = true;
     entry.started = true;
     entry.starting = true;
     entry.provider = provider;
-    entry.deadline = now + std::chrono::milliseconds(timeoutMs) +
+    entry.deadline = Clock::now() + std::chrono::milliseconds(timeoutMs) +
                      std::chrono::milliseconds(limits.watchdogGraceMs);
   }
 
@@ -485,7 +433,6 @@ static void startRequest(
       net.erase(it);
       return;
     }
-    it->second.unsent = false;
   }
   provider->start(id, request);
   bool abortNow = false;
@@ -519,7 +466,6 @@ static void startQueued(Net& net, std::thread::id thread)
     rcp<Provider> provider;
     {
       std::lock_guard<std::mutex> lock(net.mutex);
-      Clock::time_point now = Clock::now();
       provider = net.provider;
       for (auto& [ownerId, owner] : net.owners)
       {
@@ -531,7 +477,7 @@ static void startQueued(Net& net, std::thread::id thread)
             owner.waiting.pop_front();
             continue;
           }
-          if (it->second.thread != thread || !net.canStart(owner, now))
+          if (it->second.thread != thread || !net.canStart(owner))
           {
             break;
           }
@@ -619,7 +565,7 @@ RequestId fetch(
     // Past the limits a request waits its turn, as a browser holds those
     // past its connection limit.
     Owner& owner = net.owners[ownerId];
-    if (!owner.waiting.empty() || !net.canStart(owner, Clock::now()))
+    if (!owner.waiting.empty() || !net.canStart(owner))
     {
       if (!net.enqueue(owner, id, entry, std::move(request), &error))
       {
