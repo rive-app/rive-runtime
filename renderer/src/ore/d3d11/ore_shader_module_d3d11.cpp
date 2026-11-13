@@ -11,15 +11,17 @@ namespace rive::ore
 
 void rive::ore::ShaderModuleD3D11::ensureD3DShaders(
     ID3D11Device* device,
+    D3D11ShaderCache& cache,
     std::string* outError)
 {
   std::call_once(m_d3dInitFlag, [&]() {
-    ensureD3DShadersImpl(device, outError);
+    ensureD3DShadersImpl(device, cache, outError);
   });
 }
 
 void ShaderModuleD3D11::ensureD3DShadersImpl(
     ID3D11Device* device,
+    D3D11ShaderCache& cache,
     std::string* outError)
 {
   if (m_hlslSource.empty())
@@ -33,6 +35,23 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
   const char* target = (m_stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
   const char* entry = m_hlslEntryPoint.empty() ? "main"
                                                : m_hlslEntryPoint.c_str();
+
+  // Identical source compiles to identical bytecode on one device, so a module
+  // whose source the context already compiled reuses that result instead of
+  // paying D3DCompile again.
+  const std::string cacheKey = oreD3DShaderCacheKey(
+      target,
+      entry,
+      m_hlslSource);
+  D3D11CompiledShader cached;
+  if (cache.lookup(cacheKey, &cached))
+  {
+    m_bytecode = std::move(cached.bytecode);
+    m_d3dVertexShader = std::move(cached.vertexShader);
+    m_d3dPixelShader = std::move(cached.pixelShader);
+    return;
+  }
+
   Microsoft::WRL::ComPtr<ID3DBlob> compiledBlob;
   Microsoft::WRL::ComPtr<ID3DBlob> errors;
   HRESULT hr = D3DCompile(
@@ -77,9 +96,10 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
       static_cast<const uint8_t*>(code),
       static_cast<const uint8_t*>(code) + codeSize);
 
+  HRESULT createHr;
   if (m_stage == ShaderStage::fragment)
   {
-    device->CreatePixelShader(
+    createHr = device->CreatePixelShader(
         code,
         codeSize,
         nullptr,
@@ -87,7 +107,7 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
   }
   else if (m_stage == ShaderStage::vertex)
   {
-    device->CreateVertexShader(
+    createHr = device->CreateVertexShader(
         code,
         codeSize,
         nullptr,
@@ -95,19 +115,31 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
   }
   else
   {
-    HRESULT hr = device->CreateVertexShader(
+    createHr = device->CreateVertexShader(
         code,
         codeSize,
         nullptr,
         m_d3dVertexShader.GetAddressOf());
-    if (FAILED(hr))
+    if (FAILED(createHr))
     {
-      device->CreatePixelShader(
+      createHr = device->CreatePixelShader(
           code,
           codeSize,
           nullptr,
           m_d3dPixelShader.GetAddressOf());
     }
+  }
+
+  // Only a usable result is worth sharing. A creation failure (memory
+  // pressure, a lost device) leaves this module without a shader object as
+  // before, and the next module with the same source compiles and tries
+  // again instead of inheriting the failure for the cache's lifetime.
+  if (SUCCEEDED(createHr))
+  {
+    cache.store(
+        cacheKey,
+        D3D11CompiledShader{m_bytecode, m_d3dVertexShader, m_d3dPixelShader},
+        m_bytecode.size());
   }
 }
 

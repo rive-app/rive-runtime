@@ -13,6 +13,9 @@
 namespace rive::ore
 {
 
+// Defined in src/ore/d3d11/ore_shader_module_d3d11.hpp.
+class D3D11ShaderCache;
+
 class ContextD3D11 : public Context
 {
 public:
@@ -84,6 +87,10 @@ private:
 
   Microsoft::WRL::ComPtr<ID3D11Device> m_d3d11Device;
   Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_d3d11Context;
+  // Compiled HLSL shared by every module this context makes, so a shader a
+  // script reloads is compiled once per source rather than once per module.
+  // See ore_d3d_shader_cache.hpp.
+  std::shared_ptr<D3D11ShaderCache> m_shaderCache;
   // 11.1 context for offset-range constant-buffer binds
   // (VSSetConstantBuffers1 / PSSetConstantBuffers1). Acquired via QI at
   // Make(); nullptr on pre-11.1 drivers, in which case static-offset and

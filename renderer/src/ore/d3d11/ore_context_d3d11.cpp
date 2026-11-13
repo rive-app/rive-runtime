@@ -879,7 +879,10 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(
     pipeline->m_psModule = ref_rcp(fragmentModule);
 
   std::string compileErr;
-  vertexModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
+  vertexModule->ensureD3DShaders(
+      m_d3d11Device.Get(),
+      *m_shaderCache,
+      &compileErr);
   if (!compileErr.empty())
   {
     setLastError("Ore D3D11 VS: %s", compileErr.c_str());
@@ -889,7 +892,10 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(
   }
   if (fragmentModule != nullptr)
   {
-    fragmentModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
+    fragmentModule->ensureD3DShaders(
+        m_d3d11Device.Get(),
+        *m_shaderCache,
+        &compileErr);
     if (!compileErr.empty())
     {
       setLastError("Ore D3D11 PS: %s", compileErr.c_str());
@@ -1503,6 +1509,7 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(
   auto ctx = std::unique_ptr<ContextD3D11>(new ContextD3D11());
   ctx->m_d3d11Device = device;
   ctx->m_d3d11Context = context;
+  ctx->m_shaderCache = std::make_shared<D3D11ShaderCache>();
   // QI the 11.1 context for offset-range constant-buffer binds. D3D11.1 is
   // ubiquitous on supported Rive platforms; pre-11.1 drivers fall back to
   // whole-buffer binds (no offsets).

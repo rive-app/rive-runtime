@@ -152,6 +152,9 @@ inline void D3D12DescriptorSlot::release()
   }
 }
 
+// Defined in ore_context_d3d12.cpp.
+class D3D12ShaderCache;
+
 class ContextD3D12 : public Context
 {
 public:
@@ -258,6 +261,10 @@ private:
   void d3d12FlushPendingTextureUploads();
 
   Microsoft::WRL::ComPtr<ID3D12Device> m_d3dDevice;
+  // Compiled HLSL shared by every module this context makes, so a shader a
+  // script reloads is compiled once per source rather than once per module.
+  // Defined in ore_context_d3d12.cpp over ore_d3d_shader_cache.hpp.
+  std::shared_ptr<D3D12ShaderCache> m_d3dShaderCache;
   // Microsoft::WRL::ComPtr<ID3D12CommandQueue> m_d3dQueue;
   //  Active command list for the current frame. Points at m_d3dOwnedCmdList
   //  in owned-CL mode and at the host-provided command list in external-CL

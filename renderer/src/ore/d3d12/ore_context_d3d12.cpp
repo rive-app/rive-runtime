@@ -15,6 +15,7 @@
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_d3d12_root_sig.hpp"
+#include "../ore_d3d_shader_cache.hpp"
 
 #include <d3d12.h>
 #include <d3dcompiler.h>
@@ -28,6 +29,11 @@ using Microsoft::WRL::ComPtr;
 
 namespace rive::ore
 {
+
+// Bytecode per compiled source; D3D12 pipelines take bytecode directly, so
+// there are no device objects to share.
+class D3D12ShaderCache : public D3DShaderCache<std::vector<uint8_t>>
+{};
 
 // ============================================================================
 // Enum → DXGI / D3D12 conversion helpers
@@ -457,6 +463,7 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
 {
   auto ctx = std::unique_ptr<ContextD3D12>(new ContextD3D12(manager));
   ctx->m_d3dDevice = device;
+  ctx->m_d3dShaderCache = std::make_shared<D3D12ShaderCache>();
   [[maybe_unused]] HRESULT hr;
 
   // Root signatures are per-pipeline (RFC v5 §3.2.2). Each pipeline
@@ -1247,6 +1254,17 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
   const char* entry = (desc.hlslEntryPoint && *desc.hlslEntryPoint)
                           ? desc.hlslEntryPoint
                           : "main";
+  module->m_d3dIsVertex = (desc.stage == ShaderStage::vertex);
+
+  // Identical source compiles to identical bytecode, so a source this context
+  // already compiled is served from the cache instead of running fxc again.
+  const std::string cacheKey = oreD3DShaderCacheKey(target, entry, source);
+  if (m_d3dShaderCache->lookup(cacheKey, &module->m_d3dBytecode))
+  {
+    module->applyBindingMapFromDesc(desc);
+    return module;
+  }
+
   ComPtr<ID3DBlob> compiled;
   ComPtr<ID3DBlob> errors;
   HRESULT hr = D3DCompile(
@@ -1278,7 +1296,10 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
   const uint8_t* bytes = static_cast<const uint8_t*>(
       compiled->GetBufferPointer());
   module->m_d3dBytecode.assign(bytes, bytes + compiled->GetBufferSize());
-  module->m_d3dIsVertex = (desc.stage == ShaderStage::vertex);
+  m_d3dShaderCache->store(
+      cacheKey,
+      module->m_d3dBytecode,
+      module->m_d3dBytecode.size());
   module->applyBindingMapFromDesc(desc);
   return module;
 #else
