@@ -2739,7 +2739,7 @@ ViewModelInstanceListItem* File::viewModelInstanceListItem(
   return viewModelInstanceListItem;
 }
 
-ViewModel* File::viewModel(std::string name)
+ViewModel* File::viewModel(std::string name) const
 {
   for (auto& viewModel : m_ViewModels)
   {

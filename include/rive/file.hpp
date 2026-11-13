@@ -396,7 +396,11 @@ public:
       size_t instanceIndex) const;
 
   size_t viewModelCount() const { return m_ViewModels.size(); }
-  ViewModel* viewModel(std::string name);
+  // Both const, as artboard()'s pair is, so a constant 0 index picks the
+  // size_t overload. A non-const name overload won the implicit object on a
+  // non-const File: viewModel(0) was ambiguous, and so was viewModel((size_t)0)
+  // on clang-cl, which takes any constant 0 for a null pointer.
+  ViewModel* viewModel(std::string name) const;
   ViewModel* viewModel(size_t index) const;
   /// @returns the file index (definition order) of the view model with the
   /// given name — the slot key used for data-context slots — or the view
