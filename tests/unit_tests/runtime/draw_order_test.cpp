@@ -10,6 +10,8 @@
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <string>
+#include <vector>
 
 TEST_CASE("draw rules load and sort correctly", "[draw rules]")
 {
@@ -65,4 +67,114 @@ TEST_CASE("draw targets without a drawable are dropped on load", "[draw rules]")
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
   }
+}
+
+// Each draw target as "<rule owner>/<drawable> <placement>: <its dependents in
+// order>". The artboard's draw target order is sorted from exactly these lists.
+static std::vector<std::string> drawTargetGraph(
+    rive::ArtboardInstance* artboard)
+{
+  auto describe = [](rive::Component* component) -> std::string {
+    if (!component->is<rive::DrawTarget>())
+    {
+      return "?";
+    }
+    auto target = component->as<rive::DrawTarget>();
+    // A target's parent is its DrawRules, whose parent owns the rule.
+    return target->parent()->parent()->name() + "/" +
+           target->drawable()->name() +
+           (target->placement() == rive::DrawTargetPlacement::before
+                ? " before"
+                : " after");
+  };
+  std::vector<std::string> graph;
+  for (auto target : artboard->find<rive::DrawTarget>())
+  {
+    std::string line = describe(target) + ":";
+    for (auto dependent : target->dependents())
+    {
+      line += " " + describe(dependent);
+    }
+    graph.push_back(line);
+  }
+  return graph;
+}
+
+TEST_CASE(
+    "draw targets under another rule depend on that rule's targets",
+    "[draw rules]")
+{
+  // Bullet Man has 10 draw targets, 7 of them on drawables that another rule
+  // already places, so their order comes from these dependencies.
+  auto file = ReadRiveFile("assets/bullet_man.riv");
+  auto artboard = file->artboardNamed("Bullet Man");
+  REQUIRE(artboard != nullptr);
+
+  std::vector<std::string> expected = {
+      "Fire_target/ before:",
+      "Helmet_back/Cape after:",
+      "Helmet_back/Cannon_front after:",
+      "Hand_target/Cape after:",
+      "Hand_target/Moustache after:",
+      "Hand_target/Cannon_front after:",
+      "Hand_target/Eyebrow_right before:",
+      "Moustache/Eyebrow_right after: Hand_target/Moustache after",
+      "Arm_left/Body_character after: Fire_target/ before",
+      "Character/Cannon_front after: Hand_target/Cape after "
+      "Hand_target/Eyebrow_right before Helmet_back/Cape after "
+      "Moustache/Eyebrow_right after Arm_left/Body_character after",
+  };
+  CHECK(drawTargetGraph(artboard.get()) == expected);
+}
+
+TEST_CASE(
+    "a component given two draw rules is ordered by the last one",
+    "[draw rules]")
+{
+  rive::Artboard artboard(&gNoOpFactory);
+  artboard.addObject(&artboard);
+  auto add = [&](rive::Component* object, rive::Core* parent) {
+    artboard.addObject(object);
+    object->parentId(artboard.idOf(parent));
+  };
+  auto shape = [](const char* name) {
+    auto shape = new rive::Shape();
+    shape->name(name);
+    return shape;
+  };
+  auto back = shape("back");
+  add(back, &artboard);
+  auto front = shape("front");
+  add(front, &artboard);
+  auto group = new rive::Node();
+  add(group, &artboard);
+  add(shape("inner"), group);
+  // Two rules on the group, each with a target. Only the last one applies.
+  auto addRules = [&](rive::Drawable* drawable, rive::DrawTarget** target) {
+    auto rules = new rive::DrawRules();
+    add(rules, group);
+    *target = new rive::DrawTarget();
+    add(*target, rules);
+    (*target)->drawableId(artboard.idOf(drawable));
+    return rules;
+  };
+  rive::DrawTarget* firstTarget = nullptr;
+  rive::DrawTarget* lastTarget = nullptr;
+  auto firstRules = addRules(back, &firstTarget);
+  auto lastRules = addRules(front, &lastTarget);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  // The changed hooks need an artboard, so these go after initialize.
+  firstRules->drawTargetId(artboard.idOf(firstTarget));
+  lastRules->drawTargetId(artboard.idOf(lastTarget));
+  artboard.advance(0.0f);
+
+  std::vector<std::string> order;
+  for (auto drawable = artboard.firstDrawable(); drawable != nullptr;
+       drawable = drawable->prevDrawable())
+  {
+    order.push_back(drawable->name());
+  }
+  // The last rule places the group's contents before "front". Under the first
+  // rule's target, which nothing orders, "inner" would not be drawn at all.
+  CHECK(order == std::vector<std::string>{"front", "inner", "back"});
 }

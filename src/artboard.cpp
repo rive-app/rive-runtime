@@ -469,6 +469,9 @@ StatusCode Artboard::initialize()
   // Store a map of the drawRules to make it easier to lookup the matching
   // rule for a transform component.
   std::unordered_map<Core*, DrawRules*> componentDrawRules;
+  // Each rule with the index of the component that owns it in m_Objects, so
+  // the rules can be ordered by owner without looking up every object.
+  std::vector<std::pair<size_t, DrawRules*>> ownedRules;
 
 #ifdef WITH_RIVE_EDITOR
   // Editor builds move typed-child registration (paths on shapes,
@@ -521,6 +524,18 @@ StatusCode Artboard::initialize()
         if (component != nullptr)
         {
           componentDrawRules[component] = rules;
+          size_t index = static_cast<uint32_t>(rules->parentId());
+          if (index >= m_Objects.size() || m_Objects[index] != component)
+          {
+            // Resolved somewhere other than the index its id names (an
+            // editor object), so find where it sits.
+            index = std::find(m_Objects.begin(), m_Objects.end(), component) -
+                    m_Objects.begin();
+          }
+          if (index < m_Objects.size())
+          {
+            ownedRules.emplace_back(index, rules);
+          }
         }
         else
         {
@@ -634,14 +649,18 @@ StatusCode Artboard::initialize()
         }
       }
 
-      for (ContainerComponent* parent = drawable; parent != nullptr;
-           parent = parent->parent())
+      // Most artboards have no draw rules, so nothing to find.
+      if (!componentDrawRules.empty())
       {
-        auto itr = componentDrawRules.find(parent);
-        if (itr != componentDrawRules.end())
+        for (ContainerComponent* parent = drawable; parent != nullptr;
+             parent = parent->parent())
         {
-          drawable->flattenedDrawRules = itr->second;
-          break;
+          auto itr = componentDrawRules.find(parent);
+          if (itr != componentDrawRules.end())
+          {
+            drawable->flattenedDrawRules = itr->second;
+            break;
+          }
         }
       }
     }
@@ -658,61 +677,63 @@ StatusCode Artboard::initialize()
 
   sortDependencies();
 
-  std::vector<DrawRules*> rulesList;
-  // Build the rules in the right order. We use the map componentDrawRules
-  // to make sure we traverse the objects in the right order from parent
-  // to child, and add the rules accordingly.
-  for (auto object : m_Objects)
+  if (!ownedRules.empty())
   {
-    if (object == nullptr)
+    // Build the rules in the order of the components that own them, from
+    // parent to child. An owner given more than one rule keeps the last, as
+    // componentDrawRules does.
+    std::stable_sort(
+        ownedRules.begin(),
+        ownedRules.end(),
+        [](const std::pair<size_t, DrawRules*>& a,
+           const std::pair<size_t, DrawRules*>& b) {
+          return a.first < b.first;
+        });
+    std::vector<DrawRules*> rulesList;
+    rulesList.reserve(ownedRules.size());
+    for (size_t i = 0; i < ownedRules.size(); i++)
     {
-      continue;
-    }
-    auto itr = componentDrawRules.find(object);
-    if (itr != componentDrawRules.end())
-    {
-      rulesList.emplace_back(componentDrawRules[object]);
-    }
-  }
-  DrawTarget root;
-  // Build up the draw order. Look for draw targets and build
-  // their dependencies.
-  for (auto rules : rulesList)
-  {
-    for (auto child : rules->children())
-    {
-      auto target = child->as<DrawTarget>();
-      root.addDependent(target);
-      auto dependentRules = target->drawable()->flattenedDrawRules;
-      if (dependentRules != nullptr)
+      if (i + 1 < ownedRules.size() &&
+          ownedRules[i + 1].first == ownedRules[i].first)
       {
-        // Because we don't store targets on rules, we need
-        // to find the targets that belong to this rule
-        // here.
-        for (auto object : m_Objects)
+        continue;
+      }
+      rulesList.push_back(ownedRules[i].second);
+    }
+    DrawTarget root;
+    // Build up the draw order. Look for draw targets and build
+    // their dependencies.
+    for (auto rules : rulesList)
+    {
+      for (auto child : rules->children())
+      {
+        auto target = child->as<DrawTarget>();
+        root.addDependent(target);
+        auto dependentRules = target->drawable()->flattenedDrawRules;
+        if (dependentRules != nullptr)
         {
-          if (object != nullptr && object->is<DrawTarget>())
+          // A rule's targets are its children.
+          for (auto dependentChild : dependentRules->children())
           {
-            DrawTarget* dependentTarget = object->as<DrawTarget>();
-            if (dependentTarget->parent() == dependentRules)
+            if (dependentChild->is<DrawTarget>())
             {
-              dependentTarget->addDependent(target);
+              dependentChild->as<DrawTarget>()->addDependent(target);
             }
           }
         }
       }
     }
-  }
-  DependencySorter sorter;
-  std::vector<Component*> drawTargetOrder;
-  sorter.sort(&root, drawTargetOrder);
-  if (drawTargetOrder.size() > 0)
-  {
-    auto itr = drawTargetOrder.begin();
-    itr++;
-    while (itr != drawTargetOrder.end())
+    DependencySorter sorter;
+    std::vector<Component*> drawTargetOrder;
+    sorter.sort(&root, drawTargetOrder);
+    if (drawTargetOrder.size() > 0)
     {
-      m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
+      auto itr = drawTargetOrder.begin();
+      itr++;
+      while (itr != drawTargetOrder.end())
+      {
+        m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
+      }
     }
   }
 
