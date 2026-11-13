@@ -6560,6 +6560,10 @@ struct HostInstanceValue
   // What string_get last handed the module, for string_changed.
   std::string sent;
   bool hasSent = false;
+  // The bytes id last marked for the handle, 0 for no blob, which
+  // blob_changed compares.
+  uint32_t seenBlob = 0;
+  bool hasSeenBlob = false;
 
   explicit HostInstanceValue(ViewModelInstanceValue* instanceValue)
       : owner(ref_rcp(instanceValue->viewModelInstance()))
@@ -9446,6 +9450,26 @@ rcp<FileAsset> resolveBlobAsset(WasmScriptingVM* vm, uint32_t handle)
   return nullptr;
 }
 
+uint32_t readBlobBytes(
+    Span<const uint8_t> bytes,
+    uint32_t offset,
+    uint8_t* out,
+    uint32_t capacity)
+{
+  if (offset >= bytes.size())
+  {
+    return 0;
+  }
+  uint32_t count = (uint32_t)std::min<size_t>(capacity, bytes.size() - offset);
+  memcpy(out, bytes.data() + offset, count);
+  return count;
+}
+
+bool blobHasBytes(FileAsset* blob)
+{
+  return !blob->as<BlobAsset>()->bytes().empty();
+}
+
 uint32_t blobAssetBytesImpl(
     WasmScriptingVM* vm,
     uint32_t objectHandle,
@@ -9459,7 +9483,7 @@ uint32_t blobAssetBytesImpl(
       objectHandle,
       name,
       nameLength,
-      [](FileAsset* blob) { return !blob->as<BlobAsset>()->bytes().empty(); });
+      blobHasBytes);
   if (asset == nullptr)
   {
     return 0;
@@ -9470,6 +9494,28 @@ uint32_t blobAssetBytesImpl(
     memcpy(out, bytes.data(), bytes.size());
   }
   return (uint32_t)bytes.size();
+}
+
+uint32_t blobAssetReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t objectHandle,
+    const char* name,
+    uint32_t nameLength,
+    uint32_t offset,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  auto asset = findFileAsset<BlobAsset>(
+      vm,
+      objectHandle,
+      name,
+      nameLength,
+      blobHasBytes);
+  if (asset == nullptr)
+  {
+    return 0;
+  }
+  return readBlobBytes(asset->bytes(), offset, out, outByteCount);
 }
 
 // --- rive_file_v1 and artboard properties -----------------------------------
@@ -10577,6 +10623,25 @@ uint32_t dataBlobGetImpl(
   return (uint32_t)bytes.size();
 }
 
+uint32_t dataBlobReadImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t offset,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  auto asset = resolveBlobAsset(vm, handle);
+  if (asset == nullptr)
+  {
+    return 0;
+  }
+  return readBlobBytes(
+      asset->as<BlobAsset>()->bytes(),
+      offset,
+      out,
+      outByteCount);
+}
+
 uint32_t dataBlobNameImpl(
     WasmScriptingVM* vm,
     uint32_t handle,
@@ -10589,6 +10654,28 @@ uint32_t dataBlobNameImpl(
     return 0;
   }
   return fillModuleString(vm, asset->name(), buffer, capacity);
+}
+
+HostInstanceValue* resolveHostValue(WasmScriptingVM* vm, uint32_t handle)
+{
+  if (vm == nullptr)
+  {
+    return nullptr;
+  }
+  return static_cast<HostInstanceValue*>(vm->handles().resolve(
+      handle,
+      WasmScriptingVM::HandleTable::Tag::instanceValue));
+}
+
+// bytesId is the blob the module's copy for the handle came from, 0 for none.
+void markBlobSeen(WasmScriptingVM* vm, uint32_t handle, uint32_t bytesId)
+{
+  auto host = resolveHostValue(vm, handle);
+  if (host != nullptr)
+  {
+    host->seenBlob = bytesId;
+    host->hasSeenBlob = true;
+  }
 }
 
 void dataBlobSetImpl(
@@ -10605,6 +10692,8 @@ void dataBlobSetImpl(
   auto asset = make_rcp<BlobAsset>();
   SimpleArray<uint8_t> data(bytes, byteCount);
   asset->decode(data, nullptr);
+  // Marked before the listeners run, so a blob one of them sets shows.
+  markBlobSeen(vm, handle, asset->bytesId());
   value->value(asset.get());
 }
 
@@ -10613,19 +10702,47 @@ void dataBlobClearImpl(WasmScriptingVM* vm, uint32_t handle)
   auto value = resolveInstanceValue<ViewModelInstanceAssetBlob>(vm, handle);
   if (value != nullptr)
   {
+    markBlobSeen(vm, handle, 0);
     value->value(nullptr);
   }
 }
 
-HostInstanceValue* resolveHostValue(WasmScriptingVM* vm, uint32_t handle)
+uint32_t dataPropEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
 {
-  if (vm == nullptr)
+  auto first = resolveHostValue(vm, a);
+  auto second = resolveHostValue(vm, b);
+  return first != nullptr && second != nullptr && first->value == second->value
+             ? 1
+             : 0;
+}
+
+uint32_t blobBytesId(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto asset = resolveBlobAsset(vm, handle);
+  return asset != nullptr ? asset->as<BlobAsset>()->bytesId() : 0;
+}
+
+void dataBlobSeenImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+  markBlobSeen(vm, handle, blobBytesId(vm, handle));
+}
+
+enum BlobChange : uint32_t
+{
+  same,
+  changed,
+  noProperty,
+};
+
+uint32_t dataBlobChangedImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+  if (resolveInstanceValue<ViewModelInstanceAssetBlob>(vm, handle) == nullptr)
   {
-    return nullptr;
+    return BlobChange::noProperty;
   }
-  return static_cast<HostInstanceValue*>(vm->handles().resolve(
-      handle,
-      WasmScriptingVM::HandleTable::Tag::instanceValue));
+  auto host = resolveHostValue(vm, handle);
+  bool seen = host->hasSeenBlob && host->seenBlob == blobBytesId(vm, handle);
+  return seen ? BlobChange::same : BlobChange::changed;
 }
 
 void dataWatchImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t token)

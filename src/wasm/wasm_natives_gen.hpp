@@ -242,15 +242,19 @@ void dataFontSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t font);
 void dataFontReleaseImpl(WasmScriptingVM* vm, uint32_t font);
 uint32_t dataBlobPresentImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataBlobGetImpl(WasmScriptingVM* vm, uint32_t property, uint8_t* buffer, uint32_t capacity);
+uint32_t dataBlobReadImpl(WasmScriptingVM* vm, uint32_t property, uint32_t offset, uint8_t* out, uint32_t outByteCount);
 uint32_t dataBlobNameImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataBlobSetImpl(WasmScriptingVM* vm, uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 void dataBlobClearImpl(WasmScriptingVM* vm, uint32_t property);
+void dataBlobSeenImpl(WasmScriptingVM* vm, uint32_t property);
+uint32_t dataBlobChangedImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataArtboardGetImpl(WasmScriptingVM* vm, uint32_t property);
 void dataArtboardSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t bindable);
 uint32_t dataEnumGetImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataEnumSetImpl(WasmScriptingVM* vm, uint32_t property, const char* value, uint32_t length);
 uint32_t dataEnumValuesImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataPropReleaseImpl(WasmScriptingVM* vm, uint32_t property);
+uint32_t dataPropEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
 void dataTriggerFireImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataListLengthImpl(WasmScriptingVM* vm, uint32_t property);
 void dataListPushImpl(WasmScriptingVM* vm, uint32_t property, uint32_t vmi);
@@ -453,6 +457,7 @@ void meshInstancesResizeImpl(WasmScriptingVM* vm, uint32_t instances, uint32_t c
 void meshInstancesUpdateImpl(WasmScriptingVM* vm, uint32_t instances, uint32_t first, const uint8_t* bytes, uint32_t byteCount);
 void meshInstancesReleaseImpl(WasmScriptingVM* vm, uint32_t instances);
 uint32_t blobAssetBytesImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+uint32_t blobAssetReadImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint32_t offset, uint8_t* out, uint32_t outByteCount);
 uint32_t imageFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t length);
 uint32_t imageWidthImpl(WasmScriptingVM* vm, uint32_t image);
 uint32_t imageHeightImpl(WasmScriptingVM* vm, uint32_t image);
@@ -889,6 +894,11 @@ uint32_t dataBlobGet(wasm_exec_env_t env, uint32_t property, uint8_t* buffer, ui
     WasmScriptingVM* vm = vmFromEnv(env);
     return dataBlobGetImpl(vm, property, buffer, capacity);
 }
+uint32_t dataBlobRead(wasm_exec_env_t env, uint32_t property, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBlobReadImpl(vm, property, offset, out, outByteCount);
+}
 uint32_t dataBlobName(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -903,6 +913,16 @@ void dataBlobClear(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     dataBlobClearImpl(vm, property);
+}
+void dataBlobSeen(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataBlobSeenImpl(vm, property);
+}
+uint32_t dataBlobChanged(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBlobChangedImpl(vm, property);
 }
 uint32_t dataArtboardGet(wasm_exec_env_t env, uint32_t property)
 {
@@ -934,6 +954,11 @@ void dataPropRelease(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     dataPropReleaseImpl(vm, property);
+}
+uint32_t dataPropEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataPropEqualImpl(vm, a, b);
 }
 void dataTriggerFire(wasm_exec_env_t env, uint32_t property)
 {
@@ -2038,6 +2063,12 @@ uint32_t blobAssetBytes(wasm_exec_env_t env, uint32_t object, const char* name, 
     WasmStringArg nameUtf8(vm, name, nameLength);
     return blobAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
+uint32_t blobAssetRead(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return blobAssetReadImpl(vm, object, nameUtf8.data(), nameUtf8.size(), offset, out, outByteCount);
+}
 uint32_t imageFromAsset(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2753,15 +2784,19 @@ NativeSymbol kDataNatives[] = {
     {"font_release", (void*)dataFontRelease, "(i)", nullptr},
     {"blob_present", (void*)dataBlobPresent, "(i)i", nullptr},
     {"blob_get", (void*)dataBlobGet, "(i*~)i", nullptr},
+    {"blob_read", (void*)dataBlobRead, "(ii*~)i", nullptr},
     {"blob_name", (void*)dataBlobName, "(i*~)i", nullptr},
     {"blob_set", (void*)dataBlobSet, "(i*~)", nullptr},
     {"blob_clear", (void*)dataBlobClear, "(i)", nullptr},
+    {"blob_seen", (void*)dataBlobSeen, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"blob_changed", (void*)dataBlobChanged, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"artboard_get", (void*)dataArtboardGet, "(i)i", nullptr},
     {"artboard_set", (void*)dataArtboardSet, "(ii)", nullptr},
     {"enum_get", (void*)dataEnumGet, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"enum_set", (void*)dataEnumSet, "(i*~)", nullptr},
     {"enum_values", (void*)dataEnumValues, "(i*~)i", nullptr},
     {"prop_release", (void*)dataPropRelease, "(i)", nullptr},
+    {"prop_equal", (void*)dataPropEqual, "(ii)i", (void*)&wasm_runtime_rive_leaf_native},
     {"trigger_fire", (void*)dataTriggerFire, "(i)", nullptr},
     {"list_length", (void*)dataListLength, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"list_push", (void*)dataListPush, "(ii)", nullptr},
@@ -2997,6 +3032,7 @@ NativeSymbol kMeshInstancesNatives[] = {
 
 NativeSymbol kBlobNatives[] = {
     {"asset_bytes", (void*)blobAssetBytes, "(i*~*~)i", nullptr},
+    {"asset_read", (void*)blobAssetRead, "(i*~i*~)i", nullptr},
 };
 
 NativeSymbol kImageNatives[] = {

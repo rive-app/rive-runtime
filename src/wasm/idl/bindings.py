@@ -394,11 +394,21 @@ NAMESPACES = [
         op('blob_present', [handle('property')], ret='u32'),
         op('blob_get', [handle('property'),
                         mutbuf('uint8_t', 'buffer', 'capacity')], ret='u32'),
+        # The bytes copied from offset, as many as out holds.
+        op('blob_read', [handle('property'), u32('offset'),
+                         mutbuf('uint8_t', 'out', 'outByteCount',
+                                written='size')], ret='u32'),
         op('blob_name', [handle('property'),
                          mutbuf('char', 'buffer', 'capacity')], ret='u32'),
         op('blob_set', [handle('property'),
                         buf('uint8_t', 'bytes', 'byteCount')]),
         op('blob_clear', [handle('property')]),
+        # Marks the blob the property holds now as the one the module's copy
+        # of its bytes came from.
+        op('blob_seen', [handle('property')]),
+        # 0 while the property holds the bytes this handle last marked with
+        # blob_seen, 1 once it does not, 2 when it names no blob property.
+        op('blob_changed', [handle('property')], ret='u32'),
         # The bindable artboard the property holds, as a rive_file_v1
         # bindable handle; 0 while it names one of the host file's own
         # artboards, or none.
@@ -415,6 +425,8 @@ NAMESPACES = [
         op('enum_values', [handle('property'),
                            mutbuf('char', 'buffer', 'capacity')], ret='u32'),
         op('prop_release', [handle('property')]),
+        # 1 when both handles wrap the same property of the same instance.
+        op('prop_equal', [handle('a'), handle('b')], ret='u32'),
         op('trigger_fire', [handle('property')]),
         op('list_length', [handle('property')], ret='u32'),
         op('list_push', [handle('property'), handle('vmi')]),
@@ -1030,6 +1042,14 @@ NAMESPACES = [
             string('name', 'nameLength'),
             mutbuf('uint8_t', 'out', 'outCount'),
         ], ret='u32'),
+        # The bytes of the same asset copied from offset, as many as out
+        # holds.
+        op('asset_read', [
+            handle('object'),
+            string('name', 'nameLength'),
+            u32('offset'),
+            mutbuf('uint8_t', 'out', 'outByteCount', written='size'),
+        ], ret='u32'),
     ]),
     ns('rive_image_v1', 'image', [
         # Resolves an ImageAsset by name from the object's file, pinning its
@@ -1432,7 +1452,7 @@ LEAF_OPS = {
         'vmi_view_model', 'vmi_list', 'vmi_enum', 'vmi_image', 'vmi_font',
         'vmi_blob', 'number_get', 'boolean_get', 'string_get',
         'string_changed', 'color_get', 'enum_get', 'list_length', 'list_get',
-        'view_model_get',
+        'view_model_get', 'prop_equal', 'blob_seen', 'blob_changed',
     },
     'rive_artboard_v1': {
         'width', 'height', 'bounds', 'node_transform', 'node_world_transform',

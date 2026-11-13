@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "4d6b9edb63e5d0fc"
+#define RIVE_BINDINGS_V1_CONTRACT "267b245e6dbc8cdd"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -316,12 +316,18 @@ RIVE_BINDING_IMPORT("rive_data_v1", "blob_present")
 uint32_t rive_data_blob_present(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_get")
 uint32_t rive_data_blob_get(uint32_t property, uint8_t* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_data_v1", "blob_read")
+uint32_t rive_data_blob_read(uint32_t property, uint32_t offset, uint8_t* out, uint32_t outByteCount);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_name")
 uint32_t rive_data_blob_name(uint32_t property, char* buffer, uint32_t capacity);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_set")
 void rive_data_blob_set(uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_clear")
 void rive_data_blob_clear(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "blob_seen")
+void rive_data_blob_seen(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "blob_changed")
+uint32_t rive_data_blob_changed(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "artboard_get")
 uint32_t rive_data_artboard_get(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "artboard_set")
@@ -334,6 +340,8 @@ RIVE_BINDING_IMPORT("rive_data_v1", "enum_values")
 uint32_t rive_data_enum_values(uint32_t property, char* buffer, uint32_t capacity);
 RIVE_BINDING_IMPORT("rive_data_v1", "prop_release")
 void rive_data_prop_release(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "prop_equal")
+uint32_t rive_data_prop_equal(uint32_t a, uint32_t b);
 RIVE_BINDING_IMPORT("rive_data_v1", "trigger_fire")
 void rive_data_trigger_fire(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "list_length")
@@ -752,6 +760,8 @@ void rive_mesh_instances_release(uint32_t instances);
 // rive_blob_v1
 RIVE_BINDING_IMPORT("rive_blob_v1", "asset_bytes")
 uint32_t rive_blob_asset_bytes(uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_blob_v1", "asset_read")
+uint32_t rive_blob_asset_read(uint32_t object, const char* name, uint32_t nameLength, uint32_t offset, uint8_t* out, uint32_t outByteCount);
 
 // rive_image_v1
 RIVE_BINDING_IMPORT("rive_image_v1", "from_asset")

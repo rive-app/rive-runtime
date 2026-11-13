@@ -266,6 +266,11 @@ uint32_t rive_web_data_blob_get(uint32_t vmHandle, uint32_t property, uint8_t* b
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return dataBlobGetImpl(vm, property, buffer, capacity);
 }
+uint32_t rive_web_data_blob_read(uint32_t vmHandle, uint32_t property, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataBlobReadImpl(vm, property, offset, out, outByteCount);
+}
 uint32_t rive_web_data_blob_name(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -280,6 +285,16 @@ void rive_web_data_blob_clear(uint32_t vmHandle, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     dataBlobClearImpl(vm, property);
+}
+void rive_web_data_blob_seen(uint32_t vmHandle, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    dataBlobSeenImpl(vm, property);
+}
+uint32_t rive_web_data_blob_changed(uint32_t vmHandle, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataBlobChangedImpl(vm, property);
 }
 uint32_t rive_web_data_artboard_get(uint32_t vmHandle, uint32_t property)
 {
@@ -311,6 +326,11 @@ void rive_web_data_prop_release(uint32_t vmHandle, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     dataPropReleaseImpl(vm, property);
+}
+uint32_t rive_web_data_prop_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataPropEqualImpl(vm, a, b);
 }
 void rive_web_data_trigger_fire(uint32_t vmHandle, uint32_t property)
 {
@@ -1319,6 +1339,12 @@ uint32_t rive_web_blob_asset_bytes(uint32_t vmHandle, uint32_t object, const cha
     WasmStringArg nameUtf8(vm, name, nameLength);
     return blobAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
+uint32_t rive_web_blob_asset_read(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength, uint32_t offset, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return blobAssetReadImpl(vm, object, nameUtf8.data(), nameUtf8.size(), offset, out, outByteCount);
+}
 uint32_t rive_web_image_from_asset(uint32_t vmHandle, uint32_t object, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1954,15 +1980,19 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_data_font_release,
     (void*)rive_web_data_blob_present,
     (void*)rive_web_data_blob_get,
+    (void*)rive_web_data_blob_read,
     (void*)rive_web_data_blob_name,
     (void*)rive_web_data_blob_set,
     (void*)rive_web_data_blob_clear,
+    (void*)rive_web_data_blob_seen,
+    (void*)rive_web_data_blob_changed,
     (void*)rive_web_data_artboard_get,
     (void*)rive_web_data_artboard_set,
     (void*)rive_web_data_enum_get,
     (void*)rive_web_data_enum_set,
     (void*)rive_web_data_enum_values,
     (void*)rive_web_data_prop_release,
+    (void*)rive_web_data_prop_equal,
     (void*)rive_web_data_trigger_fire,
     (void*)rive_web_data_list_length,
     (void*)rive_web_data_list_push,
@@ -2169,6 +2199,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_mesh_instances_update,
     (void*)rive_web_mesh_instances_release,
     (void*)rive_web_blob_asset_bytes,
+    (void*)rive_web_blob_asset_read,
     (void*)rive_web_image_from_asset,
     (void*)rive_web_image_width,
     (void*)rive_web_image_height,
