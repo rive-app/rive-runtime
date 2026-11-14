@@ -7330,6 +7330,12 @@ uint32_t dataVmiEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
   return lhs != nullptr && lhs == rhs ? 1 : 0;
 }
 
+uint32_t dataVmiIdentityImpl(WasmScriptingVM* vm, uint32_t vmiHandle)
+{
+  auto instance = resolveVmiArg(vm, vmiHandle);
+  return instance != nullptr ? instance->stableId() : 0;
+}
+
 void dataListRemoveAllOfImpl(
     WasmScriptingVM* vm,
     uint32_t handle,
@@ -7536,6 +7542,28 @@ uint32_t dataContextViewModelImpl(WasmScriptingVM* vm, uint32_t handle)
 void dataContextReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
   releaseHostHandle(vm, handle, WasmScriptingVM::HandleTable::Tag::dataContext);
+}
+
+static DataContext* resolveDataContext(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = vm == nullptr
+                  ? nullptr
+                  : static_cast<HostDataContext*>(vm->handles().resolve(
+                        handle,
+                        WasmScriptingVM::HandleTable::Tag::dataContext));
+  return host != nullptr ? host->context.get() : nullptr;
+}
+
+uint32_t dataContextEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
+{
+  auto first = resolveDataContext(vm, a);
+  return first != nullptr && first == resolveDataContext(vm, b) ? 1 : 0;
+}
+
+uint32_t dataContextIdentityImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto context = resolveDataContext(vm, handle);
+  return context != nullptr ? context->stableId() : 0;
 }
 
 // --- rive_artboard_v1: host-owned artboard inputs ---------------------------
@@ -9708,6 +9736,12 @@ uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
              : 0;
 }
 
+uint32_t fileBindableIdentityImpl(WasmScriptingVM* vm, uint32_t bindable)
+{
+  auto host = resolveBindableArtboard(vm, bindable);
+  return host != nullptr ? host->artboard->stableId() : 0;
+}
+
 // context.bindableArtboard: one of the script's own file's artboards, with no
 // view model of its own, so the host binds it as an authored artboard id.
 uint32_t fileHostBindableImpl(
@@ -10714,6 +10748,20 @@ uint32_t dataPropEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
   return first != nullptr && second != nullptr && first->value == second->value
              ? 1
              : 0;
+}
+
+uint32_t dataPropIdentityImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = resolveHostValue(vm, handle);
+  if (host == nullptr)
+  {
+    return 0;
+  }
+  // Its instance's id and its own within the instance, spread by the odd
+  // multiplier so both reach the low bits a Map picks a bucket from. The
+  // owner, since an editor build can part a retained value from its instance.
+  uint32_t instanceId = host->owner != nullptr ? host->owner->stableId() : 0;
+  return instanceId * 2654435761u + host->value->viewModelPropertyId();
 }
 
 uint32_t blobBytesId(WasmScriptingVM* vm, uint32_t handle)
@@ -13942,6 +13990,13 @@ bool WasmScriptingVM::bootModule()
   {
     m_lastError = "host_newstate failed";
     return false;
+  }
+  // The blob calls only what it was told the host has, so one built for a
+  // newer host still runs on an older one.
+  if (hasExport("host_features"))
+  {
+    uint32_t featureArgs[1] = {kHostFeatures};
+    callModule("host_features", 1, featureArgs);
   }
   // A deterministic run pins math.random, as ScriptingVM::init does for
   // native Luau. Older blobs without the export stay clock-seeded.

@@ -271,6 +271,7 @@ def ns(module, short, ops, lanes=(), boots=False, as_class=True):
 # names; only append, so a bit keeps its meaning.
 FEATURES = [
     'parallelCalls',
+    'identity',
 ]
 HOST_FEATURES = (1 << len(FEATURES)) - 1
 
@@ -337,6 +338,10 @@ NAMESPACES = [
         op('context_parent', [handle('dataContext')], ret='u32'),
         op('context_view_model', [handle('dataContext')], ret='u32'),
         op('context_release', [handle('dataContext')]),
+        # 1 when both handles wrap the same data context.
+        op('context_equal', [handle('a'), handle('b')], ret='u32'),
+        # The data context's stable id, to hash it by; 0 for a stale handle.
+        op('context_identity', [handle('dataContext')], ret='u32'),
         # The Data global: constructors over the file's view models. Empty
         # template means a default instance.
         op('has_view_model', [string('name', 'nameLength')], ret='u32'),
@@ -369,6 +374,9 @@ NAMESPACES = [
         op('vmi_symbol_index', [handle('vmi')], ret='u32'),
         # __eq: both handles wrap the same core instance.
         op('vmi_equal', [handle('a'), handle('b')], ret='u32'),
+        # The core instance's stable id, the same through every handle of it
+        # and no other's; 0 only for a stale handle.
+        op('vmi_identity', [handle('vmi')], ret='u32'),
         # The property's .value: the referenced instance as a new vmi handle.
         op('view_model_get', [handle('property')], ret='u32'),
         op('vmi_list', [handle('vmi'), string('name', 'length')], ret='u32'),
@@ -427,6 +435,9 @@ NAMESPACES = [
         op('prop_release', [handle('property')]),
         # 1 when both handles wrap the same property of the same instance.
         op('prop_equal', [handle('a'), handle('b')], ret='u32'),
+        # A number every handle of the same property of the same instance
+        # answers, to hash it by; 0 for a stale handle.
+        op('prop_identity', [handle('property')], ret='u32'),
         op('trigger_fire', [handle('property')]),
         op('list_length', [handle('property')], ret='u32'),
         op('list_push', [handle('property'), handle('vmi')]),
@@ -1276,6 +1287,9 @@ NAMESPACES = [
                              u32('useDefault')], ret='u32'),
         # Both handles carry the same bindable artboard.
         op('bindable_equal', [handle('a'), handle('b')], ret='u32'),
+        # The bindable artboard's stable id, to hash it by; 0 for a stale
+        # handle.
+        op('bindable_identity', [handle('bindable')], ret='u32'),
     ]),
     # Jobs, workers and audio processors, each an instance of its lane module;
     # kinds and states are lane_layout.py's.
@@ -1453,6 +1467,7 @@ LEAF_OPS = {
         'vmi_blob', 'number_get', 'boolean_get', 'string_get',
         'string_changed', 'color_get', 'enum_get', 'list_length', 'list_get',
         'view_model_get', 'prop_equal', 'blob_seen', 'blob_changed',
+        'vmi_identity', 'prop_identity', 'context_equal', 'context_identity',
     },
     'rive_artboard_v1': {
         'width', 'height', 'bounds', 'node_transform', 'node_world_transform',

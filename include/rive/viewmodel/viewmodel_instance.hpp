@@ -7,6 +7,7 @@
 #include "rive/component.hpp"
 #include "rive/lazy_vector.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/stable_id.hpp"
 #include <cstdint>
 #include <stdio.h>
 #include <vector>
@@ -27,6 +28,7 @@ private:
   LazyVector<DataBindContainer*> m_dependents;
   std::vector<std::pair<SymbolType, ViewModelInstanceValue*>> m_propertySymbols;
   ViewModel* m_ViewModel = nullptr;
+  StableId m_stableId;
 #ifdef TESTING
   /// Set while the import deferred this file level instance's values
   /// (ViewModel::deferInstanceBody), to catch whatever reads them before
@@ -52,6 +54,7 @@ public:
     auto ptr = reinterpret_cast<uint64_t>(instance);
     return static_cast<uint32_t>(ptr ^ (ptr >> 32));
   }
+  uint32_t stableId() { return m_stableId.get(); }
 
   ~ViewModelInstance();
   void addValue(ViewModelInstanceValue* value);

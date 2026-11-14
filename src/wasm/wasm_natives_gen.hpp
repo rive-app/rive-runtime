@@ -215,6 +215,8 @@ uint32_t dataContextImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataContextParentImpl(WasmScriptingVM* vm, uint32_t dataContext);
 uint32_t dataContextViewModelImpl(WasmScriptingVM* vm, uint32_t dataContext);
 void dataContextReleaseImpl(WasmScriptingVM* vm, uint32_t dataContext);
+uint32_t dataContextEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
+uint32_t dataContextIdentityImpl(WasmScriptingVM* vm, uint32_t dataContext);
 uint32_t dataHasViewModelImpl(WasmScriptingVM* vm, const char* name, uint32_t nameLength);
 uint32_t dataNewViewModelImpl(WasmScriptingVM* vm, const char* name, uint32_t nameLength, const char* templateName, uint32_t templateLength);
 void dataVmiReleaseImpl(WasmScriptingVM* vm, uint32_t vmi);
@@ -228,6 +230,7 @@ uint32_t dataVmiPropertyImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name
 uint32_t dataVmiInstanceImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t nameLength);
 uint32_t dataVmiSymbolIndexImpl(WasmScriptingVM* vm, uint32_t vmi);
 uint32_t dataVmiEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
+uint32_t dataVmiIdentityImpl(WasmScriptingVM* vm, uint32_t vmi);
 uint32_t dataViewModelGetImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataVmiListImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataVmiEnumImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
@@ -255,6 +258,7 @@ void dataEnumSetImpl(WasmScriptingVM* vm, uint32_t property, const char* value, 
 uint32_t dataEnumValuesImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataPropReleaseImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataPropEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
+uint32_t dataPropIdentityImpl(WasmScriptingVM* vm, uint32_t property);
 void dataTriggerFireImpl(WasmScriptingVM* vm, uint32_t property);
 uint32_t dataListLengthImpl(WasmScriptingVM* vm, uint32_t property);
 void dataListPushImpl(WasmScriptingVM* vm, uint32_t property, uint32_t vmi);
@@ -556,6 +560,7 @@ uint32_t fileBindableNameImpl(WasmScriptingVM* vm, uint32_t bindable, char* buff
 uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t fileHostBindableImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint32_t useDefault);
 uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
+uint32_t fileBindableIdentityImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t lanesStartImpl(WasmScriptingVM* vm, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount);
 uint32_t lanesStateImpl(WasmScriptingVM* vm, uint32_t lane);
 uint32_t lanesFailedImpl(WasmScriptingVM* vm, uint32_t lane, char* buffer, uint32_t capacity);
@@ -605,10 +610,10 @@ uint32_t sharedBlobReadImpl(WasmScriptingVM* vm, uint32_t blob, uint32_t offset,
 uint32_t sharedRetainImpl(WasmScriptingVM* vm, uint32_t object);
 void sharedReleaseImpl(WasmScriptingVM* vm, uint32_t object);
 
-#ifndef __EMSCRIPTEN__
-// What rt.features answers.
-constexpr uint32_t kHostFeatures = 0x1u;
+// What rt.features answers, and what a booting module is told.
+constexpr uint32_t kHostFeatures = 0x3u;
 
+#ifndef __EMSCRIPTEN__
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -738,6 +743,16 @@ void dataContextRelease(wasm_exec_env_t env, uint32_t dataContext)
     WasmScriptingVM* vm = vmFromEnv(env);
     dataContextReleaseImpl(vm, dataContext);
 }
+uint32_t dataContextEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataContextEqualImpl(vm, a, b);
+}
+uint32_t dataContextIdentity(wasm_exec_env_t env, uint32_t dataContext)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataContextIdentityImpl(vm, dataContext);
+}
 uint32_t dataHasViewModel(wasm_exec_env_t env, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -817,6 +832,11 @@ uint32_t dataVmiEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return dataVmiEqualImpl(vm, a, b);
+}
+uint32_t dataVmiIdentity(wasm_exec_env_t env, uint32_t vmi)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataVmiIdentityImpl(vm, vmi);
 }
 uint32_t dataViewModelGet(wasm_exec_env_t env, uint32_t property)
 {
@@ -959,6 +979,11 @@ uint32_t dataPropEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return dataPropEqualImpl(vm, a, b);
+}
+uint32_t dataPropIdentity(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataPropIdentityImpl(vm, property);
 }
 void dataTriggerFire(wasm_exec_env_t env, uint32_t property)
 {
@@ -2481,6 +2506,11 @@ uint32_t fileBindableEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
     WasmScriptingVM* vm = vmFromEnv(env);
     return fileBindableEqualImpl(vm, a, b);
 }
+uint32_t fileBindableIdentity(wasm_exec_env_t env, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableIdentityImpl(vm, bindable);
+}
 uint32_t lanesStart(wasm_exec_env_t env, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
 {
     WasmScriptingVM* vm = bootVmFromEnv(env);
@@ -2757,6 +2787,8 @@ NativeSymbol kDataNatives[] = {
     {"context_parent", (void*)dataContextParent, "(i)i", nullptr},
     {"context_view_model", (void*)dataContextViewModel, "(i)i", nullptr},
     {"context_release", (void*)dataContextRelease, "(i)", nullptr},
+    {"context_equal", (void*)dataContextEqual, "(ii)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"context_identity", (void*)dataContextIdentity, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"has_view_model", (void*)dataHasViewModel, "(*~)i", nullptr},
     {"new_view_model", (void*)dataNewViewModel, "(*~*~)i", nullptr},
     {"vmi_release", (void*)dataVmiRelease, "(i)", nullptr},
@@ -2770,6 +2802,7 @@ NativeSymbol kDataNatives[] = {
     {"vmi_instance", (void*)dataVmiInstance, "(i*~)i", nullptr},
     {"vmi_symbol_index", (void*)dataVmiSymbolIndex, "(i)i", nullptr},
     {"vmi_equal", (void*)dataVmiEqual, "(ii)i", nullptr},
+    {"vmi_identity", (void*)dataVmiIdentity, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"view_model_get", (void*)dataViewModelGet, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_list", (void*)dataVmiList, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_enum", (void*)dataVmiEnum, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
@@ -2797,6 +2830,7 @@ NativeSymbol kDataNatives[] = {
     {"enum_values", (void*)dataEnumValues, "(i*~)i", nullptr},
     {"prop_release", (void*)dataPropRelease, "(i)", nullptr},
     {"prop_equal", (void*)dataPropEqual, "(ii)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"prop_identity", (void*)dataPropIdentity, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"trigger_fire", (void*)dataTriggerFire, "(i)", nullptr},
     {"list_length", (void*)dataListLength, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"list_push", (void*)dataListPush, "(ii)", nullptr},
@@ -3158,6 +3192,7 @@ NativeSymbol kFileNatives[] = {
     {"bindable_data", (void*)fileBindableData, "(i)i", nullptr},
     {"host_bindable", (void*)fileHostBindable, "(i*~i)i", nullptr},
     {"bindable_equal", (void*)fileBindableEqual, "(ii)i", nullptr},
+    {"bindable_identity", (void*)fileBindableIdentity, "(i)i", nullptr},
 };
 
 NativeSymbol kLanesNatives[] = {

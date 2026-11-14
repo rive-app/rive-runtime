@@ -114,6 +114,16 @@ void rive_web_data_context_release(uint32_t vmHandle, uint32_t dataContext)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     dataContextReleaseImpl(vm, dataContext);
 }
+uint32_t rive_web_data_context_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataContextEqualImpl(vm, a, b);
+}
+uint32_t rive_web_data_context_identity(uint32_t vmHandle, uint32_t dataContext)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataContextIdentityImpl(vm, dataContext);
+}
 uint32_t rive_web_data_has_view_model(uint32_t vmHandle, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -189,6 +199,11 @@ uint32_t rive_web_data_vmi_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return dataVmiEqualImpl(vm, a, b);
+}
+uint32_t rive_web_data_vmi_identity(uint32_t vmHandle, uint32_t vmi)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataVmiIdentityImpl(vm, vmi);
 }
 uint32_t rive_web_data_view_model_get(uint32_t vmHandle, uint32_t property)
 {
@@ -331,6 +346,11 @@ uint32_t rive_web_data_prop_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return dataPropEqualImpl(vm, a, b);
+}
+uint32_t rive_web_data_prop_identity(uint32_t vmHandle, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return dataPropIdentityImpl(vm, property);
 }
 void rive_web_data_trigger_fire(uint32_t vmHandle, uint32_t property)
 {
@@ -1705,6 +1725,11 @@ uint32_t rive_web_file_bindable_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return fileBindableEqualImpl(vm, a, b);
 }
+uint32_t rive_web_file_bindable_identity(uint32_t vmHandle, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return fileBindableIdentityImpl(vm, bindable);
+}
 uint32_t rive_web_lanes_start(uint32_t vmHandle, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
 {
     WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
@@ -1953,6 +1978,8 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_data_context_parent,
     (void*)rive_web_data_context_view_model,
     (void*)rive_web_data_context_release,
+    (void*)rive_web_data_context_equal,
+    (void*)rive_web_data_context_identity,
     (void*)rive_web_data_has_view_model,
     (void*)rive_web_data_new_view_model,
     (void*)rive_web_data_vmi_release,
@@ -1966,6 +1993,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_data_vmi_instance,
     (void*)rive_web_data_vmi_symbol_index,
     (void*)rive_web_data_vmi_equal,
+    (void*)rive_web_data_vmi_identity,
     (void*)rive_web_data_view_model_get,
     (void*)rive_web_data_vmi_list,
     (void*)rive_web_data_vmi_enum,
@@ -1993,6 +2021,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_data_enum_values,
     (void*)rive_web_data_prop_release,
     (void*)rive_web_data_prop_equal,
+    (void*)rive_web_data_prop_identity,
     (void*)rive_web_data_trigger_fire,
     (void*)rive_web_data_list_length,
     (void*)rive_web_data_list_push,
@@ -2332,6 +2361,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_file_bindable_data,
     (void*)rive_web_file_host_bindable,
     (void*)rive_web_file_bindable_equal,
+    (void*)rive_web_file_bindable_identity,
     (void*)rive_web_lanes_start,
     (void*)rive_web_lanes_state,
     (void*)rive_web_lanes_failed,

@@ -1,6 +1,7 @@
 #ifndef _RIVE_BINDABLE_ARTBOARD_HPP_
 #define _RIVE_BINDABLE_ARTBOARD_HPP_
 #include "rive/refcnt.hpp"
+#include "rive/stable_id.hpp"
 #include "rive/file.hpp"
 #include "rive/artboard.hpp"
 
@@ -31,8 +32,10 @@ public:
   /// The file the artboard comes from; null when the creator did not pin
   /// one.
   const File* file() const { return m_file.get(); }
+  uint32_t stableId() { return m_stableId.get(); }
 
 private:
+  StableId m_stableId;
   rcp<const File> m_file;
   std::unique_ptr<ArtboardInstance> m_artboard;
   Artboard* m_source = nullptr;

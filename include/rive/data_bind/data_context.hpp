@@ -4,6 +4,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/data_resolver.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/stable_id.hpp"
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -22,6 +23,7 @@ private:
   static constexpr uint32_t kNoSlot = std::numeric_limits<uint32_t>::max();
 
   rcp<DataContext> m_Parent = nullptr;
+  StableId m_stableId;
   std::vector<rcp<ViewModelInstance>> m_ViewModelInstances;
 
   // Containers (artboard + its state machines) that share this context and
@@ -96,6 +98,7 @@ public:
   void removeDependentContainer(DataBindContainer* container);
 
   rcp<DataContext> parent() { return m_Parent; }
+  uint32_t stableId() { return m_stableId.get(); }
   void parent(rcp<DataContext> value) { m_Parent = value; }
   ViewModelInstanceValue* getViewModelProperty(
       const std::vector<uint32_t>& path) const;

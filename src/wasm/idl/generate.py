@@ -397,10 +397,10 @@ def emit_host():
     lines.append('')
     # The browser lane shares the cores above and has no WAMR to adapt to.
     lines += [
-        '#ifndef __EMSCRIPTEN__',
-        '// What rt.features answers.',
+        '// What rt.features answers, and what a booting module is told.',
         'constexpr uint32_t kHostFeatures = 0x%xu;' % HOST_FEATURES,
         '',
+        '#ifndef __EMSCRIPTEN__',
     ]
     for namespace in NAMESPACES:
         for op in namespace['ops']:
