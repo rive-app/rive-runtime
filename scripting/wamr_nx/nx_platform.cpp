@@ -129,6 +129,7 @@ extern "C"
       static_cast<void>(nn::os::FreeAddressRegion(address));
       return NULL;
     }
+    memset((void*)address, 0, requestSize);
     nn::os::SetMemoryPermission(address, requestSize, toPermission(prot));
     return (void*)address;
   }
