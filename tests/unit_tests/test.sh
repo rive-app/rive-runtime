@@ -49,6 +49,8 @@ while [[ $# -gt 0 ]]; do
   asan)
     echo Will perform address sanitization...
     EXTRA_CONFIG+=(--with-asan)
+    # ASan runs the suite several times slower; give the watchdog room.
+    WATCHDOG_SECONDS=400
     shift # past argument
     ;;
   tsan)
@@ -138,7 +140,7 @@ run_with_watchdog() {
     "$@" &
     local test_pid=$!
     (
-        sleep 300
+        sleep "${WATCHDOG_SECONDS:-300}"
         if kill -0 "$test_pid" 2>/dev/null; then
             echo "==== HANG DETECTED at $(date) — capturing diagnostics ===="
             echo "---- sample (5s) ----"

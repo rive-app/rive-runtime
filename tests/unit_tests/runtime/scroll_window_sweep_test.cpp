@@ -173,20 +173,29 @@ std::string describe(const std::set<int>& indices)
   return stream.str();
 }
 
+std::set<int> keys(const std::map<int, float>& realized)
+{
+  std::set<int> out;
+  for (auto& entry : realized)
+  {
+    out.insert(entry.first);
+  }
+  return out;
+}
+
+// Called for every offset of the sweep, so it only allocates to describe a
+// mismatch.
 std::string compare(const ScanResult& expected, const ScanResult& actual)
 {
-  std::set<int> expectedKeys, actualKeys;
-  for (auto& entry : expected.realized)
+  if (!std::equal(
+          expected.realized.begin(),
+          expected.realized.end(),
+          actual.realized.begin(),
+          actual.realized.end(),
+          [](const auto& a, const auto& b) { return a.first == b.first; }))
   {
-    expectedKeys.insert(entry.first);
-  }
-  for (auto& entry : actual.realized)
-  {
-    actualKeys.insert(entry.first);
-  }
-  if (expectedKeys != actualKeys)
-  {
-    return "realized " + describe(expectedKeys) + "vs " + describe(actualKeys);
+    return "realized " + describe(keys(expected.realized)) + "vs " +
+           describe(keys(actual.realized));
   }
   for (auto& entry : expected.realized)
   {

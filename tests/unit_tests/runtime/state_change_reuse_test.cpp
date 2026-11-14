@@ -534,12 +534,12 @@ Frames playReassigned(bool reuse)
   return frames;
 }
 
-// A test asset artboard's first machine, played for 90 frames.
-Frames playAsset(const std::string& path, size_t artboardIndex, bool reuse)
+// A test asset artboard's first machine, played for 90 frames on a new
+// instance of it.
+Frames playAsset(const File* file, size_t artboardIndex, bool reuse)
 {
   StateMachineInstance::sm_reuseStateInstances = reuse;
   Frames frames;
-  auto file = importAsset(path);
   auto artboard = file->artboardAt(artboardIndex);
   auto machine = artboard->stateMachineAt(0);
   for (int frame = 0; frame < 90; frame++)
@@ -614,13 +614,14 @@ TEST_CASE(
     }
     for (size_t a = 0; a < file->artboardCount(); a++)
     {
-      auto artboard = file->artboardAt(a);
+      auto artboard = file->artboard(a);
       if (artboard == nullptr || artboard->stateMachineCount() == 0)
       {
         continue;
       }
       INFO(path << " artboard " << a);
-      REQUIRE(playAsset(path, a, true) == playAsset(path, a, false));
+      REQUIRE(
+          playAsset(file.get(), a, true) == playAsset(file.get(), a, false));
       machines++;
     }
   }

@@ -101,12 +101,17 @@ struct Switches
 using Frames = std::vector<std::vector<double>>;
 
 // A test asset artboard's first machine, bound to the artboard's default
-// view model instance when it has one, played for 90 frames.
-Frames playAsset(const std::string& path, size_t artboardIndex, bool on)
+// view model instance when it has one, played for 90 frames on a new
+// instance of it. The switches are only read by instances, so both plays
+// can share the one imported file.
+Frames playAsset(
+    const File* file,
+    const std::string& path,
+    size_t artboardIndex,
+    bool on)
 {
   Switches switches(on);
   Frames frames;
-  auto file = importAsset(path);
   auto artboard = file->artboardAt(artboardIndex);
   auto machine = artboard->stateMachineAt(0);
   // Bound, this one trips verifyFrozenPose on master too: a frozen layer
@@ -256,13 +261,15 @@ TEST_CASE(
     }
     for (size_t a = 0; a < file->artboardCount(); a++)
     {
-      auto artboard = file->artboardAt(a);
+      auto artboard = file->artboard(a);
       if (artboard == nullptr || artboard->stateMachineCount() == 0)
       {
         continue;
       }
       INFO(path << " artboard " << a);
-      REQUIRE(playAsset(path, a, true) == playAsset(path, a, false));
+      REQUIRE(
+          playAsset(file.get(), path, a, true) ==
+          playAsset(file.get(), path, a, false));
       machines++;
     }
   }

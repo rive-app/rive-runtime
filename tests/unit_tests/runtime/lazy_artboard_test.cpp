@@ -273,14 +273,16 @@ TEST_CASE("lazy artboard bodies draw the same frames", "[lazy_artboard]")
   {
     INFO(path);
     std::vector<uint8_t> bytes = ReadFile(path);
+    // The eager side doesn't depend on lazyAnimations: draw it once.
+    SVGFactory eagerFactory;
+    ImportResult result;
+    auto eager = import(bytes, false, &result, &eagerFactory, 0);
+    REQUIRE(eager != nullptr);
+    auto e = svgFrames(eager.get(), 60);
     for (bool lazyAnimations : {false, true})
     {
       INFO("lazy animations " << lazyAnimations);
-      SVGFactory eagerFactory;
       SVGFactory lazyFactory;
-      ImportResult result;
-      auto eager = import(bytes, false, &result, &eagerFactory, 0);
-      REQUIRE(eager != nullptr);
       auto lazy = import(
           bytes,
           true,
@@ -288,7 +290,6 @@ TEST_CASE("lazy artboard bodies draw the same frames", "[lazy_artboard]")
           &lazyFactory,
           lazyAnimations ? 1 : 0);
       REQUIRE(lazy != nullptr);
-      auto e = svgFrames(eager.get(), 60);
       auto l = svgFrames(lazy.get(), 60);
       REQUIRE(l.size() == e.size());
       for (size_t i = 0; i < e.size(); i++)
