@@ -113,11 +113,6 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
       case RenderCmd::drawImageMeshInstanced:
         r.read<DrawImageMeshInstancedPOD>();
         break;
-      case RenderCmd::applyLayerMask:
-        // Neither a resource mutation nor a path draw: it scales
-        // what the canvas already holds, so it lands in no tally.
-        r.read<ApplyLayerMaskPOD>();
-        break;
       case RenderCmd::modulateOpacity:
         r.read<OpacityPOD>();
         break;
@@ -130,6 +125,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
       case RenderCmd::canvasContentEnd:
       case RenderCmd::canvasSample:
         r.read<ResIdPOD>();
+        break;
+      case RenderCmd::composeLayerMask:
+        r.read<ComposeLayerMaskPOD>();
         break;
       case RenderCmd::makePath:
         r.read<MakePathPOD>();

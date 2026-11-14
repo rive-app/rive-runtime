@@ -70,7 +70,6 @@ enum class RenderCmd : uint8_t
   drawImageMeshInstanced, // DrawImageMeshInstancedPOD
   modulateOpacity,        // OpacityPOD
   modulateColor,          // ModulateColorPOD
-  applyLayerMask,         // ApplyLayerMaskPOD
 
   // ---- render target scheduling ----
   // Canvas content records inline between these brackets; replay redirects
@@ -84,14 +83,16 @@ enum class RenderCmd : uint8_t
   // later mutations.
   resourceNewVersion, // ResourceVersionPOD
 
-  // Follows a canvas drawPath whose paint is modulated by a canvas image,
-  // naming that image so the canvas schedule sees the edge without tracking
-  // paint state. Replays as a no-op.
+  // Names a canvas that a paint or a mask composite samples, so the canvas
+  // schedule sees the edge without tracking paint state. Replays as a no-op.
   canvasSample, // ResIdPOD (flagged image id)
+
+  // A layer mask composite, scheduled as the frame of its result canvas.
+  composeLayerMask, // ComposeLayerMaskPOD
 
   // Keep equal to the last real opcode so replay rejects corrupt type bytes
   // instead of desyncing.
-  lastRenderCmd = canvasSample,
+  lastRenderCmd = composeLayerMask,
 };
 
 // A bare resource id payload.
@@ -325,15 +326,6 @@ struct DrawImagePOD
   float additiveness;
 };
 
-// A layer-mask apply: multiply the current target by a factor derived from
-// `mask`. Pointer-free and padding-free, matching the DrawImagePOD convention.
-struct ApplyLayerMaskPOD
-{
-  RenderHandle mask;
-  uint8_t wrapX, wrapY, filter; // ImageSampler
-  uint8_t mode;                 // LayerMaskMode
-};
-
 struct DrawImageMeshPOD
 {
   RenderHandle image;
@@ -389,6 +381,15 @@ struct CanvasContentPOD
   uint32_t clearColor; // ARGB; the canvas frame's clear (script-controlled)
 };
 
+// Flagged canvas ids, as in CanvasContentPOD.
+struct ComposeLayerMaskPOD
+{
+  RenderHandle content;
+  RenderHandle coverage;
+  RenderHandle result;
+  uint32_t mode; // LayerMaskMode
+};
+
 // Opcode to payload table, one X(opcode, POD) per command; void means no
 // payload. Every size a skip or filter walk uses derives from here, so a new
 // command cannot desync them. Blobs ride separately and never affect sizes.
@@ -433,11 +434,11 @@ struct CanvasContentPOD
   X(drawImageMeshInstanced, DrawImageMeshInstancedPOD)                         \
   X(modulateOpacity, OpacityPOD)                                               \
   X(modulateColor, ModulateColorPOD)                                           \
-  X(applyLayerMask, ApplyLayerMaskPOD)                                         \
   X(canvasContentBegin, CanvasContentPOD)                                      \
   X(canvasContentEnd, ResIdPOD)                                                \
   X(resourceNewVersion, ResourceVersionPOD)                                    \
-  X(canvasSample, ResIdPOD)
+  X(canvasSample, ResIdPOD)                                                    \
+  X(composeLayerMask, ComposeLayerMaskPOD)
 
 namespace detail
 {

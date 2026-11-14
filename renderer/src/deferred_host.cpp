@@ -144,10 +144,7 @@ void DeferredInlineHost::beginRecord(
   m_session->recordOreReplayMarker();
 }
 
-bool DeferredInlineHost::replayOre() const
-{
-  return m_session->oreContext().stream().commandBytes().size() != 0;
-}
+bool DeferredInlineHost::replayOre() const { return m_session->replaysOre(); }
 
 static void warnDroppedDraws(uint32_t droppedDraws)
 {

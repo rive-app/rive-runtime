@@ -66,10 +66,6 @@ public:
   const Mat2D& imageMatrix() const { return m_imageMatrix; }
   BlendMode blendMode() const { return m_blendMode; }
   float additiveness() const { return m_additiveness; }
-  // A layer-mask apply multiplies the destination by a factor derived from
-  // its (image) paint rather than compositing over it.
-  bool isLayerMask() const { return m_isLayerMask; }
-  LayerMaskMode layerMaskMode() const { return m_layerMaskMode; }
   Type type() const { return m_type; }
   // Bitwise OR of every subpass's subpassDrawContents().
   gpu::DrawContents combinedDrawContents() const
@@ -223,10 +219,6 @@ protected:
   const Mat2D m_imageMatrix;
   const BlendMode m_blendMode;
   const float m_additiveness;
-  // Set from the paint in PathDraw's constructor rather than threaded
-  // through Draw's, which every draw type would otherwise have to pass.
-  bool m_isLayerMask = false;
-  LayerMaskMode m_layerMaskMode = LayerMaskMode::alpha;
   const Type m_type;
   IAABB m_clippedPixelBounds;
   std::optional<IAABB> m_clippingPixelBounds;

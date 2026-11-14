@@ -988,12 +988,6 @@ PathDraw::PathDraw(
                       !paint->getIsStroked() && paint->getFeather() == 0 &&
                       paint->getType() != gpu::PaintType::clipUpdate;
 
-  if (paint->getIsLayerMask())
-  {
-    m_isLayerMask = true;
-    m_layerMaskMode = paint->getLayerMaskMode();
-  }
-
   if (paint->getFeather() != 0)
   {
     m_featherRadius = featherRadiusFromFeather(paint->getFeather());

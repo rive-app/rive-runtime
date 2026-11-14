@@ -9,10 +9,15 @@
 #include "rive/renderer/cmd/gpu_census.hpp"
 #include "rive/renderer/cmd/render_replay.hpp"
 #include "rive/renderer/ore/cmd/ore_replay.hpp"
+#ifdef RIVE_SESSION_LAYER_MASK
+#include "rive/renderer/ore/layer_mask_compositor.hpp"
+#endif
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/render_target.hpp"
 #include <algorithm>
+#include <atomic>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -108,6 +113,8 @@ struct DeferredFrame
   ore::ReplayCaps oreCaps;
   // The packed size of the target scripts drew into, or 0.
   uint32_t oreTargetSize = 0;
+  bool replaysOre = false;
+  std::shared_ptr<std::atomic<bool>> layerMaskFailed;
 };
 
 // What a frame carries besides its byte streams.
@@ -121,6 +128,8 @@ inline void snapshotFrameState(DeferredSession& session, DeferredFrame& f)
   f.oreSegments = session.oreSegments();
   f.oreCaps = session.oreContext().caps();
   f.oreTargetSize = session.oreContext().drawnTargetSize();
+  f.replaysOre = session.replaysOre();
+  f.layerMaskFailed = session.layerMaskFailed();
 }
 
 inline DeferredFrame snapshotFrame(DeferredSession& session)
@@ -177,7 +186,8 @@ public:
         session.schedulerSegments(),
         session.oreSegments(),
         session.oreContext().caps(),
-        session.oreContext().drawnTargetSize());
+        session.oreContext().drawnTargetSize(),
+        session.layerMaskFailed().get());
   }
 
   // Snapshot form: replay an owned frame, independent of the session.
@@ -201,7 +211,8 @@ public:
         frame.segments,
         frame.oreSegments,
         frame.oreCaps,
-        frame.oreTargetSize);
+        frame.oreTargetSize,
+        frame.layerMaskFailed.get());
   }
 
   // Drop the resident tables so the next replay recreates everything.
@@ -209,6 +220,9 @@ public:
   {
     m_2d = ResourceTable{};
     m_ore = ore::cmd::OreResident{};
+#ifdef RIVE_SESSION_LAYER_MASK
+    m_layerMaskCompositor = nullptr;
+#endif
   }
 
   ResourceTable& table() { return m_2d; }
@@ -237,7 +251,8 @@ private:
       const std::vector<DeferredSegment>& segments,
       const std::vector<DeferredOreSegment>& oreSegments,
       const ore::ReplayCaps& oreCaps,
-      uint32_t oreTargetSize)
+      uint32_t oreTargetSize,
+      std::atomic<bool>* layerMaskFailed)
   {
     m_stats = ReplayStats{};
     // With no Ore context or a target resized since recording the passes
@@ -309,6 +324,19 @@ private:
       openContentId = id;
       return openContentRenderer;
     };
+#ifdef RIVE_SESSION_LAYER_MASK
+    hooks.composeLayerMask = [&](const ComposeLayerMaskPOD& c) {
+      composeLayerMask(
+          sink,
+          resolveCanvas(c.content & kCanvasHandleMask),
+          resolveCanvas(c.coverage & kCanvasHandleMask),
+          resolveCanvas(c.result & kCanvasHandleMask),
+          static_cast<LayerMaskMode>(c.mode),
+          layerMaskFailed);
+    };
+#else
+    (void)layerMaskFailed;
+#endif
     // A stale ore replay marker in the 2D stream replays as a no-op.
 
     auto subSpan = [](Span<const uint8_t> s, uint32_t begin, uint32_t end) {
@@ -558,6 +586,54 @@ public:
   }
 
 private:
+#ifdef RIVE_SESSION_LAYER_MASK
+  // A failed composite clears the result, so the layer draws empty, not stale.
+  void composeLayerMask(
+      DeferredFrameSink& sink,
+      gpu::RenderCanvas* content,
+      gpu::RenderCanvas* coverage,
+      gpu::RenderCanvas* result,
+      LayerMaskMode mode,
+      std::atomic<bool>* failed)
+  {
+    if (result == nullptr || !result->isBacked())
+    {
+      return;
+    }
+    ore::Context* ore = sink.oreContext();
+    bool composed = false;
+    if (ore != nullptr && content != nullptr && coverage != nullptr &&
+        sink.canOpenOreFrameEarly())
+    {
+      if (m_layerMaskCompositor == nullptr)
+      {
+        m_layerMaskCompositor = std::make_unique<ore::LayerMaskCompositor>();
+      }
+      sink.beginOreFrame();
+      ore->setRenderTarget(nullptr);
+      composed = m_layerMaskCompositor
+                     ->compose(*ore, content, coverage, result, mode);
+      sink.endOreFrame();
+      sink.afterOreFrame();
+      if (failed != nullptr && m_layerMaskCompositor->failed())
+      {
+        failed->store(true, std::memory_order_relaxed);
+      }
+    }
+    if (composed)
+    {
+      return;
+    }
+    RIVE_WARN_THROTTLED("rive deferred: a layer mask could not composite, "
+                        "so its layer draws empty\n");
+    if (sink.beginCanvasContent(result, 0) != nullptr)
+    {
+      sink.endCanvasContent();
+    }
+  }
+  std::unique_ptr<ore::LayerMaskCompositor> m_layerMaskCompositor;
+#endif
+
   ResourceTable m_2d;          // resident 2D resources
   ore::cmd::OreResident m_ore; // resident Ore resources
   ReplayStats m_stats;

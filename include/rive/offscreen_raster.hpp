@@ -204,6 +204,14 @@ private:
   Renderer* m_renderer;
 };
 
+bool makeLayerMaskCanvases(
+    cmd::DeferredCanvasHost* host,
+    uint32_t widthPx,
+    uint32_t heightPx,
+    rcp<gpu::RenderCanvas>* content,
+    rcp<gpu::RenderCanvas>* coverage,
+    rcp<gpu::RenderCanvas>* result);
+
 // Which renderer a composite should be issued through, and the opacity it has
 // to supply itself.
 struct CompositePlacement

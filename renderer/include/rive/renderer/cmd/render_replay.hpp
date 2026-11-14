@@ -82,6 +82,7 @@ struct ReplayHooks
   // it; a null return safely drops that canvas's content.
   std::function<Renderer*(RenderHandle canvasId, uint32_t clearColor)>
       beginCanvasContent = nullptr;
+  std::function<void(const ComposeLayerMaskPOD&)> composeLayerMask = nullptr;
   // Readies a resident image for a paint to sample. Draws prep their own
   // images in the backend's renderer, but a paint takes its image as is, and
   // a backend whose images upload lazily (web) leaves it unsampleable.

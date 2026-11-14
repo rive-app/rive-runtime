@@ -2,16 +2,7 @@
  * Copyright 2026 Rive
  */
 
-// Pixel-level validation of the layer-mask offscreen path.
-//
-// STEP 3 of the layer-mask work composites the masked content *unmasked* on
-// purpose, and this is the test that makes that worth doing. It proves the
-// entire geometry chain -- one raster plan shared by both canvases, the two
-// CanvasContentScopes, the composite placement, the pixel snap, the exact
-// raster-scale inverse, the opacity carry-over -- against a real GPU context,
-// with zero dependency on the mask shader that does not exist yet.
-//
-// If this passes, the only thing left that can be wrong in step 4 is the blend.
+// Checks the layer mask offscreen path end to end against a real GPU context.
 //
 // As in bitmap_cache_pixel_test.cpp the golden is a second render rather than a
 // stored PNG: nothing to rebaseline, no per-backend drift, and no way to bless
@@ -33,6 +24,7 @@
 #include "rive/node.hpp"
 #include "rive/renderer/cmd/deferred_replayer.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
+#include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/solid_color.hpp"
@@ -251,7 +243,29 @@ struct MaskSpec
   SourceState source = SourceState::drawn;
   // The frame is meant to decline the mask and draw the range inline.
   bool drawsInline = false;
+  // A script pass draws the screen target first, which pins the frame's
+  // script Ore to the screen frame.
+  bool scriptDrawsTarget = false;
+  // Frames drawn on one session. Masks reuse their rasters after the first.
+  int frames = 1;
 };
+
+// Records a script drawing the screen target beneath Rive's content.
+void recordTargetPass(cmd::DeferredSession& session, int w, int h)
+{
+  auto& ore = session.oreContext();
+  ore.setTarget(ore::Context::TargetDesc::color8(w, h, false));
+  rcp<ore::TextureView> view = ore.targetView();
+  REQUIRE(view != nullptr);
+  ore::RenderPassDesc desc{};
+  desc.colorAttachments[0].view = view.get();
+  desc.colorAttachments[0].loadOp = ore::LoadOp::load;
+  desc.colorAttachments[0].storeOp = ore::StoreOp::store;
+  desc.colorCount = 1;
+  auto pass = ore.beginRenderPass(desc);
+  REQUIRE(pass != nullptr);
+  pass->finish();
+}
 
 // `spec.present == false` renders the same content with no mask object and the
 // would-be source hidden -- plain vectors, which is the golden.
@@ -266,7 +280,8 @@ std::vector<uint8_t> renderOnce(
   auto* rc = window->renderContext();
   REQUIRE(rc != nullptr);
 
-  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  cmd::DeferredSession session(
+      rive::ore::ReplayCaps::from(*rc->getOreContext()));
   session.bindRenderContext(rc);
 
   Artboard artboard(&session);
@@ -425,65 +440,72 @@ std::vector<uint8_t> renderOnce(
   const int h = static_cast<int>(std::ceil(kArtboardSize * deviceScale)) + 8;
   window->resize(w, h);
 
-  auto windowRenderer = window->beginFrame(
-      {.name = "layer_mask",
-       .clearColor = 0xff000000,
-       .disableRasterOrdering = disableRasterOrdering});
-  auto mainDesc = rc->frameDescriptor();
-
-  artboard.advance(0.0f);
-  Renderer* screen = session.screenRenderer();
-  screen->save();
-  screen->transform(Mat2D::fromScale(deviceScale, deviceScale));
-  if (rotationRadians != 0.f)
-  {
-    // Around the artboard's middle, so the content stays on screen. A
-    // rotated CTM is not axis aligned, which turns off beginComposite's
-    // pixel snap and leaves the composite sampling the raster bilinearly --
-    // the case the guard band exists for.
-    const float mid = kArtboardSize * .5f;
-    screen->translate(mid, mid);
-    screen->transform(Mat2D::fromRotation(rotationRadians));
-    screen->translate(-mid, -mid);
-  }
-  artboard.drawInternal(screen);
-  screen->restore();
-
-  cmd::DeferredFrame frame = cmd::snapshotFrame(session);
-  session.resetFrame();
-  rive_tests::TestingWindowFrameSink sink(window, rc, mainDesc);
-  cmd::DeferredReplayer replayer;
-  replayer.replayFrame(frame, sink);
-  if (spec.present && !disableRasterOrdering && !spec.drawsInline)
-  {
-    // Two canvases per mask -- coverage and content. If a mask silently
-    // fell back to an inline draw every comparison below would be
-    // tautological.
-    CHECK(sink.canvasFrames() == (spec.nested ? 4 : 2));
-  }
-  else
-  {
-    // No mask, or a frame that cannot apply one: either way nothing should
-    // have rasterized offscreen.
-    CHECK(sink.canvasFrames() == 0);
-  }
-
   std::vector<uint8_t> pixels;
-  window->endFrame(&pixels);
+  cmd::DeferredReplayer replayer;
+  for (int f = 0; f < spec.frames; f++)
+  {
+    auto windowRenderer = window->beginFrame(
+        {.name = "layer_mask",
+         .clearColor = 0xff000000,
+         .disableRasterOrdering = disableRasterOrdering});
+    auto mainDesc = rc->frameDescriptor();
+
+    if (spec.scriptDrawsTarget)
+    {
+      recordTargetPass(session, w, h);
+    }
+    artboard.advance(0.0f);
+    Renderer* screen = session.screenRenderer();
+    screen->save();
+    screen->transform(Mat2D::fromScale(deviceScale, deviceScale));
+    if (rotationRadians != 0.f)
+    {
+      // Around the artboard's middle, so the content stays on screen. A
+      // rotated CTM is not axis aligned, which turns off beginComposite's
+      // pixel snap and leaves the composite sampling the raster bilinearly --
+      // the case the guard band exists for.
+      const float mid = kArtboardSize * .5f;
+      screen->translate(mid, mid);
+      screen->transform(Mat2D::fromRotation(rotationRadians));
+      screen->translate(-mid, -mid);
+    }
+    artboard.drawInternal(screen);
+    screen->restore();
+
+    cmd::DeferredFrame frame = cmd::snapshotFrame(session);
+    session.resetFrame();
+    rive_tests::TestingWindowFrameSink sink(window, rc, mainDesc);
+    replayer.replayFrame(frame, sink);
+    if (f > 0)
+    {
+      // Later frames reuse the rasters.
+      CHECK(sink.canvasFrames() == 0);
+    }
+    else if (spec.present && !spec.drawsInline)
+    {
+      // Coverage and content each open a canvas frame, the result does not.
+      // A mask that silently drew inline would make every comparison vacuous.
+      CHECK(sink.canvasFrames() == (spec.nested ? 4 : 2));
+    }
+    else
+    {
+      // No mask, so nothing should have rasterized offscreen.
+      CHECK(sink.canvasFrames() == 0);
+    }
+
+    pixels.clear();
+    window->endFrame(&pixels);
+  }
   return pixels;
 }
 
-// The two blend sites that implement the op. Every case that asserts masking
-// works runs on both.
+// Every case that asserts masking works runs on both windows.
 enum class MaskWindow
 {
-  // rasterOrdering: the op happens in draw_raster_order_path.frag.
+  // Metal Ore over rasterOrdering canvases.
   metal,
-  // ANGLE on Metal, an ES 3.0 context with 4x MSAA. Every frame, the
-  // offscreen canvases included (the sink copies the main descriptor), is
-  // depthStencil -- the configuration WebGL2 lands on without
-  // WEBGL_shader_pixel_local_storage, which is to say in every stock
-  // browser. The op is BlendEquation::layerMask there.
+  // ANGLE on Metal, an ES 3.0 context with 4x MSAA, so GL Ore over
+  // depthStencil canvases, which is what stock WebGL2 browsers land on.
   angleMSAA,
 };
 
@@ -939,6 +961,50 @@ TEST_CASE(
   CHECK(d.significantFraction == 0.0);
 }
 
+TEST_CASE(
+    "a nested mask survives a script drawing the screen target",
+    "[layer-mask-pixel]")
+{
+  // The outer mask's content canvas samples the inner mask's result, so the
+  // inner composite has to replay first even when a script pass pins the
+  // frame's script Ore to the screen frame. The second frame reuses every
+  // raster, so a stale inner result would stay.
+  const MaskWindow kind = GENERATE(MaskWindow::metal, MaskWindow::angleMSAA);
+  auto window = makeWindow(kind);
+  if (window == nullptr)
+  {
+    SUCCEED("no " << windowName(kind) << " testing window here");
+    return;
+  }
+  printf("[layer-mask] on %s\n", windowName(kind));
+
+  auto vectors = renderOnce(
+      window.get(),
+      {.present = false, .nested = true, .scriptDrawsTarget = true},
+      1.0f,
+      1.0f);
+  REQUIRE(nonBackgroundPixels(vectors) > 1000);
+  for (int frames : {1, 2})
+  {
+    INFO("frames " << frames);
+    auto nested = renderOnce(
+        window.get(),
+        {.present = true,
+         .mode = LayerMaskMode::alpha,
+         .color = 0xffffffff,
+         .coversEverything = true,
+         .nested = true,
+         .scriptDrawsTarget = true,
+         .frames = frames},
+        1.0f,
+        1.0f);
+    auto d = Diff::between(nested, vectors);
+    d.report("nested masks after a target pass");
+    CHECK(d.maxChannel <= 2);
+    CHECK(d.significantFraction == 0.0);
+  }
+}
+
 TEST_CASE("a partial mask only ever removes content", "[layer-mask-pixel]")
 {
   // Asserted structurally rather than at hand-picked coordinates: the
@@ -1161,74 +1227,42 @@ TEST_CASE(
   CHECK(d.significantFraction == 0.0);
 }
 
-TEST_CASE(
-    "a frame that cannot mask draws the layer unmasked",
-    "[layer-mask-pixel]")
+TEST_CASE("a frame without raster ordering still masks", "[layer-mask-pixel]")
 {
-  // The documented degrade. applyLayerMask no-ops on any interlock mode but
-  // rasterOrdering and, where the backend implements the blend,
-  // depthStencil, so the promise is "unmasked, not wrong" -- but that
-  // promise is only keepable if the mask never rasterizes in the first place.
-  // Once it has, the layer is unmasked *and* clipped to a box computed as
-  // content-and-coverage, which is content the author never asked to lose.
-  // So this asserts the strong form: byte-for-byte the plain vector draw, and
-  // nothing rasterized offscreen at all.
-  // Metal only: disableRasterOrdering is what leaves its frame unable to
-  // mask, and on a backend with supportsDepthStencilLayerMask the MSAA frame
-  // it falls back to can mask after all.
+  // The composite runs in Ore, so the canvases' interlock mode cannot stop
+  // it. disableRasterOrdering puts Metal on atomics.
   auto window = makeWindow(MaskWindow::metal);
   if (window == nullptr)
   {
     SUCCEED("no GPU testing window on this platform");
     return;
   }
+  auto render = [&](MaskSpec spec) {
+    return renderOnce(window.get(), spec, 1.0f, 1.0f, 0.f, true);
+  };
+  auto alpha = render({.present = true, .mode = LayerMaskMode::alpha});
+  auto inverted = render(
+      {.present = true, .mode = LayerMaskMode::invertedAlpha});
+  auto vectors = render({.present = false});
+  REQUIRE(alpha.size() == vectors.size());
+  REQUIRE(nonBackgroundPixels(alpha) > 100);
+  REQUIRE(nonBackgroundPixels(inverted) > 100);
+  CHECK(Diff::between(alpha, vectors).significantFraction > 0.0);
 
-  const MaskSpec spec = {.present = true, .mode = LayerMaskMode::alpha};
-
-  // Each comparison stays inside one interlock mode. The modes do not agree
-  // with each other to the byte -- coverage and blending are computed
-  // differently -- so a cross-mode diff would be measuring the renderer, not
-  // the mask.
-  auto supported = renderOnce(window.get(), spec, 1.0f, 1.0f);
-  auto supportedVectors = renderOnce(
-      window.get(),
-      {.present = false},
-      1.0f,
-      1.0f);
-
-  // Positive control. Without it a fix that disabled masking outright would
-  // pass the real assertion below, and so would a testing window that
-  // quietly ignored disableRasterOrdering.
-  REQUIRE(supported.size() == supportedVectors.size());
-  REQUIRE(nonBackgroundPixels(supported) > 100);
+  // Masked by f and by 1 - f, the two sum back to the unmasked draw. The
+  // opaque black background counts twice in the sum, so it comes back out.
+  size_t significant = 0;
+  for (size_t i = 0; i < alpha.size(); i++)
   {
-    Diff d = Diff::between(supported, supportedVectors);
-    d.report("masked vs vectors, masking supported");
-    // The fixture's source does not cover everything, so a working mask
-    // must differ from the unmasked draw.
-    CHECK(d.significantFraction > 0.0);
+    const int background = (i % 4 == 3) ? 255 : 0;
+    const int sum = static_cast<int>(alpha[i]) + static_cast<int>(inverted[i]) -
+                    background;
+    if (std::abs(sum - static_cast<int>(vectors[i])) > 2)
+    {
+      significant++;
+    }
   }
-
-  auto degraded = renderOnce(
-      window.get(),
-      spec,
-      1.0f,
-      1.0f,
-      0.f,
-      /*disableRasterOrdering=*/true);
-  auto degradedVectors = renderOnce(
-      window.get(),
-      {.present = false},
-      1.0f,
-      1.0f,
-      0.f,
-      /*disableRasterOrdering=*/true);
-  REQUIRE(degraded.size() == degradedVectors.size());
-  REQUIRE(nonBackgroundPixels(degraded) > 100);
-  Diff d = Diff::between(degraded, degradedVectors);
-  d.report("masked vs vectors, masking unsupported");
-  CHECK(d.maxChannel <= 2);
-  CHECK(d.significantFraction == 0.0);
+  CHECK(significant == 0);
 }
 
 #endif // RIVE_CANVAS

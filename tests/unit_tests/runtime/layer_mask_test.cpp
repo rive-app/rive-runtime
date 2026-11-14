@@ -34,6 +34,7 @@
 
 #ifdef RIVE_CANVAS
 #include "common/render_context_null.hpp"
+#include "rive/renderer/cmd/deferred_replayer.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
 #include "rive/renderer/cmd/render_commands.hpp"
 #endif
@@ -490,6 +491,15 @@ TEST_CASE(
 #ifdef RIVE_CANVAS
 namespace
 {
+// Masks composite in Ore, which a session only offers once it knows its
+// replay device.
+rive::ore::ReplayCaps knownCaps()
+{
+  rive::ore::ReplayCaps caps;
+  caps.featuresKnown = true;
+  return caps;
+}
+
 // canvasContentBegin ops in the recorded stream, i.e. how many times something
 // actually rasterized offscreen this frame.
 size_t countCanvasOpens(const rive::cmd::RenderCommandBuffer& buffer)
@@ -533,7 +543,7 @@ TEST_CASE(
   // Sized from the content, a 10x10 badge needs ~10 texels. The cap never
   // binds, so the scale comes out exactly as requested.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -650,7 +660,7 @@ TEST_CASE("an authored rectangle replaces the measured box", "[layer-mask]")
   // -- a scripted drawable paints wherever its script says -- and for
   // deliberately cropping a mask to a region.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -689,7 +699,7 @@ TEST_CASE("a degenerate rectangle falls back to measuring", "[layer-mask]")
   // Trusting it would collapse the raster and drop the layer, so it measures
   // instead.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -713,6 +723,73 @@ TEST_CASE("a degenerate rectangle falls back to measuring", "[layer-mask]")
   CHECK_FALSE(f.mask->testBox().isEmptyOrNaN());
 }
 
+TEST_CASE(
+    "masks need a bound device that runs embedded shaders",
+    "[layer-mask]")
+{
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  CHECK_FALSE(session.supportsLayerMask());
+  session.bindRenderContext(renderContext.get());
+  CHECK(session.supportsLayerMask());
+
+  // Unreal, whose shaders come only from cooked file assets.
+  rive::ore::ReplayCaps cooked = knownCaps();
+  cooked.embeddedShaders = false;
+  session.bindReplayCaps(cooked);
+  CHECK_FALSE(session.supportsLayerMask());
+
+  rive::Artboard artboard(&session);
+  MaskFixture f = buildMaskFixture(artboard);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  artboard.advance(0.0f);
+  artboard.drawInternal(session.screenRenderer());
+  CHECK(countCanvasOpens(session.commandBuffer()) == 0);
+  CHECK(f.mask->testWidthPx() == 0);
+}
+
+TEST_CASE("a replay that cannot composite turns masks off", "[layer-mask]")
+{
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  session.bindRenderContext(renderContext.get());
+  REQUIRE(session.supportsLayerMask());
+
+  // The frame carries the latch so replay can set it from its own thread.
+  rive::cmd::DeferredFrame frame = rive::cmd::takeFrame(session);
+  REQUIRE(frame.layerMaskFailed != nullptr);
+  frame.layerMaskFailed->store(true);
+  CHECK_FALSE(session.supportsLayerMask());
+
+  session.bindReplayCaps(knownCaps());
+  CHECK(session.supportsLayerMask());
+}
+
+TEST_CASE("a frame that only masks still replays ore", "[layer-mask]")
+{
+  // Hosts hand replay an Ore context only for frames that need one, and a
+  // composite needs it while leaving the Ore stream empty.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  session.bindRenderContext(renderContext.get());
+
+  rive::Artboard artboard(&session);
+  MaskFixture f = buildMaskFixture(artboard);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  artboard.advance(0.0f);
+  CHECK_FALSE(session.replaysOre());
+  artboard.drawInternal(session.screenRenderer());
+  REQUIRE(f.mask->testWidthPx() > 0);
+  CHECK(session.oreContext().stream().commandBytes().empty());
+  CHECK(session.replaysOre());
+  CHECK(rive::cmd::takeFrame(session).replaysOre);
+  CHECK_FALSE(session.replaysOre());
+}
+
 TEST_CASE("a clipping artboard clamps the mask box to itself", "[layer-mask]")
 {
   // Content past the edge is cropped at composite time anyway, so rasterizing
@@ -720,7 +797,7 @@ TEST_CASE("a clipping artboard clamps the mask box to itself", "[layer-mask]")
   // than the artboard-sized one it replaced, so kMaxDim's coarsening can only
   // bite less than before.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -775,7 +852,7 @@ TEST_CASE("an unclipped artboard does not clamp the mask box", "[layer-mask]")
   // move to measured bounds: the clamp reproduced it exactly. This is where
   // it is fixed.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -810,7 +887,7 @@ TEST_CASE("disjoint content and source skip the GPU entirely", "[layer-mask]")
   // coverage. In alpha mode that is a fully erased layer, so there is nothing
   // to rasterize and nothing to composite.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -879,7 +956,7 @@ TEST_CASE(
   // between a re-raster and two fresh driver allocations, an estimated
   // 40-160us native and 0.4-4ms in a browser where each one is an IPC.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -938,7 +1015,7 @@ TEST_CASE(
   // eventually hand the oversized pair back rather than carrying them
   // forever.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1000,7 +1077,7 @@ TEST_CASE(
   // axis, so an oversized mask comes out blurry but whole. Cropping instead
   // would put a hard edge through the middle of the artwork.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1052,7 +1129,7 @@ TEST_CASE("an unrelated change leaves a mask's rasters alone", "[layer-mask]")
   // re-rasterized both of its canvases on every frame of an animation
   // happening somewhere else entirely.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1102,7 +1179,7 @@ TEST_CASE("recolouring masked content rebuilds the raster", "[layer-mask]")
   // stale-pixel bug the moment they watched the graph instead: the mask would
   // keep compositing the old colour until something else moved.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1152,7 +1229,7 @@ TEST_CASE("moving one stacked mask's source rebuilds both", "[layer-mask]")
   // stale pixels. invalidate() has always walked the siblings; update() now
   // goes through it.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1226,7 +1303,7 @@ TEST_CASE(
   // carry it either. With the inner mask's source OUTSIDE the outer range,
   // nothing else dirties the outer mask and it composited stale pixels.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1296,7 +1373,7 @@ TEST_CASE("a source above the masked node is rejected", "[layer-mask]")
   // bracket. The below direction has its own case, "a self-referential mask
   // is dropped rather than recursing"; this is the mirror of it.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1347,7 +1424,7 @@ TEST_CASE("two masks pointing at each other terminate", "[layer-mask]")
   // drawMasked exists for -- but the guard is not what makes this pass today.
 
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1404,7 +1481,7 @@ TEST_CASE("recolouring a mask source rebuilds the raster", "[layer-mask]")
   // holding the old colour. Invisible for alpha (only the shape matters), and
   // plainly wrong for luminance, where the colour IS the coverage.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1456,7 +1533,7 @@ TEST_CASE(
   // Counted rather than rendered: this is about the re-raster *decision*, and
   // the pixel harness cannot drive two frames from one session anyway.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   rive::Artboard artboard(&session);
@@ -1579,7 +1656,7 @@ TEST_CASE(
   // recursing to dependents. So none of it reached the mask: the first raster
   // was composited for good while the nested content animated underneath.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);
@@ -1639,7 +1716,7 @@ TEST_CASE(
   // The coverage half of the same gap: the source's pixels come from another
   // artboard just the same.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);
@@ -1685,7 +1762,7 @@ TEST_CASE(
   // can carry the same change count as the one it replaces, so this cannot
   // rest on comparing counts alone.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);
@@ -1728,7 +1805,7 @@ TEST_CASE(
   // mask directly: the emptied range draws nothing, so a rebuild opens no
   // canvases either, and counting them could not tell the two apart.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);
@@ -1772,7 +1849,7 @@ TEST_CASE(
   // A paused host skips its advance, and the recolour raises no dirt to
   // schedule an update, yet the paused instance still draws the new colour.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);
@@ -1824,7 +1901,7 @@ TEST_CASE(
   // Telling masks about nested changes must stay as narrow as the graph is:
   // a nested artboard outside the masked range and the source is a stranger.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  rive::cmd::DeferredSession session{knownCaps()};
   session.bindRenderContext(renderContext.get());
 
   auto badgeArtboard = makeBadgeArtboard(&session);

@@ -370,7 +370,10 @@ TEST_CASE(
   // the frame's renderer, not the mask's canvas, and the canvas is kept
   // until something in the range changes, which the viewport isn't.
   auto renderContext = RenderContextNULL::MakeContext();
-  rive::cmd::DeferredSession session{rive::ore::ReplayCaps{}};
+  // Masks composite only once the session knows its replay device.
+  rive::ore::ReplayCaps caps;
+  caps.featuresKnown = true;
+  rive::cmd::DeferredSession session{caps};
   session.bindRenderContext(renderContext.get());
   BufferedList scene(true, &session, maskContent);
   REQUIRE(scene.realized() == "0 1 2 3 4 5 ");

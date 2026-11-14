@@ -282,20 +282,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Add 1 to the LOD because a z value of 0 means "we don't have an
     // image"
     float imageZ = 1. + paintTranslateAndLOD.z;
-    if ((paintData.x & PAINT_FLAG_LAYER_MASK) != 0u)
-    {
-      // A layer-mask apply. The sampled texel is coverage, not color, so
-      // the fragment shader has to treat it differently -- and there is
-      // no varying to spare for a per-draw flag. Signal it by making z
-      // negative and packing the mode into it, the same sentinel idiom
-      // this shader already uses twice (a negative paint.a means
-      // "gradient", a zero image.z means "no image"). The mask is always
-      // sampled 1:1 with the target, so LOD 0 is exact and there is
-      // nothing lost by giving up the LOD field here.
-      uint mode = (paintData.x & PAINT_LAYER_MASK_MODE_MASK) >>
-                  PAINT_LAYER_MASK_MODE_SHIFT;
-      imageZ = -(1. + float(mode));
-    }
     v_image = float3(imageCoord.x, imageCoord.y, imageZ);
   }
   else
@@ -412,19 +398,6 @@ INLINE half4 find_paint_color(
   }
 
   #if defined(@ENABLE_MODULATED_IMAGE)
-  if (@ENABLE_MODULATED_IMAGE && image.z < 0.0)
-  {
-    // Layer mask: the texel *is* the coverage. Return it premultiplied and
-    // unmodulated -- the blend step derives the factor from it and never
-    // composites it as color. Luminance is taken on the premultiplied value
-    // on purpose: luma(rgb/a)*a == dot(rgb, coeffs) identically, with no
-    // divide and no 0/0 at a == 0.
-    return TEXTURE_SAMPLE_DYNAMIC_LOD(
-        @imageTexture,
-        imageSampler,
-        image.rg,
-        make_half(.0));
-  }
   if (@ENABLE_MODULATED_IMAGE && image.z > 0.0)
   {
     half lod = image.z - 1.;

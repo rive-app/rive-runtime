@@ -11,7 +11,6 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
-#include "rive/shapes/paint/layer_mask_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/renderer/next_ptr_range.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
@@ -54,15 +53,6 @@ enum class DitherMode;
 // Global MipMap LOD Bias to apply to samplers. Going lower leads to sharper
 // filtering at the expense of potential shimmering.
 constexpr static float MIP_MAP_LOD_BIAS = -.5f;
-// A layer-mask draw signals itself to the fragment shader by making v_image.z
-// negative (see draw_path.vert). That only works because an ordinary image
-// draw's z is 1 + LOD, and LOD is never below MIP_MAP_LOD_BIAS, so its z stays
-// strictly positive. Lowering the bias past -1 would silently turn every
-// minified image draw into a layer mask.
-static_assert(
-    MIP_MAP_LOD_BIAS > -1.f,
-    "v_image.z < 0 is the layer-mask sentinel; an image draw's "
-    "1 + LOD must stay positive");
 
 // Tessellate in parametric space until each segment is within 1/4 pixel of the
 // true curve.
@@ -154,15 +144,6 @@ struct PlatformFeatures
   bool supportsRasterOrderDstReads = false;
   // Required for @ENABLE_CLIP_RECT in depthStencil mode.
   bool supportsClipPlanes = false;
-  // The backend implements BlendEquation::layerMask, so a depthStencil frame
-  // can apply a layer mask. rasterOrdering does the op in the shader and
-  // needs nothing from the backend; depthStencil has to scale the
-  // destination with hardware blending, which takes a src factor of ZERO
-  // that not every backend's blend-state builder can express yet. The backend
-  // must also mask color writes for real on passes that disable them:
-  // VERTEX_FLAG_DISABLE_COLOR_WRITE alone makes the shader emit 0, which
-  // this blend applies as an erase.
-  bool supportsDepthStencilLayerMask = false;
   // The backend supports dynamic state that allows Rive to collapse multiple
   // subpasses onto a single pipeline, namely:
   //  * Depth (Vulkan 1.3)
@@ -1250,19 +1231,11 @@ enum class ShaderMiscFlags : uint32_t
   // a single pass, instead of (1) resolving the offscreen texture, and then
   // (2) copying the offscreen texture to back the renderTarget.
   coalescedResolveAndTransfer = 1 << 9,
-
-  // InterlockMode::depthStencil only. This draw applies a layer mask: it
-  // scales the color already in the target by a per-pixel factor instead of
-  // compositing over it, via BlendEquation::layerMask. The shader itself is
-  // identical (the draw is recognized at runtime by its negative v_image.z);
-  // this flag exists so the pipeline gets the right blend state and the draw
-  // never batches with an ordinary one.
-  layerMask = 1 << 10,
 };
 
-constexpr static size_t ShaderMiscFlagCount = 11;
+constexpr static size_t ShaderMiscFlagCount = 10;
 static_assert(
-    static_cast<uint32_t>(ShaderMiscFlags::layerMask) ==
+    static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
     1 << (ShaderMiscFlagCount - 1));
 
 // Since shader keys also pack the interlockMode and drawType, they don't have
@@ -2506,12 +2479,6 @@ enum class BlendEquation : uint8_t
   plus = srcOver + 1,
   min = srcOver + 2,
   max = srcOver + 3,
-
-  // dst * srcAlpha on every channel (src factor ZERO, dst factor SRC_ALPHA):
-  // a layer-mask apply in depthStencil mode, where the shader emits the mask
-  // factor as alpha. PlatformFeatures::supportsDepthStencilLayerMask is
-  // required.
-  layerMask = srcOver + 4,
 
   // "Advanced" hardware blend equations.
   // PlatformFeatures::supportsKHRBlendEquations is required.

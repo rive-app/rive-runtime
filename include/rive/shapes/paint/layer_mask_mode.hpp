@@ -8,7 +8,7 @@ namespace rive
 // How a layer mask's rasterized coverage becomes a multiplier on the content it
 // masks. Mirrors the enumValues order in dev/defs/layer_mask.json and
 // rive::MaskMode, which is what the serialized maskModeValue indexes into, and
-// the LAYER_MASK_MODE_* constants the shaders use.
+// the shader order the [layer_mask_rstb] bake writes.
 //
 // Its own header (rather than renderer.hpp) so the GPU layer can name it
 // without pulling in the whole Renderer interface, the same way blend_mode.hpp

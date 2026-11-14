@@ -113,12 +113,12 @@ void replayRenderCommands(
       case RenderCmd::drawImage:
       case RenderCmd::drawImageMesh:
       case RenderCmd::drawImageMeshInstanced:
-      case RenderCmd::applyLayerMask:
       case RenderCmd::modulateOpacity:
       case RenderCmd::modulateColor:
       case RenderCmd::canvasContentBegin:
       case RenderCmd::canvasContentEnd:
       case RenderCmd::canvasSample:
+      case RenderCmd::composeLayerMask:
         return f == ReplayFilter::draws;
       case RenderCmd::destroyResource:
         return f == ReplayFilter::destroys;
@@ -799,32 +799,6 @@ void replayRenderCommands(
         }
         break;
       }
-      case RenderCmd::applyLayerMask:
-      {
-        auto c = reader.read<ApplyLayerMaskPOD>();
-        // The mask is nearly always a canvas image (layer masking
-        // rasterizes its coverage into one), so the canvas hook is the
-        // expected path here rather than the exception.
-        RenderImage* im = (c.mask & kCanvasHandleFlag)
-                              ? (hooks.canvasImage
-                                     ? hooks.canvasImage(
-                                           c.mask & kCanvasHandleMask)
-                                     : nullptr)
-                              : image(c.mask);
-        if (cur && im)
-        {
-          cur->applyLayerMask(
-              im,
-              sampler(c.wrapX, c.wrapY, c.filter),
-              static_cast<LayerMaskMode>(c.mode));
-        }
-        else if (cur != nullptr && hooks.stats != nullptr)
-        {
-          hooks.stats->droppedDraws = hooks.stats->droppedDraws + 1;
-          replay_detail::logDroppedDraw(type, c.mask, 0);
-        }
-        break;
-      }
       case RenderCmd::drawImageMesh:
       {
         auto c = reader.read<DrawImageMeshPOD>();
@@ -931,6 +905,15 @@ void replayRenderCommands(
       case RenderCmd::canvasSample:
         reader.read<ResIdPOD>(); // read by the canvas schedule only
         break;
+      case RenderCmd::composeLayerMask:
+      {
+        auto c = reader.read<ComposeLayerMaskPOD>();
+        if (hooks.composeLayerMask)
+        {
+          hooks.composeLayerMask(c);
+        }
+        break;
+      }
     }
   }
   if (reader.overrun())

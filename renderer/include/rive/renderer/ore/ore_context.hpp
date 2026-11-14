@@ -301,6 +301,10 @@ public:
   // Which RSTB shader variant this backend consumes.
   virtual ShaderTarget shaderTarget() const = 0;
 
+  // Whether makeShaderModule accepts RSTB bytes that belong to no file asset,
+  // such as the shaders the runtime embeds for its own passes.
+  virtual bool runsEmbeddedShaders() const { return true; }
+
   // Whether features() describes a device that will actually run the work.
   // Only a recording context with no replay device bound yet answers false:
   // its m_features still holds Features' own initializers, which read as a
@@ -535,6 +539,7 @@ struct ReplayCaps
   bool featuresKnown = false;
   ShaderTarget shaderTarget = ShaderTarget::glsl;
   TextureFormat canvasTargetFormat = TextureFormat::rgba8unorm;
+  bool embeddedShaders = true;
 
   static ReplayCaps from(const Context& real)
   {
@@ -543,6 +548,7 @@ struct ReplayCaps
     caps.featuresKnown = real.featuresKnown();
     caps.shaderTarget = real.shaderTarget();
     caps.canvasTargetFormat = real.canvasTargetFormat();
+    caps.embeddedShaders = real.runsEmbeddedShaders();
     return caps;
   }
 

@@ -69,8 +69,22 @@ public:
     return nullptr;
   }
   ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
+  bool runsEmbeddedShaders() const override { return embeddedShaders; }
+
+  bool embeddedShaders = true;
 };
 } // namespace
+
+TEST_CASE(
+    "caps carry whether the device runs embedded shaders",
+    "[ore][cmd][deferred]")
+{
+  FakeDeviceContext device;
+  CHECK(ReplayCaps::from(device).embeddedShaders);
+  device.embeddedShaders = false;
+  DeferredOreContext recorder(ReplayCaps::from(device));
+  CHECK_FALSE(recorder.caps().embeddedShaders);
+}
 
 TEST_CASE(
     "a recording context reports the replay device's capabilities",

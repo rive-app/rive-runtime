@@ -334,10 +334,12 @@ private:
 #endif
 
 #ifdef RIVE_CANVAS
-  // Both canvases share one size and raster scale so a content texel and a
+  // All three share one size and raster scale so a content texel and a
   // coverage texel at the same coordinate correspond with no resampling.
   rcp<gpu::RenderCanvas> m_contentCanvas;
   rcp<gpu::RenderCanvas> m_maskCanvas;
+  // The masked layer, which is what draws back into the parent.
+  rcp<gpu::RenderCanvas> m_resultCanvas;
   uint32_t m_widthPx = 0;
   uint32_t m_heightPx = 0;
   float m_rasterScale = 1.0f;
@@ -355,7 +357,7 @@ private:
   AABB m_box;
   // Consecutive draws that wanted a smaller raster. Growth is immediate;
   // shrinking waits, because content animating through a size would otherwise
-  // re-allocate two GPU textures every frame.
+  // re-allocate three GPU textures every frame.
   uint8_t m_shrinkStreak = 0;
 #endif
 };

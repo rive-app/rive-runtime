@@ -80,10 +80,7 @@ enum class SerializeOp : uint32_t
   // image, positions, uvs, indices, instances
   drawImageMeshInstanced = 41,
 
-  // Layer masking: multiply the current target by a factor derived from the
-  // named image. Recorded inside the masked layer's canvas bracket, as the
-  // last op before it closes.
-  applyLayerMask = 42, // imageId, mode
+  // 42 was the layer mask apply and is retired.
 
   // RenderPaint::strokePosition. Its own op for the same reason as
   // additiveness: only written once a paint leaves center, so a stream with

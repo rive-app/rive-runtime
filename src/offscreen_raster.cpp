@@ -363,6 +363,20 @@ CanvasContentScope::~CanvasContentScope()
   m_host->endCanvasContent(m_canvas);
 }
 
+bool makeLayerMaskCanvases(
+    cmd::DeferredCanvasHost* host,
+    uint32_t widthPx,
+    uint32_t heightPx,
+    rcp<gpu::RenderCanvas>* content,
+    rcp<gpu::RenderCanvas>* coverage,
+    rcp<gpu::RenderCanvas>* result)
+{
+  *content = host->makeContentCanvas(widthPx, heightPx);
+  *coverage = host->makeContentCanvas(widthPx, heightPx);
+  *result = host->makeContentCanvas(widthPx, heightPx);
+  return *content != nullptr && *coverage != nullptr && *result != nullptr;
+}
+
 CompositePlacement beginComposite(
     Renderer* renderer,
     cmd::DeferredCanvasHost* host,

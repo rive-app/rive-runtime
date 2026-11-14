@@ -3678,13 +3678,8 @@ bool Artboard::drawMasked(
     return false;
   }
 
-  // The same fallback, one step earlier, for a host that can rasterize but
-  // cannot apply the mask. Renderer::applyLayerMask already no-ops there, but
-  // finding out that late is too late: the rasters below are sized to the
-  // content-and-coverage intersection, so the layer would come back unmasked
-  // and *cropped* to a box that only made sense if the mask had been applied.
-  // Bailing here draws the range inline -- unmasked for real, and two
-  // canvases and a composite cheaper.
+  // A host that can rasterize but not compose falls back the same way.
+  // Checked before any canvas is drawn.
   if (!host->supportsLayerMask())
   {
     return false;
@@ -3920,7 +3915,7 @@ bool Artboard::drawMasked(
 
   // Growth is immediate, shrinking waits. Anything rotating or scaling
   // changes the size of its own bounding box every frame, and re-allocating
-  // two GPU textures that often costs far more than carrying one bucket of
+  // three GPU textures that often costs far more than carrying one bucket of
   // slack.
   const offscreen::RasterResize resize = offscreen::decideRasterResize(
       plan.widthPx,
@@ -3941,20 +3936,22 @@ bool Artboard::drawMasked(
   if (mustRaster)
   {
     if (resize.reallocate || mask.m_contentCanvas == nullptr ||
-        mask.m_maskCanvas == nullptr)
+        mask.m_maskCanvas == nullptr || mask.m_resultCanvas == nullptr)
     {
-      mask.m_contentCanvas = host->makeContentCanvas(
-          plan.widthPx,
-          plan.heightPx);
-      mask.m_maskCanvas = host->makeContentCanvas(plan.widthPx, plan.heightPx);
 #ifdef TESTING
       mask.testAllocations++;
 #endif
-    }
-    if (mask.m_contentCanvas == nullptr || mask.m_maskCanvas == nullptr)
-    {
-      mask.releaseCanvases();
-      return false;
+      if (!offscreen::makeLayerMaskCanvases(
+              host,
+              plan.widthPx,
+              plan.heightPx,
+              &mask.m_contentCanvas,
+              &mask.m_maskCanvas,
+              &mask.m_resultCanvas))
+      {
+        mask.releaseCanvases();
+        return false;
+      }
     }
 
     // Sequentially, never nested: DeferredSession::endCanvasContent routes
@@ -3999,30 +3996,21 @@ bool Artboard::drawMasked(
       if (Renderer* r = scope.renderer())
       {
         drawDrawableRange(r, startMarker->prevDrawable(), endMarker);
-        // The mask apply has to be the last draw into this canvas: it
-        // multiplies everything already there, so anything drawn after
-        // it would land unmasked. Issued in the canvas's own pixel
-        // space (the scope's transform is still in effect, so undo it)
-        // because the coverage texture is the same size as the target
-        // and has to line up texel for texel.
-        if (rcp<RenderImage> coverage = host->contentCanvasImage(
-                mask.m_maskCanvas.get()))
-        {
-          r->save();
-          const float inv = 1.0f / plan.rasterScale;
-          r->translate(plan.box.left(), plan.box.top());
-          r->transform(Mat2D::fromScale(inv, inv));
-          r->applyLayerMask(
-              coverage.get(),
-              ImageSampler::LinearClamp(),
-              static_cast<LayerMaskMode>(mask.maskMode()));
-          r->restore();
-        }
       }
       else
       {
         opened = false;
       }
+    }
+    if (opened && !host->composeLayerMask(
+                      mask.m_contentCanvas.get(),
+                      mask.m_maskCanvas.get(),
+                      mask.m_resultCanvas.get(),
+                      static_cast<LayerMaskMode>(mask.maskMode())))
+    {
+      // The content draws inline, unmasked, rather than as a hole.
+      mask.releaseCanvases();
+      return false;
     }
     if (!opened)
     {
@@ -4045,11 +4033,9 @@ bool Artboard::drawMasked(
     mask.m_dirty = false;
   }
 
-  rcp<RenderImage> contentImage = host->contentCanvasImage(
-      mask.m_contentCanvas.get());
-  rcp<RenderImage> coverageImage = host->contentCanvasImage(
-      mask.m_maskCanvas.get());
-  if (contentImage == nullptr || coverageImage == nullptr)
+  rcp<RenderImage> resultImage = host->contentCanvasImage(
+      mask.m_resultCanvas.get());
+  if (resultImage == nullptr)
   {
     return false;
   }
@@ -4064,7 +4050,7 @@ bool Artboard::drawMasked(
       mask.m_rasterScale,
       mask.m_box);
   placement.renderer->drawImage(
-      contentImage.get(),
+      resultImage.get(),
       ImageSampler::LinearClamp(),
       mask.compositeBlendMode(),
       placement.opacity);

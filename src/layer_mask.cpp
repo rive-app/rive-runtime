@@ -319,6 +319,7 @@ void LayerMask::releaseCanvases()
 {
   m_contentCanvas.reset();
   m_maskCanvas.reset();
+  m_resultCanvas.reset();
   m_widthPx = 0;
   m_heightPx = 0;
   // These describe pixels that no longer exist; a composite reading either
