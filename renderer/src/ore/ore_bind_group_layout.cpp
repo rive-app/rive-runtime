@@ -168,10 +168,15 @@ static BindingMap narrowToEntries(
                                              ? fragment->entryBindings(
                                                    fragmentEntry)
                                              : nullptr;
-  map.narrow([&](const BindingMap::Entry& e) {
-    return vertexUse->uses(e.group, e.binding) ||
-           (fragmentUse != nullptr && fragmentUse->uses(e.group, e.binding));
+  map.narrow([&](const BindingMap::Entry& e, uint32_t row) {
+    return vertexUse->uses(e.group, e.binding, row) ||
+           (fragmentUse != nullptr &&
+            fragmentUse->uses(e.group, e.binding, row));
   });
+  // The two stages can use different entries of one binding, so merge them.
+  // Bakes without rows are left as they were.
+  if (vertexUse->rowsKnown)
+    map.foldSharedBindings();
   return map;
 }
 
@@ -181,8 +186,8 @@ static BindingMap narrowedToEntry(const ShaderModule* module, const char* entry)
   BindingMap map = module->m_bindingMap;
   if (const RstbEntryBindings* use = module->entryBindings(entry))
   {
-    map.narrow([&](const BindingMap::Entry& e) {
-      return use->uses(e.group, e.binding);
+    map.narrow([&](const BindingMap::Entry& e, uint32_t row) {
+      return use->uses(e.group, e.binding, row);
     });
   }
   return map;
@@ -420,17 +425,40 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     const ShaderModule* shader,
     uint32_t groupIndex,
     const uint32_t* dynamicUBOBindings,
-    uint32_t dynamicUBOCount)
+    uint32_t dynamicUBOCount,
+    const ShaderModule* fragment)
 {
-  static const BindingMap kEmpty;
+  // Checked per file: merging the stages collapses the second file's entries.
+  for (const ShaderModule* module : {shader, fragment})
+  {
+    if (module == nullptr || !module->entryRowsKnown())
+      continue;
+    if (const BindingMap::Entry*
+            differs = module->m_bindingMap.sharedBindingConflict(groupIndex))
+    {
+      ctx.setLastError(
+          "@group(%u) @binding(%u): the shader declares different "
+          "resources here, so one layout cannot hold both; use each "
+          "pipeline's own getBindGroupLayout",
+          differs->group,
+          differs->binding);
+      return nullptr;
+    }
+  }
+  BindingMap map = bindingMapForStages(shader, fragment);
+  // Only the first file's entries can still share a binding. A bake without
+  // rows is left as it was.
+  const ShaderModule* first = shader != nullptr ? shader : fragment;
+  if (first != nullptr && first->entryRowsKnown())
+    map.foldSharedBindings();
   return makeBindGroupLayoutFromBindingMap(
       ctx,
-      shader != nullptr ? shader->m_bindingMap : kEmpty,
+      map,
       groupIndex,
       dynamicUBOBindings,
       dynamicUBOCount,
       shader,
-      nullptr);
+      fragment);
 }
 
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map

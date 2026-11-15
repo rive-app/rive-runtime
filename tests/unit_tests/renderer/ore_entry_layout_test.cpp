@@ -110,8 +110,8 @@ TEST_CASE("entry bindings encode and decode", "[ore][entry_layout]")
   CHECK(got[0].name == "vs_main");
   CHECK(got[0].bindings.empty());
   CHECK(got[1].stage == 1);
-  CHECK(got[1].uses(1, 2));
-  CHECK(!got[1].uses(0, 0));
+  CHECK(got[1].uses(1, 2, 0));
+  CHECK(!got[1].uses(0, 0, 0));
 
   // A truncated section reads as no per entry use, never as a partial one.
   CHECK(!decodeEntryBindings(bytes.data(), bytes.size() - 1, got));
@@ -147,7 +147,7 @@ TEST_CASE(
   // A cut pair block keeps the bindings and leaves every entry's pairs
   // unknown.
   REQUIRE(decodeEntryBindings(bytes.data(), bytes.size() - 1, got));
-  CHECK(got[1].uses(0, 2));
+  CHECK(got[1].uses(0, 2, 0));
   CHECK(!got[0].pairsKnown);
   CHECK(!got[1].pairsKnown);
 
@@ -170,10 +170,196 @@ TEST_CASE(
   CHECK(!got[0].pairsKnown);
 }
 
+TEST_CASE("each entry's rows follow its pairs", "[ore][entry_layout]")
+{
+  std::vector<RstbEntryBindings> sent = {
+      uses(1, "fs_flat", {0x0001, 0x0002}),
+      uses(1, "fs_sky", {0x0001})};
+  for (RstbEntryBindings& e : sent)
+    e.pairsKnown = true;
+  const std::vector<uint8_t> pairsOnly = encodeEntryBindings(sent);
+  sent[0].rows = {0, 0};
+  sent[1].rows = {1};
+  for (RstbEntryBindings& e : sent)
+    e.rowsKnown = true;
+  std::vector<uint8_t> bytes = encodeEntryBindings(sent);
+  std::vector<RstbEntryBindings> got;
+  REQUIRE(decodeEntryBindings(bytes.data(), bytes.size(), got));
+  CHECK(got[0].uses(0, 1, 0));
+  CHECK(!got[0].uses(0, 1, 1));
+  CHECK(got[1].uses(0, 1, 1));
+  CHECK(!got[1].uses(0, 1, 0));
+
+  // A bake without rows is a prefix of this one, and matches any row.
+  REQUIRE(bytes.size() > pairsOnly.size());
+  CHECK(std::equal(pairsOnly.begin(), pairsOnly.end(), bytes.begin()));
+  REQUIRE(decodeEntryBindings(pairsOnly.data(), pairsOnly.size(), got));
+  CHECK(!got[1].rowsKnown);
+  CHECK(got[1].uses(0, 1, 0));
+  CHECK(got[1].uses(0, 1, 1));
+
+  // A truncated rows block is dropped; the pairs still decode.
+  REQUIRE(decodeEntryBindings(bytes.data(), bytes.size() - 1, got));
+  CHECK(got[0].pairsKnown);
+  CHECK(!got[0].rowsKnown);
+
+  // Rows are written only when every entry has them, and only after pairs.
+  sent[0].rowsKnown = false;
+  CHECK(encodeEntryBindings(sent) == pairsOnly);
+  sent[0].rowsKnown = true;
+  sent[0].pairsKnown = false;
+  CHECK(encodeEntryBindings(sent).size() < pairsOnly.size());
+}
+
 struct TestPipeline : Pipeline
 {
   explicit TestPipeline(const PipelineDesc& desc) : Pipeline(desc) {}
 };
+
+namespace
+{
+// @binding(0) is a 16 or 64 byte block and @binding(1) a 2d or cube texture,
+// by entry point.
+struct SharedBindings : ShaderModule
+{
+  SharedBindings(bool rowsKnown = true)
+  {
+    BindingMap::Entry large = row(0, 0, ResourceKind::UniformBuffer);
+    large.minBindingSize = 64;
+    BindingMap::Entry cube = row(0, 1, ResourceKind::SampledTexture);
+    cube.textureViewDim = TextureViewDim::Cube;
+    m_bindingMap.push(row(0, 0, ResourceKind::UniformBuffer));
+    m_bindingMap.push(large);
+    m_bindingMap.push(row(0, 1, ResourceKind::SampledTexture));
+    m_bindingMap.push(cube);
+    m_bindingMap.finalize();
+    m_bindingMap.computeLayoutIds();
+    m_entryBindings = {
+        uses(0, "vs_tri", {}),
+        uses(1, "fs_flat", {0x0000, 0x0001}),
+        uses(1, "fs_flat2", {0x0000, 0x0001}),
+        uses(1, "fs_sky", {0x0000, 0x0001}),
+        uses(0, "vs_small", {0x0000})};
+    m_entryBindings[1].rows = {0, 0};
+    m_entryBindings[2].rows = {0, 0};
+    m_entryBindings[3].rows = {1, 1};
+    m_entryBindings[4].rows = {0};
+    for (RstbEntryBindings& e : m_entryBindings)
+      e.rowsKnown = rowsKnown;
+  }
+};
+} // namespace
+
+TEST_CASE(
+    "a shared binding narrows to the row each entry point uses",
+    "[ore][entry_layout]")
+{
+  SharedBindings shader;
+  BindingMap flat = bindingMapForEntries(&shader, "vs_tri", &shader, "fs_flat");
+  REQUIRE(flat.size() == 2);
+  CHECK(flat.at(0).minBindingSize == 16);
+  CHECK(flat.at(1).textureViewDim == TextureViewDim::D2);
+
+  BindingMap sky = bindingMapForEntries(&shader, "vs_tri", &shader, "fs_sky");
+  REQUIRE(sky.size() == 2);
+  CHECK(sky.at(0).minBindingSize == 64);
+  CHECK(sky.at(1).textureViewDim == TextureViewDim::Cube);
+
+  // Same bindings, different rows: a different layout id.
+  CHECK(flat.layoutIdForGroup(0) != sky.layoutIdForGroup(0));
+  CHECK(
+      bindingMapForEntries(&shader, "vs_tri", &shader, "fs_flat2")
+          .layoutIdForGroup(0) == flat.layoutIdForGroup(0));
+
+  DeferredOreContext ctx(nullptr);
+  auto skyLayout = makeBindGroupLayoutFromBindingMap(ctx, sky, 0);
+  REQUIRE(skyLayout != nullptr);
+  REQUIRE(skyLayout->entries().size() == 2);
+  CHECK(skyLayout->findEntry(0)->minBindingSize == 64);
+  CHECK(skyLayout->findEntry(1)->textureViewDim == TextureViewDimension::cube);
+
+  // Vertex on the 16 byte block, fragment on the 64: one entry of 64.
+  BindingMap stages = bindingMapForEntries(
+      &shader,
+      "vs_small",
+      &shader,
+      "fs_sky");
+  REQUIRE(stages.size() == 2);
+  CHECK(stages.at(0).minBindingSize == 64);
+  CHECK(stages.at(1).textureViewDim == TextureViewDim::Cube);
+
+  // Without rows every entry is kept.
+  SharedBindings old(false);
+  CHECK(bindingMapForEntries(&old, "vs_tri", &old, "fs_sky").size() == 4);
+}
+
+TEST_CASE(
+    "a whole file layout holds a shared binding once",
+    "[ore][entry_layout]")
+{
+  DeferredOreContext ctx(nullptr);
+
+  // Two block sizes merge to the larger, as WebGPU requires of one layout.
+  SharedBindings shader;
+  shader.m_bindingMap.narrow(
+      [](const BindingMap::Entry& e, uint32_t) { return e.binding == 0; });
+  auto layout = makeBindGroupLayoutFromShader(ctx, &shader, 0);
+  REQUIRE(layout != nullptr);
+  REQUIRE(layout->entries().size() == 1);
+  CHECK(layout->findEntry(0)->minBindingSize == 64);
+
+  // A 2d texture and a cube cannot be one entry.
+  SharedBindings mixed;
+  ctx.clearLastError();
+  CHECK(makeBindGroupLayoutFromShader(ctx, &mixed, 0) == nullptr);
+  CHECK(contains(ctx.lastError(), "@group(0) @binding(1)"));
+  CHECK(contains(ctx.lastError(), "getBindGroupLayout"));
+  ctx.clearLastError();
+
+  // Still an error when that file is only the fragment stage.
+  Shader vertexFile;
+  CHECK(
+      makeBindGroupLayoutFromShader(ctx, &vertexFile, 0, nullptr, 0, &mixed) ==
+      nullptr);
+  CHECK(contains(ctx.lastError(), "@group(0) @binding(1)"));
+  ctx.clearLastError();
+  auto split = makeBindGroupLayoutFromShader(
+      ctx,
+      &vertexFile,
+      0,
+      nullptr,
+      0,
+      &shader);
+  REQUIRE(split != nullptr);
+  CHECK(split->findEntry(0)->minBindingSize == 64);
+
+  // As the vertex stage's file, its two blocks still merge.
+  auto vertexSide = makeBindGroupLayoutFromShader(
+      ctx,
+      &shader,
+      0,
+      nullptr,
+      0,
+      &vertexFile);
+  REQUIRE(vertexSide != nullptr);
+  CHECK(vertexSide->entries().size() == 2);
+  CHECK(vertexSide->findEntry(0)->minBindingSize == 64);
+
+  // A bake without rows keeps every entry, also under a newer file.
+  SharedBindings old(false);
+  auto oldLayout = makeBindGroupLayoutFromShader(ctx, &old, 0);
+  REQUIRE(oldLayout != nullptr);
+  CHECK(oldLayout->entries().size() == 4);
+  auto mixedAge = makeBindGroupLayoutFromShader(
+      ctx,
+      &old,
+      0,
+      nullptr,
+      0,
+      &shader);
+  REQUIRE(mixedAge != nullptr);
+  CHECK(mixedAge->entries().size() == 4);
+}
 
 TEST_CASE(
     "narrowing keeps the rows the entry points use",
@@ -452,8 +638,10 @@ TEST_CASE(
       uses(0, "vertex", {0x0000}),
       uses(1, "fs_main", {0x0001, 0x0002})};
   asset[1].pairs = {{0, 1, 0, 2}};
+  asset[0].rows = {0};
+  asset[1].rows = {1, 0};
   for (RstbEntryBindings& e : asset)
-    e.pairsKnown = true;
+    e.pairsKnown = e.rowsKnown = true;
   std::vector<RstbEntryView> entries(2);
   entries[0].stage = 0;
   entries[0].logical = "vertex";
@@ -467,15 +655,17 @@ TEST_CASE(
   REQUIRE(decodeEntryBindings(bytes.data(), bytes.size(), got));
   REQUIRE(got.size() == 2);
   CHECK(got[0].name == "vertex0");
-  CHECK(got[0].uses(0, 0));
+  CHECK(got[0].uses(0, 0, 0));
 
-  // A per entry module carries only its own, pairs included.
+  // A per entry module carries only its own, pairs and rows included.
   bytes = moduleEntryBindingBytes(asset, entries, 1, 1);
   REQUIRE(decodeEntryBindings(bytes.data(), bytes.size(), got));
   REQUIRE(got.size() == 1);
   CHECK(got[0].name == "fs_main");
   CHECK(got[0].pairsKnown);
   CHECK(got[0].pairs == asset[1].pairs);
+  CHECK(got[0].rowsKnown);
+  CHECK(got[0].rows == asset[1].rows);
 
   // An entry the section does not name leaves the module whole.
   entries[1].logical = "fs_other";

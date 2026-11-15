@@ -26,13 +26,18 @@ struct RstbEntryBindings
   // What the entry samples; older bakes leave it unknown.
   std::vector<TextureSamplerPair> pairs;
   bool pairsKnown = false;
+  // BindingMap::rowAt of the entry used for each of `bindings`. Baked only
+  // when variables share a binding.
+  std::vector<uint8_t> rows;
+  bool rowsKnown = false;
 
-  bool uses(uint32_t group, uint32_t binding) const
+  // Matches any row when rows were not baked.
+  bool uses(uint32_t group, uint32_t binding, uint32_t row) const
   {
     const uint16_t key = static_cast<uint16_t>(group << 8 | binding);
-    for (uint16_t b : bindings)
+    for (size_t i = 0; i < bindings.size(); i++)
     {
-      if (b == key)
+      if (bindings[i] == key && (!rowsKnown || rows[i] == row))
         return true;
     }
     return false;
@@ -80,26 +85,42 @@ inline std::vector<uint8_t> encodeEntryBindings(
     }
   }
   if (out.size() > 0xFFFF)
+  {
     out.resize(bindingsEnd);
+    return out;
+  }
+  for (const RstbEntryBindings& e : entries)
+  {
+    if (!e.rowsKnown || e.rows.size() != e.bindings.size())
+      return out;
+  }
+  // Then the rows block: u8 n, then a u8 per binding of each entry.
+  const size_t pairsEnd = out.size();
+  out.push_back(static_cast<uint8_t>(entries.size()));
+  for (const RstbEntryBindings& e : entries)
+    out.insert(out.end(), e.rows.begin(), e.rows.end());
+  if (out.size() > 0xFFFF)
+    out.resize(pairsEnd);
   return out;
 }
 
-// Each entry's pairs from the block after the bindings; all or none.
-inline void decodeEntryPairs(
+// Reads the pairs block after the bindings, all or none. Returns its end, or
+// null if absent.
+inline const uint8_t* decodeEntryPairs(
     const uint8_t* p,
     const uint8_t* end,
     std::vector<RstbEntryBindings>& entries)
 {
   if (p >= end || static_cast<size_t>(*p++) != entries.size())
-    return;
+    return nullptr;
   std::vector<std::vector<TextureSamplerPair>> pairs(entries.size());
   for (std::vector<TextureSamplerPair>& entryPairs : pairs)
   {
     if (p >= end)
-      return;
+      return nullptr;
     const uint8_t n = *p++;
     if (p + static_cast<size_t>(n) * 4 > end)
-      return;
+      return nullptr;
     for (uint8_t k = 0; k < n; k++, p += 4)
       entryPairs.push_back({p[0], p[1], p[2], p[3]});
   }
@@ -107,6 +128,28 @@ inline void decodeEntryPairs(
   {
     entries[i].pairs = std::move(pairs[i]);
     entries[i].pairsKnown = true;
+  }
+  return p;
+}
+
+// Reads the rows block after the pairs, all or none.
+inline void decodeEntryRows(
+    const uint8_t* p,
+    const uint8_t* end,
+    std::vector<RstbEntryBindings>& entries)
+{
+  if (p == nullptr || p >= end || static_cast<size_t>(*p++) != entries.size())
+    return;
+  size_t total = 0;
+  for (const RstbEntryBindings& e : entries)
+    total += e.bindings.size();
+  if (static_cast<size_t>(end - p) < total)
+    return;
+  for (RstbEntryBindings& e : entries)
+  {
+    e.rows.assign(p, p + e.bindings.size());
+    e.rowsKnown = true;
+    p += e.bindings.size();
   }
 }
 
@@ -146,7 +189,7 @@ inline bool decodeEntryBindings(
     out.clear();
     return false;
   }
-  decodeEntryPairs(p, end, out);
+  decodeEntryRows(decodeEntryPairs(p, end, out), end, out);
   return true;
 }
 

@@ -224,6 +224,8 @@ public:
   // stores whichever kind was declared in WGSL; this helper accepts
   // either side's query.
   //
+  // A binding can have several entries; the first of `kind` is used.
+  //
   // The single hot path the flatten-backend `makeBindGroup` calls at
   // pipeline-binding time.
   uint16_t lookup(
@@ -232,23 +234,24 @@ public:
       ResourceKind kind,
       Stage stage) const
   {
-    const Entry* e = findEntry(group, binding);
-    if (e == nullptr)
-      return kAbsent;
-    const bool
-        kindMatches = e->kind == kind ||
-                      // Collapse sampler / comparison-sampler into one bind-API
-                      // category. See the docstring above for rationale.
-                      ((kind == ResourceKind::Sampler ||
-                        kind == ResourceKind::ComparisonSampler) &&
-                       (e->kind == ResourceKind::Sampler ||
-                        e->kind == ResourceKind::ComparisonSampler));
-    if (!kindMatches)
-      return kAbsent;
-    const uint32_t stageBit = 1u << static_cast<uint32_t>(stage);
-    if ((e->stageMask & stageBit) == 0)
-      return kAbsent;
-    return e->backendSlot[static_cast<size_t>(stage)];
+    const Entry* end = m_entries.data() + m_entries.size();
+    for (const Entry* e = findEntry(group, binding);
+         e != nullptr && e != end && e->group == group && e->binding == binding;
+         ++e)
+    {
+      const bool kindMatches = e->kind == kind ||
+                               ((kind == ResourceKind::Sampler ||
+                                 kind == ResourceKind::ComparisonSampler) &&
+                                (e->kind == ResourceKind::Sampler ||
+                                 e->kind == ResourceKind::ComparisonSampler));
+      if (!kindMatches)
+        continue;
+      const uint32_t stageBit = 1u << static_cast<uint32_t>(stage);
+      if ((e->stageMask & stageBit) == 0)
+        return kAbsent;
+      return e->backendSlot[static_cast<size_t>(stage)];
+    }
+    return kAbsent;
   }
 
   size_t size() const { return m_entries.size(); }
@@ -273,17 +276,33 @@ public:
     return kNoLayoutId;
   }
 
-  // Drops the rows `keep` refuses. A group that lost rows salts its id with
-  // the rows left, so equal narrowings intern apart from the whole map.
+  // Index of entry `i` among the entries sharing its (group, binding).
+  uint32_t rowAt(size_t i) const
+  {
+    uint32_t row = 0;
+    while (row < i && m_entries[i - row - 1].group == m_entries[i].group &&
+           m_entries[i - row - 1].binding == m_entries[i].binding)
+      ++row;
+    return row;
+  }
+
+  // Keeps the entries `keep(entry, rowAt)` accepts. A group that loses any
+  // gets a new layout id derived from the ones kept.
   template <typename Keep> void narrow(Keep&& keep)
   {
     std::vector<uint8_t> changed;
     std::vector<Entry> kept;
+    std::vector<uint32_t> keptRows;
     kept.reserve(m_entries.size());
-    for (const Entry& e : m_entries)
+    for (size_t i = 0; i < m_entries.size(); ++i)
     {
-      if (keep(e))
+      const Entry& e = m_entries[i];
+      const uint32_t row = rowAt(i);
+      if (keep(e, row))
+      {
         kept.push_back(e);
+        keptRows.push_back(row);
+      }
       else if (
           std::find(changed.begin(), changed.end(), e.group) == changed.end())
         changed.push_back(e.group);
@@ -296,13 +315,15 @@ public:
                         std::find(changed.begin(), changed.end(), g.group) !=
                             changed.end();
       bool hasRows = false;
-      for (const Entry& e : m_entries)
+      for (size_t i = 0; i < m_entries.size(); ++i)
       {
+        const Entry& e = m_entries[i];
         if (e.group != g.group)
           continue;
         hasRows = true;
         if (lost)
-          g.layoutId = (g.layoutId ^ (0x100u | e.binding)) * 0x100000001b3ull;
+          g.layoutId = (g.layoutId ^ (keptRows[i] << 9 | 0x100u | e.binding)) *
+                       0x100000001b3ull;
       }
       if (!hasRows)
         continue;
@@ -312,6 +333,14 @@ public:
     }
     m_groupLayouts = std::move(groups);
   }
+
+  // First entry in `group` whose kind or texture shape differs from another
+  // entry on its binding, or null.
+  const Entry* sharedBindingConflict(uint32_t group) const;
+
+  // Merges entries on one binding that differ only in block size, keeping the
+  // largest.
+  void foldSharedBindings();
 
   size_t groupLayoutCount() const { return m_groupLayouts.size(); }
   const GroupLayout& groupLayoutAt(size_t i) const { return m_groupLayouts[i]; }

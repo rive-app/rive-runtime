@@ -133,12 +133,15 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     const char* vertexEntry = nullptr,
     const char* fragmentEntry = nullptr);
 
+// Whole file layout of one group; `fragment` is the fragment stage's file if
+// separate. Null when variables sharing a binding differ in kind or shape.
 rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     Context& ctx,
     const ShaderModule* shader,
     uint32_t groupIndex,
     const uint32_t* dynamicUBOBindings = nullptr,
-    uint32_t dynamicUBOCount = 0);
+    uint32_t dynamicUBOCount = 0,
+    const ShaderModule* fragment = nullptr);
 
 // Validate user-supplied layouts against the shader's reflected binding map.
 //

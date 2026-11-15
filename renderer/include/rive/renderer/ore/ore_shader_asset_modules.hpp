@@ -222,7 +222,7 @@ inline std::vector<std::string> multisampledTextureReads(
                                    return e.stage == entry->stage &&
                                           e.name == entry->logical;
                                  });
-  auto used = [&](const BindingMap::Entry& binding) {
+  auto used = [&](const BindingMap::Entry& binding, uint32_t row) {
     if (entryBindings.empty())
     {
       return true;
@@ -233,7 +233,7 @@ inline std::vector<std::string> multisampledTextureReads(
         [&](const RstbEntryBindings& e) {
           return (!entryRecorded ||
                   (e.stage == entry->stage && e.name == entry->logical)) &&
-                 e.uses(binding.group, binding.binding);
+                 e.uses(binding.group, binding.binding, row);
         });
   };
   std::vector<RstbBindingName> names;
@@ -242,7 +242,7 @@ inline std::vector<std::string> multisampledTextureReads(
   for (size_t i = 0; i < map.size(); i++)
   {
     const BindingMap::Entry& e = map.at(i);
-    if (!e.textureMultisampled || !used(e))
+    if (!e.textureMultisampled || !used(e, map.rowAt(i)))
     {
       continue;
     }

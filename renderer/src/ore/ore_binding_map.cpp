@@ -255,6 +255,71 @@ void BindingMap::replaceStage(const BindingMap& other, Stage stage)
 #endif
 }
 
+static bool sameBinding(const BindingMap::Entry& a, const BindingMap::Entry& b)
+{
+  return a.group == b.group && a.binding == b.binding;
+}
+
+// True when one layout entry can describe both; block size may differ.
+static bool sameResource(const BindingMap::Entry& a, const BindingMap::Entry& b)
+{
+  return a.kind == b.kind && a.textureViewDim == b.textureViewDim &&
+         a.textureSampleType == b.textureSampleType &&
+         a.textureMultisampled == b.textureMultisampled;
+}
+
+const BindingMap::Entry* BindingMap::sharedBindingConflict(uint32_t group) const
+{
+  for (size_t i = 1; i < m_entries.size(); ++i)
+  {
+    const Entry& e = m_entries[i];
+    if (e.group == group && !sameResource(e, m_entries[i - rowAt(i)]))
+      return &e;
+  }
+  return nullptr;
+}
+
+void BindingMap::foldSharedBindings()
+{
+  if (std::adjacent_find(m_entries.begin(), m_entries.end(), sameBinding) ==
+      m_entries.end())
+    return;
+  std::vector<Entry> folded;
+  folded.reserve(m_entries.size());
+  for (size_t i = 0; i < m_entries.size();)
+  {
+    Entry first = m_entries[i];
+    bool folds = true;
+    size_t end = i + 1;
+    for (; end < m_entries.size() && sameBinding(m_entries[end], first); ++end)
+    {
+      folds = folds && sameResource(m_entries[end], first);
+      first.minBindingSize = std::max(
+          first.minBindingSize,
+          m_entries[end].minBindingSize);
+    }
+    if (!folds || end == i + 1)
+    {
+      folded.insert(
+          folded.end(),
+          m_entries.begin() + i,
+          m_entries.begin() + end);
+    }
+    else
+    {
+      folded.push_back(first);
+      // The baked layout id no longer describes the group.
+      for (GroupLayout& g : m_groupLayouts)
+      {
+        if (g.group == first.group)
+          g.layoutId = kNoLayoutId;
+      }
+    }
+    i = end;
+  }
+  m_entries = std::move(folded);
+}
+
 #ifdef WITH_RIVE_TOOLS
 
 std::vector<uint8_t> BindingMap::toBlob() const
@@ -347,7 +412,8 @@ void BindingMap::computeLayoutIds()
 
 void BindingMap::finalize()
 {
-  std::sort(
+  // Stable: rows are indexed by the order of entries sharing a binding.
+  std::stable_sort(
       m_entries.begin(),
       m_entries.end(),
       [](const Entry& a, const Entry& b) {

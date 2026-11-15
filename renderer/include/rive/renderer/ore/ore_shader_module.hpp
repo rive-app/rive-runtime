@@ -49,6 +49,13 @@ public:
     return nullptr;
   }
 
+  // True when the bake recorded rows, as it does when variables share a
+  // binding.
+  bool entryRowsKnown() const
+  {
+    return !m_entryBindings.empty() && m_entryBindings[0].rowsKnown;
+  }
+
   // What the named entry point samples, every entry's pairs without a name
   // or for older bakes.
   const std::vector<TextureSamplerPair>& samplerPairs(const char* entry) const

@@ -1404,25 +1404,19 @@ static int gpubindgrouplayout_construct(lua_State* L)
   }
   lua_pop(L, 1);
 
-  const BindingMap bindingMap = bindingMapForStages(
-      scripted->vertexMod(),
-      fragmentModule);
-  rcp<BindGroupLayout> layout = makeBindGroupLayoutFromBindingMap(
+  oreCtx->clearLastError();
+  rcp<BindGroupLayout> layout = makeBindGroupLayoutFromShader(
       *oreCtx,
-      bindingMap,
+      scripted->vertexMod(),
       groupIndex,
       dynUBOs,
       dynUBOCount,
-      scripted->vertexMod(),
       fragmentModule);
   if (!layout)
   {
-    const std::string& err = oreCtx->lastError();
-    oreCtx->clearLastError();
-    luaL_error(
-        L,
-        "GPUBindGroupLayout.new: %s",
-        err.empty() ? "failed" : err.c_str());
+    if (!oreCtx->lastError().empty())
+      luaL_error(L, "GPUBindGroupLayout.new: %s", oreCtx->lastError().c_str());
+    luaL_error(L, "GPUBindGroupLayout.new: failed");
   }
 
   auto* w = lua_newrive<ScriptedGPUBindGroupLayout>(L);

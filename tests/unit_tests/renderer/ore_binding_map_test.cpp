@@ -68,6 +68,36 @@ TEST_CASE("BindingMap lookup after finalize", "[ore_binding_map]")
       BindingMap::kAbsent);
 }
 
+TEST_CASE("BindingMap rows of one binding answer by kind", "[ore_binding_map]")
+{
+  // finalize must keep the order of entries sharing a binding.
+  BindingMap m;
+  for (uint8_t b = 0; b < 40; ++b)
+  {
+    if (b != 20)
+      m.push(makeEntry(0, b, ResourceKind::SampledTexture, b, b));
+  }
+  m.push(makeEntry(0, 20, ResourceKind::UniformBuffer, 3, 3));
+  m.push(makeEntry(0, 20, ResourceKind::SampledTexture, 7, 7));
+  m.finalize();
+
+  REQUIRE(m.size() == 41);
+  CHECK(m.at(20).kind == ResourceKind::UniformBuffer);
+  CHECK(m.at(21).kind == ResourceKind::SampledTexture);
+  CHECK(m.rowAt(20) == 0);
+  CHECK(m.rowAt(21) == 1);
+  CHECK(m.rowAt(22) == 0);
+
+  CHECK(
+      m.lookup(0, 20, ResourceKind::UniformBuffer, BindingMap::Stage::VS) == 3);
+  CHECK(
+      m.lookup(0, 20, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+      7);
+  CHECK(
+      m.lookup(0, 20, ResourceKind::Sampler, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
+}
+
 TEST_CASE("BindingMap stage visibility", "[ore_binding_map]")
 {
   BindingMap m;

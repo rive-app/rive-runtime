@@ -4847,31 +4847,13 @@ uint32_t gpuBindGroupLayoutFromShaderImpl(
     const uint32_t* dynamicUBOs,
     uint32_t dynamicUBOCount)
 {
-  ore::Context* oreContext = gpuOreContext(vm);
-  if (oreContext == nullptr)
-  {
-    return 0;
-  }
-  auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
+  return gpuBindGroupLayoutFromShadersImpl(
+      vm,
       shaderModule,
-      WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
-  if (host == nullptr)
-  {
-    return 0;
-  }
-  auto layout = ore::makeBindGroupLayoutFromShader(
-      *oreContext,
-      host->shaderModule.get(),
+      0,
       groupIndex,
       dynamicUBOs,
       dynamicUBOCount);
-  if (layout == nullptr)
-  {
-    return 0;
-  }
-  return vm->handles().mint(
-      WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
-      new HostGpuBindGroupLayout{std::move(layout)});
 }
 
 uint32_t gpuBindGroupLayoutFromShadersImpl(
@@ -4899,17 +4881,19 @@ uint32_t gpuBindGroupLayoutFromShadersImpl(
   {
     return 0;
   }
-  auto layout = ore::makeBindGroupLayoutFromBindingMap(
+  oreContext->clearLastError();
+  auto layout = ore::makeBindGroupLayoutFromShader(
       *oreContext,
-      ore::bindingMapForStages(vertex, fragment),
+      vertex,
       groupIndex,
       dynamicUBOs,
       dynamicUBOCount,
-      vertex,
       fragment);
   if (layout == nullptr)
   {
-    return 0;
+    return oreContext->lastError().empty()
+               ? 0
+               : gpuRejected(vm, oreContext, "GPUBindGroupLayout.fromShader");
   }
   return vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
