@@ -16,17 +16,19 @@ struct row
    float Angle;
 
    uint ContourID:16;
-   uint :3;
+   uint :1;
+   uint NegativeDeterminant:1;
    uint RightJoin:1;
    uint LeftJoin:1;
    uint JoinTangentInner:1;
    uint JoinTangent0:1;
    uint MirrorContour:1;
-   uint NegatePathFill:1;
+   uint NegateFillCoverage:1;
    uint EmulateStrokeCap:1;
    EnumJoinType JoinType:3;
    uint CullExcessTessSegments:1;
-   uint :1; //NEVER_USED_CONTOUR_FLAG
+   uint LastInMemory:1;
+   uint FirstInMemory:1;
    uint RetrofitTriStrip:1;
 };
 

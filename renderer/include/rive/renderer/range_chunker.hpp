@@ -213,9 +213,8 @@ private:
     {
       // Make sure the vertex indices won't stomp on the flags.
       assert(
-          (r.base & ((1 << DSVertexFlagsShift) - 1)) +
-              (r.count << m_patchStrideLog2) <=
-          1 << DSVertexFlagsShift);
+          (r.base & DSVertexIdxMask) + (r.count << m_patchStrideLog2) <=
+          1u << DSVertexFlagsShift);
     }
 #endif
   }

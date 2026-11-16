@@ -14,6 +14,25 @@
 
 namespace rive
 {
+namespace
+{
+class AutoSaveRestore
+{
+public:
+  explicit AutoSaveRestore(RiveRenderer* renderer) : m_renderer(renderer)
+  {
+    m_renderer->save();
+  }
+  ~AutoSaveRestore() { m_renderer->restore(); }
+
+  AutoSaveRestore(const AutoSaveRestore&) = delete;
+  AutoSaveRestore& operator=(const AutoSaveRestore&) = delete;
+
+private:
+  RiveRenderer* const m_renderer;
+};
+} // namespace
+
 static rcp<RiveRenderPath> invertClockwisePath(
     const RiveRenderPath* path,
     FillRule pathFillRule,
@@ -224,7 +243,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
   LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
   LITE_RTTI_CAST_OR_RETURN(paint, RiveRenderPaint*, renderPaint);
 
-  if (path->getRawPath().empty())
+  if (gpu::PathDraw::tessellatesEmpty(path, paint))
   {
     return;
   }
@@ -260,7 +279,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
   if (paint->getIsStroked() &&
       paint->getStrokePosition() != StrokePosition::center)
   {
-    save();
+    AutoSaveRestore autoSaveRestore(this);
 
     auto stroke = paint->getStrokeParams();
     stroke.thickness *= 2.0f;
@@ -307,7 +326,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
             path->getFillRule(),
             m_renderStateStack.back().matrix,
             pixelBounds);
-        drawPath(fillPath.get(), fillPaint.get());
+        if (fillPath != nullptr)
+          drawPath(fillPath.get(), fillPaint.get());
       }
     }
     else
@@ -321,6 +341,9 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
       // lot of fill rate through the middle.
       if (paint->getStrokePosition() == StrokePosition::inside)
       {
+        // If an inner stroke's clip tessellates empty, we have nothing to draw.
+        if (gpu::PathDraw::fillTessellatesEmpty(path->getRawPath()))
+          return;
         clipPathImpl(path);
       }
       else
@@ -334,6 +357,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
             path->getFillRule(),
             m_renderStateStack.back().matrix,
             strokeBounds);
+        if (clip == nullptr)
+          return;
         clipPathImpl(clip.get());
       }
 
@@ -344,7 +369,6 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
       thickenedCenteredStrokePaint->forceClosed(true);
       drawPath(path, thickenedCenteredStrokePaint.get());
     }
-    restore();
     return;
   }
 
@@ -357,7 +381,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
       // If we don't have image paint support we need to do this using
       // ImageRect (which can do all of the drawing of image +
       // color/gradient), clipped to the current path.
-      save();
+      AutoSaveRestore autoSaveRestore(this);
 
       AABB bounds;
       if (!IsAABB(path->getRawPath(), &bounds) || paint->getIsStroked() ||
@@ -385,7 +409,11 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
             stroke,
             paint->getFeather());
         bounds = bounds.outset(outset, outset);
-        clipPathImpl(path, stroke, paint->getFeather());
+        clipPathImpl(
+            path,
+            stroke,
+            paint->getFeather(),
+            paint->getForceClosed() ? ForceClosed::yes : ForceClosed::no);
       }
 
       const auto gradientMatrix = m_renderStateStack.back().matrix;
@@ -429,8 +457,6 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
           imageMatrix,
           gradientMatrix,
           paint->getInverseGradientTransform())));
-
-      restore();
       return;
     }
 
@@ -449,13 +475,17 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     float matrixMaxScale = m_renderStateStack.back().matrix.findMaxScale();
     if (paint->getFeather() * matrixMaxScale > 1)
     {
+      auto softenedPath = path->makeSoftenedCopyForFeathering(
+          paint->getFeather(),
+          matrixMaxScale);
+      // Softening prunes empty segments, which can leave nothing to draw.
+      if (gpu::PathDraw::fillTessellatesEmpty(softenedPath->getRawPath()))
+        return;
       clipAndPushDraw(gpu::PathDraw::Make(
           m_context,
           m_renderStateStack.back().matrix,
           imageMatrixPtr,
-          path->makeSoftenedCopyForFeathering(
-              paint->getFeather(),
-              matrixMaxScale),
+          std::move(softenedPath),
           path->getFillRule(),
           paint,
           m_renderStateStack.back().modulatedOpacity,
@@ -485,7 +515,7 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
     return;
   }
 
-  if (path->getRawPath().empty())
+  if (gpu::PathDraw::fillTessellatesEmpty(path->getRawPath()))
   {
     m_renderStateStack.back().overallClipPixelBounds = {};
     return;
@@ -518,7 +548,16 @@ void RiveRenderer::clipStroke(
     return;
   }
 
-  if (path->getRawPath().empty())
+  if (gpu::PathDraw::strokeTessellatesEmpty(path->getRawPath(), params))
+  {
+    m_renderStateStack.back().overallClipPixelBounds = {};
+    return;
+  }
+
+  // An inner stroke also clips by the bare path, so with no fill it clips
+  // everything.
+  if (params.position == StrokePosition::inside &&
+      gpu::PathDraw::fillTessellatesEmpty(path->getRawPath()))
   {
     m_renderStateStack.back().overallClipPixelBounds = {};
     return;
@@ -637,6 +676,16 @@ void RiveRenderer::clipPathImpl(
     IAABB* boundsOut)
 {
   RIVE_PROF_SCOPE_L(3)
+
+  // Callers are responsible to discard clips that tessellate to nothing.
+  assert(
+      !(stroke.has_value()
+            ? gpu::PathDraw::strokeTessellatesEmpty(
+                  path->getRawPath(),
+                  *stroke,
+                  forceClosed == ForceClosed::yes)
+            : gpu::PathDraw::fillTessellatesEmpty(path->getRawPath())));
+
   auto& renderState = m_renderStateStack.back();
   if (path->getBounds().isEmptyOrNaN())
   {
@@ -667,6 +716,8 @@ void RiveRenderer::clipPathImpl(
 
     if (stroke->position == StrokePosition::inside)
     {
+      // clipStroke() discards inner strokes of paths with no fill.
+      assert(!gpu::PathDraw::fillTessellatesEmpty(path->getRawPath()));
       clipPathImpl(path);
     }
     else
@@ -681,6 +732,11 @@ void RiveRenderer::clipPathImpl(
           path->getFillRule(),
           m_renderStateStack.back().matrix,
           outerBounds);
+      if (inverted == nullptr)
+      {
+        renderState.overallClipPixelBounds = {};
+        return;
+      }
       clipPath(inverted.get());
     }
 
@@ -802,7 +858,7 @@ void RiveRenderer::drawImage(
       opacity * m_renderStateStack.back().modulatedOpacity);
 
   // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
-  save();
+  AutoSaveRestore autoSaveRestore(this);
   scale(image->width(), image->height());
 
   if (!m_context->frameSupportsImagePaintForPaths())
@@ -846,8 +902,6 @@ void RiveRenderer::drawImage(
     paint.imageSampler(imageSampler);
     drawPath(m_unitRectPath.get(), &paint);
   }
-
-  restore();
 }
 
 void RiveRenderer::drawImageMesh(
@@ -1115,52 +1169,55 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 // NOTE: The returned path is always clockwise, even if the given path was not.
 // If the given path is not clockwise, we attempt to convert it to clockwise
 // based on its dominant winding direction. This may or may not be accurate.
+//
+// Returns null if 'viewMatrix' isn't invertible. Otherwise the result always
+// has segments.
 static rcp<RiveRenderPath> invertClockwisePath(
     const RiveRenderPath* path,
     FillRule pathFillRule,
     const Mat2D& viewMatrix,
     IAABB bounds)
 {
+  Mat2D viewInverseMatrix;
+  if (!viewMatrix.invert(&viewInverseMatrix))
+  {
+    return nullptr;
+  }
+
   auto inversePath = make_rcp<RiveRenderPath>();
   inversePath->fillRule(FillRule::clockwise);
-  Mat2D viewInverseMatrix;
-  if (viewMatrix.invert(&viewInverseMatrix))
+
+  // Add the pre-viewMatrix "bounds" rect to the new path.
+  std::array<Vec2D, 4> boundsVertices = {
+      Vec2D(bounds.left, bounds.top),
+      Vec2D(bounds.right, bounds.top),
+      Vec2D(bounds.right, bounds.bottom),
+      Vec2D(bounds.left, bounds.bottom),
+  };
+  viewInverseMatrix.mapPoints(boundsVertices.data(), boundsVertices.data(), 4);
+  inversePath->move(boundsVertices[0]);
+  if (const float viewMatrixDeterminant = viewMatrix[0] * viewMatrix[3] -
+                                          viewMatrix[2] * viewMatrix[1];
+      viewMatrixDeterminant >= 0)
   {
-    // Add the pre-viewMatrix "bounds" rect to the new path.
-    std::array<Vec2D, 4> boundsVertices = {
-        Vec2D(bounds.left, bounds.top),
-        Vec2D(bounds.right, bounds.top),
-        Vec2D(bounds.right, bounds.bottom),
-        Vec2D(bounds.left, bounds.bottom),
-    };
-    viewInverseMatrix.mapPoints(
-        boundsVertices.data(),
-        boundsVertices.data(),
-        4);
-    inversePath->move(boundsVertices[0]);
-    if (const float viewMatrixDeterminant = viewMatrix[0] * viewMatrix[3] -
-                                            viewMatrix[2] * viewMatrix[1];
-        viewMatrixDeterminant >= 0)
-    {
-      inversePath->line(boundsVertices[1]);
-      inversePath->line(boundsVertices[2]);
-      inversePath->line(boundsVertices[3]);
-    }
-    else
-    {
-      inversePath->line(boundsVertices[3]);
-      inversePath->line(boundsVertices[2]);
-      inversePath->line(boundsVertices[1]);
-    }
-    // Subtract the given path out of the bounds rect.
-    if (pathFillRule == FillRule::clockwise || path->getCoarseArea() >= 0)
-    {
-      inversePath->addRenderPathBackwards(path, Mat2D());
-    }
-    else
-    {
-      inversePath->addRenderPath(path, Mat2D());
-    }
+    inversePath->line(boundsVertices[1]);
+    inversePath->line(boundsVertices[2]);
+    inversePath->line(boundsVertices[3]);
+  }
+  else
+  {
+    inversePath->line(boundsVertices[3]);
+    inversePath->line(boundsVertices[2]);
+    inversePath->line(boundsVertices[1]);
+  }
+  // Subtract the given path out of the bounds rect.
+  if (pathFillRule == FillRule::clockwise || path->getCoarseArea() >= 0)
+  {
+    inversePath->addRenderPathBackwards(path, Mat2D());
+  }
+  else
+  {
+    inversePath->addRenderPath(path, Mat2D());
   }
   return inversePath;
 }
@@ -1272,6 +1329,8 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
           clipFillRule,
           clip.matrix,
           m_context->getClipContentBounds(parentClipID));
+      if (clipPath == nullptr)
+        return ApplyClipResult::fullyClipped;
       clipFillRule = FillRule::clockwise;
 
       // Clear this because the inverted path has different pixel bounds

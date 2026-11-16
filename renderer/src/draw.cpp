@@ -392,11 +392,11 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
   switch (join)
   {
     case StrokeJoin::miter:
-      return MITER_REVERT_JOIN_CONTOUR_FLAG;
+      return CONTOUR_FLAG_MITER_REVERT_JOIN;
     case StrokeJoin::round:
-      return ROUND_JOIN_CONTOUR_FLAG;
+      return CONTOUR_FLAG_ROUND_JOIN;
     case StrokeJoin::bevel:
-      return BEVEL_JOIN_CONTOUR_FLAG;
+      return CONTOUR_FLAG_BEVEL_JOIN;
   }
   RIVE_UNREACHABLE();
 }
@@ -785,6 +785,57 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
   RIVE_UNREACHABLE();
 }
 
+bool PathDraw::tessellatesEmpty(
+    const RiveRenderPath* path,
+    const RiveRenderPaint* paint)
+{
+  return paint->getIsStroked() ? strokeTessellatesEmpty(
+                                     path->getRawPath(),
+                                     paint->getStrokeParams(),
+                                     paint->getForceClosed())
+                               : fillTessellatesEmpty(path->getRawPath());
+}
+
+bool PathDraw::strokeTessellatesEmpty(
+    const RawPath& rawPath,
+    const StrokeParams& stroke,
+    bool forceClosed)
+{
+  return strokeTessellatesEmpty(
+      rawPath,
+      stroke.join,
+      stroke.cap,
+      forceClosed || stroke.position != StrokePosition::center);
+}
+
+bool PathDraw::strokeTessellatesEmpty(
+    const RawPath& rawPath,
+    StrokeJoin join,
+    StrokeCap cap,
+    bool forcedClosed)
+{
+  // A path always tessellates if it has segments (line, quadratic, cubic).
+  if (rawPath.hasSegments())
+    return false;
+
+  // Open strokes without any segments still tessellate if they have caps.
+  const bool hasOpenContours = !forcedClosed &&
+                               rawPath.verbCount(PathVerb::move) >
+                                   rawPath.verbCount(PathVerb::close);
+  if (hasOpenContours && cap != StrokeCap::butt)
+    return false;
+
+  // Closed strokes without any segments still tessellate if they have non-bevel
+  // joins.
+  const bool hasClosedContours = forcedClosed
+                                     ? rawPath.verbCount(PathVerb::move) != 0
+                                     : rawPath.verbCount(PathVerb::close) != 0;
+  if (hasClosedContours && join != StrokeJoin::bevel)
+    return false;
+
+  return true;
+}
+
 IAABB PathDraw::calculatePixelBounds(
     const Mat2D& paintMatrix,
     const RiveRenderPath* path,
@@ -832,6 +883,7 @@ DrawUniquePtr PathDraw::Make(
   RIVE_PROF_SCOPE_L(2);
   assert(path != nullptr);
   assert(paint != nullptr);
+  assert(!tessellatesEmpty(path.get(), paint));
 
   CoverageType coverageType = SelectCoverageType(
       paint,
@@ -1058,16 +1110,14 @@ PathDraw::PathDraw(
   {
     // Clockwise paths need to be reversed when the matrix is left-handed,
     // so that the intended forward triangles remain clockwise.
-    float det = m_paintMatrix.xx() * m_paintMatrix.yy() -
-                m_paintMatrix.yx() * m_paintMatrix.xy();
-    if (det < 0)
+    if (m_paintMatrix.determinant() < 0)
     {
       m_contourDirections = (m_coverageType == CoverageType::depthStencil ||
                              m_coverageType == CoverageType::featherAtlas)
                                 ? gpu::ContourDirections::reverse
                                 : gpu::ContourDirections::forwardThenReverse;
       // Ignored by depthStencil.
-      m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
+      m_contourFlags |= CONTOUR_FLAG_NEGATE_FILL_COVERAGE;
     }
     else
     {
@@ -1089,7 +1139,7 @@ PathDraw::PathDraw(
       m_contourDirections = (m_coverageType == CoverageType::featherAtlas)
                                 ? gpu::ContourDirections::reverse
                                 : gpu::ContourDirections::forwardThenReverse;
-      m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
+      m_contourFlags |= CONTOUR_FLAG_NEGATE_FILL_COVERAGE;
     }
     else
     {
@@ -1116,6 +1166,16 @@ PathDraw::PathDraw(
       // direction is fine.
       m_contourDirections = gpu::ContourDirections::forward;
     }
+  }
+  // depthStencil contourIDs must be consecutive in the tessellation texture,
+  // and increasing with tessellation spoke address. Double-sided paths can't
+  // support this because both copies share contourIDs.
+  assert(
+      m_coverageType != CoverageType::depthStencil ||
+      !gpu::ContourDirectionsAreDoubleSided(m_contourDirections));
+  if (m_paintMatrix.determinant() < 0)
+  {
+    m_contourFlags |= CONTOUR_FLAG_NEGATIVE_DETERMINANT;
   }
 
   m_simplePaintValue = paint->getSimpleValue();
@@ -1188,7 +1248,7 @@ size_t PathDraw::appendChoppedPieces(
   // curve and rotation lists
   size_t extraCurveIdx = cubicCount;
   size_t extraRotationIdx = mainRotationCount;
-  ContourInfo* contour = m_contours;
+  MidpointFanContourInfo* contour = m_midpointFanContours;
 
   for (size_t candidateIdx = 0; candidateIdx < batch->chopCandidates.size();
        ++candidateIdx)
@@ -1209,7 +1269,7 @@ size_t PathDraw::appendChoppedPieces(
     while (k >= contour->endCurveIdx)
     {
       ++contour;
-      assert(contour < m_contours + contourCount);
+      assert(contour < m_midpointFanContours + contourCount);
     }
 
     // Chop from the RawPath (batch->rawPathCubicPoints rather than
@@ -1259,7 +1319,7 @@ size_t PathDraw::appendChoppedPieces(
 }
 
 RIVE_NEVER_INLINE uint32_t PathDraw::countStrokeContourVertices(
-    ContourInfo* contour,
+    MidpointFanContourInfo* contour,
     bool empty,
     size_t* extraRotationIdx,
     size_t* emptyStrokeCountForCaps)
@@ -1422,8 +1482,9 @@ void PathDraw::initForMidpointFan(
   size_t contourCount = rawPath.verbCount(PathVerb::move);
   assert(contourCount != 0);
 
-  m_contours = reinterpret_cast<ContourInfo*>(
-      context->perFrameAllocator().alloc(sizeof(ContourInfo) * contourCount));
+  m_midpointFanContours = context->perFrameAllocator()
+                              .makePODArray<MidpointFanContourInfo>(
+                                  contourCount);
 
   assert(rawPath.verbCount(PathVerb::quad) == 0);
   size_t cubicCount = rawPath.verbCount(PathVerb::cubic);
@@ -1570,7 +1631,7 @@ void PathDraw::initForMidpointFan(
       strokeJoinCount = std::max<size_t>(strokeJoinCount, 1) - 1;
     }
     assert(contourIdx < contourCount);
-    m_contours[contourIdx++] = {
+    m_midpointFanContours[contourIdx++] = {
         iter,
         lineCount,
         contourFirstCurveIdx,
@@ -1812,11 +1873,12 @@ void PathDraw::initForMidpointFan(
   // Iteration pass 2: Count the tessellation vertices in each contour.
   size_t contourFirstLineIdx = 0;
   size_t tessVertexCount = 0;
+  size_t nonEmptyContourCount = 0;
   size_t extraCurveIdx = m_firstExtraCurveIdx;
   size_t extraRotationIdx = m_firstExtraRotationIdx;
   for (size_t i = 0; i < contourCount; ++i)
   {
-    ContourInfo* contour = &m_contours[i];
+    MidpointFanContourInfo* contour = &m_midpointFanContours[i];
     size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
     uint32_t contourVertexCount = math::lossless_numeric_cast<uint32_t>(
         contourLineCount * 2); // Each line tessellates to 2 vertices.
@@ -1869,7 +1931,10 @@ void PathDraw::initForMidpointFan(
         kMidpointFanPatchSegmentSpan>(contourVertexCount);
     contourVertexCount += contour->paddingVertexCount;
     assert(contourVertexCount % kMidpointFanPatchSegmentSpan == 0);
-    RIVE_DEBUG_CODE(contour->tessVertexCount = contourVertexCount;)
+    contour->tessVertexCount = math::lossless_numeric_cast<uint32_t>(
+        contourVertexCount);
+    if (contourVertexCount != 0)
+      ++nonEmptyContourCount;
 
     tessVertexCount += contourVertexCount;
     contourFirstLineIdx = contour->endLineIdx;
@@ -1884,10 +1949,14 @@ void PathDraw::initForMidpointFan(
   if (tessVertexCount > 0)
   {
     m_resourceCounts.pathCount = 1;
-    m_resourceCounts.contourCount = contourCount;
-    // maxTessellatedSegmentCount does not get doubled when we emit both
-    // forward and mirrored contours because the forward and mirrored pair
-    // both get packed into a single gpu::TessVertexSpan.
+    // The depthStencil vertex shader requires contourIDs to be consecutive in
+    // the tessellation texture. A contour that doesn't write spokes (e.g., a
+    // bare moveTo) can't take a contourID or else it would break the
+    // consecutive-IDs invariant.
+    m_resourceCounts.midpointFanContourCount = nonEmptyContourCount;
+    // maxTessellatedSegmentCount does not get doubled when we emit both forward
+    // and mirrored contours because the forward and mirrored pair both get
+    // packed into a single gpu::TessVertexSpan.
     m_resourceCounts.maxTessellatedSegmentCount = lineCount + curveIdx +
                                                   emptyStrokeCountForCaps;
     m_resourceCounts
@@ -1932,7 +2001,13 @@ void PathDraw::initForInteriorTriangulation(
   m_triangulatorNegateWinding = (matrixDeterminant < 0) !=
                                 static_cast<bool>(
                                     m_contourFlags &
-                                    NEGATE_PATH_FILL_COVERAGE_FLAG);
+                                    CONTOUR_FLAG_NEGATE_FILL_COVERAGE);
+
+  m_outerCubicContours = context->perFrameAllocator()
+                             .makePODArray<OuterCubicContourInfo>(
+                                 m_pathRef->getRawPath().verbCount(
+                                     PathVerb::move) +
+                                 1); // +1 for the grout/retrofit contour.
 
   // Every path has at least 1 (non-cubic) move.
   size_t originalNumChopsSize = m_pathRef->getRawPath().verbs().size() - 1;
@@ -2539,7 +2614,10 @@ void PathDraw::pushTessellationData(
       forwardTessVertexCount,
       forwardTessLocation,
       mirroredTessVertexCount,
-      mirroredTessLocation);
+      mirroredTessLocation,
+      math::lossless_numeric_cast<uint32_t>(m_resourceCounts.contourCount()),
+      m_triangulator != nullptr,
+      m_coverageType == CoverageType::depthStencil);
 
   if (m_triangulator != nullptr)
   {
@@ -2561,12 +2639,24 @@ void PathDraw::pushMidpointFanTessellationData(
   // after all the path's other curves and rotations, in order.
   size_t extraCurveIdx = m_firstExtraCurveIdx;
   size_t extraRotationIdx = m_firstExtraRotationIdx;
-  for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
+  const size_t totalContourCount = rawPath.verbCount(PathVerb::move);
+  RIVE_DEBUG_CODE(size_t pushedContourCount = 0;)
+  for (size_t i = 0; i < totalContourCount; ++i)
   {
     // Push a contour and curve records.
-    const ContourInfo& contour = m_contours[i];
+    const MidpointFanContourInfo& contour = m_midpointFanContours[i];
+    if (contour.tessVertexCount == 0)
+    {
+      // The depthStencil vertex shader requires contourIDs to be consecutive in
+      // the tessellation texture. A contour that doesn't write spokes (e.g., a
+      // bare moveTo) can't take a contourID or else it would break the
+      // consecutive-IDs invariant.
+      startOfContour = contour.endOfContour;
+      continue;
+    }
     assert(startOfContour.verb() == PathVerb::move);
     assert(isStroke() || contour.closed); // Fills are always closed.
+    RIVE_DEBUG_CODE(++pushedContourCount;)
     RIVE_DEBUG_CODE(m_pendingStrokeJoinCount = isStrokeOrFeather()
                                                    ? contour.strokeJoinCount
                                                    : 0;)
@@ -2587,8 +2677,8 @@ void PathDraw::pushMidpointFanTessellationData(
     if (isStrokeOrFeather())
     {
       joinTypeFlags = isStroke() ? join_type_flags(m_strokeJoin)
-                                 : FEATHER_JOIN_CONTOUR_FLAG;
-      roundJoinStroked = joinTypeFlags == ROUND_JOIN_CONTOUR_FLAG;
+                                 : CONTOUR_FLAG_FEATHER_JOIN;
+      roundJoinStroked = joinTypeFlags == CONTOUR_FLAG_ROUND_JOIN;
       if (contour.strokeCapSegmentCount != 0)
       {
         StrokeCap cap = !contour.closed
@@ -2597,16 +2687,16 @@ void PathDraw::pushMidpointFanTessellationData(
         switch (cap)
         {
           case StrokeCap::butt:
-            emulatedCapAsJoinFlags = BEVEL_JOIN_CONTOUR_FLAG;
+            emulatedCapAsJoinFlags = CONTOUR_FLAG_BEVEL_JOIN;
             break;
           case StrokeCap::square:
-            emulatedCapAsJoinFlags = MITER_CLIP_JOIN_CONTOUR_FLAG;
+            emulatedCapAsJoinFlags = CONTOUR_FLAG_MITER_CLIP_JOIN;
             break;
           case StrokeCap::round:
-            emulatedCapAsJoinFlags = ROUND_JOIN_CONTOUR_FLAG;
+            emulatedCapAsJoinFlags = CONTOUR_FLAG_ROUND_JOIN;
             break;
         }
-        emulatedCapAsJoinFlags |= EMULATED_STROKE_CAP_CONTOUR_FLAG;
+        emulatedCapAsJoinFlags |= CONTOUR_FLAG_EMULATED_STROKE_CAP;
         needsFirstEmulatedCapAsJoin = true;
       }
     }
@@ -2617,7 +2707,8 @@ void PathDraw::pushMidpointFanTessellationData(
                                       contour.midpoint,
                                       isStroke(),
                                       contour.closed,
-                                      contour.paddingVertexCount);
+                                      contour.paddingVertexCount,
+                                      contour.tessVertexCount);
 
     // When we don't have round joins, the number of segments per join is
     // constant. (Round joins have a variable number of segments per join,
@@ -2776,7 +2867,7 @@ void PathDraw::pushMidpointFanTessellationData(
               size_t cuspJoinIdx = extraRotationIdx++;
               chopJoinTangent = m_tangentPairs[cuspJoinIdx][1];
               chopJoinSegmentCount = m_polarSegmentCounts[cuspJoinIdx];
-              chopJoinTypeFlags = CUSP_JOIN_CONTOUR_FLAG;
+              chopJoinTypeFlags = CONTOUR_FLAG_CUSP_JOIN;
               RIVE_DEBUG_CODE(--m_pendingRotationCount;)
             }
             else
@@ -2930,6 +3021,7 @@ void PathDraw::pushMidpointFanTessellationData(
   }
 
   // Make sure we only pushed the amount of data we reserved.
+  assert(pushedContourCount == m_resourceCounts.contourCount());
   assert(m_pendingLineCount == 0);
   assert(m_pendingCurveCount == 0);
   assert(m_pendingRotationCount == 0);
@@ -2969,6 +3061,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
   wangs_formula::VectorXform vectorXform(m_paintMatrix);
   size_t patchCount = 0;
   size_t contourCount = 0;
+  size_t contourFirstPatchIdx = 0;
   Vec2D p0 = {0, 0};
   // A straight edge produces a single-segment cubic patch. In depthStencil we
   // draw only the patch interior (not the AA border), and that interior is
@@ -2993,17 +3086,35 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           ++patchCount;
         }
+        if (tessWriter == nullptr && contourCount != 0)
+        {
+          m_outerCubicContours[contourCount - 1]
+              .patchCount = math::lossless_numeric_cast<uint32_t>(
+              patchCount - contourFirstPatchIdx);
+        }
+        contourFirstPatchIdx = patchCount;
         if (tessWriter != nullptr)
         {
-          contourIDWithFlags = m_contourFlags | tessWriter->pushContour(
-                                                    {0, 0},
-                                                    isStroke(),
-                                                    /*closed=*/true,
-                                                    0);
+          // The depthStencil vertex shader requires contourIDs to be
+          // consecutive in the tessellation texture. A contour that doesn't
+          // write spokes (e.g., a bare moveTo) can't take a contourID or else
+          // it would break the consecutive-IDs invariant.
+          if (m_outerCubicContours[contourCount].patchCount != 0)
+          {
+            contourIDWithFlags = m_contourFlags |
+                                 tessWriter->pushContour(
+                                     {0, 0},
+                                     isStroke(),
+                                     /*closed=*/true,
+                                     0,
+                                     m_outerCubicContours[contourCount]
+                                             .patchCount *
+                                         OuterCubicPatchSegmentSpanPlusBowtie);
+          }
         }
         p0 = pts[0];
         ++contourCount;
@@ -3021,7 +3132,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           ++patchCount;
         }
@@ -3061,7 +3172,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           else
           {
@@ -3080,13 +3191,13 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                   1,
                   /*bowtieSegmentCount=*/1,
                   contourIDWithFlags |
-                      CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                      CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
               chop += 3;
               RIVE_DEBUG_CODE(++pushedPatchCount;)
             }
             // Fill the gap between the sub-cubics by connecting
             // their endpoints with a simple fan. Each fan blade is
-            // cubic patch with RETROFIT_TRI_STRIP_CONTOUR_FLAG (a
+            // cubic patch with CONTOUR_FLAG_RETROFIT_TRI_STRIP (a
             // standard strip of up to 3 triangles, retrofitted into
             // a cubic patch), anchored at the first vertex
             // (chops[0]).
@@ -3133,28 +3244,51 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           OuterCubicPatchSegmentSpan,
           1,
           /*bowtieSegmentCount=*/1,
-          contourIDWithFlags | CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+          contourIDWithFlags | CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
     }
     ++patchCount;
   }
+  if (tessWriter == nullptr && contourCount != 0)
+  {
+    m_outerCubicContours[contourCount - 1]
+        .patchCount = math::lossless_numeric_cast<uint32_t>(
+        patchCount - contourFirstPatchIdx);
+  }
+
+  // The grout and interior patches go out last, as their own contour. (The
+  // vertex shader needs a contourID change after the final real contour so its
+  // bowtie can detect the boundary and wrap.)
+  auto& retrofitPatchCount = m_outerCubicContours[contourCount++].patchCount;
 
   if (tessWriter == nullptr)
   {
     // We also draw each "grout" triangle using an outerCubic patch.
-    patchCount += m_triangulator->groutList().count();
+    retrofitPatchCount = m_triangulator->groutList().count();
 
     if (m_coverageType == CoverageType::depthStencil)
     {
       // depthStencil fills the path interior by smuggling its triangles
       // in with outerCubic patches (rather than a distinct
       // triangle-buffer draw).
-      patchCount += m_triangulator->retrofitCubicPatchCount(m_pathFillRule);
+      retrofitPatchCount += math::lossless_numeric_cast<uint32_t>(
+          m_triangulator->retrofitCubicPatchCount(m_pathFillRule));
     }
+    patchCount += retrofitPatchCount;
 
     if (patchCount > 0)
     {
       m_resourceCounts.pathCount = 1;
-      m_resourceCounts.contourCount = contourCount;
+      // The depthStencil vertex shader requires contourIDs to be consecutive in
+      // the tessellation texture. A contour that doesn't write spokes (e.g., a
+      // bare moveTo) can't take a contourID or else it would break the
+      // consecutive-IDs invariant.
+      size_t nonEmptyContourCount = 0;
+      for (size_t i = 0; i < contourCount; ++i)
+      {
+        if (m_outerCubicContours[i].patchCount != 0)
+          ++nonEmptyContourCount;
+      }
+      m_resourceCounts.outerCubicContourCount = nonEmptyContourCount;
       // maxTessellatedSegmentCount does not get doubled when we emit both
       // forward and mirrored contours because the forward and mirrored
       // pair both get packed into a single gpu::TessVertexSpan.
@@ -3178,32 +3312,46 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
   }
   else
   {
-    // Submit grout triangles, retrofitted into outerCubic patches.
-    for (auto* node = m_triangulator->groutList().head(); node;
-         node = node->fNext)
+    if (retrofitPatchCount != 0)
     {
-      tessWriter->pushRetrofitCubicTriStrip(
-          node->fPts,
-          3,
-          m_contourDirections,
-          contourIDWithFlags);
-      ++patchCount;
-    }
-    if (m_coverageType == CoverageType::depthStencil)
-    {
+      contourIDWithFlags = m_contourFlags |
+                           tessWriter->pushContour(
+                               {0, 0},
+                               isStroke(),
+                               /*closed=*/true,
+                               0,
+                               retrofitPatchCount *
+                                   OuterCubicPatchSegmentSpanPlusBowtie);
+
+      // Submit grout triangles, retrofitted into outerCubic patches.
+      for (auto* node = m_triangulator->groutList().head(); node;
+           node = node->fNext)
+      {
+        tessWriter->pushRetrofitCubicTriStrip(
+            node->fPts,
+            3,
+            m_contourDirections,
+            contourIDWithFlags);
+        ++patchCount;
+      }
+
       // Smuggle the interior triangles in with outerCubic patches.
-      patchCount += m_triangulator->polysToRetrofitCubicPatches(
-          m_pathFillRule,
-          gpu::WindingFaces::all,
-          [&](const Vec2D* strip, size_t cornerCount) {
-            tessWriter->pushRetrofitCubicTriStrip(
-                strip,
-                cornerCount,
-                m_contourDirections,
-                contourIDWithFlags);
-          });
+      if (m_coverageType == CoverageType::depthStencil)
+      {
+        patchCount += m_triangulator->polysToRetrofitCubicPatches(
+            m_pathFillRule,
+            gpu::WindingFaces::all,
+            [&](const Vec2D* strip, size_t cornerCount) {
+              tessWriter->pushRetrofitCubicTriStrip(
+                  strip,
+                  cornerCount,
+                  m_contourDirections,
+                  contourIDWithFlags);
+            });
+      }
     }
-    assert(contourCount == m_resourceCounts.contourCount);
+    // "<= contourCount" because contours with no patches don't take an ID.
+    assert(m_resourceCounts.outerCubicContourCount <= contourCount);
     assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);
     assert(
         patchCount * OuterCubicPatchSegmentSpanPlusBowtie * 2 ==

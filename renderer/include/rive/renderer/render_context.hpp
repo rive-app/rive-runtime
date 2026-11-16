@@ -677,7 +677,7 @@ private:
     // allocated in the render context's various GPU buffers.
     struct ResourceCounters
     {
-      constexpr static int NUM_ELEMENTS = 9;
+      constexpr static int NUM_ELEMENTS = 10;
       using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
       VecType toVec() const
@@ -698,10 +698,16 @@ private:
 
       ResourceCounters() = default;
 
+      size_t contourCount() const
+      {
+        return midpointFanContourCount + outerCubicContourCount;
+      }
+
       size_t midpointFanTessVertexCount = 0;
       size_t outerCubicTessVertexCount = 0;
       size_t pathCount = 0;
-      size_t contourCount = 0;
+      size_t midpointFanContourCount = 0;
+      size_t outerCubicContourCount = 0;
       size_t virtualPatchCount = 0;
       // lines, curves, lone joins, emulated caps, etc.
       size_t maxTessellatedSegmentCount = 0;
@@ -817,22 +823,34 @@ private:
 
     // Pushes a contour record to the GPU that references the given path.
     //
-    // "vertexIndex0" is the index within the tessellation where the first
-    // vertex of the contour resides. Shaders need this when the contour is
-    // closed.
+    // "vertexIndex0" indexes the tessellation texture and has a different
+    // meaning depending on interlockMode:
+    //
+    //   * non-depthStencil: Index of the contour's logical vertex zero. If the
+    //     contour is mirrored, this will be the final vertex in memory rather
+    //     than the first.
+    //
+    //   * depthStencil: Index of the first vertex in tessellation memory that
+    //     belongs to the contour, regardless of whether the contour is
+    //     mirrored.
     //
     // Returns a unique 16-bit "contourID" handle for this specific record.
     // This ID may be or-ed with '*_CONTOUR_FLAG' bits from constants.glsl.
     [[nodiscard]] uint32_t pushContour(
+        uint32_t contourID,
         uint32_t pathID,
         Vec2D midpoint,
         bool isStroke,
         bool closed,
         uint32_t vertexIndex0);
 
-    // Writes padding vertices to the tessellation texture, with an invalid
-    // contour ID that is guaranteed to not be the same ID as any neighbors.
-    void pushPaddingVertices(uint32_t count, uint32_t tessLocation);
+    // Writes padding spokes to the tessellation texture.
+    // Their contour ID must be adjacent to their neighbors so that boundary
+    // flags let the vertex shader find the neighbor's ID with "spokeIdx - 1".
+    void pushPaddingSpokes(
+        uint32_t count,
+        uint32_t tessLocation,
+        uint32_t contourIDWithFlags);
 
     // Schedules barriers that will be issued immediately before the next
     // draw.
@@ -1011,7 +1029,11 @@ private:
 
     // Most recent path and contour state.
     uint32_t m_currentPathID;
-    uint32_t m_currentContourID;
+
+    // Contour IDs for an entire flush are reserved up front and then pulled
+    // from here.
+    uint32_t m_nextMidpointFanContourID;
+    uint32_t m_nextOuterCubicContourID;
 
     // Atlas for offscreen feathering.
     std::unique_ptr<rive::RectanizerSkyline> m_featherAtlasRectanizer;
@@ -1058,7 +1080,10 @@ private:
         uint32_t forwardTessVertexCount,
         uint32_t forwardTessLocation,
         uint32_t mirroredTessVertexCount = 0,
-        uint32_t mirroredTessLocation = 0);
+        uint32_t mirroredTessLocation = 0,
+        uint32_t nonEmptyContourCount = 0,
+        bool isOuterCubic = false,
+        bool isDepthStencil = false);
 
     ~TessellationWriter();
 
@@ -1085,7 +1110,8 @@ private:
         Vec2D midpoint,
         bool isStroke,
         bool closed,
-        uint32_t paddingVertexCount);
+        uint32_t paddingVertexCount,
+        uint32_t totalTessVertexCount); // Including padding.
 
     // Wites out (potentially wrapped) TessVertexSpan(s) that tessellate
     // a cubic curve & join at the current tessellation location(s).
@@ -1158,10 +1184,21 @@ private:
     WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
     const uint32_t m_pathID;
     const gpu::ContourDirections m_contourDirections;
+    // depthStencil contours record their first vertex in memory, even when
+    // mirrored. (See pushContour().)
+    const bool m_isDepthStencil;
     uint32_t m_pathTessLocation;
     uint32_t m_pathMirroredTessLocation;
     // Padding to add to the next curve.
     uint32_t m_nextCubicPaddingVertexCount = 0;
+    // This path's contour IDs, reserved up front. (Mirrored paths step through
+    // them in reverse order, which preserves the invariant that depthStencil
+    // IDs increase with tessellation spoke address.)
+    uint32_t m_nextContourID;
+    uint32_t m_contourIDStep;
+    RIVE_DEBUG_CODE(uint32_t m_endContourID;)
+    bool m_wroteFirstCubicInContour = false;
+    uint32_t m_contourTessVerticesRemaining = 0;
     RIVE_DEBUG_CODE(uint32_t m_expectedPathTessEndLocation;)
     RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessEndLocation;)
   };

@@ -18,6 +18,7 @@ namespace rive
 {
 class RiveRenderPath;
 class RiveRenderPaint;
+struct StrokeParams;
 } // namespace rive
 
 namespace rive::gpu
@@ -282,6 +283,23 @@ public:
       ColorInt modulatedColor,
       std::optional<IAABB> pixelBounds = {});
 
+  // True if a path can (and must) be discarded because it tessellates to zero
+  // spokes. (The tessellator does not allow zero-spoke paths.)
+  static bool tessellatesEmpty(const RiveRenderPath*, const RiveRenderPaint*);
+  static bool strokeTessellatesEmpty(
+      const RawPath&,
+      const StrokeParams&,
+      bool forceClosed = false);
+  static bool strokeTessellatesEmpty(
+      const RawPath&,
+      StrokeJoin,
+      StrokeCap,
+      bool forcedClosed);
+  static bool fillTessellatesEmpty(const RawPath& rawPath)
+  {
+    return !rawPath.hasSegments();
+  }
+
   // The pixels a draw of `path` with `paint` can touch, before any clipping.
   static IAABB calculatePixelBounds(
       const Mat2D& paintMatrix,
@@ -404,7 +422,7 @@ public:
   }
   // True if the triangulator should negate the Rive winding number when
   // outputting triangle vertices (because of a left-handed view matrix or
-  // NEGATE_PATH_FILL_COVERAGE_FLAG).
+  // CONTOUR_FLAG_NEGATE_FILL_COVERAGE).
   bool triangulatorNegateWinding() const { return m_triangulatorNegateWinding; }
 
   bool allocateResources(RenderContext::LogicalFlush*) override;
@@ -428,7 +446,7 @@ public:
   void releaseRefs() override;
 
 protected:
-  struct ContourInfo
+  struct MidpointFanContourInfo
   {
     RawPath::Iter endOfContour;
     size_t endLineIdx;
@@ -446,7 +464,12 @@ protected:
     size_t extraRotationCount; // Rotations from appendChoppedPieces()
     uint32_t strokeCapSegmentCount;
     uint32_t paddingVertexCount;
-    RIVE_DEBUG_CODE(uint32_t tessVertexCount;)
+    uint32_t tessVertexCount; // Including padding.
+  };
+
+  struct OuterCubicContourInfo
+  {
+    uint32_t patchCount;
   };
 
   static CoverageType SelectCoverageType(
@@ -466,7 +489,7 @@ protected:
   // Counts the vertices a stroked or feathered contour adds for its polar
   // segments, joins and caps.
   uint32_t countStrokeContourVertices(
-      ContourInfo*,
+      MidpointFanContourInfo*,
       bool empty,
       size_t* extraRotationIdx,
       size_t* emptyStrokeCountForCaps);
@@ -553,7 +576,10 @@ protected:
   float m_strokeMatrixMaxScale;
   float m_polarSegmentsPerRadian;
 
-  ContourInfo* m_contours;
+  // Interior triangulation draws use m_outerCubicContours only.
+  // Everything else uses m_midpointFanContours instead.
+  MidpointFanContourInfo* m_midpointFanContours = nullptr;
+  OuterCubicContourInfo* m_outerCubicContours = nullptr;
   FixedQueue<uint8_t> m_numChops;
   FixedQueue<Vec2D> m_chopVertices;
   std::array<Vec2D, 2>* m_tangentPairs = nullptr;

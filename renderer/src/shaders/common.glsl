@@ -231,6 +231,13 @@ INLINE half max_component(half4 max4)
 
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 
+// Equivalent to "bool(flags & flag0) != bool(flags & flag1)".
+INLINE bool isExactlyOneFlagSet(uint flags, uint flag0, uint flag1)
+{
+  uint bothFlags = flag0 | flag1;
+  return (flags & bothFlags) - 1u < bothFlags - 1u;
+}
+
 // ARM Mali has experienced multiple errors for us when calling clamp(), in both
 // GL and Vulkan.
 INLINE half safe_clamp_for_mali(half x, half lo, half hi)

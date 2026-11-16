@@ -49,12 +49,22 @@ constexpr uint32_t kMaxTextureHeight = 2048;
 constexpr size_t kMaxTessellationVertexCount = kMaxTextureHeight *
                                                kTessTextureWidth;
 
+// The depthStencil vertex shader requires contourIDs to be consecutive in the
+// tessellation texture, so a flush allocates 2 throwaway contourIDs:
+//   * A padding-only ID between midpointFan and outerCubic regions.
+//   * A padding-only ID on the final padding vertex (lastContourID + 1).
+// (The initial padding vertex just uses 0, which is invalid for 1-based IDs.)
+constexpr size_t PaddingContourIDsPerFlush = 2;
+
 constexpr size_t kMaxTessellationPaddingVertexCount =
-    gpu::kMidpointFanPatchSegmentSpan + // Padding at the beginning of the
-                                        // tessellation texture
-    gpu::OuterCubicPatchSegmentSpan + // Max padding between patch types in the
-                                      // tessellation texture
-    1; // Padding at the end of the tessellation texture
+    // Padding at the beginning of the tessellation texture.
+    gpu::kMidpointFanPatchSegmentSpan +
+    // Max padding between patch types in the tessellation texture: A 2-spoke
+    // minimum so the FIRST/LAST boundary flags land on different spokes, plus
+    // up to 16 more to align on a 17-spoke outer-cubic patch.
+    2 + (gpu::OuterCubicPatchSegmentSpanPlusBowtie - 1) +
+    // Padding at the end of the tessellation texture.
+    1;
 constexpr size_t kMaxTessellationVertexCountBeforePadding =
     kMaxTessellationVertexCount - kMaxTessellationPaddingVertexCount;
 
@@ -347,7 +357,10 @@ void RenderContext::LogicalFlush::rewind()
   m_combinedShaderFeatures = gpu::ShaderFeatures::NONE;
 
   m_currentPathID = 0;
-  m_currentContourID = 0;
+
+  // Invalid until writeResources() knows where the outerCubic IDs begin.
+  m_nextMidpointFanContourID = 0;
+  m_nextOuterCubicContourID = 0;
 
   if (m_featherAtlasRectanizer != nullptr)
   {
@@ -560,7 +573,8 @@ bool RenderContext::LogicalFlush::pushDraws(
   // Textures and buffers have hard size limits. If the new batch doesn't fit
   // within our constraints, the caller needs to flush and try again.
   if (countsWithNewBatch.pathCount > m_ctx->m_maxPathID ||
-      countsWithNewBatch.contourCount > kMaxContourID ||
+      countsWithNewBatch.contourCount() + PaddingContourIDsPerFlush >
+          kMaxContourID ||
       countsWithNewBatch.midpointFanTessVertexCount +
               countsWithNewBatch.outerCubicTessVertexCount >
           kMaxTessellationVertexCountBeforePadding)
@@ -847,7 +861,7 @@ void RenderContext::flush(const FlushResources& flushResources)
                          layoutCounts.pathPaddingCount,
       .paintAuxBufferCount = totalFrameResourceCounts.pathCount +
                              layoutCounts.paintAuxPaddingCount,
-      .contourBufferCount = totalFrameResourceCounts.contourCount +
+      .contourBufferCount = totalFrameResourceCounts.contourCount() +
                             layoutCounts.contourPaddingCount,
       .virtualPatchBufferCount = totalFrameResourceCounts.virtualPatchCount +
                                  layoutCounts.virtualPatchPaddingCount,
@@ -1063,7 +1077,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount);
     assert(
         m_contourData.elementsWritten() ==
-        totalFrameResourceCounts.contourCount +
+        totalFrameResourceCounts.contourCount() +
             layoutCounts.contourPaddingCount);
     assert(
         m_virtualPatchData.elementsWritten() ==
@@ -1220,13 +1234,16 @@ void RenderContext::LogicalFlush::layoutResources(
   // This also allows us to index the storage buffers directly by pathID.
   ++m_resourceCounts.pathCount;
 
+  // Reserve the padding-only contour IDs.
+  m_resourceCounts.outerCubicContourCount += PaddingContourIDsPerFlush;
+
   // Storage buffer offsets are required to be aligned on multiples of 256.
   m_pathPaddingCount = math::padding_to_align_up<
       gpu::kPathBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_paintAuxPaddingCount = math::padding_to_align_up<
       gpu::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_contourPaddingCount = math::padding_to_align_up<
-      gpu::kContourBufferAlignmentInElements>(m_resourceCounts.contourCount);
+      gpu::kContourBufferAlignmentInElements>(m_resourceCounts.contourCount());
   m_virtualPatchPaddingCount = math::padding_to_align_up<
       gpu::VirtualPatchBufferAlignmentInElements>(
       m_resourceCounts.virtualPatchCount);
@@ -1239,8 +1256,8 @@ void RenderContext::LogicalFlush::layoutResources(
   if ((m_resourceCounts.midpointFanTessVertexCount |
        m_resourceCounts.outerCubicTessVertexCount) != 0)
   {
-    // midpointFan tessellation vertices reside at the beginning of the
-    // tessellation texture, after 1 patch of padding vertices.
+    // midpointFan tessellation spokes reside at the beginning of the
+    // tessellation texture, after 1 patch of padding spokes.
     constexpr uint32_t kPrePadding = gpu::kMidpointFanPatchSegmentSpan;
     m_midpointFanTessVertexIdx = kPrePadding;
     m_midpointFanTessEndLocation = m_midpointFanTessVertexIdx +
@@ -1248,11 +1265,14 @@ void RenderContext::LogicalFlush::layoutResources(
                                        m_resourceCounts
                                            .midpointFanTessVertexCount);
 
-    // outerCubic tessellation vertices reside after the midpointFan
-    // vertices, aligned on a multiple of the outerCubic patch size.
+    // outerCubic tessellation spokes reside after the midpointFan spokes,
+    // aligned on a multiple of the outerCubic patch size.
+    // We also need at least 2 padding spokes between midpoint & outer in order
+    // to feed the necessary boundary flags to the vertex shader.
     uint32_t interiorPadding = math::padding_to_align_up<
-        gpu::OuterCubicPatchSegmentSpanPlusBowtie>(
-        m_midpointFanTessEndLocation);
+                                   gpu::OuterCubicPatchSegmentSpanPlusBowtie>(
+                                   m_midpointFanTessEndLocation + 2) +
+                               2;
     m_outerCubicTessVertexIdx = m_midpointFanTessEndLocation + interiorPadding;
     m_outerCubicTessEndLocation = m_outerCubicTessVertexIdx +
                                   math::lossless_numeric_cast<uint32_t>(
@@ -1416,8 +1436,8 @@ void RenderContext::LogicalFlush::layoutResources(
   m_flushDesc.firstPaintAux = runningFrameResourceCounts->pathCount +
                               runningFrameLayoutCounts->paintAuxPaddingCount;
   m_flushDesc.contourCount = math::lossless_numeric_cast<uint32_t>(
-      m_resourceCounts.contourCount);
-  m_flushDesc.firstContour = runningFrameResourceCounts->contourCount +
+      m_resourceCounts.contourCount());
+  m_flushDesc.firstContour = runningFrameResourceCounts->contourCount() +
                              runningFrameLayoutCounts->contourPaddingCount;
   m_flushDesc.virtualPatchCount = math::lossless_numeric_cast<uint32_t>(
       m_resourceCounts.virtualPatchCount);
@@ -1637,24 +1657,55 @@ void RenderContext::LogicalFlush::writeResources()
   m_ctx->m_pathData.emplace_back(m_ctx->frameDescriptor().clearColor);
   m_ctx->m_paintAuxData.skip_back();
 
+  // Reserve all the contour records up front. These are written out of order.
+  assert(m_ctx->m_contourData.elementsWritten() == m_flushDesc.firstContour);
+  m_ctx->m_contourData.push_back_n(nullptr, m_resourceCounts.contourCount());
+
+  // Initialize the padding-only contours so they refer to invalid path 0.
+  // (The GPU will definitely fetch these.)
+  const uint32_t middlePaddingContourID = math::lossless_numeric_cast<uint32_t>(
+      m_resourceCounts.midpointFanContourCount + 1);
+  const uint32_t finalPaddingContourID = math::lossless_numeric_cast<uint32_t>(
+      m_resourceCounts.contourCount());
+  for (uint32_t contourID : {middlePaddingContourID, finalPaddingContourID})
+  {
+    m_ctx->m_contourData.emplace_at(
+        m_flushDesc.firstContour + contourID - 1,
+        Vec2D{0, 0},
+        /*pathID=*/0,
+        /*vertexIndex0=*/0);
+  }
+
+  m_nextMidpointFanContourID = 1;
+  m_nextOuterCubicContourID = middlePaddingContourID + 1;
+  const uint32_t interiorTessPaddingCount = m_outerCubicTessVertexIdx -
+                                            m_midpointFanTessEndLocation;
+
   // Render padding vertices in the tessellation texture.
   if (m_flushDesc.tessDataHeight > 0)
   {
-    // Padding at the beginning of the tessellation texture.
-    pushPaddingVertices(gpu::kMidpointFanPatchSegmentSpan, 0);
-    // Padding between patch types in the tessellation texture.
-    if (m_outerCubicTessVertexIdx > m_midpointFanTessEndLocation)
-    {
-      pushPaddingVertices(
-          m_outerCubicTessVertexIdx - m_midpointFanTessEndLocation,
-          m_midpointFanTessEndLocation);
-    }
-    // The final vertex of the final patch of each contour crosses over into
-    // the next contour. (This is how we wrap around back to the beginning.)
-    // Therefore, the final contour of the flush needs an out-of-contour
-    // vertex to cross into as well, so we emit a padding vertex here at the
-    // end.
-    pushPaddingVertices(1, m_outerCubicTessEndLocation);
+    // Padding at the beginning of the tessellation texture. (Non-depthStencil
+    // mirrored contours can peek one vertex before their first.)
+    pushPaddingSpokes(
+        gpu::kMidpointFanPatchSegmentSpan,
+        0,
+        CONTOUR_FLAG_LAST_IN_MEMORY);
+
+    // Padding between midpointFan and outerCubic regions in the tessellation
+    // texture.
+    assert(interiorTessPaddingCount >= 2);
+    pushPaddingSpokes(
+        interiorTessPaddingCount,
+        m_midpointFanTessEndLocation,
+        middlePaddingContourID | CONTOUR_FLAG_FIRST_IN_MEMORY |
+            CONTOUR_FLAG_LAST_IN_MEMORY);
+
+    // Padding at the end of the tessellation texture. (The final contour's
+    // contour-closing spoke crosses into it, then wraps or clamps.)
+    pushPaddingSpokes(
+        1,
+        m_outerCubicTessEndLocation,
+        finalPaddingContourID | CONTOUR_FLAG_FIRST_IN_MEMORY);
   }
 
   // Write out all the data for our high level draws, and build up a low-level
@@ -2570,6 +2621,11 @@ void RenderContext::LogicalFlush::writeResources()
         m_pendingFeatherAtlasDraws.size());
   }
 
+  assert(
+      m_nextMidpointFanContourID ==
+      m_resourceCounts.midpointFanContourCount + 1);
+  assert(m_nextOuterCubicContourID == m_resourceCounts.contourCount());
+
   // Pad our buffers to 256-byte alignment.
   m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
   m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
@@ -2586,7 +2642,7 @@ void RenderContext::LogicalFlush::writeResources()
           m_paintAuxPaddingCount);
   assert(
       m_ctx->m_contourData.elementsWritten() ==
-      m_flushDesc.firstContour + m_resourceCounts.contourCount +
+      m_flushDesc.firstContour + m_resourceCounts.contourCount() +
           m_contourPaddingCount);
   assert(
       m_ctx->m_virtualPatchData.elementsWritten() ==
@@ -3355,20 +3411,20 @@ RenderContext::TessellationWriter::TessellationWriter(
     uint32_t forwardTessVertexCount,
     uint32_t forwardTessLocation,
     uint32_t mirroredTessVertexCount,
-    uint32_t mirroredTessLocation)
+    uint32_t mirroredTessLocation,
+    uint32_t nonEmptyContourCount,
+    bool isOuterCubic,
+    bool isDepthStencil)
     : m_flush(flush)
     , m_tessSpanData(m_flush->m_ctx->m_tessSpanData)
     , m_pathID(pathID)
     , m_contourDirections(contourDirections)
+    , m_isDepthStencil(isDepthStencil)
     , m_pathTessLocation(forwardTessLocation)
     , m_pathMirroredTessLocation(mirroredTessLocation)
 {
   RIVE_PROF_SCOPE_L(2)
-  RIVE_DEBUG_CODE(m_expectedPathTessEndLocation = m_pathTessLocation +
-                                                  forwardTessVertexCount;)
-  RIVE_DEBUG_CODE(
-      m_expectedPathMirroredTessEndLocation = m_pathMirroredTessLocation -
-                                              mirroredTessVertexCount;)
+
   assert(m_flush->m_hasDoneLayout);
   assert(m_flush->m_ctx->m_pathData.elementsWritten() > 0);
   assert(
@@ -3379,17 +3435,51 @@ RenderContext::TessellationWriter::TessellationWriter(
       forwardTessVertexCount == mirroredTessVertexCount);
   assert(m_pathTessLocation >= 0);
   assert(m_pathMirroredTessLocation <= kMaxTessellationVertexCount);
+
+  // Reserve the contourIDs all up front. This lets us assign them in any order.
+  uint32_t& nextContourID = isOuterCubic ? m_flush->m_nextOuterCubicContourID
+                                         : m_flush->m_nextMidpointFanContourID;
+  assert(nextContourID != 0);
+  if (m_contourDirections == gpu::ContourDirections::reverse)
+  {
+    // Mirrored contours are written backwards to the tessellation texture.
+    // Assign their IDs in reverse order, which preserves the invariant that
+    // depthStencil IDs increase with tessellation spoke address.
+    m_nextContourID = nextContourID + nonEmptyContourCount - 1;
+    m_contourIDStep = ~0u; // -1 mod 2^32.
+    RIVE_DEBUG_CODE(m_endContourID = nextContourID - 1;)
+  }
+  else
+  {
+    // Assign in ascending order.
+    // NOTE: This includes double-sided paths. They never occur in depthStencil
+    // mode, so order doesn't matter.
+    m_nextContourID = nextContourID;
+    m_contourIDStep = 1u;
+    RIVE_DEBUG_CODE(m_endContourID = nextContourID + nonEmptyContourCount;)
+  }
+  nextContourID += nonEmptyContourCount;
+
+  RIVE_DEBUG_CODE(m_expectedPathTessEndLocation = m_pathTessLocation +
+                                                  forwardTessVertexCount;)
   assert(m_expectedPathTessEndLocation <= kMaxTessellationVertexCount);
+
+  RIVE_DEBUG_CODE(
+      m_expectedPathMirroredTessEndLocation = m_pathMirroredTessLocation -
+                                              mirroredTessVertexCount;)
   assert(m_expectedPathMirroredTessEndLocation >= 0);
 }
 
 RenderContext::TessellationWriter::~TessellationWriter()
 {
+  assert(m_nextContourID == m_endContourID);
+  assert(m_contourTessVerticesRemaining == 0);
   assert(m_pathTessLocation == m_expectedPathTessEndLocation);
   assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessEndLocation);
 }
 
 uint32_t RenderContext::LogicalFlush::pushContour(
+    uint32_t contourID,
     uint32_t pathID,
     Vec2D midpoint,
     bool isStroke,
@@ -3399,36 +3489,66 @@ uint32_t RenderContext::LogicalFlush::pushContour(
   RIVE_PROF_SCOPE_L(2)
   assert(pathID != 0);
   assert(isStroke || closed);
+  assert(0 < contourID && contourID <= gpu::kMaxContourID);
+  // Real contours never take padding IDs.
+  assert(contourID < m_resourceCounts.contourCount());
+  assert(contourID != m_resourceCounts.midpointFanContourCount + 1);
 
   if (isStroke)
   {
     midpoint.x = closed ? 1 : 0;
   }
-  m_ctx->m_contourData.emplace_back(midpoint, pathID, vertexIndex0);
-
-  ++m_currentContourID;
-  assert(0 < m_currentContourID && m_currentContourID <= gpu::kMaxContourID);
-  assert(
-      m_flushDesc.firstContour + m_currentContourID ==
-      m_ctx->m_contourData.elementsWritten());
-  return m_currentContourID;
+  m_ctx->m_contourData.emplace_at(
+      m_flushDesc.firstContour + contourID - 1,
+      midpoint,
+      pathID,
+      vertexIndex0);
+  return contourID;
 }
 
 uint32_t RenderContext::TessellationWriter::pushContour(
     Vec2D midpoint,
     bool isStroke,
     bool closed,
-    uint32_t paddingVertexCount)
+    uint32_t paddingVertexCount,
+    uint32_t totalTessVertexCount)
 {
   RIVE_PROF_SCOPE_L(2)
+
+  // The previous contour should have pushed exactly the vertices it said it
+  // would.
+  assert(m_contourTessVerticesRemaining == 0);
+
   // The first curve of the contour will be pre-padded with
   // 'paddingVertexCount' tessellation vertices, colocated at T=0. The caller
   // must use this argument align the end of the contour on a boundary of the
   // patch size. (See math::padding_to_align_up().)
   m_nextCubicPaddingVertexCount = paddingVertexCount;
 
-  return m_flush
-      ->pushContour(m_pathID, midpoint, isStroke, closed, nextVertexIndex());
+  // Empty contours should get discarded before reaching here.
+  assert(totalTessVertexCount != 0);
+  assert(m_nextContourID != m_endContourID);
+  uint32_t contourID = m_nextContourID;
+  m_nextContourID += m_contourIDStep;
+  m_wroteFirstCubicInContour = false;
+  m_contourTessVerticesRemaining = totalTessVertexCount;
+
+  // A closed contour wraps back around to its record's vertexIndex0. Usually
+  // that's its logical first vertex, but mirrored depthStencil contours wrap to
+  // the first in memory (which is the logical last).
+  uint32_t vertexIndex0 = m_isDepthStencil &&
+                                  m_contourDirections ==
+                                      gpu::ContourDirections::reverse
+                              ? m_pathMirroredTessLocation -
+                                    totalTessVertexCount
+                              : nextVertexIndex();
+  return m_flush->pushContour(
+      contourID,
+      m_pathID,
+      midpoint,
+      isStroke,
+      closed,
+      vertexIndex0);
 }
 
 void RenderContext::TessellationWriter::pushCubic(
@@ -3446,9 +3566,6 @@ void RenderContext::TessellationWriter::pushCubic(
       parametricSegmentCount <= kMaxParametricSegments);
   assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
   assert(joinSegmentCount > 0);
-  assert(
-      (contourIDWithFlags & CONTOUR_ID_MASK) ==
-      (m_flush->m_currentContourID & CONTOUR_ID_MASK));
   // contourID can't be zero.
   assert((contourIDWithFlags & CONTOUR_ID_MASK) != 0);
   // contourID can't be out of range in the contour buffer. (Contour buffer
@@ -3456,16 +3573,34 @@ void RenderContext::TessellationWriter::pushCubic(
   assert(
       (contourIDWithFlags & CONTOUR_ID_MASK) <= m_flush->desc().contourCount);
 
-  // Polar and parametric segments share the same beginning and ending
-  // vertices, so the merged *vertex* count is equal to the sum of polar and
-  // parametric *segment* counts.
-  uint32_t curveMergedVertexCount = parametricSegmentCount + polarSegmentCount;
-  // -1 because the curve and join share an ending/beginning vertex.
-  uint32_t totalVertexCount = m_nextCubicPaddingVertexCount +
-                              curveMergedVertexCount + joinSegmentCount - 1;
+  // Polar and parametric segments share the same beginning and ending spokes,
+  // so the merged *spoke* count in the curve section is equal to the sum of
+  // polar and parametric *segment* counts.
+  uint32_t mergedSpokeCount = parametricSegmentCount + polarSegmentCount;
+  // -1 because the curve and join share an ending/beginning spoke.
+  mergedSpokeCount += joinSegmentCount - 1;
+  // Every span has at least 2 spokes (T=0 and T=1). The tessellator never puts
+  // a contour's FIRST and LAST boundary flags on the same spoke.
+  assert(mergedSpokeCount >= 2);
 
   // Only the first curve of a contour gets padding vertices.
+  uint32_t paddedSpokeCount = m_nextCubicPaddingVertexCount + mergedSpokeCount;
   m_nextCubicPaddingVertexCount = 0;
+
+  assert(m_contourTessVerticesRemaining >= paddedSpokeCount);
+  m_contourTessVerticesRemaining -= paddedSpokeCount;
+
+  // Mark the spans holding a contour's first and last spokes. (The tessellator
+  // narrows these flags to the single boundary spokes.)
+  if (!m_wroteFirstCubicInContour)
+  {
+    contourIDWithFlags |= CONTOUR_FLAG_FIRST_IN_MEMORY;
+    m_wroteFirstCubicInContour = true;
+  }
+  if (m_contourTessVerticesRemaining == 0)
+  {
+    contourIDWithFlags |= CONTOUR_FLAG_LAST_IN_MEMORY;
+  }
 
   switch (contourDirections)
   {
@@ -3473,7 +3608,7 @@ void RenderContext::TessellationWriter::pushCubic(
       pushTessellationSpans(
           pts,
           joinTangent,
-          totalVertexCount,
+          paddedSpokeCount,
           parametricSegmentCount,
           polarSegmentCount,
           joinSegmentCount,
@@ -3483,7 +3618,7 @@ void RenderContext::TessellationWriter::pushCubic(
       pushMirroredTessellationSpans(
           pts,
           joinTangent,
-          totalVertexCount,
+          paddedSpokeCount,
           parametricSegmentCount,
           polarSegmentCount,
           joinSegmentCount,
@@ -3497,7 +3632,7 @@ void RenderContext::TessellationWriter::pushCubic(
       pushDoubleSidedTessellationSpans(
           pts,
           joinTangent,
-          totalVertexCount,
+          paddedSpokeCount,
           parametricSegmentCount,
           polarSegmentCount,
           joinSegmentCount,
@@ -3530,7 +3665,7 @@ void RenderContext::TessellationWriter::pushRetrofitCubicTriStrip(
       gpu::OuterCubicPatchSegmentSpan,
       1,
       1,
-      contourIDWithFlags | RETROFIT_TRI_STRIP_CONTOUR_FLAG);
+      contourIDWithFlags | CONTOUR_FLAG_RETROFIT_TRI_STRIP);
 }
 
 RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
@@ -3683,9 +3818,10 @@ RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
   assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessEndLocation);
 }
 
-void RenderContext::LogicalFlush::pushPaddingVertices(
+void RenderContext::LogicalFlush::pushPaddingSpokes(
     uint32_t count,
-    uint32_t tessLocation)
+    uint32_t tessLocation,
+    uint32_t contourIDWithFlags)
 {
   RIVE_PROF_SCOPE_L(3)
   assert(m_hasDoneLayout);
@@ -3702,10 +3838,10 @@ void RenderContext::LogicalFlush::pushPaddingVertices(
           kEmptyCubic,
           {0, 0},
           count,
-          0,
-          0,
-          1,
-          INVALID_CONTOUR_ID_WITH_FLAGS);
+          /*parametricSegmentCount=*/count,
+          /*polarSegmentCount=*/1,
+          /*joinSegmentCount=*/0,
+          contourIDWithFlags);
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushMidpointFanDraw(
@@ -4451,6 +4587,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
   if (drawTypeIsDepthStencilIndexPattern(drawType))
   {
     elementStrideLog2 = dsPatchStrideLog2(drawType);
+    assert(
+        (baseElement + elementCount) << elementStrideLog2 <=
+        1u << VERTEX_FLAGS_SHIFT);
     baseElement = (baseElement << elementStrideLog2) |
                   dsPatchVertexFlags(drawType);
     if (!gpu::get_color_write_enable(

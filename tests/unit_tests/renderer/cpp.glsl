@@ -14,6 +14,12 @@
 using namespace rive;
 #define INLINE inline
 #define OUT(T) T&
+#define INOUT(T) T&
+#define VARYING_BLOCK_BEGIN
+#define VARYING_BLOCK_END
+#define VARYING(IDX, TYPE, NAME) [[maybe_unused]] static TYPE NAME
+#define NO_PERSPECTIVE
+#define FLAT
 #ifndef RIVE_GLSL_CROSS_WANT_CONSTRUCTORS
 #define make_float4(x, y, z, w)                                                \
   float4 { x, y, z, w }

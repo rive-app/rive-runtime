@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <functional>
 #include <optional>
+#include <type_traits>
 
 // Use the define to run the feather LUT code
 // #define RIVE_GENERATE_FEATHER_LUT
@@ -742,6 +743,8 @@ constexpr static uint32_t DSAAStrokePatchStrideLog2 = 6;
 // to avoid input attribs. (The official flags are #defines in constants.glsl;
 // these are just aliases for headers that can't access that file.)
 constexpr static int32_t DSVertexFlagsShift = 28;
+constexpr static uint32_t DSVertexIdxMask = (1u << DSVertexFlagsShift) - 1;
+constexpr static uint32_t DSVertexFlagsMask = ~DSVertexIdxMask;
 constexpr static int32_t DSVertexFlag_DisableColorWrite = 0x1
                                                           << DSVertexFlagsShift;
 constexpr static int32_t DSVertexFlag_OuterCubicFill = 0x2
@@ -799,7 +802,7 @@ enum class DrawType : uint8_t
   // instead of midpoint-fan patches. These use the exact same depth/stencil
   // settings as their midpoint-fan counterparts; they just draw a different
   // patch of triangles. Used to fill paths via interior triangulation, whose
-  // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
+  // interior is smuggled via cubics (CONTOUR_FLAG_RETROFIT_TRI_STRIP).
   stencilOuterCubicBorrowedCoverage,
   stencilOuterCubics,
   stencilOuterCubicReset,
@@ -2058,11 +2061,22 @@ public:
   {}
 
 private:
-  WRITEONLY Vec2D
-      m_midpoint; // Midpoint of the curve endpoints in just this contour.
-  WRITEONLY uint32_t m_pathID;       // ID of the path this contour belongs to.
-  WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex
-                                     // of the contour.
+  // Midpoint of the curve endpoints in just this contour.
+  WRITEONLY Vec2D m_midpoint;
+  // ID of the path this contour belongs to.
+  WRITEONLY uint32_t m_pathID;
+  // Indexes the tessellation texture and has a different meaning depending on
+  // interlockMode:
+  //
+  //   * non-depthStencil: Index of the contour's logical vertex zero. If the
+  //     contour is mirrored, this will be the final vertex in memory rather
+  //     than the first.
+  //
+  //   * depthStencil: Index of the first vertex in tessellation memory that
+  //     belongs to the contour, regardless of whether the contour is
+  //     mirrored.
+  //
+  WRITEONLY uint32_t m_vertexIndex0;
 };
 static_assert(
     sizeof(ContourData) ==
@@ -2307,6 +2321,13 @@ enum class WindingFaces
 // this memory.
 template <typename T> class WriteOnlyMappedMemory
 {
+  // Since this class represents mapped data structures being uploaded directly
+  // to the GPU, they are obviously just data and cannot run destructors.
+  // (We can't assert trivially copyable as well because the volatile qualifiers
+  // are successfully doing their job and making the data feel as "write-only"
+  // as possible.)
+  static_assert(std::is_trivially_destructible_v<T>);
+
 public:
   WriteOnlyMappedMemory() { reset(); }
   WriteOnlyMappedMemory(T* ptr, size_t elementCount)
@@ -2394,6 +2415,14 @@ public:
     }
   }
   void skip_back() { push(); }
+  // Writes an item into a slot that was already reserved (e.g., by
+  // push_back_n(nullptr, ...)).
+  template <typename... Args>
+  RIVE_ALWAYS_INLINE void emplace_at(size_t index, Args&&... args)
+  {
+    assert(m_mappedMemory + index < m_nextMappedItem);
+    new (m_mappedMemory + index) T(std::forward<Args>(args)...);
+  }
   void zero_unwritten()
   {
     memset(

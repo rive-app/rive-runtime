@@ -372,7 +372,7 @@ INLINE bool unpack_tessellated_path_vertex(
   // Fix the tessellation vertex if we fetched the wrong one in order to
   // guarantee we got the correct contour ID and flags, or if we belong to a
   // mirrored contour and this vertex has an alternate position when mirrored.
-  uint mirroredContourFlag = contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG;
+  uint mirroredContourFlag = contourIDWithFlags & CONTOUR_FLAG_MIRRORED;
   if (mirroredContourFlag != 0u)
   {
     localVertexID = int(mirroredVertexData.x);
@@ -389,9 +389,8 @@ INLINE bool unpack_tessellated_path_vertex(
     uint4 replacementTessVertexData = TEXEL_FETCH(
         @tessVertexTexture,
         tess_texel_coord(replacementTessVertexIdx));
-    if ((replacementTessVertexData.w &
-         (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
-        (contourIDWithFlags & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
+    if ((replacementTessVertexData.w & (CONTOUR_FLAG_MIRRORED | 0xffffu)) !=
+        (contourIDWithFlags & (CONTOUR_FLAG_MIRRORED | 0xffffu)))
     {
       // We crossed over into a new contour. Either wrap to the first
       // vertex in the contour or leave it clamped at the final vertex of
@@ -411,10 +410,10 @@ INLINE bool unpack_tessellated_path_vertex(
       tessVertexIdx = replacementTessVertexIdx;
       tessVertexData = replacementTessVertexData;
     }
-    // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0.
+    // CONTOUR_FLAG_MIRRORED is not preserved at vertexIndex0.
     // Preserve it here. By not preserving this flag, the normal and
     // mirrored contour can both share the same contour record.
-    contourIDWithFlags = (tessVertexData.w & ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
+    contourIDWithFlags = (tessVertexData.w & ~CONTOUR_FLAG_MIRRORED) |
                          mirroredContourFlag;
   }
 
@@ -425,7 +424,8 @@ INLINE bool unpack_tessellated_path_vertex(
   #ifdef @ENABLE_FEATHER
   float featherJoinEdge0Theta;
   float featherJoinCornerTheta;
-  if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG &&
+  if ((contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) ==
+          CONTOUR_FLAG_FEATHER_JOIN &&
       vertexType == STROKE_VERTEX)
   {
     // Feather joins work out their stepping here in the vertex shader.
@@ -440,7 +440,7 @@ INLINE bool unpack_tessellated_path_vertex(
     int2 edgeVertexOffsets = int2(
         -joinVertexID - 1.,
         joinSegmentCount - joinVertexID + 1.);
-    if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
+    if ((contourIDWithFlags & CONTOUR_FLAG_MIRRORED) != 0u)
       edgeVertexOffsets = -edgeVertexOffsets;
     uint4 tessDataBeforeJoin = TEXEL_FETCH(
         @tessVertexTexture,
@@ -448,8 +448,8 @@ INLINE bool unpack_tessellated_path_vertex(
     uint4 tessDataAfterJoin = TEXEL_FETCH(
         @tessVertexTexture,
         tess_texel_coord(tessVertexIdx + edgeVertexOffsets.y));
-    if ((tessDataAfterJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
-        (tessDataBeforeJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
+    if ((tessDataAfterJoin.w & (CONTOUR_FLAG_MIRRORED | 0xffffu)) !=
+        (tessDataBeforeJoin.w & (CONTOUR_FLAG_MIRRORED | 0xffffu)))
     {
       // We reached over into a new contour. The edge immediately after
       // this feather join is actually the first vertex in the countour.
@@ -542,9 +542,9 @@ INLINE bool unpack_tessellated_path_vertex(
 
     // Joins only emanate from the outer side of the stroke (except full
     // round joins, which emit both sides like curves).
-    if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
+    if ((contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u)
       outset = min(outset, .0);
-    if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
+    if ((contourIDWithFlags & CONTOUR_FLAG_RIGHT_JOIN) != 0u)
       outset = max(outset, .0);
 
     float aaRadius = featherRadius != .0
@@ -574,11 +574,11 @@ INLINE bool unpack_tessellated_path_vertex(
     outCoverages.zw = make_float2(.0);
   #endif
 
-    uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
-    if (joinType > ROUND_JOIN_CONTOUR_FLAG)
+    uint joinType = contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE;
+    if (joinType > CONTOUR_FLAG_ROUND_JOIN)
     {
-      bool isTan0 = (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
-      bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
+      bool isTan0 = (contourIDWithFlags & CONTOUR_FLAG_JOIN_TANGENT_0) != 0u;
+      bool isLeftJoin = (contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u;
       // This vertex belongs to a miter or bevel join. Begin by finding
       // the bisector, which is the same as norm rotated by joinAngle/2.
       // The tessellator already packed cos(joinAngle/2) (the miterRatio),
@@ -604,15 +604,15 @@ INLINE bool unpack_tessellated_path_vertex(
       // when drawn this way, but they seem to look fine and there is not
       // an obvious solution to antialias them without an ink bleed.
       float clipRadius;
-      if ((joinType == MITER_CLIP_JOIN_CONTOUR_FLAG) ||
-          (joinType == MITER_REVERT_JOIN_CONTOUR_FLAG && miterRatio >= .25))
+      if ((joinType == CONTOUR_FLAG_MITER_CLIP_JOIN) ||
+          (joinType == CONTOUR_FLAG_MITER_REVERT_JOIN && miterRatio >= .25))
       {
         // Miter! (Or square cap.)
         // We currently use hard coded miter limits:
         //   * 1 for square caps being emulated as miter-clip joins.
         //   * 4, which is the SVG default, for all other miter joins.
         float miterInverseLimit = (contourIDWithFlags &
-                                   EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u
+                                   CONTOUR_FLAG_EMULATED_STROKE_CAP) != 0u
                                       ? 1.
                                       : .25;
         clipRadius = strokeRadius * (1. / max(miterRatio, miterInverseLimit));
@@ -624,7 +624,7 @@ INLINE bool unpack_tessellated_path_vertex(
                      /* 1/2px bleed! */ bisectPixelWidth * .5;
       }
       float clipAARadius = clipRadius + bisectPixelWidth * AA_RADIUS;
-      if ((contourIDWithFlags & JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u)
+      if ((contourIDWithFlags & CONTOUR_FLAG_JOIN_TANGENT_INNER) != 0u)
       {
         // Reposition the inner join vertices at the miter-clip
         // positions. Leave the outer join vertices as duplicates on the
@@ -666,7 +666,7 @@ INLINE bool unpack_tessellated_path_vertex(
       float clipDistance = (clipAARadius - dot(pt, bisector)) /
                            (bisectPixelWidth * (AA_RADIUS * 2.));
   #ifndef @RENDER_MODE_DEPTH_STENCIL
-      if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
+      if ((contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u)
         outCoverages.y = clipDistance;
       else
         outCoverages.x = clipDistance;
@@ -717,7 +717,8 @@ INLINE bool unpack_tessellated_path_vertex(
       // we're a flat edge, so initialize it with fillCoverage.
       outCoverages.w = fillCoverage;
 
-      if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG &&
+      if ((contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) ==
+              CONTOUR_FLAG_FEATHER_JOIN &&
           vertexType == STROKE_VERTEX)
       {
         // Feathered corners are symmetric; swap the first and second
@@ -798,8 +799,10 @@ INLINE bool unpack_tessellated_path_vertex(
       }
     }
 
-    if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=
-        bool(contourIDWithFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
+    if (isExactlyOneFlagSet(
+            contourIDWithFlags,
+            CONTOUR_FLAG_MIRRORED,
+            CONTOUR_FLAG_NEGATE_FILL_COVERAGE))
     {
       // Effectively: outCoverages.x = -outCoverages.x
       //
@@ -815,7 +818,7 @@ INLINE bool unpack_tessellated_path_vertex(
 
     // If we're actually drawing a triangle strip, throw away the entire
     // patch except the fan triangles.
-    if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u &&
+    if ((contourIDWithFlags & CONTOUR_FLAG_RETROFIT_TRI_STRIP) != 0u &&
         vertexType != FAN_VERTEX)
     {
       discardVertex = true;

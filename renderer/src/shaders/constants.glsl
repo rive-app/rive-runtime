@@ -50,8 +50,8 @@
 // into the tessellation texture. So these flags have to live above the entire
 // tessellation range. Hence a shift of 28 and not 16.
 #define VERTEX_FLAGS_SHIFT 28
-#define VERTEX_FLAGS_MASK (~((1u << VERTEX_FLAGS_SHIFT) - 1))
 #define VERTEX_IDX_MASK ((1 << VERTEX_FLAGS_SHIFT) - 1)
+#define VERTEX_FLAGS_MASK (~VERTEX_IDX_MASK)
 #define VERTEX_FLAG_DISABLE_COLOR_WRITE (0x1 << VERTEX_FLAGS_SHIFT)
 #define VERTEX_FLAG_OUTER_CUBIC_FILL (0x2 << VERTEX_FLAGS_SHIFT)
 // Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
@@ -118,50 +118,54 @@
 // strip of up to 5 points: [p0, p1, p3, p2, joinTangent]. This is used to
 // reduce draws and pipeline transitions by squeezing in triangles that don't
 // otherwise need special state or shading logic.
-#define RETROFIT_TRI_STRIP_CONTOUR_FLAG (1u << 31u)
+#define CONTOUR_FLAG_RETROFIT_TRI_STRIP (1u << 31u)
 
-// Skip bit 30 in the contour flags so that it's always 0. This ensures we never
-// generate special NaN/Inf floating point values in contourIDWithFlags, which
-// may confuse the driver.
-#define NEVER_USED_CONTOUR_FLAG (1u << 30u)
+// These mark boundaries between contours in the tessellation texture. The CPU
+// sets them coarsely on entire boundary segments; the tessellator narrows them
+// to the single boundary spoke, and swaps them in the case of mirrored
+// contours.
+#define CONTOUR_FLAG_FIRST_IN_MEMORY (1u << 30u)
+#define CONTOUR_FLAG_LAST_IN_MEMORY (1u << 29u)
 
 // Tells the tessellation shader to re-run Wang's formula on the given curve,
 // figure out how many segments it actually needs, and make any excess segments
 // degenerate by co-locating their vertices at T=0. (Used on the "outerCurve"
 // patches that are drawn with interior triangulations.)
-#define CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG (1u << 29u)
+#define CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS (1u << 28u)
 
 // Flags for specifying the join type.
-#define JOIN_TYPE_MASK (7u << 26u)
-#define MITER_CLIP_JOIN_CONTOUR_FLAG (6u << 26u)
-#define MITER_REVERT_JOIN_CONTOUR_FLAG (5u << 26u)
-#define BEVEL_JOIN_CONTOUR_FLAG (4u << 26u)
-#define ROUND_JOIN_CONTOUR_FLAG (3u << 26u)
-#define CUSP_JOIN_CONTOUR_FLAG (2u << 26u)
-#define FEATHER_JOIN_CONTOUR_FLAG (1u << 26u)
+#define CONTOUR_MASK_JOIN_TYPE (7u << 25u)
+#define CONTOUR_FLAG_MITER_CLIP_JOIN (6u << 25u)
+#define CONTOUR_FLAG_MITER_REVERT_JOIN (5u << 25u)
+#define CONTOUR_FLAG_BEVEL_JOIN (4u << 25u)
+#define CONTOUR_FLAG_ROUND_JOIN (3u << 25u)
+#define CONTOUR_FLAG_CUSP_JOIN (2u << 25u)
+#define CONTOUR_FLAG_FEATHER_JOIN (1u << 25u)
 
 // When a join is being used to emulate a stroke cap, the shader emits
 // additional vertices at T=0 and T=1 for round joins, and changes the miter
 // limit to 1 for miter-clip joins.
-#define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 25u)
+#define CONTOUR_FLAG_EMULATED_STROKE_CAP (1u << 24u)
 
 // Flip the sign on interpolated fragment coverage for fills. Ignored on
 // strokes. This is used when reversing the winding direction of a path.
-#define NEGATE_PATH_FILL_COVERAGE_FLAG (1u << 24u)
+#define CONTOUR_FLAG_NEGATE_FILL_COVERAGE (1u << 23u)
 
 // Internal contour flags.
-#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 23u)
-#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 22u)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 21u)
-#define LEFT_JOIN_CONTOUR_FLAG (1u << 20u)
-#define RIGHT_JOIN_CONTOUR_FLAG (1u << 19u)
+#define CONTOUR_FLAG_MIRRORED (1u << 22u)
+#define CONTOUR_FLAG_JOIN_TANGENT_0 (1u << 21u)
+#define CONTOUR_FLAG_JOIN_TANGENT_INNER (1u << 20u)
+#define CONTOUR_FLAG_LEFT_JOIN (1u << 19u)
+#define CONTOUR_FLAG_RIGHT_JOIN (1u << 18u)
+
+// The draw's paint matrix is left-handed. (depthStencil strokes and hairlines
+// use this to flip their outset so triangles remain clockwise.)
+#define CONTOUR_FLAG_NEGATIVE_DETERMINANT (1u << 17u)
+
 #define CONTOUR_ID_MASK 0xffffu
 
 // This is guaranteed to not collide with any path IDs being rendered.
 #define INVALID_PATH_ID .0
-
-// This is guaranteed to not collide with a neighboring contour ID.
-#define INVALID_CONTOUR_ID_WITH_FLAGS 0u
 
 // Says which part of the patch a vertex belongs to.
 #define STROKE_VERTEX 0

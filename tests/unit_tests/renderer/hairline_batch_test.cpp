@@ -93,17 +93,16 @@ private:
   // patches they point to into contiguous runs per subpass.
   void captureHairlineRuns(const FlushDescriptor& desc, const DrawBatch& batch)
   {
-    constexpr uint32_t VertexIdxMask = (1u << DSVertexFlagsShift) - 1;
     const uint32_t patchStrideLog2 = dsPatchStrideLog2(batch.drawType);
     const size_t firstEntry = desc.firstVirtualPatch +
-                              ((batch.elementRange.base & VertexIdxMask) >>
+                              ((batch.elementRange.base & DSVertexIdxMask) >>
                                patchStrideLog2);
     REQUIRE(firstEntry + batch.elementRange.count <= m_virtualPatches.size());
     for (uint32_t i = 0; i < batch.elementRange.count; ++i)
     {
       const uint32_t entry = m_virtualPatches[firstEntry + i];
       const bool isDepthPass = (entry & DSVertexFlag_StrokeDepthPass) != 0;
-      const uint32_t baseVertex = entry & VertexIdxMask;
+      const uint32_t baseVertex = entry & DSVertexIdxMask;
       if (m_hairlineRuns.empty() ||
           m_hairlineRuns.back().isDepthPass != isDepthPass ||
           baseVertex !=

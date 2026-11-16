@@ -89,7 +89,7 @@ public:
             context->frameDescriptor())
   {
     m_resourceCounts.pathCount = 1;
-    m_resourceCounts.contourCount = 1;
+    m_resourceCounts.outerCubicContourCount = 1;
     m_resourceCounts.maxTessellatedSegmentCount = std::size(TriangleStrips);
     m_resourceCounts.outerCubicTessVertexCount =
         context->frameInterlockMode() != gpu::InterlockMode::depthStencil
@@ -166,13 +166,18 @@ public:
           forwardTessVertexCount,
           forwardTessLocation,
           mirroredTessVertexCount,
-          mirroredTessLocation);
+          mirroredTessLocation,
+          /*nonEmptyContourCount=*/1,
+          /*isOuterCubic=*/true,
+          m_coverageType == CoverageType::depthStencil);
 
       uint32_t contourID = tessWriter.pushContour(
           {0, 0},
           /*isStroke=*/false,
           /*closed=*/true,
-          0 /* gpu::OuterCubicPatchSegmentSpan - 1 */);
+          0 /* gpu::OuterCubicPatchSegmentSpan - 1 */,
+          /*contourTessVertexCount=*/gpu::OuterCubicPatchSegmentSpanPlusBowtie *
+              static_cast<uint32_t>(std::size(TriangleStrips)));
       for (const auto& strips : TriangleStrips)
       {
         tessWriter.pushRetrofitCubicTriStrip(
@@ -202,7 +207,7 @@ public:
 };
 
 // Checks that RenderContext properly draws triangle strips when using the
-// RETROFIT_TRI_STRIP_CONTOUR_FLAG flag.
+// CONTOUR_FLAG_RETROFIT_TRI_STRIP flag.
 class RetrofitCubicTriStripsGM : public GM
 {
 public:

@@ -17,6 +17,19 @@ INLINE bool isStroke()
   return false;
 }
 
+// Fills and hairlines are always closed; strokes encode it in their contour's
+// midpoint.x, which is otherwise unused.
+// Defined as a function because Naga doesn't accept any operation on a
+// specialization constant, including "!@DS_POLAR_STROKE".
+INLINE bool isContourClosed(float2 midpoint)
+{
+#ifdef @DS_POLAR_STROKE
+  if (@DS_POLAR_STROKE)
+    return midpoint.x != .0;
+#endif
+  return true;
+}
+
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 // No attributes: everything comes from the vertex index.
@@ -149,23 +162,37 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
             : int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
   }
 
-  // Fetch a vertex that definitely belongs to the contour we're drawing.
-  int vertexIDOnContour = min(patchSpokeIdx, patchTessVertexStride - 1);
-  int tessVertexIdx = patchIdx * patchTessVertexStride + vertexIDOnContour;
+  // Fetch our tessellation spoke.
+  // NOTE: In the case of the contour-closing spoke, this will be the wrong
+  // data. It gets patched shortly after.
+  int tessSpokeIdx = patchIdx * patchTessVertexStride + patchSpokeIdx;
   uint4 tessVertexData = TEXEL_FETCH(
       @tessVertexTexture,
-      tess_texel_coord(tessVertexIdx));
+      tess_texel_coord(tessSpokeIdx));
   uint contourIDWithFlags = tessVertexData.w;
+  uint contourID = contourIDWithFlags & CONTOUR_ID_MASK;
+  bool isContourClosingSpoke = false;
 
-  // Fetch and unpack the contour referenced by the tessellation vertex.
+  // The contour-closing spoke reaches into our neighbor's contour. Update
+  // contourID to our own before fetching data. (The tessellator guarantees the
+  // invariant that "contourID == neighborContourID - 1".)
+  if (patchSpokeIdx == patchTessVertexStride &&
+      (contourIDWithFlags & CONTOUR_FLAG_FIRST_IN_MEMORY) != 0u)
+  {
+    --contourID;
+    isContourClosingSpoke = true;
+  }
+
+  // Fetch and unpack the contour.
   // NOTE: The contourID is guaranteed to be >= 1 at this point, but clamp it
   // anyway because in the event of a bug, a buffer load at index "0u - 1" can
   // be very serious and hard to catch.
-  uint contourID = max(contourIDWithFlags & CONTOUR_ID_MASK, 1u);
-  uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contourID - 1u);
+  uint4 contourData = STORAGE_BUFFER_LOAD4(
+      @contourBuffer,
+      max(contourID, 1u) - 1u);
   float2 midpoint = uintBitsToFloat(contourData.xy);
   uint pathID = contourData.z & 0xffffu;
-  uint vertexIndex0 = contourData.w;
+  uint firstSpokeIndexMemory = contourData.w;
 
   // Fetch and unpack the path.
   float2x2 M = make_float2x2(
@@ -180,83 +207,31 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
         STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u).x);
   }
 
-  // Fix the tessellation vertex if we fetched the wrong one in order to
-  // guarantee we got the correct contour ID and flags, or if we belong to a
-  // mirrored contour and this vertex has an alternate position when mirrored.
-  // (Only midpoint-fan fan columns have one; the patch buffer gave outer
-  // cubics and the midpoint the same vertex either way. Strokes are never
-  // mirrored, so they only preserve the flag.)
-  uint mirroredContourFlag = contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG;
-  bool hasAlternateVertexPosition;
-  if (isPolarStroke)
+  // The contour-closing spoke reached into our neighbor's contour. It needs to
+  // either wrap back around to the starting spoke (fills, closed strokes), or
+  // else stay clamped at the final vertex (open strokes).
+  if (isContourClosingSpoke)
   {
-    hasAlternateVertexPosition = false;
-  }
-  else if (isHairlineStroke)
-  {
-    hasAlternateVertexPosition = mirroredContourFlag != 0u;
-    // A mirrored contour runs backwards, so its outside flips.
-    if (hasAlternateVertexPosition)
-      outset = -outset;
-  }
-  else
-  {
-    hasAlternateVertexPosition = mirroredContourFlag != 0u &&
-                                 !isOuterCubicPatch && !isFillMidpointVertex;
-  }
-  if (hasAlternateVertexPosition)
-    patchSpokeIdx = patchSpokeIdx - 1;
-  if (patchSpokeIdx != vertexIDOnContour)
-  {
-    // This can peek one vertex before or after the contour, but the
-    // tessellator guarantees there is always at least one padding vertex at
-    // the beginning and end of the data.
-    int replacementTessVertexIdx = tessVertexIdx + patchSpokeIdx -
-                                   vertexIDOnContour;
-    uint4 replacementTessVertexData = TEXEL_FETCH(
+    tessVertexData = TEXEL_FETCH(
         @tessVertexTexture,
-        tess_texel_coord(replacementTessVertexIdx));
-    if ((replacementTessVertexData.w &
-         (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
-        (contourIDWithFlags & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
-    {
-      // We crossed over into a new contour. Fills are always closed and
-      // wrap to the first vertex in the contour; a stroke either wraps
-      // too or stays clamped at the final vertex of the contour.
-      //
-      // i.e., "bool isClosed = !isPolarStroke || (midpoint.x != 0.0);"
-      //
-      // Unfortunately, we can't word it the obvious way because Naga
-      // blows up if we emit any sort of operation on a specialization
-      // constant. Including "!isPolarStroke".
-      bool isClosed;
-      if (isPolarStroke)
-        isClosed = midpoint.x != .0;
-      else
-        isClosed = true;
-      if (isClosed)
-      {
-        tessVertexData = TEXEL_FETCH(
-            @tessVertexTexture,
-            tess_texel_coord(int(vertexIndex0)));
-      }
-    }
-    else
-    {
-      tessVertexData = replacementTessVertexData;
-    }
-    // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0.
-    // Preserve it here. By not preserving this flag, the normal and
-    // mirrored contour can both share the same contour record.
-    contourIDWithFlags = (tessVertexData.w & ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
-                         mirroredContourFlag;
+        tess_texel_coord(
+            isContourClosed(midpoint) ? int(firstSpokeIndexMemory)
+                                      : tessSpokeIdx - 1));
+    contourIDWithFlags = tessVertexData.w;
   }
 
   float2 vertexPosition;
   if (isStroke())
   {
-    // Ensure strokes always emit clockwise triangles.
-    outset *= sign(determinant(M));
+    // Ensure strokes always emit clockwise triangles. A left-handed matrix and
+    // a mirrored (backwards) contour each flip the outside.
+    if (isExactlyOneFlagSet(
+            contourIDWithFlags,
+            CONTOUR_FLAG_NEGATIVE_DETERMINANT,
+            CONTOUR_FLAG_MIRRORED))
+    {
+      outset = -outset;
+    }
 
     // Find the tangent angle of the curve at our vertex.
     float theta = unpackTessTheta(tessVertexData.z);
@@ -272,16 +247,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     {
       // Joins only emanate from the outer side of the stroke (except full
       // round joins, which emit both sides like curves).
-      if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
+      if ((contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u)
         outset = min(outset, .0);
-      if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
+      if ((contourIDWithFlags & CONTOUR_FLAG_RIGHT_JOIN) != 0u)
         outset = max(outset, .0);
 
-      uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
-      if (joinType > ROUND_JOIN_CONTOUR_FLAG)
+      uint joinType = contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE;
+      if (joinType > CONTOUR_FLAG_ROUND_JOIN)
       {
-        bool isTan0 = (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
-        bool isLeftJoin = (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
+        bool isTan0 = (contourIDWithFlags & CONTOUR_FLAG_JOIN_TANGENT_0) != 0u;
+        bool isLeftJoin = (contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u;
         // This vertex belongs to a miter or bevel join. Begin by
         // finding the bisector, which is the same as norm rotated by
         // joinAngle/2. The tessellator already packed cos(joinAngle/2)
@@ -301,14 +276,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
         float2 bisector = MUL(rot, norm);
         // Miter joins that are further away than 4x the stroke radius
         // snap to bevel joins. A miter clip is a cap, and never snaps.
-        bool isBevel = joinType == BEVEL_JOIN_CONTOUR_FLAG ||
-                       (joinType != MITER_CLIP_JOIN_CONTOUR_FLAG &&
+        bool isBevel = joinType == CONTOUR_FLAG_BEVEL_JOIN ||
+                       (joinType != CONTOUR_FLAG_MITER_CLIP_JOIN &&
                         miterRatio < .25);
         // Bevels have 2 spokes and miters 3; a miter clip has 4,
         // carrying an inner pair instead of a single center.
         bool isInnerJoinSpoke = (contourIDWithFlags &
-                                 JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u;
-        if (joinType == MITER_CLIP_JOIN_CONTOUR_FLAG)
+                                 CONTOUR_FLAG_JOIN_TANGENT_INNER) != 0u;
+        if (joinType == CONTOUR_FLAG_MITER_CLIP_JOIN)
         {
           // For now, square caps are the only miter-clip: a
           // 180-degree join whose miterLimit is 1. Simplify the

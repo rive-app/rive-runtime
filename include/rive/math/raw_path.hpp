@@ -60,6 +60,12 @@ public:
     assert(static_cast<size_t>(verb) < PathVerbCount);
     return m_verbCounts[static_cast<size_t>(verb)];
   }
+  // True if the path has physical segments (line, quadratic, cubic).
+  bool hasSegments() const
+  {
+    return (verbCount(PathVerb::line) | verbCount(PathVerb::quad) |
+            verbCount(PathVerb::cubic)) != 0;
+  }
 
   void move(Vec2D);
   void line(Vec2D);

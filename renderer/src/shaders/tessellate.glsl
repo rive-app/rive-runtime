@@ -12,6 +12,48 @@
 
 #define MAX_PARAMETRIC_SEGMENTS_LOG2 10 // Max 1024 segments.
 
+INLINE void swap(INOUT(bool) a, INOUT(bool) b)
+{
+  bool c = a;
+  a = b;
+  b = c;
+}
+
+// The CPU sends CONTOUR_FLAG_[FIRST,LAST]_IN_MEMORY with the entire first/last
+// cubics of a contour. This resolves them to just the boundary spokes of those
+// cubics, in memory order.
+// NOTE: If there are padding spokes, they may also carry boundary flags. This
+// is harmless because there is never >= one patch worth of padding, and every
+// cubic has at least two real (non-padding) spokes, so no spoke will ever carry
+// both boundary flags.
+INLINE uint resolveContourBoundaryFlags(
+    uint contourIDWithFlags,
+    float vertexIdx,
+    float totalVertexCount)
+{
+  bool isContourFirst = (contourIDWithFlags & CONTOUR_FLAG_FIRST_IN_MEMORY) !=
+                            0u &&
+                        vertexIdx <= .0;
+  bool isContourLast = (contourIDWithFlags & CONTOUR_FLAG_LAST_IN_MEMORY) !=
+                           0u &&
+                       vertexIdx >= totalVertexCount - 1.;
+
+  // Mirrored contour data is rendered right to left, so swap last/first.
+  if ((contourIDWithFlags & CONTOUR_FLAG_MIRRORED) != 0u)
+    swap(isContourFirst, isContourLast);
+
+  // Clear the boundary flags first, before re-setting the applicable ones. We
+  // can't just mask them off because if the contour is mirrored, we also swap
+  // first/last.
+  contourIDWithFlags &= ~(
+      CONTOUR_FLAG_FIRST_IN_MEMORY | CONTOUR_FLAG_LAST_IN_MEMORY);
+  if (isContourFirst)
+    contourIDWithFlags |= CONTOUR_FLAG_FIRST_IN_MEMORY;
+  if (isContourLast)
+    contourIDWithFlags |= CONTOUR_FLAG_LAST_IN_MEMORY;
+  return contourIDWithFlags;
+}
+
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 // RHI Version > 5.8 fails to parse this when it's multi line
@@ -25,8 +67,7 @@ ATTR(4, uint, @a_reflectionX0X1);
 ATTR(5, uint, @a_segmentCounts);
 ATTR(6, uint, @a_contourIDWithFlags);
   #else
-// [x0x1, reflectionX0X1, segmentCounts,
-// contourIDWithFlags]
+// [x0x1, reflectionX0X1, segmentCounts, contourIDWithFlags]
 // RHI Version > 5.8 fails to parse this when it's multi line
 ATTR(3, uint4, @a_args);
   #endif
@@ -201,7 +242,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     p2 = mix(p2, flatLinePoints.zw, softness);
   }
 
-  if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG) !=
+  if ((contourIDWithFlags & CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS) !=
       0u)
   {
     // This span may have more tessellation vertices allocated to it than
@@ -258,8 +299,8 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         cosine_between_vectors(joinTangents[0], joinTangents[1]));
     float joinSpan = float(joinSegmentCount);
     if ((contourIDWithFlags &
-         (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_CONTOUR_FLAG)) ==
-        (ROUND_JOIN_CONTOUR_FLAG | EMULATED_STROKE_CAP_CONTOUR_FLAG))
+         (CONTOUR_MASK_JOIN_TYPE | CONTOUR_FLAG_EMULATED_STROKE_CAP)) ==
+        (CONTOUR_FLAG_ROUND_JOIN | CONTOUR_FLAG_EMULATED_STROKE_CAP))
     {
       // Round caps emulated as joins need to emit vertices at T=0 and
       // T=1, unlike normal round joins. The fragment shader will handle
@@ -276,7 +317,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
   if (x1 < x0) // Reflections are drawn right to left.
   {
-    contourIDWithFlags |= MIRRORED_CONTOUR_CONTOUR_FLAG;
+    contourIDWithFlags |= CONTOUR_FLAG_MIRRORED;
   }
 
   v_contourIDWithFlags = contourIDWithFlags;
@@ -324,7 +365,10 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
   float joinSegmentCount = float(
       joinSegmentCount_and_parametricSegmentCount >> 10);
   float radsPerPolarSegment = v_args.w;
-  uint contourIDWithFlags = v_contourIDWithFlags;
+  uint contourIDWithFlags = resolveContourBoundaryFlags(
+      v_contourIDWithFlags,
+      vertexIdx,
+      totalVertexCount);
 
   // mergedVertexID/mergedSegmentCount are relative to the sub-section of the
   // instance this vertex belongs to (either the curve section that consists
@@ -337,7 +381,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
   if (mergedVertexID <= mergedSegmentCount)
   {
     // We do belong to the curve section. Clear out any stroke join flags.
-    contourIDWithFlags &= ~JOIN_TYPE_MASK;
+    contourIDWithFlags &= ~CONTOUR_MASK_JOIN_TYPE;
   }
   else
   {
@@ -350,9 +394,9 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     mergedSegmentCount = joinSegmentCount;
     radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
     bool isEmulatedCap = (contourIDWithFlags &
-                          EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u;
-    if (isEmulatedCap ||
-        (contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
+                          CONTOUR_FLAG_EMULATED_STROKE_CAP) != 0u;
+    if (isEmulatedCap || (contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) ==
+                             CONTOUR_FLAG_FEATHER_JOIN)
     {
       // Unlike cubics, typical joins don't emit spokes at the beginning
       // or end of the section (they share those spokes with their
@@ -385,22 +429,23 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
       // would have been a neighboring full-length cubic spoke, but is
       // absent from the neighbor-less side of a 180-degree join that is
       // standing in for a cap.
-      contourIDWithFlags &= ~JOIN_TYPE_MASK;
+      contourIDWithFlags &= ~CONTOUR_MASK_JOIN_TYPE;
     }
-    else if ((contourIDWithFlags & JOIN_TYPE_MASK) != CUSP_JOIN_CONTOUR_FLAG)
+    else if (
+        (contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) != CONTOUR_FLAG_CUSP_JOIN)
     {
-      contourIDWithFlags |= radsPerPolarSegment < .0 ? LEFT_JOIN_CONTOUR_FLAG
-                                                     : RIGHT_JOIN_CONTOUR_FLAG;
+      contourIDWithFlags |= radsPerPolarSegment < .0 ? CONTOUR_FLAG_LEFT_JOIN
+                                                     : CONTOUR_FLAG_RIGHT_JOIN;
     }
-    if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+    if ((contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) > CONTOUR_FLAG_ROUND_JOIN)
     {
       // We belong to a miter or bevel join.
       float halfJoin = mergedSegmentCount * .5;
       if (mergedVertexID < halfJoin)
-        contourIDWithFlags |= JOIN_TANGENT_0_CONTOUR_FLAG;
+        contourIDWithFlags |= CONTOUR_FLAG_JOIN_TANGENT_0;
       if (mergedSegmentCount > 3. && mergedVertexID > halfJoin - 1. &&
           mergedVertexID < halfJoin + 1.)
-        contourIDWithFlags |= JOIN_TANGENT_INNER_CONTOUR_FLAG;
+        contourIDWithFlags |= CONTOUR_FLAG_JOIN_TANGENT_INNER;
       // Miter and bevel spokes snap to either the beginning or end
       // of the join section, and then get placed by the vertex shader.
       mergedVertexID = mergedVertexID < halfJoin ? .0 : mergedSegmentCount;
@@ -418,7 +463,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     tessCoord = isTan0 ? p0 : p3;
     theta = atan2(isTan0 ? tangents[0] : tangents[1]);
   }
-  else if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u)
+  else if ((contourIDWithFlags & CONTOUR_FLAG_RETROFIT_TRI_STRIP) != 0u)
   {
     // This cubic should actually be drawn as a (non-AA) 5-point triangle
     // strip: [p0, p1, p3, p2, joinTangent]. This is used to reduce draws
@@ -585,7 +630,8 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
 
   uint4 tessData;
   tessData.xy = floatBitsToUint(tessCoord);
-  if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
+  if ((contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) ==
+      CONTOUR_FLAG_FEATHER_JOIN)
   {
     // Feather joins work out their stepping in the vertex shader, so we
     // emit the original tessellation parameters instead of just the tangent
@@ -604,7 +650,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     // the angle without having to mod().
     uint theta16 = uint(int(round(theta * (65536. / _2PI)))) & 0xffffu;
     uint miterRatio16 = 0u;
-    if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+    if ((contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE) > CONTOUR_FLAG_ROUND_JOIN)
     {
       // This spoke belongs to a miter or bevel join, which need the
       // miterRatio.

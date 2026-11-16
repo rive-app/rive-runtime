@@ -33,6 +33,8 @@ static_assert(
 static_assert(DSMidpointFanFillPatchStrideLog2 == DS_MIDPOINT_FAN_STRIDE_LOG2);
 static_assert(DSOuterCubicFillPatchStrideLog2 == DS_OUTER_CUBIC_STRIDE_LOG2);
 static_assert(DSVertexFlagsShift == VERTEX_FLAGS_SHIFT);
+static_assert(DSVertexIdxMask == VERTEX_IDX_MASK);
+static_assert(DSVertexFlagsMask == static_cast<uint32_t>(VERTEX_FLAGS_MASK));
 static_assert(
     DSVertexFlag_DisableColorWrite == VERTEX_FLAG_DISABLE_COLOR_WRITE);
 static_assert(DSVertexFlag_OuterCubicFill == VERTEX_FLAG_OUTER_CUBIC_FILL);
