@@ -84,6 +84,20 @@ static std::vector<FocusNode*> sortedByTabIndex(
   return result;
 }
 
+// Whether `node` stands for content its scope hasn't built: the Focusable
+// backing its parent says so. Only a virtualized list's scope is backed by
+// one that can. Asked of a node with no stop in it, which needn't be empty:
+// a row that was built and then recycled can keep structural nodes.
+static bool isLatent(FocusNode* node)
+{
+  if (node->parent() == nullptr)
+  {
+    return false;
+  }
+  Focusable* owner = node->parent()->focusable();
+  return owner != nullptr && owner->revealFocusChild(node, false);
+}
+
 // The first stop in `node`'s subtree in pre-order: `node` itself when it is a
 // stop, else the first stop under its children in tab order. Null when the
 // subtree holds none.
@@ -92,7 +106,14 @@ static std::vector<FocusNode*> sortedByTabIndex(
 // scope, an authored canFocus=false container, a node whose FocusData died —
 // still has its children visited, so a parent's own flags never decide for its
 // children.
-static FocusNode* firstStopInSubtree(FocusNode* node)
+//
+// With `latent`, the walk also ends at the first node with no stop whose scope
+// says its content isn't built yet (see Focusable::revealFocusChild): null is
+// returned and `*latent` is that node. A caller that passes it checks it
+// before reading null as "no stop here".
+static FocusNode* firstStopInSubtree(
+    FocusNode* node,
+    FocusNode** latent = nullptr)
 {
   if (node == nullptr)
   {
@@ -104,18 +125,24 @@ static FocusNode* firstStopInSubtree(FocusNode* node)
   }
   for (FocusNode* child : sortedByTabIndex(node->children()))
   {
-    FocusNode* stop = firstStopInSubtree(child);
-    if (stop != nullptr)
+    FocusNode* stop = firstStopInSubtree(child, latent);
+    if (stop != nullptr || (latent != nullptr && *latent != nullptr))
     {
       return stop;
     }
+  }
+  if (latent != nullptr && isLatent(node))
+  {
+    *latent = node;
   }
   return nullptr;
 }
 
 // Mirror of firstStopInSubtree: the last stop in reverse pre-order, so
 // children (reverse tab order) come before `node` itself.
-static FocusNode* lastStopInSubtree(FocusNode* node)
+static FocusNode* lastStopInSubtree(
+    FocusNode* node,
+    FocusNode** latent = nullptr)
 {
   if (node == nullptr)
   {
@@ -124,21 +151,31 @@ static FocusNode* lastStopInSubtree(FocusNode* node)
   auto children = sortedByTabIndex(node->children());
   for (auto it = children.rbegin(); it != children.rend(); ++it)
   {
-    FocusNode* stop = lastStopInSubtree(*it);
-    if (stop != nullptr)
+    FocusNode* stop = lastStopInSubtree(*it, latent);
+    if (stop != nullptr || (latent != nullptr && *latent != nullptr))
     {
       return stop;
     }
   }
-  return isFocusStop(node) ? node : nullptr;
+  if (isFocusStop(node))
+  {
+    return node;
+  }
+  if (latent != nullptr && isLatent(node))
+  {
+    *latent = node;
+  }
+  return nullptr;
 }
 
-static FocusNode* firstStopAmong(const std::vector<FocusNode*>& siblings)
+static FocusNode* firstStopAmong(
+    const std::vector<FocusNode*>& siblings,
+    FocusNode** latent = nullptr)
 {
   for (FocusNode* sibling : siblings)
   {
-    FocusNode* stop = firstStopInSubtree(sibling);
-    if (stop != nullptr)
+    FocusNode* stop = firstStopInSubtree(sibling, latent);
+    if (stop != nullptr || (latent != nullptr && *latent != nullptr))
     {
       return stop;
     }
@@ -146,12 +183,14 @@ static FocusNode* firstStopAmong(const std::vector<FocusNode*>& siblings)
   return nullptr;
 }
 
-static FocusNode* lastStopAmong(const std::vector<FocusNode*>& siblings)
+static FocusNode* lastStopAmong(
+    const std::vector<FocusNode*>& siblings,
+    FocusNode** latent = nullptr)
 {
   for (auto it = siblings.rbegin(); it != siblings.rend(); ++it)
   {
-    FocusNode* stop = lastStopInSubtree(*it);
-    if (stop != nullptr)
+    FocusNode* stop = lastStopInSubtree(*it, latent);
+    if (stop != nullptr || (latent != nullptr && *latent != nullptr))
     {
       return stop;
     }
@@ -223,11 +262,11 @@ void FocusManager::dropFocusIfFocusTargetHidden()
     }
     if (stop != nullptr)
     {
-      setFocus(ref_rcp(stop));
+      setFocus(ref_rcp(stop), false);
       return;
     }
   }
-  clearFocus();
+  clearFocus(false);
 }
 
 void FocusManager::dropFocusIfFocusTargetHidden(const Artboard* rootArtboard)
@@ -306,7 +345,9 @@ void FocusManager::assignManager(rcp<FocusNode> node)
   node->m_manager = this;
 }
 
-void FocusManager::setFocus(rcp<FocusNode> node)
+void FocusManager::setFocus(rcp<FocusNode> node) { setFocus(node, true); }
+
+void FocusManager::setFocus(rcp<FocusNode> node, bool endsReveal)
 {
   // Focus lands exactly where it was asked to. There is no descent: a node
   // that can be focused is focused, children or not, and a node that cannot
@@ -316,6 +357,16 @@ void FocusManager::setFocus(rcp<FocusNode> node)
   if (node != nullptr && !focusNodeEligibleForFocus(node.get()))
   {
     return;
+  }
+  // Focus was sent somewhere, so a traversal still waiting for its target
+  // (see resolveReveal) has been overtaken. Not by a move the manager makes
+  // itself for a stop that left: scrolling the target into a virtualized
+  // list's window can take the row focus was on out of it. Decided before
+  // the change is announced, so a callback that sends focus elsewhere from
+  // inside it still ends the wait.
+  if (endsReveal)
+  {
+    m_revealTarget = nullptr;
   }
 
   if (node == m_primaryFocus)
@@ -346,7 +397,10 @@ bool FocusManager::hasPendingFocusRequests(const Artboard* rootArtboard) const
       return true;
     }
   }
-  return false;
+  // A traversal waiting for its target is settled by the same drains, and
+  // what is asked for meanwhile queues behind it.
+  return m_revealTarget != nullptr &&
+         !belongsToAnotherRoot(m_revealTarget.get(), rootArtboard);
 }
 
 bool FocusManager::applyFocusTraversal(uint32_t traversalKind)
@@ -453,6 +507,7 @@ void FocusManager::processPendingFocusRequests(const Artboard* rootArtboard)
       rootArtboard,
       /*keepUnapplied=*/true,
       /*allRoots=*/false);
+  resolveReveal(rootArtboard, /*allRoots=*/false, /*endOfFrame=*/false);
 }
 
 void FocusManager::processAllPendingFocusRequests()
@@ -461,6 +516,7 @@ void FocusManager::processAllPendingFocusRequests()
       nullptr,
       /*keepUnapplied=*/true,
       /*allRoots=*/true);
+  resolveReveal(nullptr, /*allRoots=*/true, /*endOfFrame=*/false);
 }
 
 void FocusManager::finishPendingFocusRequests(const Artboard* rootArtboard)
@@ -469,6 +525,7 @@ void FocusManager::finishPendingFocusRequests(const Artboard* rootArtboard)
       rootArtboard,
       /*keepUnapplied=*/false,
       /*allRoots=*/false);
+  resolveReveal(rootArtboard, /*allRoots=*/false, /*endOfFrame=*/true);
 }
 
 void FocusManager::finishAllPendingFocusRequests()
@@ -477,6 +534,7 @@ void FocusManager::finishAllPendingFocusRequests()
       nullptr,
       /*keepUnapplied=*/false,
       /*allRoots=*/true);
+  resolveReveal(nullptr, /*allRoots=*/true, /*endOfFrame=*/true);
 }
 
 void FocusManager::drainPendingFocusRequests(
@@ -513,8 +571,14 @@ void FocusManager::drainPendingFocusRequests(
   }
 }
 
-void FocusManager::clearFocus()
+void FocusManager::clearFocus() { clearFocus(true); }
+
+void FocusManager::clearFocus(bool endsReveal)
 {
+  if (endsReveal)
+  {
+    m_revealTarget = nullptr;
+  }
   if (m_primaryFocus)
   {
     // Move to local variable to keep node alive during notification.
@@ -605,7 +669,7 @@ void FocusManager::removeChild(rcp<FocusNode> child)
   // Clear focus if this node or descendant has focus
   if (hasFocus(child))
   {
-    clearFocus();
+    clearFocus(false);
   }
 
   detachChild(std::move(child));
@@ -684,18 +748,94 @@ private:
 };
 } // namespace
 
+FocusNode* FocusManager::traversalOrigin()
+{
+  // A traversal still waiting for its target stands where it is headed, so
+  // Tab pressed again before the content arrives goes on from there rather
+  // than from where focus was left.
+  resolveReveal(nullptr, /*allRoots=*/true, /*endOfFrame=*/false);
+  if (m_revealTarget != nullptr && m_revealTarget->manager() == this)
+  {
+    return m_revealTarget.get();
+  }
+  return m_primaryFocus.get();
+}
+
 bool FocusManager::focusNext()
 {
   dropFocusIfFocusTargetHidden();
   TraversalScope traversal(m_traversing);
-  return findNextFocusable(m_primaryFocus.get(), true) != nullptr;
+  return findNextFocusable(traversalOrigin(), true) != nullptr;
 }
 
 bool FocusManager::focusPrevious()
 {
   dropFocusIfFocusTargetHidden();
   TraversalScope traversal(m_traversing);
-  return findNextFocusable(m_primaryFocus.get(), false) != nullptr;
+  return findNextFocusable(traversalOrigin(), false) != nullptr;
+}
+
+void FocusManager::resolveReveal(
+    const Artboard* rootArtboard,
+    bool allRoots,
+    bool endOfFrame)
+{
+  if (m_revealTarget == nullptr)
+  {
+    return;
+  }
+  FocusNode* target = m_revealTarget.get();
+  if (target->manager() != this)
+  {
+    // Its item left the list.
+    m_revealTarget = nullptr;
+    return;
+  }
+  if (!allRoots && belongsToAnotherRoot(target, rootArtboard))
+  {
+    return;
+  }
+  const bool forward = m_revealForward;
+  // The same walk a traversal makes, so what the target holds that isn't
+  // built in its turn (a row of a virtualized list inside the row that just
+  // arrived) is waited for rather than passed over for a later stop.
+  FocusNode* latent = nullptr;
+  FocusNode* stop = forward ? firstStopInSubtree(target, &latent)
+                            : lastStopInSubtree(target, &latent);
+  if (latent != nullptr && latent != target)
+  {
+    rcp<FocusNode> inner = ref_rcp(latent);
+    if (latent->parent()->focusable()->revealFocusChild(latent, true))
+    {
+      m_revealTarget = std::move(inner);
+      m_revealFrames = 0;
+    }
+    return;
+  }
+  if (stop != nullptr)
+  {
+    TraversalScope traversal(m_traversing);
+    setFocus(ref_rcp(stop));
+    return;
+  }
+  // What was just built may not have had the update that makes its stops
+  // eligible, so only the end of a frame reads "no stop" as final.
+  if (!endOfFrame)
+  {
+    return;
+  }
+  if (isLatent(target))
+  {
+    if (++m_revealFrames > maxRevealFrames)
+    {
+      m_revealTarget = nullptr;
+    }
+    return;
+  }
+  // Built, with nothing to land on: the walk goes on from it.
+  rcp<FocusNode> from = std::move(m_revealTarget);
+  TraversalScope traversal(m_traversing);
+  findNextFocusable(from.get(), forward);
 }
 
 // Root-space world position from FocusNode. Live focusable geometry first;
@@ -784,7 +924,8 @@ static bool subtreeHasFocusableContent(const std::vector<rcp<FocusNode>>& nodes)
     // runtimes (e.g. attaching tab/shift+tab listeners in JS). Unbacked
     // nodes with canFocus=false are structural scopes and don't count on
     // their own.
-    if (node->focusable() != nullptr || node->canFocus())
+    if ((node->focusable() != nullptr && node->focusable()->isFocusContent()) ||
+        node->canFocus())
     {
       return true;
     }
@@ -798,6 +939,13 @@ static bool subtreeHasFocusableContent(const std::vector<rcp<FocusNode>>& nodes)
 
 bool FocusManager::hasFocusableContent() const
 {
+  // A row being waited for is content: every built stop may have left the
+  // window on the way to it, and a host that drops keyboard focus on a no
+  // here (Flutter's canRequestFocus) doesn't get it back when focus lands.
+  if (m_revealTarget != nullptr)
+  {
+    return true;
+  }
   if (m_focusableContentDirty)
   {
     m_hasFocusableContent = subtreeHasFocusableContent(m_rootNodes);
@@ -1367,7 +1515,10 @@ std::vector<FocusNode*> FocusManager::siblingsOf(FocusNode* node) const
 // Only a scope is asked. A childless node's edgeBehavior has never applied and
 // still doesn't (see FocusNode::edgeBehavior) — asking it here would let an
 // authored closedLoop on a leaf wrap the leaf onto itself and trap focus.
-FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
+FocusNode* FocusManager::nextFocusStop(
+    FocusNode* current,
+    bool forward,
+    FocusNode** outLatent) const
 {
   // Nothing focused, or focus is sitting on a node this manager does not
   // own: detachChild takes a subtree out of the manager while deliberately
@@ -1379,7 +1530,8 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
   if (current == nullptr || current->manager() != this)
   {
     auto roots = sortedByTabIndex(m_rootNodes);
-    return forward ? firstStopAmong(roots) : lastStopAmong(roots);
+    return forward ? firstStopAmong(roots, outLatent)
+                   : lastStopAmong(roots, outLatent);
   }
 
   if (forward)
@@ -1389,8 +1541,8 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
     // out of the order with it.
     for (FocusNode* child : sortedByTabIndex(current->children()))
     {
-      FocusNode* stop = firstStopInSubtree(child);
-      if (stop != nullptr)
+      FocusNode* stop = firstStopInSubtree(child, outLatent);
+      if (stop != nullptr || *outLatent != nullptr)
       {
         return stop;
       }
@@ -1409,7 +1561,8 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
           // Wrap within this subtree. With one stop left in it (or
           // none) this lands back on `current` (or nowhere), which
           // the caller reads as no change rather than looping.
-          return forward ? firstStopInSubtree(node) : lastStopInSubtree(node);
+          return forward ? firstStopInSubtree(node, outLatent)
+                         : lastStopInSubtree(node, outLatent);
         case EdgeBehavior::stop:
           return current;
         case EdgeBehavior::parentScope:
@@ -1428,8 +1581,8 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
     {
       for (size_t i = index + 1; i < siblings.size(); i++)
       {
-        FocusNode* stop = firstStopInSubtree(siblings[i]);
-        if (stop != nullptr)
+        FocusNode* stop = firstStopInSubtree(siblings[i], outLatent);
+        if (stop != nullptr || *outLatent != nullptr)
         {
           return stop;
         }
@@ -1439,8 +1592,8 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
     {
       for (size_t i = index; i-- > 0;)
       {
-        FocusNode* stop = lastStopInSubtree(siblings[i]);
-        if (stop != nullptr)
+        FocusNode* stop = lastStopInSubtree(siblings[i], outLatent);
+        if (stop != nullptr || *outLatent != nullptr)
         {
           return stop;
         }
@@ -1467,9 +1620,25 @@ FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
 }
 
 FocusNode* FocusManager::findNextFocusable(FocusNode* current, bool forward)
-    const
 {
-  FocusNode* next = nextFocusStop(current, forward);
+  FocusNode* latent = nullptr;
+  FocusNode* next = nextFocusStop(current, forward, &latent);
+  if (latent != nullptr)
+  {
+    // The next stop in order is in content that isn't built: a row of a
+    // virtualized list outside its window. Ask for it and wait, rather than
+    // skip to whatever happens to be built. Focus stays where it is until
+    // resolveReveal lands it.
+    rcp<FocusNode> target = ref_rcp(latent);
+    if (!latent->parent()->focusable()->revealFocusChild(latent, true))
+    {
+      return nullptr;
+    }
+    m_revealTarget = std::move(target);
+    m_revealForward = forward;
+    m_revealFrames = 0;
+    return latent;
+  }
   if (next == current)
   {
     // An edge that says stop, or a closed loop with nothing else left in
@@ -1480,7 +1649,7 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current, bool forward)
   // A null `next` with focus set is the walk running off the end of the root
   // list, which clears focus. ref_rcp is null-safe and setFocus(nullptr)
   // clears, so this stays one call.
-  const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
+  setFocus(ref_rcp(next));
   return next;
 }
 

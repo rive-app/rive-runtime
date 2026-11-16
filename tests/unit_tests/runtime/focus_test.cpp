@@ -4307,7 +4307,11 @@ TEST_CASE(
   // descends through it (focusNodeTraversable) to reach item focusables.
   CHECK(scope->canFocus() == false);
   CHECK(scope->canTraverse() == false);
-  CHECK(scope->focusable() == nullptr);
+  // Its backing is the list, there for traversal to ask about rows that
+  // aren't built; it is neither a stop nor focus content of its own.
+  REQUIRE(scope->focusable() != nullptr);
+  CHECK_FALSE(scope->focusable()->isEligibleForFocusTraversal());
+  CHECK_FALSE(scope->focusable()->isFocusContent());
 }
 
 TEST_CASE(

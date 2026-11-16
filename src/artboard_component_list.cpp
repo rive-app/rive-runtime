@@ -659,6 +659,7 @@ void ArtboardComponentList::ensureListScopeFocusNode(
   {
     m_listScopeFocusNode = FocusNode::makeStructuralScope();
     m_listScopeFocusNode->name("ArtboardComponentListScope");
+    m_listScopeFocusNode->setFocusable(&m_focusScope);
   }
   // Only called from the full build pass (buildFocusTreeVisit), which is
   // the ordering authority: always re-append so the scope sits at the
@@ -691,6 +692,8 @@ void ArtboardComponentList::removeListScopeFocusNode()
   {
     m_listScopeFocusNode->manager()->removeChild(m_listScopeFocusNode);
   }
+  // The node can outlive the list in a manager's hands.
+  m_listScopeFocusNode->clearFocusable();
   m_listScopeFocusNode.reset();
 }
 
@@ -783,6 +786,176 @@ bool artboardHasFocusContent(Artboard* artboard)
   return false;
 }
 } // namespace
+
+namespace
+{
+// artboardHasFocusContent for an artboard that isn't instanced: the same
+// answer read from what it is made of, as its hosts have mounted nothing.
+bool sourceArtboardMayHoldFocus(Artboard* artboard, int depth = 0)
+{
+  if (artboard == nullptr)
+  {
+    return false;
+  }
+  if (artboard->rootFocusDataCount() > 0 ||
+      !artboard->artboardComponentLists().empty())
+  {
+    return true;
+  }
+  for (auto* host : artboard->nestedArtboards())
+  {
+    if (host == nullptr)
+    {
+      continue;
+    }
+    // Past a few levels (or around a cycle) assume it may.
+    if (host->isArtboardDataBound() || depth >= 8 ||
+        sourceArtboardMayHoldFocus(host->sourceArtboard(), depth + 1))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace
+
+bool ArtboardComponentList::artboardMayHoldFocus(Artboard* source)
+{
+  for (const auto& entry : m_artboardFocusContent)
+  {
+    if (entry.first == source)
+    {
+      return entry.second;
+    }
+  }
+  bool may = sourceArtboardMayHoldFocus(source);
+  m_artboardFocusContent.emplace_back(source, may);
+  return may;
+}
+
+bool ArtboardComponentList::revealFocusRow(FocusNode* row, bool begin)
+{
+  const size_t count = std::min(m_listRowFocusNodes.size(), m_listItems.size());
+  // A walk asks about rows in order, so the row is usually next to the last
+  // one asked about.
+  size_t index = count;
+  for (size_t candidate :
+       {m_revealRowHint + 1, m_revealRowHint - 1, m_revealRowHint})
+  {
+    if (candidate < count && m_listRowFocusNodes[candidate].get() == row)
+    {
+      index = candidate;
+      break;
+    }
+  }
+  for (size_t i = 0; index == count && i < count; i++)
+  {
+    if (m_listRowFocusNodes[i].get() == row)
+    {
+      index = i;
+    }
+  }
+  if (index == count)
+  {
+    return false;
+  }
+  m_revealRowHint = index;
+  if (artboardInstance((int)index) != nullptr || !virtualizationEnabled())
+  {
+    return false;
+  }
+  Artboard* source = findArtboard(m_listItems[index]);
+  // A row the list will never build, or whose artboard has nothing to
+  // focus, is not worth waiting for.
+  if (source == nullptr || refusesNestedRow(source) ||
+      !artboardMayHoldFocus(source))
+  {
+    return false;
+  }
+  // Nor is one in a list that isn't shown: a stop built in it would not be
+  // eligible, so traversal passes the whole list as it does those.
+  if (!FocusData::shownForFocusTraversal(this))
+  {
+    return false;
+  }
+  auto* scroll = scrollConstraint();
+  // Where the item sits in the viewport with the scroll at zero: across the
+  // virtualized axis the content's own layout position counts too, as it
+  // does for the columns the scroll builds (constrainVirtualized).
+  Vec2D start = scroll->virtualItemPosition(this, (int)index);
+  if (scroll->virtualAxisIsColumn())
+  {
+    start.x += scroll->content()->layoutX();
+  }
+  else
+  {
+    start.y += scroll->content()->layoutY();
+  }
+  const Vec2D size = itemSize((int)index);
+  const Vec2D current(
+      scroll->effectiveScrollOffsetX(),
+      scroll->effectiveScrollOffsetY());
+  const bool scrollsX = scroll->constrainsHorizontal();
+  const bool scrollsY = scroll->constrainsVertical();
+  const float viewportX = scroll->viewportWidth();
+  const float viewportY = scroll->viewportHeight();
+  // Nor one the scroll can't bring in: a grid scrolled along its rows only
+  // leaves the columns outside its viewport unbuilt wherever it scrolls. An
+  // axis the scroll doesn't move isn't displaced by its offset.
+  if ((!scrollsX && (start.x >= viewportX || start.x + size.x <= 0.0f)) ||
+      (!scrollsY && (start.y >= viewportY || start.y + size.y <= 0.0f)))
+  {
+    return false;
+  }
+  if (!begin)
+  {
+    return true;
+  }
+  // Scroll just far enough to bring the item inside the viewport, which
+  // realizes it. The focus it then takes scrolls it into view exactly, and
+  // any scroll views further out with it (FocusData::scrollIntoView).
+  Vec2D target = current;
+  if (scrollsX)
+  {
+    if (start.x + target.x < 0.0f || size.x > viewportX)
+    {
+      target.x = -start.x;
+    }
+    else if (start.x + size.x + target.x > viewportX)
+    {
+      target.x = viewportX - start.x - size.x;
+    }
+  }
+  if (scrollsY)
+  {
+    if (start.y + target.y < 0.0f || size.y > viewportY)
+    {
+      target.y = -start.y;
+    }
+    else if (start.y + size.y + target.y > viewportY)
+    {
+      target.y = viewportY - start.y - size.y;
+    }
+  }
+  if (target != current)
+  {
+    const Vec2D snapped = scroll->nearestSnapOffsetInDirection(current, target);
+    scroll->scrollToPosition(snapped.x, snapped.y);
+  }
+  return true;
+}
+
+Artboard* ArtboardComponentListFocusScope::focusableArtboard() const
+{
+  return m_list->artboard();
+}
+
+bool ArtboardComponentListFocusScope::revealFocusChild(
+    FocusNode* child,
+    bool begin)
+{
+  return m_list->revealFocusRow(child, begin);
+}
 
 bool ArtboardComponentList::listItemNeedsBuildUnderRow(
     FocusManager* parentFM,
@@ -2816,11 +2989,24 @@ void ArtboardComponentList::removeVirtualizable(int index)
     {
       // A pooled instance may be reused anywhere, so it keeps no cell.
       instanceItr->second->virtualGridCell(-1, -1);
+      // Nor its place in the focus tree: left under this item's focus row,
+      // its stops stay reachable while it is in the pool and, once it is
+      // reused, belong to another item until that item's row is built.
+      // Reuse builds the tree again under the new row, as it had to before.
+      instanceItr->second->cleanupFocusTree();
       PooledRow pooled;
       pooled.artboard = std::move(instanceItr->second);
       auto smItr = m_stateMachinesMap.find(listItem);
       if (smItr != m_stateMachinesMap.end())
       {
+        if (smItr->second != nullptr)
+        {
+          // The blur of a row that held focus, as for the pointer exits
+          // above: its listeners get no advance to run in, and reuse drops
+          // what is still queued.
+          smItr->second->applyQueuedFocusEvents();
+          smItr->second->applyPendingReports();
+        }
         pooled.stateMachine = std::move(smItr->second);
       }
       m_rowPool[artboard].push_back(std::move(pooled));

@@ -671,6 +671,11 @@ public:
   /// their advances would, for a machine its host is about to drop or reset
   /// while it is still bound to the data those reports act on.
   void applyPendingReports();
+  /// Runs the focus and blur listeners queued since the last advance, on
+  /// this machine and the machines it hosts, for the same host: a row that
+  /// gives up focus as its list recycles it gets no advance to run them in,
+  /// and the focus may have been in an artboard or a list the row hosts.
+  void applyQueuedFocusEvents();
   void dispose();
 
 private:

@@ -6771,6 +6771,13 @@ bool StateMachineInstance::applyHostedReports()
   return applied;
 }
 
+void StateMachineInstance::applyQueuedFocusEvents()
+{
+  forEachHostedMachine(
+      [](StateMachineInstance* machine) { machine->applyQueuedFocusEvents(); });
+  processFocusEvents();
+}
+
 void StateMachineInstance::applyPendingReports()
 {
   // What one machine applies can queue more anywhere in the tree (a write

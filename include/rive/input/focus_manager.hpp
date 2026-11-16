@@ -177,6 +177,10 @@ public:
   /// request is the one to drop.
   static constexpr size_t maxPendingFocusRequests = 64;
 
+  /// Frames a traversal waits for content it asked to have revealed (a
+  /// virtualized list scrolling a row into its window) before giving up.
+  static constexpr uint8_t maxRevealFrames = 240;
+
   /// Requests apply immediately when they can: only an attempt that doesn't
   /// take (the stale-components case above) is queued for retry, so focus
   /// asked for against an already-focusable target still lands on the same
@@ -318,6 +322,10 @@ private:
   /// never can (its target is gone). False means "try again later".
   bool applyPendingFocusRequest(const PendingFocusRequest& request);
 
+  // Focus changes that leave a waiting traversal be when endsReveal is
+  // false: the manager's own, for a stop that was removed or hidden.
+  void setFocus(rcp<FocusNode> node, bool endsReveal);
+  void clearFocus(bool endsReveal);
   rcp<FocusNode> m_primaryFocus;
   rcp<FocusNode> m_pressFocus;
   std::vector<rcp<FocusNode>> m_rootNodes;
@@ -327,6 +335,22 @@ private:
   mutable bool m_hasFocusableContent = false;
   mutable bool m_focusableContentDirty = true;
   bool m_traversing = false;
+  // A traversal that reached content its owner hasn't built (see
+  // Focusable::revealFocusChild) waits here for it: the child to land in,
+  // the way the walk was going, and how many frames it has waited.
+  bool m_revealForward = true;
+  uint8_t m_revealFrames = 0;
+  rcp<FocusNode> m_revealTarget;
+  /// Lands the waiting traversal once its target holds a stop. At the end
+  /// of a frame a target that was built without one is walked past, and one
+  /// still not built after maxRevealFrames is given up on.
+  void resolveReveal(
+      const Artboard* rootArtboard,
+      bool allRoots,
+      bool endOfFrame);
+  /// The node a traversal starts from: where a waiting one is headed, else
+  /// the primary focus.
+  FocusNode* traversalOrigin();
   void removeManager(rcp<FocusNode>);
   /// Point `node` and every descendant at this manager. Counterpart to
   /// removeManager; a subtree joining the manager has to be claimed whole,
@@ -348,8 +372,15 @@ private:
   /// lands on, in pre-order over the focus tree. Returns `current` itself
   /// when an edge behavior refuses to move, and null when the walk runs off
   /// the end of the root list. Pure: it decides, findNextFocusable applies.
-  FocusNode* nextFocusStop(FocusNode* current, bool forward) const;
-  FocusNode* findNextFocusable(FocusNode* current, bool forward) const;
+  ///
+  /// When the walk reaches a child whose content isn't built before it
+  /// reaches a stop, it ends there: null is returned and `outLatent` is
+  /// that child.
+  FocusNode* nextFocusStop(
+      FocusNode* current,
+      bool forward,
+      FocusNode** outLatent) const;
+  FocusNode* findNextFocusable(FocusNode* current, bool forward);
   FocusNode* findNodeInDirection(FocusNode* current, Direction direction) const;
 };
 

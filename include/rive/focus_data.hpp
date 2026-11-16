@@ -80,6 +80,11 @@ public:
   /// including nested artboard hosts). Non-FocusData focusables are treated
   /// as visible by FocusManager.
   bool isEligibleForFocusTraversal() const override;
+  /// Whether start and everything above it, through the hosts of the
+  /// artboards it is nested in, is shown: not collapsed, hidden, fully
+  /// transparent or in a paused nested artboard. What makes a focus stop
+  /// eligible, for anything else that has to agree with it.
+  static bool shownForFocusTraversal(Component* start);
 
   // Focusable interface implementation
   /// The bubble. A TextInput parent edits first, once, when any keyboard

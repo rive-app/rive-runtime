@@ -30,6 +30,28 @@ class ArtboardListMapRule;
 class ArtboardListDrawIndexDependent;
 class FocusManager;
 
+class ArtboardComponentList;
+
+// Backs a list's focus scope node, so focus traversal can ask the list about
+// the rows it hasn't built (see Focusable::revealFocusChild). It takes no
+// focus or input itself.
+class ArtboardComponentListFocusScope final : public Focusable
+{
+public:
+  ArtboardComponentListFocusScope(ArtboardComponentList* list) : m_list(list) {}
+  Artboard* focusableArtboard() const override;
+  bool keyInput(Key, KeyModifiers, bool, bool) override { return false; }
+  bool textInput(const std::string&) override { return false; }
+  void focused() override {}
+  void blurred() override {}
+  bool isEligibleForFocusTraversal() const override { return false; }
+  bool isFocusContent() const override { return false; }
+  bool revealFocusChild(FocusNode* child, bool begin) override;
+
+private:
+  ArtboardComponentList* m_list;
+};
+
 class ArtboardComponentList final : public ArtboardComponentListBase,
                                     public ArtboardHost,
                                     public AdvancingComponent,
@@ -198,6 +220,10 @@ public:
       FocusManager* focusManager,
       rcp<FocusNode> hostParent);
   rcp<FocusNode> listScopeFocusNode() const { return m_listScopeFocusNode; }
+  /// Whether row is the focus row of an item this virtualized list hasn't
+  /// realized whose artboard can hold focus content. With begin, also
+  /// scrolls the item into the list's window.
+  bool revealFocusRow(FocusNode* row, bool begin);
   void removeListScopeFocusNode();
 
   /// Rebuilds the ordered-list cache when invalid (list, visibility, or
@@ -326,8 +352,17 @@ private:
       m_artboardOverridesMap;
   std::unordered_map<int, int> m_artboardMapRules;
 
-  // Synthetic scope that parents all list item focus subtrees; no Focusable.
+  // Synthetic scope that parents all list item focus subtrees. Backed by
+  // m_focusScope, only so traversal can reach the list.
   rcp<FocusNode> m_listScopeFocusNode = nullptr;
+  ArtboardComponentListFocusScope m_focusScope{this};
+  // Where revealFocusRow last found a row, as a walk asks about rows in
+  // order.
+  size_t m_revealRowHint = 0;
+  // Whether each row artboard asked about can hold focus content. A list
+  // shows a handful of artboards, so a few entries searched in order.
+  std::vector<std::pair<Artboard*, bool>> m_artboardFocusContent;
+  bool artboardMayHoldFocus(Artboard* source);
   // One structural row per list item index, direct child of
   // m_listScopeFocusNode.
   std::vector<rcp<FocusNode>> m_listRowFocusNodes;

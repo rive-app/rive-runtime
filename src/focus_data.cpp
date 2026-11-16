@@ -364,6 +364,19 @@ void FocusData::scrollConstraintToShowBounds(
   float effectiveScrollX = constraint->effectiveScrollOffsetX();
   float effectiveScrollY = constraint->effectiveScrollOffsetY();
 
+  // The bounds are where the element is drawn now. While a scroll is still
+  // animating, the offset it is heading for is not the one they were drawn
+  // at, so move them to where the element will be once it arrives: the
+  // adjustment below is made to that target.
+  // They were drawn at the clamped offset, which is not the raw one while
+  // the scroll is pulled or set past its ends.
+  const float pendingX = effectiveScrollX - constraint->clampedOffsetX();
+  const float pendingY = effectiveScrollY - constraint->clampedOffsetY();
+  viewportLeft += pendingX;
+  viewportRight += pendingX;
+  viewportTop += pendingY;
+  viewportBottom += pendingY;
+
   float deltaX = 0.0f;
   float deltaY = 0.0f;
 
@@ -604,6 +617,11 @@ bool FocusData::isEligibleForFocusTraversal() const
   {
     return true;
   }
+  return shownForFocusTraversal(start);
+}
+
+bool FocusData::shownForFocusTraversal(Component* start)
+{
   if (!componentAllowsFocusTraversal(start))
   {
     return false;

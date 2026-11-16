@@ -161,6 +161,7 @@ enum class Key : uint16_t
 
 class Artboard;
 class Core;
+class FocusNode;
 
 class Focusable
 {
@@ -239,6 +240,19 @@ public:
   /// Whether a primary press landing outside this focusable takes focus
   /// away from it, as a platform text field blurs on an outside click.
   virtual bool blursOnOutsidePress() const { return false; }
+
+  /// Whether this counts as focus content of its own (see
+  /// FocusManager::hasFocusableContent). False for one that only backs a
+  /// structural scope.
+  virtual bool isFocusContent() const { return true; }
+
+  /// Asked of the Focusable backing a scope about a child of that scope
+  /// that holds no focus nodes. True when the child stands for content that
+  /// isn't built yet and may hold focus stops once it is: a row of a
+  /// virtualized list scrolled out of its window. With [begin], also start
+  /// bringing that content in (scroll it into the window); focus traversal
+  /// then waits for it rather than skipping the child.
+  virtual bool revealFocusChild(FocusNode* child, bool begin) { return false; }
 
   /// Whether a point in root artboard space lands on this focusable.
   virtual bool hitTestFocusable(const Vec2D& rootPosition)
