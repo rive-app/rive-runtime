@@ -373,7 +373,6 @@ private:
       const std::vector<rcp<ViewModelInstanceListItem>>& previousListItems,
       const std::vector<rcp<FocusNode>>& previousRowNodes);
   rcp<FocusNode> makeListRowFocusNode() const;
-  void reparentListRowsInScope(FocusManager* fm);
   // Whether the scope's children are exactly the rows, in order.
   bool listRowNodesInPlace() const;
   // Wires each realized row's state machine to the manager and builds the
@@ -462,6 +461,13 @@ public:
   static uint64_t sm_quietRowSkips;
   // Rows scanned for an artboard because the list repeats items.
   static uint32_t sm_rowScans;
+  // Item compares made matching focus rows to a changed list, across every
+  // list.
+  static uint64_t sm_focusRowCompares;
+  const std::vector<rcp<FocusNode>>& listRowFocusNodes() const
+  {
+    return m_listRowFocusNodes;
+  }
   // Lets a test run the same frames with and without quiet rows.
   static bool sm_quietRowsEnabled;
   // Whether a row that its machine's advance leaves quiet goes quiet then,

@@ -120,6 +120,22 @@ public:
   // Remove child from its current parent (clears focus if needed)
   void removeChild(rcp<FocusNode> child);
 
+  // Replace `removeCount` children of parent, from the index-th, with
+  // `nodes`, in order: one pass over the children however many change,
+  // where adding or removing them one at a time is a pass each. A replaced
+  // child that is in `nodes` only moves, keeping its focus state as
+  // detachChild + addChild would; one that isn't leaves as by removeChild.
+  // Any other node joins as by addChild. `nodes` must hold no nulls, no
+  // node twice, and no child of parent from outside the replaced range.
+  // It must be storage of the caller's own: not any node's children nor a
+  // manager's roots, which this edits in place while it reads `nodes`.
+  void replaceChildren(
+      rcp<FocusNode> parent,
+      size_t index,
+      size_t removeCount,
+      const rcp<FocusNode>* nodes,
+      size_t nodeCount);
+
   // Detach child from its current parent WITHOUT clearing focus. Use this
   // when reordering an existing node (e.g. rebuilding the hierarchy) so the
   // primary focus and its blur/focus notifications are preserved. For genuine

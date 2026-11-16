@@ -191,6 +191,11 @@ public:
   // Remove this node from its current parent (used internally)
   void removeFromParent();
 
+#ifdef TESTING
+  // Children attached to or detached from a parent, across every node.
+  static uint64_t sm_childEdits;
+#endif
+
   // === Input Handling (delegates to Focusable) ===
 
   bool keyInput(Key key, KeyModifiers modifiers, bool isPressed, bool isRepeat)

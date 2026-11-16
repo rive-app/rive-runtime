@@ -10,6 +10,10 @@
 namespace rive
 {
 
+#ifdef TESTING
+uint64_t FocusNode::sm_childEdits = 0;
+#endif
+
 FocusNode::~FocusNode()
 {
   // A child held elsewhere via rcp (a NestedArtboard's persistent focus
@@ -34,6 +38,9 @@ void FocusNode::insertChild(size_t index, rcp<FocusNode> child)
   }
   child->removeFromParent();
   child->m_parent = this;
+#ifdef TESTING
+  sm_childEdits++;
+#endif
   if (index > m_children.size())
   {
     index = m_children.size();
@@ -51,6 +58,9 @@ void FocusNode::removeChild(rcp<FocusNode> child)
     return;
   }
 
+#ifdef TESTING
+  sm_childEdits++;
+#endif
   child->m_parent = nullptr;
   auto it = std::find(m_children.begin(), m_children.end(), child);
   if (it != m_children.end())

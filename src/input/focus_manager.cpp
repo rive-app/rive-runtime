@@ -10,6 +10,7 @@
 #include "rive/input/focusable.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cmath>
 #include <limits>
@@ -673,6 +674,131 @@ void FocusManager::removeChild(rcp<FocusNode> child)
   }
 
   detachChild(std::move(child));
+}
+
+void FocusManager::replaceChildren(
+    rcp<FocusNode> parent,
+    size_t index,
+    size_t removeCount,
+    const rcp<FocusNode>* nodes,
+    size_t nodeCount)
+{
+  if (!parent)
+  {
+    return;
+  }
+  auto& children = parent->m_children;
+  index = std::min(index, children.size());
+  removeCount = std::min(removeCount, children.size() - index);
+  if (removeCount == 0 && nodeCount == 0)
+  {
+    return;
+  }
+
+  // Focus held inside a child that leaves is cleared first, while the tree
+  // is whole, so the blur reaches every ancestor. At most one child holds
+  // it.
+  for (size_t i = index; i < index + removeCount; i++)
+  {
+    FocusNode* child = children[i].get();
+    if (!child->hasFocus())
+    {
+      continue;
+    }
+    bool stays = false;
+    for (size_t j = 0; j < nodeCount && !stays; j++)
+    {
+      stays = nodes[j].get() == child;
+    }
+    if (!stays)
+    {
+      // No blur handler edits the focus tree as it runs: a listener's
+      // actions are queued for the state machine's next advance, and the
+      // rest only set state. The range is therefore still the one asked
+      // for. One that did edit parent's children would need the range
+      // found again by node rather than by index; the clamp only keeps
+      // such a handler from sending this past the end.
+#ifndef NDEBUG
+      const size_t countBefore = children.size();
+      const FocusNode* firstBefore = children[index].get();
+      const FocusNode* lastBefore = children[index + removeCount - 1].get();
+#endif
+      clearFocus();
+      assert(
+          children.size() == countBefore &&
+          children[index].get() == firstBefore &&
+          children[index + removeCount - 1].get() == lastBefore);
+      index = std::min(index, children.size());
+      removeCount = std::min(removeCount, children.size() - index);
+    }
+    break;
+  }
+
+  markFocusableContentDirty();
+  parent->invalidateFocusableContent();
+
+  // A node that is already a child of parent only moves. Its parent pointer
+  // is cleared until it is placed below, which is what tells the replaced
+  // children that return from the ones that leave. Any other node joins
+  // this manager with its subtree, as in addChild.
+  for (size_t j = 0; j < nodeCount; j++)
+  {
+    const rcp<FocusNode>& node = nodes[j];
+    if (node->m_parent == parent.get())
+    {
+      node->m_parent = nullptr;
+      continue;
+    }
+    if (node->m_parent != nullptr)
+    {
+      node->removeFromParent();
+    }
+    else if (node->m_manager != nullptr)
+    {
+      // Only a node in a manager can be one of its roots.
+      node->m_manager->eraseRoot(node);
+    }
+    // The whole subtree joins, even when the node itself is already in
+    // this manager: a descendant may have been attached without one.
+    assignManager(node);
+  }
+  for (size_t i = index; i < index + removeCount; i++)
+  {
+    const rcp<FocusNode>& child = children[i];
+    if (child->m_parent == parent.get())
+    {
+      // Leaves for good, with its subtree, as in detachChild.
+      removeManager(child);
+      child->m_parent = nullptr;
+#ifdef TESTING
+      FocusNode::sm_childEdits++;
+#endif
+    }
+  }
+
+  // Size the gap once, then fill it.
+  const auto gap = children.begin() + static_cast<ptrdiff_t>(index);
+  if (nodeCount > removeCount)
+  {
+    children.insert(
+        gap + static_cast<ptrdiff_t>(removeCount),
+        nodeCount - removeCount,
+        rcp<FocusNode>());
+  }
+  else if (nodeCount < removeCount)
+  {
+    children.erase(
+        gap + static_cast<ptrdiff_t>(nodeCount),
+        gap + static_cast<ptrdiff_t>(removeCount));
+  }
+  for (size_t j = 0; j < nodeCount; j++)
+  {
+    nodes[j]->m_parent = parent.get();
+    children[index + j] = nodes[j];
+  }
+#ifdef TESTING
+  FocusNode::sm_childEdits += nodeCount;
+#endif
 }
 
 void FocusManager::detachChild(rcp<FocusNode> child)

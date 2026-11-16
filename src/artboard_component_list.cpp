@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/animation/state_machine_instance.hpp"
@@ -707,35 +709,6 @@ rcp<FocusNode> ArtboardComponentList::makeListRowFocusNode() const
   return node;
 }
 
-void ArtboardComponentList::reparentListRowsInScope(FocusManager* fm)
-{
-  if (fm == nullptr || m_listScopeFocusNode == nullptr)
-  {
-    return;
-  }
-  for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
-  {
-    rcp<FocusNode> row = m_listRowFocusNodes[i];
-    if (row == nullptr)
-    {
-      continue;
-    }
-    if (row->parent() != nullptr)
-    {
-      row->removeFromParent();
-    }
-  }
-  for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
-  {
-    rcp<FocusNode> row = m_listRowFocusNodes[i];
-    if (row == nullptr)
-    {
-      continue;
-    }
-    fm->addChild(m_listScopeFocusNode, row, i);
-  }
-}
-
 namespace
 {
 // True if the artboard contains any focus content at any depth: authored
@@ -1000,8 +973,8 @@ void ArtboardComponentList::syncListRowNodesWithList(FocusManager* fm)
   if (fm != nullptr && listRowNodesInPlace())
   {
     // The list hasn't changed and its rows already sit under the scope in
-    // order, so matching them to the list (O(n^2)) and re-parenting them
-    // would rebuild the same tree. This runs whenever a virtualized list
+    // order, so matching them to the list and re-parenting them would
+    // rebuild the same tree. This runs whenever a virtualized list
     // realizes rows, so only the realized rows' focus trees get work.
     buildListRowFocusTrees(fm);
     return;
@@ -1010,6 +983,28 @@ void ArtboardComponentList::syncListRowNodesWithList(FocusManager* fm)
   std::vector<rcp<FocusNode>> rowCopy = m_listRowFocusNodes;
   syncListRowNodesWithList(fm, listCopy, rowCopy);
 }
+
+namespace
+{
+// A list item and where it sits in the stretch of the list being matched.
+struct FocusRowEntry
+{
+  uintptr_t item;
+  uint32_t index;
+};
+
+// By item, then by place, so an item's showings stay in list order.
+int compareFocusRows(const void* a, const void* b)
+{
+  const auto* left = static_cast<const FocusRowEntry*>(a);
+  const auto* right = static_cast<const FocusRowEntry*>(b);
+  if (left->item != right->item)
+  {
+    return left->item < right->item ? -1 : 1;
+  }
+  return left->index < right->index ? -1 : left->index > right->index;
+}
+} // namespace
 
 void ArtboardComponentList::syncListRowNodesWithList(
     FocusManager* fm,
@@ -1020,77 +1015,169 @@ void ArtboardComponentList::syncListRowNodesWithList(
   {
     return;
   }
-  const int n = static_cast<int>(m_listItems.size());
-  if (n == 0)
+  // Each item of the new list takes the row its item had, and an item shown
+  // more than once takes one row per showing; the rows nothing takes leave
+  // the scope. Only the first `previousCount` previous items had a row.
+  const size_t count = m_listItems.size();
+  const size_t previousCount = std::min(
+      previousListItems.size(),
+      previousRowNodes.size());
+
+  // Most changes leave both ends of the list alone (an append, a prepend, an
+  // insert, a removal), so the rows at the ends are matched by walking in
+  // from each: linear, and nothing to allocate. Only what lies between needs
+  // looking up.
+  const size_t ends = std::min(count, previousCount);
+  size_t prefix = 0;
+  while (prefix < ends && m_listItems[prefix] == previousListItems[prefix])
   {
-    // The rows leave the scope with their items, as they do below for the
-    // items a non-empty list drops. Clearing only our references left them
-    // under the scope, so every list emptied and refilled grew it.
-    for (const auto& row : previousRowNodes)
+    prefix++;
+  }
+  size_t suffix = 0;
+  while (suffix < ends - prefix &&
+         m_listItems[count - 1 - suffix] ==
+             previousListItems[previousCount - 1 - suffix])
+  {
+    suffix++;
+  }
+  const size_t middle = count - prefix - suffix;
+  const size_t previousMiddle = previousCount - prefix - suffix;
+#ifdef TESTING
+  sm_focusRowCompares += prefix + suffix;
+#endif
+
+  // `previousRowNodes` is a copy, so the rows can be written where they
+  // live. A row already in its place is left alone rather than reassigned:
+  // for an append that is every row there was.
+  m_listRowFocusNodes.resize(count);
+  auto place = [this](size_t index, const rcp<FocusNode>& row) {
+    if (m_listRowFocusNodes[index] != row)
     {
-      if (row != nullptr && row->manager() != nullptr)
-      {
-        row->manager()->removeChild(row);
-      }
+      m_listRowFocusNodes[index] = row;
     }
-    m_listRowFocusNodes.clear();
-    return;
+  };
+  for (size_t i = 0; i < prefix; i++)
+  {
+    place(i, previousRowNodes[i]);
+  }
+  for (size_t i = 0; i < suffix; i++)
+  {
+    place(count - 1 - i, previousRowNodes[previousCount - 1 - i]);
+  }
+  for (size_t i = 0; i < middle; i++)
+  {
+    m_listRowFocusNodes[prefix + i] = nullptr;
   }
 
-  std::vector<rcp<FocusNode>> newRows(static_cast<size_t>(n), nullptr);
-  std::vector<rcp<FocusNode>> pr = previousRowNodes;
-  for (int j = 0; j < n; j++)
+  if (middle != 0 && previousMiddle != 0)
   {
-    for (int k = 0; k < static_cast<int>(previousListItems.size()) &&
-                    k < static_cast<int>(pr.size());
-         k++)
+    if (previousMiddle <= 64)
     {
-      if (m_listItems[static_cast<size_t>(j)] ==
-          previousListItems[static_cast<size_t>(k)])
+      // A swap, a short move, a few rows replaced: scan the few previous
+      // rows for each item, with a bit per row already taken.
+      uint64_t taken = 0;
+      for (size_t i = 0; i < middle; i++)
       {
-        newRows[static_cast<size_t>(j)] = pr[static_cast<size_t>(k)];
-        pr[static_cast<size_t>(k)] = nullptr;
-        break;
+        const auto& item = m_listItems[prefix + i];
+        for (size_t k = 0; k < previousMiddle; k++)
+        {
+#ifdef TESTING
+          sm_focusRowCompares++;
+#endif
+          if ((taken & (uint64_t(1) << k)) == 0 &&
+              previousListItems[prefix + k] == item)
+          {
+            taken |= uint64_t(1) << k;
+            m_listRowFocusNodes[prefix + i] = previousRowNodes[prefix + k];
+            break;
+          }
+        }
+      }
+    }
+    else
+    {
+      // A long stretch reordered or replaced. Sort both stretches by item
+      // and walk them together, which pairs an item's showings off in list
+      // order as the scan above does. The one allocation of the sync.
+      std::vector<FocusRowEntry> entries;
+      entries.reserve(previousMiddle + middle);
+      for (size_t k = 0; k < previousMiddle; k++)
+      {
+        entries.push_back(
+            {(uintptr_t)previousListItems[prefix + k].get(), (uint32_t)k});
+      }
+      for (size_t i = 0; i < middle; i++)
+      {
+        entries.push_back(
+            {(uintptr_t)m_listItems[prefix + i].get(), (uint32_t)i});
+      }
+      FocusRowEntry* previous = entries.data();
+      FocusRowEntry* const previousEnd = previous + previousMiddle;
+      FocusRowEntry* current = previousEnd;
+      FocusRowEntry* const currentEnd = current + middle;
+      // qsort rather than std::sort: a sort instantiated for these entries
+      // is some 6 KB of code for a path few lists take.
+      qsort(previous, previousMiddle, sizeof(FocusRowEntry), compareFocusRows);
+      qsort(current, middle, sizeof(FocusRowEntry), compareFocusRows);
+      while (previous != previousEnd && current != currentEnd)
+      {
+        if (previous->item == current->item)
+        {
+          m_listRowFocusNodes[prefix + current->index] = previousRowNodes
+              [prefix + previous->index];
+          ++previous;
+          ++current;
+        }
+        else if (previous->item < current->item)
+        {
+          ++previous;
+        }
+        else
+        {
+          ++current;
+        }
       }
     }
   }
-  for (int k = 0; k < static_cast<int>(pr.size()) &&
-                  k < static_cast<int>(previousListItems.size());
-       k++)
+  for (size_t i = 0; i < middle; i++)
   {
-    rcp<FocusNode> unmapped = pr[static_cast<size_t>(k)];
-    if (unmapped == nullptr)
-    {
-      continue;
-    }
-    bool inNew = false;
-    for (int j = 0; j < n; j++)
-    {
-      if (m_listItems[static_cast<size_t>(j)] ==
-          previousListItems[static_cast<size_t>(k)])
-      {
-        inNew = true;
-        break;
-      }
-    }
-    if (!inNew)
-    {
-      if (unmapped->manager() != nullptr)
-      {
-        unmapped->manager()->removeChild(unmapped);
-      }
-    }
-  }
-  m_listRowFocusNodes = std::move(newRows);
-  for (int i = 0; i < n; i++)
-  {
-    rcp<FocusNode>& row = m_listRowFocusNodes[static_cast<size_t>(i)];
+    rcp<FocusNode>& row = m_listRowFocusNodes[prefix + i];
     if (row == nullptr)
     {
       row = makeListRowFocusNode();
     }
   }
-  reparentListRowsInScope(fm);
+
+  // When the scope still holds the previous rows in order, the rows at the
+  // ends are already where they belong: only the stretch between is
+  // replaced, and the manager keeps the rows that return in it attached.
+  // Otherwise (the first sync, or rows that fell out of step while there was
+  // no manager) every child is replaced, which also drops what isn't a row.
+  const auto& children = m_listScopeFocusNode->children();
+  bool inPlace = previousRowNodes.size() == previousCount &&
+                 children.size() == previousCount;
+  for (size_t i = 0; inPlace && i < previousCount; i++)
+  {
+    inPlace = children[i] == previousRowNodes[i];
+  }
+  if (inPlace)
+  {
+    fm->replaceChildren(
+        m_listScopeFocusNode,
+        prefix,
+        previousMiddle,
+        m_listRowFocusNodes.data() + prefix,
+        middle);
+  }
+  else
+  {
+    fm->replaceChildren(
+        m_listScopeFocusNode,
+        0,
+        children.size(),
+        m_listRowFocusNodes.data(),
+        count);
+  }
   buildListRowFocusTrees(fm);
 }
 
@@ -1940,6 +2027,7 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
 
 #ifdef TESTING
 uint32_t ArtboardComponentList::sm_rowScans = 0;
+uint64_t ArtboardComponentList::sm_focusRowCompares = 0;
 #endif
 
 void ArtboardComponentList::placeInRow(size_t index, ArtboardInstance* artboard)
