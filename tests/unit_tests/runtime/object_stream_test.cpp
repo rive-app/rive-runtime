@@ -8,6 +8,7 @@
 #include "rive/math/simd.hpp"
 #include <array>
 #include <numeric>
+#include <type_traits>
 
 using namespace rive;
 
@@ -105,6 +106,35 @@ TEST_CASE("PODStream", "[ObjectStream]")
   CHECK(array2 == std::array<int, 2>{1, 2});
 
   CHECK(s.empty());
+}
+
+TEST_CASE("POD Stream trivially copyable values", "[ObjectStream]")
+{
+  struct Payload
+  {
+    uint32_t value = 0;
+    bool enabled = false;
+  };
+  static_assert(!std::is_trivial<Payload>::value);
+  static_assert(std::is_trivially_copyable<Payload>::value);
+  static_assert(std::is_standard_layout<Payload>::value);
+
+  PODStream stream;
+  Payload original{42, true};
+  const uint8_t marker = 7;
+  stream << original << marker;
+  // The stream owns the bytes even if the source changes before extraction.
+  original = {};
+
+  Payload restored;
+  stream >> restored;
+  CHECK(restored.value == 42);
+  CHECK(restored.enabled);
+  CHECK_FALSE(stream.empty());
+  uint8_t restoredMarker = 0;
+  stream >> restoredMarker;
+  CHECK(restoredMarker == marker);
+  CHECK(stream.empty());
 }
 
 TEST_CASE("PODStream -- force deque realloc", "[ObjectStream]")

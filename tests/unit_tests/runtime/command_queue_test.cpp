@@ -165,6 +165,83 @@ TEST_CASE("POD Stream RCP", "[PODStream]")
   CHECK(t4.get() == nullptr);
 }
 
+TEST_CASE("file decoding policy is per load", "[CommandQueue]")
+{
+  std::ifstream stream("assets/two_artboards.riv", std::ios::binary);
+  std::vector<uint8_t> bytes(std::istreambuf_iterator<char>(stream), {});
+  REQUIRE(!bytes.empty());
+
+  auto commandQueue = make_rcp<CommandQueue>();
+  const bool deferDefaultArtboard = GENERATE(false, true);
+  FileImportOptions options;
+  options.deferDecoding = true;
+  options.testing_deferDefaultArtboard = deferDefaultArtboard;
+
+  FileHandle defaultFile = commandQueue->loadFile(bytes);
+  FileHandle deferredFile = commandQueue->loadFile(
+      bytes,
+      nullptr,
+      1,
+#ifdef WITH_RIVE_SCRIPTING
+      nullptr,
+#endif
+      options);
+  // Change the caller's options before the server starts to verify snapshot
+  // ownership.
+  options = {};
+  FileHandle eagerFile = commandQueue->loadFile(
+      bytes,
+      nullptr,
+      2,
+#ifdef WITH_RIVE_SCRIPTING
+      nullptr,
+#endif
+      options);
+
+  std::thread serverThread(server_thread, commandQueue);
+
+  commandQueue->runOnce([=](CommandServer* server) {
+    for (auto handle : {defaultFile, deferredFile, eagerFile})
+    {
+      auto file = server->getFile(handle);
+      CHECK(file != nullptr);
+      if (file == nullptr)
+        continue;
+      CHECK(file->artboardCount() == 2);
+      if (file->artboardCount() != 2)
+        continue;
+      CHECK(file->artboardHeader(1)->name() == "One");
+      CHECK(
+          file->artboardHeader(0)->hasDeferredBody() ==
+          (handle == deferredFile && deferDefaultArtboard));
+      CHECK(
+          file->artboardHeader(1)->hasDeferredBody() ==
+          (handle == deferredFile));
+    }
+  });
+
+  // Instancing consumes only this file's deferred body, on the server thread.
+  ArtboardHandle artboard = commandQueue->instantiateArtboardNamed(
+      deferredFile,
+      "One");
+  commandQueue->runOnce([=](CommandServer* server) {
+    auto instance = server->getArtboardInstance(artboard);
+    CHECK(instance != nullptr);
+    if (instance != nullptr)
+      CHECK(instance->name() == "One");
+    auto file = server->getFile(deferredFile);
+    if (file != nullptr && file->artboardCount() == 2)
+      CHECK_FALSE(file->artboardHeader(1)->hasDeferredBody());
+  });
+
+  commandQueue->deleteArtboard(artboard);
+  commandQueue->deleteFile(defaultFile);
+  commandQueue->deleteFile(deferredFile);
+  commandQueue->deleteFile(eagerFile);
+  commandQueue->disconnect();
+  serverThread.join();
+}
+
 TEST_CASE("artboard management", "[CommandQueue]")
 {
   auto commandQueue = make_rcp<CommandQueue>();

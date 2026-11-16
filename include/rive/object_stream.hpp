@@ -39,9 +39,8 @@ private:
   std::deque<T> m_stream;
 };
 
-// Stream for recording objects of any trivially-copyable type, using C++-style
-// "<<" ">>" operators. Object types must be read back in the same order they
-// were writen.
+// Records trivially-copyable, standard-layout objects using "<<" and ">>".
+// Object types must be read back in the same order they were written.
 class PODStream
 {
 public:
@@ -50,8 +49,8 @@ public:
   template <typename T> PODStream& operator<<(T obj)
   {
     static_assert(
-        std::is_trivial<T>() && std::is_standard_layout<T>(),
-        "PODStream only accepts plain-old-data types");
+        std::is_trivially_copyable<T>() && std::is_standard_layout<T>(),
+        "PODStream only accepts trivially-copyable standard-layout types");
     const uint8_t* data = reinterpret_cast<const uint8_t*>(&obj);
     m_byteStream.insert(m_byteStream.end(), data, data + sizeof(T));
     return *this;
@@ -60,8 +59,8 @@ public:
   template <typename T> PODStream& operator>>(T& dst)
   {
     static_assert(
-        std::is_trivial<T>() && std::is_standard_layout<T>(),
-        "PODStream only accepts plain-old-data types");
+        std::is_trivially_copyable<T>() && std::is_standard_layout<T>(),
+        "PODStream only accepts trivially-copyable standard-layout types");
     assert(m_byteStream.size() >= sizeof(T));
     uint8_t* data = reinterpret_cast<uint8_t*>(&dst);
     std::copy(m_byteStream.begin(), m_byteStream.begin() + sizeof(T), data);

@@ -989,8 +989,10 @@ bool CommandServer::processCommands()
         FileHandle handle;
         uint64_t requestId;
         std::vector<uint8_t> rivBytes;
+        FileImportOptions importOptions;
         commandStream >> handle;
         commandStream >> requestId;
+        commandStream >> importOptions;
         m_commandQueue->m_byteVectors >> rivBytes;
 #ifdef WITH_RIVE_SCRIPTING
         ScriptingContextFactory scriptingContextFactory;
@@ -1020,7 +1022,9 @@ bool CommandServer::processCommands()
             m_factory,
             nullptr,
             fileAssetLoader,
-            vm.get());
+            vm.get(),
+            false,
+            importOptions);
 
 #else
 #ifdef WITH_RIVE_SCRIPTING
@@ -1032,7 +1036,10 @@ bool CommandServer::processCommands()
             rivBytes,
             m_factory,
             nullptr,
-            fileAssetLoader);
+            fileAssetLoader,
+            nullptr,
+            false,
+            importOptions);
 #endif
 
         if (file != nullptr)

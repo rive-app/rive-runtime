@@ -42,12 +42,11 @@ CommandQueue::~CommandQueue() {}
 FileHandle CommandQueue::loadFile(
     std::vector<uint8_t> rivBytes,
     FileListener* listener,
-    uint64_t requestId
+    uint64_t requestId,
 #ifdef WITH_RIVE_SCRIPTING
-    ,
-    ScriptingContextFactory scriptingContextFactory
+    ScriptingContextFactory scriptingContextFactory,
 #endif
-)
+    FileImportOptions importOptions)
 {
   auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
 
@@ -63,6 +62,10 @@ FileHandle CommandQueue::loadFile(
   m_commandStream << Command::loadFile;
   m_commandStream << handle;
   m_commandStream << requestId;
+  static_assert(
+      sizeof(FileImportOptions) <= 16,
+      "FileImportOptions grew: reassess copying it through the command queue");
+  m_commandStream << std::move(importOptions);
   m_byteVectors << std::move(rivBytes);
 #ifdef WITH_RIVE_SCRIPTING
   m_scriptingContextFactories << std::move(scriptingContextFactory);

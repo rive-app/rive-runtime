@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/object_stream.hpp"
+#include "rive/file.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/math/vec2d.hpp"
@@ -41,7 +42,6 @@ namespace rive
 {
 enum class Direction : uint8_t;
 class Factory;
-class File;
 class ArtboardInstance;
 class StateMachineInstance;
 class CommandServer;
@@ -550,15 +550,31 @@ public:
   CommandQueue();
   ~CommandQueue();
 
+  /**
+   * Queues a file import with a decoding policy fixed for that file.
+   *
+   * Deferred decoding keeps copies of eligible artboard, animation, and view
+   * model instance bodies until first use on the command server thread. The
+   * default artboard still decodes at import. Files with different decoding
+   * policies can share the same queue.
+   *
+   * @param rivBytes The exported file bytes, owned by the queued command.
+   * @param listener Optional listener for file responses.
+   * @param requestId Identifier returned with the load response.
+   * @param scriptingContextFactory Optional per-file scripting context factory
+   * in builds with scripting enabled.
+   * @param importOptions Import settings copied into the queued command.
+   * Defaults to eager decoding.
+   * @return The handle reserved for the file before its import completes.
+   */
   FileHandle loadFile(
       std::vector<uint8_t> rivBytes,
       FileListener* listener = nullptr,
-      uint64_t requestId = 0
+      uint64_t requestId = 0,
 #ifdef WITH_RIVE_SCRIPTING
-      ,
-      ScriptingContextFactory scriptingContextFactory = nullptr
+      ScriptingContextFactory scriptingContextFactory = nullptr,
 #endif
-  );
+      FileImportOptions importOptions = {});
 
   void deleteFile(FileHandle, uint64_t requestId = 0);
 
