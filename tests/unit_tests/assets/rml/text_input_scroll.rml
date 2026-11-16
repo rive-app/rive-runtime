@@ -1,0 +1,102 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/text_input_scroll.riv. Not an editor export:
+      rebuild the .riv from this file with the CLI, from a directory holding
+      this scene.rml, a rive.yaml naming it and label_font.ttf (copied from
+      packages/rive-cli/assets), then copy build/text_input_scroll.riv into
+      assets/.
+
+          rive . --unsigned-riv
+
+      A text input inside a scroll view, for wheel and trackpad scrolls that
+      start over the input. Every artboard is 300 tall with 1000 of content,
+      so the view scrolls from 0 to -700.
+
+      Field holds a single-line TextInput in the scrolled content, with a
+      plain row under it; an input inside a scroll viewport takes the whole
+      viewport as its field. Cell is that input as a 100 tall component, and
+      Nested has a Cell as a nested artboard in the content, above the same
+      kind of row, so there the input covers only the top 100.
+      label_font covers digits and uppercase only.
+    -->
+    <Artboard defaultStateMachineId="1:7" width="200" height="300" styleId="1:5" name="Field" id="1:2">
+        <LayoutComponentStyle name="Artboard Style" id="1:5"/>
+        <ClampedScrollPhysics name="Physics" id="1:90"/>
+        <LayoutComponent width="200" height="300" clip="true" styleId="1:11" name="Viewport" id="1:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="1:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="1:13" name="Content" id="1:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="1:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="1:90" name="Scroll" id="1:14"/>
+                <LayoutComponent width="200" height="100" styleId="1:21" name="Field Row" id="1:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Field Row Style" id="1:21"/>
+                    <TextInput multiline="false" text="HELLO" name="Input" id="1:40">
+                        <TextStyle fontSize="40" fontAssetId="0:80" name="Style"/>
+                        <TextInputText name="Text">
+                            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill>
+                        </TextInputText>
+                        <TextInputCursor name="Cursor">
+                            <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill>
+                        </TextInputCursor>
+                        <FocusData/>
+                    </TextInput>
+                </LayoutComponent>
+                <LayoutComponent width="200" height="900" styleId="1:23" name="Row" id="1:22">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="1:23"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="1:7">
+            <StateMachineLayer name="L" id="1:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="2:7" x="300" width="200" height="100" isComponent="true" styleId="2:5" name="Cell" id="2:2">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Artboard Style" id="2:5"/>
+        <TextInput multiline="false" text="HELLO" name="Input" id="2:40">
+            <TextStyle fontSize="40" fontAssetId="0:80" name="Style"/>
+            <TextInputText name="Text">
+                <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill>
+            </TextInputText>
+            <TextInputCursor name="Cursor">
+                <Fill name="Fill"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill>
+            </TextInputCursor>
+            <FocusData/>
+        </TextInput>
+        <StateMachine name="SM" id="2:7">
+            <StateMachineLayer name="L" id="2:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard defaultStateMachineId="3:7" x="600" width="200" height="300" styleId="3:5" name="Nested" id="3:2">
+        <LayoutComponentStyle name="Artboard Style" id="3:5"/>
+        <ClampedScrollPhysics name="Physics" id="3:90"/>
+        <LayoutComponent width="200" height="300" clip="true" styleId="3:11" name="Viewport" id="3:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="3:11"/>
+            <Fill name="Fill"><SolidColor colorValue="FF20242B" name="C"/></Fill>
+            <LayoutComponent width="200" styleId="3:13" name="Content" id="3:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" name="Content Style" id="3:13"/>
+                <ScrollConstraint directionValue="vertical" physicsId="3:90" name="Scroll" id="3:14"/>
+                <NestedArtboardLayout artboardId="2:2" name="Cell" id="3:40">
+                    <NestedStateMachine animationId="2:7" name="SM" id="3:41"/>
+                </NestedArtboardLayout>
+                <LayoutComponent width="200" height="900" styleId="3:21" name="Row" id="3:20">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="3:21"/>
+                    <Fill name="Fill"><SolidColor colorValue="FF2E6FA8" name="C"/></Fill>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="3:7">
+            <StateMachineLayer name="L" id="3:8">
+                <AnyState x="200"/><ExitState x="400"/><EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <FontAsset file="label_font.ttf" name="Label" id="0:80"/>
+</Rive>

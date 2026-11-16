@@ -1558,6 +1558,23 @@ public:
   }
 };
 
+// A text input's hit: opaque to the pointer, so a press or a drag on the
+// field stays with it, but not to a wheel or trackpad scroll. The field has
+// no scroll of its own to spend one on, so the scroll goes on to the view
+// behind it, as it does past a text field on any platform.
+class HitTextInput : public HitExpandable
+{
+public:
+  HitTextInput(
+      Drawable* drawable,
+      Component* component,
+      StateMachineInstance* stateMachineInstance)
+      : HitExpandable(drawable, component, stateMachineInstance, true)
+  {}
+
+  bool occludesScroll(Vec2D position) override { return false; }
+};
+
 class HitTextRun : public HitExpandable
 {
 public:
@@ -4957,13 +4974,12 @@ StateMachineInstance::StateMachineInstance(
     auto textInputGroup = std::make_unique<TextInputListenerGroup>(
         textInput,
         this);
-    auto hitExpandable = std::make_unique<HitExpandable>(
+    auto hitTextInput = std::make_unique<HitTextInput>(
         textInput->as<Drawable>(),
         textInput->as<Component>(),
-        this,
-        true); // isOpaque - TextInput blocks hits behind it
-    hitExpandable->addListener(textInputGroup.get());
-    m_hitComponents.push_back(std::move(hitExpandable));
+        this);
+    hitTextInput->addListener(textInputGroup.get());
+    m_hitComponents.push_back(std::move(hitTextInput));
     m_listenerGroups.push_back(std::move(textInputGroup));
   }
 #endif
