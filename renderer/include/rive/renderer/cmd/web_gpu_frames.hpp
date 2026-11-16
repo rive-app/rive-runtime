@@ -7,9 +7,9 @@
 #if defined(__EMSCRIPTEN_PTHREADS__)
 
 #include "rive/refcnt.hpp"
+#include "rive/renderer/cmd/replay_time.hpp"
 #include <GLES3/gl3.h>
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <deque>
 #include <functional>
@@ -27,7 +27,7 @@ namespace rive::cmd
 class WebGPUFrames : public RefCnt<WebGPUFrames>
 {
 public:
-  // How long recent frames took to finish, 0 before the first.
+  // How long recent frames took to finish, 0 before the third.
   float replayMs() const { return m_replayMs.load(std::memory_order_relaxed); }
 
   // Fences what the worker queued on contextGL since submitted and calls
@@ -151,7 +151,9 @@ private:
       const double done = (std::max({self->m_lastPoll, start, front.fenced}) +
                            now) /
                           2;
-      self->noteReplayMs(done - start);
+      self->m_replayMs.store(
+          self->m_replayTime.note(done - start),
+          std::memory_order_relaxed);
       self->m_lastDone = done;
       self->retireFront(makeCurrent.ok());
     }
@@ -169,34 +171,15 @@ private:
     frame.done();
   }
 
-  // A trimmed mean, since polling quantizes each sample but evens out
-  // across several, and one slow frame should not move it.
-  void noteReplayMs(double ms)
-  {
-    m_samples[m_sampleCount++ % kSamples] = static_cast<float>(ms);
-    std::array<float, kSamples> sorted = m_samples;
-    const size_t count = std::min(m_sampleCount, kSamples);
-    std::sort(sorted.begin(), sorted.begin() + count);
-    const size_t trim = count / 4;
-    float sum = 0;
-    for (size_t i = trim; i < count - trim; ++i)
-    {
-      sum += sorted[i];
-    }
-    m_replayMs.store(sum / (count - 2 * trim), std::memory_order_relaxed);
-  }
-
   static constexpr double kFenceDeadlineMs = 1000;
   static constexpr uint32_t kMaxFenceTimeouts = 3;
-  static constexpr size_t kSamples = 9;
 
   std::deque<Frame> m_frames;
   std::atomic<float> m_replayMs{0};
   double m_lastDone = 0;
   double m_lastPoll = 0;
   uint32_t m_fenceTimeouts = 0;
-  std::array<float, kSamples> m_samples{};
-  size_t m_sampleCount = 0;
+  ReplayTime m_replayTime;
 };
 
 } // namespace rive::cmd
