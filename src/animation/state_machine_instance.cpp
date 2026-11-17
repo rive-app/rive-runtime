@@ -1376,7 +1376,8 @@ public:
     // gesture chains outward.
     for (auto listenerGroup : listeners)
     {
-      if (listenerGroup->scrollProxy() != nullptr)
+      if (listenerGroup->scrollProxy() != nullptr ||
+          listenerGroup->passesScroll())
       {
         return false;
       }

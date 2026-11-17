@@ -22,6 +22,7 @@ public:
   bool canEarlyOut(Component* drawable) override { return false; }
   bool needsDownListener(Component* drawable) override { return true; }
   bool needsUpListener(Component* drawable) override { return true; }
+  bool passesScroll() const override { return true; }
 
   ProcessEventResult processEvent(
       Component* component,

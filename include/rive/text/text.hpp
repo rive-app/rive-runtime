@@ -405,6 +405,18 @@ public:
       TextWrap wrap,
       TextWordBreak wordBreak = TextWordBreak::breakWord,
       float minAlignWidth = 0.0f);
+  /// Breaks only paragraphs [first, end) again, into their slots in lines.
+  /// A width of -1 aligns to the widest line of all, so it needs all of them.
+  static void BreakLines(
+      const SimpleArray<Paragraph>& paragraphs,
+      SimpleArray<SimpleArray<GlyphLine>>& lines,
+      size_t first,
+      size_t end,
+      float width,
+      TextAlign align,
+      TextWrap wrap,
+      TextWordBreak wordBreak = TextWordBreak::breakWord,
+      float minAlignWidth = 0.0f);
   const std::vector<TextStylePaint*>& textStylePaints()
   {
     return m_textStylePaints;

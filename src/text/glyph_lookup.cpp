@@ -3,16 +3,15 @@
 
 using namespace rive;
 
-void GlyphLookup::compute(
-    Span<const Unichar> text,
-    const SimpleArray<Paragraph>& shape)
+// Maps code points [lastTextIndex, end) to the glyphs of paragraphs, which
+// are numbered from glyphIndex. Leaves glyphIndex one past the last of them.
+void GlyphLookup::map(
+    Span<const Paragraph> paragraphs,
+    uint32_t end,
+    uint32_t& glyphIndex,
+    uint32_t lastTextIndex)
 {
-  size_t codePointCount = text.size();
-  m_glyphIndices.resize(codePointCount + 1);
-  // Build a mapping of codepoints to glyph indices.
-  uint32_t glyphIndex = 0;
-  uint32_t lastTextIndex = 0;
-  for (const Paragraph& paragraph : shape)
+  for (const Paragraph& paragraph : paragraphs)
   {
     for (const GlyphRun& run : paragraph.runs)
     {
@@ -29,16 +28,59 @@ void GlyphLookup::compute(
       }
     }
   }
-  for (size_t i = lastTextIndex; i < codePointCount; i++)
+  for (uint32_t i = lastTextIndex; i < end; i++)
   {
     m_glyphIndices[i] = glyphIndex - 1;
   }
+}
+
+void GlyphLookup::compute(
+    Span<const Unichar> text,
+    const SimpleArray<Paragraph>& shape)
+{
+  uint32_t codePointCount = (uint32_t)text.size();
+  m_glyphIndices.resize(codePointCount + 1);
+  uint32_t glyphIndex = 0;
+  map(Span<const Paragraph>(shape.data(), shape.size()),
+      codePointCount,
+      glyphIndex,
+      0);
 
   // Store a fake unreachable glyph at the end to allow selecting the last
   // one.
   m_glyphIndices[codePointCount] = codePointCount == 0
                                        ? 0
                                        : m_glyphIndices[codePointCount - 1] + 1;
+}
+
+void GlyphLookup::replace(
+    uint32_t start,
+    uint32_t oldLength,
+    uint32_t newLength,
+    Span<const Paragraph> paragraphs)
+{
+  uint32_t glyphIndex = start == 0 ? 0 : m_glyphIndices[start - 1] + 1;
+  uint32_t oldGlyphEnd = oldLength == 0
+                             ? glyphIndex
+                             : m_glyphIndices[start + oldLength - 1] + 1;
+  auto at = m_glyphIndices.begin() + start;
+  if (newLength > oldLength)
+  {
+    m_glyphIndices.insert(at + oldLength, newLength - oldLength, 0);
+  }
+  else
+  {
+    m_glyphIndices.erase(at + newLength, at + oldLength);
+  }
+  map(paragraphs, start + newLength, glyphIndex, start);
+
+  // Everything after is as many glyphs further along as the paragraphs
+  // gained.
+  uint32_t gained = glyphIndex - oldGlyphEnd;
+  for (size_t i = start + newLength; i < m_glyphIndices.size(); i++)
+  {
+    m_glyphIndices[i] += gained;
+  }
 }
 
 uint32_t GlyphLookup::count(uint32_t index) const

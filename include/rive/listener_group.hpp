@@ -91,6 +91,10 @@ public:
   /// listeners it can't drive.
   virtual DraggableProxy* scrollProxy() { return nullptr; }
 
+  /// Whether wheel and trackpad scrolls pass through this group's opaque
+  /// hit to a scroll view behind it.
+  virtual bool passesScroll() const { return false; }
+
   virtual ProcessEventResult processEvent(
       Component* component,
       Vec2D position,

@@ -6,6 +6,7 @@
 #include "rive/text/text.hpp"
 #include "rive/text/fully_shaped_text.hpp"
 #include "rive/text/text_selection_path.hpp"
+#include <limits>
 
 namespace rive
 {
@@ -26,6 +27,12 @@ public:
   uint32_t measureCount = 0;
   // Shapes run to check maxLines.
   uint32_t limitShapeCount = 0;
+  uint32_t fullShapeCount = 0;
+  uint32_t reshapeCount = 0;
+  // Code points the undo history holds.
+  size_t journalCodePoints() const;
+  // Lines whose glyph outlines were built.
+  uint32_t lineBuildCount = 0;
 #endif
   RawTextInput();
 
@@ -113,7 +120,7 @@ public:
   bool hugsWidth() const;
   void hugsWidth(bool value);
 
-  enum class Flags : uint8_t
+  enum class Flags : uint16_t
   {
     none = 0,
     shapeDirty = 1 << 0,
@@ -127,10 +134,17 @@ public:
     // Shaped since update() last built the paths. Shaping clears
     // shapeDirty, and editing shapes on demand, so this is what tells
     // update() its paths are out of date.
-    shaped = 1 << 7
+    shaped = 1 << 7,
+    // Shape the paragraphs again; shapeDirty alone only lays them out.
+    paragraphsDirty = 1 << 8
   };
 
   Flags update(Factory* factory);
+
+  // Builds text paths only for lines near [minY, maxY], rebuilding them when
+  // the range leaves what was built. Returns true when it rebuilt them.
+  // min > max builds every line.
+  bool visibleRange(float minY, float maxY, Factory* factory);
 
   ShapePaintPath* textPath() { return &m_textPath; }
   ShapePaintPath* selectedTextPath() { return &m_selectedTextPath; }
@@ -220,6 +234,8 @@ public:
 
 private:
   void captureJournalEntry(Cursor cursor);
+  uint32_t textIndex(CursorPosition position) const;
+  uint32_t clusterLength(uint32_t index) const;
   void cursorHorizontal(int32_t offset, CursorBoundary boundary, bool select);
   static Delineator classify(Unichar codepoint);
   Delineator classify(CursorPosition position) const;
@@ -245,6 +261,12 @@ private:
       Span<const Unichar> codePoints,
       size_t count,
       bool withRestOfParagraph);
+  // Replaces count code points at start with added, for undo to take back.
+  void replaceText(uint32_t start, uint32_t count, Span<const Unichar> added);
+  void spliceText(uint32_t start, uint32_t count, Span<const Unichar> added);
+  void textEdited(uint32_t start, uint32_t removed, uint32_t added);
+  void reshapeAll();
+  void ensureParagraphs();
   void ensureShape();
   // The position at a code point index. Its line is resolved now when the
   // text can be shaped, else left for update() to resolve once the font
@@ -252,8 +274,15 @@ private:
   CursorPosition positionAtIndex(uint32_t codePointIndex);
   std::vector<Unichar>& shapeableText();
   void buildTextPaths(Factory* factory);
+  void addLine(
+      const OrderedLine& line,
+      ShapePaintPath& textPath,
+      ShapePaintPath* selectedTextPath);
+  void keepLinePaths(size_t first, size_t end);
+  void forgetLinePaths(size_t first, size_t end);
+  void linesChanged(const FullyShapedText::LineChange& change);
   void computeVisualPositionFromCursor();
-  void setTextPrivate(std::string value);
+  void setTextPrivate(const std::string& value);
   bool flagged(Flags mask) const;
   bool unflag(Flags mask);
   void flag(Flags mask);
@@ -268,11 +297,21 @@ private:
   std::vector<Unichar> m_obscuredText;
 
   FullyShapedText m_shape;
+  // Only lineCountWith() uses it.
   std::unique_ptr<FullyShapedText> m_measuringShape;
+  AABB m_measuredBounds;
   float m_lastMeasureMaxWidth = 0.0f;
   float m_lastMeasureMaxHeight = 0.0f;
 
   Flags m_flags = Flags::none;
+
+  // Edits since the last shape: [m_editStart, m_editOldEnd) of the shaped
+  // text is now [m_editStart, m_editNewEnd).
+  bool m_reshapeAll = true;
+  bool m_editPending = false;
+  uint32_t m_editStart = 0;
+  uint32_t m_editOldEnd = 0;
+  uint32_t m_editNewEnd = 0;
 
   float m_paragraphSpacing = 0.0f;
   TextOrigin m_origin = TextOrigin::top;
@@ -288,19 +327,45 @@ private:
   rcp<RenderPath> m_clipRenderPath;
   float m_idealCursorX = -1.0f;
 
+  // min > max: every line.
+  float m_visibleMinY = 1.0f;
+  float m_visibleMaxY = 0.0f;
+  float m_builtMinY = 1.0f;
+  float m_builtMaxY = 0.0f;
+
+  // The outline of ordered line m_linePathsFirst + i, good while the line sits
+  // at y, so an edit or a scroll builds only the lines it brings in.
+  struct LinePath
+  {
+    ShapePaintPath path;
+    float y = std::numeric_limits<float>::quiet_NaN();
+  };
+  std::vector<LinePath> m_linePaths;
+  size_t m_linePathsFirst = 0;
+
   CursorVisualPosition m_cursorVisualPosition;
   std::vector<AABB> m_selectionRects;
 
   float m_selectionCornerRadius = 5.0f;
   uint32_t m_maxCharacters = 0;
 
+  struct TextEdit
+  {
+    uint32_t start;
+    std::vector<Unichar> removed;
+    std::vector<Unichar> inserted;
+  };
   struct JournalEntry
   {
     Cursor cursorFrom;
     Cursor cursorTo;
-    std::string text;
+    std::vector<TextEdit> edits;
   };
+  void revertEdits(const std::vector<TextEdit>& edits);
+  void revertPendingEdits();
   std::vector<JournalEntry> m_journal;
+  // Edits no journal entry holds yet.
+  std::vector<TextEdit> m_pendingEdits;
   uint32_t m_journalIndex = 0;
   uint32_t m_maxLines = 0;
 };

@@ -159,6 +159,20 @@ TEST_CASE("builder arrays of arrays work", "[simple array]")
   REQUIRE(SimpleArrayTesting::reallocCount == 2);
 }
 
+TEST_CASE("assigning a builder keeps only what it wrote", "[simple array]")
+{
+  SimpleArrayBuilder<uint32_t> builder(8);
+  builder.add(1);
+  builder.add(2);
+  REQUIRE(builder.capacity() == 8);
+
+  SimpleArray<uint32_t> array(3);
+  array = std::move(builder);
+  REQUIRE(array.size() == 2);
+  CHECK(array[0] == 1);
+  CHECK(array[1] == 2);
+}
+
 TEST_CASE("builders can be reset", "[simple array]")
 {
   SimpleArrayTesting::resetCounters();

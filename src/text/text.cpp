@@ -2144,15 +2144,39 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     TextWordBreak wordBreak,
     float minAlignWidth)
 {
+  SimpleArray<SimpleArray<GlyphLine>> lines(paragraphs.size());
+  BreakLines(
+      paragraphs,
+      lines,
+      0,
+      paragraphs.size(),
+      width,
+      align,
+      wrap,
+      wordBreak,
+      minAlignWidth);
+  return lines;
+}
+
+void Text::BreakLines(
+    const SimpleArray<Paragraph>& paragraphs,
+    SimpleArray<SimpleArray<GlyphLine>>& lines,
+    size_t first,
+    size_t end,
+    float width,
+    TextAlign align,
+    TextWrap wrap,
+    TextWordBreak wordBreak,
+    float minAlignWidth)
+{
   bool autoWidth = width == -1.0f;
+  assert(!autoWidth || (first == 0 && end == paragraphs.size()));
   float paragraphWidth = width;
 
-  SimpleArray<SimpleArray<GlyphLine>> lines(paragraphs.size());
-
-  size_t paragraphIndex = 0;
-  for (auto& para : paragraphs)
+  for (size_t i = first; i < end; i++)
   {
-    lines[paragraphIndex] = GlyphLine::BreakLines(
+    const Paragraph& para = paragraphs[i];
+    lines[i] = GlyphLine::BreakLines(
         para.runs,
         (autoWidth || wrap == TextWrap::noWrap) ? -1.0f : width,
         wordBreak);
@@ -2160,25 +2184,21 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     {
       paragraphWidth = std::max(
           paragraphWidth,
-          GlyphLine::ComputeMaxWidth(lines[paragraphIndex], para.runs));
+          GlyphLine::ComputeMaxWidth(lines[i], para.runs));
     }
-    paragraphIndex++;
   }
   // Align within the field when it's wider than the text; text that
   // overflows the field aligns within itself (effectively left aligned).
   paragraphWidth = std::max(paragraphWidth, minAlignWidth);
-  paragraphIndex = 0;
-  for (auto& para : paragraphs)
+  for (size_t i = first; i < end; i++)
   {
     GlyphLine::ComputeLineSpacing(
-        paragraphIndex == 0,
-        lines[paragraphIndex],
-        para.runs,
+        i == 0,
+        lines[i],
+        paragraphs[i].runs,
         paragraphWidth,
         align);
-    paragraphIndex++;
   }
-  return lines;
 }
 
 bool Text::modifierRangesNeedShape() const

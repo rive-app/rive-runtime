@@ -223,6 +223,31 @@ CursorPosition CursorPosition::clamped(const TextLayoutView& shape) const
       std::min(m_codePointIndex, shape.textLength()));
 }
 
+// A line can start where a run ends, which is at the next glyph there is or
+// past the last one of its paragraph.
+static uint32_t lineStartTextIndex(
+    const Paragraph& paragraph,
+    const GlyphLine& line)
+{
+  uint32_t glyphIndex = line.startGlyphIndex;
+  uint32_t pastLast = 0;
+  for (uint32_t i = line.startRunIndex; i < paragraph.runs.size(); i++)
+  {
+    const GlyphRun& run = paragraph.runs[i];
+    size_t count = run.textIndices.size();
+    if (glyphIndex < count)
+    {
+      return run.textIndices[glyphIndex];
+    }
+    if (count != 0)
+    {
+      pastLast = run.textIndices[count - 1] + 1;
+    }
+    glyphIndex = 0;
+  }
+  return pastLast;
+}
+
 CursorPosition CursorPosition::atIndex(
     uint32_t codePointIndex,
     const TextLayoutView& shape)
@@ -246,8 +271,7 @@ CursorPosition CursorPosition::atIndex(
     const Paragraph& paragraph = paragraphs[paragraphIndex++];
     for (const GlyphLine& line : lines)
     {
-      const GlyphRun& run = paragraph.runs[line.startRunIndex];
-      uint32_t smallestTextIndexInLine = run.textIndices[line.startGlyphIndex];
+      uint32_t smallestTextIndexInLine = lineStartTextIndex(paragraph, line);
 
       if (smallestTextIndexInLine <= codePointIndex)
       {
@@ -354,16 +378,44 @@ void CursorPosition::resolveLine(const TextLayoutView& shape)
   const GlyphLookup& glyphLookup = shape.glyphLookup();
   const std::vector<OrderedLine>& orderedLines = shape.orderedLines();
 
-  uint32_t lineIndex = 0;
-  for (const OrderedLine& orderedLine : orderedLines)
+  // The first line starting at or past the index. Of the lines before it only
+  // the last can reach the index, and the ones without a start just before it.
+  size_t low = 0;
+  size_t high = orderedLines.size();
+  uint32_t start;
+  while (low < high)
   {
-    if (orderedLine.containsCodePointIndex(glyphLookup, m_codePointIndex))
+    size_t middle = low + (high - low) / 2;
+    if (!orderedLines[middle].startCodePointIndex(start))
     {
+      // Can't tell where this line starts, so check them all.
+      low = 0;
       break;
     }
+    if (start < m_codePointIndex)
+    {
+      low = middle + 1;
+    }
+    else
+    {
+      high = middle;
+    }
+  }
+
+  size_t lineIndex = low == 0 ? 0 : low - 1;
+  while (lineIndex != 0 &&
+         !orderedLines[lineIndex - 1].startCodePointIndex(start))
+  {
+    lineIndex--;
+  }
+  while (lineIndex < orderedLines.size() &&
+         !orderedLines[lineIndex].containsCodePointIndex(
+             glyphLookup,
+             m_codePointIndex))
+  {
     lineIndex++;
   }
-  m_lineIndex = lineIndex;
+  m_lineIndex = (uint32_t)lineIndex;
 }
 
 bool Cursor::contains(uint32_t codePointIndex) const

@@ -12,8 +12,20 @@ class GlyphLookup
 {
 public:
   void compute(Span<const Unichar> text, const SimpleArray<Paragraph>& shape);
+  // Swaps code points [start, start + oldLength) for the newLength that
+  // paragraphs, shaped in their place, hold.
+  void replace(
+      uint32_t start,
+      uint32_t oldLength,
+      uint32_t newLength,
+      Span<const Paragraph> paragraphs);
 
 private:
+  void map(
+      Span<const Paragraph> paragraphs,
+      uint32_t end,
+      uint32_t& glyphIndex,
+      uint32_t lastTextIndex);
   std::vector<uint32_t> m_glyphIndices;
 
 public:

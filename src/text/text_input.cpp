@@ -89,9 +89,12 @@ bool TextInput::hitTestPoint(
 
 void TextInput::textChanged()
 {
-  m_sourceText = m_Text;
 #ifdef WITH_RIVE_TEXT
-  syncDisplayedTextFromSource(false);
+  // An edit already left the raw input showing this text.
+  if (!m_syncingSourceText)
+  {
+    syncDisplayedTextFromSource(false);
+  }
 #endif
   markShapeDirty();
 }
@@ -307,7 +310,6 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
   Super::onAddedClean(context);
 
   m_textStyle = children<TextStyle>().first();
-  m_sourceText = m_Text;
 
 #ifdef WITH_RIVE_TEXT
   if (m_textStyle != nullptr && m_textStyle->font() != nullptr)
@@ -345,10 +347,42 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
   return m_textStyle == nullptr ? StatusCode::MissingObject : StatusCode::Ok;
 }
 
+bool TextInput::updateVisibleRange()
+{
+#ifdef WITH_RIVE_TEXT
+  Factory* factory = artboard()->factory();
+  LayoutComponent* viewport = fieldViewport();
+  Mat2D inverse;
+  if (viewport == nullptr || !viewport->clip() ||
+      !worldTransform().invert(&inverse))
+  {
+    return m_rawTextInput.visibleRange(1.0f, 0.0f, factory);
+  }
+  AABB visible = (inverse * viewport->worldTransform())
+                     .mapBoundingBox(viewport->localBounds());
+  return m_rawTextInput.visibleRange(visible.minY, visible.maxY, factory);
+#else
+  return false;
+#endif
+}
+
 void TextInput::update(ComponentDirt value)
 {
   Super::update(value);
 #ifdef WITH_RIVE_TEXT
+  // Scrolling arrives as a world transform change.
+  if (m_textStyle != nullptr &&
+      hasDirt(
+          value,
+          ComponentDirt::WorldTransform | ComponentDirt::Paint |
+              ComponentDirt::TextShape) &&
+      updateVisibleRange())
+  {
+    for (auto child : children<TextInputDrawable>())
+    {
+      child->invalidateStrokeEffects();
+    }
+  }
   if (m_textStyle != nullptr &&
       hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
   {
@@ -497,7 +531,7 @@ std::string TextInput::strippedLineBreaks(const std::string& text)
 
 std::string TextInput::displayedText() const
 {
-  return multiline() ? m_sourceText : strippedLineBreaks(m_sourceText);
+  return multiline() ? text() : strippedLineBreaks(text());
 }
 
 void TextInput::syncDisplayedTextFromSource(bool preserveCursor)
@@ -533,8 +567,9 @@ void TextInput::syncSourceTextFromRaw()
       rawText = std::move(singleLineText);
     }
   }
-  m_sourceText = std::move(rawText);
-  text(m_sourceText);
+  m_syncingSourceText = true;
+  text(std::move(rawText));
+  m_syncingSourceText = false;
 #endif
 }
 
@@ -1091,6 +1126,15 @@ bool TextInput::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
   if (updateAlignment())
   {
     addDirt(ComponentDirt::TextShape);
+  }
+  // Whether the viewport clips decides which lines get built, and a change
+  // to it dirties nothing here.
+  LayoutComponent* viewport = fieldViewport();
+  bool viewportClips = viewport != nullptr && viewport->clip();
+  if (viewportClips != m_viewportClips)
+  {
+    m_viewportClips = viewportClips;
+    addDirt(ComponentDirt::WorldTransform);
   }
   // Inherited language shapes with the system's, which a host may change,
   // and so may the fallback fonts (see Text::advanceComponent).

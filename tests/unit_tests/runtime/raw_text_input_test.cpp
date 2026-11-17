@@ -1852,4 +1852,978 @@ TEST_CASE("the maxLines check leaves measure() correct", "[text_input]")
   CHECK(after.width() == before.width());
   CHECK(after.height() == before.height());
 }
+
+static void checkSameShape(const FullyShapedText& a, const FullyShapedText& b)
+{
+  REQUIRE(a.paragraphs().size() == b.paragraphs().size());
+  for (size_t p = 0; p < a.paragraphs().size(); p++)
+  {
+    const Paragraph& pa = a.paragraphs()[p];
+    const Paragraph& pb = b.paragraphs()[p];
+    CHECK(pa.level == pb.level);
+    REQUIRE(pa.runs.size() == pb.runs.size());
+    for (size_t r = 0; r < pa.runs.size(); r++)
+    {
+      const GlyphRun& ra = pa.runs[r];
+      const GlyphRun& rb = pb.runs[r];
+      CHECK(ra.font == rb.font);
+      CHECK(ra.level == rb.level);
+      REQUIRE(ra.glyphs.size() == rb.glyphs.size());
+      for (size_t g = 0; g < ra.glyphs.size(); g++)
+      {
+        CHECK(ra.glyphs[g] == rb.glyphs[g]);
+        CHECK(ra.textIndices[g] == rb.textIndices[g]);
+        CHECK(ra.advances[g] == rb.advances[g]);
+        CHECK(ra.offsets[g].x == rb.offsets[g].x);
+        CHECK(ra.offsets[g].y == rb.offsets[g].y);
+      }
+      REQUIRE(ra.xpos.size() == rb.xpos.size());
+      for (size_t g = 0; g < ra.xpos.size(); g++)
+      {
+        CHECK(ra.xpos[g] == rb.xpos[g]);
+      }
+      REQUIRE(ra.breaks.size() == rb.breaks.size());
+      for (size_t i = 0; i < ra.breaks.size(); i++)
+      {
+        CHECK(ra.breaks[i] == rb.breaks[i]);
+      }
+      REQUIRE(ra.joiners.size() == rb.joiners.size());
+      for (size_t i = 0; i < ra.joiners.size(); i++)
+      {
+        CHECK(ra.joiners[i] == rb.joiners[i]);
+      }
+    }
+  }
+  REQUIRE(a.glyphLookup().size() == b.glyphLookup().size());
+  for (uint32_t i = 0; i < (uint32_t)a.glyphLookup().size(); i++)
+  {
+    CHECK(a.glyphLookup()[i] == b.glyphLookup()[i]);
+  }
+  REQUIRE(a.paragraphLines().size() == b.paragraphLines().size());
+  for (size_t p = 0; p < a.paragraphLines().size(); p++)
+  {
+    REQUIRE(a.paragraphLines()[p].size() == b.paragraphLines()[p].size());
+    for (size_t l = 0; l < a.paragraphLines()[p].size(); l++)
+    {
+      const GlyphLine& la = a.paragraphLines()[p][l];
+      const GlyphLine& lb = b.paragraphLines()[p][l];
+      CHECK(la.startRunIndex == lb.startRunIndex);
+      CHECK(la.startGlyphIndex == lb.startGlyphIndex);
+      CHECK(la.endRunIndex == lb.endRunIndex);
+      CHECK(la.endGlyphIndex == lb.endGlyphIndex);
+      CHECK(la.startX == lb.startX);
+      CHECK(la.top == lb.top);
+      CHECK(la.baseline == lb.baseline);
+      CHECK(la.bottom == lb.bottom);
+    }
+  }
+  REQUIRE(a.orderedLines().size() == b.orderedLines().size());
+  for (size_t l = 0; l < a.orderedLines().size(); l++)
+  {
+    CHECK(a.orderedLines()[l].y() == b.orderedLines()[l].y());
+  }
+  CHECK_AABB(a.bounds(), b.bounds());
+}
+
+static void configureEditingInput(RawTextInput& input, rcp<Font> font)
+{
+  input.font(font);
+  input.fontSize(24.0f);
+  input.sizing(TextSizing::autoHeight);
+  input.maxWidth(300.0f);
+}
+
+static void checkMatchesFullShape(
+    RawTextInput& input,
+    rcp<Font> font,
+    Factory* factory,
+    const char* step)
+{
+  INFO(step);
+  input.update(factory);
+  CHECK(input.fullShapeCount == 1);
+  RawTextInput fresh;
+  configureEditingInput(fresh, font);
+  fresh.text(input.text());
+  fresh.update(factory);
+  checkSameShape(input.shape(), fresh.shape());
+}
+
+static void placeCursor(RawTextInput& input, uint32_t index)
+{
+  input.cursor(Cursor::collapsed(CursorPosition(index)));
+}
+
+static uint32_t paragraphStart(const RawTextInput& input, int paragraph)
+{
+  std::string text = input.text();
+  uint32_t codePoints = 0;
+  int seen = 0;
+  const uint8_t* ptr = (const uint8_t*)text.data();
+  const uint8_t* end = ptr + text.size();
+  while (ptr < end && seen < paragraph)
+  {
+    Unichar c = UTF::NextUTF8(&ptr, end);
+    codePoints++;
+    if (c == '\n')
+    {
+      seen++;
+    }
+  }
+  return codePoints;
+}
+
+TEST_CASE("editing reshapes only the edited paragraphs", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  std::string text;
+  const char* lines[] = {
+      "plain left to right words that wrap past the edge of the field",
+      "\xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7 "
+      "\xd8\xa8\xd8\xa7\xd9\x84\xd8\xb9\xd8\xa7\xd9\x84\xd9\x85",
+      "mixed \xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7 direction line",
+      "combining e\xcc\x81 marks a\xcc\x88 here",
+      "",
+      "short",
+  };
+  for (int i = 0; i < 24; i++)
+  {
+    text += lines[i % 6];
+    text += i % 5 == 4 ? "\r\n" : "\n";
+  }
+  text += "last paragraph without a separator";
+
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text(text);
+  input.update(&factory);
+  CHECK(input.fullShapeCount == 1);
+
+  placeCursor(input, paragraphStart(input, 6) + 3);
+  input.insert("x");
+  checkMatchesFullShape(input, font, &factory, "type in a paragraph");
+
+  placeCursor(input, paragraphStart(input, 7) + 2);
+  input.insert("\n");
+  checkMatchesFullShape(input, font, &factory, "type a newline");
+
+  input.backspace(-1);
+  checkMatchesFullShape(input, font, &factory, "delete the newline");
+
+  placeCursor(input, paragraphStart(input, 9) - 1);
+  input.backspace(1);
+  checkMatchesFullShape(
+      input,
+      font,
+      &factory,
+      "delete the separator ending a paragraph");
+
+  input.cursor(Cursor(
+      CursorPosition(paragraphStart(input, 3) + 4),
+      CursorPosition(paragraphStart(input, 6) + 2)));
+  input.erase();
+  checkMatchesFullShape(input, font, &factory, "delete across paragraphs");
+
+  placeCursor(input, paragraphStart(input, 10) + 1);
+  input.insert("one\ntwo\r\nthree \xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7");
+  checkMatchesFullShape(input, font, &factory, "paste several lines");
+
+  placeCursor(input, 0);
+  input.insert("first ");
+  checkMatchesFullShape(input, font, &factory, "edit the first paragraph");
+
+  input.moveCursorToEnd();
+  input.insert(" end");
+  checkMatchesFullShape(input, font, &factory, "edit the last paragraph");
+
+  // A CR ends its own paragraph until an LF typed after it joins the two.
+  placeCursor(input, paragraphStart(input, 14));
+  input.insert("\r");
+  checkMatchesFullShape(input, font, &factory, "type a CR");
+  placeCursor(input, paragraphStart(input, 14) + 1);
+  input.insert("\n");
+  checkMatchesFullShape(input, font, &factory, "join a CR and an LF");
+
+  placeCursor(input, paragraphStart(input, 9));
+  input.insert("a");
+  placeCursor(input, paragraphStart(input, 7) + 2);
+  input.insert("b");
+  checkMatchesFullShape(input, font, &factory, "two edits before one update");
+
+  input.undo();
+  checkMatchesFullShape(input, font, &factory, "undo");
+  input.redo();
+  checkMatchesFullShape(input, font, &factory, "redo");
+
+  std::string changed = input.text();
+  changed.insert(changed.find('\n', changed.size() / 2) + 1, "outside");
+  input.textPreserveCursor(changed);
+  checkMatchesFullShape(input, font, &factory, "text set from outside");
+
+  CHECK(input.fullShapeCount == 1);
+  CHECK(input.reshapeCount >= 13);
+
+  input.textPreserveCursor(input.text());
+  uint32_t before = input.reshapeCount + input.fullShapeCount;
+  input.update(&factory);
+  CHECK(input.reshapeCount + input.fullShapeCount == before);
+}
+
+static std::string linesOfText(int count)
+{
+  std::string text;
+  for (int i = 0; i < count; i++)
+  {
+    text += "a line of the file\n";
+  }
+  return text;
+}
+
+TEST_CASE(
+    "the undo history holds edits, not copies of the text",
+    "[text_input]")
+{
+  std::string text = linesOfText(2000);
+
+  RawTextInput input;
+  input.font(loadFont("assets/fonts/Inter_18pt-Regular.ttf"));
+  input.text(text);
+  CHECK(input.journalCodePoints() == 0);
+
+  placeCursor(input, 100);
+  input.insert("x");
+  CHECK(input.journalCodePoints() == 1);
+
+  // The removed code point is kept for undo.
+  input.backspace(-1);
+  CHECK(input.journalCodePoints() == 2);
+  CHECK(input.text() == text);
+
+  // Replacing a selection keeps what it removed and what it added.
+  input.cursor(Cursor(CursorPosition(10), CursorPosition(14)));
+  input.insert("yz");
+  CHECK(input.journalCodePoints() == 8);
+
+  // Text set from outside only counts where it differs.
+  std::string changed = input.text();
+  changed.insert(20000, "new");
+  input.textPreserveCursor(changed);
+  CHECK(input.journalCodePoints() == 11);
+
+  input.undo();
+  input.undo();
+  input.undo();
+  input.undo();
+  CHECK(input.text() == text);
+  input.redo();
+  input.redo();
+  input.redo();
+  input.redo();
+  CHECK(input.text() == changed);
+  CHECK(input.journalCodePoints() == 11);
+}
+
+TEST_CASE("undo takes back an erase made without an entry", "[text_input]")
+{
+  RawTextInput input;
+  input.text("one two three");
+  input.moveCursorToEnd();
+  input.insert(" four");
+
+  input.cursor(Cursor(CursorPosition(0), CursorPosition(4)));
+  input.erase();
+  CHECK(input.text() == "two three four");
+
+  // The erase has no entry of its own, so it goes with the one before it.
+  input.undo();
+  CHECK(input.text() == "one two three");
+  input.redo();
+  CHECK(input.text() == "one two three four");
+
+  input.cursor(Cursor(CursorPosition(0), CursorPosition(4)));
+  input.erase();
+  input.moveCursorToEnd();
+  input.insert("!");
+  CHECK(input.text() == "two three four!");
+  input.undo();
+  CHECK(input.text() == "one two three four");
+  input.redo();
+  CHECK(input.text() == "two three four!");
+
+  // Text set from outside starts over, dropping an erase no entry holds.
+  input.cursor(Cursor(CursorPosition(0), CursorPosition(4)));
+  input.erase();
+  input.text("five six");
+  input.moveCursorToEnd();
+  input.insert(" seven");
+  input.undo();
+  CHECK(input.text() == "five six");
+  input.undo();
+  CHECK(input.text() == "five six");
+}
+
+TEST_CASE(
+    "an edit that changes nothing still resolves the cursor",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text("one two three");
+  input.update(&factory);
+
+  placeCursor(input, 4);
+  input.update(&factory);
+  input.insert(std::string());
+  input.update(&factory);
+  CHECK(input.cursor().start().hasLineIndex());
+  CHECK(input.text() == "one two three");
+
+  // A selection can span two lines without holding a code point.
+  input.cursor(Cursor(CursorPosition(0, 4), CursorPosition(1, 4)));
+  input.update(&factory);
+  input.backspace(-1);
+  input.update(&factory);
+  CHECK(input.cursor().start().hasLineIndex());
+  CHECK(input.text() == "one two three");
+}
+
+TEST_CASE(
+    "measuring at the laid out width breaks no lines again",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  std::string text;
+  for (int i = 0; i < 40; i++)
+  {
+    text += "a paragraph long enough to wrap past the edge of the field\n";
+  }
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text(text);
+  input.update(&factory);
+  uint64_t paragraphs = input.shape().paragraphs().size();
+
+  const float noLimit = std::numeric_limits<float>::max();
+  uint64_t before = GlyphLine::sm_breakCount;
+  AABB measured = input.measure(300.0f, noLimit);
+  CHECK(GlyphLine::sm_breakCount == before);
+  CHECK(measured.width() == input.bounds().width());
+  CHECK(measured.height() == input.bounds().height());
+
+  // Any other width has to break them, without touching the layout.
+  AABB narrow = input.measure(200.0f, noLimit);
+  CHECK(GlyphLine::sm_breakCount == before + paragraphs);
+  CHECK(narrow.height() > measured.height());
+  CHECK(input.bounds().height() == measured.height());
+}
+
+TEST_CASE("an edit breaks only the lines of its paragraphs", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  std::string text;
+  for (int i = 0; i < 200; i++)
+  {
+    text += "a paragraph long enough to wrap past the edge of the field\n";
+  }
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text(text);
+  input.update(&factory);
+  uint64_t paragraphs = input.shape().paragraphs().size();
+
+  const float noLimit = std::numeric_limits<float>::max();
+  placeCursor(input, paragraphStart(input, 100) + 5);
+  uint64_t before = GlyphLine::sm_breakCount;
+  input.insert("x");
+  input.measure(300.0f, noLimit);
+  input.update(&factory);
+  CHECK(GlyphLine::sm_breakCount == before + 1);
+
+  // A new line splits the paragraph in two.
+  before = GlyphLine::sm_breakCount;
+  input.insert("\n");
+  input.measure(300.0f, noLimit);
+  input.update(&factory);
+  CHECK(GlyphLine::sm_breakCount == before + 2);
+  CHECK(input.shape().paragraphs().size() == paragraphs + 1);
+
+  // The first paragraph's first line is spaced on its own.
+  placeCursor(input, 0);
+  input.insert("x");
+  checkMatchesFullShape(input, font, &factory, "edit the first paragraph");
+  input.cursor(
+      Cursor(CursorPosition(0), CursorPosition(paragraphStart(input, 2))));
+  input.erase();
+  checkMatchesFullShape(input, font, &factory, "delete the first paragraphs");
+
+  // A new width breaks them all.
+  before = GlyphLine::sm_breakCount;
+  input.maxWidth(250.0f);
+  input.update(&factory);
+  CHECK(GlyphLine::sm_breakCount == before + paragraphs - 1);
+}
+
+TEST_CASE(
+    "text paths hold only the lines near the visible range",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  std::string text = linesOfText(400);
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text(text);
+  input.update(&factory);
+  size_t every = input.textPath()->numContours();
+  float height = input.bounds().height();
+  float lineHeight = height / 401.0f;
+  REQUIRE(every > 400);
+
+  // Ten lines show, and as many again are built past each edge.
+  float top = lineHeight * 200.0f;
+  float bottom = top + lineHeight * 10.0f;
+  CHECK(input.visibleRange(top, bottom, &factory));
+  size_t culled = input.textPath()->numContours();
+  CHECK(culled > 0);
+  CHECK(culled < every / 10);
+  AABB built = input.textPath()->rawPath()->bounds();
+  CHECK(built.minY <= top);
+  CHECK(built.maxY >= bottom);
+  CHECK(built.minY > top - lineHeight * 12.0f);
+  CHECK(built.maxY < bottom + lineHeight * 12.0f);
+
+  // A scroll within what was built keeps the paths.
+  CHECK(!input.visibleRange(
+      top + lineHeight * 5.0f,
+      bottom + lineHeight * 5.0f,
+      &factory));
+  CHECK(input.textPath()->numContours() == culled);
+
+  // One past it builds them around the new range.
+  top += lineHeight * 30.0f;
+  bottom += lineHeight * 30.0f;
+  CHECK(input.visibleRange(top, bottom, &factory));
+  built = input.textPath()->rawPath()->bounds();
+  CHECK(built.minY <= top);
+  CHECK(built.maxY >= bottom);
+
+  // An edit builds for the same range.
+  placeCursor(input, 19 * 230 + 4);
+  input.insert("x");
+  input.update(&factory);
+  CHECK(input.textPath()->numContours() < every / 10);
+  built = input.textPath()->rawPath()->bounds();
+  CHECK(built.minY <= top);
+  CHECK(built.maxY >= bottom);
+
+  // min > max goes back to every line.
+  CHECK(input.visibleRange(1.0f, 0.0f, &factory));
+  CHECK(input.textPath()->numContours() > every);
+  CHECK(!input.visibleRange(1.0f, 0.0f, &factory));
+}
+
+TEST_CASE(
+    "an edit or a scroll builds only the lines it brings in",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  // Every third paragraph wraps onto more lines.
+  std::string text;
+  for (int i = 0; i < 300; i++)
+  {
+    text += i % 3 == 0
+                ? "a paragraph long enough to wrap past the edge of the field\n"
+                : "a line of the file\n";
+  }
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text(text);
+  input.update(&factory);
+  float lineHeight = input.shape().orderedLines()[1].y() -
+                     input.shape().orderedLines()[0].y();
+  auto firstLineAt = [&](float y) {
+    const auto& lines = input.shape().orderedLines();
+    for (uint32_t i = 0; i < (uint32_t)lines.size(); i++)
+    {
+      if (lines[i].bottom() >= y)
+      {
+        return lines[i].firstCodePointIndex(input.shape().glyphLookup());
+      }
+    }
+    return (uint32_t)0;
+  };
+  auto topOfLineAt = [&](uint32_t codePointIndex) {
+    for (const OrderedLine& line : input.shape().orderedLines())
+    {
+      if (line.firstCodePointIndex(input.shape().glyphLookup()) ==
+          codePointIndex)
+      {
+        return line.top();
+      }
+    }
+    return 0.0f;
+  };
+
+  // Ten lines show, the fourth of them a paragraph of one line.
+  uint32_t oneLine = paragraphStart(input, 151);
+  float top = topOfLineAt(oneLine) - lineHeight * 3.0f;
+  float bottom = top + lineHeight * 10.0f;
+  REQUIRE(top > lineHeight * 100.0f);
+  REQUIRE(input.visibleRange(top, bottom, &factory));
+
+  // The same text and range built in one go, to compare against.
+  auto checkMatchesFreshPaths = [&](const char* step) {
+    INFO(step);
+    RawTextInput fresh;
+    fresh.font(font);
+    fresh.fontSize(input.fontSize());
+    fresh.sizing(TextSizing::autoHeight);
+    fresh.maxWidth(input.maxWidth());
+    fresh.text(input.text());
+    fresh.visibleRange(top, bottom, &factory);
+    fresh.update(&factory);
+    REQUIRE(!fresh.textPath()->rawPath()->empty());
+    CHECK(*input.textPath()->rawPath() == *fresh.textPath()->rawPath());
+  };
+
+  uint32_t before = input.lineBuildCount;
+  placeCursor(input, oneLine + 2);
+  input.insert("x");
+  input.update(&factory);
+  CHECK(input.lineBuildCount == before + 1);
+  checkMatchesFreshPaths("type in a line");
+
+  // An edit below what is built builds nothing.
+  before = input.lineBuildCount;
+  placeCursor(input, paragraphStart(input, 200) + 2);
+  input.insert("x");
+  input.update(&factory);
+  CHECK(input.lineBuildCount == before);
+  checkMatchesFreshPaths("type below");
+
+  // Scrolling past what was built keeps the lines still in range.
+  before = input.lineBuildCount;
+  top += lineHeight * 12.0f;
+  bottom += lineHeight * 12.0f;
+  REQUIRE(input.visibleRange(top, bottom, &factory));
+  CHECK(input.lineBuildCount - before > 10);
+  CHECK(input.lineBuildCount - before < 16);
+  checkMatchesFreshPaths("scroll down");
+
+  before = input.lineBuildCount;
+  top -= lineHeight * 24.0f;
+  bottom -= lineHeight * 24.0f;
+  REQUIRE(input.visibleRange(top, bottom, &factory));
+  CHECK(input.lineBuildCount - before > 10);
+  CHECK(input.lineBuildCount - before < 28);
+  checkMatchesFreshPaths("scroll up");
+
+  // A new line moves the built lines below it, which are built again where
+  // they now sit, and leaves the ones above alone.
+  before = input.lineBuildCount;
+  placeCursor(input, firstLineAt(top + lineHeight * 5.0f) + 2);
+  input.insert("\n");
+  input.update(&factory);
+  CHECK(input.lineBuildCount - before > 1);
+  CHECK(input.lineBuildCount - before < 28);
+  checkMatchesFreshPaths("type a newline");
+
+  // Enough to wrap a built paragraph onto another line.
+  placeCursor(input, firstLineAt(top + lineHeight * 2.0f) + 2);
+  input.insert(" words that push the rest of this paragraph down a line ");
+  input.update(&factory);
+  checkMatchesFreshPaths("wrap a paragraph");
+
+  // An edit above what is built moves every line built.
+  placeCursor(input, 4);
+  input.insert("\n");
+  input.update(&factory);
+  checkMatchesFreshPaths("type a newline above");
+
+  input.undo();
+  input.update(&factory);
+  checkMatchesFreshPaths("undo");
+
+  // A paragraph that starts above what is built and ends inside it.
+  uint32_t straddling = firstLineAt(top - lineHeight * 10.0f);
+  input.cursor(
+      Cursor(CursorPosition(straddling - 30), CursorPosition(straddling + 30)));
+  input.erase();
+  input.update(&factory);
+  checkMatchesFreshPaths("delete across the first built line");
+
+  input.cursor(Cursor(
+      CursorPosition(firstLineAt(top - lineHeight * 20.0f)),
+      CursorPosition(firstLineAt(bottom + lineHeight * 20.0f))));
+  input.erase();
+  input.update(&factory);
+  checkMatchesFreshPaths("delete every built line");
+
+  // Every line, then a range again.
+  float rangeTop = top;
+  float rangeBottom = bottom;
+  top = 1.0f;
+  bottom = 0.0f;
+  REQUIRE(input.visibleRange(top, bottom, &factory));
+  placeCursor(input, 10);
+  input.insert("y");
+  input.update(&factory);
+  checkMatchesFreshPaths("every line");
+  top = rangeTop;
+  bottom = rangeBottom;
+  REQUIRE(input.visibleRange(top, bottom, &factory));
+  checkMatchesFreshPaths("a range again");
+
+  // A new width lays every line out again.
+  input.maxWidth(250.0f);
+  input.update(&factory);
+  checkMatchesFreshPaths("a new width");
+  input.fontSize(20.0f);
+  input.update(&factory);
+  checkMatchesFreshPaths("a new font size");
+}
+
+TEST_CASE("a cursor resolves to the first line that holds it", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  // Line separators, a line starting where a run ends, wrapping words, right
+  // to left runs and trailing spaces.
+  const char* texts[] = {
+      "e\xe2\x80\xa8 ",
+      "-nx",
+      // An empty line that ends where a right to left run starts.
+      "ab\xd9\x85\xd8\xb1",
+      "\xd7\x91\xd7\x92"
+      "23\xd7\x91\xd7\x92  \xe2\x80\x8d",
+      // A line that starts where a run ends.
+      "(\xe2\x80\xa8"
+      "abc",
+      "one two three four five six seven eight nine ten\n\n eleven\n",
+      "mixed \xd9\x85\xd8\xb1\xd8\xad\xd8\xa8\xd8\xa7 direction "
+      "\xd8\xa8\xd8\xa7\xd9\x84\xd8\xb9\xd8\xa7\xd9\x84\xd9\x85 line\x0b end ",
+  };
+  for (const char* text : texts)
+  {
+    for (float width : {0.0f, 5.0f, 12.0f, 60.0f, 300.0f})
+    {
+      RawTextInput input;
+      configureEditingInput(input, font);
+      input.maxWidth(width);
+      input.text(text);
+      input.update(&factory);
+      const auto& lines = input.shape().orderedLines();
+      for (uint32_t index = 0; index <= (uint32_t)input.length(); index++)
+      {
+        uint32_t first = 0;
+        while (first < lines.size() && !lines[first].containsCodePointIndex(
+                                           input.shape().glyphLookup(),
+                                           index))
+        {
+          first++;
+        }
+        CursorPosition position(index);
+        position.resolveLine(input.shape());
+        INFO(text << " at width " << width << " index " << index);
+        CHECK(position.lineIndex() == first);
+        CHECK(
+            CursorPosition::atIndex(index, input.shape()).lineIndex() <
+            lines.size());
+      }
+    }
+  }
+}
+
+TEST_CASE(
+    "an edit beside an information separator shapes like a full shape",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  // The separator ends a paragraph, but the hyphen after it still breaks by
+  // what came before.
+  std::string text;
+  for (int i = 0; i < 8; i++)
+  {
+    text += "a paragraph of the file\n";
+  }
+  text += "c\x1c-e x\n";
+  for (int i = 0; i < 8; i++)
+  {
+    text += "a paragraph of the file\n";
+  }
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.maxWidth(12.0f);
+  input.text(text);
+  input.update(&factory);
+
+  auto checkMatchesFresh = [&](const char* step) {
+    INFO(step);
+    input.update(&factory);
+    RawTextInput fresh;
+    configureEditingInput(fresh, font);
+    fresh.maxWidth(12.0f);
+    fresh.text(input.text());
+    fresh.update(&factory);
+    checkSameShape(input.shape(), fresh.shape());
+  };
+
+  uint32_t separator = (uint32_t)text.find('\x1c');
+  placeCursor(input, separator + 3);
+  input.insert("y");
+  checkMatchesFresh("type after the separator");
+  placeCursor(input, separator);
+  input.insert("-");
+  checkMatchesFresh("type before the separator");
+}
+
+TEST_CASE(
+    "erasing a word selected at the end keeps the text whole",
+    "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.update(&factory);
+
+  // In an empty input the word is the sentinel that ends the text.
+  input.selectWord();
+  input.backspace(-1);
+  input.undo();
+  input.redo();
+  input.insert("a");
+  CHECK(input.text() == "a");
+  CHECK(input.length() == 1);
+
+  input.text("ab ");
+  input.moveCursorToEnd();
+  input.selectWord();
+  input.backspace(-1);
+  CHECK(input.text() == "ab");
+  input.insert("c");
+  CHECK(input.text() == "abc");
+  input.undo();
+  input.undo();
+  CHECK(input.text() == "ab ");
+  input.redo();
+  input.redo();
+  CHECK(input.text() == "abc");
+  input.update(&factory);
+  CHECK(input.shape().paragraphs().size() == 1);
+}
+
+TEST_CASE("word joiners never stall the line breaker", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+
+  // A joiner holds its neighbours together, so stepping back to find where a
+  // line fits can run past where the line starts.
+  const char* texts[] = {
+      "\xe2\x81\xa0"
+      "a\xe2\x81\xa0"
+      "c",
+      "ab\xe2\x81\xa0"
+      "cd e\xe2\x81\xa0\xe2\x81\xa0"
+      "f gh",
+      "one \xe2\x81\xa0two\xe2\x81\xa0 three",
+      // Joiners that end a word, where a step over them reaches the line
+      // break after it.
+      "a\xe2\x81\xa0"
+      "b\xe2\x81\xa0"
+      "c\xe2\x81\xa0\xe2\x81\xa0\nd e",
+      "abc\xe2\x81\xa0\xe2\x81\xa0\n",
+      // Joiners on both sides of a space, where the step reaches into the next
+      // word.
+      "a\xe2\x81\xa0"
+      "b\xe2\x81\xa0"
+      "c\xe2\x81\xa0 \xe2\x81\xa0"
+      "defghi\xe2\x81\xa0x",
+  };
+  for (const char* text : texts)
+  {
+    for (float width : {0.0f, 5.0f, 12.0f, 20.0f, 25.0f, 40.0f})
+    {
+      INFO(text << " at width " << width);
+      RawTextInput input;
+      configureEditingInput(input, font);
+      input.maxWidth(width);
+      input.text(text);
+      input.update(&factory);
+
+      size_t lineCount = 0;
+      for (const auto& lines : input.shape().paragraphLines())
+      {
+        const GlyphLine* previous = nullptr;
+        for (const GlyphLine& line : lines)
+        {
+          lineCount++;
+          bool endsBeforeItStarts = line.endRunIndex < line.startRunIndex ||
+                                    (line.endRunIndex == line.startRunIndex &&
+                                     line.endGlyphIndex < line.startGlyphIndex);
+          CHECK(!endsBeforeItStarts);
+          bool startsInsidePrevious = previous != nullptr &&
+                                      (line.startRunIndex <
+                                           previous->endRunIndex ||
+                                       (line.startRunIndex ==
+                                            previous->endRunIndex &&
+                                        line.startGlyphIndex <
+                                            previous->endGlyphIndex));
+          CHECK(!startsInsidePrevious);
+          previous = &line;
+        }
+      }
+      CHECK(lineCount != 0);
+    }
+  }
+
+  // A line break the joiners carried a line past adds no line of its own.
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.maxWidth(5.0f);
+  input.text("abc\xe2\x81\xa0\xe2\x81\xa0\xe2\x80\xa8");
+  input.update(&factory);
+  CHECK(input.shape().lineCount() == 4);
+}
+
+TEST_CASE("a cursor past the end of the text edits at its end", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text("foo ");
+  input.update(&factory);
+
+  // A word selected at the end stops short of the sentinel that ends the text.
+  input.moveCursorToEnd();
+  input.selectWord();
+  CHECK(input.cursor().start().codePointIndex() == 3);
+  CHECK(input.cursor().end().codePointIndex() == 4);
+  input.clearSelection();
+  input.backspace(-1);
+  CHECK(input.text() == "foo");
+  input.insert(" ");
+  CHECK(input.text() == "foo ");
+
+  // A cursor set from outside can still be past it.
+  input.cursor(Cursor::collapsed(CursorPosition(9)));
+  input.insert("x");
+  CHECK(input.text() == "foo x");
+  CHECK(input.length() == 5);
+  input.cursor(Cursor::collapsed(CursorPosition(9)));
+  input.backspace(-1);
+  CHECK(input.text() == "foo ");
+  input.cursor(Cursor::collapsed(CursorPosition(5)));
+  input.backspace(1);
+  CHECK(input.text() == "foo ");
+  input.cursor(Cursor(CursorPosition(2), CursorPosition(9)));
+  input.backspace(-1);
+  CHECK(input.text() == "fo");
+  CHECK(input.length() == 2);
+
+  input.update(&factory);
+  CHECK(input.shape().paragraphs().size() == 1);
+  CHECK(input.cursor().start().hasLineIndex());
+}
+
+TEST_CASE(
+    "backspace keeps the sentinel a font has no glyph for",
+    "[text_input]")
+{
+  // Without a space glyph to stand in for it, the shaper drops the sentinel
+  // and its code point joins the cluster before it.
+  auto font = loadFont("assets/TwemojiMozilla.subset.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.insert("12");
+  input.update(&factory);
+  REQUIRE(input.shape().glyphLookup().count(1) == 2);
+
+  input.backspace(-1);
+  CHECK(input.text() == "1");
+  CHECK(input.length() == 1);
+  input.insert("3");
+  CHECK(input.text() == "13");
+
+  placeCursor(input, 1);
+  input.backspace(1);
+  CHECK(input.text() == "1");
+  CHECK(input.length() == 1);
+}
+
+TEST_CASE("a word jump from the end of the text stays there", "[text_input]")
+{
+  auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+  REQUIRE(font != nullptr);
+  NoOpFactory factory;
+  RawTextInput input;
+  configureEditingInput(input, font);
+  input.text("hello world");
+  input.update(&factory);
+
+  input.moveCursorToEnd();
+  input.cursorRight(CursorBoundary::word);
+  CHECK(input.cursor().end().codePointIndex() == 11);
+  input.cursorRight(CursorBoundary::subWord);
+  CHECK(input.cursor().end().codePointIndex() == 11);
+
+  // Only white space lies between the cursor and the end.
+  input.text("hello  ");
+  placeCursor(input, 5);
+  input.cursorRight(CursorBoundary::word);
+  CHECK(input.cursor().end().codePointIndex() == 7);
+}
+
+TEST_CASE("a text input edits before its font arrives", "[text_input]")
+{
+  RawTextInput input;
+  input.insert("ab cd");
+  input.cursorLeft();
+  CHECK(input.cursor().end().codePointIndex() == 4);
+  input.cursorRight();
+  input.cursorRight();
+  CHECK(input.cursor().end().codePointIndex() == 5);
+  input.backspace(-1);
+  CHECK(input.text() == "ab c");
+  input.cursor(Cursor::collapsed(CursorPosition(1)));
+  input.backspace(1);
+  CHECK(input.text() == "a c");
+  input.cursorRight();
+  input.cursorLeft(CursorBoundary::word);
+  input.cursorUp();
+  input.cursorDown();
+  input.selectLine();
+  input.selectWord();
+  input.undo();
+  CHECK(input.text() == "ab c");
+}
 #endif

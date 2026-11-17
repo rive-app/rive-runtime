@@ -131,6 +131,8 @@ private:
   /// Push the current alignment and the width to align it within down to the
   /// raw text input. Returns true if either actually changed.
   bool updateAlignment();
+  // Returns true when the text paths were rebuilt.
+  bool updateVisibleRange();
 
   /// Convert a world position to local text input coordinates.
   /// Handles viewport clamping and auto-scroll for scroll constraints.
@@ -164,7 +166,10 @@ private:
   void syncSourceTextFromRaw();
 
   AABB m_worldBounds;
-  std::string m_sourceText;
+  /// Whether the text property is being set from the raw input's own text.
+  bool m_syncingSourceText = false;
+  /// Whether the viewport clipped when last looked at, to notice it changing.
+  bool m_viewportClips = false;
   TextStyle* m_textStyle = nullptr;
   ScrollConstraint* m_scrollConstraint = nullptr;
 

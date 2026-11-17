@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <cstring>
 #include <iterator>
+#include <utility>
 
 namespace rive
 {
@@ -274,11 +275,16 @@ template <typename T> SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other)
 template <typename T>
 SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other)
 {
-  other.resize(other.size());
-  this->m_ptr = other.m_ptr;
-  this->m_size = other.m_size;
-  other.m_ptr = nullptr;
-  other.m_size = 0;
+  if (&other != this)
+  {
+    SimpleArrayHelper<T>::DestructArray(m_ptr, m_ptr + m_size);
+    free(m_ptr);
+
+    // A builder's m_size is its capacity, so trim it to what it wrote.
+    other.resize(other.size());
+    m_ptr = std::exchange(other.m_ptr, nullptr);
+    m_size = std::exchange(other.m_size, 0);
+  }
   return *this;
 }
 

@@ -251,7 +251,35 @@ OrderedLine::OrderedLine(
 
 bool OrderedLine::emptyLineCodePointIndex(uint32_t& outIndex) const
 {
-  if (!isEmpty() || m_startLogical == nullptr ||
+  if (!isEmpty())
+  {
+    return false;
+  }
+  if (startCodePointIndex(outIndex))
+  {
+    return true;
+  }
+  // Starting where a run ends, it sits at the glyph it ends before, or just
+  // past that run's last one.
+  if (m_endLogical != nullptr &&
+      m_endGlyphIndex < m_endLogical->textIndices.size())
+  {
+    outIndex = m_endLogical->textIndices[m_endGlyphIndex];
+    return true;
+  }
+  size_t count = m_startLogical == nullptr ? 0
+                                           : m_startLogical->textIndices.size();
+  if (count == 0)
+  {
+    return false;
+  }
+  outIndex = m_startLogical->textIndices[count - 1] + 1;
+  return true;
+}
+
+bool OrderedLine::startCodePointIndex(uint32_t& outIndex) const
+{
+  if (m_startLogical == nullptr ||
       m_startGlyphIndex >= m_startLogical->textIndices.size())
   {
     return false;
@@ -490,6 +518,11 @@ float OrderedLine::buildEllipsisRuns(
                        ? nullptr
                        : logicalRuns.front();
   return x + ellipsisWidth;
+}
+
+float OrderedLine::top() const
+{
+  return m_y - m_glyphLine->baseline + m_glyphLine->top;
 }
 
 float OrderedLine::bottom() const

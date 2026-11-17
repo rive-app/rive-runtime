@@ -188,6 +188,11 @@ struct GlyphLine
   static float ComputeMaxWidth(
       Span<GlyphLine> lines,
       Span<const GlyphRun> runs);
+
+#ifdef TESTING
+  // How many paragraphs BreakLines has broken.
+  static std::atomic<uint64_t> sm_breakCount;
+#endif
 };
 
 // A paragraph represents of set of runs that flow in a specific direction. The
@@ -739,6 +744,8 @@ public:
   // unless an ellipsis changed the line's width.
   float startX() const { return m_startX; }
   float y() const { return m_y; }
+  void y(float value) { m_y = value; }
+  float top() const;
   float bottom() const;
 
   // An empty line holds only the line break that ends it, which belongs to
@@ -748,6 +755,9 @@ public:
   // by the break's own glyph, as iterating can't reach it: an empty right to
   // left line begins at the glyph before.
   bool emptyLineCodePointIndex(uint32_t& outIndex) const;
+  // The line's first code point in text order, which only grows from one
+  // line to the next. False for a line starting where a run ends.
+  bool startCodePointIndex(uint32_t& outIndex) const;
 
   uint32_t firstCodePointIndex(const GlyphLookup& glyphLookup) const;
   uint32_t lastCodePointIndex(const GlyphLookup& glyphLookup) const;

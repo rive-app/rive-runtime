@@ -246,7 +246,7 @@ public:
   {
     if (m_index == m_run->glyphs.size())
     {
-      if (m_run == m_runs.end())
+      if (m_run + 1 == m_runs.end())
       {
         return false;
       }
@@ -342,13 +342,52 @@ public:
   {
     return m_run == o.m_run && m_index == o.m_index;
   }
+
+  bool operator<(const RunIterator& o) const
+  {
+    return m_run < o.m_run || (m_run == o.m_run && m_index < o.m_index);
+  }
 };
+
+// Ends the line at the word's end, or where it starts when a step over word
+// joiners carried its start past that.
+static void endLine(GlyphLine& line, uint32_t runIndex, uint32_t glyphIndex)
+{
+  bool behindStart = runIndex < line.startRunIndex ||
+                     (runIndex == line.startRunIndex &&
+                      glyphIndex < line.startGlyphIndex);
+  line.endRunIndex = behindStart ? line.startRunIndex : runIndex;
+  line.endGlyphIndex = behindStart ? line.startGlyphIndex : glyphIndex;
+}
+
+// Whether the last line added holds a glyph, as it does once a step over word
+// joiners carries its end past that glyph.
+static bool placed(
+    const SimpleArrayBuilder<GlyphLine>& lines,
+    uint32_t runIndex,
+    uint32_t glyphIndex)
+{
+  if (lines.empty())
+  {
+    return false;
+  }
+  const GlyphLine& last = lines.back();
+  return runIndex < last.endRunIndex ||
+         (runIndex == last.endRunIndex && glyphIndex < last.endGlyphIndex);
+}
+
+#ifdef TESTING
+std::atomic<uint64_t> GlyphLine::sm_breakCount{0};
+#endif
 
 SimpleArray<GlyphLine> GlyphLine::BreakLines(
     Span<const GlyphRun> runs,
     float width,
     TextWordBreak wordBreak)
 {
+#ifdef TESTING
+  sm_breakCount++;
+#endif
   float maxLineWidth = autowidth(width) ? std::numeric_limits<float>::max()
                                         : width;
 
@@ -416,11 +455,15 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(
                          breakIndex == startBreakIndex;
 
     uint32_t startRunIndex = (uint32_t)(start.run - runs.begin());
+    // With its start on the line before, what is left of the word is alone
+    // on this one.
+    bool wordStartPlaced = placed(lines, startRunIndex, startBreakIndex);
     // Nothing has been placed on this line yet and it begins exactly at
     // this word, so the word is alone on its line and can't be knocked
     // any further down.
-    bool wordStartsLine = line.startGlyphIndex == startBreakIndex &&
-                          line.startRunIndex == startRunIndex;
+    bool wordStartsLine = wordStartPlaced ||
+                          (line.startGlyphIndex == startBreakIndex &&
+                           line.startRunIndex == startRunIndex);
 
     // TextWordBreak::normal never cuts a word: one that doesn't fit even
     // when alone on its line overflows the box instead, so treat it as if
@@ -466,28 +509,29 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(
           // Look for the next character that doesn't overflow.
           while (true)
           {
-            if (!lineEnd.back())
+            // Stepping back over word joiners can pass the line's start,
+            // even the start of the text, and no line can end there.
+            if (!lineEnd.back() || lineEnd < lineStart)
             {
-              // Hit the start of the text, can't go back.
+              lineEnd = lineStart;
+            }
+            else if (lineEnd.x() > limit)
+            {
+              continue;
+            }
+            if (lineStart == lineEnd && !lineEnd.forward())
+            {
+              // Hit the start of the line and could not
+              // go forward to consume a single character.
+              // We can't break any further.
               canBreakMore = false;
-              break;
             }
-            else if (lineEnd.x() <= limit)
+            else
             {
-              if (lineStart == lineEnd && !lineEnd.forward())
-              {
-                // Hit the start of the line and could not
-                // go forward to consume a single character.
-                // We can't break any further.
-                canBreakMore = false;
-              }
-              else
-              {
-                line.endRunIndex = (uint32_t)(lineEnd.run() - runs.begin());
-                line.endGlyphIndex = lineEnd.index();
-              }
-              break;
+              line.endRunIndex = (uint32_t)(lineEnd.run() - runs.begin());
+              line.endGlyphIndex = lineEnd.index();
             }
+            break;
           }
           if (canBreakMore)
           {
@@ -502,6 +546,15 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(
                 (uint32_t)(lineEnd.run() - runs.begin()),
                 lineEnd.index());
           }
+        }
+        if (!canBreakMore)
+        {
+          // Nothing left to cut, so the rest of the word overflows.
+          endLine(
+              line,
+              (uint32_t)(end.run - runs.begin()),
+              end.run->breaks[end.index]);
+          advanceWord = true;
         }
       }
       else
@@ -520,11 +573,13 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(
     }
     else
     {
-      line.endRunIndex = (uint32_t)(end.run - runs.begin());
-      line.endGlyphIndex = end.run->breaks[end.index];
+      endLine(
+          line,
+          (uint32_t)(end.run - runs.begin()),
+          end.run->breaks[end.index]);
       advanceWord = true;
-      // Forced BR.
-      if (isForcedBreak)
+      // Forced BR, unless the line before this one already took it in.
+      if (isForcedBreak && !wordStartPlaced)
       {
         lines.add(line);
         auto startX = start.run->xpos[start.run->breaks[start.index] + 1];

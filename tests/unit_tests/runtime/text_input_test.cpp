@@ -5,6 +5,7 @@
 #include "rive/layout_component.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/text/text_input.hpp"
+#include "rive/scroll_event.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/text/text_input_text.hpp"
 #include "rive/text/text_input_cursor.hpp"
@@ -1707,6 +1708,112 @@ TEST_CASE("a press in the host blurs a nested text input", "[text_input]")
   press(stateMachine.get(), secondField);
   CHECK_FALSE(first->isFocused());
   CHECK(second->isFocused());
+}
+
+// TextInput -> Text Container -> Scroll Content -> Viewport, 200 by 50.
+static LayoutComponent* viewportOf(TextInput* textInput)
+{
+  return textInput->parent()->parent()->parent()->as<LayoutComponent>();
+}
+
+static std::string manyLines(int count)
+{
+  std::string text;
+  for (int i = 0; i < count; i++)
+  {
+    text += "a line of the file\n";
+  }
+  return text;
+}
+
+TEST_CASE(
+    "a text input builds only the lines its clipping viewport shows",
+    "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline")->instance();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  auto raw = textInput->rawTextInput();
+  auto scroll = artboard->find<ScrollConstraint>()[0];
+  LayoutComponent* viewport = viewportOf(textInput);
+
+  // Nothing clips the text in the file, so every line is built.
+  textInput->text(manyLines(300));
+  stateMachine->advanceAndApply(0.0f);
+  float textHeight = raw->bounds().height();
+  float viewportHeight = viewport->layoutHeight();
+  REQUIRE(textHeight > viewportHeight * 100.0f);
+  size_t every = raw->textPath()->numContours();
+  CHECK(raw->textPath()->rawPath()->bounds().height() > textHeight * 0.9f);
+
+  // Clipping takes effect without an edit or a scroll.
+  viewport->clip(true);
+  stateMachine->advanceAndApply(0.0f);
+  AABB built = raw->textPath()->rawPath()->bounds();
+  CHECK(raw->textPath()->numContours() < every / 20);
+  CHECK(built.minY <= viewportHeight);
+  CHECK(built.maxY >= viewportHeight);
+  CHECK(built.maxY < viewportHeight * 4.0f);
+
+  // Scrolling builds the lines around where it lands.
+  scroll->scrollOffsetY(-2000.0f);
+  stateMachine->advanceAndApply(0.0f);
+  built = raw->textPath()->rawPath()->bounds();
+  CHECK(raw->textPath()->numContours() < every / 20);
+  CHECK(built.minY <= 2000.0f);
+  CHECK(built.maxY >= 2000.0f + viewportHeight);
+  CHECK(built.minY > 2000.0f - viewportHeight * 3.0f);
+  CHECK(built.maxY < 2000.0f + viewportHeight * 4.0f);
+
+  // Typing scrolls back to the caret, and the lines there are built.
+  raw->cursor(Cursor::collapsed(CursorPosition(3)));
+  textInput->textInput("x");
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.0f);
+  CHECK(scroll->scrollOffsetY() == Approx(0.0f));
+  built = raw->textPath()->rawPath()->bounds();
+  CHECK(raw->textPath()->numContours() < every / 20);
+  CHECK(built.minY <= viewportHeight);
+  CHECK(built.maxY >= viewportHeight);
+  CHECK(built.maxY < viewportHeight * 4.0f);
+
+  // Without the clip every line can show again.
+  viewport->clip(false);
+  stateMachine->advanceAndApply(0.0f);
+  CHECK(raw->textPath()->numContours() > every);
+  CHECK(raw->textPath()->rawPath()->bounds().height() > textHeight * 0.9f);
+}
+
+TEST_CASE("a wheel over a text input scrolls its viewport", "[text_input]")
+{
+  auto file = ReadRiveFile("assets/text_input.riv");
+  auto artboard = file->artboardNamed("Text Input - Multiline")->instance();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto textInput = artboard->objects<TextInput>().first();
+  REQUIRE(textInput != nullptr);
+  auto scroll = artboard->find<ScrollConstraint>()[0];
+  textInput->text(manyLines(300));
+  stateMachine->advanceAndApply(0.0f);
+  REQUIRE(scroll->scrollOffsetY() == 0.0f);
+
+  // The text input covers its viewport and takes every press there, but a
+  // scroll goes through it to the viewport.
+  Vec2D over(100.0f, 25.0f);
+  REQUIRE(textInput->hitTestPoint(over, true, true));
+  ScrollEvent wheel;
+  wheel.delta = Vec2D(0.0f, -60.0f);
+  CHECK(stateMachine->pointerScroll(over, wheel) != HitResult::none);
+  stateMachine->advanceAndApply(0.0f);
+  CHECK(scroll->scrollOffsetY() == Approx(-60.0f));
+
+  // Scrolled as far back as it goes, the viewport lets the scroll go.
+  wheel.delta = Vec2D(0.0f, 60.0f);
+  stateMachine->pointerScroll(over, wheel);
+  stateMachine->advanceAndApply(0.2f);
+  CHECK(scroll->scrollOffsetY() == Approx(0.0f));
+  CHECK(stateMachine->pointerScroll(over, wheel) == HitResult::none);
 }
 
 #endif
