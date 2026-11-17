@@ -325,6 +325,35 @@ TEST_CASE("a fallback request carries the whole cluster", "[text_fallback]")
   CHECK(runs[1].textIndices[0] == 1);
 }
 
+TEST_CASE("fallback retries retain the starting weight", "[text_fallback]")
+{
+  auto bold = loadFont("assets/fonts/Inter_28pt-Bold.ttf");
+  auto regular = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
+  REQUIRE(bold->getWeight() != regular->getWeight());
+  procFonts = {regular, bold};
+  ProcScope scope(+[](const Font::FallbackRequest& request) -> rcp<Font> {
+    if (request.fallbackIndex == 0 && request.font == procFonts[0].get())
+    {
+      // A second search starts while the bold run is choosing its fallback.
+      CHECK(request.startingWeight == procFonts[0]->getWeight());
+      return nullptr;
+    }
+    procIndices.push_back(request.fallbackIndex);
+    if (request.fallbackIndex == 0)
+    {
+      shapeRuns(procFonts[0], {'a', kMark});
+      return procFonts[0];
+    }
+    CHECK(request.font == procFonts[0].get());
+    CHECK(request.startingWeight == procFonts[1]->getWeight());
+    return nullptr;
+  });
+
+  REQUIRE_FALSE(bold->hasGlyph(kMark));
+  shapeRuns(bold, {'a', kMark});
+  CHECK(procIndices == std::vector<uint32_t>{0, 1});
+}
+
 TEST_CASE("a keycap reaches the request whole", "[text_fallback]")
 {
   auto roboto = loadFont("assets/RobotoFlex.ttf");

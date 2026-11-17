@@ -1621,6 +1621,7 @@ static rive::rcp<rive::Font> requestFallback(
         languages,
         !rive::TextLanguages::tag(run.language).empty(),
         cluster,
+        run.font->getWeight(),
     };
     return rive::Font::gFallbackRequestProc(request);
   }
@@ -1750,7 +1751,7 @@ static void fall_back_clusters(
     rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
     const rive::Unichar text[],
     rive::GlyphRun&& gr,
-    const rive::TextRun& textRun,
+    const rive::TextRun& originalTextRun,
     uint32_t runTextEnd,
     uint32_t fallbackIndex,
     const HBFont::FallbackChain* chain)
@@ -1773,7 +1774,7 @@ static void fall_back_clusters(
           start,
           runTextEnd,
           fallbackIndex,
-          textRun);
+          originalTextRun);
       if (picked && chain->contains(picked.get()))
       {
         picked = nullptr;
@@ -1820,9 +1821,9 @@ static void fall_back_clusters(
           picked,
           gr.size,
           gr.lineHeight,
-          textRun.letterSpacing,
+          originalTextRun.letterSpacing,
           textEnd - textStart,
-          textRun.script,
+          originalTextRun.script,
           gr.styleId,
           gr.level,
           gr.language,
@@ -1834,7 +1835,7 @@ static void fall_back_clusters(
               text,
               textStart,
               tr,
-              textRun,
+              originalTextRun,
               fallbackIndex + 1,
               chain);
 
@@ -1889,7 +1890,7 @@ void HBFont::shapeFallbackRun(
         gruns,
         text,
         std::move(gr),
-        textRun,
+        originalTextRun,
         textStart + textRun.unicharCount,
         fallbackIndex,
         &here);

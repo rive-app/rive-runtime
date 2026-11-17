@@ -462,6 +462,8 @@ public:
     // and its first codepoint as missing, and falls back if the font
     // returned has color glyphs.
     Span<const Unichar> cluster;
+    /// Weight of the original run font, preserved across fallback attempts.
+    uint16_t startingWeight;
   };
   using FallbackRequestProc =
       rive::rcp<rive::Font> (*)(const FallbackRequest& request);
