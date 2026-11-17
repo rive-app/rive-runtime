@@ -237,6 +237,42 @@ TEST_CASE(
   CHECK(found[1]->language() == "zh-Hans");
 }
 
+// With deferDecoding, an artboard's body decodes the first time it's used,
+// after the import. Its texts resolve their languages from the manifest the
+// import read.
+TEST_CASE(
+    "languages resolve from the manifest in a deferred artboard",
+    "[text_language]")
+{
+  auto bytes = ReadFile("assets/text_language.riv");
+  FileImportOptions options;
+  options.deferDecoding = true;
+  // The file has one artboard, and the default artboard otherwise decodes at
+  // import.
+  options.testing_deferDefaultArtboard = true;
+  auto file = File::import(
+      bytes,
+      &gNoOpFactory,
+      nullptr,
+      (FileAssetLoader*)nullptr,
+      nullptr,
+      false,
+      options);
+  REQUIRE(file != nullptr);
+  REQUIRE(file->artboardHeader(0)->hasDeferredBody());
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  CHECK_FALSE(file->artboardHeader(0)->hasDeferredBody());
+  auto found = texts(artboard.get());
+  REQUIRE(found.size() == 4);
+  REQUIRE(found[0]->runs().size() == 5);
+  for (auto run : found[0]->runs())
+  {
+    CHECK(run->language() == "ja");
+  }
+  CHECK(found[1]->language() == "zh-Hans");
+}
+
 TEST_CASE(
     "fallback requests list the text's language, then the system's",
     "[text_language]")

@@ -1393,6 +1393,12 @@ void File::decodeArtboardBody(Artboard* artboard)
   {
     BinaryReader reader(
         Span<const uint8_t>(body->bytes.data(), body->bytes.size()));
+    // The body carries no manifest. Its objects (a text's language) resolve
+    // names from the file's, as the import did.
+    if (m_manifest != nullptr)
+    {
+      reader.dataResolver(m_manifest->as<ManifestAsset>());
+    }
     ImportStack importStack;
     importStack.version(m_header.majorVersion(), m_header.minorVersion());
     // The run resolves against what the import left: the file's artboards
