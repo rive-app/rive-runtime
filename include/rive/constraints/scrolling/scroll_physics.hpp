@@ -37,6 +37,9 @@ private:
   bool m_isRunning = false;
 
 protected:
+  // The simulation running was asked to carry the view to a position, not
+  // to settle or fling it, so nothing may move the view off its way.
+  bool m_scrollsToPosition = false;
   Vec2D m_speed;
   Vec2D m_acceleration;
   DraggableConstraintDirection m_direction;
@@ -59,6 +62,10 @@ public:
   virtual Vec2D advance(float elapsedSeconds) { return Vec2D(); };
   // Moves the simulation by delta, for content that moved under it.
   virtual void shift(Vec2D delta) {}
+  // Moves each axis that is at rest from its place in from to its place in
+  // to while the other settles, and returns where the view is then. A
+  // scroll to a position moves nothing.
+  virtual Vec2D coast(Vec2D from, Vec2D to) { return from; }
   virtual void accumulate(Vec2D delta, float timeStamp);
   // Starts the clock at timeStamp without measuring a delta, so the next
   // accumulate measures from here. reset() can't: in deterministic mode it
@@ -73,10 +80,12 @@ public:
       Vec2D viewportSize)
   {
     m_isRunning = true;
+    m_scrollsToPosition = false;
   }
   virtual void stop()
   {
     m_isRunning = false;
+    m_scrollsToPosition = false;
     m_speed = Vec2D();
   }
   virtual void reset();

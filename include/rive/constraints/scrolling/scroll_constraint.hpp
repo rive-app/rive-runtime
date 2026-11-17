@@ -130,6 +130,10 @@ public:
   /// The wheel path: clamped, and no velocity accumulation, since a detent
   /// never flings and must not feed the velocity passthroughs.
   void scrollBy(Vec2D delta);
+  /// Platform momentum that arrives while the view settles from past an
+  /// end: the axis that is in range and at rest still moves by it, clamped,
+  /// while the other settles. A scroll to a position is left alone.
+  void coastBesideSettle(Vec2D delta);
   /// True while a wheel or trackpad gesture owns this view.
   bool isScrolling() const { return m_isScrolling; }
   /// True while a pointer drag owns this view.

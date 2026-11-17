@@ -89,6 +89,7 @@ void ElasticScrollPhysics::run(
 void ElasticScrollPhysics::prepare(DraggableConstraintDirection dir)
 {
   Super::prepare(dir);
+  m_scrollsToPosition = false;
   if (dir == DraggableConstraintDirection::horizontal ||
       dir == DraggableConstraintDirection::all)
   {
@@ -316,6 +317,7 @@ void ElasticScrollPhysics::scrollToPosition(
   {
     m_physicsY->scrollTo(current.y, target.y, rangeMin.y, rangeMax.y);
   }
+  m_scrollsToPosition = true;
 }
 void ElasticScrollPhysics::shift(Vec2D delta)
 {
@@ -327,4 +329,27 @@ void ElasticScrollPhysics::shift(Vec2D delta)
   {
     m_physicsY->shift(delta.y);
   }
+}
+
+Vec2D ElasticScrollPhysics::coast(Vec2D from, Vec2D to)
+{
+  Vec2D now = from;
+  if (m_scrollsToPosition)
+  {
+    return now;
+  }
+  if (to.x != from.x && m_physicsX != nullptr && m_physicsX->atRest())
+  {
+    m_physicsX->coastTo(to.x);
+    now.x = to.x;
+    // What a drag left behind is not this axis's speed any more.
+    m_speed.x = 0;
+  }
+  if (to.y != from.y && m_physicsY != nullptr && m_physicsY->atRest())
+  {
+    m_physicsY->coastTo(to.y);
+    now.y = to.y;
+    m_speed.y = 0;
+  }
+  return now;
 }

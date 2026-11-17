@@ -711,6 +711,192 @@ TEST_CASE(
   delete smi;
 }
 
+TEST_CASE(
+    "Momentum on one axis coasts while the other settles from past its end",
+    "[scrollinput]")
+{
+  DeterministicClock clock;
+  auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+  auto artboard = file->artboard();
+  auto artboardInstance = artboard->instance();
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  rive::StateMachineInstance* smi = new rive::StateMachineInstance(
+      stateMachine,
+      artboardInstance.get());
+  auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+  // A view that scrolls both ways, resting at its left edge.
+  scroll->directionValue((uint32_t)rive::DraggableConstraintDirection::all);
+  smi->advanceAndApply(0.0f);
+  REQUIRE(scroll->maxOffsetY() == -610.0f);
+  REQUIRE(scroll->offsetX() == 0.0f);
+
+  rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
+
+  // A swipe down the view never runs perfectly straight: a few points of
+  // sideways travel take it past its left edge before the fingers lift.
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::update, 2.0f, -40.0f));
+  send(trackpad(rive::ScrollPhase::update, 2.0f, -40.0f));
+  REQUIRE(scroll->offsetX() == 4.0f);
+  REQUIRE(scroll->offsetY() == -80.0f);
+  REQUIRE(scroll->isOverscrolled() == true);
+
+  // The coast: the sideways overshoot settles back, and the view keeps
+  // moving down by every delta meanwhile rather than standing still.
+  float y = -80.0f;
+  for (int i = 0; i < 8; i++)
+  {
+    send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+    y -= 30.0f;
+    REQUIRE(scroll->offsetY() == Approx(y));
+    smi->advanceAndApply(0.008f);
+    REQUIRE(scroll->offsetY() == Approx(y));
+  }
+  REQUIRE(scroll->offsetX() < 4.0f);
+  for (int i = 0; i < 300 && scroll->physics()->isRunning(); i++)
+  {
+    smi->advanceAndApply(0.016f);
+  }
+  REQUIRE(scroll->offsetX() == Approx(0.0f).margin(0.01f));
+  REQUIRE(scroll->offsetY() == Approx(y));
+  REQUIRE(scroll->isOverscrolled() == false);
+
+  // Settled, the coast lands directly again.
+  send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+  REQUIRE(scroll->offsetY() == Approx(y - 30.0f));
+
+  delete smi;
+}
+
+TEST_CASE(
+    "A coast beside a settle takes the gesture up again after it went idle",
+    "[scrollinput]")
+{
+  DeterministicClock clock;
+  auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+  auto artboard = file->artboard();
+  auto artboardInstance = artboard->instance();
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  rive::StateMachineInstance* smi = new rive::StateMachineInstance(
+      stateMachine,
+      artboardInstance.get());
+  auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+  scroll->directionValue((uint32_t)rive::DraggableConstraintDirection::all);
+  smi->advanceAndApply(0.0f);
+
+  rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::update, 30.0f, -40.0f));
+  REQUIRE(scroll->isOverscrolled() == true);
+
+  // The momentum is late: the gesture goes idle and the overshoot starts
+  // to settle on its own, still short of the edge.
+  for (int i = 0; i < 14; i++)
+  {
+    smi->advanceAndApply(0.008f);
+  }
+  REQUIRE(scroll->isScrolling() == false);
+  REQUIRE(scroll->physics()->isRunning() == true);
+  REQUIRE(scroll->isOverscrolled() == true);
+
+  send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+  REQUIRE(scroll->offsetY() == Approx(-70.0f));
+  REQUIRE(scroll->isScrolling() == true);
+
+  delete smi;
+}
+
+TEST_CASE(
+    "A coast beside a settle stops exactly on its end and turns back from it",
+    "[scrollinput]")
+{
+  DeterministicClock clock;
+  auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+  auto artboard = file->artboard();
+  auto artboardInstance = artboard->instance();
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  rive::StateMachineInstance* smi = new rive::StateMachineInstance(
+      stateMachine,
+      artboardInstance.get());
+  auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+  scroll->directionValue((uint32_t)rive::DraggableConstraintDirection::all);
+  smi->advanceAndApply(0.0f);
+
+  rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
+  // Offsets that do not round-trip through a subtraction and an addition.
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::update, 30.0f, -32.465256f));
+  REQUIRE(scroll->isOverscrolled() == true);
+
+  // The coast runs out of range while the other axis is still settling:
+  // it lands on the end itself, not a rounding step past it.
+  send(trackpad(rive::ScrollPhase::momentum, 0, -1000.123f));
+  REQUIRE(scroll->offsetY() == scroll->maxOffsetY());
+  smi->advanceAndApply(0.008f);
+  REQUIRE(scroll->offsetY() == scroll->maxOffsetY());
+  REQUIRE(scroll->offsetX() > 0.0f);
+
+  // So a delta back into range still moves it.
+  send(trackpad(rive::ScrollPhase::momentum, 0, 25.0f));
+  REQUIRE(scroll->offsetY() == scroll->maxOffsetY() + 25.0f);
+
+  delete smi;
+}
+
+TEST_CASE(
+    "Momentum leaves a scroll to a position alone, started past an end or not",
+    "[scrollinput]")
+{
+  DeterministicClock clock;
+  auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+  auto artboard = file->artboard();
+  auto artboardInstance = artboard->instance();
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  rive::StateMachineInstance* smi = new rive::StateMachineInstance(
+      stateMachine,
+      artboardInstance.get());
+  auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+  scroll->directionValue((uint32_t)rive::DraggableConstraintDirection::all);
+  smi->advanceAndApply(0.0f);
+
+  rive::Vec2D over(50.0f, 250.0f);
+  auto send = [&](rive::ScrollEvent event) {
+    smi->pointerScroll(over, event, clock.next());
+  };
+  // Dragged a little past the left edge, then sent back by a scroll to a
+  // position. One axis is past its end and the other is already where the
+  // scroll is taking it, which is also how an edge settle looks.
+  send(trackpad(rive::ScrollPhase::begin, 0, 0));
+  send(trackpad(rive::ScrollPhase::update, 30.0f, -40.0f));
+  scroll->scrollToPosition(0.0f, -40.0f);
+  REQUIRE(scroll->physics()->isRunning() == true);
+  REQUIRE(scroll->isOverscrolled() == true);
+
+  send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+  REQUIRE(scroll->offsetY() == -40.0f);
+  for (int i = 0; i < 300 && scroll->physics()->isRunning(); i++)
+  {
+    smi->advanceAndApply(0.016f);
+    send(trackpad(rive::ScrollPhase::momentum, 0, -30.0f));
+    if (scroll->physics()->isRunning())
+    {
+      REQUIRE(scroll->offsetY() == -40.0f);
+    }
+  }
+  REQUIRE(scroll->offsetX() == Approx(0.0f).margin(0.01f));
+
+  delete smi;
+}
+
 TEST_CASE("Momentum landing exactly on an end still releases", "[scrollinput]")
 {
   DeterministicClock clock;

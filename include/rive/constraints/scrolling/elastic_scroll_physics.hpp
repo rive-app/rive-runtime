@@ -42,6 +42,19 @@ public:
     m_snapTarget += delta;
     m_runRangeMin += delta;
   }
+  // Nothing left to simulate on this axis: finished, or at its target
+  // with no speed. A finished snap leaves the target behind where it is.
+  bool atRest()
+  {
+    return m_speed == 0 && (!m_isRunning || m_current == m_target);
+  }
+  void coastTo(float value)
+  {
+    m_target = value;
+    m_current = value;
+    // Left from a run that snapped, it would pull the axis back.
+    m_snapTarget = NAN;
+  }
   float clamp(float rangeMin, float rangeMax, float value);
   void run(
       float acceleration,
@@ -88,6 +101,7 @@ public:
   bool hasTargetY() override { return m_physicsY != nullptr; }
   Vec2D advance(float elapsedSeconds) override;
   void shift(Vec2D delta) override;
+  Vec2D coast(Vec2D from, Vec2D to) override;
   Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
   void run(
       Vec2D rangeMin,

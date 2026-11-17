@@ -767,6 +767,49 @@ void ScrollConstraint::scrollBy(Vec2D delta)
   }
 }
 
+void ScrollConstraint::coastBesideSettle(Vec2D delta)
+{
+  // A snapping view is being carried to its snap point, which a coast
+  // would pull it off.
+  if (m_physics == nullptr || snap())
+  {
+    return;
+  }
+  // Positions, not distances: adding a clamped distance back on can miss
+  // the end by a rounding step and leave the view reading as past it.
+  Vec2D scaled = scaledDelta(delta);
+  Vec2D from(offsetX(), offsetY());
+  Vec2D to = from;
+  if (constrainsHorizontal() && from.x == clampResolvedOffset(from.x, true))
+  {
+    to.x = clampResolvedOffset(from.x + scaled.x, true);
+  }
+  if (constrainsVertical() && from.y == clampResolvedOffset(from.y, false))
+  {
+    to.y = clampResolvedOffset(from.y + scaled.y, false);
+  }
+  if (to.x == from.x && to.y == from.y)
+  {
+    return;
+  }
+  Vec2D now = m_physics->coast(from, to);
+  if (now.x == from.x && now.y == from.y)
+  {
+    return;
+  }
+  // The gesture may have gone idle while the settle ran on; moving the
+  // view takes it up again, so the state machine keeps it latched.
+  beginScrollGesture();
+  if (now.x != from.x)
+  {
+    scrollOffsetX(now.x);
+  }
+  if (now.y != from.y)
+  {
+    scrollOffsetY(now.y);
+  }
+}
+
 bool ScrollConstraint::beginScrollGesture()
 {
   markScrollActivity();

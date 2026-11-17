@@ -190,6 +190,10 @@ bool ViewportDraggableProxy::scroll(const ScrollEvent& event, float timeStamp)
           m_constraint->primePhysics();
           m_constraint->startPhysics();
         }
+        // Only the axis at its end bounces. A sideways coast in a view
+        // that scrolls both ways would otherwise stand still while a few
+        // points of stray vertical travel settled.
+        m_constraint->coastBesideSettle(event.delta);
         m_constraint->markScrollActivity();
         return true;
       }
