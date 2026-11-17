@@ -502,8 +502,14 @@ void ViewModelInstance::rebindProperties()
 
 void ViewModelInstance::rebindDependents()
 {
-  for (auto& dependent : m_dependents)
+  // Relinking adds and drops dependents; walk a snapshot, skip the dropped.
+  for (auto* dependent : std::vector<DataBindContainer*>(m_dependents.view()))
   {
+    auto& current = m_dependents.view();
+    if (std::find(current.begin(), current.end(), dependent) == current.end())
+    {
+      continue;
+    }
     dependent->relinkDataContext();
   }
   if (m_parent != nullptr)

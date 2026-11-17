@@ -18,6 +18,10 @@
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include <rive/viewmodel/runtime/viewmodel_instance_runtime.hpp>
+#include <rive/viewmodel/runtime/viewmodel_instance_artboard_runtime.hpp>
+#include <rive/viewmodel/runtime/viewmodel_instance_string_runtime.hpp>
+#include <rive/data_bind/data_bind_container.hpp>
+#include <rive/data_bind/data_context.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
@@ -25,6 +29,7 @@
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -584,4 +589,359 @@ TEST_CASE(
 
   // The null bind cleared the nested instance without crashing.
   REQUIRE(host->artboardInstance() == nullptr);
+}
+
+namespace
+{
+class RelinkCounter : public DataBindContainer
+{
+public:
+  int relinks = 0;
+  void relinkDataContext() override { relinks++; }
+};
+
+bool dependsOn(
+    const rcp<ViewModelInstance>& instance,
+    DataBindContainer* container)
+{
+  auto dependents = instance->dependents();
+  return std::find(dependents.begin(), dependents.end(), container) !=
+         dependents.end();
+}
+
+std::string textOf(Artboard* artboard)
+{
+  auto runs = artboard->find<TextValueRun>();
+  return runs.size() == 1 ? runs[0]->text() : "";
+}
+} // namespace
+
+TEST_CASE(
+    "A foreign artboard keeps its own view model when the host relinks",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/databind_external_artboard_main.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  RelinkCounter hostDependent;
+  auto vmi = file->createViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  // Bound the way an app binds another file's artboard: with an instance
+  // of that file's view model.
+  auto bindable = foreignFile->bindableArtboardDefault();
+  REQUIRE(bindable != nullptr);
+  auto foreignVmi = foreignFile->createDefaultViewModelInstance(
+      bindable->artboard());
+  REQUIRE(foreignVmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto slot = host->propertyArtboard("ab");
+  REQUIRE(slot != nullptr);
+  slot->value(bindable);
+  slot->viewModelInstance(foreignVmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(artboard->nestedArtboards().size() == 1);
+  auto nested = artboard->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+  REQUIRE(dependsOn(foreignVmi, mounted));
+
+  // The slot's path reads "child", so replacing it relinks the slot.
+  vmi->addDependent(&hostDependent);
+  auto child = file->viewModelByName("Child")->createInstance();
+  REQUIRE(vmi->replaceViewModelByName("child", child->instance()));
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+  CHECK(dependsOn(foreignVmi, mounted));
+  CHECK_FALSE(dependsOn(child->instance(), mounted));
+  CHECK(hostDependent.relinks == 1);
+
+  auto foreign = make_rcp<ViewModelInstanceRuntime>(foreignVmi);
+  foreign->propertyString("label")->value("foreign label");
+  stateMachine->advanceAndApply(0.016f);
+  auto runs = mounted->find<TextValueRun>();
+  REQUIRE(runs.size() == 1);
+  CHECK(runs[0]->text() == "foreign label");
+  vmi->removeDependent(&hostDependent);
+}
+
+TEST_CASE(
+    "A foreign artboard bound without a view model follows the host's",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/databind_external_artboard_main.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  host->propertyString("child/label")->value("host label");
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  host->propertyArtboard("ab")->value(
+      foreignFile->bindableArtboardNamed("ExternalChild"));
+  stateMachine->advanceAndApply(0.016f);
+  auto nested = artboard->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(textOf(mounted) == "host label");
+
+  auto child = foreignFile->viewModelByName("Child")->createInstance();
+  child->propertyString("label")->value("updated label");
+  REQUIRE(vmi->replaceViewModelByName("child", child->instance()));
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == child->instance());
+  CHECK(textOf(mounted) == "updated label");
+}
+
+TEST_CASE(
+    "A same-file artboard swapped in after a foreign one binds the host's "
+    "view model",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/data_binding_artboards_source_test.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createViewModelInstance(artboard->viewModelId(), 0);
+  REQUIRE(vmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  host->propertyString("ch/str")->value("host 0");
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto bindable = foreignFile->bindableArtboardDefault();
+  auto foreignVmi = foreignFile->createDefaultViewModelInstance(
+      bindable->artboard());
+  REQUIRE(foreignVmi != nullptr);
+  make_rcp<ViewModelInstanceRuntime>(foreignVmi)
+      ->propertyString("str")
+      ->value("foreign");
+  auto slot = host->propertyArtboard("ab");
+  slot->value(bindable);
+  slot->viewModelInstance(foreignVmi);
+  stateMachine->advanceAndApply(0.016f);
+  auto nested = artboard->nestedArtboards()[0];
+  REQUIRE(
+      nested->artboardInstance()->dataContext()->mainViewModelInstance() ==
+      foreignVmi);
+
+  auto expected = host->propertyViewModel("ch");
+  SECTION("without a relink") {}
+  SECTION("after a relink")
+  {
+    expected = file->viewModelByName("child")->createInstance();
+    expected->propertyString("str")->value("host 1");
+    REQUIRE(vmi->replaceViewModelByName("ch", expected->instance()));
+    stateMachine->advanceAndApply(0.016f);
+  }
+  slot->value(file->bindableArtboardNamed("ch1"));
+  stateMachine->advanceAndApply(0.016f);
+
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(mounted->name() == "ch1");
+  CHECK(
+      mounted->dataContext()->mainViewModelInstance() == expected->instance());
+  CHECK(textOf(mounted) == expected->propertyString("str")->value());
+}
+
+TEST_CASE(
+    "A same-file artboard keeps the view model it was mounted with when the "
+    "host relinks",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createViewModelInstance(artboard->viewModelId(), 0);
+  REQUIRE(vmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto own = file->viewModelByName("child")->createInstance();
+  own->propertyString("str")->value("own");
+  auto slot = host->propertyArtboard("ab");
+  slot->value(file->bindableArtboardNamed("ch1"));
+  slot->viewModelInstance(own->instance());
+  stateMachine->advanceAndApply(0.016f);
+  auto nested = artboard->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(mounted->dataContext()->mainViewModelInstance() == own->instance());
+
+  auto child = file->viewModelByName("child")->createInstance();
+  REQUIRE(vmi->replaceViewModelByName("ch", child->instance()));
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == own->instance());
+  CHECK(textOf(mounted) == "own");
+}
+
+TEST_CASE("Rebinding the host keeps a slot's own view model", "[data binding]")
+{
+  auto file = ReadRiveFile("assets/databind_external_artboard_main.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto bindable = foreignFile->bindableArtboardDefault();
+  auto foreignVmi = foreignFile->createDefaultViewModelInstance(
+      bindable->artboard());
+  REQUIRE(foreignVmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto slot = host->propertyArtboard("ab");
+  slot->value(bindable);
+  slot->viewModelInstance(foreignVmi);
+  stateMachine->advanceAndApply(0.016f);
+  auto nested = artboard->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+
+  SECTION("bind the state machine again")
+  {
+    stateMachine->bindViewModelInstance(vmi);
+  }
+  SECTION("rebind the artboard") { artboard->rebind(); }
+  SECTION("rebind the state machine") { stateMachine->rebind(); }
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+  CHECK(dependsOn(foreignVmi, mounted));
+  CHECK_FALSE(dependsOn(host->propertyViewModel("child")->instance(), mounted));
+}
+
+TEST_CASE(
+    "A clone of a mounted slot keeps the slot's own view model",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/databind_external_artboard_main.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto bindable = foreignFile->bindableArtboardDefault();
+  auto foreignVmi = foreignFile->createDefaultViewModelInstance(
+      bindable->artboard());
+  REQUIRE(foreignVmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto slot = host->propertyArtboard("ab");
+  slot->value(bindable);
+  slot->viewModelInstance(foreignVmi);
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(
+      artboard->nestedArtboards()[0]
+          ->artboardInstance()
+          ->dataContext()
+          ->mainViewModelInstance() == foreignVmi);
+
+  auto clone = artboard->instance();
+  REQUIRE(clone->nestedArtboards().size() == 1);
+  auto nested = clone->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  auto cloneStateMachine = clone->stateMachineAt(0);
+  cloneStateMachine->bindViewModelInstance(vmi);
+
+  // Before the clone's first advance mounts the property again.
+  SECTION("once bound") {}
+  SECTION("after a relink")
+  {
+    auto child = file->viewModelByName("Child")->createInstance();
+    REQUIRE(vmi->replaceViewModelByName("child", child->instance()));
+  }
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+}
+
+TEST_CASE(
+    "A slot with no data bind path keeps its own view model",
+    "[data binding]")
+{
+  RelinkCounter others[15];
+  auto file = ReadRiveFile("assets/bidirectional_binding_source.riv");
+  auto foreignFile = ReadRiveFile(
+      "assets/databind_external_artboard_child.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto bindable = foreignFile->bindableArtboardDefault();
+  auto foreignVmi = foreignFile->createDefaultViewModelInstance(
+      bindable->artboard());
+  REQUIRE(foreignVmi != nullptr);
+  auto host = make_rcp<ViewModelInstanceRuntime>(vmi);
+  auto slot = host->propertyArtboard("costume_db_artboard");
+  slot->value(bindable);
+  slot->viewModelInstance(foreignVmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  // The slot is in a nested artboard sharing the root's context, so it
+  // binds to the root instance.
+  auto inner = artboard->nestedArtboards()[0]->artboardInstance();
+  REQUIRE(inner != nullptr);
+  auto nested = inner->nestedArtboards()[0];
+  auto mounted = nested->artboardInstance();
+  REQUIRE(mounted != nullptr);
+  REQUIRE(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+
+  SECTION("relink the root")
+  {
+    // Enough dependents that one more reallocates the list mid-walk.
+    for (auto& other : others)
+    {
+      vmi->addDependent(&other);
+    }
+    auto costume = file->viewModelByName("world_cup_vm")->createInstance();
+    REQUIRE(
+        vmi->replaceViewModelByName("nested_costume_vm", costume->instance()));
+    for (auto& other : others)
+    {
+      CHECK(other.relinks == 1);
+      vmi->removeDependent(&other);
+    }
+  }
+  SECTION("rebind the host") { stateMachine->rebind(); }
+
+  REQUIRE(nested->artboardInstance() == mounted);
+  CHECK(mounted->dataContext()->mainViewModelInstance() == foreignVmi);
+  CHECK_FALSE(dependsOn(vmi, mounted));
 }

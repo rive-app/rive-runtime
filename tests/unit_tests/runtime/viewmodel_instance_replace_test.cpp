@@ -3,8 +3,10 @@
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_property_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_value_dependent.hpp>
+#include <rive/data_bind/data_bind_container.hpp>
 #include <rive/refcnt.hpp>
 #include <catch.hpp>
+#include <functional>
 
 using namespace rive;
 
@@ -212,4 +214,74 @@ TEST_CASE(
   REQUIRE(replaced);
   CHECK(scene.property->referenceViewModelInstance() == instanceB);
   CHECK(dependent.relinkCount == 1);
+}
+
+namespace
+{
+class RelinkingContainer : public DataBindContainer
+{
+public:
+  int relinks = 0;
+  std::function<void()> onRelink;
+  void relinkDataContext() override
+  {
+    relinks++;
+    if (onRelink)
+    {
+      onRelink();
+    }
+  }
+};
+} // namespace
+
+// A relink can drop a later dependent, as a nested artboard leaving this
+// instance does.
+TEST_CASE(
+    "rebindDependents relinks each remaining dependent once when one is "
+    "dropped mid-walk",
+    "[viewmodel]")
+{
+  auto instanceA = make_rcp<ViewModelInstance>();
+  auto instanceB = make_rcp<ViewModelInstance>();
+  ViewModelInstanceViewModel* property = nullptr;
+  auto parent = makeParentWithViewModelProperty(instanceA, &property);
+
+  RelinkingContainer first;
+  RelinkingContainer dropped;
+  RelinkingContainer last;
+  first.onRelink = [&]() { parent->removeDependent(&dropped); };
+  parent->addDependent(&first);
+  parent->addDependent(&dropped);
+  parent->addDependent(&last);
+
+  REQUIRE(parent->replaceViewModelByProperty(property, instanceB));
+  CHECK(first.relinks == 1);
+  CHECK(dropped.relinks == 0);
+  CHECK(last.relinks == 1);
+}
+
+// Sixteen dependents fill the list, so the one added mid-walk reallocates it.
+TEST_CASE(
+    "rebindDependents relinks each dependent once when a relink adds one",
+    "[viewmodel]")
+{
+  auto instanceA = make_rcp<ViewModelInstance>();
+  auto instanceB = make_rcp<ViewModelInstance>();
+  ViewModelInstanceViewModel* property = nullptr;
+  auto parent = makeParentWithViewModelProperty(instanceA, &property);
+
+  RelinkingContainer added;
+  RelinkingContainer dependents[16];
+  dependents[0].onRelink = [&]() { parent->addDependent(&added); };
+  for (auto& dependent : dependents)
+  {
+    parent->addDependent(&dependent);
+  }
+
+  REQUIRE(parent->replaceViewModelByProperty(property, instanceB));
+  for (auto& dependent : dependents)
+  {
+    CHECK(dependent.relinks == 1);
+  }
+  CHECK(added.relinks == 0);
 }

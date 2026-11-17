@@ -114,8 +114,9 @@ void NestedArtboard::cloneReferencesInto(NestedArtboard* clone) const
     return;
   }
   // A clone of a mounted bindable's instance needs that bindable's file as
-  // much as the instance does.
+  // much as the instance does, and binds the same view model instance.
   clone->m_mountedBindable = m_mountedBindable;
+  clone->m_ownViewModelInstance = m_ownViewModelInstance;
   clone->referencedArtboard(m_referencedArtboard->instance().release());
 }
 
@@ -343,6 +344,7 @@ void NestedArtboard::updateArtboard(
     m_referencedArtboard = nullptr;
     m_Instance = nullptr;
     m_mountedBindable = nullptr;
+    m_ownViewModelInstance = nullptr;
     if (m_meshHost != nullptr)
     {
       m_meshHost->resetRaster();
@@ -420,11 +422,11 @@ void NestedArtboard::updateArtboard(
       m_hostFlags &= ~NestedArtboardHostFlags::pendingStatefulBinding;
     }
 
-    if (viewModelInstanceArtboard->boundViewModelInstance())
+    m_ownViewModelInstance = viewModelInstanceArtboard
+                                 ->boundViewModelInstance();
+    if (m_ownViewModelInstance != nullptr)
     {
-      bindViewModelInstance(
-          viewModelInstanceArtboard->boundViewModelInstance(),
-          m_dataContext);
+      bindViewModelInstance(m_viewModelInstance, m_dataContext);
     }
     else if (tryScheduleBindStateful())
     {
@@ -1024,6 +1026,12 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
     return;
   }
 
+  if (m_ownViewModelInstance != nullptr)
+  {
+    bindViewModelInstance(nullptr, value);
+    return;
+  }
+
   if (!m_globalViewModelInstances.empty())
   {
     auto list = buildVMIList(nullptr, m_globalViewModelInstances);
@@ -1057,7 +1065,7 @@ void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
   if (instance && !isStateful())
   {
     auto dataContext = instance->dataContext();
-    if (dataContext != nullptr)
+    if (dataContext != nullptr && m_ownViewModelInstance == nullptr)
     {
       if (dataContext->mainViewModelInstance() != viewModelInstance)
       {
@@ -1129,6 +1137,10 @@ void NestedArtboard::bindViewModelInstance(
     return;
   }
 
+  if (m_ownViewModelInstance != nullptr)
+  {
+    viewModelInstance = m_ownViewModelInstance;
+  }
   // Non-stateful with a passed VMI or nested globals: build composite DC.
   if (viewModelInstance != nullptr || !m_globalViewModelInstances.empty())
   {

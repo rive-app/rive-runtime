@@ -52,6 +52,9 @@ protected:
   File* m_file = nullptr;
   rcp<ViewModelInstance> m_viewModelInstance = nullptr;
   rcp<DataContext> m_dataContext = nullptr;
+  // Supplied with the mounted artboard by its property; kept on every
+  // non-stateful bind.
+  rcp<ViewModelInstance> m_ownViewModelInstance;
   // VMI actively used for binding. Either the stateful child VMI (borrowed
   // from children(); freed by the parent Artboard's m_Objects teardown) or a
   // dynamically-created bound VMI for a different ViewModel (owned here, see
