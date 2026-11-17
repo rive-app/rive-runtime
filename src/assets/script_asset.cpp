@@ -17,6 +17,7 @@
 #include "rive/script_input_artboard.hpp"
 #include "rive/script_input_boolean.hpp"
 #include "rive/script_input_color.hpp"
+#include "rive/script_input_component.hpp"
 #include "rive/script_input_number.hpp"
 #include "rive/script_input_string.hpp"
 #include "rive/script_input_trigger.hpp"
@@ -46,6 +47,8 @@ ScriptInput* ScriptInput::from(Core* component)
       return component->as<ScriptInputBoolean>();
     case ScriptInputColor::typeKey:
       return component->as<ScriptInputColor>();
+    case ScriptInputComponent::typeKey:
+      return component->as<ScriptInputComponent>();
     case ScriptInputNumber::typeKey:
       return component->as<ScriptInputNumber>();
     case ScriptInputString::typeKey:

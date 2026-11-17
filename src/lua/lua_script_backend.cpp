@@ -953,6 +953,24 @@ void ScriptingVM::setInputString(
   rive_lua_pop(L, 1);
 }
 
+void ScriptingVM::setInputNodeRef(
+    int selfRef,
+    const char* name,
+    ScriptedObject* object,
+    uint32_t id)
+{
+  lua_State* L = m_state;
+  rcp<ScriptedObjectLease> lease;
+  if (object != nullptr && object->m_contextPtr != nullptr)
+  {
+    lease = object->m_contextPtr->lease();
+  }
+  rive_lua_pushRef(L, selfRef);
+  lua_newrive<ScriptedNodeRef>(L, L, std::move(lease), id);
+  lua_setfield(L, -2, name);
+  rive_lua_pop(L, 1);
+}
+
 void ScriptingVM::setInputArtboard(
     int selfRef,
     const char* name,

@@ -152,6 +152,13 @@ public:
       const char* name,
       ScriptedObject* object,
       Artboard* artboard) override;
+  /// self[name] becomes a NodeRef that reads through object's Context, so a
+  /// kept one reads nothing once the object is gone.
+  void setInputNodeRef(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      uint32_t id) override;
   void setInputViewModel(
       int selfRef,
       const char* name,

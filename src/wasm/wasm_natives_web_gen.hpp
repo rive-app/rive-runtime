@@ -695,6 +695,16 @@ uint32_t rive_web_artboard_drawable_properties(uint32_t vmHandle, uint32_t drawa
     return artboardDrawablePropertiesImpl(vm, drawable, out, outCount);
 }
 #endif
+uint32_t rive_web_artboard_node_ref(uint32_t vmHandle, uint32_t object, uint32_t id, uint32_t type_key)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardNodeRefImpl(vm, object, id, type_key);
+}
+uint32_t rive_web_artboard_node_live(uint32_t vmHandle, uint32_t node)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardNodeLiveImpl(vm, node);
+}
 uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2093,6 +2103,8 @@ static void* const kRiveWebCalls[] = {
 #else
     nullptr,
 #endif
+    (void*)rive_web_artboard_node_ref,
+    (void*)rive_web_artboard_node_live,
     (void*)rive_web_audio_source,
     (void*)rive_web_audio_source_release,
     (void*)rive_web_audio_source_duration,

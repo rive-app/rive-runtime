@@ -154,9 +154,22 @@ ScriptedContext::ScriptedContext(ScriptedObject* scriptedObject)
     : m_scriptedObject(scriptedObject)
 {}
 
+rcp<ScriptedObjectLease> ScriptedContext::lease()
+{
+  if (m_lease == nullptr)
+  {
+    m_lease = make_rcp<ScriptedObjectLease>(m_scriptedObject);
+  }
+  return m_lease;
+}
+
 void ScriptedContext::clearScriptedObject()
 {
   m_scriptedObject = nullptr;
+  if (m_lease != nullptr)
+  {
+    m_lease->end();
+  }
   // Drop the wrappers now rather than waiting for this Context to be
   // collected; the scripted object they describe is already going away.
   m_viewModel.release();

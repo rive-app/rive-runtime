@@ -297,6 +297,15 @@ public:
       const char* name,
       ScriptedObject* object,
       ViewModelInstanceValue* value) = 0;
+  /// self[name] becomes a NodeRef over id, 0 for none. The script reads the
+  /// node through object's ScriptedObject::nodeRefTarget, so a backend
+  /// without NodeRef inputs leaves this a no-op.
+  virtual void setInputNodeRef(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      uint32_t id)
+  {}
 
 protected:
   /// Nulls every registered object's backend pointer, ahead of engine

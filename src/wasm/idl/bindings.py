@@ -622,6 +622,15 @@ NAMESPACES = [
         op('drawable_properties', [handle('drawable'),
                                    mutbuf('char', 'out', 'outCount')],
            ret='u32', guard='WITH_RIVE_TOOLS'),
+        # The node a NodeRef input names in the calling script's artboard, 0
+        # when id is 0 or names nothing, or the node is no transform of
+        # type_key. Kept, like an owned node, but it reads empty once the
+        # object is gone, and takes writes only during the object's advance.
+        op('node_ref', [handle('object'), u32('id'), u32('type_key')],
+           ret='u32'),
+        # 1 while a node from node_ref still names its target: its object
+        # lives, and in the editor its target is still one the input takes.
+        op('node_live', [handle('node')], ret='u32'),
     ]),
     # The Luau Audio surface: sources resolve from the object's file by
     # asset name, sounds come back from the play ops. Frame clocks cross as
@@ -1471,6 +1480,7 @@ LEAF_OPS = {
     },
     'rive_artboard_v1': {
         'width', 'height', 'bounds', 'node_transform', 'node_world_transform',
+        'node_live',
     },
     'rive_gpu_v1': {
         'pass_set_pipeline', 'pass_set_vertex_buffer', 'pass_set_index_buffer',

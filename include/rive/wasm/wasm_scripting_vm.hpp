@@ -104,6 +104,9 @@ public:
   virtual uint32_t parent(uint32_t node) = 0;
   /// The children that are nodes, in order.
   virtual void children(uint32_t node, std::vector<uint32_t>& out) = 0;
+  /// The node a NodeRef id names right now, 0 for none: its target can be
+  /// deleted or stop being one it accepts after the id was handed out.
+  virtual uint32_t resolveRef(uint32_t ref) { return ref; }
 };
 #endif
 
@@ -201,6 +204,13 @@ public:
   /// minted them returns.
   std::vector<uint32_t>& scopedNodes() { return m_scopedNodes; }
   Factory* factory() const { return m_factory; }
+#ifdef WITH_RIVE_TOOLS
+  /// Where a host whose scripted objects are no artboard components (the
+  /// editor's stage) reads the nodes NodeRef inputs name; the ids it pushes
+  /// are this source's, and it checks their types before it pushes them.
+  void nodeRefSource(WasmNodeSource* source) { m_nodeRefSource = source; }
+  WasmNodeSource* nodeRefSource() const { return m_nodeRefSource; }
+#endif
 
   /// Brackets one call into the module. Calls nest, so the exit reclaims
   /// only the render passes and canvas frames this call left open. The
@@ -222,6 +232,9 @@ public:
     bool m_deadlineArmed = false;
     uint32_t m_outerRegionId = 0;
     SharedRegion* m_outerRegion = nullptr;
+    // The borrowed nodes the host minted before the outermost call, which
+    // the host releases itself.
+    size_t m_scopedNodesBefore = 0;
   };
 
   /// The deadline of this VM's current budgeted call, polled by the
@@ -563,6 +576,13 @@ public:
       const char* name,
       ScriptedObject* object,
       ViewModelInstanceValue* value) override;
+  /// The module's NodeRef gets the object's handle with the id, to ask for
+  /// the node by on each read.
+  void setInputNodeRef(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      uint32_t id) override;
 
   /// Result sinks the module's rive_path_v1.effect_result and
   /// rive_data_v1.convert_result imports write through; non-null only
@@ -949,6 +969,9 @@ private:
   TestBlobLookup m_testBlobs;
   HandleTable m_handles;
   std::vector<uint32_t> m_scopedNodes;
+#ifdef WITH_RIVE_TOOLS
+  WasmNodeSource* m_nodeRefSource = nullptr;
+#endif
   /// Canvas frames begun and not ended, as handles with a monotonic token
   /// so a script call's exit reclaims only the frames it began.
   struct OpenCanvasFrame

@@ -21,6 +21,7 @@ class ViewModelInstanceValue;
 class DataBindContainer;
 class ScriptedProperty;
 class ScriptedContext;
+class TransformComponent;
 
 class ScriptedObject : public FileAssetReferencer,
                        public CustomPropertyContainer,
@@ -79,6 +80,13 @@ public:
   void setNumberInput(std::string name, float value);
   void setStringInput(std::string name, std::string value);
   void setViewModelInput(std::string name, ViewModelInstanceValue* value);
+  /// id is a ScriptInputComponent's NodeRef id: its target's index in this
+  /// object's artboard plus one, 0 for none.
+  void setNodeRefInput(std::string name, uint32_t id);
+  /// The node a NodeRef id names in this object's artboard, null when the
+  /// object is no component, the id names nothing, or the target is no
+  /// transform.
+  TransformComponent* nodeRefTarget(uint32_t id) const;
   void trigger(std::string name);
   bool scriptAdvance(float elapsedSeconds);
   void scriptUpdate();

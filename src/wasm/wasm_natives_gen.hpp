@@ -328,6 +328,8 @@ uint32_t artboardDrawableStringImpl(WasmScriptingVM* vm, uint32_t drawable, uint
 #ifdef WITH_RIVE_TOOLS
 uint32_t artboardDrawablePropertiesImpl(WasmScriptingVM* vm, uint32_t drawable, char* out, uint32_t outCount);
 #endif
+uint32_t artboardNodeRefImpl(WasmScriptingVM* vm, uint32_t object, uint32_t id, uint32_t type_key);
+uint32_t artboardNodeLiveImpl(WasmScriptingVM* vm, uint32_t node);
 uint32_t audioSourceImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
 void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t source);
 float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t source);
@@ -1364,6 +1366,16 @@ uint32_t artboardDrawableProperties(wasm_exec_env_t env, uint32_t drawable, char
     return artboardDrawablePropertiesImpl(vm, drawable, out, outCount);
 }
 #endif
+uint32_t artboardNodeRef(wasm_exec_env_t env, uint32_t object, uint32_t id, uint32_t type_key)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodeRefImpl(vm, object, id, type_key);
+}
+uint32_t artboardNodeLive(wasm_exec_env_t env, uint32_t node)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodeLiveImpl(vm, node);
+}
 uint32_t audioSource(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2903,6 +2915,8 @@ NativeSymbol kArtboardNatives[] = {
 #ifdef WITH_RIVE_TOOLS
     {"drawable_properties", (void*)artboardDrawableProperties, "(i*~)i", nullptr},
 #endif
+    {"node_ref", (void*)artboardNodeRef, "(iii)i", nullptr},
+    {"node_live", (void*)artboardNodeLive, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kAudioNatives[] = {

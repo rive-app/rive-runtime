@@ -2526,19 +2526,45 @@ public:
   HitResult m_hitResult = HitResult::none;
 };
 
+/// Whether a scripted object is still alive. The script cannot own the
+/// artboard that object lives in, so the nodes it is lent of that artboard
+/// hold one of these instead, and the object's context ends it as the object
+/// goes away.
+class ScriptedObjectLease : public RefCnt<ScriptedObjectLease>
+{
+public:
+  explicit ScriptedObjectLease(ScriptedObject* owner) : m_owner(owner) {}
+  bool alive() const { return m_owner != nullptr; }
+  void end() { m_owner = nullptr; }
+  /// The scripted object, null once the lease has ended.
+  ScriptedObject* owner() const { return m_owner; }
+
+private:
+  ScriptedObject* m_owner;
+};
+
 class ScriptedNode
 {
 public:
+  /// A lease makes the node one of the artboard its scripted object lives
+  /// in, a NodeRef's target or a node reached from it: once the lease ends a
+  /// node the script kept reads as an empty node instead of its freed
+  /// component, and drops writes.
   ScriptedNode(
       rcp<ScriptReffedArtboard> artboard,
-      TransformComponent* component);
+      TransformComponent* component,
+      rcp<ScriptedObjectLease> lease = nullptr);
+  ~ScriptedNode();
 
   static constexpr uint8_t luaTag = LUA_T_COUNT + 25;
   static constexpr const char* luaName = "NodeData";
   static constexpr bool hasMetatable = true;
 
-  TransformComponent* component() { return m_component; }
+  TransformComponent* component();
   rcp<ScriptReffedArtboard> artboard() { return m_artboard; }
+  rcp<ScriptedObjectLease> lease() { return m_lease; }
+  /// Whether a write to this node lands: not once its lease has ended.
+  bool takesWrite() const { return m_lease == nullptr || m_lease->alive(); }
 
   const ShapePaint* shapePaint();
   void shapePaint(const ShapePaint* shapePaint) { m_shapePaint = shapePaint; }
@@ -2547,6 +2573,39 @@ private:
   rcp<ScriptReffedArtboard> m_artboard;
   TransformComponent* m_component = nullptr;
   const ShapePaint* m_shapePaint = nullptr;
+  rcp<ScriptedObjectLease> m_lease;
+};
+
+/// A NodeRef input's value: the id of a node in the scripted object's
+/// artboard (index + 1, 0 for none), read through the object on each get.
+class ScriptedNodeRef
+{
+public:
+  ScriptedNodeRef(lua_State* L, rcp<ScriptedObjectLease> lease, uint32_t id)
+      : m_state(L)
+      , m_lease(std::move(lease))
+      , m_id(id)
+  {}
+  ~ScriptedNodeRef();
+
+  static constexpr uint8_t luaTag = LUA_T_COUNT + 79;
+  static constexpr const char* luaName = "NodeRef";
+  static constexpr bool hasMetatable = true;
+
+  /// The node, or null when there is none, the lease has ended, or it is no
+  /// transform.
+  TransformComponent* target() const;
+  rcp<ScriptedObjectLease> lease() { return m_lease; }
+  /// Pushes get()'s result: the same node each time, made on the first
+  /// call, or nil when there is no target.
+  void pushTarget(lua_State* L);
+
+private:
+  lua_State* m_state;
+  rcp<ScriptedObjectLease> m_lease;
+  uint32_t m_id = 0;
+  // The node get() returns, a registry ref; 0 until the first get.
+  int m_nodeRef = 0;
 };
 
 // The drawable handed to an artboard:draw visitor, borrowed for that call.
@@ -2726,6 +2785,8 @@ public:
   ScriptedContext(ScriptedObject*);
   ScriptedObject* scriptedObject() { return m_scriptedObject; }
   void clearScriptedObject();
+  /// Made on first use; ended when the object goes away.
+  rcp<ScriptedObjectLease> lease();
   int pushViewModel(lua_State*);
   int pushRootViewModel(lua_State*);
   int pushGlobalViewModel(lua_State*);
@@ -2738,6 +2799,7 @@ public:
 
 private:
   ScriptedObject* m_scriptedObject = nullptr;
+  rcp<ScriptedObjectLease> m_lease;
   bool m_missingRequestedData = false;
 
   // A script only ever sees one Context per scripted-object lifetime, so

@@ -247,6 +247,7 @@
 #include "rive/script_input_artboard.hpp"
 #include "rive/script_input_boolean.hpp"
 #include "rive/script_input_color.hpp"
+#include "rive/script_input_component.hpp"
 #include "rive/script_input_number.hpp"
 #include "rive/script_input_string.hpp"
 #include "rive/script_input_trigger.hpp"
@@ -959,6 +960,8 @@ public:
         return new ScriptModuleAsset();
       case BitmapCacheBase::typeKey:
         return new BitmapCache();
+      case ScriptInputComponentBase::typeKey:
+        return new ScriptInputComponent();
       case AudioEventBase::typeKey:
         return new AudioEvent();
       case UserInputBase::typeKey:
@@ -1240,6 +1243,9 @@ public:
         break;
       case CustomPropertyEnumBase::enumIdPropertyKey:
         object->as<CustomPropertyEnumBase>()->enumId(value);
+        break;
+      case ScriptInputComponentBase::componentIdPropertyKey:
+        object->as<ScriptInputComponentBase>()->componentId(value);
         break;
       case AudioEventBase::assetIdPropertyKey:
         object->as<AudioEventBase>()->assetId(value);
@@ -2269,6 +2275,9 @@ public:
         break;
       case CustomPropertyEnumBase::enumIdPropertyKey:
         object->as<CustomPropertyEnumBase>()->enumId(value);
+        break;
+      case ScriptInputComponentBase::componentIdPropertyKey:
+        object->as<ScriptInputComponentBase>()->componentId(value);
         break;
       case AudioEventBase::assetIdPropertyKey:
         object->as<AudioEventBase>()->assetId(value);
@@ -3526,6 +3535,8 @@ public:
         return object->as<CustomPropertyEnumBase>()->propertyValue();
       case CustomPropertyEnumBase::enumIdPropertyKey:
         return object->as<CustomPropertyEnumBase>()->enumId();
+      case ScriptInputComponentBase::componentIdPropertyKey:
+        return object->as<ScriptInputComponentBase>()->componentId();
       case AudioEventBase::assetIdPropertyKey:
         return object->as<AudioEventBase>()->assetId();
       case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -4235,6 +4246,8 @@ public:
         return object->as<CustomPropertyEnumBase>()->propertyValue();
       case CustomPropertyEnumBase::enumIdPropertyKey:
         return object->as<CustomPropertyEnumBase>()->enumId();
+      case ScriptInputComponentBase::componentIdPropertyKey:
+        return object->as<ScriptInputComponentBase>()->componentId();
       case AudioEventBase::assetIdPropertyKey:
         return object->as<AudioEventBase>()->assetId();
       case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -5047,6 +5060,7 @@ public:
       case ArtboardListMapRuleBase::viewModelIdPropertyKey:
       case CustomPropertyEnumBase::propertyValuePropertyKey:
       case CustomPropertyEnumBase::enumIdPropertyKey:
+      case ScriptInputComponentBase::componentIdPropertyKey:
       case AudioEventBase::assetIdPropertyKey:
       case ScriptInputArtboardBase::artboardIdPropertyKey:
         return CoreIdType::id;
@@ -5876,6 +5890,8 @@ public:
         return CustomPropertyEnumBase::typeKey;
       case CustomPropertyEnumBase::enumIdPropertyKey:
         return CustomPropertyEnumBase::typeKey;
+      case ScriptInputComponentBase::componentIdPropertyKey:
+        return ScriptInputComponentBase::typeKey;
       case AudioEventBase::assetIdPropertyKey:
         return AudioEventBase::typeKey;
       case ScriptInputArtboardBase::artboardIdPropertyKey:

@@ -17,6 +17,7 @@
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/transform_component.hpp"
 
 using namespace rive;
 
@@ -69,6 +70,16 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     ~Instancing() { instancing.pop_back(); }
   } scope(source);
   m_vm->setInputArtboard(m_self, name.c_str(), this, artboard);
+  addScriptedDirt(ComponentDirt::ScriptUpdate);
+}
+
+void ScriptedObject::setNodeRefInput(std::string name, uint32_t id)
+{
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->setInputNodeRef(m_self, name.c_str(), this, id);
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -318,6 +329,8 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard) {}
 
 void ScriptedObject::setBooleanInput(std::string name, bool value) {}
 
+void ScriptedObject::setNodeRefInput(std::string name, uint32_t id) {}
+
 void ScriptedObject::setIntegerInput(std::string name, int value) {}
 
 void ScriptedObject::setNumberInput(std::string name, float value) {}
@@ -341,6 +354,25 @@ void ScriptedObject::scriptDispose() { disposeScriptInputs(); }
 #endif
 
 // Shared by both scripting flavors.
+TransformComponent* ScriptedObject::nodeRefTarget(uint32_t id) const
+{
+  auto self = const_cast<ScriptedObject*>(this)->component();
+  if (id == 0 || self == nullptr || self->artboard() == nullptr)
+  {
+    return nullptr;
+  }
+  // The artboard counts as a Node, but a NodeRef names a node in it: the
+  // editor places an artboard where the runtime zeroes its position.
+  auto artboard = self->artboard();
+  auto target = artboard->resolve(id - 1);
+  if (target == nullptr || target == artboard ||
+      !target->is<TransformComponent>())
+  {
+    return nullptr;
+  }
+  return target->as<TransformComponent>();
+}
+
 void ScriptedObject::disposeScriptInputs()
 {
   for (auto prop : m_customProperties)

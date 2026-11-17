@@ -731,13 +731,66 @@ int ScriptedArtboard::animation(lua_State* L, const char* animationName)
 
 ScriptedNode::ScriptedNode(
     rcp<ScriptReffedArtboard> artboard,
-    TransformComponent* component)
+    TransformComponent* component,
+    rcp<ScriptedObjectLease> lease)
     : m_artboard(artboard)
     , m_component(component)
+    , m_lease(std::move(lease))
 {}
+
+ScriptedNode::~ScriptedNode() = default;
+
+TransformComponent* ScriptedNode::component()
+{
+  if (m_lease != nullptr && !m_lease->alive())
+  {
+    // In no artboard: no children, no parent, no path, identity transforms.
+    static Node gone;
+    return &gone;
+  }
+  return m_component;
+}
+
+ScriptedNodeRef::~ScriptedNodeRef()
+{
+  if (m_nodeRef != 0)
+  {
+    lua_unref(m_state, m_nodeRef);
+  }
+}
+
+void ScriptedNodeRef::pushTarget(lua_State* L)
+{
+  auto node = target();
+  if (node == nullptr)
+  {
+    lua_pushnil(L);
+    return;
+  }
+  // A NodeRef's target is fixed for this value: a new target is a new
+  // NodeRef. So get() makes its node once.
+  if (m_nodeRef != 0)
+  {
+    rive_lua_pushRef(L, m_nodeRef);
+    return;
+  }
+  lua_newrive<ScriptedNode>(L, nullptr, node, m_lease);
+  m_nodeRef = lua_ref(L, -1);
+}
+
+TransformComponent* ScriptedNodeRef::target() const
+{
+  auto object = m_lease != nullptr ? m_lease->owner() : nullptr;
+  return object != nullptr ? object->nodeRefTarget(m_id) : nullptr;
+}
 
 const ShapePaint* ScriptedNode::shapePaint()
 {
+  if (m_lease != nullptr && !m_lease->alive())
+  {
+    // Both pointers lived in the scripted object's artboard.
+    return nullptr;
+  }
   if (m_shapePaint)
   {
     return m_shapePaint;
@@ -1058,7 +1111,8 @@ static int node_index(lua_State* L)
             lua_newrive<ScriptedNode>(
                 L,
                 scriptedNode->artboard(),
-                child->as<TransformComponent>());
+                child->as<TransformComponent>(),
+                scriptedNode->lease());
             // Set table[i] = value, pops the value
             lua_rawseti(L, -2, index++);
           }
@@ -1075,7 +1129,8 @@ static int node_index(lua_State* L)
         lua_newrive<ScriptedNode>(
             L,
             scriptedNode->artboard(),
-            parent->as<TransformComponent>());
+            parent->as<TransformComponent>(),
+            scriptedNode->lease());
       }
       else
       {
@@ -1125,6 +1180,10 @@ static int node_newindex(lua_State* L)
 
   auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
   auto component = scriptedNode->component();
+  if (!scriptedNode->takesWrite())
+  {
+    return 0;
+  }
   switch (atom)
   {
     case (int)LuaAtoms::position:
@@ -1217,6 +1276,10 @@ static int node_namecall(lua_State* L)
       case (int)LuaAtoms::decompose:
       {
         auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+        if (!scriptedNode->takesWrite())
+        {
+          return 0;
+        }
         auto component = scriptedNode->component();
         Mat2D world = getParentWorld(*component).invertOrIdentity() *
                       (*(Mat2D*)lua_torive<ScriptedMat2D>(L, 2));
@@ -1337,6 +1400,23 @@ static int animation_namecall(lua_State* L)
   return 0;
 }
 
+static int nodeRef_namecall(lua_State* L)
+{
+  int atom;
+  const char* str = lua_namecallatom(L, &atom);
+  if (str != nullptr && strcmp(str, "get") == 0)
+  {
+    lua_torive<ScriptedNodeRef>(L, 1)->pushTarget(L);
+    return 1;
+  }
+  luaL_error(
+      L,
+      "%s is not a valid method of %s",
+      str,
+      ScriptedNodeRef::luaName);
+  return 0;
+}
+
 int luaopen_rive_artboards(lua_State* L)
 {
   lua_register_rive<ScriptedArtboard>(L);
@@ -1368,6 +1448,14 @@ int luaopen_rive_artboards(lua_State* L)
       ScriptedArtboard::luaTag,
       "frameOrigin",
       artboard_direct_frameOrigin);
+
+  lua_register_rive<ScriptedNodeRef>(L);
+
+  lua_pushcfunction(L, nodeRef_namecall, nullptr);
+  lua_setfield(L, -2, "__namecall");
+
+  lua_setreadonly(L, -1, true);
+  lua_pop(L, 1); // pop the metatable
 
   lua_register_rive<ScriptedNode>(L);
 

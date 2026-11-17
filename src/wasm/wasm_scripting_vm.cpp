@@ -917,6 +917,7 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(
   bool outermost = vm->m_callDepth++ == 0;
   if (outermost)
   {
+    m_scopedNodesBefore = vm->m_scopedNodes.size();
     // Another VM's call on this thread may hold a region of its own.
     m_outerRegion = stashHeldRegion(&m_outerRegionId);
     // Paths that consume their own traps never reach reportTrap to clear
@@ -963,6 +964,10 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
   {
     // A trap can unwind out of an exclusive section with its lock held.
     restoreHeldRegion(m_outerRegionId, m_outerRegion);
+    // Borrowed nodes, a script's NodeRef targets among them, last the call.
+    // One the host lent before it (a path effect's shape, minted ahead of
+    // the call that stages its path) is the host's to release.
+    m_vm->releaseScopedNodes(m_scopedNodesBefore);
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(m_vm);
     if (oreContext != nullptr &&
@@ -8132,17 +8137,27 @@ void artboardAnimationSetTimeImpl(
 }
 
 // Nodes pin their artboard; the component pointer lives inside its instance.
-// Without an owner the node borrows a path effect's shape for that update.
+// A node with an object is a NodeRef's target or a node reached from it:
+// kept like an owned one, it lives in that scripted object's artboard, so it
+// reads as stale, and drops writes, once the object's handle is released.
+// With neither owner nor object the node is borrowed for the host's call
+// into the module: a path effect's shape for that update.
 struct HostNode
 {
   rcp<HostArtboard> owner;
   TransformComponent* component;
+  uint32_t object = 0;
 #ifdef WITH_RIVE_TOOLS
-  // Set in place of component when a host's source backs the node, always
-  // borrowed. The guest reads a path's verbs and points, and a node's child
-  // count and handles, in separate calls, so each is asked for once.
+  // Set in place of component when a host's source backs the node. A
+  // borrowed one is read once per call: the guest reads a path's verbs and
+  // points, and a node's child count and handles, in separate calls, so each
+  // is asked for once. A kept one is read afresh, since the stage changes
+  // between calls.
   WasmNodeSource* source = nullptr;
   uint32_t sourceId = 0;
+  // A NodeRef's own node names the input, not the target: each read asks
+  // the source which node that is now.
+  uint32_t sourceRef = 0;
   bool sourcePathRead = false;
   std::unique_ptr<RawPath> sourcePath;
   bool sourceChildrenRead = false;
@@ -8153,12 +8168,13 @@ struct HostNode
 uint32_t mintNode(
     WasmScriptingVM* vm,
     rcp<HostArtboard> owner,
-    TransformComponent* component)
+    TransformComponent* component,
+    uint32_t object = 0)
 {
-  bool borrowed = owner == nullptr;
+  bool borrowed = owner == nullptr && object == 0;
   uint32_t handle = vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::node,
-      new HostNode{std::move(owner), component});
+      new HostNode{std::move(owner), component, object});
   if (borrowed)
   {
     vm->scopedNodes().push_back(handle);
@@ -8170,38 +8186,51 @@ uint32_t mintNode(
 uint32_t mintSourceNode(
     WasmScriptingVM* vm,
     WasmNodeSource* source,
-    uint32_t id)
+    uint32_t id,
+    uint32_t object = 0,
+    uint32_t ref = 0)
 {
-  auto node = new HostNode{nullptr, nullptr};
+  auto node = new HostNode{nullptr, nullptr, object};
   node->source = source;
   node->sourceId = id;
+  node->sourceRef = ref;
   uint32_t handle = vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::node,
       node);
-  vm->scopedNodes().push_back(handle);
+  if (object == 0)
+  {
+    vm->scopedNodes().push_back(handle);
+  }
   return handle;
+}
+
+// The source's id for the node now, 0 when a NodeRef names none.
+uint32_t sourceNodeId(HostNode* host)
+{
+  return host->sourceRef != 0 ? host->source->resolveRef(host->sourceRef)
+                              : host->sourceId;
 }
 
 const RawPath* sourceNodePath(HostNode* host)
 {
-  if (!host->sourcePathRead)
+  if (!host->sourcePathRead || host->object != 0)
   {
     host->sourcePathRead = true;
     auto path = std::make_unique<RawPath>();
-    if (host->source->path(host->sourceId, *path))
-    {
-      host->sourcePath = std::move(path);
-    }
+    host->sourcePath = host->source->path(sourceNodeId(host), *path)
+                           ? std::move(path)
+                           : nullptr;
   }
   return host->sourcePath.get();
 }
 
 const std::vector<uint32_t>& sourceNodeChildren(HostNode* host)
 {
-  if (!host->sourceChildrenRead)
+  if (!host->sourceChildrenRead || host->object != 0)
   {
     host->sourceChildrenRead = true;
-    host->source->children(host->sourceId, host->sourceChildren);
+    host->sourceChildren.clear();
+    host->source->children(sourceNodeId(host), host->sourceChildren);
   }
   return host->sourceChildren;
 }
@@ -8317,7 +8346,7 @@ uint32_t artboardTextEventImpl(
   return host->stateMachine->textInput(std::string(text, length)) ? 1 : 0;
 }
 
-HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
+HostNode* resolveNodeHandle(WasmScriptingVM* vm, uint32_t handle)
 {
   if (vm == nullptr)
   {
@@ -8327,11 +8356,55 @@ HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
       vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::node));
 }
 
-void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+ScriptedObject* nodeObject(WasmScriptingVM* vm, const HostNode* host)
+{
+  return static_cast<ScriptedObject*>(vm->handles().resolve(
+      host->object,
+      WasmScriptingVM::HandleTable::Tag::object));
+}
+
+// Null for a stale handle, for a NodeRef's node whose object is gone (its
+// component went with the object's artboard), and in the editor for a
+// NodeRef's node whose input names no node it takes right now: id 0 would
+// read through another source.
+HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = resolveNodeHandle(vm, handle);
+  if (host != nullptr && host->object != 0 && nodeObject(vm, host) == nullptr)
+  {
+    return nullptr;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host != nullptr && host->source != nullptr && host->sourceRef != 0 &&
+      host->source->resolveRef(host->sourceRef) == 0)
+  {
+    return nullptr;
+  }
+#endif
+  return host;
+}
+
+uint32_t artboardNodeLiveImpl(WasmScriptingVM* vm, uint32_t handle)
 {
   auto host = resolveNode(vm, handle);
+  if (host == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    return sourceNodeId(host) != 0 ? 1 : 0;
+  }
+#endif
+  return 1;
+}
+
+void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = resolveNodeHandle(vm, handle);
   // A borrowed node is released when its path effect update returns.
-  if (host == nullptr || host->owner == nullptr)
+  if (host == nullptr || (host->owner == nullptr && host->object == 0))
   {
     return;
   }
@@ -8360,7 +8433,7 @@ void artboardNodeTransformImpl(
 #ifdef WITH_RIVE_TOOLS
   if (host->source != nullptr)
   {
-    host->source->transform(host->sourceId, out);
+    host->source->transform(sourceNodeId(host), out);
     return;
   }
 #endif
@@ -8411,7 +8484,7 @@ void artboardNodeSetImpl(
 #ifdef WITH_RIVE_TOOLS
   if (host->source != nullptr)
   {
-    host->source->set(host->sourceId, field, v0, v1);
+    host->source->set(sourceNodeId(host), field, v0, v1);
     return;
   }
 #endif
@@ -8458,7 +8531,7 @@ void artboardNodeWorldTransformImpl(
 #ifdef WITH_RIVE_TOOLS
   if (host != nullptr && host->source != nullptr)
   {
-    host->source->worldTransform(host->sourceId, out);
+    host->source->worldTransform(sourceNodeId(host), out);
     return;
   }
 #endif
@@ -8483,7 +8556,7 @@ void artboardNodeSetWorldTransformImpl(
 #ifdef WITH_RIVE_TOOLS
   if (host->source != nullptr)
   {
-    host->source->setWorldTransform(host->sourceId, values);
+    host->source->setWorldTransform(sourceNodeId(host), values);
     return;
   }
 #endif
@@ -8510,7 +8583,7 @@ void artboardNodeDecomposeImpl(
 #ifdef WITH_RIVE_TOOLS
   if (host->source != nullptr)
   {
-    host->source->decompose(host->sourceId, values);
+    host->source->decompose(sourceNodeId(host), values);
     return;
   }
 #endif
@@ -8653,7 +8726,7 @@ uint32_t artboardNodeChildrenImpl(
     }
     for (uint32_t i = 0; i < idCount; i++)
     {
-      out[i] = mintSourceNode(vm, source, ids[i]);
+      out[i] = mintSourceNode(vm, source, ids[i], host->object);
     }
     return idCount;
   }
@@ -8680,7 +8753,11 @@ uint32_t artboardNodeChildrenImpl(
   {
     if (child->is<TransformComponent>())
     {
-      out[index++] = mintNode(vm, host->owner, child->as<TransformComponent>());
+      out[index++] = mintNode(
+          vm,
+          host->owner,
+          child->as<TransformComponent>(),
+          host->object);
     }
   }
   return count;
@@ -8696,8 +8773,10 @@ uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
 #ifdef WITH_RIVE_TOOLS
   if (host->source != nullptr)
   {
-    uint32_t parentId = host->source->parent(host->sourceId);
-    return parentId == 0 ? 0 : mintSourceNode(vm, host->source, parentId);
+    uint32_t parentId = host->source->parent(sourceNodeId(host));
+    return parentId == 0
+               ? 0
+               : mintSourceNode(vm, host->source, parentId, host->object);
   }
 #endif
   auto parent = host->component->parent();
@@ -8705,7 +8784,47 @@ uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
   {
     return 0;
   }
-  return mintNode(vm, host->owner, parent->as<TransformComponent>());
+  return mintNode(
+      vm,
+      host->owner,
+      parent->as<TransformComponent>(),
+      host->object);
+}
+
+uint32_t artboardNodeRefImpl(
+    WasmScriptingVM* vm,
+    uint32_t object,
+    uint32_t id,
+    uint32_t typeKey)
+{
+  if (vm == nullptr || id == 0)
+  {
+    return 0;
+  }
+  auto scripted = static_cast<ScriptedObject*>(
+      vm->handles().resolve(object, WasmScriptingVM::HandleTable::Tag::object));
+  if (scripted == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  // The editor's stage objects are no artboard components; their ids name
+  // NodeRefs of the source the editor installed, whose target can change
+  // while the node is kept: each read asks the source for it again, as
+  // node_live does.
+  if (scripted->component() == nullptr && vm->nodeRefSource() != nullptr)
+  {
+    return mintSourceNode(vm, vm->nodeRefSource(), 0, object, id);
+  }
+#endif
+  // typeKey is reserved for typed NodeRefs; any transform is taken.
+  (void)typeKey;
+  auto target = scripted->nodeRefTarget(id);
+  if (target == nullptr)
+  {
+    return 0;
+  }
+  return mintNode(vm, nullptr, target, object);
 }
 
 // --- rive_data_v1 asset properties (image/font/blob) ------------------------
@@ -14924,6 +15043,11 @@ bool WasmScriptingVM::callPathEffectWithNode(
 
 void WasmScriptingVM::releaseScopedNodes(size_t from)
 {
+  // The outermost call's end may have released these already.
+  if (from >= m_scopedNodes.size())
+  {
+    return;
+  }
   for (size_t i = from; i < m_scopedNodes.size(); i++)
   {
     uint32_t handle = m_scopedNodes[i];
@@ -15570,6 +15694,34 @@ void WasmScriptingVM::setInputViewModel(
       // Nothing assigned; leave self untouched, like the Luau backend.
       break;
   }
+}
+
+void WasmScriptingVM::setInputNodeRef(
+    int selfRef,
+    const char* name,
+    ScriptedObject* object,
+    uint32_t id)
+{
+  if (!valid() || object == nullptr)
+  {
+    return;
+  }
+  // The handle instantiate minted for the object, which its Context holds.
+  auto found = m_contextObjects.find(object->m_context);
+  if (found == m_contextObjects.end())
+  {
+    return;
+  }
+  uint32_t arg = 0;
+  uint32_t owned = 0;
+  if (!inputArg(selfRef, name, arg, owned))
+  {
+    return;
+  }
+  // Modules built before NodeRef have no such export, and no such input.
+  uint32_t args[5] = {m_L, (uint32_t)selfRef, arg, found->second, id};
+  callModule("host_obj_set_node_ref", 5, args);
+  guestFree(owned);
 }
 
 void WasmScriptingVM::setInputArtboard(
