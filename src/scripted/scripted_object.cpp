@@ -78,7 +78,7 @@ void ScriptedObject::setBooleanInput(std::string name, bool value)
   {
     return;
   }
-  m_vm->setInputBoolean(m_self, name.c_str(), value);
+  m_vm->setInputBoolean(m_self, name.c_str(), this, value);
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -88,7 +88,7 @@ void ScriptedObject::setNumberInput(std::string name, float value)
   {
     return;
   }
-  m_vm->setInputNumber(m_self, name.c_str(), value);
+  m_vm->setInputNumber(m_self, name.c_str(), this, value);
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -98,7 +98,7 @@ void ScriptedObject::setIntegerInput(std::string name, int value)
   {
     return;
   }
-  m_vm->setInputUnsigned(m_self, name.c_str(), value);
+  m_vm->setInputUnsigned(m_self, name.c_str(), this, value);
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -108,7 +108,7 @@ void ScriptedObject::setStringInput(std::string name, std::string value)
   {
     return;
   }
-  m_vm->setInputString(m_self, name.c_str(), value.c_str());
+  m_vm->setInputString(m_self, name.c_str(), this, value.c_str());
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -120,7 +120,7 @@ void ScriptedObject::setViewModelInput(
   {
     return;
   }
-  m_vm->setInputViewModel(m_self, name.c_str(), value);
+  m_vm->setInputViewModel(m_self, name.c_str(), this, value);
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 

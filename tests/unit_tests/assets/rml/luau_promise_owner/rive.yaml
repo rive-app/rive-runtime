@@ -1,0 +1,3 @@
+name: luau_promise_owner
+scripting: bytecode
+main: Waiter

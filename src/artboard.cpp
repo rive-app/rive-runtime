@@ -182,17 +182,18 @@ Artboard::~Artboard()
   }
 
 #ifdef WITH_RIVE_AUDIO
-#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-  auto audioEngine = m_audioEngine != nullptr
-                         ? m_audioEngine
-                         : AudioEngine::RuntimeEngine(false);
-#else
-  auto audioEngine = AudioEngine::RuntimeEngine(false);
-#endif
-  if (audioEngine)
+  auto runtimeEngine = AudioEngine::RuntimeEngine(false);
+  if (runtimeEngine)
   {
-    audioEngine->stop(this);
+    runtimeEngine->stop(this);
   }
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+  // A script's sound plays on the runtime engine, not the artboard's own.
+  if (m_audioEngine != nullptr && m_audioEngine != runtimeEngine)
+  {
+    m_audioEngine->stop(this);
+  }
+#endif
 #endif
   // Layouts here, and in the nested artboards and list items below them,
   // only borrow these clones, and none of them calls an interpolator while

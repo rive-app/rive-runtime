@@ -1,0 +1,29 @@
+<Rive version="1" kind="fragment">
+<!-- Keeper plays the "what" sound from init and keeps it on the shelf module,
+     which every script importing it shares. Poker, on another artboard, runs
+     the op the Game view model asks for on the kept sound from its advance
+     and reports what the sound says. -->
+<Artboard width="100" height="100" name="Keeper" id="0:2">
+    <ScriptedDrawable scriptAssetId="0:81" name="Keeper" id="0:12"/>
+</Artboard>
+<Artboard width="100" height="100" name="Poker" id="0:20">
+    <ScriptedDrawable scriptAssetId="0:82" name="Poker" id="0:21"/>
+</Artboard>
+<ViewModel defaultInstanceId="0:69" name="Game" id="0:60">
+    <ViewModelPropertyNumber name="op" id="0:61"/>
+    <ViewModelPropertyBoolean name="completed" id="0:62"/>
+    <ViewModelPropertyBoolean name="seeked" id="0:63"/>
+    <ViewModelPropertyNumber name="time" id="0:64"/>
+    <ViewModelPropertyNumber name="volume" id="0:65"/>
+    <ViewModelInstance exports="true" name="Start" id="0:69">
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:61"/>
+        <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:62"/>
+        <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:63"/>
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:64"/>
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:65"/>
+    </ViewModelInstance>
+</ViewModel>
+<AudioAsset file="../../audio/what.wav" name="what" id="0:70"/>
+<ScriptAsset file="keeper.as" name="keeper" id="0:81"/>
+<ScriptAsset file="poker.as" name="poker" id="0:82"/>
+</Rive>

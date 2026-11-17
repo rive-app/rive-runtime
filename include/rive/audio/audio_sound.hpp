@@ -139,6 +139,7 @@ private:
   ma_audio_buffer m_buffer;
   ma_sound m_sound;
   rcp<AudioSource> m_source;
+  float m_volume = 1.0f;
 
   // This is storage used by the AudioEngine.
   bool m_isDisposed;

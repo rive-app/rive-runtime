@@ -9880,6 +9880,17 @@ uint32_t audioPlaySound(WasmScriptingVM* vm, rcp<AudioSound> sound)
       new HostAudioSound{std::move(sound)});
 }
 
+// The artboard of the scripted object whose hook is running, which owns and
+// stops its sounds as it does its timeline's. Null in a value listener and
+// outside a hook. A promise's handlers run inside whatever settles it: the
+// host's poll, with no caller, or a script's hook, whose caller they keep.
+Artboard* audioOwner(WasmScriptingVM* vm)
+{
+  ScriptedObject* object = vm->caller();
+  Component* component = object == nullptr ? nullptr : object->component();
+  return component == nullptr ? nullptr : component->artboard();
+}
+
 rcp<AudioEngine> audioPlayEngine(WasmScriptingVM* vm, HostAudioSource* host)
 {
   if (host == nullptr)
@@ -9911,7 +9922,9 @@ uint32_t audioPlaySeconds(
   {
     seconds += engine->timeInSeconds();
   }
-  return audioPlaySound(vm, engine->playSeconds(host->source, seconds, 0, 0));
+  return audioPlaySound(
+      vm,
+      engine->playSeconds(host->source, seconds, 0, 0, audioOwner(vm)));
 }
 
 uint32_t audioPlayFrames(
@@ -9931,7 +9944,9 @@ uint32_t audioPlayFrames(
   {
     startTime += engine->timeInFrames();
   }
-  return audioPlaySound(vm, engine->play(host->source, startTime, 0, 0));
+  return audioPlaySound(
+      vm,
+      engine->play(host->source, startTime, 0, 0, audioOwner(vm)));
 }
 #endif
 
@@ -12166,6 +12181,7 @@ void WasmScriptingVM::callDraw(
     int selfRef,
     Renderer* renderer)
 {
+  CallerScope caller(this, object);
   // The handle is scoped to this call; releasing bumps the generation so a
   // stashed renderer goes stale instead of ghost drawing.
   HostRenderer host{renderer};
@@ -12352,6 +12368,8 @@ void WasmScriptingVM::notifyDataValueChanged(uint32_t token)
   {
     return;
   }
+  // The module doesn't say whose listener this is, so no caller.
+  CallerScope caller(this, nullptr);
   uint32_t args[2] = {m_L, token};
   callModule("host_data_value_changed", 2, args);
 }
@@ -14585,6 +14603,8 @@ void WasmScriptingVM::releaseRef(int ref)
     m_contextObjects.erase(it);
   }
   m_inputSlots.erase(ref);
+  // The dispose hook can run inside another script's hook, so no caller.
+  CallerScope caller(this, nullptr);
   uint32_t args[2] = {m_L, (uint32_t)ref};
   // Listeners owned by this script instance stop immediately, mirroring the
   // Luau backend's tracked property dispose.
@@ -14598,6 +14618,7 @@ int WasmScriptingVM::instantiate(
     int* outContextRef,
     ScriptedContext** outContextPtr)
 {
+  CallerScope caller(this, object);
   uint32_t objectHandle = m_handles.mint(HandleTable::Tag::object, object);
   uint32_t args[3] = {m_L, (uint32_t)generatorRef, objectHandle};
   int selfRef = (int)callModule("host_obj_instantiate", 3, args);
@@ -14627,6 +14648,7 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(
     int selfRef,
     int contextRef)
 {
+  CallerScope caller(this, object);
   double args[3] = {(double)m_L, (double)selfRef, (double)contextRef};
   double status = 0;
   // An init can run a nested one; each reads only its own misses.
@@ -14657,6 +14679,7 @@ bool WasmScriptingVM::callAdvance(
     int selfRef,
     float elapsedSeconds)
 {
+  CallerScope caller(this, object);
   double args[3] = {(double)m_L, (double)selfRef, elapsedSeconds};
   double keepGoing = 0;
   if (callF64("host_obj_advance", args, 3, &keepGoing) != CallOutcome::ok)
@@ -14669,6 +14692,7 @@ bool WasmScriptingVM::callAdvance(
 
 void WasmScriptingVM::callUpdate(ScriptedObject* object, int selfRef)
 {
+  CallerScope caller(this, object);
   // Marks issued during update must not re-arm it, like the Luau backend.
   object->setInUpdatePhase(true);
   uint32_t args[2] = {m_L, (uint32_t)selfRef};
@@ -14681,6 +14705,7 @@ void WasmScriptingVM::callTrigger(
     int selfRef,
     const char* name)
 {
+  CallerScope caller(this, object);
   uint32_t arg = 0;
   uint32_t owned = 0;
   if (!inputArg(selfRef, name, arg, owned))
@@ -14700,6 +14725,7 @@ bool WasmScriptingVM::callNumberMethod(
     size_t argCount,
     float* outResult)
 {
+  CallerScope caller(this, object);
   GuestName nameCopy(this, name);
   uint32_t namePtr = nameCopy.ptr;
   if (namePtr == 0)
@@ -14731,6 +14757,7 @@ bool WasmScriptingVM::callBooleanMethod(
     int selfRef,
     const char* name)
 {
+  CallerScope caller(this, object);
   GuestName nameCopy(this, name);
   uint32_t namePtr = nameCopy.ptr;
   if (namePtr == 0)
@@ -14749,6 +14776,7 @@ bool WasmScriptingVM::callPathEffectUpdate(
     const ShapePaint* shapePaint,
     RawPath* outPath)
 {
+  CallerScope caller(this, object);
   if (!valid() || shapePaint == nullptr || outPath == nullptr)
   {
     return false;
@@ -14798,6 +14826,7 @@ bool WasmScriptingVM::callPathEffectUpdate(
     TransformComponent* shape,
     RawPath* outPath)
 {
+  CallerScope caller(this, object);
   if (!valid() || outPath == nullptr)
   {
     return false;
@@ -14829,6 +14858,7 @@ bool WasmScriptingVM::callPathEffectUpdate(
     uint32_t shape,
     RawPath* outPath)
 {
+  CallerScope caller(this, object);
   if (!valid() || outPath == nullptr)
   {
     return false;
@@ -14914,6 +14944,7 @@ bool WasmScriptingVM::callDataConvert(
     DataValue* input,
     ScriptDataResult* outResult)
 {
+  CallerScope caller(this, object);
   if (!valid() || input == nullptr)
   {
     return false;
@@ -14997,6 +15028,7 @@ bool WasmScriptingVM::callPointerEvent(
     float timeStamp,
     HitResult* outResult)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15031,6 +15063,7 @@ bool WasmScriptingVM::callScrollEvent(
     float timeStamp,
     HitResult* outResult)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15058,6 +15091,7 @@ bool WasmScriptingVM::callKeyboardEvent(
     bool isPressed,
     bool isRepeat)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15077,6 +15111,7 @@ bool WasmScriptingVM::callTextEvent(
     int selfRef,
     const std::string& text)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15102,6 +15137,7 @@ bool WasmScriptingVM::callGamepadEvent(
     const char* method,
     const ListenerInvocation& invocation)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15140,6 +15176,7 @@ void WasmScriptingVM::callListenerPerform(
     int selfRef,
     const ListenerInvocation& invocation)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return;
@@ -15252,6 +15289,7 @@ void WasmScriptingVM::callTransitionChanged(
     const TransitionChildRef& to,
     int direction)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return;
@@ -15272,6 +15310,7 @@ void WasmScriptingVM::callTransitionDraw(
     const TransitionChildRef& from,
     const TransitionChildRef& to)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return;
@@ -15294,6 +15333,7 @@ void WasmScriptingVM::callLayoutResize(
     int selfRef,
     Vec2D size)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return;
@@ -15317,6 +15357,7 @@ bool WasmScriptingVM::callLayoutMeasure(
     int selfRef,
     Vec2D* outSize)
 {
+  CallerScope caller(this, object);
   if (!valid())
   {
     return false;
@@ -15397,8 +15438,13 @@ bool WasmScriptingVM::inputArg(
   return true;
 }
 
-void WasmScriptingVM::setInputBoolean(int selfRef, const char* name, bool value)
+void WasmScriptingVM::setInputBoolean(
+    int selfRef,
+    const char* name,
+    ScriptedObject* object,
+    bool value)
 {
+  CallerScope caller(this, object);
   uint32_t arg = 0;
   uint32_t owned = 0;
   if (!inputArg(selfRef, name, arg, owned))
@@ -15410,8 +15456,13 @@ void WasmScriptingVM::setInputBoolean(int selfRef, const char* name, bool value)
   guestFree(owned);
 }
 
-void WasmScriptingVM::setInputNumber(int selfRef, const char* name, float value)
+void WasmScriptingVM::setInputNumber(
+    int selfRef,
+    const char* name,
+    ScriptedObject* object,
+    float value)
 {
+  CallerScope caller(this, object);
   uint32_t arg = 0;
   uint32_t owned = 0;
   if (!inputArg(selfRef, name, arg, owned))
@@ -15427,8 +15478,10 @@ void WasmScriptingVM::setInputNumber(int selfRef, const char* name, float value)
 void WasmScriptingVM::setInputUnsigned(
     int selfRef,
     const char* name,
+    ScriptedObject* object,
     uint32_t value)
 {
+  CallerScope caller(this, object);
   uint32_t arg = 0;
   uint32_t owned = 0;
   if (!inputArg(selfRef, name, arg, owned))
@@ -15446,8 +15499,10 @@ void WasmScriptingVM::setInputUnsigned(
 void WasmScriptingVM::setInputString(
     int selfRef,
     const char* name,
+    ScriptedObject* object,
     const char* value)
 {
+  CallerScope caller(this, object);
   uint32_t arg = 0;
   uint32_t owned = 0;
   if (!inputArg(selfRef, name, arg, owned))
@@ -15467,8 +15522,10 @@ void WasmScriptingVM::setInputString(
 void WasmScriptingVM::setInputViewModel(
     int selfRef,
     const char* name,
+    ScriptedObject* object,
     ViewModelInstanceValue* value)
 {
+  CallerScope caller(this, object);
   if (!valid() || value == nullptr)
   {
     return;
@@ -15521,6 +15578,7 @@ void WasmScriptingVM::setInputArtboard(
     ScriptedObject* object,
     Artboard* artboard)
 {
+  CallerScope caller(this, object);
   if (!valid() || object == nullptr || object->scriptAsset() == nullptr ||
       object->scriptAsset()->file() == nullptr || artboard == nullptr)
   {

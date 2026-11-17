@@ -513,18 +513,37 @@ rcp<AudioSound> AudioEngine::playingSoundsHead() { return m_playingSoundsHead; }
 
 void AudioEngine::stop(Artboard* artboard)
 {
-  std::unique_lock<std::mutex> lock(m_mutex);
-  auto sound = m_playingSoundsHead;
-  while (sound != nullptr)
+  std::vector<rcp<AudioSound>> stopped;
   {
-    auto next = sound->m_nextPlaying;
-    if (sound->m_artboard == artboard || artboard == nullptr)
+    std::unique_lock<std::mutex> lock(m_mutex);
+    auto sound = m_playingSoundsHead;
+    while (sound != nullptr)
     {
-      sound->stop();
-      m_completedSounds.push_back(sound);
-      unlinkSound(sound);
+      auto next = sound->m_nextPlaying;
+      if (sound->m_artboard == artboard || artboard == nullptr)
+      {
+        stopped.push_back(sound);
+        unlinkSound(sound);
+      }
+      sound = next;
     }
-    sound = next;
+    for (auto it = m_completedSounds.begin(); it != m_completedSounds.end();)
+    {
+      if ((*it)->m_artboard == artboard || artboard == nullptr)
+      {
+        stopped.push_back(*it);
+        it = m_completedSounds.erase(it);
+      }
+      else
+      {
+        it++;
+      }
+    }
+  }
+  // No kept handle restarts these. Unlocked: uninit waits on the end callback.
+  for (auto& sound : stopped)
+  {
+    sound->dispose();
   }
 }
 

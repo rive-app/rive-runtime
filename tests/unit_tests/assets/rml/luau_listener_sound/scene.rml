@@ -1,0 +1,32 @@
+<Rive version="1" kind="fragment">
+<!-- Player: a Node script plays the "what" sound from init and from its first
+     advance. Setter, Listener and Relay share the Game view model: Setter
+     sets score from its second advance; Listener plays the sound when it
+     changes; Relay's listener makes and advances an instance of Player, then
+     plays the sound itself. -->
+<Artboard width="100" height="100" name="Player" id="0:2">
+    <ScriptedDrawable scriptAssetId="0:80" name="Player" id="0:12"/>
+</Artboard>
+<Artboard width="100" height="100" name="Setter" id="0:40">
+    <ScriptedDrawable scriptAssetId="0:81" name="Setter" id="0:41"/>
+</Artboard>
+<Artboard width="100" height="100" name="Listener" id="0:50">
+    <ScriptedDrawable scriptAssetId="0:82" name="Listener" id="0:51"/>
+</Artboard>
+<Artboard width="100" height="100" name="Relay" id="0:30">
+    <ScriptedDrawable scriptAssetId="0:83" name="Relay" id="0:31">
+        <ScriptInputArtboard artboardId="0:2" name="deck" id="0:32"/>
+    </ScriptedDrawable>
+</Artboard>
+<ViewModel defaultInstanceId="0:62" name="Game" id="0:60">
+    <ViewModelPropertyNumber name="score" id="0:61"/>
+    <ViewModelInstance exports="true" name="Start" id="0:62">
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:61"/>
+    </ViewModelInstance>
+</ViewModel>
+<AudioAsset file="../../audio/what.wav" name="what" id="0:70"/>
+<ScriptAsset file="player.luau" name="player" id="0:80"/>
+<ScriptAsset file="setter.luau" name="setter" id="0:81"/>
+<ScriptAsset file="listener.luau" name="listener" id="0:82"/>
+<ScriptAsset file="relay.luau" name="relay" id="0:83"/>
+</Rive>

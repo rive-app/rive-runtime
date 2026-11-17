@@ -20,18 +20,28 @@ using namespace rive;
 #ifdef WITH_RIVE_AUDIO
 void ScriptedAudioSource::source(rcp<AudioSource> value) { m_source = value; }
 
-int ScriptedAudioSource::initializeSound(
-    lua_State* L,
-    rcp<AudioSound> sound,
-    Artboard* artboard)
+// The calling scripted object's artboard, which owns and stops its sounds. Null
+// in a value listener or promise handler, outside a hook, and for scripts that
+// aren't components (listener actions, transition conditions, converters,
+// interpolators).
+static Artboard* callerArtboard(lua_State* L)
+{
+  auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  auto* scriptedObject = context == nullptr || context->inCallback()
+                             ? nullptr
+                             : context->currentScriptedObject();
+  auto* component = scriptedObject == nullptr ? nullptr
+                                              : scriptedObject->component();
+  return component == nullptr ? nullptr : component->artboard();
+}
+
+// A script's sound plays at the volume the script gives it. The owning
+// artboard's volume does not scale it.
+int ScriptedAudioSource::initializeSound(lua_State* L, rcp<AudioSound> sound)
 {
   if (sound != nullptr)
   {
-    if (artboard)
-    {
-      sound->volume(artboard->volume());
-    }
-    auto* scriptedAudioSound = lua_newrive<ScriptedAudioSound>(L, artboard);
+    auto* scriptedAudioSound = lua_newrive<ScriptedAudioSound>(L);
     scriptedAudioSound->sound = std::move(sound);
     return 1;
   }
@@ -61,9 +71,13 @@ int ScriptedAudioSource::play(
   {
     startTime += engine->timeInSeconds();
   }
-  rcp<AudioSound>
-      audioSound = engine->playSeconds(source(), startTime, 0, 0, nullptr);
-  return initializeSound(L, audioSound, nullptr);
+  rcp<AudioSound> audioSound = engine->playSeconds(
+      source(),
+      startTime,
+      0,
+      0,
+      callerArtboard(L));
+  return initializeSound(L, audioSound);
 }
 
 int ScriptedAudioSource::play(lua_State* L, AudioEngine* engine)
@@ -93,8 +107,9 @@ int ScriptedAudioSource::playFrame(
   {
     startTime += engine->timeInFrames();
   }
-  rcp<AudioSound> audioSound = engine->play(source(), startTime, 0, 0, nullptr);
-  return initializeSound(L, audioSound, nullptr);
+  rcp<AudioSound>
+      audioSound = engine->play(source(), startTime, 0, 0, callerArtboard(L));
+  return initializeSound(L, audioSound);
 }
 int ScriptedAudioSource::playFrame(lua_State* L, AudioEngine* engine)
 {
@@ -237,16 +252,11 @@ static int audio_sound_newindex(lua_State* L)
 
   auto scriptedAudioSound = lua_torive<ScriptedAudioSound>(L, 1);
   auto sound = scriptedAudioSound->sound;
-  auto artboard = scriptedAudioSound->artboard();
   switch (atom)
   {
     case (int)LuaAtoms::volume:
     {
       float value = (float)luaL_checknumber(L, 3);
-      if (artboard)
-      {
-        value *= artboard->volume();
-      }
       sound->volume(value);
       return 0;
     }

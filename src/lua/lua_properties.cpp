@@ -309,6 +309,7 @@ void ScriptedProperty::valueChanged()
     }
   }
   size_t calls = m_listeners.size();
+  ScopedCallbackContext callback(L);
   for (size_t i = 0; i < calls; i++)
   {
     lua_pcall(L, 1, 0, 0);

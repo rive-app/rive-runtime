@@ -302,6 +302,90 @@ TEST_CASE("a sound resumed during its fade out plays at full volume", "[audio]")
   CHECK(std::count(out.begin(), out.end(), 1.0f) == 2 * 4096 * 2);
 }
 
+// Its artboard's teardown ends a sound: its handle can't restart it, before or
+// after the next play, and it reads as finished.
+TEST_CASE("a sound whose artboard is deleted can't be restarted", "[audio]")
+{
+  rcp<AudioEngine> engine = engineWithBuffer(4096);
+  auto file = ReadRiveFile("assets/sound.riv");
+  auto artboard = file->artboardDefault();
+  artboard->audioEngine(engine);
+  Artboard* owner = artboard.get();
+  rcp<AudioSound> sound = engine->play(fullScale(48000), 0, 0, 0, owner);
+  REQUIRE(sound != nullptr);
+  sound->volume(0.75f);
+  mix(engine.get(), 4096);
+
+  artboard = nullptr;
+  REQUIRE(engine->playingSoundCount() == 0);
+  float volume = 0.75f;
+  for (int round = 0; round < 2; round++)
+  {
+    sound->play();
+    sound->resume();
+    CHECK(firstHeard(mix(engine.get(), 4096)) == -1);
+    CHECK(sound->completed());
+    sound->pause();
+    sound->stop();
+    sound->stop(100);
+    CHECK_FALSE(sound->seek(0));
+    CHECK_FALSE(sound->seekSeconds(0.0f));
+    CHECK(sound->timeInFrames() == 0);
+    CHECK(sound->timeInSeconds() == 0.0f);
+    CHECK(sound->volume() == volume);
+    volume = 0.5f;
+    sound->volume(volume);
+    CHECK(sound->volume() == volume);
+    // The next play disposes the sounds that completed.
+    rcp<AudioSound> another = engine->play(fullScale(16), 0, 0, 0);
+    REQUIRE(another != nullptr);
+    another->stop();
+  }
+}
+
+// Teardown also ends a sound that had already finished by itself.
+TEST_CASE(
+    "a finished sound whose artboard is deleted can't be restarted",
+    "[audio]")
+{
+  rcp<AudioEngine> engine = engineWithBuffer(4096);
+  auto file = ReadRiveFile("assets/sound.riv");
+  auto artboard = file->artboardDefault();
+  artboard->audioEngine(engine);
+  Artboard* owner = artboard.get();
+  rcp<AudioSound> sound = engine->play(fullScale(1000), 0, 0, 0, owner);
+  REQUIRE(sound != nullptr);
+  mix(engine.get(), 4096);
+  REQUIRE(sound->completed());
+  REQUIRE(engine->playingSoundCount() == 0);
+
+  SECTION("by deleting its artboard") { artboard = nullptr; }
+  SECTION("by stopping all") { engine->stop(nullptr); }
+  sound->play();
+  sound->resume();
+  CHECK(sound->completed());
+  CHECK(firstHeard(mix(engine.get(), 4096)) == -1);
+  CHECK(sound->completed());
+}
+
+// A sound that finished replays from its handle until the next play. This pins
+// today's behaviour (the purge cuts a replayed finished sound); change it if
+// that is ever fixed.
+TEST_CASE("a sound that finished plays again before the next play", "[audio]")
+{
+  rcp<AudioEngine> engine = engineWithBuffer(4096);
+  rcp<AudioSound> sound = engine->play(fullScale(1000), 0, 0, 0);
+  REQUIRE(sound != nullptr);
+  mix(engine.get(), 4096);
+  mix(engine.get(), 4096);
+  REQUIRE(sound->completed());
+  REQUIRE(engine->playingSoundCount() == 0);
+
+  sound->play();
+  CHECK_FALSE(sound->completed());
+  CHECK(firstHeard(mix(engine.get(), 4096)) == 0);
+}
+
 TEST_CASE("a sound stopped with a fade before it starts never plays", "[audio]")
 {
   for (uint64_t fade : {1000u, 4000u})
@@ -767,6 +851,60 @@ TEST_CASE("Scripted audio plays", "[audio]")
   stateMachine->advanceAndApply(0.016f);
 
   REQUIRE(sound->volume() == 0.1f);
+}
+
+#ifdef WITH_RIVE_TOOLS
+// luau_listener_sound.riv (source: assets/rml/luau_listener_sound/): Player's
+// script plays from init and from its first advance, and keeps neither.
+TEST_CASE("A script's sound stops when its artboard is deleted", "[audio]")
+{
+  rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
+
+  auto file = ReadRiveFile("assets/luau_listener_sound.riv");
+  file->scriptingVM()->context()->isPlaying(true);
+  auto player = file->artboardNamed("Player");
+  REQUIRE(player != nullptr);
+  player->advance(1.0f / 60.0f);
+  REQUIRE(engine->playingSoundCount() == 2);
+
+  player = nullptr;
+  CHECK(engine->playingSoundCount() == 0);
+
+  file = nullptr;
+  CHECK(engine->playingSoundCount() == 0);
+}
+#endif
+
+// The artboard's volume does not scale a script's sound: a host that has not
+// unmuted the artboard yet still hears it at the script's own volume.
+TEST_CASE(
+    "A script's sound plays at its own volume when its artboard is muted",
+    "[audio]")
+{
+  rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
+
+  auto file = ReadRiveFile("assets/audio_script.riv");
+  auto artboard = file->artboardDefault();
+  artboard->audioEngine(engine);
+  artboard->volume(0.0f);
+  file->scriptingVM()->context()->isPlaying(true);
+
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+
+  stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+  stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+  stateMachine->advanceAndApply(0.016f);
+  REQUIRE(engine->playingSoundCount() == 1);
+  auto sound = engine->playingSoundsHead();
+  CHECK(sound->volume() == 1.0f);
+
+  stateMachine->pointerDown(rive::Vec2D(200.0f, 200.0f));
+  stateMachine->pointerUp(rive::Vec2D(200.0f, 200.0f));
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(sound->volume() == 0.1f);
 }
 #endif
 

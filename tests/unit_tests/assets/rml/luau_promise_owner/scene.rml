@@ -1,0 +1,48 @@
+<Rive version="1" kind="fragment">
+<!-- The bus module holds promises every script shares. Waiter, Hatcher and
+     Fumbler wait on them from init; Resolver, Spawner and Thrower settle them
+     from their first advance, which runs the others' handlers inside their
+     own hooks. Hatcher's handler makes and advances an instance of Player;
+     Fumbler's throws. Keeper settles its own promises in its own hook.
+     Starter's async function plays before and after it awaits ok. -->
+<Artboard width="100" height="100" name="Player" id="0:2">
+    <ScriptedDrawable scriptAssetId="0:81" name="Player" id="0:12"/>
+</Artboard>
+<Artboard width="100" height="100" name="Waiter" id="0:20">
+    <ScriptedDrawable scriptAssetId="0:82" name="Waiter" id="0:21"/>
+</Artboard>
+<Artboard width="100" height="100" name="Resolver" id="0:22">
+    <ScriptedDrawable scriptAssetId="0:83" name="Resolver" id="0:23"/>
+</Artboard>
+<Artboard width="100" height="100" name="Hatcher" id="0:30">
+    <ScriptedDrawable scriptAssetId="0:84" name="Hatcher" id="0:31">
+        <ScriptInputArtboard artboardId="0:2" name="deck" id="0:32"/>
+    </ScriptedDrawable>
+</Artboard>
+<Artboard width="100" height="100" name="Spawner" id="0:34">
+    <ScriptedDrawable scriptAssetId="0:85" name="Spawner" id="0:35"/>
+</Artboard>
+<Artboard width="100" height="100" name="Fumbler" id="0:40">
+    <ScriptedDrawable scriptAssetId="0:86" name="Fumbler" id="0:41"/>
+</Artboard>
+<Artboard width="100" height="100" name="Thrower" id="0:42">
+    <ScriptedDrawable scriptAssetId="0:87" name="Thrower" id="0:43"/>
+</Artboard>
+<Artboard width="100" height="100" name="Keeper" id="0:50">
+    <ScriptedDrawable scriptAssetId="0:88" name="Keeper" id="0:51"/>
+</Artboard>
+<Artboard width="100" height="100" name="Starter" id="0:52">
+    <ScriptedDrawable scriptAssetId="0:89" name="Starter" id="0:53"/>
+</Artboard>
+<AudioAsset file="../../audio/what.wav" name="what" id="0:70"/>
+<ScriptAsset file="bus.luau" isModule="true" name="bus" id="0:80"/>
+<ScriptAsset file="player.luau" name="player" id="0:81"/>
+<ScriptAsset file="waiter.luau" name="waiter" id="0:82"/>
+<ScriptAsset file="resolver.luau" name="resolver" id="0:83"/>
+<ScriptAsset file="hatcher.luau" name="hatcher" id="0:84"/>
+<ScriptAsset file="spawner.luau" name="spawner" id="0:85"/>
+<ScriptAsset file="fumbler.luau" name="fumbler" id="0:86"/>
+<ScriptAsset file="thrower.luau" name="thrower" id="0:87"/>
+<ScriptAsset file="keeper.luau" name="keeper" id="0:88"/>
+<ScriptAsset file="starter.luau" name="starter" id="0:89"/>
+</Rive>

@@ -266,15 +266,26 @@ public:
       int selfRef,
       Vec2D* outSize) = 0;
 
-  virtual void setInputBoolean(int selfRef, const char* name, bool value) = 0;
-  virtual void setInputNumber(int selfRef, const char* name, float value) = 0;
+  /// object is the script being set, the caller of a setter this runs.
+  virtual void setInputBoolean(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      bool value) = 0;
+  virtual void setInputNumber(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      float value) = 0;
   virtual void setInputUnsigned(
       int selfRef,
       const char* name,
+      ScriptedObject* object,
       uint32_t value) = 0;
   virtual void setInputString(
       int selfRef,
       const char* name,
+      ScriptedObject* object,
       const char* value) = 0;
   virtual void setInputArtboard(
       int selfRef,
@@ -284,6 +295,7 @@ public:
   virtual void setInputViewModel(
       int selfRef,
       const char* name,
+      ScriptedObject* object,
       ViewModelInstanceValue* value) = 0;
 
 protected:

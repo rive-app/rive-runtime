@@ -127,11 +127,26 @@ public:
       override;
   bool callLayoutMeasure(ScriptedObject* object, int selfRef, Vec2D* outSize)
       override;
-  void setInputBoolean(int selfRef, const char* name, bool value) override;
-  void setInputNumber(int selfRef, const char* name, float value) override;
-  void setInputUnsigned(int selfRef, const char* name, uint32_t value) override;
-  void setInputString(int selfRef, const char* name, const char* value)
-      override;
+  void setInputBoolean(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      bool value) override;
+  void setInputNumber(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      float value) override;
+  void setInputUnsigned(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      uint32_t value) override;
+  void setInputString(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      const char* value) override;
   void setInputArtboard(
       int selfRef,
       const char* name,
@@ -140,6 +155,7 @@ public:
   void setInputViewModel(
       int selfRef,
       const char* name,
+      ScriptedObject* object,
       ViewModelInstanceValue* value) override;
 
   // Replaces the owned context with a new one. The old context is deleted

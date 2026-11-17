@@ -34,6 +34,13 @@ static void handleCoroutineCompletion(
     int coIdx,
     int asyncPromiseIdx);
 
+// Calls a stored handler or cancel hook with no caller, as listeners are.
+static int promise_pcall(lua_State* L, int nargs, int nresults)
+{
+  ScopedCallbackContext callback(L);
+  return lua_pcall(L, nargs, nresults, 0);
+}
+
 // Release parent/consumer/onCancel refs after a terminal transition.
 static void promise_cleanupLinks(lua_State* L, ScriptedPromise* p)
 {
@@ -193,7 +200,7 @@ void ScriptedPromise::cancel(lua_State* L)
   if (m_onCancelRef != LUA_NOREF)
   {
     lua_rawgeti(L, LUA_REGISTRYINDEX, m_onCancelRef);
-    if (lua_pcall(L, 0, 0, 0) != LUA_OK)
+    if (promise_pcall(L, 0, 0) != LUA_OK)
     {
       lua_pop(L, 1); // pop error object
     }
@@ -247,7 +254,7 @@ void ScriptedPromise::cancel(lua_State* L)
     if (cb.cancelRef != LUA_NOREF)
     {
       lua_rawgeti(L, LUA_REGISTRYINDEX, cb.cancelRef);
-      if (lua_pcall(L, 0, 0, 0) != LUA_OK)
+      if (promise_pcall(L, 0, 0) != LUA_OK)
       {
         lua_pop(L, 1);
       }
@@ -345,7 +352,7 @@ static void promise_notifyCallbacks(lua_State* L, ScriptedPromise* p)
       // Call the handler with the result.
       lua_rawgeti(L, LUA_REGISTRYINDEX, handlerRef);
       lua_pushvalue(L, resultIdx);
-      int status = lua_pcall(L, 1, 1, 0);
+      int status = promise_pcall(L, 1, 1);
       if (status == LUA_OK)
       {
         // Handler returned a value — resolve chained promise with it.
@@ -403,7 +410,7 @@ static void promise_notifyCallbacks(lua_State* L, ScriptedPromise* p)
     if (cb.callbackRef != LUA_NOREF)
     {
       lua_rawgeti(L, LUA_REGISTRYINDEX, cb.callbackRef);
-      int status = lua_pcall(L, 0, 0, 0);
+      int status = promise_pcall(L, 0, 0);
       if (status != LUA_OK)
       {
         // finally threw — reject the chained promise with the error
@@ -751,6 +758,7 @@ static int promise_static_new(lua_State* L)
   lua_pushvalue(L, resolveIdx);
   lua_pushvalue(L, rejectIdx);
   lua_pushvalue(L, onCancelIdx);
+  // The script that passed the executor calls it now, so it keeps its caller.
   int status = lua_pcall(L, 3, 0, 0);
   if (status != LUA_OK)
   {

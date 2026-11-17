@@ -760,21 +760,16 @@ public:
 
 private:
   rcp<AudioSource> m_source;
-  int initializeSound(lua_State*, rcp<AudioSound>, Artboard*);
+  int initializeSound(lua_State*, rcp<AudioSound>);
 };
 
 class ScriptedAudioSound
 {
 public:
-  ScriptedAudioSound(Artboard* artboard) : m_artboard(artboard) {}
   rcp<AudioSound> sound;
   static constexpr uint8_t luaTag = LUA_T_COUNT + 39;
   static constexpr const char* luaName = "AudioSound";
   static constexpr bool hasMetatable = true;
-  Artboard* artboard() { return m_artboard; }
-
-private:
-  Artboard* m_artboard = nullptr;
 };
 #endif
 
@@ -1939,6 +1934,10 @@ public:
   {
     m_currentScriptedObject = value;
   }
+  // True in a value listener or promise handler, false again in a hook it
+  // runs.
+  bool inCallback() const { return m_inCallback; }
+  void inCallback(bool value) { m_inCallback = value; }
 
   virtual void printError(lua_State* state) = 0;
   virtual void printBeginLine(lua_State* state) = 0;
@@ -2243,6 +2242,7 @@ private:
 
   Factory* m_factory;
   ScriptedObject* m_currentScriptedObject = nullptr;
+  bool m_inCallback = false;
   std::vector<ModuleDetails*> m_modulesToRegister;
   std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
   std::unordered_set<ModuleDetails*> m_pendingModules;
@@ -2318,10 +2318,12 @@ public:
       : m_context(context)
       , m_previous(
             context == nullptr ? nullptr : context->currentScriptedObject())
+      , m_wasInCallback(context != nullptr && context->inCallback())
   {
     if (m_context != nullptr)
     {
       m_context->currentScriptedObject(scriptedObject);
+      m_context->inCallback(false);
     }
   }
 
@@ -2330,12 +2332,45 @@ public:
     if (m_context != nullptr)
     {
       m_context->currentScriptedObject(m_previous);
+      m_context->inCallback(m_wasInCallback);
     }
   }
 
 private:
   ScriptingContext* m_context;
   ScriptedObject* m_previous;
+  bool m_wasInCallback;
+};
+
+// Runs a stored function, whose script Luau doesn't say, with no caller. Wrap
+// only a protected call: a Luau error longjmps past destructors.
+class ScopedCallbackContext
+{
+public:
+  explicit ScopedCallbackContext(lua_State* L)
+      : m_context(static_cast<ScriptingContext*>(lua_getthreaddata(L)))
+      , m_wasInCallback(m_context != nullptr && m_context->inCallback())
+  {
+    if (m_context != nullptr)
+    {
+      m_context->inCallback(true);
+    }
+  }
+
+  ~ScopedCallbackContext()
+  {
+    if (m_context != nullptr)
+    {
+      m_context->inCallback(m_wasInCallback);
+    }
+  }
+
+  ScopedCallbackContext(const ScopedCallbackContext&) = delete;
+  ScopedCallbackContext& operator=(const ScopedCallbackContext&) = delete;
+
+private:
+  ScriptingContext* m_context;
+  bool m_wasInCallback;
 };
 
 class ScriptedDataValue

@@ -901,7 +901,11 @@ bool ScriptingVM::callLayoutMeasure(
   return true;
 }
 
-void ScriptingVM::setInputBoolean(int selfRef, const char* name, bool value)
+void ScriptingVM::setInputBoolean(
+    int selfRef,
+    const char* name,
+    ScriptedObject*,
+    bool value)
 {
   lua_State* L = m_state;
   rive_lua_pushRef(L, selfRef);
@@ -910,7 +914,11 @@ void ScriptingVM::setInputBoolean(int selfRef, const char* name, bool value)
   rive_lua_pop(L, 1);
 }
 
-void ScriptingVM::setInputNumber(int selfRef, const char* name, float value)
+void ScriptingVM::setInputNumber(
+    int selfRef,
+    const char* name,
+    ScriptedObject*,
+    float value)
 {
   lua_State* L = m_state;
   rive_lua_pushRef(L, selfRef);
@@ -922,6 +930,7 @@ void ScriptingVM::setInputNumber(int selfRef, const char* name, float value)
 void ScriptingVM::setInputUnsigned(
     int selfRef,
     const char* name,
+    ScriptedObject*,
     uint32_t value)
 {
   lua_State* L = m_state;
@@ -934,6 +943,7 @@ void ScriptingVM::setInputUnsigned(
 void ScriptingVM::setInputString(
     int selfRef,
     const char* name,
+    ScriptedObject*,
     const char* value)
 {
   lua_State* L = m_state;
@@ -978,6 +988,7 @@ void ScriptingVM::setInputArtboard(
 void ScriptingVM::setInputViewModel(
     int selfRef,
     const char* name,
+    ScriptedObject*,
     ViewModelInstanceValue* value)
 {
   lua_State* L = m_state;

@@ -31,8 +31,20 @@ void AudioSound::dispose()
   ma_audio_buffer_uninit(&m_buffer);
 }
 
-float AudioSound::volume() { return ma_sound_get_volume(&m_sound); }
-void AudioSound::volume(float value) { ma_sound_set_volume(&m_sound, value); }
+// A disposed sound keeps its volume as a finished one does.
+float AudioSound::volume()
+{
+  return m_isDisposed ? m_volume : ma_sound_get_volume(&m_sound);
+}
+
+void AudioSound::volume(float value)
+{
+  m_volume = value;
+  if (!m_isDisposed)
+  {
+    ma_sound_set_volume(&m_sound, value);
+  }
+}
 
 bool AudioSound::completed() const
 {

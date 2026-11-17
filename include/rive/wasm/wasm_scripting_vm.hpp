@@ -276,6 +276,10 @@ public:
   /// on a stock vm module.
   bool registerBytecode(const std::string& name, Span<const uint8_t> bytecode);
 
+  /// The scripted object whose hook is running, null outside one and in a
+  /// value listener. A sound the script starts belongs to its artboard.
+  ScriptedObject* caller() const { return m_caller; }
+
   /// Delivers a watched value change to the module's listener registry.
   void notifyDataValueChanged(uint32_t token);
 
@@ -527,11 +531,26 @@ public:
       override;
   bool callLayoutMeasure(ScriptedObject* object, int selfRef, Vec2D* outSize)
       override;
-  void setInputBoolean(int selfRef, const char* name, bool value) override;
-  void setInputNumber(int selfRef, const char* name, float value) override;
-  void setInputUnsigned(int selfRef, const char* name, uint32_t value) override;
-  void setInputString(int selfRef, const char* name, const char* value)
-      override;
+  void setInputBoolean(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      bool value) override;
+  void setInputNumber(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      float value) override;
+  void setInputUnsigned(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      uint32_t value) override;
+  void setInputString(
+      int selfRef,
+      const char* name,
+      ScriptedObject* object,
+      const char* value) override;
   /// self[name] becomes a module Artboard userdata over a host-owned
   /// instance handle, mirroring the Luau lane's ScriptedArtboard.
   void setInputArtboard(
@@ -542,6 +561,7 @@ public:
   void setInputViewModel(
       int selfRef,
       const char* name,
+      ScriptedObject* object,
       ViewModelInstanceValue* value) override;
 
   /// Result sinks the module's rive_path_v1.effect_result and
@@ -944,6 +964,26 @@ private:
   /// Object handles minted for the init scoped context, released once init
   /// completes or the context ref is released.
   std::unordered_map<int, uint32_t> m_contextObjects;
+  ScriptedObject* m_caller = nullptr;
+  /// Makes object the caller for one hook, then restores the one before it,
+  /// so a hook that runs another script's hook gets its own caller back.
+  class CallerScope
+  {
+  public:
+    CallerScope(WasmScriptingVM* vm, ScriptedObject* object)
+        : m_vm(vm)
+        , m_previous(vm->m_caller)
+    {
+      vm->m_caller = object;
+    }
+    ~CallerScope() { m_vm->m_caller = m_previous; }
+    CallerScope(const CallerScope&) = delete;
+    CallerScope& operator=(const CallerScope&) = delete;
+
+  private:
+    WasmScriptingVM* m_vm;
+    ScriptedObject* m_previous;
+  };
   /// In-flight decodes by module token, for cancellation; completed or
   /// cancelled entries erase themselves.
 #ifdef __EMSCRIPTEN__

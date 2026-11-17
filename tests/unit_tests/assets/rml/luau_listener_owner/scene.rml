@@ -1,0 +1,37 @@
+<Rive version="1" kind="fragment">
+<!-- Host's script makes an instance of Inner on its own Game view model (an
+     instance binds it through its state machine), drops it, then changes
+     score, or relay when nested is set. Inner's script then runs a listener
+     during which the collector deletes that instance: its own (score), or
+     Host's echo listener that it starts (relay). Each then plays. -->
+<Artboard defaultStateMachineId="0:7" width="100" height="100" name="Inner" id="0:2">
+    <ScriptedDrawable scriptAssetId="0:81" name="Ear" id="0:12"/>
+    <StateMachine name="State Machine 1" id="0:7">
+        <StateMachineLayer name="Layer 1" id="0:8">
+            <AnyState/>
+            <ExitState/>
+            <EntryState/>
+        </StateMachineLayer>
+    </StateMachine>
+</Artboard>
+<Artboard width="100" height="100" name="Host" id="0:30">
+    <ScriptedDrawable scriptAssetId="0:80" name="Host" id="0:31">
+        <ScriptInputArtboard artboardId="0:2" name="deck" id="0:32"/>
+    </ScriptedDrawable>
+</Artboard>
+<ViewModel defaultInstanceId="0:62" name="Game" id="0:60">
+    <ViewModelPropertyNumber name="score" id="0:61"/>
+    <ViewModelPropertyNumber name="relay" id="0:63"/>
+    <ViewModelPropertyNumber name="echo" id="0:64"/>
+    <ViewModelPropertyBoolean name="nested" id="0:65"/>
+    <ViewModelInstance exports="true" name="Start" id="0:62">
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:61"/>
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:63"/>
+        <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:64"/>
+        <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:65"/>
+    </ViewModelInstance>
+</ViewModel>
+<AudioAsset file="../../audio/what.wav" name="what" id="0:70"/>
+<ScriptAsset file="host.luau" name="host" id="0:80"/>
+<ScriptAsset file="ear.luau" name="ear" id="0:81"/>
+</Rive>
