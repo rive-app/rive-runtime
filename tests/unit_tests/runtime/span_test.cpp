@@ -75,3 +75,78 @@ TEST_CASE("can iterate span", "[span]")
     expect *= 2;
   }
 }
+
+TEST_CASE("subspans", "[span]")
+{
+  int carray[] = {1, 2, 6, 24, 120, 720, 5040, 40320};
+
+  static_assert(internal::IsSpannable<decltype(carray)>);
+  static_assert(
+      std::is_same_v<internal::SpannableElementType<decltype(carray)>, int>);
+
+  auto vec = std::vector<int>{std::begin(carray), std::end(carray)};
+  auto span = Span{carray};
+
+  // valid start positions include "size()", which would just make a 0-length
+  // span.
+  for (auto start = 0u; start <= std::size(carray); start++)
+  {
+    for (auto end = start; end <= std::size(carray); end++)
+    {
+      auto runTest1 = [start, end](auto& src) {
+        auto subSpan = Span{src, start, end - start};
+        CHECK(subSpan.size() == end - start);
+        for (auto i = 0u; i < subSpan.size(); i++)
+        {
+          CHECK(subSpan[i] == src[i + start]);
+        }
+      };
+
+      // test 2 is the same as test 1, but making a const span instead.
+      auto runTest2 = [start, end](auto& src) {
+        auto subSpan = Span<const int>{src, start, end - start};
+        CHECK(subSpan.size() == end - start);
+        for (auto i = 0u; i < subSpan.size(); i++)
+        {
+          CHECK(subSpan[i] == src[i + start]);
+        }
+      };
+
+      runTest1(carray);
+      runTest1(vec);
+      runTest1(span);
+
+      runTest2(carray);
+      runTest2(vec);
+      runTest2(span);
+    }
+
+    // Test3 tests the toEnd version of subspans
+    auto runTest3 = [start](auto& src) {
+      auto subSpan = Span{src, start, ToEnd};
+      CHECK(subSpan.size() == std::size(src) - start);
+      for (auto i = 0u; i < subSpan.size(); i++)
+      {
+        CHECK(subSpan[i] == src[i + start]);
+      }
+    };
+
+    // Test4 tests the toEnd version of const subspans
+    auto runTest4 = [start](auto& src) {
+      auto subSpan = Span<const int>{src, start, ToEnd};
+      CHECK(subSpan.size() == std::size(src) - start);
+      for (auto i = 0u; i < subSpan.size(); i++)
+      {
+        CHECK(subSpan[i] == src[i + start]);
+      }
+    };
+
+    runTest3(carray);
+    runTest3(vec);
+    runTest3(span);
+
+    runTest4(carray);
+    runTest4(vec);
+    runTest4(span);
+  }
+}

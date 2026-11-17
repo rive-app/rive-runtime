@@ -32,9 +32,17 @@ template <typename T>
 struct IsSpannableImpl<
     T,
     std::enable_if_t<
-        std::is_pointer_v<decltype(std::declval<T>().data())> &&
+        !std::is_reference_v<T> &&
+            std::is_pointer_v<decltype(std::declval<T>().data())> &&
             std::is_integral_v<decltype(std::declval<T>().size())>,
         void>> : std::true_type
+{};
+
+template <typename T, size_t N> struct IsSpannableImpl<T[N]> : std::true_type
+{};
+
+template <typename T>
+struct IsSpannableImpl<T&> : IsSpannableImpl<std::remove_reference_t<T>>
 {};
 
 template <typename T> constexpr bool IsSpannable = IsSpannableImpl<T>::value;
@@ -58,10 +66,34 @@ template <typename S, typename E>
 constexpr bool IsTypedSpannable = IsTypedSpannableImpl<S, E>::value;
 
 template <typename S, typename = std::enable_if_t<IsSpannable<S>, void>>
-using SpannableElementType = std::remove_pointer_t<
-    decltype(std::declval<S>().data())>;
+using SpannableElementType = std::remove_reference_t<decltype(*std::begin(
+    std::declval<std::remove_reference_t<S>&>()))>;
+
+template <typename T, typename U, typename = void>
+struct IsConstCompatibleImpl : std::false_type
+{};
+
+template <typename Dst, typename Src>
+struct IsConstCompatibleImpl<
+    Dst,
+    Src,
+    std::enable_if_t<
+        std::is_same_v<std::remove_const_t<Dst>, std::remove_const_t<Src>> &&
+            (std::is_const_v<Dst> || !std::is_const_v<Src>),
+        void>> : std::true_type
+{};
+
+template <typename Dst, typename Src>
+constexpr bool IsConstCompatible = IsConstCompatibleImpl<Dst, Src>::value;
 
 } // namespace internal
+
+enum class ToEnd_t
+{
+  toEnd,
+};
+
+constexpr auto ToEnd = ToEnd_t::toEnd;
 
 template <typename T> class Span
 {
@@ -76,6 +108,50 @@ public:
   }
 
   template <size_t N> constexpr Span(T (&array)[N]) : m_Ptr(array), m_Size(N) {}
+
+  // Make a sub-span from an existing span
+  constexpr Span(Span<T> span, size_t startIndex, size_t count)
+      : m_Ptr{span.data() + startIndex}
+      , m_Size{count}
+  {
+    assert(startIndex + count <= span.size());
+  }
+
+  // Make a sub-span from an existing span with const-compatibility
+  template <
+      typename U,
+      std::enable_if_t<
+          internal::IsConstCompatible<T, internal::SpannableElementType<U>>,
+          U>>
+  constexpr Span(U&& span, size_t startIndex, size_t count)
+      : m_Ptr{span.data() + startIndex}
+      , m_Size{count}
+  {
+    assert(startIndex + count <= span.size());
+  }
+
+  // Make a sub-span from an existing span with a given start index, taking all
+  // of the elements from there to the end.
+  constexpr Span(Span<T> span, size_t startIndex, ToEnd_t)
+      : m_Ptr{span.data() + startIndex}
+      , m_Size{span.size() - startIndex}
+  {
+    assert(startIndex <= span.size());
+  }
+
+  // Make a sub-span from an existing span (with const-compatibility) with a
+  // given start index, taking all of the elements from there to the end.
+  template <
+      typename U,
+      std::enable_if_t<
+          internal::IsConstCompatible<T, internal::SpannableElementType<U>>,
+          U>>
+  constexpr Span(U&& span, size_t startIndex, ToEnd_t)
+      : m_Ptr{span.data() + startIndex}
+      , m_Size{span.size() - startIndex}
+  {
+    assert(startIndex <= span.size());
+  }
 
   // Handle assignment from any types that have data and size members
   template <
@@ -141,10 +217,13 @@ public:
 
 // Deduction guides so that spannable types will deduce the template type
 // properly.
-template <typename T>
-Span(const T&) -> Span<internal::SpannableElementType<const T>>;
+template <typename T> Span(T&&) -> Span<internal::SpannableElementType<T>>;
 
-template <typename T> Span(T&) -> Span<internal::SpannableElementType<const T>>;
+template <typename T>
+Span(T&&, size_t, size_t) -> Span<internal::SpannableElementType<T>>;
+
+template <typename T>
+Span(T&&, size_t, ToEnd_t) -> Span<internal::SpannableElementType<T>>;
 
 // Deduction guide to make array conversions automatic
 template <typename T, size_t N> Span(T (&)[N]) -> Span<T>;
