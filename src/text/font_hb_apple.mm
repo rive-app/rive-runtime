@@ -41,7 +41,8 @@ public:
       const unsigned textStart,
       const rive::TextRun& textRun,
       const rive::TextRun& originalTextRun,
-      const uint32_t fallbackIndex) override;
+      const uint32_t fallbackIndex,
+      const FallbackChain* chain) override;
 
   rive::RawPath drawGlyphPath(rive::GlyphID glyph) const override;
 };
@@ -365,12 +366,13 @@ void CoreTextHBFont::shapeFallbackRun(
     const unsigned textStart,
     const rive::TextRun& textRun,
     const rive::TextRun& originalTextRun,
-    const uint32_t fallbackIndex)
+    const uint32_t fallbackIndex,
+    const FallbackChain* chain)
 {
   if (!m_useSystemShaper)
   {
     HBFont::shapeFallbackRun(
-        gruns, text, textStart, textRun, originalTextRun, fallbackIndex);
+        gruns, text, textStart, textRun, originalTextRun, fallbackIndex, chain);
     return;
   }
 

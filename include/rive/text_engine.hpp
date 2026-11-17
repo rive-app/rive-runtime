@@ -413,9 +413,16 @@ public:
       int textDirectionFlag = -1) const;
 
   // If the platform can supply fallback font(s), set this function pointer.
-  // It will be called with a span of unichars, and the platform attempts to
-  // return a font that can draw (at least some of) them. If no font is
-  // available just return nullptr.
+  // It is called when a run's font can't draw a cluster (a character plus
+  // the marks and selectors that go with it, like a keycap's "1", U+FE0F and
+  // U+20E3), with the first codepoint in it the font has no glyph for, and
+  // that font. The platform attempts to return a font that can draw that
+  // cluster, which is then shaped whole in it. If that font can't draw it
+  // either, the proc is asked again from that font with fallbackIndex one
+  // higher. If no font is available just return nullptr. A chain also ends
+  // when the proc returns a font it already fell back from, or after
+  // kMaxFallbacks fonts. Each cluster is asked for on its own; neighbors
+  // given the same font are shaped together.
 
   using FallbackProc = rive::rcp<rive::Font> (*)(
       const rive::Unichar missing,
@@ -443,12 +450,20 @@ public:
     // host's own idea of the language (a hint it was configured with) can
     // reasonably come before the system ones.
     bool hasTextLanguage;
+    // The whole cluster missing is in, so a host can tell sequences apart:
+    // a keycap ("1", U+FE0F, U+20E3) or a ZWJ emoji sequence wants an emoji
+    // font even where a text font has its first codepoint. The U+FE0F
+    // (emoji presentation) check asks too, with a cluster the font can draw
+    // and its first codepoint as missing, and falls back if the font
+    // returned has color glyphs.
+    Span<const Unichar> cluster;
   };
   using FallbackRequestProc =
       rive::rcp<rive::Font> (*)(const FallbackRequest& request);
   // Preferred over gFallbackProc when both are set.
   static FallbackRequestProc gFallbackRequestProc;
   static bool gFallbackProcEnabled;
+  static constexpr uint32_t kMaxFallbacks = 32;
   static constexpr unsigned kRegularWeight = 400;
 
   // Changes whenever fallback fonts may be picked differently than before:

@@ -1601,9 +1601,10 @@ static bool hasFallback()
 }
 
 // Asks the host for a font with [missing] in it, through the request proc
-// when there is one.
+// when there is one, which also gets the whole [cluster] it's in.
 static rive::rcp<rive::Font> requestFallback(
     rive::Unichar missing,
+    rive::Span<const rive::Unichar> cluster,
     uint32_t fallbackIndex,
     const rive::Font* font,
     const rive::TextRun& run)
@@ -1619,6 +1620,7 @@ static rive::rcp<rive::Font> requestFallback(
         run.script,
         languages,
         !rive::TextLanguages::tag(run.language).empty(),
+        cluster,
     };
     return rive::Font::gFallbackRequestProc(request);
   }
@@ -1629,80 +1631,233 @@ static rive::rcp<rive::Font> requestFallback(
   return nullptr;
 }
 
-static void perform_fallback(
-    rive::rcp<rive::Font> fallbackFont,
+struct HBFont::FallbackChain
+{
+  const rive::Font* font;
+  const FallbackChain* parent;
+
+  bool contains(const rive::Font* other) const
+  {
+    for (auto link = this; link != nullptr; link = link->parent)
+    {
+      if (link->font == other)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+// The end of the cluster (the glyphs sharing a text index) starting at
+// [start], and whether any of its glyphs is missing.
+static size_t cluster_end(const rive::GlyphRun& gr, size_t start, bool* missing)
+{
+  const size_t count = gr.glyphs.size();
+  size_t end = start;
+  *missing = false;
+  do
+  {
+    *missing |= gr.glyphs[end] == 0;
+    ++end;
+  } while (end < count && gr.textIndices[end] == gr.textIndices[start]);
+  return end;
+}
+
+// Default ignorables (variation selectors, joiners like ZWJ and CGJ, and
+// other controls) choose how their neighbors draw. HarfBuzz hides them
+// rather than drawing them, so no font is expected to have a glyph for them.
+// The same set as HarfBuzz's is_default_ignorable.
+static bool draws_nothing(rive::Unichar c)
+{
+  return c == 0x00AD || c == 0x034F || c == 0x061C ||
+         (c >= 0x17B4 && c <= 0x17B5) || (c >= 0x180B && c <= 0x180E) ||
+         (c >= 0x200B && c <= 0x200F) || (c >= 0x202A && c <= 0x202E) ||
+         (c >= 0x2060 && c <= 0x206F) || (c >= 0xFE00 && c <= 0xFE0F) ||
+         c == 0xFEFF || (c >= 0xFFF0 && c <= 0xFFF8) ||
+         (c >= 0x1D173 && c <= 0x1D17A) || (c >= 0xE0000 && c <= 0xE0FFF);
+}
+
+// Where the text of the cluster holding the glyph at [glyphIndex] ends, in a
+// run whose text ends at [runTextEnd].
+static uint32_t cluster_text_end(
+    const rive::GlyphRun& gr,
+    size_t glyphIndex,
+    uint32_t runTextEnd)
+{
+  for (size_t i = glyphIndex + 1; i < gr.glyphs.size(); i++)
+  {
+    if (gr.textIndices[i] != gr.textIndices[glyphIndex])
+    {
+      return gr.textIndices[i];
+    }
+  }
+  return runTextEnd;
+}
+
+// What to ask for as missing, for the cluster at text [start, end): the
+// first codepoint in it that [font] can't map. A cluster's text index is its
+// first codepoint, which the font often has, like the "1" of a keycap whose
+// U+20E3 is what's missing. When nothing else is unmapped (a glyph forced to
+// fallback for emoji presentation), it's that first one.
+static rive::Unichar missing_unichar(
+    const HBFont* font,
+    const rive::Unichar text[],
+    uint32_t start,
+    uint32_t end)
+{
+  for (uint32_t i = start; i < end; i++)
+  {
+    if (!font->hasGlyph(text[i]) && !draws_nothing(text[i]))
+    {
+      return text[i];
+    }
+  }
+  return text[start];
+}
+
+// Asks for a font to draw the cluster holding the missing glyph at
+// [glyphIndex] of [gr], which [font] shaped from [run].
+static rive::rcp<rive::Font> pick_fallback(
+    const HBFont* font,
+    const rive::Unichar text[],
+    const rive::GlyphRun& gr,
+    size_t glyphIndex,
+    uint32_t runTextEnd,
+    uint32_t fallbackIndex,
+    const rive::TextRun& run)
+{
+  const uint32_t start = gr.textIndices[glyphIndex];
+  const uint32_t end = cluster_text_end(gr, glyphIndex, runTextEnd);
+  return requestFallback(
+      missing_unichar(font, text, start, end),
+      rive::Span<const rive::Unichar>(&text[start], end - start),
+      fallbackIndex,
+      font,
+      run);
+}
+
+// Adds [gr], which [font] shaped from [textRun] (whose text ends at
+// [runTextEnd]), drawing each cluster with a missing glyph in the font the
+// host picks for it, asked with [fallbackIndex]. A cluster falls back whole:
+// the fallback font reshapes all of its text, so keeping the glyphs [font]
+// has (the "1" of a keycap missing its U+20E3) would draw them twice. Each
+// cluster is asked for on its own, and stays in [font] when the host picks
+// nothing or a font already in [chain]. Neighbors that picked the same font
+// are shaped together, so they still join and kern.
+static void fall_back_clusters(
+    const HBFont* font,
     rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
     const rive::Unichar text[],
-    const rive::GlyphRun& orig,
-    const rive::TextRun& origTextRun,
-    const uint32_t fallbackIndex)
+    rive::GlyphRun&& gr,
+    const rive::TextRun& textRun,
+    uint32_t runTextEnd,
+    uint32_t fallbackIndex,
+    const HBFont::FallbackChain* chain)
 {
-  assert(orig.glyphs.size() > 0);
-  const size_t firstRun = gruns.size();
-  const size_t count = orig.glyphs.size();
+  const size_t count = gr.glyphs.size();
+  assert(count > 0);
+
+  // The font for the cluster starting at glyph [start], or null to keep it
+  // in [font]. Sets [end] to the cluster's end.
+  auto pick = [&](size_t start, size_t* end) {
+    bool missing;
+    *end = cluster_end(gr, start, &missing);
+    rive::rcp<rive::Font> picked;
+    if (missing && fallbackIndex < rive::Font::kMaxFallbacks)
+    {
+      picked = pick_fallback(
+          font,
+          text,
+          gr,
+          start,
+          runTextEnd,
+          fallbackIndex,
+          textRun);
+      if (picked && chain->contains(picked.get()))
+      {
+        picked = nullptr;
+      }
+    }
+    return picked;
+  };
+
   size_t startI = 0;
+  size_t endI;
+  rive::rcp<rive::Font> picked = pick(startI, &endI);
   while (startI < count)
   {
-    size_t endI = startI + 1;
-    if (orig.glyphs[startI] == 0)
+    // Take in the clusters after it that picked the same font.
+    size_t nextEnd = endI;
+    rive::rcp<rive::Font> nextPicked;
+    while (endI < count)
     {
-      while (endI < count && orig.glyphs[endI] == 0)
+      nextPicked = pick(endI, &nextEnd);
+      if (nextPicked != picked)
       {
-        ++endI;
+        break;
       }
+      endI = nextEnd;
+    }
 
-      auto textStart = orig.textIndices[startI];
-      auto textCount = endI == count ? origTextRun.unicharCount -
-                                           (orig.textIndices[startI] -
-                                            orig.textIndices[0])
-                                     : orig.textIndices[endI] - textStart;
-
+    if (picked == nullptr)
+    {
+      if (startI == 0 && endI == count)
+      {
+        gruns.add(std::move(gr));
+      }
+      else
+      {
+        gruns.add(extract_subset(gr, startI, endI));
+      }
+    }
+    else
+    {
+      const uint32_t textStart = gr.textIndices[startI];
+      const uint32_t textEnd = endI == count ? runTextEnd
+                                             : gr.textIndices[endI];
       auto tr = rive::TextRun{
-          fallbackFont,
-          orig.size,
-          orig.lineHeight,
-          origTextRun.letterSpacing,
-          textCount,
-          origTextRun.script,
-          orig.styleId,
-          orig.level,
-          orig.language,
+          picked,
+          gr.size,
+          gr.lineHeight,
+          textRun.letterSpacing,
+          textEnd - textStart,
+          textRun.script,
+          gr.styleId,
+          gr.level,
+          gr.language,
       };
-
-      static_cast<HBFont*>(fallbackFont.get())
+      const size_t firstRun = gruns.size();
+      static_cast<HBFont*>(picked.get())
           ->shapeFallbackRun(
               gruns,
               text,
               textStart,
               tr,
-              origTextRun,
-              fallbackIndex);
-    }
-    else
-    {
-      while (endI < count && orig.glyphs[endI] != 0)
-      {
-        ++endI;
-      }
-      gruns.add(extract_subset(orig, startI, endI));
-    }
-    startI = endI;
-  }
+              textRun,
+              fallbackIndex + 1,
+              chain);
 
-  // The proc hands every thread this font, so the runs it shaped here draw
-  // with this thread's own (see HBFont::forThisThread). Fonts it fell back
-  // to in turn swapped theirs in their own calls.
-  rive::rcp<rive::Font> drawnHere;
-  for (auto run = gruns.begin() + firstRun; run != gruns.end(); run++)
-  {
-    if (run->font == fallbackFont)
-    {
-      if (drawnHere == nullptr)
+      // The proc hands every thread this font, so the runs it shaped here
+      // draw with this thread's own (see HBFont::forThisThread). Fonts it
+      // fell back to in turn swapped theirs in their own calls.
+      rive::rcp<rive::Font> drawnHere;
+      for (auto run = gruns.begin() + firstRun; run != gruns.end(); run++)
       {
-        drawnHere = static_cast<HBFont*>(fallbackFont.get())->forThisThread();
+        if (run->font == picked)
+        {
+          if (drawnHere == nullptr)
+          {
+            drawnHere = static_cast<HBFont*>(picked.get())->forThisThread();
+          }
+          run->font = drawnHere;
+        }
       }
-      run->font = drawnHere;
     }
+
+    startI = endI;
+    endI = nextEnd;
+    picked = std::move(nextPicked);
   }
 }
 
@@ -1712,12 +1867,12 @@ void HBFont::shapeFallbackRun(
     const unsigned textStart,
     const rive::TextRun& textRun,
     const rive::TextRun& originalTextRun,
-    const uint32_t fallbackIndex)
+    const uint32_t fallbackIndex,
+    const FallbackChain* chain)
 {
   auto gr = shape_run(&text[textStart], textRun, textStart);
   auto end = gr.glyphs.end();
-  auto iter = std::find(gr.glyphs.begin(), end, 0);
-  if (iter == end)
+  if (std::find(gr.glyphs.begin(), end, 0) == end)
   {
     if (gr.glyphs.size() > 0)
     {
@@ -1728,17 +1883,16 @@ void HBFont::shapeFallbackRun(
   {
     // found at least 1 zero in glyphs, so need to perform
     // font-fallback
-    size_t index = iter - gr.glyphs.begin();
-    rive::Unichar missing = text[gr.textIndices[index]];
-    auto fallback = requestFallback(missing, fallbackIndex, this, textRun);
-    if (fallback && fallback.get() != this)
-    {
-      perform_fallback(fallback, gruns, text, gr, textRun, fallbackIndex + 1);
-    }
-    else if (gr.glyphs.size() > 0)
-    {
-      gruns.add(std::move(gr));
-    }
+    const FallbackChain here = {this, chain};
+    fall_back_clusters(
+        this,
+        gruns,
+        text,
+        std::move(gr),
+        textRun,
+        textStart + textRun.unicharCount,
+        fallbackIndex,
+        &here);
   }
 }
 
@@ -1892,6 +2046,8 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
     {
       auto gr = shape_run(&text[unicharIndex], tr, unicharIndex);
       unicharIndex += tr.unicharCount;
+      // The font the run is shaped in, which need not be this one.
+      auto runFont = static_cast<const HBFont*>(tr.font.get());
 
       // Handle dual-presentation characters (e.g. ☠ U+2620) that have a
       // text-form glyph in the current font but are followed by U+FE0F
@@ -1899,29 +2055,38 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
       // The standard fallback only fires for glyph ID 0, so we explicitly
       // force such glyphs to 0 here — but only when a color emoji
       // fallback font is actually available for that codepoint, to avoid
-      // regressing the rendering when no emoji font is loaded.
-      if (hasFallback() && !hasColorGlyphs())
+      // regressing the rendering when no emoji font is loaded. One 0 sends
+      // its whole cluster to fallback, so each cluster is checked once.
+      if (hasFallback() && !runFont->hasColorGlyphs())
       {
-        for (size_t gi = 0; gi < gr.glyphs.size(); ++gi)
+        for (size_t gi = 0; gi < gr.glyphs.size();)
         {
-          if (gr.glyphs[gi] != 0)
+          bool missing;
+          size_t clusterEnd = cluster_end(gr, gi, &missing);
+          auto textPos = gr.textIndices[gi];
+          if (!missing && textPos + 1 < text.size() &&
+              text[textPos + 1] == 0xFE0F)
           {
-            auto textPos = gr.textIndices[gi];
-            if (textPos + 1 < text.size() && text[textPos + 1] == 0xFE0F)
+            auto textEnd = cluster_text_end(gr, gi, unicharIndex);
+            auto emojiFont = requestFallback(
+                text[textPos],
+                rive::Span<const rive::Unichar>(
+                    &text[textPos],
+                    textEnd - textPos),
+                0,
+                runFont,
+                tr);
+            if (emojiFont && emojiFont->hasColorGlyphs())
             {
-              auto emojiFont = requestFallback(text[textPos], 0, this, tr);
-              if (emojiFont && emojiFont->hasColorGlyphs())
-              {
-                gr.glyphs[gi] = 0;
-              }
+              gr.glyphs[gi] = 0;
             }
           }
+          gi = clusterEnd;
         }
       }
 
       auto end = gr.glyphs.end();
-      auto iter = std::find(gr.glyphs.begin(), end, 0);
-      if (iter == end || !hasFallback())
+      if (std::find(gr.glyphs.begin(), end, 0) == end || !hasFallback())
       {
         if (gr.glyphs.size() > 0)
         {
@@ -1932,19 +2097,16 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
       {
         // found at least 1 zero in glyphs, so need to perform
         // font-fallback
-        size_t index = iter - gr.glyphs.begin();
-        rive::Unichar missing = text[gr.textIndices[index]];
-        // todo: consider sending more chars if that helps choose a font
-        auto fallback = requestFallback(missing, 0, this, tr);
-        if (fallback)
-        {
-          perform_fallback(fallback, gruns, text.data(), gr, tr, 1);
-        }
-        else if (gr.glyphs.size() > 0)
-        {
-          // oh well, just keep the missing glyphs
-          gruns.add(std::move(gr));
-        }
+        const FallbackChain chain = {runFont, nullptr};
+        fall_back_clusters(
+            runFont,
+            gruns,
+            text.data(),
+            std::move(gr),
+            tr,
+            unicharIndex,
+            0,
+            &chain);
       }
     }
 

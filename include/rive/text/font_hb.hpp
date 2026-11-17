@@ -178,13 +178,17 @@ private:
 
 public:
   hb_font_t* m_font;
+  // The fonts a run already fell back from, so a proc handing one of them
+  // back ends the chain.
+  struct FallbackChain;
   virtual void shapeFallbackRun(
       rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
       const rive::Unichar text[],
       const unsigned textStart,
       const rive::TextRun& textRun,
       const rive::TextRun& originalTextRun,
-      const uint32_t fallbackIndex);
+      const uint32_t fallbackIndex,
+      const FallbackChain* chain);
 
   // Draws [glyph]'s outline. glyphPath (and getPath) keep what this returns,
   // so a font that draws its outlines elsewhere overrides this instead.
