@@ -687,6 +687,7 @@ export function installRiveScripting(Module) {
             }
             announceExports(entry, module);
             const lanes = prepareLanes(module);
+            buildAudioEarly(module);
             const instance = await WebAssembly.instantiate(
                 module,
                 importsFor(entry, module)
@@ -1212,7 +1213,7 @@ export function installRiveScripting(Module) {
     // An output the host's worklet runs. sent: the modules it has the bytes
     // of, so each crosses once; a worklet that lost them asks again.
     function audioOutputOf(context, queue) {
-        return { context, post: queue.post, sent: new Set(), queue };
+        return { context, post: queue.post, sent: new Set(), queue, begin: null };
     }
 
     // An output that failed or was ended: what it still queued fails, and the
@@ -1248,24 +1249,33 @@ export function installRiveScripting(Module) {
         return holds;
     }
 
-    // Browsers start audio only after a gesture, so a context only the runner
-    // holds resumes on the page's first one, and warns once while it waits.
-    function ownContext() {
-        // iOS mutes the default ambient session at the silent switch, which
-        // video plays through.
+    // iOS mutes the default ambient session at the silent switch, which video
+    // plays through.
+    function playbackSession() {
         const session = globalThis.navigator?.['audioSession'];
         if (session?.['type'] === 'auto') {
             session['type'] = 'playback';
         }
-        const context = new AudioContext();
+    }
+
+    const gestureWaits = new WeakSet();
+
+    // Browsers start audio only after a gesture, so a context only the runner
+    // holds resumes on the page's first one, and warns once while it waits.
+    function waitForGesture(context, onGesture = () => context.resume()) {
+        if (gestureWaits.has(context)) {
+            return;
+        }
+        gestureWaits.add(context);
         const gestures = ['pointerdown', 'pointerup', 'keydown', 'touchend'];
-        const resume = () => context.resume();
+        const resume = () => onGesture();
         const waiting = setTimeout(
             () => console.warn('script audio waits for a click, tap or key press on the page'),
             kGestureWaitMs
         );
         const started = () => {
             if (context.state === 'running' || context.state === 'closed') {
+                gestureWaits.delete(context);
                 clearTimeout(waiting);
                 context.removeEventListener('statechange', started);
                 for (const gesture of gestures) {
@@ -1278,18 +1288,61 @@ export function installRiveScripting(Module) {
         }
         context.addEventListener('statechange', started);
         started();
+    }
+
+    function ownContext() {
+        playbackSession();
+        const context = new AudioContext();
+        waitForGesture(context);
         return context;
     }
 
-    function browserOutput() {
-        const context = runner['audioContext'] ?? ownContext();
+    // Holds an early output suspended; its first start calls what this returns.
+    function holdUntilStart(context, started) {
+        let held = true;
+        // A page that already had a gesture, or allows autoplay, starts it.
+        let allowed = false;
+        const hold = () => {
+            if (held && context.state === 'running') {
+                allowed = true;
+                context.suspend();
+            }
+        };
+        context.addEventListener('statechange', hold);
+        hold();
+        return () => {
+            held = false;
+            context.removeEventListener('statechange', hold);
+            playbackSession();
+            const activation = globalThis.navigator?.['userActivation'];
+            // A frame can play on its parent's gesture, which its own
+            // activation leaves out.
+            const policy = globalThis.document?.['permissionsPolicy'] ??
+                globalThis.document?.['featurePolicy'];
+            const framed = (globalThis.top ?? globalThis) !== globalThis &&
+                policy?.['allowsFeature']?.('autoplay') !== false;
+            // A page that never had a gesture refuses it, and Chrome warns.
+            if (allowed || framed || activation?.['hasBeenActive'] !== false) {
+                context.resume();
+            }
+            // Safari resumes only inside the gesture itself.
+            if (context.state !== 'running') {
+                waitForGesture(context);
+            }
+            started();
+        };
+    }
+
+    function browserOutput(early = false) {
+        const context = runner['audioContext'] ?? (early ? new AudioContext() : ownContext());
         const queue = audioQueue();
         const output = audioOutputOf(context, queue);
         const holds = browserHolds(context);
         let node = null;
+        let watch = null;
         const closed = (text) => {
             if (audio.output === output) {
-                watch.stop();
+                watch?.stop();
                 failOwners(text);
                 dropOutput(output, text, false);
             }
@@ -1304,14 +1357,19 @@ export function installRiveScripting(Module) {
             failOwners(text);
             dropOutput(output, text, false);
         };
-        const watch = watchBlocks(
-            context,
-            holds.words,
-            Infinity,
-            kBrowserStallChecks,
-            stalled,
-            closed
-        );
+        const startWatch = () => {
+            watch = watchBlocks(
+                context,
+                holds.words,
+                Infinity,
+                kBrowserStallChecks,
+                stalled,
+                closed
+            );
+            if (node !== null) {
+                watch.ready();
+            }
+        };
         context.addEventListener('statechange', () => {
             if (context.state === 'closed') {
                 closed(kContextClosed);
@@ -1327,13 +1385,18 @@ export function installRiveScripting(Module) {
                 );
                 node.port.onmessage = (event) => audioEvent(event.data);
                 node.connect(context.destination);
-                watch.ready();
+                watch?.ready();
                 queue.open((message) => node.port.postMessage(message));
             })
             .catch((error) => {
-                watch.stop();
+                watch?.stop();
                 dropOutput(output, noWorklet(error));
             });
+        if (early) {
+            output.begin = holdUntilStart(context, startWatch);
+        } else {
+            startWatch();
+        }
         return output;
     }
 
@@ -1428,8 +1491,40 @@ export function installRiveScripting(Module) {
     }
 
     function audioOutput() {
+        // A host's context handed over after the early build replaces it.
+        if (audio.output?.begin && runner['audioContext'] !== undefined) {
+            audio.output.context.close();
+            audio.output = null;
+        }
         audio.output ??= onNrdp() ? nrdpOutput() : browserOutput();
         return audio.output;
+    }
+
+    // The constructor blocks the page, so build it as the file loads. Touch
+    // devices wait for a start, leaving a tablet's audio session alone until a
+    // sound plays; so do browsers that would refuse it and warn.
+    function buildAudioEarly(module) {
+        try {
+            if (
+                audio.output === null &&
+                runner['audioEarly'] !== false &&
+                runner['audioContext'] === undefined &&
+                !onNrdp() &&
+                kLaneSections.some(
+                    ([name, kind]) =>
+                        kind === 'processor' &&
+                        WebAssembly.Module.customSections(module, name).length > 0
+                ) &&
+                globalThis.matchMedia?.('(hover: hover) and (pointer: fine)').matches === true &&
+                globalThis.navigator?.['maxTouchPoints'] === 0 &&
+                globalThis.navigator?.['getAutoplayPolicy']?.('audiocontext') !== 'disallowed' &&
+                audioRefusal() === null
+            ) {
+                audio.output = browserOutput(true);
+            }
+        } catch {
+            // That must not fail the file's scripts; the first start tries again.
+        }
     }
 
     // Forgets the oldest modules no processor runs, past the cache's size.
@@ -1464,6 +1559,8 @@ export function installRiveScripting(Module) {
             return { ok: false, error: compiled.error };
         }
         const output = audioOutput();
+        output.begin?.();
+        output.begin = null;
         const id = audio.next++;
         const owned = {
             owner,
@@ -1598,6 +1695,7 @@ export function installRiveScripting(Module) {
                     const module = new WebAssembly.Module(lifted);
                     announceExports(entry, module);
                     prepareLanes(module, true);
+                    buildAudioEarly(module);
                     adopt(
                         entry,
                         new WebAssembly.Instance(module, importsFor(entry, module))
@@ -1762,7 +1860,23 @@ export function installRiveScripting(Module) {
     runner['processorRender'] = processorRender;
     runner['processorEnd'] = processorEnd;
     runner['audioRefusal'] = audioRefusal;
-    runner['audioSampleRate'] = () => audioOutput().context.sampleRate;
+    // Safari starts a context only inside a gesture, so a read there begins it.
+    runner['audioSampleRate'] = () => {
+        const output = audioOutput();
+        const begin = () => {
+            output.begin?.();
+            output.begin = null;
+        };
+        if (globalThis.navigator?.['userActivation']?.['isActive'] === true) {
+            begin();
+        } else if (output.begin) {
+            // A click before the start begins it, as it resumed the context before.
+            waitForGesture(output.context, () =>
+            output.begin ? begin() : output.context.resume()
+        );
+        }
+        return output.context.sampleRate;
+    };
     runner['audioStart'] = audioStart;
     runner['audioStop'] = audioStop;
     // For hosts and tests: where the real time output stands.

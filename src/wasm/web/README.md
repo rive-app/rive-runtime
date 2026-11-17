@@ -216,12 +216,23 @@ needs librive built with threads and, in a browser, cross origin isolation.
   the JS runtime serves nothing for it.
 - The host may hand over its own `AudioContext` as
   `riveScripting.audioContext`, and should resume it on the user's first
-  gesture. Without one, the runner makes a context as the first processor
-  starts, and resumes it on the page's first click, tap or key press, since
-  browsers start audio only after a gesture. If that context has not started
-  a second after it was made, the runner warns once on the console. It also
-  sets an `auto` `navigator.audioSession` to `playback`, so iOS plays it
-  through the silent switch as it does video.
+  gesture. Without one, the runner makes its own. Its constructor blocks the
+  page, for tens of milliseconds on some machines and hundreds on others, so
+  on a device with a fine pointer and no touch screen, in a browser that
+  doesn't say it would refuse the context, the runner builds the context,
+  the worklet and its node as a file whose module carries processors
+  prepares, and leaves them suspended until the first start, or a read of the
+  processor's sample rate during a gesture, resumes them from inside it; a
+  page that never starts one never plays. That
+  moves the block from the first press to the load, and a host turns it off
+  with `riveScripting.audioEarly = false`, set before its first file
+  prepares. Then, and elsewhere, the runner makes the context as a script
+  first starts a processor or reads the processor's sample rate or channels.
+  A context a start could not resume, as browsers start audio only after a
+  gesture, resumes on the page's next click, tap or key press, and if it has
+  not started a second later the runner warns once on the console.
+  At the first start the runner also sets an `auto` `navigator.audioSession`
+  to `playback`, so iOS plays it through the silent switch as it does video.
 - The worklet counts every block it renders. When that stops while
   processors run, every processor fails. On NRDP that takes 100 ms, and the
   runner ends the worklet thread. A browser cannot end it, and Chrome's

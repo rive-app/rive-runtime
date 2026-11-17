@@ -990,4 +990,500 @@ const kFailed = 3;
     delete globalThis.nrdp;
 }
 
+// A page meeting the runner's early output: its pointer, activation, iOS
+// session, gestures and timers, and contexts that start only where it lets them.
+async function earlyAudio({ fine = true, touches = 0, policy = undefined, active = false,
+    sticky = active, allowed = false, processor = true, hosted = false, nrdp = false,
+    workletFails = false, early = undefined, framed = false, delegated = true,
+    direct = false } = {}) {
+    const saved = Object.getOwnPropertyDescriptors(globalThis);
+    const made = [];
+    const nodes = [];
+    const warnings = [];
+    let listening = [];
+    const activation = { isActive: active, hasBeenActive: sticky };
+    const session = { type: 'auto' };
+    let intervals = 0;
+    let parentClicked = false;
+    let inGesture = false;
+    class EarlyContext {
+        constructor() {
+            this.state = allowed ? 'running' : 'suspended';
+            this.sampleRate = 48000;
+            this.destination = {};
+            this.listeners = [];
+            this.added = [];
+            this.resumes = 0;
+            this.suspends = 0;
+            const fails = workletFails && made.length === 0;
+            this.audioWorklet = {
+                addModule: async (url) => {
+                    if (fails) {
+                        throw new Error('no worklet');
+                    }
+                    this.added.push(url);
+                },
+            };
+            made.push(this);
+        }
+        addEventListener(name, listener) {
+            this.listeners.push(listener);
+        }
+        removeEventListener(name, listener) {
+            this.listeners = this.listeners.filter((other) => other !== listener);
+        }
+        set(state) {
+            this.state = state;
+            this.listeners.forEach((listener) => listener());
+        }
+        // A browser changes state later, once its device answers.
+        resume() {
+            this.resumes++;
+            if (allowed || parentClicked || (direct ? inGesture : activation.hasBeenActive)) {
+                queueMicrotask(() => this.set('running'));
+            }
+            return Promise.resolve();
+        }
+        suspend() {
+            this.suspends++;
+            queueMicrotask(() => this.set('suspended'));
+            return Promise.resolve();
+        }
+        close() {
+            this.set('closed');
+            return Promise.resolve();
+        }
+    }
+    const page = new EventTarget();
+    Object.assign(globalThis, {
+        AudioContext: EarlyContext,
+        AudioWorkletNode: class {
+            constructor(context, name, options) {
+                this.context = context;
+                this.connected = false;
+                this.posted = [];
+                this.port = { onmessage: null, postMessage: (message) => this.posted.push(message) };
+                nodes.push(this);
+            }
+            connect(destination) {
+                this.connected = destination === this.context.destination;
+            }
+            disconnect() {}
+        },
+        matchMedia: (query) => ({ matches: fine && query.includes('(pointer: fine)') }),
+        crossOriginIsolated: true,
+        addEventListener: (type, listener, options) => {
+            listening.push([type, listener]);
+            page.addEventListener(type, listener, options);
+        },
+        removeEventListener: (type, listener, options) => {
+            listening = listening.filter(([t, l]) => t !== type || l !== listener);
+            page.removeEventListener(type, listener, options);
+        },
+        setInterval: (...args) => (intervals++, saved.setInterval.value(...args)),
+        top: framed ? {} : globalThis,
+        document: { permissionsPolicy: { allowsFeature: (name) => name !== 'autoplay' || delegated } },
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+        value: {
+            audioSession: session,
+            userActivation: activation,
+            maxTouchPoints: touches,
+            ...(policy && { getAutoplayPolicy: (type) => (type === 'audiocontext' ? policy : 'allowed') }),
+        },
+        configurable: true,
+    });
+    if (nrdp) {
+        globalThis.nrdp = { audio: { output: {} } };
+    }
+    const warn = console.warn;
+    console.warn = (text) => warnings.push(text);
+    const memory = { buffer: new SharedArrayBuffer(1 << 16) };
+    const runner = installRiveScripting({});
+    runner.attach({
+        ...pageHost(),
+        memory: () => memory,
+        heapU8: () => new Uint8Array(memory.buffer),
+        exports: { ...pageHost().exports, _rive_shared_table: () => 1024 },
+        processorEvent: () => {},
+    });
+    runner['audioWorkletUrl'] = 'rive_audio_worklet.mjs';
+    runner['audioContext'] = hosted ? new EarlyContext() : undefined;
+    runner['audioEarly'] = early;
+    runner.register(1, moduleOf(custom(processor ? 'rive.audio' : 'rive.jobs',
+        [...(processor ? processorModule : jobModule(0, 0, false))])));
+    await runner.prepare();
+    await sleep(0);
+    const format = { sampleRate: 48000, maxFrames: 128, channels: 2 };
+    return {
+        runner, made, nodes, warnings, session, activation, page,
+        intervals: () => intervals,
+        gestures: () => listening.length,
+        start: (owner) => runner['audioStart'](owner, 5, () => processorModule, 0,
+            new Uint8Array(0), format, 4, 1).id,
+        // A frame allowed to autoplay plays on its parent's gesture.
+        parentClick() {
+            parentClicked = true;
+        },
+        click(type = 'pointerdown') {
+            activation.isActive = activation.hasBeenActive = true;
+            inGesture = true;
+            page.dispatchEvent(new Event(type));
+            inGesture = false;
+        },
+        restore() {
+            console.warn = warn;
+            made.forEach((context) => context.state !== 'closed' && context.close());
+            for (const name of Reflect.ownKeys(globalThis)) {
+                if (!Object.hasOwn(saved, name) &&
+                    Object.getOwnPropertyDescriptor(globalThis, name).configurable) {
+                    delete globalThis[name];
+                }
+            }
+            Object.defineProperties(globalThis, saved);
+        },
+    };
+}
+
+// A file with processors builds the runner's output as it prepares, so its
+// constructor's stall is not the press's: one context, suspended, the worklet
+// added and the node in the mix. A file without processors builds nothing.
+{
+    const page = await earlyAudio();
+    try {
+        assert.equal(page.made.length, 1);
+        const [context] = page.made;
+        assert.equal(context.state, 'suspended');
+        assert.deepEqual(context.added, ['rive_audio_worklet.mjs']);
+        assert.equal(page.nodes.length, 1);
+        assert.equal(page.nodes[0].context, context);
+        assert.equal(page.nodes[0].connected, true);
+        assert.equal(page.runner['audioState']()['context'], 'suspended');
+    } finally {
+        page.restore();
+    }
+    const none = await earlyAudio({ processor: false });
+    try {
+        assert.equal(none.made.length, 0);
+        assert.equal(none.runner['audioState']()['context'], 'none');
+    } finally {
+        none.restore();
+    }
+}
+
+// It waits for a start, not a gesture: a press that starts nothing (entering
+// a page without sound) leaves it suspended and rendering nothing, no watch polls
+// it, and the runner neither listens for gestures nor warns.
+{
+    const page = await earlyAudio();
+    try {
+        assert.equal(page.made.length, 1);
+        assert.equal(page.gestures(), 0);
+        page.click('pointerdown');
+        page.click('pointerup');
+        page.click('keydown');
+        await sleep(1200);
+        assert.equal(page.made[0].resumes, 0);
+        assert.equal(page.made[0].state, 'suspended');
+        assert.equal(page.intervals(), 0);
+        assert.deepEqual(page.warnings, []);
+    } finally {
+        page.restore();
+    }
+}
+
+// The first start resumes it at once, inside the gesture that started it,
+// and only then sets iOS's session to playback. Later starts only post.
+{
+    const page = await earlyAudio();
+    try {
+        assert.equal(page.made.length, 1);
+        assert.equal(page.session.type, 'auto');
+        page.activation.isActive = page.activation.hasBeenActive = true;
+        const first = page.start(11);
+        const [context] = page.made;
+        assert.equal(context.resumes, 1);
+        assert.equal(page.session.type, 'playback');
+        assert.equal(page.intervals(), 1, 'the stall watch runs from the first start');
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(page.gestures(), 0);
+        const second = page.start(12);
+        assert.equal(context.resumes, 1);
+        assert.equal(page.made.length, 1);
+        const [node] = page.nodes;
+        assert.deepEqual(node.posted.map((message) => [message.id, message.bytes === null]),
+            [[first, false], [second, true]]);
+        assert.deepEqual(page.warnings, []);
+    } finally {
+        page.restore();
+    }
+}
+
+// A first start outside a gesture waits for one. A page that never had one
+// doesn't resume, as Chrome would warn; its next click does, and the runner
+// warns once meanwhile. After one, the resume takes and the wait ends.
+{
+    const page = await earlyAudio();
+    try {
+        assert.equal(page.made.length, 1);
+        page.start(11);
+        const [context] = page.made;
+        assert.equal(context.resumes, 0);
+        assert.equal(page.gestures(), 4);
+        await sleep(1200);
+        assert.deepEqual(page.warnings, ['script audio waits for a click, tap or key press on the page']);
+        page.click('pointerdown');
+        assert.equal(context.resumes, 1);
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(page.gestures(), 0);
+    } finally {
+        page.restore();
+    }
+    const sticky = await earlyAudio({ sticky: true });
+    try {
+        assert.equal(sticky.made.length, 1);
+        sticky.start(11);
+        assert.equal(sticky.made[0].resumes, 1);
+        assert.equal(sticky.gestures(), 4);
+        await sleep(0);
+        assert.equal(sticky.made[0].state, 'running');
+        assert.equal(sticky.gestures(), 0);
+    } finally {
+        sticky.restore();
+    }
+}
+
+// Safari resumes only inside a gesture, so a start in a timer waits for one.
+{
+    const page = await earlyAudio({ direct: true });
+    try {
+        page.activation.isActive = page.activation.hasBeenActive = true;
+        page.start(11);
+        const [context] = page.made;
+        assert.equal(context.resumes, 1);
+        await sleep(0);
+        assert.equal(context.state, 'suspended');
+        assert.equal(page.gestures(), 4);
+        page.click('pointerdown');
+        assert.equal(context.resumes, 2);
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(page.gestures(), 0);
+    } finally {
+        page.restore();
+    }
+}
+
+// A rate read inside a gesture lets a start after an await play at once.
+{
+    const page = await earlyAudio({ direct: true });
+    try {
+        let rate = 0;
+        page.page.addEventListener('pointerdown', () => (rate = page.runner['audioSampleRate']()));
+        page.click('pointerdown');
+        assert.equal(rate, 48000);
+        await sleep(0);
+        page.start(11);
+        const [context] = page.made;
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(context.resumes, 1);
+        assert.equal(page.gestures(), 0);
+    } finally {
+        page.restore();
+    }
+}
+
+// A rate read before any gesture begins the output on the next one.
+{
+    const page = await earlyAudio({ direct: true });
+    try {
+        assert.equal(page.runner['audioSampleRate'](), 48000);
+        const [context] = page.made;
+        page.click('pointerdown');
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(context.resumes, 1);
+        page.start(11);
+        await sleep(0);
+        assert.equal(context.resumes, 1);
+        assert.equal(page.gestures(), 0);
+    } finally {
+        page.restore();
+    }
+}
+
+// A frame its parent allows to autoplay plays on the parent's gesture, which
+// the frame's own activation never shows, so a first start there resumes.
+{
+    const page = await earlyAudio({ framed: true });
+    try {
+        assert.equal(page.made.length, 1);
+        const [context] = page.made;
+        page.parentClick();
+        page.start(11);
+        assert.equal(context.resumes, 1);
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(page.gestures(), 0);
+        assert.deepEqual(page.warnings, []);
+    } finally {
+        page.restore();
+    }
+    const undelegated = await earlyAudio({ framed: true, delegated: false });
+    try {
+        undelegated.start(11);
+        assert.equal(undelegated.made[0].resumes, 0);
+        assert.equal(undelegated.gestures(), 4);
+    } finally {
+        undelegated.restore();
+    }
+}
+
+// A context the page lets start at once, after an earlier gesture or where
+// autoplay is allowed, is held suspended until the first start, which then
+// resumes it without a gesture.
+{
+    const page = await earlyAudio({ allowed: true });
+    try {
+        assert.equal(page.made.length, 1);
+        const [context] = page.made;
+        assert.equal(context.suspends, 1);
+        assert.equal(context.state, 'suspended');
+        page.start(11);
+        assert.equal(context.resumes, 1);
+        await sleep(0);
+        assert.equal(context.state, 'running');
+        assert.equal(page.gestures(), 0);
+        assert.equal(context.suspends, 1);
+    } finally {
+        page.restore();
+    }
+}
+
+// Touch devices keep making the context at the first start, so iOS's session
+// changes only once something plays. A tablet with a trackpad is one of them.
+{
+    for (const options of [{ fine: false }, { touches: 5 }]) {
+        const touch = await earlyAudio(options);
+        try {
+            assert.equal(touch.made.length, 0);
+            assert.equal(touch.session.type, 'auto');
+            touch.start(11);
+            assert.equal(touch.made.length, 1);
+            assert.equal(touch.session.type, 'playback');
+            assert.equal(touch.gestures(), 4);
+        } finally {
+            touch.restore();
+        }
+    }
+    const desk = await earlyAudio();
+    try {
+        assert.equal(desk.made.length, 1);
+    } finally {
+        desk.restore();
+    }
+}
+
+// A browser that says it would refuse a context warns as it makes one, so it
+// waits for the first start; one that would allow it builds early.
+{
+    const refusing = await earlyAudio({ policy: 'disallowed' });
+    try {
+        assert.equal(refusing.made.length, 0);
+        refusing.start(11);
+        assert.equal(refusing.made.length, 1);
+    } finally {
+        refusing.restore();
+    }
+    const allowing = await earlyAudio({ policy: 'allowed' });
+    try {
+        assert.equal(allowing.made.length, 1);
+    } finally {
+        allowing.restore();
+    }
+}
+
+// Only a context the runner owns, in a browser, is built early: a host's
+// context is left to the host, and NRDP builds its output at the start.
+{
+    const owned = await earlyAudio();
+    try {
+        assert.equal(owned.runner['audioState']()['context'], 'suspended');
+    } finally {
+        owned.restore();
+    }
+    const host = await earlyAudio({ hosted: true });
+    try {
+        assert.equal(host.made.length, 1);
+        assert.deepEqual(host.made[0].added, []);
+        assert.equal(host.runner['audioState']()['context'], 'none');
+    } finally {
+        host.restore();
+    }
+    const nrdp = await earlyAudio({ nrdp: true });
+    try {
+        assert.equal(nrdp.made.length, 0);
+        assert.equal(nrdp.runner['audioState']()['context'], 'none');
+    } finally {
+        nrdp.restore();
+    }
+}
+
+// A host that turns the early build off gets the context at the first start.
+{
+    const page = await earlyAudio({ early: false });
+    try {
+        assert.equal(page.made.length, 0);
+        assert.equal(page.runner['audioState']()['context'], 'none');
+        page.start(11);
+        assert.equal(page.made.length, 1);
+        assert.equal(page.gestures(), 4);
+        await until(() => page.nodes.length === 1, 1000);
+        assert.equal(page.nodes[0].context, page.made[0]);
+    } finally {
+        page.restore();
+    }
+}
+
+// A worklet that fails to load drops the early output, and the first start
+// builds one the way it does without the early build.
+{
+    const page = await earlyAudio({ workletFails: true });
+    try {
+        assert.equal(page.made.length, 1);
+        assert.equal(page.made[0].state, 'closed');
+        page.start(11);
+        assert.equal(page.made.length, 2);
+        assert.equal(page.gestures(), 4);
+        await until(() => page.nodes.length === 1, 1000);
+        assert.equal(page.nodes[0].context, page.made[1]);
+    } finally {
+        page.restore();
+    }
+}
+
+// A host that hands its context over after the runner built its own gets
+// its own used: the start builds there, and the runner's closes.
+{
+    const page = await earlyAudio();
+    try {
+        assert.equal(page.made.length, 1);
+        const [early] = page.made;
+        const hosts = new AudioContext();
+        page.runner['audioContext'] = hosts;
+        page.activation.isActive = page.activation.hasBeenActive = true;
+        page.start(11);
+        assert.equal(early.state, 'closed');
+        await until(() => page.nodes.length === 2, 1000);
+        assert.equal(page.nodes[1].context, hosts);
+        assert.equal(hosts.resumes, 0, "a host's context is the host's to resume");
+        assert.equal(page.session.type, 'auto');
+    } finally {
+        page.restore();
+    }
+}
+
 console.log('web host ok');
