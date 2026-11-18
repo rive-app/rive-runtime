@@ -2829,6 +2829,13 @@ public:
   static constexpr const char* luaName = "Invocation";
   static constexpr bool hasMetatable = true;
 
+  // Set while performAction runs. asPointerEvent then hands back one event
+  // (anchored by m_pointerEventRef) so a hit() on it reaches the listener
+  // that dispatched this invocation; rive_lua_end_scripted_invocation
+  // reads it and clears both.
+  bool m_isDispatching = false;
+  int m_pointerEventRef = 0;
+
 private:
   ListenerInvocation m_invocation;
 };
@@ -2962,12 +2969,18 @@ public:
 };
 
 void rive_lua_register_listener_invocation_types(lua_State* L);
-void rive_lua_push_pointer_arg_for_perform(
+ScriptedPointerEvent* rive_lua_push_pointer_arg_for_perform(
     lua_State* L,
     const ListenerInvocation& inv);
-void rive_lua_push_scripted_invocation(
+/// Pushes the performAction argument, dispatching until
+/// rive_lua_end_scripted_invocation, which returns the hit() the script gave
+/// the pointer event it got from asPointerEvent.
+ScriptedInvocation* rive_lua_push_scripted_invocation(
     lua_State* L,
     const ListenerInvocation& inv);
+HitResult rive_lua_end_scripted_invocation(
+    lua_State* L,
+    ScriptedInvocation* invocation);
 
 static void interruptCPP(lua_State* L, int gc);
 

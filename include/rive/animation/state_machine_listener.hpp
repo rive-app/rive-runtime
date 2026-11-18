@@ -111,6 +111,8 @@ public:
   {
     m_listenerInputTypes.push_back(std::move(inputType));
   }
+  // Out of line: ListenerAction is incomplete here.
+  void addActionForTesting(std::unique_ptr<ListenerAction> action);
 #endif
 
 private:

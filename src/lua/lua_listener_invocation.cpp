@@ -121,13 +121,13 @@ const char* standardAxisLabel(StandardGamepadAxis a)
 
 } // namespace
 
-void rive_lua_push_pointer_arg_for_perform(
+ScriptedPointerEvent* rive_lua_push_pointer_arg_for_perform(
     lua_State* L,
     const ListenerInvocation& inv)
 {
   if (const PointerInvocation* p = inv.asPointer())
   {
-    lua_newrive<ScriptedPointerEvent>(
+    return lua_newrive<ScriptedPointerEvent>(
         L,
         (uint8_t)p->pointerId,
         p->position,
@@ -135,23 +135,41 @@ void rive_lua_push_pointer_arg_for_perform(
         static_cast<int>(p->hitEvent),
         p->timeStamp);
   }
-  else
-  {
-    lua_newrive<ScriptedPointerEvent>(
-        L,
-        (uint8_t)0,
-        Vec2D(0, 0),
-        Vec2D(0, 0),
-        -1,
-        0.f);
-  }
+  return lua_newrive<ScriptedPointerEvent>(
+      L,
+      (uint8_t)0,
+      Vec2D(0, 0),
+      Vec2D(0, 0),
+      -1,
+      0.f);
 }
 
-void rive_lua_push_scripted_invocation(
+ScriptedInvocation* rive_lua_push_scripted_invocation(
     lua_State* L,
     const ListenerInvocation& inv)
 {
-  lua_newrive<ScriptedInvocation>(L, inv);
+  auto invocation = lua_newrive<ScriptedInvocation>(L, inv);
+  invocation->m_isDispatching = true;
+  return invocation;
+}
+
+HitResult rive_lua_end_scripted_invocation(
+    lua_State* L,
+    ScriptedInvocation* invocation)
+{
+  HitResult hitResult = HitResult::none;
+  if (invocation->m_pointerEventRef != 0)
+  {
+    lua_getref(L, invocation->m_pointerEventRef);
+    hitResult = lua_torive<ScriptedPointerEvent>(L, -1)->m_hitResult;
+    lua_pop(L, 1);
+    lua_unref(L, invocation->m_pointerEventRef);
+    invocation->m_pointerEventRef = 0;
+  }
+  // A script that keeps the invocation past this call gets a fresh event
+  // from asPointerEvent again, with nothing left to anchor.
+  invocation->m_isDispatching = false;
+  return hitResult;
 }
 
 static int scripted_invocation_namecall(lua_State* L)
@@ -199,6 +217,11 @@ static int scripted_invocation_namecall(lua_State* L)
     case (int)LuaAtoms::asPointerEvent:
       if (const PointerInvocation* p = inv.asPointer())
       {
+        if (self->m_pointerEventRef != 0)
+        {
+          lua_getref(L, self->m_pointerEventRef);
+          return 1;
+        }
         lua_newrive<ScriptedPointerEvent>(
             L,
             (uint8_t)p->pointerId,
@@ -206,6 +229,10 @@ static int scripted_invocation_namecall(lua_State* L)
             p->previousPosition,
             static_cast<int>(p->hitEvent),
             p->timeStamp);
+        if (self->m_isDispatching)
+        {
+          self->m_pointerEventRef = lua_ref(L, -1);
+        }
         return 1;
       }
       lua_pushnil(L);

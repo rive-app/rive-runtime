@@ -158,8 +158,9 @@ public:
       ScriptDataResult* outResult) = 0;
 
   /// Listener protocol: self.performAction(self, invocation) when defined,
-  /// else legacy self.perform(self, pointerEvent).
-  virtual void callListenerPerform(
+  /// else legacy self.perform(self, pointerEvent). Returns the hit result
+  /// the script gave the pointer event it saw; none for other kinds.
+  virtual HitResult callListenerPerform(
       ScriptedObject* object,
       int selfRef,
       const ListenerInvocation& invocation) = 0;

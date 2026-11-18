@@ -70,7 +70,7 @@ public:
       const char* method,
       DataValue* input,
       ScriptDataResult* outResult) override;
-  void callListenerPerform(
+  HitResult callListenerPerform(
       ScriptedObject* object,
       int selfRef,
       const ListenerInvocation& invocation) override;

@@ -1479,12 +1479,9 @@ public:
     {
       // Disabled is per pointer (a drag, or a capture listener's claim);
       // consumed is shared, so another pointer's event clears it.
-      if (listenerGroup->isConsumed() ||
-          listenerGroup->isPointerDisabled(pointerId))
-      {
-        continue;
-      }
-      if (listenerGroup->processEvent(
+      if (!listenerGroup->isConsumed() &&
+          !listenerGroup->isPointerDisabled(pointerId) &&
+          listenerGroup->processEvent(
               m_component,
               position,
               pointerId,
@@ -1493,6 +1490,14 @@ public:
               canHit,
               timeStamp,
               m_stateMachineInstance) == ProcessEventResult::scroll)
+      {
+        isBlockingEvent = true;
+      }
+      // A group targeting a container is shared by all of its shapes,
+      // and its actions run from whichever shape reaches it first, not
+      // necessarily the one under the pointer. Checking consumed groups
+      // too lets that hovered shape block when a script called hit().
+      if (listenerGroup->isOpaqueHit())
       {
         isBlockingEvent = true;
       }
@@ -3446,9 +3451,18 @@ HitResult StateMachineInstance::updateListeners(
   }
   bool hitSomething = false;
   bool hitOpaque = false;
-  // Process the events
-  for (const auto& hitShape : m_hitComponents)
+  // A capture listener whose action called hit() made its target opaque for
+  // this event, so what is drawn below the target is occluded here.
+  size_t opaqueCaptureIndex = SIZE_MAX;
+  if (auto* extras = inputExtras())
   {
+    opaqueCaptureIndex = extras->opaqueCaptureIndex;
+    extras->opaqueCaptureIndex = SIZE_MAX;
+  }
+  // Process the events
+  for (size_t i = 0; i < m_hitComponents.size(); i++)
+  {
+    const auto& hitShape = m_hitComponents[i];
     HitResult hitResult = hitShape->processEvent(
         position,
         hitType,
@@ -3463,6 +3477,11 @@ HitResult StateMachineInstance::updateListeners(
       {
         hitOpaque = true;
       }
+    }
+    if (i == opaqueCaptureIndex && !m_inPointerMiss && !contentsCollapsed)
+    {
+      hitSomething = true;
+      hitOpaque = true;
     }
   }
   // Hover exits have been emitted, so it's safe to let dragEnd re-enter now.
@@ -3548,8 +3567,11 @@ HitResult StateMachineInstance::capturePointer(
   // here: a host's capture listener runs before any of its contents'. Only
   // hosts with a capture listener somewhere inside are visited, and what is
   // drawn above them only tested as far as the lowest of those. One under an
-  // opaque hit drawn above it only sees the pointer leave, as in the normal
-  // phase.
+  // opaque hit drawn above it, or under a capture hit whose listener called
+  // hit() (here, or in a host drawn above it), only sees the pointer leave,
+  // as in the normal phase.
+  const size_t opaqueCaptureIndex = hasLocal ? extras->opaqueCaptureIndex
+                                             : SIZE_MAX;
   bool occluded = collapsed;
   size_t tested = 0;
   for (size_t i = 0; i < m_hitComponents.size(); i++)
@@ -3566,14 +3588,23 @@ HitResult StateMachineInstance::capturePointer(
         occluded = true;
       }
     }
-    result = combineHitResults(
-        result,
-        hitComponent->capturePointer(
-            position,
-            occluded ? ListenerType::exit : hitType,
-            pointerId,
-            timeStamp,
-            button));
+    if (i > opaqueCaptureIndex)
+    {
+      occluded = true;
+    }
+    HitResult nested = hitComponent->capturePointer(
+        position,
+        occluded ? ListenerType::exit : hitType,
+        pointerId,
+        timeStamp,
+        button);
+    // A capture listener in there called hit(): what this host draws below
+    // it, the next hosts included, is occluded too.
+    if (nested == HitResult::hitOpaque)
+    {
+      occluded = true;
+    }
+    result = combineHitResults(result, nested);
   }
   return result;
 }
@@ -3587,6 +3618,7 @@ HitResult StateMachineInstance::captureLocalPointer(
     bool collapsed)
 {
   auto& extras = *inputExtras();
+  extras.opaqueCaptureIndex = SIZE_MAX;
   // A claim lasts until its release. One still here at the next press of
   // its button lost its release on the way (the machine wasn't reached for
   // it), so it goes before this press can take a new one. A press of
@@ -3646,6 +3678,18 @@ HitResult StateMachineInstance::captureLocalPointer(
     }
   }
 
+  auto occluded = [&](const CaptureHit& captureHit) {
+    for (const auto& occluder : occluders)
+    {
+      if (occluder.drawIndex < captureHit.drawIndex &&
+          !componentWithin(occluder.component, captureHit.target))
+      {
+        return true;
+      }
+    }
+    return false;
+  };
+
   HitResult result = HitResult::none;
   for (size_t i = 0; i < extras.captureHits.size(); i++)
   {
@@ -3658,16 +3702,7 @@ HitResult StateMachineInstance::captureLocalPointer(
     {
       continue;
     }
-    bool canHit = !collapsed;
-    for (const auto& occluder : occluders)
-    {
-      if (occluder.drawIndex < captureHit.drawIndex &&
-          !componentWithin(occluder.component, captureHit.target))
-      {
-        canHit = false;
-        break;
-      }
-    }
+    bool canHit = !collapsed && !occluded(captureHit);
     group->processEvent(
         captureHit.hit->component(),
         position,
@@ -3688,7 +3723,37 @@ HitResult StateMachineInstance::captureLocalPointer(
       {
         claimPointer(captureHit.target, pointerId, button);
       }
+      // An action that called hit() makes the listener's target opaque for
+      // this event, from the topmost of its hits under the pointer, as each
+      // hovered shape of a group does in the normal phase. What is drawn
+      // below that hit is occluded from here on: for the capture listeners
+      // still to run, the nested machines after them, and the normal phase.
+      if (group->isOpaqueHit())
+      {
+        const CaptureHit* opaque = nullptr;
+        for (const auto& member : extras.captureHits)
+        {
+          if (member.group == group &&
+              (opaque == nullptr || member.drawIndex < opaque->drawIndex) &&
+              !occluded(member) && member.hit->hitTest(position))
+          {
+            opaque = &member;
+          }
+        }
+        if (opaque != nullptr)
+        {
+          occluders.push_back(
+              {opaque->drawIndex, hierarchyComponent(opaque->hit)});
+          extras.opaqueCaptureIndex = std::min(
+              extras.opaqueCaptureIndex,
+              opaque->drawIndex);
+        }
+      }
     }
+  }
+  if (extras.opaqueCaptureIndex != SIZE_MAX)
+  {
+    result = HitResult::hitOpaque;
   }
   for (auto& ended : dragEnded)
   {

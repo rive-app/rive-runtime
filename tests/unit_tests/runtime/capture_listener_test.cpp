@@ -1,4 +1,5 @@
 #ifdef WITH_RIVE_TEXT
+#include "rive/animation/listener_fire_event.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
@@ -8,6 +9,7 @@
 #include "rive/drawable_flag.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/layout/layout_component_style.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/listener_phase.hpp"
 #include "rive/nested_artboard.hpp"
@@ -89,6 +91,18 @@ void stopPropagation(
   listenerNamed(file, artboardName, listenerName)
       ->listenerFlags((uint8_t)ListenerFlags::stopPropagation);
 }
+
+// Reports an opaque hit for its listener, as a scripted action calling hit()
+// on its pointer event does.
+class HitOpaqueAction : public ListenerFireEvent
+{
+public:
+  void perform(StateMachineInstance*, const ListenerInvocation& invocation)
+      const override
+  {
+    invocation.reportHit(HitResult::hitOpaque);
+  }
+};
 
 struct Field
 {
@@ -529,6 +543,88 @@ TEST_CASE("an opaque overlay above a capture target shields it", "[capture]")
 
   scene.click(kOnFieldBViewport);
   CHECK(scene.flag("slotBPressed"));
+}
+
+// Overlay's own opacity is cleared, so only the hit() its capture press
+// reports can shield what is drawn under it: capture listeners that run after
+// it, on the host and in the nested machines.
+TEST_CASE("a capture listener's hit() shields what is drawn below", "[capture]")
+{
+  const bool reportsHit = GENERATE(false, true);
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto overlay = file->artboard("Host")->find<LayoutComponent>("Overlay");
+  REQUIRE(overlay != nullptr);
+  overlay->drawableFlags(
+      overlay->drawableFlags() & ~(uint16_t)DrawableFlag::Opaque);
+  capture(file.get(), "Host", "Overlay Press");
+  if (reportsHit)
+  {
+    listenerNamed(file.get(), "Host", "Overlay Press")
+        ->addActionForTesting(std::make_unique<HitOpaqueAction>());
+  }
+
+  SECTION("a sibling's capture listener")
+  {
+    capture(file.get(), "Host", "Slot B Press");
+    HostScene scene(file.get());
+    HitResult result = scene.machine->pointerDown(kUnderOverlay);
+    scene.machine->pointerUp(kUnderOverlay);
+    scene.machine->advanceAndApply(0.0f);
+    CHECK(scene.flag("overlayPressed"));
+    CHECK(scene.flag("slotBPressed") == !reportsHit);
+    if (reportsHit)
+    {
+      CHECK(result == HitResult::hitOpaque);
+    }
+  }
+  SECTION("a nested machine's capture listener")
+  {
+    capture(file.get(), "Field", "Viewport Down");
+    HostScene scene(file.get());
+    scene.click(kUnderOverlay);
+    CHECK(scene.flag("overlayPressed"));
+    CHECK(scene.b.input->isFocused() == !reportsHit);
+  }
+}
+
+// Slot B moved onto Slot A, so Field B lies under Field A: a hit() reported in
+// Field A's capture phase shields Field B's capture listeners and the host's
+// targets below, as one reported on the host does.
+TEST_CASE(
+    "a nested capture listener's hit() shields the hosts drawn below it",
+    "[capture]")
+{
+  const bool reportsHit = GENERATE(false, true);
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto slotB = file->artboard("Host")->find<LayoutComponentStyle>(
+      "Slot B Style");
+  REQUIRE(slotB != nullptr);
+  slotB->positionTypeValue(2); // absolute
+  slotB->positionLeft(20.0f);
+  slotB->positionTop(20.0f);
+  slotB->positionLeftUnitsValue(1); // points
+  slotB->positionTopUnitsValue(1);
+  capture(file.get(), "Field", "Viewport Down");
+  if (reportsHit)
+  {
+    listenerNamed(file.get(), "Field", "Viewport Down")
+        ->addActionForTesting(std::make_unique<HitOpaqueAction>());
+  }
+  HostScene scene(file.get());
+  HitResult result = scene.machine->pointerDown(kOnFieldAViewport);
+  scene.machine->pointerUp(kOnFieldAViewport);
+  scene.machine->advanceAndApply(0.0f);
+  // Field A draws on top, so its capture listener runs first and focuses its
+  // input. Without the hit(), Field B's runs after it and takes the focus.
+  CHECK(scene.a.input->isFocused() == reportsHit);
+  CHECK(scene.b.input->isFocused() == !reportsHit);
+  if (reportsHit)
+  {
+    CHECK(result == HitResult::hitOpaque);
+    // The normal phase is shielded too: the slots under Field A miss it.
+    CHECK_FALSE(scene.flag("slotAPressed"));
+    CHECK_FALSE(scene.flag("slotBPressed"));
+  }
 }
 
 TEST_CASE("a capture claim holds one pointer only", "[capture]")

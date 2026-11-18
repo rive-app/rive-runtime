@@ -1150,7 +1150,11 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     reportTrap(name);
     return CallOutcome::trapped;
   }
-  *result = buf[0];
+  // A void export leaves argv[0] in buf[0]; only a declared result counts.
+  if (wasm_func_get_result_count(f, m_state->instance) != 0)
+  {
+    *result = buf[0];
+  }
   return CallOutcome::ok;
 }
 
@@ -15363,7 +15367,7 @@ bool WasmScriptingVM::callGamepadEvent(
   return result != 0;
 }
 
-void WasmScriptingVM::callListenerPerform(
+HitResult WasmScriptingVM::callListenerPerform(
     ScriptedObject* object,
     int selfRef,
     const ListenerInvocation& invocation)
@@ -15371,7 +15375,7 @@ void WasmScriptingVM::callListenerPerform(
   CallerScope caller(this, object);
   if (!valid())
   {
-    return;
+    return HitResult::none;
   }
   ListenerWire wire;
   wire.kind = (uint32_t)invocation.kind();
@@ -15429,7 +15433,7 @@ void WasmScriptingVM::callListenerPerform(
   uint32_t dataPtr = callModule("malloc", 1, sizeArgs);
   if (dataPtr == 0)
   {
-    return;
+    return HitResult::none;
   }
   uint8_t* out = (uint8_t*)resolveModulePtr(dataPtr, byteCount);
   memcpy(out, &wire, sizeof(wire));
@@ -15442,8 +15446,15 @@ void WasmScriptingVM::callListenerPerform(
     writeGamepadPayload(out + sizeof(wire), gamepad, snapshot);
   }
   uint32_t args[4] = {m_L, (uint32_t)selfRef, dataPtr, byteCount};
-  callModule("host_obj_listener_perform", 4, args);
+  // 0 when the pointer event saw no hit (or the module predates the
+  // result), else 1 + HitResult, matching host_obj_pointer_event.
+  uint32_t result = callModule("host_obj_listener_perform", 4, args);
   guestFree(dataPtr);
+  if (result == 0 || result > 1 + (uint32_t)HitResult::hitOpaque)
+  {
+    return HitResult::none;
+  }
+  return (HitResult)(result - 1);
 }
 
 // A module predating Transition cannot draw the incoming child, so the

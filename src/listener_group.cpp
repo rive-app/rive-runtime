@@ -54,6 +54,7 @@ void ListenerGroup::hover(int id)
 
 void ListenerGroup::reset(int pointerId)
 {
+  m_isOpaqueHit = false;
   auto pointer = pointerData(pointerId);
   if (pointer->phase != GestureClickPhase::disabled)
   {
@@ -353,15 +354,18 @@ ProcessEventResult ListenerGroup::processEvent(
   }
   if (shouldPerformChanges)
   {
-    _listener->performChanges(
-        stateMachineInstance,
-        ListenerInvocation::pointer(
-            position,
-            Vec2D(previousPosition->x, previousPosition->y),
-            pointerId,
-            listenerTypeMatched,
-            timeStamp,
-            buttonMatched));
+    auto invocation = ListenerInvocation::pointer(
+        position,
+        Vec2D(previousPosition->x, previousPosition->y),
+        pointerId,
+        listenerTypeMatched,
+        timeStamp,
+        buttonMatched);
+    _listener->performChanges(stateMachineInstance, invocation);
+    if (invocation.hitResult() == HitResult::hitOpaque)
+    {
+      m_isOpaqueHit = true;
+    }
     stateMachineInstance->markNeedsAdvance();
     consume();
 

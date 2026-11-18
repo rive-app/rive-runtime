@@ -1,7 +1,10 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_listener.hpp"
+#include "rive/listener_phase.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
@@ -205,4 +208,101 @@ TEST_CASE(
   REQUIRE(isFocus->propertyValue() == false);
   REQUIRE(eventReported->propertyValue() == true);
   REQUIRE(viewModelChanged->propertyValue() == true);
+}
+// Four scripted pointer-down listeners sit over "Bottom", whose own down
+// listener reports an event whenever the press reaches it.
+TEST_CASE("Listener action hit() stops the pointer event", "[scripting]")
+{
+  auto file = ReadRiveFile("assets/scripted_listener_hit.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.0f);
+
+  auto press = [&](Vec2D position) {
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(stateMachine->reportedEventCount() == 0);
+    HitResult result = stateMachine->pointerDown(position);
+    stateMachine->pointerUp(position);
+    return result;
+  };
+
+  // Nothing scripted on top: the press reaches Bottom.
+  CHECK(press(Vec2D(50.0f, 150.0f)) == HitResult::hit);
+  CHECK(stateMachine->reportedEventCount() == 1);
+
+  // performAction calling hit() on ctx:asPointerEvent().
+  CHECK(press(Vec2D(50.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+
+  // Legacy perform calling hit() on its PointerEvent argument.
+  CHECK(press(Vec2D(150.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+
+  // hit(true) is translucent, the default for a listener target.
+  CHECK(press(Vec2D(250.0f, 50.0f)) == HitResult::hit);
+  CHECK(stateMachine->reportedEventCount() == 1);
+
+  // A listener on a group runs its action from the group's topmost shape;
+  // the shape actually under the pointer must still block.
+  CHECK(press(Vec2D(350.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+  CHECK(press(Vec2D(350.0f, 150.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+}
+
+// The same listeners in the capture phase, which runs ahead of the normal one
+// and keeps its groups apart: a hit() there must still occlude Bottom, whose
+// own listener is in either phase. In the capture phase it runs after the
+// scripted ones, as a sibling drawn below them.
+TEST_CASE(
+    "Capture listener action hit() stops the pointer event",
+    "[scripting]")
+{
+  const bool bottomCaptures = GENERATE(false, true);
+  auto file = ReadRiveFile("assets/scripted_listener_hit.riv");
+  // An instance reads a listener's phase once, when it registers it.
+  auto source = file->artboard();
+  REQUIRE(source != nullptr);
+  auto machine = source->stateMachine(0);
+  for (size_t i = 0; i < machine->listenerCount(); i++)
+  {
+    auto listener = machine->listener(i);
+    if (bottomCaptures || listener->name() != "BottomDown")
+    {
+      const_cast<StateMachineListener*>(listener)->phaseValue(
+          (uint32_t)ListenerPhase::capture);
+    }
+  }
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.0f);
+
+  auto press = [&](Vec2D position) {
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(stateMachine->reportedEventCount() == 0);
+    HitResult result = stateMachine->pointerDown(position);
+    stateMachine->pointerUp(position);
+    return result;
+  };
+
+  CHECK(press(Vec2D(50.0f, 150.0f)) == HitResult::hit);
+  CHECK(stateMachine->reportedEventCount() == 1);
+
+  CHECK(press(Vec2D(50.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+
+  CHECK(press(Vec2D(150.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+
+  CHECK(press(Vec2D(250.0f, 50.0f)) == HitResult::hit);
+  CHECK(stateMachine->reportedEventCount() == 1);
+
+  // The group's capture listener runs from its topmost shape first; the
+  // shape under the pointer is the one that occludes.
+  CHECK(press(Vec2D(350.0f, 50.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
+  CHECK(press(Vec2D(350.0f, 150.0f)) == HitResult::hitOpaque);
+  CHECK(stateMachine->reportedEventCount() == 0);
 }

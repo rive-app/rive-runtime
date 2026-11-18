@@ -82,6 +82,9 @@ public:
     return pointer != nullptr && pointer->isHovered;
   }
   bool isConsumed() { return m_isConsumed; }
+  /// True when a scripted action this pass called hit() on its pointer
+  /// event, making every hovered target of this group opaque.
+  bool isOpaqueHit() const { return m_isOpaqueHit; }
   virtual bool canEarlyOut(Component* drawable);
   virtual bool needsDownListener(Component* drawable);
   virtual bool needsUpListener(Component* drawable);
@@ -116,6 +119,7 @@ protected:
 private:
   // Consumed listeners aren't processed again in the current frame
   bool m_isConsumed = false;
+  bool m_isOpaqueHit = false;
   // How many pointers disable() has turned off, counted as they go in and
   // out of the disabled phase through disable(), enable() and
   // releaseEvent(). Another write that replaces the phase leaves it high,

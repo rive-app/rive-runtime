@@ -392,12 +392,13 @@ bool ScriptingVM::callDataConvert(
   return true;
 }
 
-void ScriptingVM::callListenerPerform(
+HitResult ScriptingVM::callListenerPerform(
     ScriptedObject* object,
     int selfRef,
     const ListenerInvocation& invocation)
 {
   lua_State* L = m_state;
+  HitResult hitResult = HitResult::none;
   rive_lua_pushRef(L, selfRef);
   // Stack: [self]
   // Probe the fields directly (rather than gating on performs()/
@@ -408,14 +409,21 @@ void ScriptingVM::callListenerPerform(
   {
     // Stack: [self, performAction]
     lua_pushvalue(L, -2);
-    rive_lua_push_scripted_invocation(L, invocation);
-    // Stack: [self, performAction, self, invocation]
+    auto scriptedInvocation = rive_lua_push_scripted_invocation(L, invocation);
+    // Anchor the invocation past the call so its hit result read cannot
+    // race GC.
+    lua_pushvalue(L, -1);
+    lua_insert(L, -4);
+    // Stack: [self, invocation, performAction, self, invocation]
     if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 0)) !=
         LUA_OK)
     {
-      // Stack: [self, status]
+      // Stack: [self, invocation, status]
       lua_pop(L, 1);
     }
+    // Stack: [self, invocation]
+    hitResult = rive_lua_end_scripted_invocation(L, scriptedInvocation);
+    lua_pop(L, 1);
     // Stack: [self]
   }
   else
@@ -426,14 +434,24 @@ void ScriptingVM::callListenerPerform(
       // Stack: [self, perform]
       lua_pushvalue(L, -2);
       // Stack: [self, perform, self]
-      rive_lua_push_pointer_arg_for_perform(L, invocation);
-      // Stack: [self, perform, self, pointerEvent]
+      auto pointerEvent = rive_lua_push_pointer_arg_for_perform(L, invocation);
+      // Anchor the event past the call so its hit result read cannot
+      // race GC.
+      lua_pushvalue(L, -1);
+      lua_insert(L, -4);
+      // Stack: [self, pointerEvent, perform, self, pointerEvent]
       if (static_cast<lua_Status>(
               rive_lua_pcall_with_context(L, object, 2, 0)) != LUA_OK)
       {
-        // Stack: [self, status]
+        // Stack: [self, pointerEvent, status]
         lua_pop(L, 1);
       }
+      // Stack: [self, pointerEvent]
+      if (invocation.asPointer() != nullptr)
+      {
+        hitResult = pointerEvent->m_hitResult;
+      }
+      lua_pop(L, 1);
       // Stack: [self]
     }
     else
@@ -443,6 +461,7 @@ void ScriptingVM::callListenerPerform(
   }
   // Stack: [self]
   lua_pop(L, 1);
+  return hitResult;
 }
 
 void ScriptingVM::callDraw(

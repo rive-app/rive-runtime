@@ -338,6 +338,11 @@ struct SMIInputExtras
   /// In capture order: shallowest target first, then topmost first.
   std::vector<CaptureHit> captureHits;
   std::vector<PointerClaim> pointerClaims;
+  /// The drawIndex of the topmost capture hit under the pointer whose
+  /// listener called hit() on the event being dispatched, or SIZE_MAX. The
+  /// capture phase sets it and the normal phase that follows takes it: what
+  /// is drawn below that hit is occluded there, as under an opaque one.
+  size_t opaqueCaptureIndex = SIZE_MAX;
   /// treeHasCaptureListeners' answer, and the capture topology epoch it
   /// was computed at (0: never).
   uint32_t captureTreeEpoch = 0;

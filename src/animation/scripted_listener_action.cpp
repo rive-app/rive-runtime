@@ -35,7 +35,9 @@ void ScriptedListenerAction::disposeScriptInputs()
 // Dispatch: if `performAction` is defined, it is called with (self,
 // ScriptedInvocation) and legacy `perform` is skipped. Otherwise `perform`
 // is called with (self, PointerEvent) — real pointer data or a placeholder
-// ScriptedPointerEvent for non-pointer invocations.
+// ScriptedPointerEvent for non-pointer invocations. A hit() on the pointer
+// event is reported on the invocation, where the dispatching listener group
+// reads it to stop the event reaching targets beneath it.
 void ScriptedListenerAction::performStateful(
     StateMachineInstance* stateMachineInstance,
     const ListenerInvocation& invocation) const
@@ -46,10 +48,10 @@ void ScriptedListenerAction::performStateful(
   {
     return;
   }
-  m_vm->callListenerPerform(
+  invocation.reportHit(m_vm->callListenerPerform(
       const_cast<ScriptedListenerAction*>(this),
       m_self,
-      invocation);
+      invocation));
 #else
   (void)stateMachineInstance;
   (void)invocation;

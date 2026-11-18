@@ -2,6 +2,7 @@
 #define _RIVE_LISTENER_INVOCATION_HPP_
 
 #include "rive/animation/semantic_listener_group.hpp"
+#include "rive/hit_result.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/gamepad_snapshot.hpp"
 #include "rive/input/standard_gamepad.hpp"
@@ -175,12 +176,26 @@ public:
 
   const ListenerInvocationStorage& storage() const { return m_storage; }
 
+  /// Scripted actions report the hit() their PointerEvent received here, so
+  /// the listener group that dispatched this invocation can stop the event
+  /// from reaching targets beneath it. Keeps the strongest result reported.
+  void reportHit(HitResult hitResult) const
+  {
+    if (hitResult > m_hitResult)
+    {
+      m_hitResult = hitResult;
+    }
+  }
+  HitResult hitResult() const { return m_hitResult; }
+
 private:
   explicit ListenerInvocation(ListenerInvocationStorage&& storage)
       : m_storage(std::move(storage))
   {}
 
   ListenerInvocationStorage m_storage;
+  // Actions receive the invocation as const; this is their only output.
+  mutable HitResult m_hitResult = HitResult::none;
 };
 
 inline ListenerInvocationKind ListenerInvocation::kind() const

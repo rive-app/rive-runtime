@@ -162,6 +162,14 @@ void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
   m_actions.push_back(std::move(action));
 }
 
+#ifdef TESTING
+void StateMachineListener::addActionForTesting(
+    std::unique_ptr<ListenerAction> action)
+{
+  addAction(std::move(action));
+}
+#endif
+
 void StateMachineListener::addListenerInputType(
     std::unique_ptr<ListenerInputType> listenerInputType)
 {

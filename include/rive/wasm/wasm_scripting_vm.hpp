@@ -486,7 +486,7 @@ public:
   /// Every invocation kind crosses; the host-entangled pointers (focus
   /// group, reported Event, view model source, semantic group) are dropped
   /// because no script surface reads them.
-  void callListenerPerform(
+  HitResult callListenerPerform(
       ScriptedObject* object,
       int selfRef,
       const ListenerInvocation& invocation) override;
