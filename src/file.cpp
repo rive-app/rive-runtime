@@ -166,7 +166,12 @@ static bool registerWasmScriptOn(
 {
   int resultRef = 0;
   bool required = vm->requireModule(registryName, &resultRef);
-  if (!required)
+  // A module-only script has no generator to bind, and an AnimaScript
+  // module registers nothing at all (its imports resolve at compile time),
+  // so its require failing is expected. Not printed: every build would
+  // otherwise report one line per module. A Luau module that really fails
+  // still reports through the protocol script requiring it.
+  if (!required && !script->isModule())
   {
     fprintf(
         stderr,
