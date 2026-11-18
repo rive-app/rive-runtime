@@ -47,6 +47,29 @@ private:
   std::vector<FormulaToken*> m_outputQueue;
   std::vector<float> m_randoms;
   std::unordered_map<FormulaToken*, int> m_argumentsCount;
+  // The output queue resolved once into op kinds and argument counts, so
+  // convert() needs no type checks or map lookups. Rebuilt when the queue
+  // changes.
+  enum class OpKind : uint8_t
+  {
+    none,
+    operation,
+    function,
+    input,
+    value,
+  };
+  struct Op
+  {
+    FormulaToken* token;
+    OpKind kind;
+    int argumentsCount;
+  };
+  void buildOps();
+  std::vector<Op> m_ops;
+  bool m_opsDirty = true;
+  // Evaluation scratch, reused so convert() doesn't allocate.
+  std::vector<float> m_stack;
+  std::vector<float> m_functionArguments;
   bool m_isInstance = false;
   rcp<ViewModelInstanceValue> m_source = nullptr;
 };

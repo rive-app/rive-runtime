@@ -194,6 +194,7 @@ void DataConverterFormula::calculateFormula()
       m_outputQueue.push_back(operation);
     }
   }
+  m_opsDirty = true;
 }
 
 float DataConverterFormula::applyOperation(
@@ -239,7 +240,8 @@ float DataConverterFormula::applyFunction(
     int totalArguments)
 {
 
-  std::vector<float> functionArguments;
+  auto& functionArguments = m_functionArguments;
+  functionArguments.clear();
   int index = 0;
   int currentRandom = 0;
   while (index < totalArguments)
@@ -415,41 +417,46 @@ DataValue* DataConverterFormula::convert(DataValue* value, DataBind* dataBind)
                                          ->value());
     float resultValue = inputValue;
 
-    std::vector<float> stack;
-    for (auto& token : m_outputQueue)
+    if (m_opsDirty)
     {
-      if (token->is<FormulaTokenOperation>())
+      buildOps();
+    }
+    auto& stack = m_stack;
+    stack.clear();
+    for (const Op& op : m_ops)
+    {
+      switch (op.kind)
       {
-        if (stack.size() > 1)
+        case OpKind::operation:
+          if (stack.size() > 1)
+          {
+            auto right = stack.back();
+            stack.pop_back();
+            auto left = stack.back();
+            stack.pop_back();
+            stack.push_back(applyOperation(
+                left,
+                right,
+                op.token->as<FormulaTokenOperation>()->operationType()));
+          }
+          break;
+        case OpKind::function:
         {
-          auto right = stack.back();
-          stack.pop_back();
-          auto left = stack.back();
-          stack.pop_back();
-          float operationResult = applyOperation(
-              left,
-              right,
-              token->as<FormulaTokenOperation>()->operationType());
+          float operationResult = applyFunction(
+              stack,
+              op.token->as<FormulaTokenFunction>()->functionType(),
+              op.argumentsCount);
           stack.push_back(operationResult);
+          break;
         }
-      }
-      else if (token->is<FormulaTokenFunction>())
-      {
-        auto argumentsCount = m_argumentsCount.find(token);
-        float operationResult = applyFunction(
-            stack,
-            token->as<FormulaTokenFunction>()->functionType(),
-            argumentsCount == m_argumentsCount.end() ? 0
-                                                     : argumentsCount->second);
-        stack.push_back(operationResult);
-      }
-      else if (token->is<FormulaTokenInput>())
-      {
-        stack.push_back(inputValue);
-      }
-      else if (token->is<FormulaTokenValue>())
-      {
-        stack.push_back(token->as<FormulaTokenValue>()->operationValue());
+        case OpKind::input:
+          stack.push_back(inputValue);
+          break;
+        case OpKind::value:
+          stack.push_back(op.token->as<FormulaTokenValue>()->operationValue());
+          break;
+        case OpKind::none:
+          break;
       }
     }
 
@@ -488,6 +495,38 @@ void DataConverterFormula::addOutputToken(
 {
   m_outputQueue.push_back(token);
   m_argumentsCount[token] = argumentsCount;
+  m_opsDirty = true;
+}
+
+void DataConverterFormula::buildOps()
+{
+  m_ops.clear();
+  m_ops.reserve(m_outputQueue.size());
+  for (auto* token : m_outputQueue)
+  {
+    OpKind kind = OpKind::none;
+    int argumentsCount = 0;
+    if (token->is<FormulaTokenOperation>())
+    {
+      kind = OpKind::operation;
+    }
+    else if (token->is<FormulaTokenFunction>())
+    {
+      kind = OpKind::function;
+      auto search = m_argumentsCount.find(token);
+      argumentsCount = search == m_argumentsCount.end() ? 0 : search->second;
+    }
+    else if (token->is<FormulaTokenInput>())
+    {
+      kind = OpKind::input;
+    }
+    else if (token->is<FormulaTokenValue>())
+    {
+      kind = OpKind::value;
+    }
+    m_ops.push_back({token, kind, argumentsCount});
+  }
+  m_opsDirty = false;
 }
 
 // Warning! this clone override is not making a clean copy of the core object.
@@ -581,5 +620,7 @@ void DataConverterFormula::editorPrepareForDestruction()
   discardArenaTokens(m_tokens);
   discardArenaTokens(m_outputQueue);
   m_argumentsCount.clear();
+  m_ops.clear();
+  m_opsDirty = true;
 }
 #endif
