@@ -1710,6 +1710,13 @@ void File::startScripts()
         // Natively a module that fails to start never joins the file.
         browserVM->reportError(
             WasmScriptingVM::kModuleStartFailed + browserVM->lastError());
+        for (const DeferredScript& deferred : m_deferredScripts)
+        {
+          if (deferred.vm == browserVM)
+          {
+            deferred.script->generatorFunctionRef(0);
+          }
+        }
         m_deferredScripts.erase(
             std::remove_if(
                 m_deferredScripts.begin(),
@@ -1821,6 +1828,11 @@ void File::registerScripts()
       orphaned = vm == nullptr;
       if (orphaned)
       {
+        // A generator ref the file carries would run on another module.
+        for (auto* script : pending)
+        {
+          script->generatorFunctionRef(0);
+        }
         pending.clear();
         continue;
       }
@@ -1834,10 +1846,14 @@ void File::registerScripts()
       }
       pending.clear();
     }
-    else if (asset->is<ScriptAsset>() && !orphaned)
+    else if (asset->is<ScriptAsset>())
     {
       auto script = asset->as<ScriptAsset>();
-      if (current == nullptr)
+      if (orphaned)
+      {
+        script->generatorFunctionRef(0);
+      }
+      else if (current == nullptr)
       {
         pending.push_back(script);
       }
