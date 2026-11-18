@@ -289,18 +289,30 @@ namespace
 // Never destroyed, so they need no static constructor or destructor.
 [[clang::no_destroy]] VMPollList s_holdingList;
 [[clang::no_destroy]] VMPollList s_laneList;
-VMPollList* const t_holdingVMs = &s_holdingList;
-VMPollList* const t_laneVMs = &s_laneList;
+VMPollList* const s_holdingVMs = &s_holdingList;
+VMPollList* const s_laneVMs = &s_laneList;
+const VMPollList::Ref& holdingVMs() { return s_holdingVMs; }
+const VMPollList::Ref& laneVMs() { return s_laneVMs; }
 #else
-thread_local std::shared_ptr<std::recursive_mutex>
-    t_pollMutex = std::make_shared<std::recursive_mutex>();
-// The VMs holding outcomes, so a poll reaches them without walking every
-// artboard that might own one.
-thread_local std::shared_ptr<VMPollList>
-    t_holdingVMs = std::make_shared<VMPollList>(t_pollMutex);
-// The VMs with lanes started on this thread, so a poll reaches their output.
-thread_local std::shared_ptr<VMPollList>
-    t_laneVMs = std::make_shared<VMPollList>(t_pollMutex);
+struct ThreadPollLists
+{
+  std::shared_ptr<std::recursive_mutex>
+      mutex = std::make_shared<std::recursive_mutex>();
+  // The VMs holding outcomes, so a poll reaches them without walking every
+  // artboard that might own one.
+  std::shared_ptr<VMPollList> holding = std::make_shared<VMPollList>(mutex);
+  // The VMs with lanes started on this thread, so a poll reaches their output.
+  std::shared_ptr<VMPollList> lanes = std::make_shared<VMPollList>(mutex);
+};
+// Built on first use: at namespace scope Windows builds a thread_local as
+// each thread attaches, which can come before the heap exists.
+ThreadPollLists& threadPollLists()
+{
+  static thread_local ThreadPollLists lists;
+  return lists;
+}
+const VMPollList::Ref& holdingVMs() { return threadPollLists().holding; }
+const VMPollList::Ref& laneVMs() { return threadPollLists().lanes; }
 #endif
 constexpr size_t kLaneResultBytesPerPoll = 8u << 20;
 
@@ -12927,7 +12939,7 @@ void WasmScriptingVM::holdOutcome(std::function<void()> deliver)
 {
   if (m_heldOutcomes.empty())
   {
-    VMPollList::join(m_holdingList, t_holdingVMs, this);
+    VMPollList::join(m_holdingList, holdingVMs(), this);
   }
   m_heldOutcomes.push_back(std::move(deliver));
 }
@@ -13002,7 +13014,7 @@ void WasmScriptingVM::poison()
 
 void WasmScriptingVM::deliverAllLaneOutput()
 {
-  t_laneVMs->deliver([](WasmScriptingVM* vm) {
+  laneVMs()->deliver([](WasmScriptingVM* vm) {
     // At a poll no module call is live, so workers without threads may
     // run here.
     if (vm->m_workers != nullptr)
@@ -13028,8 +13040,8 @@ static void printLaneLine(
 void WasmScriptingVM::watchLanes()
 {
   // Its lanes start only from one thread, whose polls reach their output.
-  assert(m_laneList == nullptr || m_laneList == t_laneVMs);
-  VMPollList::join(m_laneList, t_laneVMs, this);
+  assert(m_laneList == nullptr || m_laneList == laneVMs());
+  VMPollList::join(m_laneList, laneVMs(), this);
   if (m_printFromAnyThread)
   {
     watchStalls();
@@ -13489,20 +13501,20 @@ void WasmScriptingVM::deliverHeldOutcomes()
 
 void WasmScriptingVM::deliverAllHeldOutcomes()
 {
-  t_holdingVMs->deliver([](WasmScriptingVM* vm) { vm->deliverHeldOutcomes(); });
+  holdingVMs()->deliver([](WasmScriptingVM* vm) { vm->deliverHeldOutcomes(); });
 }
 
 bool WasmScriptingVM::hasPendingAsyncWorkOnThread()
 {
   {
-    VMPollList::Lock lock(*t_holdingVMs);
-    if (!t_holdingVMs->vms.empty())
+    VMPollList::Lock lock(*holdingVMs());
+    if (!holdingVMs()->vms.empty())
     {
       return true;
     }
   }
-  VMPollList::Lock lock(*t_laneVMs);
-  for (WasmScriptingVM* vm : t_laneVMs->vms)
+  VMPollList::Lock lock(*laneVMs());
+  for (WasmScriptingVM* vm : laneVMs()->vms)
   {
     if (vm->hasPendingAsyncWork())
     {
