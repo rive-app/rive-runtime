@@ -1784,7 +1784,7 @@ void File::registerScripts()
   // the module and ScriptAssets are metadata-only routing records. Assets
   // arrive grouped, each module followed by its scripts; scripts before the
   // first module belong to it, which keeps older single-module files
-  // working.
+  // working. The scripts of a module that fails to start register nowhere.
 #ifdef __EMSCRIPTEN__
   auto registerOn = [this](WasmScriptingVM* vm, ScriptAsset* script) {
     m_deferredScripts.push_back({vm, script});
@@ -1796,6 +1796,7 @@ void File::registerScripts()
 #endif
   std::vector<ScriptAsset*> pending;
   WasmScriptingVM* current = nullptr;
+  bool orphaned = false;
   for (auto& asset : m_fileAssets)
   {
     if (asset->is<ScriptModuleAsset>())
@@ -1805,26 +1806,24 @@ void File::registerScripts()
       std::unique_ptr<WasmScriptingVM> vm = BrowserScriptingVM::make(
           module->module(),
           m_factory);
-      if (vm == nullptr)
-      {
-        continue;
-      }
 #else
       std::string error;
       auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
-      if (vm == nullptr)
+      if (vm == nullptr && !error.empty())
       {
-        if (!error.empty())
-        {
-          fprintf(
-              stderr,
-              "%s%s\n",
-              WasmScriptingVM::kModuleStartFailed,
-              error.c_str());
-        }
-        continue;
+        fprintf(
+            stderr,
+            "%s%s\n",
+            WasmScriptingVM::kModuleStartFailed,
+            error.c_str());
       }
 #endif
+      orphaned = vm == nullptr;
+      if (orphaned)
+      {
+        pending.clear();
+        continue;
+      }
       vm->viewModels(&m_ViewModels);
       vm->file(this);
       current = vm.get();
@@ -1835,13 +1834,17 @@ void File::registerScripts()
       }
       pending.clear();
     }
-    else if (asset->is<ScriptAsset>() && current == nullptr)
+    else if (asset->is<ScriptAsset>() && !orphaned)
     {
-      pending.push_back(asset->as<ScriptAsset>());
-    }
-    else if (asset->is<ScriptAsset>())
-    {
-      registerOn(current, asset->as<ScriptAsset>());
+      auto script = asset->as<ScriptAsset>();
+      if (current == nullptr)
+      {
+        pending.push_back(script);
+      }
+      else
+      {
+        registerOn(current, script);
+      }
     }
   }
 #ifndef __EMSCRIPTEN__
