@@ -5,7 +5,7 @@ import { Promise } from "rive/promise";
 import { Worker } from "rive/workers";
 
 // A cast, since the compiler guards a nullable argument.
-unsafe function logNull(): void {
+function logNull(): void {
     console.log(changetype<string>(0));
 }
 

@@ -8,7 +8,7 @@ declare function shaderLinear(sx: f32, sy: f32, ex: f32, ey: f32,
 const kColors: usize = 0xFFFFFF00;
 const kStops: usize = 0xFFFFFF80;
 
-unsafe function topMemory(context: Context): void {
+function topMemory(context: Context): void {
     if (memory.grow(65536 - memory.size()) < 0) {
         context.log("memory did not grow");
         return;

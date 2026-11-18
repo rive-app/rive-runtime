@@ -18,7 +18,7 @@ const kStops: usize = 0x80000400;
 const kManaged: usize = 0x80000510;
 
 // A managed string at a raw address: its byte length in the word before it.
-unsafe function storeManaged(at: usize, text: string): string {
+function storeManaged(at: usize, text: string): string {
     store<u32>(at - 4, text.length * 2);
     for (let i = 0; i < text.length; i++) {
         store<u16>(at + i * 2, text.charCodeAt(i));
@@ -26,7 +26,7 @@ unsafe function storeManaged(at: usize, text: string): string {
     return changetype<string>(at);
 }
 
-unsafe function highMemory(context: Context): void {
+function highMemory(context: Context): void {
     if (memory.grow(32769 - memory.size()) < 0) {
         context.log("memory did not grow");
         return;

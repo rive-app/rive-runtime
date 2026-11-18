@@ -12,7 +12,7 @@ const kCapPages: i32 = 256;
 const kSpillZone: i32 = 65536;
 fill();
 
-unsafe function fill(): StaticArray<u8> {
+function fill(): StaticArray<u8> {
     let at = <i32>changetype<usize>(new StaticArray<u8>(0));
     return new StaticArray<u8>((kCapPages << 16) - at - (kSpillZone * 5) / 2);
 }

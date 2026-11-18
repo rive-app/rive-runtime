@@ -1,6 +1,6 @@
 import { Layout, Context } from "rive/host";
 
-unsafe function pages(): i32 {
+function pages(): i32 {
     return memory.size();
 }
 

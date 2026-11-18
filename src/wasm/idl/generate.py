@@ -682,10 +682,9 @@ def as_self_tag(namespace):
 
 
 def as_wrapper_params(params):
-    """(declaration list, call argument list, needs unsafe)."""
+    """(declaration list, call argument list)."""
     decl = []
     args = []
-    unsafe = False
     for p in params:
         kind = p['kind']
         name = camel(p['name'])
@@ -705,7 +704,6 @@ def as_wrapper_params(params):
             decl.append('%s: string' % name)
             args.append('changetype<usize>(%s)' % name)
             args.append('<u32>(%s.length << 1)' % name)
-            unsafe = True
         elif kind in ('buf', 'mutbuf'):
             count = camel(p['count'])
             decl.append('%s: usize' % name)
@@ -722,7 +720,7 @@ def as_wrapper_params(params):
             args.append('%sByteCount' % name)
         else:
             raise ValueError(kind)
-    return decl, args, unsafe
+    return decl, args
 
 
 def as_string_prologue(params):
@@ -769,7 +767,7 @@ def emit_as_natives():
             is_method = self_tag is not None and params and \
                 params[0]['kind'] == 'handle' and params[0]['tag'] == self_tag
             rest = params[1:] if is_method else params
-            decl, args, unsafe = as_wrapper_params(rest)
+            decl, args = as_wrapper_params(rest)
             if is_method:
                 args = ['this.handle'] + args
             call = 'abi.%s(%s)' % (c_symbol(namespace, op), ', '.join(args))
@@ -789,8 +787,7 @@ def emit_as_natives():
             ret = as_ret(op)
             if owning:
                 ret = cls
-            head = '    %s%s%s(%s): %s {' % (
-                'unsafe ' if unsafe or owning else '',
+            head = '    %s%s(%s): %s {' % (
                 '' if is_method else 'static ',
                 name,
                 ', '.join(decl),
@@ -1203,7 +1200,7 @@ def check_lane_exports():
         if shim is None:
             continue
         text = (AS_STD_PATH / shim).read_text()
-        if not re.search(r'^export (unsafe )?function %s\(' % export, text,
+        if not re.search(r'^export function %s\(' % export, text,
                          flags=re.M):
             raise ValueError('std/rive/%s does not export %s, which'
                              ' lane_layout.py names' % (shim, export))

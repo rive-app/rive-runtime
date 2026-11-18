@@ -11,7 +11,7 @@ import { SharedRegion } from "rive/shared";
 @external("rive_path_v1", "new")
 declare function pathNew(): u32;
 
-unsafe function boot(): i32 {
+function boot(): i32 {
     RtNative.log(0, "top level log");
     return 1;
 }

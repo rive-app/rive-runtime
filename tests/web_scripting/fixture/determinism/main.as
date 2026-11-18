@@ -37,7 +37,7 @@ export class Bank extends AudioProcessor<f64> {
 }
 
 // Turns every voice one frame on and answers their sum.
-unsafe function turnVoices(bank: Bank): f32 {
+function turnVoices(bank: Bank): f32 {
     let sum: f32 = 0;
     if (ASC_FEATURE_SIMD) {
         let reAt = changetype<usize>(bank.re);

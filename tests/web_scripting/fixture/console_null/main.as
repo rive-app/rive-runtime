@@ -1,11 +1,11 @@
 import { Layout, Context } from "rive/host";
 
 // A cast, since the compiler guards a nullable argument.
-unsafe function logNull(): void {
+function logNull(): void {
     console.log(changetype<string>(0));
 }
 
-unsafe function logPastMemory(): void {
+function logPastMemory(): void {
     console.log(changetype<string>(<usize>memory.size() * 65536 + 64));
 }
 
