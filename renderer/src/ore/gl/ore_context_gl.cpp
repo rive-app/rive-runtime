@@ -387,6 +387,8 @@ std::unique_ptr<ContextGL> ContextGL::Make()
       f.anisotropicFiltering = true;
     else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
       f.astc = true;
+    else if (strcmp(ext, "GL_KHR_parallel_shader_compile") == 0)
+      ctx->m_parallelShaderCompile = true;
 #ifdef RIVE_DESKTOP_GL
     else if (strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
       f.bc = true;
@@ -417,6 +419,10 @@ std::unique_ptr<ContextGL> ContextGL::Make()
           webglCtx,
           "EXT_texture_filter_anisotropic"))
     f.anisotropicFiltering = true;
+  if (emscripten_webgl_enable_extension(
+          webglCtx,
+          "KHR_parallel_shader_compile"))
+    ctx->m_parallelShaderCompile = true;
 #endif
 
   return ctx;
@@ -736,6 +742,22 @@ rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 // makeShaderModule
 // ============================================================================
 
+static std::string shaderCompileError(GLuint shader)
+{
+  char log[1024] = {};
+  GLint logLen = 0;
+  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLen);
+  if (logLen > 0)
+  {
+    glGetShaderInfoLog(
+        shader,
+        std::min(logLen, (GLint)sizeof(log)),
+        nullptr,
+        log);
+  }
+  return std::string("Ore GL shader compile error: ") + log;
+}
+
 rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
 {
   auto module = rcp<ShaderModuleGL>(new ShaderModuleGL());
@@ -775,22 +797,14 @@ rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
   glShaderSource(module->m_glShader, 1, &source, &length);
   glCompileShader(module->m_glShader);
 
-  GLint status = 0;
-  glGetShaderiv(module->m_glShader, GL_COMPILE_STATUS, &status);
+  GLint status = 1;
+  if (!desc.deferBuildCheck || !m_parallelShaderCompile)
+  {
+    glGetShaderiv(module->m_glShader, GL_COMPILE_STATUS, &status);
+  }
   if (!status)
   {
-    char log[1024] = {};
-    GLint logLen = 0;
-    glGetShaderiv(module->m_glShader, GL_INFO_LOG_LENGTH, &logLen);
-    if (logLen > 0)
-    {
-      glGetShaderInfoLog(
-          module->m_glShader,
-          std::min(logLen, (GLint)sizeof(log)),
-          nullptr,
-          log);
-    }
-    setLastError("Ore GL shader compile error: %s", log);
+    setLastError("%s", shaderCompileError(module->m_glShader).c_str());
     glDeleteShader(module->m_glShader);
     return nullptr;
   }
@@ -926,39 +940,106 @@ rcp<Pipeline> ContextGL::makePipeline(
 
   glLinkProgram(pipeline->m_glProgram);
 
-  GLint status = 0;
-  glGetProgramiv(pipeline->m_glProgram, GL_LINK_STATUS, &status);
-  if (!status)
+  if (desc.deferBuildCheck && m_parallelShaderCompile)
   {
-    std::string linkLog = "GL program link failed";
-    GLint logLen = 0;
-    glGetProgramiv(pipeline->m_glProgram, GL_INFO_LOG_LENGTH, &logLen);
-    if (logLen > 0)
-    {
-      char log[1024];
-      glGetProgramInfoLog(
-          pipeline->m_glProgram,
-          std::min(logLen, (GLint)sizeof(log)),
-          nullptr,
-          log);
-      linkLog = log;
-    }
-    setLastError("Ore GL program link error: %s", linkLog.c_str());
-    if (outError)
-      *outError = std::move(linkLog);
-    return nullptr;
+    pipeline->m_status = BuildStatus::pending;
+    pipeline->m_linkingVS = ref_rcp(desc.vertexModule);
+    pipeline->m_linkingFS = ref_rcp(desc.fragmentModule);
+    return pipeline;
   }
 
-  oreGLFixupProgramBindings(
-      pipeline->m_glProgram,
-      desc.vertexModule,
-      desc.fragmentModule);
+  std::string linkError;
+  if (finishLink(
+          pipeline.get(),
+          desc.vertexModule,
+          desc.fragmentModule,
+          &linkError) == BuildStatus::failed)
+  {
+    setLastError("Ore GL program link error: %s", linkError.c_str());
+    if (outError)
+      *outError = std::move(linkError);
+    return nullptr;
+  }
 
   // (Removed: a `m_glState` cache that was populated here but never
   // consulted by `setPipeline`. Re-add when an actual delta-tracking
   // path lands.)
 
   return pipeline;
+}
+
+BuildStatus ContextGL::finishLink(
+    PipelineGL* pipeline,
+    ShaderModule* vsModule,
+    ShaderModule* fsModule,
+    std::string* outError)
+{
+  const GLuint program = pipeline->m_glProgram;
+  GLint status = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &status);
+  if (status)
+  {
+    oreGLFixupProgramBindings(program, vsModule, fsModule);
+    return BuildStatus::ready;
+  }
+  // A deferred compile failure reads as a link failure; report its cause.
+  for (ShaderModule* module : {vsModule, fsModule})
+  {
+    auto* glModule = lite_rtti_cast<ShaderModuleGL*>(module);
+    GLint compiled = 1;
+    if (glModule != nullptr)
+      glGetShaderiv(glModule->m_glShader, GL_COMPILE_STATUS, &compiled);
+    if (!compiled)
+    {
+      *outError = shaderCompileError(glModule->m_glShader);
+      return BuildStatus::failed;
+    }
+  }
+  std::string linkLog = "GL program link failed";
+  GLint logLen = 0;
+  glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+  if (logLen > 0)
+  {
+    char log[1024];
+    glGetProgramInfoLog(
+        program,
+        std::min(logLen, (GLint)sizeof(log)),
+        nullptr,
+        log);
+    linkLog = log;
+  }
+  *outError = std::move(linkLog);
+  return BuildStatus::failed;
+}
+
+BuildStatus ContextGL::pipelineStatus(
+    Pipeline* pipeline,
+    bool wait,
+    std::string* outError)
+{
+  auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
+  if (glPipeline == nullptr)
+    return BuildStatus::ready;
+  if (glPipeline->m_status == BuildStatus::pending)
+  {
+    if (!wait)
+    {
+      GLint done = 0;
+      glGetProgramiv(glPipeline->m_glProgram, GL_COMPLETION_STATUS_KHR, &done);
+      if (!done)
+        return BuildStatus::pending;
+    }
+    glPipeline->m_status = finishLink(
+        glPipeline,
+        glPipeline->m_linkingVS.get(),
+        glPipeline->m_linkingFS.get(),
+        &glPipeline->m_linkError);
+    glPipeline->m_linkingVS = nullptr;
+    glPipeline->m_linkingFS = nullptr;
+  }
+  if (glPipeline->m_status == BuildStatus::failed && outError != nullptr)
+    *outError = glPipeline->m_linkError;
+  return glPipeline->m_status;
 }
 
 // ============================================================================

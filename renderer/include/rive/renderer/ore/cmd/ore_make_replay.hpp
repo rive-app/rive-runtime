@@ -10,6 +10,7 @@
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <string>
@@ -92,6 +93,12 @@ struct OreResident
     {
       objects[id] = nullptr;
       failureNotes.erase(id);
+      pendingPipelines.erase(
+          std::remove_if(
+              pendingPipelines.begin(),
+              pendingPipelines.end(),
+              [id](const PendingPipeline& p) { return p.id == id; }),
+          pendingPipelines.end());
     }
   }
   rive::gpu::GPUResource* get(ResourceHandle id) const
@@ -121,7 +128,97 @@ struct OreResident
     }
     frameTargets.clear();
   }
+
+  // Links still running, oldest first, with the name a failure reports.
+  struct PendingPipeline
+  {
+    ResourceHandle id;
+    uint32_t generation;
+    std::string what;
+  };
+  std::vector<PendingPipeline> pendingPipelines;
 };
+
+inline void failMake(
+    OreResident& table,
+    ResourceHandle id,
+    uint32_t generation,
+    OreKind kind,
+    const std::string& desc,
+    const std::string& why)
+{
+  table.set(id, nullptr, generation, kind);
+  RIVE_WARN_THROTTLED(
+      "rive ore replay: make %s id=%u gen=%u "
+      "failed: %s\n",
+      desc.c_str(),
+      id,
+      generation,
+      why.c_str());
+  table.noteFailure(id, desc + " failed: " + why);
+}
+
+// False while the link runs. A failure lands as a failed make would.
+inline bool settlePendingPipeline(
+    Context& ctx,
+    OreResident& table,
+    const OreResident::PendingPipeline& p,
+    bool wait)
+{
+  if (!table.alive(p.id, p.generation))
+  {
+    return true;
+  }
+  auto* pipeline = static_cast<Pipeline*>(table.getAs(p.id, OreKind::pipeline));
+  std::string why;
+  switch (ctx.pipelineStatus(pipeline, wait, &why))
+  {
+    case BuildStatus::pending:
+      return false;
+    case BuildStatus::failed:
+      failMake(table, p.id, p.generation, OreKind::pipeline, p.what, why);
+      break;
+    case BuildStatus::ready:
+      break;
+  }
+  return true;
+}
+
+// A few per ore run, as each costs driver round trips. Links finish about in
+// order, so the first one still running ends the scan.
+inline void pollPendingPipelines(Context& ctx, OreResident& table)
+{
+  constexpr size_t kMaxSettles = 8;
+  auto& pending = table.pendingPipelines;
+  const size_t limit = std::min(pending.size(), kMaxSettles);
+  size_t settled = 0;
+  while (settled < limit &&
+         settlePendingPipeline(ctx, table, pending[settled], false))
+  {
+    ++settled;
+  }
+  pending.erase(pending.begin(), pending.begin() + settled);
+}
+
+// The first bind waits for the link. False when it failed.
+inline bool settlePipelineAtBind(
+    Context& ctx,
+    OreResident& table,
+    ResourceHandle id)
+{
+  auto& pending = table.pendingPipelines;
+  bool found = false;
+  for (size_t i = pending.size(); i-- > 0;)
+  {
+    if (pending[i].id == id)
+    {
+      settlePendingPipeline(ctx, table, pending[i], true);
+      pending.erase(pending.begin() + i);
+      found = true;
+    }
+  }
+  return !found || table.getAs(id, OreKind::pipeline) != nullptr;
+}
 
 // A flagged id is an already real resource; any other id indexes the resident
 // table.
@@ -224,20 +321,12 @@ inline bool replayOreLifecycle(
                      const char* what,
                      const char* label,
                      const std::string& why) {
-    const bool failed = obj == nullptr;
-    table.set(id, std::move(obj), generation, kind);
-    if (failed)
+    if (obj == nullptr)
     {
-      std::string desc = describeMake(what, label);
-      RIVE_WARN_THROTTLED(
-          "rive ore replay: make %s id=%u gen=%u "
-          "failed: %s\n",
-          desc.c_str(),
-          id,
-          generation,
-          why.c_str());
-      table.noteFailure(id, desc + " failed: " + why);
+      failMake(table, id, generation, kind, describeMake(what, label), why);
+      return;
     }
+    table.set(id, std::move(obj), generation, kind);
   };
 
   switch (type)
@@ -335,6 +424,7 @@ inline bool replayOreLifecycle(
       d.entryBindingSize = static_cast<uint32_t>(
           blob(pod.entryBindingBytes).size());
       d.shaderAssetId = pod.shaderAssetId;
+      d.deferBuildCheck = true;
       // The note carries full compiler output; deferred recording
       // accepted this module, so replay is where the failure exists.
       ctx.clearLastError();
@@ -453,12 +543,14 @@ inline bool replayOreLifecycle(
       d.bindGroupLayouts = bgls.empty() ? nullptr : bgls.data();
       d.bindGroupLayoutCount = pod.bindGroupLayoutCount;
       d.label = cstr(pod.label);
+      d.deferBuildCheck = true;
       // Unlabeled pipelines go by their vertex entry point in failures.
       const char* name = d.label != nullptr ? d.label : d.vertexEntryPoint;
       if (unresolvedDep)
         return skipUnresolvedMake(m.id, m.generation, "pipeline", name);
       std::string pipelineError;
       auto pipeline = ctx.makePipeline(d, &pipelineError);
+      const bool linking = pipeline != nullptr && ctx.defersBuildChecks();
       setMade(
           m.id,
           m.generation,
@@ -467,6 +559,11 @@ inline bool replayOreLifecycle(
           "pipeline",
           name,
           pipelineError);
+      if (linking)
+      {
+        table.pendingPipelines.push_back(
+            {m.id, m.generation, describeMake("pipeline", name)});
+      }
       return true;
     }
     case CommandType::makeBindGroup:

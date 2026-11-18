@@ -24,6 +24,7 @@ namespace rive::ore
 class RenderPassGL;
 class BindGroupGL;
 class TextureGL;
+class PipelineGL;
 
 class ContextGL : public Context
 {
@@ -75,6 +76,12 @@ public:
 
   ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
 
+  bool defersBuildChecks() const override { return m_parallelShaderCompile; }
+  BuildStatus pipelineStatus(
+      Pipeline* pipeline,
+      bool wait,
+      std::string* outError) override;
+
   ContextGL(const ContextGL&) = delete;
   ContextGL& operator=(const ContextGL&) = delete;
 
@@ -86,6 +93,16 @@ private:
   ContextGL() : Context(nullptr) {}
 
   rcp<TextureView> glWrapTarget(gpu::TextureRenderTargetGL* target);
+
+  // Reads the link status, then fixes up bindings or fills outError.
+  BuildStatus finishLink(
+      PipelineGL* pipeline,
+      ShaderModule* vsModule,
+      ShaderModule* fsModule,
+      std::string* outError);
+
+  // KHR_parallel_shader_compile: builds run off-thread and can be polled.
+  bool m_parallelShaderCompile = false;
 
   // An incomplete framebuffer repeats every frame; print each message once.
   std::string m_lastReportedError;

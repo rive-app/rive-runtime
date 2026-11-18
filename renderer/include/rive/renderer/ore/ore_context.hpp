@@ -313,6 +313,18 @@ public:
   // branch replays on the device it guessed wrong about.
   virtual bool featuresKnown() const { return true; }
 
+  // Whether makes with deferBuildCheck can return before the driver is done.
+  virtual bool defersBuildChecks() const { return false; }
+
+  // Settles a deferBuildCheck pipeline, blocking on the driver if wait.
+  virtual BuildStatus pipelineStatus(
+      Pipeline* /*pipeline*/,
+      bool /*wait*/,
+      std::string* /*outError*/)
+  {
+    return BuildStatus::ready;
+  }
+
   // ------------------------------------------------------------------------
   // Cross-cutting state and accessors. Non-virtual; live on this base
   // because they are uniform across backends.

@@ -143,15 +143,16 @@ TEST_CASE(
   CHECK(blobOf(r, b.data).size() == 0u);
 }
 
-// Every ShaderModuleDesc field has to reach the wire, and the three places
-// that carry it are hand written mirrors of this struct. Binding all members
-// here fails to compile when one is added, which is the reminder to carry it
-// through ShaderModuleDescPOD, recordMakeShaderModule and the replay side.
+// Every ShaderModuleDesc field but deferBuildCheck, which replay sets itself,
+// has to reach the wire, and the three places that carry it are hand written
+// mirrors of this struct. Binding all members here fails to compile when one
+// is added, which is the reminder to carry it through ShaderModuleDescPOD,
+// recordMakeShaderModule and the replay side.
 // State attached to a module outside this desc never crosses replay at all.
 TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
 {
   ShaderModuleDesc desc{};
-  auto& [code, codeSize, language, stage, label, hlslSource, hlslSourceSize, hlslEntryPoint, bindingMapBytes, bindingMapSize, texSamplerPairBytes, texSamplerPairSize, entryBindingBytes, entryBindingSize, glFixupBytes, glFixupSize, shaderAssetId] =
+  auto& [code, codeSize, language, stage, label, hlslSource, hlslSourceSize, hlslEntryPoint, bindingMapBytes, bindingMapSize, texSamplerPairBytes, texSamplerPairSize, entryBindingBytes, entryBindingSize, glFixupBytes, glFixupSize, shaderAssetId, deferBuildCheck] =
       desc;
   (void)code;
   (void)codeSize;
@@ -170,6 +171,7 @@ TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
   (void)glFixupBytes;
   (void)glFixupSize;
   (void)shaderAssetId;
+  (void)deferBuildCheck;
 }
 
 // Binding the members above only forces a compile break when a field is added;
@@ -325,6 +327,7 @@ TEST_CASE(
   CHECK(got.glFixupSize == sent.glFixupSize);
   CHECK(ctx.glFixup == std::vector<uint8_t>(fixup, fixup + sizeof(fixup)));
   CHECK(got.shaderAssetId == sent.shaderAssetId);
+  CHECK(got.deferBuildCheck);
 }
 
 TEST_CASE("make stream records shader module, layout, view", "[ore][cmd]")

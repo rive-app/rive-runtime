@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_pipeline.hpp"
+#include <string>
 
 namespace rive::ore
 {
@@ -16,5 +17,11 @@ private:
   friend class ContextGL;
   friend class RenderPassGL;
   unsigned int m_glProgram = 0; // GLuint; 0 = unlinked
+
+  // A deferred link holds its modules: settling reads their fixup tables.
+  BuildStatus m_status = BuildStatus::ready;
+  rcp<ShaderModule> m_linkingVS;
+  rcp<ShaderModule> m_linkingFS;
+  std::string m_linkError;
 };
 } // namespace rive::ore

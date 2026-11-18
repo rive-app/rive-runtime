@@ -41,7 +41,8 @@ inline bool replayPassCommand(
     CommandType type,
     OreCommandReader& reader,
     const OreKindResolve& resolve,
-    const OreHandleDescribe& describe = nullptr)
+    const OreHandleDescribe& describe = nullptr,
+    OreResident* table = nullptr)
 {
   auto churned = [&](const char* what, ResourceHandle h) {
     dropDraws = true;
@@ -115,6 +116,11 @@ inline bool replayPassCommand(
       auto c = reader.read<SetPipelineCmd>();
       auto* pipeline = static_cast<Pipeline*>(
           resolve(c.pipeline, OreKind::pipeline));
+      if (pipeline != nullptr && pass && !dropDraws && table != nullptr &&
+          !settlePipelineAtBind(ctx, *table, c.pipeline))
+      {
+        pipeline = nullptr;
+      }
       if (pipeline == nullptr && c.pipeline != kInvalidHandle)
       {
         churned("pipeline", c.pipeline);
@@ -302,6 +308,7 @@ inline void replayOreStream(
   auto describe = [&](ResourceHandle h) -> const char* {
     return (h & kRealResourceFlag) ? nullptr : table.failureNote(h);
   };
+  pollPendingPipelines(ctx, table);
   OreCommandReader reader(commands, blobs);
   std::unique_ptr<RenderPass> pass;
   bool dropDraws = false;
@@ -323,7 +330,8 @@ inline void replayOreStream(
             type,
             reader,
             resolve,
-            describe))
+            describe,
+            &table))
     {
       // The payload was not consumed, so later reads would desync.
       assert(false);

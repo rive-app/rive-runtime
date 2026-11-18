@@ -449,6 +449,9 @@ struct ShaderModuleDesc
   // Source ShaderAsset id (FileAsset::assetId()), or 0 if synthesized.
   // Storage on ShaderModule is gated by TRACK_RIVE_SHADER_ID.
   uint32_t shaderAssetId = 0;
+
+  // Returns before the driver compiles; an error fails the linking pipelines.
+  bool deferBuildCheck = false;
 };
 
 // Recorded into the blob arena as raw structs, so the layout is gapless and
@@ -670,6 +673,16 @@ struct PipelineDesc
   uint32_t bindGroupLayoutCount = 0;
 
   const char* label = nullptr;
+
+  // Returns before the driver links; Context::pipelineStatus settles it.
+  bool deferBuildCheck = false;
+};
+
+enum class BuildStatus : uint8_t
+{
+  ready,
+  pending,
+  failed,
 };
 
 struct ClearColor

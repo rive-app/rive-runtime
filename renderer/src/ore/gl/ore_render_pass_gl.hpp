@@ -115,6 +115,7 @@ private:
   bool m_ownsFBO = false;
   bool m_ownsVAO = false;
   rcp<Pipeline> m_currentPipeline;
+  bool m_pipelineFailed = false;
   uint32_t m_viewportWidth = 0;
   uint32_t m_viewportHeight = 0;
   uint32_t m_maxSamplerSlot = 0;

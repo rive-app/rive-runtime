@@ -220,6 +220,17 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
   validate();
   if (!checkPipelineCompat(pipeline))
     return;
+  // A deferred link finishes the first time a pass binds it.
+  std::string linkError;
+  if (m_context->pipelineStatus(pipeline, true, &linkError) ==
+      BuildStatus::failed)
+  {
+    m_context->setLastError("Ore GL program link error: %s", linkError.c_str());
+    m_currentPipeline = nullptr;
+    m_pipelineFailed = true;
+    return;
+  }
+  m_pipelineFailed = false;
   m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
   m_currentPipeline = ref_rcp(pipeline);
   m_samplerBindingsDirty = true;
@@ -653,6 +664,8 @@ void RenderPassGL::draw(
     uint32_t firstInstance)
 {
   validate();
+  if (m_pipelineFailed)
+    return;
   assert(m_currentPipeline != nullptr);
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
@@ -678,6 +691,8 @@ void RenderPassGL::drawIndexed(
     uint32_t firstInstance)
 {
   validate();
+  if (m_pipelineFailed)
+    return;
   assert(m_currentPipeline != nullptr);
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   applySamplerBindings();
