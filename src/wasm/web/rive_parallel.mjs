@@ -502,8 +502,8 @@ export function createParallel(threads) {
         }
     }
 
-    // Part 0 checking in from a sync, where the page's thread waits inside
-    // the module and the join cannot run.
+    // Part 0 checking in, where the page's thread is inside the module and
+    // the join cannot run.
     function waiting() {
         const call = current;
         if (call === null) {

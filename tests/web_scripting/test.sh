@@ -61,6 +61,12 @@ SERIAL=(--expect "parallel size 1" --expect "parallel threads no"
 STOPPED=(--until "parallel after a stop"
     --expect "wasm call trapped in host_obj_advance: execution exceeded timeout"
     --expect "parallel after a stop ok")
+# A part that waits for another without a sync ends its wait once the call is
+# stopped, and the next call starts unstopped.
+STOPPING=(--until "parallel after a stopped call"
+    --expect "parallel counted in ok"
+    --expect "wasm call trapped in host_obj_advance: the last part gave up while the others waited"
+    --expect "parallel after a stopped call ok")
 # Parallel.inPart() is false on the main lane and true in parts, a PerPart
 # grows to a call's parts before they run, and parts call a @parallel
 # function value bit for bit as the main lane does.
@@ -70,6 +76,7 @@ DESIGN=(--until "design friction wrong" --expect "design in part ok"
 for MODE in "" --sync --no-isolation; do
     node run.mjs $HARNESS fixture/parallel.riv $MODE "${SERIAL[@]}" "${PARALLEL[@]}"
     node run.mjs $HARNESS fixture/parallel_design.riv $MODE "${DESIGN[@]}"
+    node run.mjs $HARNESS fixture/parallel_stopping.riv $MODE "${STOPPING[@]}"
 done
 node run.mjs $HARNESS fixture/parallel_stop.riv "${STOPPED[@]}"
 # Without threads a job runs at a later advance, as a budgeted call never runs
@@ -274,6 +281,7 @@ RIVE_PARALLEL_TIMED_WAITS=1 "${PARALLEL_NODE[@]}" fixture/parallel.riv \
     "${PARALLEL[@]}" --expect 'parallel team {"team":0,"waits":"none"}'
 "${PARALLEL_NODE[@]}" fixture/parallel_stop.riv --parallel-parts 4 "${STOPPED[@]}"
 "${PARALLEL_NODE[@]}" fixture/parallel_design.riv --parallel-parts 4 "${DESIGN[@]}"
+guarded "${PARALLEL_NODE[@]}" fixture/parallel_stopping.riv --parallel-parts 4 "${STOPPING[@]}"
 # Member setup that runs out of memory keeps the members it made, as natively,
 # and a call runs on those.
 "${PARALLEL_NODE[@]}" fixture/parallel_capped.riv --parallel-parts 4 \
@@ -296,6 +304,10 @@ guarded "${PARALLEL_NODE[@]}" fixture/parallel_frames.riv --parallel-parts 4 \
 # so it checks in with the page, and without a budget the call fails within a
 # second there too.
 perl -e 'alarm shift; exec @ARGV' 10 "${PARALLEL_NODE[@]}" fixture/parallel_frames.riv \
+    --parallel-parts 4 --call-budget 0 --expect "wasm call trapped in host_obj_advance: a thread of the page's team did not start its part of a parallel call within 1000 ms"
+# Part 0 waits there for the other parts without a sync, and checks in each
+# time it calls part.stopping().
+perl -e 'alarm shift; exec @ARGV' 10 "${PARALLEL_NODE[@]}" fixture/parallel_stopping.riv \
     --parallel-parts 4 --call-budget 0 --expect "wasm call trapped in host_obj_advance: a thread of the page's team did not start its part of a parallel call within 1000 ms"
 unset RIVE_PARALLEL_DEAF_THREAD
 node run.mjs $THREADED fixture/jobs.riv "${JOBS[@]:2}"
@@ -706,6 +718,7 @@ for BROWSER in "${BROWSERS[@]}"; do
         --expect "parallel parts all yes"
     page $PAGE fixture/parallel_stop.riv --parallel-parts 4 "${STOPPED[@]}"
     page $PAGE fixture/parallel_design.riv --parallel-parts 4 "${DESIGN[@]}"
+    page $PAGE fixture/parallel_stopping.riv --parallel-parts 4 "${STOPPING[@]}"
     # Calls on every frame, each frame's first waking a parked team. WebKit
     # can lose the wake of an async wait, which hung the page, so its team
     # waits with a timeout. Without audio a failure runs only once.
@@ -728,6 +741,7 @@ for BROWSER in "${BROWSERS[@]}"; do
     page $PAGE fixture/parallel.riv --no-isolation "${SERIAL[@]}" "${PARALLEL[@]}"
     page $PAGE fixture/parallel_stop.riv --no-isolation "${STOPPED[@]}"
     page $PAGE fixture/parallel_design.riv --no-isolation "${DESIGN[@]}"
+    page $PAGE fixture/parallel_stopping.riv --no-isolation "${STOPPING[@]}"
     page $PAGE fixture/job_spin.riv --no-isolation \
         --expect "spinner failed: $SPINNER_TIMEOUT" \
         --expect "job after the spinners 9.0"

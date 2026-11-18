@@ -1362,10 +1362,10 @@ NAMESPACES = [
         # the caller once every part has stopped. Answers how many threads
         # ran parts.
         op('run', [u32('control')], ret='u32', guard='RIVE_WASM_PARALLEL'),
-        # Part 0 calls it now and then while it waits at a sync on a caller
-        # that cannot park, so the host can stop a call with a part that
-        # never started. The page's runner answers it; elsewhere the caller
-        # parks and it does nothing.
+        # Part 0 calls it where its caller cannot park, now and then while
+        # it waits at a sync and each time it asks stopping(), so the host
+        # can stop a call with a part that never started. Only the page's
+        # runner acts on it.
         op('waiting', [u32('control')], web_js='undefined'),
     ], boots=True, as_class=False),
     # Memory every lane shares, by process wide id. Creates answer an id or a
