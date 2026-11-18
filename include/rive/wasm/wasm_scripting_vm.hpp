@@ -1168,6 +1168,14 @@ private:
   uint32_t frameMajors();
   uint8_t m_handleCollects = 0;
   uint32_t m_handleCollectMajors = 0;
+  uint32_t m_handleFirstLive = 0;
+  /// The count a rise past the warn count started its window at; 0 when
+  /// none is being watched.
+  uint32_t m_handleWindowLive = 0;
+  uint32_t m_handleWindowFrames = 0;
+  uint8_t m_handleRisingWindows = 0;
+  bool m_handleWindowCollected = false;
+  uint32_t m_handleBaselineKinds[(size_t)HandleTable::Tag::count] = {};
   bool m_frameMajorsProbe = false;
   RawPath* m_pathEffectOut = nullptr;
   ScriptDataResult* m_convertResultOut = nullptr;

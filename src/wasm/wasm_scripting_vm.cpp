@@ -14516,36 +14516,65 @@ uint32_t WasmScriptingVM::frameMajors()
   return m_frameMajorsProbe ? callModule("__riveFrameMajors", 0, nullptr) : 0;
 }
 
+static void countHandleKinds(
+    const WasmScriptingVM::HandleTable& handles,
+    uint32_t* counts)
+{
+  using Tag = WasmScriptingVM::HandleTable::Tag;
+  std::fill_n(counts, (size_t)Tag::count, 0u);
+  for (const WasmScriptingVM::HandleTable::Slot& slot : handles.slots)
+  {
+    if (slot.tag != Tag::empty)
+    {
+      counts[(size_t)slot.tag]++;
+    }
+  }
+}
+
 const char* WasmScriptingVM::handleLeakWarning()
 {
   if (!m_handleWatch || !m_advancedOnce)
   {
     return nullptr;
   }
-  uint32_t live = (uint32_t)m_handles.live();
+  // Biased by one so a zero-handle module still records its baseline.
+  uint32_t live = (uint32_t)m_handles.live() + 1;
   if (m_handleBaselineLive == 0)
   {
-    // Bias by one so a zero-handle module still records its baseline.
-    m_handleBaselineLive = live + 1;
+    m_handleBaselineLive = live;
+    m_handleFirstLive = live;
+    countHandleKinds(m_handles, m_handleBaselineKinds);
     return nullptr;
   }
   m_handleFrames++;
-  // Hundreds of handles past warmup over two seconds of frames is a
-  // per-frame mint with no release, not a working set.
+  // A rise past the warn count leaks if it keeps rising for several windows.
+  // One that holds for a window after its first is working set, up to the cap.
   constexpr uint32_t kHandleWarnCount = 512;
-  constexpr uint32_t kHandleWarnMinFrames = 120;
-  if (live + 1 < m_handleBaselineLive + kHandleWarnCount)
+  constexpr uint32_t kHandleWindowFrames = 120;
+  constexpr uint8_t kHandleRisingWindows = 4;
+  constexpr uint32_t kHandleHoldSlack = 64;
+  constexpr uint32_t kHandleWorkingSetCap = 4096;
+  if (live < m_handleBaselineLive + kHandleWarnCount)
   {
+    m_handleWindowLive = 0;
     m_handleCollects = 0;
     return nullptr;
   }
-  if (m_handleFrames < kHandleWarnMinFrames)
+  if (m_handleWindowLive == 0)
+  {
+    m_handleWindowLive = live;
+    m_handleWindowFrames = 0;
+    m_handleRisingWindows = 0;
+    m_handleWindowCollected = false;
+    return nullptr;
+  }
+  if (++m_handleWindowFrames < kHandleWindowFrames)
   {
     return nullptr;
   }
   // Wrappers that outlived a boundary die in the old region, which only
   // a major sweeps, and its size trigger cannot see the host side of a
-  // handle. Ask for one and only warn if the growth survives it. A bake
+  // handle. Ask for one and judge only the growth that survives it. A bake
   // without the majors counter cannot say when that is, so it stays quiet.
   if (m_collectedRuntime && !m_frameMajorsProbe)
   {
@@ -14570,37 +14599,64 @@ const char* WasmScriptingVM::handleLeakWarning()
     }
   }
   m_handleCollects = 0;
-  // Re-arm so a leaking session keeps warning every 512 handles.
-  uint32_t grown = live + 1 - m_handleBaselineLive;
-  uint32_t frames = m_handleFrames;
-  m_handleBaselineLive = live + 1;
-  m_handleFrames = 0;
-  uint32_t counts[(size_t)HandleTable::Tag::count] = {0};
-  for (const HandleTable::Slot& slot : m_handles.slots)
+  bool rising = live >= m_handleWindowLive + kHandleHoldSlack;
+  // A window opened on dead wrappers would read a leak as holding, so only
+  // one opened on a count that survived the collections may hold.
+  if ((rising && ++m_handleRisingWindows < kHandleRisingWindows) ||
+      (!rising && !m_handleWindowCollected))
   {
-    if (slot.tag != HandleTable::Tag::empty)
-    {
-      counts[(size_t)slot.tag]++;
-    }
+    m_handleWindowLive = live;
+    m_handleWindowFrames = 0;
+    m_handleWindowCollected = true;
+    return nullptr;
   }
+  uint32_t grown = live - m_handleBaselineLive;
+  uint32_t frames = m_handleFrames;
+  m_handleBaselineLive = live;
+  m_handleFrames = 0;
+  m_handleWindowLive = 0;
+  uint32_t counts[(size_t)HandleTable::Tag::count];
+  countHandleKinds(m_handles, counts);
   size_t top = 0;
-  for (size_t i = 1; i < sizeof(counts) / sizeof(counts[0]); i++)
+  uint32_t topGrowth = 0;
+  for (size_t i = 1; i < (size_t)HandleTable::Tag::count; i++)
   {
-    if (counts[i] > counts[top])
+    uint32_t growth = counts[i] > m_handleBaselineKinds[i]
+                          ? counts[i] - m_handleBaselineKinds[i]
+                          : 0;
+    if (growth > topGrowth)
     {
       top = i;
+      topGrowth = growth;
     }
   }
-  char buffer[256];
+  memcpy(m_handleBaselineKinds, counts, sizeof(counts));
+  if (!rising && live <= m_handleFirstLive + kHandleWorkingSetCap)
+  {
+    return nullptr;
+  }
+  // Past the cap, the steps taken as working set may be the leak too.
+  char sinceFirst[48] = {0};
+  if (!rising)
+  {
+    snprintf(
+        sinceFirst,
+        sizeof(sinceFirst),
+        ", %u since its first frame",
+        live - m_handleFirstLive);
+  }
+  char buffer[320];
   snprintf(
       buffer,
       sizeof(buffer),
-      "script leaked %u host handles over %u frames (most: %u %s); "
+      "script leaked %u host handles over %u frames (most: %u %s)%s; "
       "resources created per frame need release() or finish().%s",
       grown,
       frames,
-      counts[top],
+      // A kind released since the baseline lets another grow past the total.
+      std::min(topGrowth, grown),
       handleTagName((HandleTable::Tag)top),
+      sinceFirst,
       kLeakWarnOffHint);
   m_leakWarning = buffer;
   return m_leakWarning.c_str();
