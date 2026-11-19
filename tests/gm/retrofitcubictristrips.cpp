@@ -207,7 +207,7 @@ public:
 };
 
 // Checks that RenderContext properly draws triangle strips when using the
-// CONTOUR_FLAG_RETROFIT_TRI_STRIP flag.
+// TESS_FLAG_RETROFIT_TRI_STRIP flag.
 class RetrofitCubicTriStripsGM : public GM
 {
 public:

@@ -802,7 +802,7 @@ enum class DrawType : uint8_t
   // instead of midpoint-fan patches. These use the exact same depth/stencil
   // settings as their midpoint-fan counterparts; they just draw a different
   // patch of triangles. Used to fill paths via interior triangulation, whose
-  // interior is smuggled via cubics (CONTOUR_FLAG_RETROFIT_TRI_STRIP).
+  // interior is smuggled via cubics (TESS_FLAG_RETROFIT_TRI_STRIP).
   stencilOuterCubicBorrowedCoverage,
   stencilOuterCubics,
   stencilOuterCubicReset,

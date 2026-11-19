@@ -1689,7 +1689,7 @@ void RenderContext::LogicalFlush::writeResources()
     pushPaddingSpokes(
         gpu::kMidpointFanPatchSegmentSpan,
         0,
-        CONTOUR_FLAG_LAST_IN_MEMORY);
+        TESS_FLAG_LAST_IN_MEMORY);
 
     // Padding between midpointFan and outerCubic regions in the tessellation
     // texture.
@@ -1697,15 +1697,15 @@ void RenderContext::LogicalFlush::writeResources()
     pushPaddingSpokes(
         interiorTessPaddingCount,
         m_midpointFanTessEndLocation,
-        middlePaddingContourID | CONTOUR_FLAG_FIRST_IN_MEMORY |
-            CONTOUR_FLAG_LAST_IN_MEMORY);
+        middlePaddingContourID | TESS_FLAG_FIRST_IN_MEMORY |
+            TESS_FLAG_LAST_IN_MEMORY);
 
     // Padding at the end of the tessellation texture. (The final contour's
     // contour-closing spoke crosses into it, then wraps or clamps.)
     pushPaddingSpokes(
         1,
         m_outerCubicTessEndLocation,
-        finalPaddingContourID | CONTOUR_FLAG_FIRST_IN_MEMORY);
+        finalPaddingContourID | TESS_FLAG_FIRST_IN_MEMORY);
   }
 
   // Write out all the data for our high level draws, and build up a low-level
@@ -3594,12 +3594,12 @@ void RenderContext::TessellationWriter::pushCubic(
   // narrows these flags to the single boundary spokes.)
   if (!m_wroteFirstCubicInContour)
   {
-    contourIDWithFlags |= CONTOUR_FLAG_FIRST_IN_MEMORY;
+    contourIDWithFlags |= TESS_FLAG_FIRST_IN_MEMORY;
     m_wroteFirstCubicInContour = true;
   }
   if (m_contourTessVerticesRemaining == 0)
   {
-    contourIDWithFlags |= CONTOUR_FLAG_LAST_IN_MEMORY;
+    contourIDWithFlags |= TESS_FLAG_LAST_IN_MEMORY;
   }
 
   switch (contourDirections)
@@ -3665,7 +3665,7 @@ void RenderContext::TessellationWriter::pushRetrofitCubicTriStrip(
       gpu::OuterCubicPatchSegmentSpan,
       1,
       1,
-      contourIDWithFlags | CONTOUR_FLAG_RETROFIT_TRI_STRIP);
+      contourIDWithFlags | TESS_FLAG_RETROFIT_TRI_STRIP);
 }
 
 RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::

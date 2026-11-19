@@ -392,11 +392,11 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
   switch (join)
   {
     case StrokeJoin::miter:
-      return CONTOUR_FLAG_MITER_REVERT_JOIN;
+      return TESS_FLAG_MITER_REVERT_JOIN;
     case StrokeJoin::round:
-      return CONTOUR_FLAG_ROUND_JOIN;
+      return TESS_FLAG_ROUND_JOIN;
     case StrokeJoin::bevel:
-      return CONTOUR_FLAG_BEVEL_JOIN;
+      return TESS_FLAG_BEVEL_JOIN;
   }
   RIVE_UNREACHABLE();
 }
@@ -1117,7 +1117,7 @@ PathDraw::PathDraw(
                                 ? gpu::ContourDirections::reverse
                                 : gpu::ContourDirections::forwardThenReverse;
       // Ignored by depthStencil.
-      m_contourFlags |= CONTOUR_FLAG_NEGATE_FILL_COVERAGE;
+      m_tessFlags |= TESS_FLAG_NEGATE_FILL_COVERAGE;
     }
     else
     {
@@ -1139,7 +1139,7 @@ PathDraw::PathDraw(
       m_contourDirections = (m_coverageType == CoverageType::featherAtlas)
                                 ? gpu::ContourDirections::reverse
                                 : gpu::ContourDirections::forwardThenReverse;
-      m_contourFlags |= CONTOUR_FLAG_NEGATE_FILL_COVERAGE;
+      m_tessFlags |= TESS_FLAG_NEGATE_FILL_COVERAGE;
     }
     else
     {
@@ -1175,7 +1175,7 @@ PathDraw::PathDraw(
       !gpu::ContourDirectionsAreDoubleSided(m_contourDirections));
   if (m_paintMatrix.determinant() < 0)
   {
-    m_contourFlags |= CONTOUR_FLAG_NEGATIVE_DETERMINANT;
+    m_tessFlags |= TESS_FLAG_NEGATIVE_DETERMINANT;
   }
 
   m_simplePaintValue = paint->getSimpleValue();
@@ -2000,8 +2000,8 @@ void PathDraw::initForInteriorTriangulation(
   m_triangulatorReverseTriangles = matrixDeterminant < 0;
   m_triangulatorNegateWinding = (matrixDeterminant < 0) !=
                                 static_cast<bool>(
-                                    m_contourFlags &
-                                    CONTOUR_FLAG_NEGATE_FILL_COVERAGE);
+                                    m_tessFlags &
+                                    TESS_FLAG_NEGATE_FILL_COVERAGE);
 
   m_outerCubicContours = context->perFrameAllocator()
                              .makePODArray<OuterCubicContourInfo>(
@@ -2677,8 +2677,8 @@ void PathDraw::pushMidpointFanTessellationData(
     if (isStrokeOrFeather())
     {
       joinTypeFlags = isStroke() ? join_type_flags(m_strokeJoin)
-                                 : CONTOUR_FLAG_FEATHER_JOIN;
-      roundJoinStroked = joinTypeFlags == CONTOUR_FLAG_ROUND_JOIN;
+                                 : TESS_FLAG_FEATHER_JOIN;
+      roundJoinStroked = joinTypeFlags == TESS_FLAG_ROUND_JOIN;
       if (contour.strokeCapSegmentCount != 0)
       {
         StrokeCap cap = !contour.closed
@@ -2687,28 +2687,27 @@ void PathDraw::pushMidpointFanTessellationData(
         switch (cap)
         {
           case StrokeCap::butt:
-            emulatedCapAsJoinFlags = CONTOUR_FLAG_BEVEL_JOIN;
+            emulatedCapAsJoinFlags = TESS_FLAG_BEVEL_JOIN;
             break;
           case StrokeCap::square:
-            emulatedCapAsJoinFlags = CONTOUR_FLAG_MITER_CLIP_JOIN;
+            emulatedCapAsJoinFlags = TESS_FLAG_MITER_CLIP_JOIN;
             break;
           case StrokeCap::round:
-            emulatedCapAsJoinFlags = CONTOUR_FLAG_ROUND_JOIN;
+            emulatedCapAsJoinFlags = TESS_FLAG_ROUND_JOIN;
             break;
         }
-        emulatedCapAsJoinFlags |= CONTOUR_FLAG_EMULATED_STROKE_CAP;
+        emulatedCapAsJoinFlags |= TESS_FLAG_EMULATED_STROKE_CAP;
         needsFirstEmulatedCapAsJoin = true;
       }
     }
 
     // Make a data record for this current contour on the GPU.
-    uint32_t contourIDWithFlags = m_contourFlags |
-                                  tessWriter->pushContour(
-                                      contour.midpoint,
-                                      isStroke(),
-                                      contour.closed,
-                                      contour.paddingVertexCount,
-                                      contour.tessVertexCount);
+    uint32_t contourIDWithFlags = m_tessFlags | tessWriter->pushContour(
+                                                    contour.midpoint,
+                                                    isStroke(),
+                                                    contour.closed,
+                                                    contour.paddingVertexCount,
+                                                    contour.tessVertexCount);
 
     // When we don't have round joins, the number of segments per join is
     // constant. (Round joins have a variable number of segments per join,
@@ -2867,7 +2866,7 @@ void PathDraw::pushMidpointFanTessellationData(
               size_t cuspJoinIdx = extraRotationIdx++;
               chopJoinTangent = m_tangentPairs[cuspJoinIdx][1];
               chopJoinSegmentCount = m_polarSegmentCounts[cuspJoinIdx];
-              chopJoinTypeFlags = CONTOUR_FLAG_CUSP_JOIN;
+              chopJoinTypeFlags = TESS_FLAG_CUSP_JOIN;
               RIVE_DEBUG_CODE(--m_pendingRotationCount;)
             }
             else
@@ -3086,7 +3085,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
+                    TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           ++patchCount;
         }
@@ -3105,7 +3104,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           // it would break the consecutive-IDs invariant.
           if (m_outerCubicContours[contourCount].patchCount != 0)
           {
-            contourIDWithFlags = m_contourFlags |
+            contourIDWithFlags = m_tessFlags |
                                  tessWriter->pushContour(
                                      {0, 0},
                                      isStroke(),
@@ -3132,7 +3131,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
+                    TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           ++patchCount;
         }
@@ -3172,7 +3171,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 1,
                 /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
-                    CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
+                    TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
           }
           else
           {
@@ -3191,13 +3190,13 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                   1,
                   /*bowtieSegmentCount=*/1,
                   contourIDWithFlags |
-                      CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
+                      TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
               chop += 3;
               RIVE_DEBUG_CODE(++pushedPatchCount;)
             }
             // Fill the gap between the sub-cubics by connecting
             // their endpoints with a simple fan. Each fan blade is
-            // cubic patch with CONTOUR_FLAG_RETROFIT_TRI_STRIP (a
+            // cubic patch with TESS_FLAG_RETROFIT_TRI_STRIP (a
             // standard strip of up to 3 triangles, retrofitted into
             // a cubic patch), anchored at the first vertex
             // (chops[0]).
@@ -3244,7 +3243,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           OuterCubicPatchSegmentSpan,
           1,
           /*bowtieSegmentCount=*/1,
-          contourIDWithFlags | CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
+          contourIDWithFlags | TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS);
     }
     ++patchCount;
   }
@@ -3314,7 +3313,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
   {
     if (retrofitPatchCount != 0)
     {
-      contourIDWithFlags = m_contourFlags |
+      contourIDWithFlags = m_tessFlags |
                            tessWriter->pushContour(
                                {0, 0},
                                isStroke(),

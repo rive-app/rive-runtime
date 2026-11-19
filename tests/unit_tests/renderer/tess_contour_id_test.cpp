@@ -174,7 +174,7 @@ private:
     uint32_t contourIDWithFlags = span.contourIDWithFlags;
     if (x1 < x0) // Reflections are drawn right to left.
     {
-      contourIDWithFlags |= CONTOUR_FLAG_MIRRORED;
+      contourIDWithFlags |= TESS_FLAG_MIRRORED;
     }
     for (int32_t x = std::max(std::min(x0, x1), 0);
          x <
@@ -223,12 +223,11 @@ private:
       std::ostringstream s;
       s << "texel " << i << ": id "
         << (texels[i].contourIDWithFlags & CONTOUR_ID_MASK)
-        << ((texels[i].contourIDWithFlags & CONTOUR_FLAG_FIRST_IN_MEMORY)
+        << ((texels[i].contourIDWithFlags & TESS_FLAG_FIRST_IN_MEMORY)
                 ? " FIRST"
                 : "")
-        << ((texels[i].contourIDWithFlags & CONTOUR_FLAG_LAST_IN_MEMORY)
-                ? " LAST"
-                : "")
+        << ((texels[i].contourIDWithFlags & TESS_FLAG_LAST_IN_MEMORY) ? " LAST"
+                                                                      : "")
         << ", written " << texels[i].writeCount << "x";
       return s.str();
     };
@@ -240,8 +239,8 @@ private:
         FAIL_CHECK("written other than once: " << describe(i));
         return;
       }
-      constexpr uint32_t BothBoundaries = CONTOUR_FLAG_FIRST_IN_MEMORY |
-                                          CONTOUR_FLAG_LAST_IN_MEMORY;
+      constexpr uint32_t BothBoundaries = TESS_FLAG_FIRST_IN_MEMORY |
+                                          TESS_FLAG_LAST_IN_MEMORY;
       if ((texels[i].contourIDWithFlags & BothBoundaries) == BothBoundaries)
       {
         FAIL_CHECK("FIRST and LAST on the same texel: " << describe(i));
@@ -283,7 +282,7 @@ private:
           }
           const bool feathered = isFeathered(pathID);
           const bool mirrored = (texels[first].contourIDWithFlags &
-                                 CONTOUR_FLAG_MIRRORED) != 0;
+                                 TESS_FLAG_MIRRORED) != 0;
           ++m_pathContourCount;
           m_featheredContourCount += feathered;
           m_mirroredFeatheredContourCount += feathered && mirrored;
@@ -343,14 +342,14 @@ private:
                                                 << describe(i));
         return;
       }
-      if (!(prev & CONTOUR_FLAG_LAST_IN_MEMORY))
+      if (!(prev & TESS_FLAG_LAST_IN_MEMORY))
       {
         FAIL_CHECK(
             "no LAST before an ID increment:\n  " << describe(i - 1) << "\n  "
                                                   << describe(i));
         return;
       }
-      if (!(curr & CONTOUR_FLAG_FIRST_IN_MEMORY))
+      if (!(curr & TESS_FLAG_FIRST_IN_MEMORY))
       {
         FAIL_CHECK(
             "no FIRST after an ID increment:\n  " << describe(i - 1) << "\n  "

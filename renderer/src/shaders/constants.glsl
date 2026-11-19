@@ -118,49 +118,49 @@
 // strip of up to 5 points: [p0, p1, p3, p2, joinTangent]. This is used to
 // reduce draws and pipeline transitions by squeezing in triangles that don't
 // otherwise need special state or shading logic.
-#define CONTOUR_FLAG_RETROFIT_TRI_STRIP (1u << 31u)
+#define TESS_FLAG_RETROFIT_TRI_STRIP (1u << 31u)
 
 // These mark boundaries between contours in the tessellation texture. The CPU
 // sets them coarsely on entire boundary segments; the tessellator narrows them
 // to the single boundary spoke, and swaps them in the case of mirrored
 // contours.
-#define CONTOUR_FLAG_FIRST_IN_MEMORY (1u << 30u)
-#define CONTOUR_FLAG_LAST_IN_MEMORY (1u << 29u)
+#define TESS_FLAG_FIRST_IN_MEMORY (1u << 30u)
+#define TESS_FLAG_LAST_IN_MEMORY (1u << 29u)
 
 // Tells the tessellation shader to re-run Wang's formula on the given curve,
 // figure out how many segments it actually needs, and make any excess segments
 // degenerate by co-locating their vertices at T=0. (Used on the "outerCurve"
 // patches that are drawn with interior triangulations.)
-#define CONTOUR_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS (1u << 28u)
+#define TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS (1u << 28u)
 
 // Flags for specifying the join type.
-#define CONTOUR_MASK_JOIN_TYPE (7u << 25u)
-#define CONTOUR_FLAG_MITER_CLIP_JOIN (6u << 25u)
-#define CONTOUR_FLAG_MITER_REVERT_JOIN (5u << 25u)
-#define CONTOUR_FLAG_BEVEL_JOIN (4u << 25u)
-#define CONTOUR_FLAG_ROUND_JOIN (3u << 25u)
-#define CONTOUR_FLAG_CUSP_JOIN (2u << 25u)
-#define CONTOUR_FLAG_FEATHER_JOIN (1u << 25u)
+#define TESS_MASK_JOIN_TYPE (7u << 25u)
+#define TESS_FLAG_MITER_CLIP_JOIN (6u << 25u)
+#define TESS_FLAG_MITER_REVERT_JOIN (5u << 25u)
+#define TESS_FLAG_BEVEL_JOIN (4u << 25u)
+#define TESS_FLAG_ROUND_JOIN (3u << 25u)
+#define TESS_FLAG_CUSP_JOIN (2u << 25u)
+#define TESS_FLAG_FEATHER_JOIN (1u << 25u)
 
 // When a join is being used to emulate a stroke cap, the shader emits
 // additional vertices at T=0 and T=1 for round joins, and changes the miter
 // limit to 1 for miter-clip joins.
-#define CONTOUR_FLAG_EMULATED_STROKE_CAP (1u << 24u)
+#define TESS_FLAG_EMULATED_STROKE_CAP (1u << 24u)
 
 // Flip the sign on interpolated fragment coverage for fills. Ignored on
 // strokes. This is used when reversing the winding direction of a path.
-#define CONTOUR_FLAG_NEGATE_FILL_COVERAGE (1u << 23u)
+#define TESS_FLAG_NEGATE_FILL_COVERAGE (1u << 23u)
 
-// Internal contour flags.
-#define CONTOUR_FLAG_MIRRORED (1u << 22u)
-#define CONTOUR_FLAG_JOIN_TANGENT_0 (1u << 21u)
-#define CONTOUR_FLAG_JOIN_TANGENT_INNER (1u << 20u)
-#define CONTOUR_FLAG_LEFT_JOIN (1u << 19u)
-#define CONTOUR_FLAG_RIGHT_JOIN (1u << 18u)
+// Internal tessellation flags.
+#define TESS_FLAG_MIRRORED (1u << 22u)
+#define TESS_FLAG_JOIN_TANGENT_0 (1u << 21u)
+#define TESS_FLAG_JOIN_TANGENT_INNER (1u << 20u)
+#define TESS_FLAG_LEFT_JOIN (1u << 19u)
+#define TESS_FLAG_RIGHT_JOIN (1u << 18u)
 
 // The draw's paint matrix is left-handed. (depthStencil strokes and hairlines
 // use this to flip their outset so triangles remain clockwise.)
-#define CONTOUR_FLAG_NEGATIVE_DETERMINANT (1u << 17u)
+#define TESS_FLAG_NEGATIVE_DETERMINANT (1u << 17u)
 
 #define CONTOUR_ID_MASK 0xffffu
 

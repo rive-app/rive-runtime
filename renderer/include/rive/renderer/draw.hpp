@@ -422,7 +422,7 @@ public:
   }
   // True if the triangulator should negate the Rive winding number when
   // outputting triangle vertices (because of a left-handed view matrix or
-  // CONTOUR_FLAG_NEGATE_FILL_COVERAGE).
+  // TESS_FLAG_NEGATE_FILL_COVERAGE).
   bool triangulatorNegateWinding() const { return m_triangulatorNegateWinding; }
 
   bool allocateResources(RenderContext::LogicalFlush*) override;
@@ -557,7 +557,7 @@ protected:
   float m_featherRadius = 0;
   float m_additionalOutset = 0.0f;
   gpu::ContourDirections m_contourDirections;
-  uint32_t m_contourFlags = 0;
+  uint32_t m_tessFlags = 0;
 
   // Only used when rendering coverage via the feather atlas.
   gpu::AtlasTransform m_featherAtlasTransform;

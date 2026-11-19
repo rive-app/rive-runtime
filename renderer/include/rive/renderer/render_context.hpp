@@ -835,7 +835,7 @@ private:
     //     mirrored.
     //
     // Returns a unique 16-bit "contourID" handle for this specific record.
-    // This ID may be or-ed with '*_CONTOUR_FLAG' bits from constants.glsl.
+    // This ID may be or-ed with TESS_FLAG bits from constants.glsl.
     [[nodiscard]] uint32_t pushContour(
         uint32_t contourID,
         uint32_t pathID,
@@ -1119,7 +1119,7 @@ private:
     //
     // The bottom 16 bits of contourIDWithFlags must match the most
     // recent contourID returned by pushContour(), but it may also have
-    // extra '*_CONTOUR_FLAG' bits from constants.glsl
+    // extra TESS_FLAG bits from constants.glsl
     //
     // An instance consists of a cubic curve with
     // "parametricSegmentCount + polarSegmentCount" segments, followed

@@ -177,7 +177,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   // contourID to our own before fetching data. (The tessellator guarantees the
   // invariant that "contourID == neighborContourID - 1".)
   if (patchSpokeIdx == patchTessVertexStride &&
-      (contourIDWithFlags & CONTOUR_FLAG_FIRST_IN_MEMORY) != 0u)
+      (contourIDWithFlags & TESS_FLAG_FIRST_IN_MEMORY) != 0u)
   {
     --contourID;
     isContourClosingSpoke = true;
@@ -227,8 +227,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     // a mirrored (backwards) contour each flip the outside.
     if (isExactlyOneFlagSet(
             contourIDWithFlags,
-            CONTOUR_FLAG_NEGATIVE_DETERMINANT,
-            CONTOUR_FLAG_MIRRORED))
+            TESS_FLAG_NEGATIVE_DETERMINANT,
+            TESS_FLAG_MIRRORED))
     {
       outset = -outset;
     }
@@ -247,16 +247,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     {
       // Joins only emanate from the outer side of the stroke (except full
       // round joins, which emit both sides like curves).
-      if ((contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u)
+      if ((contourIDWithFlags & TESS_FLAG_LEFT_JOIN) != 0u)
         outset = min(outset, .0);
-      if ((contourIDWithFlags & CONTOUR_FLAG_RIGHT_JOIN) != 0u)
+      if ((contourIDWithFlags & TESS_FLAG_RIGHT_JOIN) != 0u)
         outset = max(outset, .0);
 
-      uint joinType = contourIDWithFlags & CONTOUR_MASK_JOIN_TYPE;
-      if (joinType > CONTOUR_FLAG_ROUND_JOIN)
+      uint joinType = contourIDWithFlags & TESS_MASK_JOIN_TYPE;
+      if (joinType > TESS_FLAG_ROUND_JOIN)
       {
-        bool isTan0 = (contourIDWithFlags & CONTOUR_FLAG_JOIN_TANGENT_0) != 0u;
-        bool isLeftJoin = (contourIDWithFlags & CONTOUR_FLAG_LEFT_JOIN) != 0u;
+        bool isTan0 = (contourIDWithFlags & TESS_FLAG_JOIN_TANGENT_0) != 0u;
+        bool isLeftJoin = (contourIDWithFlags & TESS_FLAG_LEFT_JOIN) != 0u;
         // This vertex belongs to a miter or bevel join. Begin by
         // finding the bisector, which is the same as norm rotated by
         // joinAngle/2. The tessellator already packed cos(joinAngle/2)
@@ -276,14 +276,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
         float2 bisector = MUL(rot, norm);
         // Miter joins that are further away than 4x the stroke radius
         // snap to bevel joins. A miter clip is a cap, and never snaps.
-        bool isBevel = joinType == CONTOUR_FLAG_BEVEL_JOIN ||
-                       (joinType != CONTOUR_FLAG_MITER_CLIP_JOIN &&
+        bool isBevel = joinType == TESS_FLAG_BEVEL_JOIN ||
+                       (joinType != TESS_FLAG_MITER_CLIP_JOIN &&
                         miterRatio < .25);
         // Bevels have 2 spokes and miters 3; a miter clip has 4,
         // carrying an inner pair instead of a single center.
         bool isInnerJoinSpoke = (contourIDWithFlags &
-                                 CONTOUR_FLAG_JOIN_TANGENT_INNER) != 0u;
-        if (joinType == CONTOUR_FLAG_MITER_CLIP_JOIN)
+                                 TESS_FLAG_JOIN_TANGENT_INNER) != 0u;
+        if (joinType == TESS_FLAG_MITER_CLIP_JOIN)
         {
           // For now, square caps are the only miter-clip: a
           // 180-degree join whose miterLimit is 1. Simplify the
