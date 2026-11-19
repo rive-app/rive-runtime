@@ -292,6 +292,10 @@ TEST_CASE(
   CHECK(
       nested->artboardInstance()->dataContext()->mainViewModelInstance() ==
       bound);
+  // And is the root view model its scripts get.
+  CHECK(
+      nested->artboardInstance()->dataContext()->rootViewModelInstance() ==
+      bound);
 
   // The default artboard is the one File::artboardDefault picks.
   CHECK(
@@ -457,7 +461,13 @@ TEST_CASE(
     return dataContext != nullptr ? dataContext->mainViewModelInstance().get()
                                   : nullptr;
   };
+  auto root = [&]() {
+    auto dataContext = slot->artboardInstance()->dataContext();
+    return dataContext != nullptr ? dataContext->rootViewModelInstance().get()
+                                  : nullptr;
+  };
   CHECK(boundTo() == statefulInstance);
+  CHECK(root() == viewModel.get());
 
   ScriptHost script(&factory);
   REQUIRE(script.decode(ReadFile(kChildAsset)) == "ok");
@@ -472,6 +482,7 @@ TEST_CASE(
   CHECK(slot->artboardInstance()->name() == "Artboard");
   REQUIRE(property->boundViewModelInstance() != nullptr);
   CHECK(boundTo() == property->boundViewModelInstance().get());
+  CHECK(root() == property->boundViewModelInstance().get());
 
   // Back to the host's own artboard: the stateful instance again.
   property->propertyValue(1);
@@ -482,6 +493,7 @@ TEST_CASE(
   REQUIRE(slot->artboardInstance() != nullptr);
   CHECK(slot->artboardInstance()->name() == "Own");
   CHECK(boundTo() == statefulInstance);
+  CHECK(root() == viewModel.get());
 }
 
 TEST_CASE(

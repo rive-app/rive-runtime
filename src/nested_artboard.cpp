@@ -1140,6 +1140,11 @@ void NestedArtboard::bindViewModelInstance(
   if (m_ownViewModelInstance != nullptr)
   {
     viewModelInstance = m_ownViewModelInstance;
+    if (foreignFile() != nullptr)
+    {
+      // Its file's view model ids and root are not the host's.
+      parent = nullptr;
+    }
   }
   // Non-stateful with a passed VMI or nested globals: build composite DC.
   if (viewModelInstance != nullptr || !m_globalViewModelInstances.empty())
