@@ -254,20 +254,29 @@ public:
 
   // === Input Routing ===
 
-  /// Routes a key event to the primary focus. Nodes flagged
-  /// capturesKeyInput are offered it first, root first (see
-  /// captureKeyInput); unless one of them claims it, it then bubbles from
-  /// the primary focus up through its ancestors until one handles it.
+  /// Routes a key event to the primary focus. Nodes flagged capturesInput
+  /// are offered it first, root first (see captureKeyInput); unless one of
+  /// them claims it, it then bubbles from the primary focus up through its
+  /// ancestors until one handles it. A key whose press the capture phase
+  /// claimed has its repeats and release kept from the bubble too, and from
+  /// the capture listeners inside the node that claimed it.
   bool keyInput(Key key, KeyModifiers modifiers, bool isPressed, bool isRepeat);
   /// The capture phase of keyInput on its own: offers the key to the nodes
-  /// on the focus path flagged capturesKeyInput, outermost first, stopping
-  /// at the first that claims it.
+  /// on the focus path flagged capturesInput, outermost first, stopping at
+  /// the first that claims it.
   bool captureKeyInput(
       Key key,
       KeyModifiers modifiers,
       bool isPressed,
       bool isRepeat);
+  /// Routes typed text to the primary focus, through the same two phases
+  /// as keyInput: captureTextInput first, then the bubble.
   bool textInput(const std::string& text);
+  /// The capture phase of textInput on its own: offers the text to the
+  /// nodes on the focus path flagged capturesInput, outermost first,
+  /// stopping at the first that claims it, so a TextInput under them never
+  /// inserts it.
+  bool captureTextInput(const std::string& text);
 
   /// The selected text of the focused element (bubbling up like textInput
   /// until a focusable reports a non-empty selection). Empty when nothing
@@ -342,7 +351,31 @@ private:
   // false: the manager's own, for a stop that was removed or hidden.
   void setFocus(rcp<FocusNode> node, bool endsReveal);
   void clearFocus(bool endsReveal);
+  /// The nodes on the path to the primary focus that take part in a
+  /// capture phase, outermost first, from `boundary` outward when it is on
+  /// that path. Empty, after reading one flag per ancestor, for every tree
+  /// without capture listeners.
+  std::vector<rcp<FocusNode>> capturePath(const FocusNode* boundary) const;
+  /// The key capture phase, down to `boundary` when it is on the focus
+  /// path. Returns the node whose listeners claimed the key, null for none.
+  rcp<FocusNode> captureKeyInputTo(
+      const FocusNode* boundary,
+      Key key,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat);
   rcp<FocusNode> m_primaryFocus;
+  // A key whose press the capture phase claimed, and the node that claimed
+  // it. Its repeats and release stay out of the bubble and away from the
+  // capture listeners inside that node, so a script's hit() on a press
+  // never hands them the rest of that keystroke.
+  struct CapturedPress
+  {
+    Key key;
+    rcp<FocusNode> claimedBy;
+  };
+  // Rarely more than one.
+  std::vector<CapturedPress> m_capturedPresses;
   rcp<FocusNode> m_pressFocus;
   std::vector<rcp<FocusNode>> m_rootNodes;
   std::vector<PendingFocusRequest> m_pendingFocusRequests;

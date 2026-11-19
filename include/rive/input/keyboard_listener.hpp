@@ -33,6 +33,11 @@ public:
   {
     return false;
   }
+
+  /// Called in the capture phase of text input, for listeners registered
+  /// with FocusData::addCaptureTextInputListener. Returning true claims the
+  /// text from everything deeper and from the whole bubble.
+  virtual bool captureTextInput(const std::string& text) { return false; }
 };
 
 } // namespace rive

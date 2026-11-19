@@ -35,9 +35,10 @@ void ScriptedListenerAction::disposeScriptInputs()
 // Dispatch: if `performAction` is defined, it is called with (self,
 // ScriptedInvocation) and legacy `perform` is skipped. Otherwise `perform`
 // is called with (self, PointerEvent) — real pointer data or a placeholder
-// ScriptedPointerEvent for non-pointer invocations. A hit() on the pointer
-// event is reported on the invocation, where the dispatching listener group
-// reads it to stop the event reaching targets beneath it.
+// ScriptedPointerEvent for non-pointer invocations. A hit() on the pointer,
+// key or text event is reported on the invocation, where the dispatching
+// listener group reads it to stop the event: from targets beneath it for a
+// pointer, from the rest of the focus path for a key or text.
 void ScriptedListenerAction::performStateful(
     StateMachineInstance* stateMachineInstance,
     const ListenerInvocation& invocation) const

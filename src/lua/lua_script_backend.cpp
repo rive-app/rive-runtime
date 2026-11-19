@@ -652,18 +652,21 @@ bool ScriptingVM::callKeyboardEvent(
   // Stack: [self, field]
   lua_pushvalue(L, -2);
   // Stack: [self, field, self]
-  lua_newrive<ScriptedKeyboardInvocation>(
+  auto keyEvent = lua_newrive<ScriptedKeyboardInvocation>(
       L,
       key,
       modifiers,
       isPressed,
       isRepeat);
-  // Stack: [self, field, self, keyEvent]
+  // Anchor the event past the call so its hit result read cannot race GC.
+  lua_pushvalue(L, -1);
+  lua_insert(L, -4);
+  // Stack: [self, keyEvent, field, self, keyEvent]
   if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 1)) !=
       LUA_OK)
   {
     fprintf(stderr, "%s failed\n", "keyboardEvent");
-    // Stack: [self, status]
+    // Stack: [self, keyEvent, status]
     rive_lua_pop(L, 1);
   }
   else
@@ -672,11 +675,16 @@ bool ScriptingVM::callKeyboardEvent(
     {
       shouldStopPropagation = lua_toboolean(L, -1);
     }
-    // Stack: [self, result]
+    // Stack: [self, keyEvent, result]
     rive_lua_pop(L, 1);
   }
-  // Stack: [self]
-  rive_lua_pop(L, 1);
+  // Returning true or calling hit() on the event both stop it.
+  if (keyEvent->m_hitResult == HitResult::hitOpaque)
+  {
+    shouldStopPropagation = true;
+  }
+  // Stack: [self, keyEvent]
+  rive_lua_pop(L, 2);
   return shouldStopPropagation;
 }
 
@@ -699,13 +707,16 @@ bool ScriptingVM::callTextEvent(
   // Stack: [self, field]
   lua_pushvalue(L, -2);
   // Stack: [self, field, self]
-  lua_newrive<ScriptedTextInputInvocation>(L, text);
-  // Stack: [self, field, self, textInvocation]
+  auto textEvent = lua_newrive<ScriptedTextInputInvocation>(L, text);
+  // Anchor the event past the call so its hit result read cannot race GC.
+  lua_pushvalue(L, -1);
+  lua_insert(L, -4);
+  // Stack: [self, textInvocation, field, self, textInvocation]
   if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 1)) !=
       LUA_OK)
   {
     fprintf(stderr, "%s failed\n", "textEvent");
-    // Stack: [self, status]
+    // Stack: [self, textInvocation, status]
     rive_lua_pop(L, 1);
   }
   else
@@ -714,11 +725,16 @@ bool ScriptingVM::callTextEvent(
     {
       shouldStopPropagation = lua_toboolean(L, -1);
     }
-    // Stack: [self, result]
+    // Stack: [self, textInvocation, result]
     rive_lua_pop(L, 1);
   }
-  // Stack: [self]
-  rive_lua_pop(L, 1);
+  // Returning true or calling hit() on the event both stop it.
+  if (textEvent->m_hitResult == HitResult::hitOpaque)
+  {
+    shouldStopPropagation = true;
+  }
+  // Stack: [self, textInvocation]
+  rive_lua_pop(L, 2);
   return shouldStopPropagation;
 }
 

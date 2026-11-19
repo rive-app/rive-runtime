@@ -15446,8 +15446,9 @@ HitResult WasmScriptingVM::callListenerPerform(
     writeGamepadPayload(out + sizeof(wire), gamepad, snapshot);
   }
   uint32_t args[4] = {m_L, (uint32_t)selfRef, dataPtr, byteCount};
-  // 0 when the pointer event saw no hit (or the module predates the
-  // result), else 1 + HitResult, matching host_obj_pointer_event.
+  // 0 when the pointer, key or text event saw no hit (or the module
+  // predates the result), else 1 + HitResult, matching
+  // host_obj_pointer_event.
   uint32_t result = callModule("host_obj_listener_perform", 4, args);
   guestFree(dataPtr);
   if (result == 0 || result > 1 + (uint32_t)HitResult::hitOpaque)

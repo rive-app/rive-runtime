@@ -1,5 +1,7 @@
 #ifdef WITH_RIVE_TEXT
 #include "rive/animation/listener_fire_event.hpp"
+#include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
+#include "rive/animation/listener_types/listener_input_type_text.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
@@ -104,6 +106,114 @@ public:
   }
 };
 
+// Reports `result` for a text event carrying anything past ASCII, as a
+// scripted action filtering emoji with hit() does, and counts the text it
+// sees.
+class HitNonAsciiTextAction : public ListenerFireEvent
+{
+public:
+  explicit HitNonAsciiTextAction(HitResult result = HitResult::hitOpaque)
+      : m_result(result)
+  {}
+  void perform(StateMachineInstance*, const ListenerInvocation& invocation)
+      const override
+  {
+    auto text = invocation.asTextInput();
+    if (text == nullptr)
+    {
+      return;
+    }
+    seen++;
+    for (unsigned char c : text->text)
+    {
+      if (c >= 0x80)
+      {
+        invocation.reportHit(m_result);
+        return;
+      }
+    }
+  }
+  mutable int seen = 0;
+
+private:
+  HitResult m_result;
+};
+
+// Reports an opaque hit for presses of one key while enabled, as a script
+// that hit()s a key's press, and only its press, does, and counts every
+// event of that key it sees.
+class HitKeyPressAction : public ListenerFireEvent
+{
+public:
+  explicit HitKeyPressAction(Key key) : m_key(key) {}
+  void perform(StateMachineInstance*, const ListenerInvocation& invocation)
+      const override
+  {
+    auto key = invocation.asKeyboard();
+    if (key == nullptr || key->key != m_key)
+    {
+      return;
+    }
+    seen++;
+    if (enabled && key->isPressed && !key->isRepeat)
+    {
+      invocation.reportHit(HitResult::hitOpaque);
+    }
+  }
+  bool enabled = true;
+  mutable int seen = 0;
+
+private:
+  Key m_key;
+};
+
+template <typename T>
+T* addAction(
+    File* file,
+    const char* artboardName,
+    const char* listenerName,
+    std::unique_ptr<T> action)
+{
+  T* raw = action.get();
+  listenerNamed(file, artboardName, listenerName)
+      ->addActionForTesting(std::move(action));
+  return raw;
+}
+
+// Turns a listener into a text listener, keeping its actions, so the bool
+// one sets still shows it ran, and adds `action` to it.
+template <typename T>
+T* textListener(
+    File* file,
+    const char* artboardName,
+    const char* listenerName,
+    std::unique_ptr<T> action)
+{
+  auto text = std::make_unique<ListenerInputTypeText>();
+  text->listenerTypeValue((uint32_t)ListenerType::textInput);
+  listenerNamed(file, artboardName, listenerName)
+      ->replaceListenerInputTypeForTesting(0, std::move(text));
+  return addAction(file, artboardName, listenerName, std::move(action));
+}
+
+// Turns a listener into one that takes any key, keeping its actions, and
+// adds `action` to it.
+template <typename T>
+T* anyKeyListener(
+    File* file,
+    const char* artboardName,
+    const char* listenerName,
+    std::unique_ptr<T> action)
+{
+  auto keyboard = std::make_unique<ListenerInputTypeKeyboard>();
+  keyboard->listenerTypeValue((uint32_t)ListenerType::keyboard);
+  listenerNamed(file, artboardName, listenerName)
+      ->replaceListenerInputTypeForTesting(0, std::move(keyboard));
+  return addAction(file, artboardName, listenerName, std::move(action));
+}
+
+const char* const kEmoji = "\xF0\x9F\x98\x80";
+
 struct Field
 {
   StateMachineInstance* machine = nullptr;
@@ -191,6 +301,20 @@ struct HostScene
   bool release(Key key, KeyModifiers modifiers = KeyModifiers::none)
   {
     bool claimed = machine->keyInput(key, modifiers, false, false);
+    machine->advanceAndApply(0.0f);
+    return claimed;
+  }
+
+  bool repeat(Key key, KeyModifiers modifiers = KeyModifiers::none)
+  {
+    bool claimed = machine->keyInput(key, modifiers, true, true);
+    machine->advanceAndApply(0.0f);
+    return claimed;
+  }
+
+  bool type(const std::string& text)
+  {
+    bool claimed = machine->textInput(text);
     machine->advanceAndApply(0.0f);
     return claimed;
   }
@@ -892,5 +1016,195 @@ TEST_CASE(
   visits = StateMachineInstance::sm_capturePassVisits;
   captureScene.machine->pointerMove(kOnFieldBViewport);
   CHECK(StateMachineInstance::sm_capturePassVisits == visits + 1);
+}
+TEST_CASE(
+    "a host capture text listener's hit() keeps emoji from a nested input",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto action = textListener(
+      file.get(),
+      "Host",
+      "Slot B Enter Release",
+      std::make_unique<HitNonAsciiTextAction>());
+  capture(file.get(), "Host", "Slot B Enter Release");
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+
+  // Text the action lets through is only watched: the input inserts it.
+  CHECK(scene.type("c"));
+  CHECK(scene.b.input->text() == "ABc");
+  CHECK(scene.flag("slotBEnterReleased"));
+
+  // An emoji is claimed in the capture phase, so the input never sees it.
+  scene.flag("slotBEnterReleased", false);
+  CHECK(scene.type(kEmoji));
+  CHECK(scene.b.input->text() == "ABc");
+  CHECK(scene.flag("slotBEnterReleased"));
+
+  // A paste is one string: one emoji keeps all of it out.
+  CHECK(scene.type(std::string("d") + kEmoji + "e"));
+  CHECK(scene.b.input->text() == "ABc");
+  CHECK(action->seen == 3);
+}
+
+TEST_CASE("a capture text listener's hit(true) only watches", "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  textListener(
+      file.get(),
+      "Host",
+      "Slot B Enter Release",
+      std::make_unique<HitNonAsciiTextAction>(HitResult::hit));
+  capture(file.get(), "Host", "Slot B Enter Release");
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+  CHECK(scene.type(kEmoji));
+  CHECK(scene.b.input->text() == std::string("AB") + kEmoji);
+  CHECK(scene.flag("slotBEnterReleased"));
+}
+
+TEST_CASE(
+    "a host text listener in the normal phase never sees what the input "
+    "took",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto action = textListener(
+      file.get(),
+      "Host",
+      "Slot B Enter Release",
+      std::make_unique<HitNonAsciiTextAction>());
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+  // The input inserts first and claims the text, so the bubble stops there:
+  // why stopping text before an input takes a capture listener.
+  CHECK(scene.type(kEmoji));
+  CHECK(scene.b.input->text() == std::string("AB") + kEmoji);
+  CHECK_FALSE(scene.flag("slotBEnterReleased"));
+  CHECK(action->seen == 0);
+}
+
+TEST_CASE(
+    "a capture text listener on the input itself runs before its insert",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  addAction(
+      file.get(),
+      "Field",
+      "Focus Listener",
+      std::make_unique<HitNonAsciiTextAction>());
+  capture(file.get(), "Field", "Focus Listener");
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+  CHECK(scene.type(kEmoji));
+  CHECK(scene.b.input->text() == "AB");
+  CHECK(scene.type("c"));
+  CHECK(scene.b.input->text() == "ABc");
+}
+
+TEST_CASE(
+    "text listeners on a text input run their actions and it inserts once",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto first = addAction(
+      file.get(),
+      "Field",
+      "Focus Listener",
+      std::make_unique<HitNonAsciiTextAction>(HitResult::none));
+  auto second = addAction(
+      file.get(),
+      "Field",
+      "Second Focus Listener",
+      std::make_unique<HitNonAsciiTextAction>(HitResult::none));
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+  CHECK(scene.type("c"));
+  CHECK(scene.b.input->text() == "ABc");
+  CHECK(first->seen == 1);
+  CHECK(second->seen == 1);
+}
+
+TEST_CASE(
+    "a match-any capture key listener claims whole keystrokes it hit()s",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto action = addAction(
+      file.get(),
+      "Field",
+      "Focus Listener",
+      std::make_unique<HitKeyPressAction>(Key::backspace));
+  capture(file.get(), "Field", "Focus Listener");
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+
+  // The press is hit, and its repeat and release, which the action leaves
+  // alone, stay away from the input too.
+  CHECK(scene.press(Key::backspace));
+  CHECK(scene.b.input->text() == "AB");
+  CHECK(scene.repeat(Key::backspace));
+  CHECK(scene.b.input->text() == "AB");
+  CHECK(scene.release(Key::backspace));
+
+  // A key the action doesn't hit is only watched: the input moves its caret.
+  CHECK(scene.press(Key::left));
+  CHECK(scene.b.caret() == 1);
+  CHECK(scene.release(Key::left) == false);
+
+  // The next press of the key is decided afresh.
+  action->enabled = false;
+  scene.b.caret(2);
+  CHECK(scene.press(Key::backspace));
+  CHECK(scene.b.input->text() != "AB");
+}
+
+TEST_CASE(
+    "a keystroke a host hit()s stays away from capture listeners inside it",
+    "[capture]")
+{
+  auto file = ReadRiveFile("assets/capture_listeners.riv");
+  auto host = anyKeyListener(
+      file.get(),
+      "Host",
+      "Slot B Enter Release",
+      std::make_unique<HitKeyPressAction>(Key::backspace));
+  capture(file.get(), "Host", "Slot B Enter Release");
+  auto inner = addAction(
+      file.get(),
+      "Field",
+      "Focus Listener",
+      std::make_unique<HitKeyPressAction>(Key::backspace));
+  inner->enabled = false;
+  capture(file.get(), "Field", "Focus Listener");
+  HostScene scene(file.get());
+  scene.focus(scene.b);
+  scene.b.caret(2);
+
+  // The host hit()s the press, so the field's capture listener never sees
+  // it, nor the repeat and release the host's action leaves alone. The
+  // host's own listener still watches them.
+  CHECK(scene.press(Key::backspace));
+  CHECK(scene.repeat(Key::backspace));
+  CHECK(scene.release(Key::backspace));
+  CHECK(host->seen == 3);
+  CHECK(inner->seen == 0);
+  CHECK(scene.b.input->text() == "AB");
+
+  // Once the host lets a press through, the field sees the whole keystroke.
+  host->enabled = false;
+  CHECK(scene.press(Key::backspace));
+  CHECK(scene.release(Key::backspace) == false);
+  CHECK(host->seen == 5);
+  CHECK(inner->seen == 2);
+  CHECK(scene.b.input->text() == "A");
 }
 #endif

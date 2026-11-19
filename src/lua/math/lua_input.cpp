@@ -119,18 +119,20 @@ static int pointer_event_index(lua_State* L)
   return 0;
 }
 
+HitResult rive::rive_lua_hit_result_arg(lua_State* L, int index)
+{
+  if (lua_isboolean(L, index) && lua_toboolean(L, index))
+  {
+    return HitResult::hit;
+  }
+  return HitResult::hitOpaque;
+}
+
 static int pointer_event_hit(lua_State* L)
 {
-  auto pointerEvent = lua_torive<ScriptedPointerEvent>(L, 1);
-  if (lua_isboolean(L, 2))
-  {
-    pointerEvent->m_hitResult = lua_toboolean(L, 2) ? HitResult::hit
-                                                    : HitResult::hitOpaque;
-  }
-  else
-  {
-    pointerEvent->m_hitResult = HitResult::hitOpaque;
-  }
+  lua_torive<ScriptedPointerEvent>(L, 1)->m_hitResult = rive_lua_hit_result_arg(
+      L,
+      2);
   return 0;
 }
 

@@ -176,9 +176,11 @@ public:
 
   const ListenerInvocationStorage& storage() const { return m_storage; }
 
-  /// Scripted actions report the hit() their PointerEvent received here, so
-  /// the listener group that dispatched this invocation can stop the event
-  /// from reaching targets beneath it. Keeps the strongest result reported.
+  /// Scripted actions report the hit() their pointer, key or text event
+  /// received here, so the listener group that dispatched this invocation
+  /// can stop the event: from targets beneath it for a pointer, from the
+  /// rest of the focus path (a TextInput included) for a key or text. Keeps
+  /// the strongest result reported.
   void reportHit(HitResult hitResult) const
   {
     if (hitResult > m_hitResult)

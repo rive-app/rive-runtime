@@ -1396,7 +1396,48 @@ bool FocusManager::keyInput(
     bool isRepeat)
 {
   dropFocusIfFocusTargetHidden();
-  if (captureKeyInput(key, modifiers, isPressed, isRepeat))
+  // A press decides for its whole keystroke. A capture listener that names
+  // a key claims every phase of it on its own, but one whose action hit()
+  // the press may let the repeats and release through, and what's inside
+  // it would get half a keystroke. So they run the capture phase only down
+  // to the node that claimed the press, whose listeners and those outside
+  // it still watch, and never bubble.
+  auto pressed = std::find_if(
+      m_capturedPresses.begin(),
+      m_capturedPresses.end(),
+      [key](const CapturedPress& press) { return press.key == key; });
+  if (isPressed && !isRepeat)
+  {
+    // A new press decides afresh, even when a release never came.
+    if (pressed != m_capturedPresses.end())
+    {
+      m_capturedPresses.erase(pressed);
+    }
+    auto claimedBy = captureKeyInputTo(
+        nullptr,
+        key,
+        modifiers,
+        isPressed,
+        isRepeat);
+    if (claimedBy != nullptr)
+    {
+      m_capturedPresses.push_back({key, std::move(claimedBy)});
+      return true;
+    }
+  }
+  else if (pressed != m_capturedPresses.end())
+  {
+    rcp<FocusNode> boundary = pressed->claimedBy;
+    if (!isPressed)
+    {
+      m_capturedPresses.erase(pressed);
+    }
+    captureKeyInputTo(boundary.get(), key, modifiers, isPressed, isRepeat);
+    return true;
+  }
+  else if (
+      captureKeyInputTo(nullptr, key, modifiers, isPressed, isRepeat) !=
+      nullptr)
   {
     return true;
   }
@@ -1413,37 +1454,81 @@ bool FocusManager::keyInput(
   return false;
 }
 
+std::vector<rcp<FocusNode>> FocusManager::capturePath(
+    const FocusNode* boundary) const
+{
+  FocusNode* node = m_primaryFocus.get();
+  // Nothing below a boundary on the path takes part. One that left the
+  // path has nothing on it inside it, so the whole path does.
+  if (boundary != nullptr)
+  {
+    FocusNode* ancestor = node;
+    while (ancestor != nullptr && ancestor != boundary)
+    {
+      ancestor = ancestor->parent();
+    }
+    if (ancestor != nullptr)
+    {
+      node = ancestor;
+    }
+  }
+  // Most trees have nothing in the capture phase, and for them this walk
+  // only reads one flag per ancestor.
+  while (node != nullptr && !node->capturesInput())
+  {
+    node = node->parent();
+  }
+  std::vector<rcp<FocusNode>> path;
+  if (node == nullptr)
+  {
+    return path;
+  }
+  // The capture phase runs outermost first, so collect the nodes that take
+  // part and hand them back reversed. Held by reference: a listener's
+  // actions can tear down part of the tree before the walk reaches it.
+  for (; node != nullptr; node = node->parent())
+  {
+    if (node->capturesInput())
+    {
+      path.push_back(ref_rcp(node));
+    }
+  }
+  std::reverse(path.begin(), path.end());
+  return path;
+}
+
 bool FocusManager::captureKeyInput(
     Key key,
     KeyModifiers modifiers,
     bool isPressed,
     bool isRepeat)
 {
-  // Most trees have nothing in the capture phase, and for them this walk
-  // only reads one flag per ancestor.
-  FocusNode* node = m_primaryFocus.get();
-  while (node != nullptr && !node->capturesKeyInput())
+  return captureKeyInputTo(nullptr, key, modifiers, isPressed, isRepeat) !=
+         nullptr;
+}
+
+rcp<FocusNode> FocusManager::captureKeyInputTo(
+    const FocusNode* boundary,
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
+{
+  for (auto& node : capturePath(boundary))
   {
-    node = node->parent();
-  }
-  if (node == nullptr)
-  {
-    return false;
-  }
-  // The capture phase runs outermost first, so collect the nodes that take
-  // part and walk them back down. Held by reference: a listener's actions
-  // can tear down part of the tree before the walk reaches it.
-  std::vector<rcp<FocusNode>> path;
-  for (; node != nullptr; node = node->parent())
-  {
-    if (node->capturesKeyInput())
+    if (node->captureKeyInput(key, modifiers, isPressed, isRepeat))
     {
-      path.push_back(ref_rcp(node));
+      return std::move(node);
     }
   }
-  for (auto itr = path.rbegin(); itr != path.rend(); ++itr)
+  return nullptr;
+}
+
+bool FocusManager::captureTextInput(const std::string& text)
+{
+  for (const auto& node : capturePath(nullptr))
   {
-    if ((*itr)->captureKeyInput(key, modifiers, isPressed, isRepeat))
+    if (node->captureTextInput(text))
     {
       return true;
     }
@@ -1454,6 +1539,10 @@ bool FocusManager::captureKeyInput(
 bool FocusManager::textInput(const std::string& text)
 {
   dropFocusIfFocusTargetHidden();
+  if (captureTextInput(text))
+  {
+    return true;
+  }
   // Bubble up through focus tree until someone handles the input
   FocusNode* node = m_primaryFocus.get();
   while (node != nullptr)

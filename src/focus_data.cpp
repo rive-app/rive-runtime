@@ -87,7 +87,7 @@ rcp<FocusNode> FocusData::focusNode()
     m_focusNode->canTraverse((focusFlags() & canTraverseBitmask) != 0);
     m_focusNode->edgeBehavior(static_cast<EdgeBehavior>(m_EdgeBehaviorValue));
     m_focusNode->name(name());
-    m_focusNode->capturesKeyInput(!m_captureKeyboardListeners.empty());
+    syncCapturesInput();
     // Set initial world bounds if available
     updateWorldBounds();
   }
@@ -114,22 +114,26 @@ void FocusData::removeKeyboardListener(KeyboardListener* listener)
   m_keyboardListeners.eraseAll(listener);
 }
 
+void FocusData::syncCapturesInput()
+{
+  if (m_focusNode != nullptr)
+  {
+    m_focusNode->capturesInput(
+        !m_captureKeyboardListeners.empty() ||
+        !m_captureTextInputListeners.empty());
+  }
+}
+
 void FocusData::addCaptureKeyboardListener(KeyboardListener* listener)
 {
   m_captureKeyboardListeners.push_back(listener);
-  if (m_focusNode != nullptr)
-  {
-    m_focusNode->capturesKeyInput(true);
-  }
+  syncCapturesInput();
 }
 
 void FocusData::removeCaptureKeyboardListener(KeyboardListener* listener)
 {
   m_captureKeyboardListeners.eraseAll(listener);
-  if (m_focusNode != nullptr)
-  {
-    m_focusNode->capturesKeyInput(!m_captureKeyboardListeners.empty());
-  }
+  syncCapturesInput();
 }
 
 void FocusData::addTextInputListener(KeyboardListener* listener)
@@ -140,6 +144,18 @@ void FocusData::addTextInputListener(KeyboardListener* listener)
 void FocusData::removeTextInputListener(KeyboardListener* listener)
 {
   m_textInputListeners.eraseAll(listener);
+}
+
+void FocusData::addCaptureTextInputListener(KeyboardListener* listener)
+{
+  m_captureTextInputListeners.push_back(listener);
+  syncCapturesInput();
+}
+
+void FocusData::removeCaptureTextInputListener(KeyboardListener* listener)
+{
+  m_captureTextInputListeners.eraseAll(listener);
+  syncCapturesInput();
 }
 
 void FocusData::addGamepadListener(GamepadListener* listener)
@@ -213,22 +229,48 @@ bool FocusData::captureKeyInput(
 
 bool FocusData::textInput(const std::string& text)
 {
-
+  // The same shape as keyInput: a TextInput's own insert comes first, as
+  // the target's default handling, once however many listeners sit on the
+  // input and only when one of them opted it into text, as before. Then
+  // every listener is offered the text, peers that all run, and a claim
+  // reports upward.
+  bool claimed = false;
+  Component* target = parent();
+  if (target != nullptr && target->is<TextInput>() &&
+      (!m_textInputListeners.empty() || !m_captureTextInputListeners.empty()))
+  {
+    claimed = target->as<TextInput>()->textInput(text);
+  }
   for (auto* listener : m_textInputListeners)
   {
     if (listener->textInput(text))
     {
-      return true;
+      claimed = true;
     }
   }
-  return false;
+  return claimed;
+}
+
+bool FocusData::captureTextInput(const std::string& text)
+{
+  // Peers, as for keys: every capture listener here runs, and one claim is
+  // enough to keep the text from going any deeper or bubbling at all.
+  bool claimed = false;
+  for (auto* listener : m_captureTextInputListeners)
+  {
+    if (listener->captureTextInput(text))
+    {
+      claimed = true;
+    }
+  }
+  return claimed;
 }
 
 bool FocusData::selectedText(std::string& outText) const
 {
-  // Mirror the TextInput special case in keyInput and in
-  // KeyboardListenerGroup's text routing: the focus target for a text input
-  // is a FocusData child whose parent is the TextInput itself.
+  // Mirror the TextInput special case in keyInput and textInput: the focus
+  // target for a text input is a FocusData child whose parent is the
+  // TextInput itself.
   Component* target = parent();
   if (target != nullptr && target->is<TextInput>())
   {
@@ -241,6 +283,7 @@ bool FocusData::acceptsTextInput() const
 {
   Component* target = parent();
   return !m_textInputListeners.empty() ||
+         !m_captureTextInputListeners.empty() ||
          (target != nullptr && target->is<TextInput>());
 }
 

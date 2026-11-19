@@ -2587,6 +2587,20 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "a focus data takes text with only a capture text-input listener",
+    "[FocusData]")
+{
+  // A capture text listener sits on its own list, and the host still has to
+  // ask for text (and bring up a soft keyboard) for it.
+  FocusData focusData;
+  RecordingKeyboardListener text(/*claims=*/false);
+  focusData.addCaptureTextInputListener(&text);
+  CHECK(focusData.acceptsTextInput());
+  focusData.removeCaptureTextInputListener(&text);
+  CHECK_FALSE(focusData.acceptsTextInput());
+}
+
+TEST_CASE(
     "a focus data with no claiming listener reports unhandled",
     "[FocusData]")
 {

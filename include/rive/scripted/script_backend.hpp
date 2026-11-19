@@ -159,7 +159,8 @@ public:
 
   /// Listener protocol: self.performAction(self, invocation) when defined,
   /// else legacy self.perform(self, pointerEvent). Returns the hit result
-  /// the script gave the pointer event it saw; none for other kinds.
+  /// the script gave the pointer, key or text event it saw; none for other
+  /// kinds.
   virtual HitResult callListenerPerform(
       ScriptedObject* object,
       int selfRef,

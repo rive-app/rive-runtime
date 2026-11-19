@@ -186,7 +186,7 @@ public:
   /// The capture phase of a key event, offered root first along the path to
   /// the primary focus before keyInput bubbles back out. Returning true
   /// claims the key: nothing deeper sees its capture phase and the bubble
-  /// never runs. Only reached on nodes flagged capturesKeyInput.
+  /// never runs. Only reached on nodes flagged capturesInput.
   virtual bool captureKeyInput(
       Key value,
       KeyModifiers modifiers,
@@ -195,6 +195,12 @@ public:
   {
     return false;
   }
+
+  /// The capture phase of text input, offered the same way as
+  /// captureKeyInput, before textInput bubbles. Returning true claims the
+  /// text, so a TextInput under it never inserts it. Only reached on nodes
+  /// flagged capturesInput.
+  virtual bool captureTextInput(const std::string& text) { return false; }
 
   /// Fills outText with the currently selected text within this focusable.
   /// Returns true when this focusable handled the request and the focus

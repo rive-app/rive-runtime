@@ -58,6 +58,14 @@ public:
   /// Unregister a text input listener.
   void removeTextInputListener(KeyboardListener* listener);
 
+  /// Register a listener for the capture phase of text input, which runs
+  /// before the bubble and outermost first, so ahead of any TextInput under
+  /// it. Flags this node's FocusNode as keyboard capture listeners do.
+  void addCaptureTextInputListener(KeyboardListener* listener);
+
+  /// Unregister a capture-phase text input listener.
+  void removeCaptureTextInputListener(KeyboardListener* listener);
+
   void addGamepadListener(GamepadListener* listener);
   void removeGamepadListener(GamepadListener* listener);
 
@@ -101,11 +109,17 @@ public:
       KeyModifiers modifiers,
       bool isPressed,
       bool isRepeat) override;
+  /// The bubble for text. A TextInput parent inserts first, once, when any
+  /// text listener opted it in; then every normal text listener is offered
+  /// the text, as peers.
   bool textInput(const std::string& text) override;
+  /// The capture phase for text: every capture text listener is offered it,
+  /// as peers, and any one of them claiming it claims it for the node.
+  bool captureTextInput(const std::string& text) override;
   /// Forwards to the parent TextInput's selection (mirroring how
   /// key/text input special-case a TextInput parent).
   bool selectedText(std::string& outText) const override;
-  /// A TextInput parent or text-input listeners.
+  /// A TextInput parent or text-input listeners, in either phase.
   bool acceptsTextInput() const override;
   /// Forwards to the parent TextInput (same special case): it asks to blur
   /// on an outside press and owns the hit test for it.
@@ -124,7 +138,9 @@ public:
   bool acceptsKeyboardInput() const override
   {
     return !m_keyboardListeners.empty() ||
-           !m_captureKeyboardListeners.empty() || !m_textInputListeners.empty();
+           !m_captureKeyboardListeners.empty() ||
+           !m_textInputListeners.empty() ||
+           !m_captureTextInputListeners.empty();
   }
 
   // Component overrides for update cycle
@@ -137,6 +153,9 @@ protected:
   void nameChanged() override;
 
 private:
+  /// Keeps the FocusNode's capturesInput flag in step with the capture
+  /// lists.
+  void syncCapturesInput();
   void updateWorldBounds();
   void scrollIntoView();
   void scrollConstraintToShowBounds(
@@ -150,6 +169,7 @@ private:
   LazyVector<KeyboardListener*> m_keyboardListeners;
   LazyVector<KeyboardListener*> m_captureKeyboardListeners;
   LazyVector<KeyboardListener*> m_textInputListeners;
+  LazyVector<KeyboardListener*> m_captureTextInputListeners;
   LazyVector<GamepadListener*> m_gamepadListeners;
 };
 } // namespace rive

@@ -35,22 +35,27 @@ public:
   /// Called in the capture phase, for a capture-phase listener. Its actions
   /// run on the key phases it asks for; it claims every phase of a key it
   /// names exactly, so its own press and release both stay away from the
-  /// target.
+  /// target, and any key its action hit().
   bool captureKeyInput(
       Key key,
       KeyModifiers modifiers,
       bool isPressed,
       bool isRepeat) override;
 
-  /// Called when the associated FocusData receives text input.
+  /// Called when the associated FocusData receives text input. Claims it
+  /// when the listener's action hit() it.
   bool textInput(const std::string& text) override;
+
+  /// Called in the capture phase of text input, for a capture-phase
+  /// listener. Claims the text when its action hit() it.
+  bool captureTextInput(const std::string& text) override;
 
 private:
   FocusData* m_focusData;
   const StateMachineListener* m_listener;
   StateMachineInstance* m_stateMachineInstance;
-  /// Whether the listener's keyboard input sits in the capture phase.
-  bool m_capturesKeys;
+  /// Whether the listener sits in the capture phase, for keys and text.
+  bool m_isCapture;
 };
 
 } // namespace rive

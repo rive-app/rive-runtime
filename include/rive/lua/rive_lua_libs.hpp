@@ -2473,6 +2473,10 @@ inline ScriptedDataValue* lua_todatavalue(lua_State* L, int idx)
   }
 }
 
+/// The HitResult an event's hit(isTranslucent?) at stack index `index` asks
+/// for: opaque when bare or false, translucent when true.
+HitResult rive_lua_hit_result_arg(lua_State* L, int index);
+
 class ScriptedPointerEvent
 {
 public:
@@ -2829,12 +2833,13 @@ public:
   static constexpr const char* luaName = "Invocation";
   static constexpr bool hasMetatable = true;
 
-  // Set while performAction runs. asPointerEvent then hands back one event
-  // (anchored by m_pointerEventRef) so a hit() on it reaches the listener
+  // Set while performAction runs. asPointerEvent, asKeyboardEvent and
+  // asTextInput then hand back one event (anchored by m_eventRef; an
+  // invocation is only ever one kind) so a hit() on it reaches the listener
   // that dispatched this invocation; rive_lua_end_scripted_invocation
   // reads it and clears both.
   bool m_isDispatching = false;
-  int m_pointerEventRef = 0;
+  int m_eventRef = 0;
 
 private:
   ListenerInvocation m_invocation;
@@ -2862,6 +2867,8 @@ public:
   KeyModifiers m_modifiers;
   bool m_isPressed;
   bool m_isRepeat;
+  // hit() stops the key: opaque claims it, hit(true) only observes.
+  HitResult m_hitResult = HitResult::none;
 };
 
 class ScriptedTextInputInvocation
@@ -2876,6 +2883,9 @@ public:
   static constexpr bool hasMetatable = true;
 
   const std::string& text() const { return m_text; }
+
+  // hit() stops the text: opaque claims it, hit(true) only observes.
+  HitResult m_hitResult = HitResult::none;
 
 private:
   std::string m_text;
@@ -2974,10 +2984,11 @@ ScriptedPointerEvent* rive_lua_push_pointer_arg_for_perform(
     const ListenerInvocation& inv);
 /// Pushes the performAction argument, dispatching until
 /// rive_lua_end_scripted_invocation, which returns the hit() the script gave
-/// the pointer event it got from asPointerEvent.
+/// the event it got from asPointerEvent, asKeyboardEvent or asTextInput.
+/// Takes `inv` by value so a caller done with its own can move it in.
 ScriptedInvocation* rive_lua_push_scripted_invocation(
     lua_State* L,
-    const ListenerInvocation& inv);
+    ListenerInvocation inv);
 HitResult rive_lua_end_scripted_invocation(
     lua_State* L,
     ScriptedInvocation* invocation);

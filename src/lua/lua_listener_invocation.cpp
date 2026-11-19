@@ -146,9 +146,9 @@ ScriptedPointerEvent* rive_lua_push_pointer_arg_for_perform(
 
 ScriptedInvocation* rive_lua_push_scripted_invocation(
     lua_State* L,
-    const ListenerInvocation& inv)
+    ListenerInvocation inv)
 {
-  auto invocation = lua_newrive<ScriptedInvocation>(L, inv);
+  auto invocation = lua_newrive<ScriptedInvocation>(L, std::move(inv));
   invocation->m_isDispatching = true;
   return invocation;
 }
@@ -158,16 +158,29 @@ HitResult rive_lua_end_scripted_invocation(
     ScriptedInvocation* invocation)
 {
   HitResult hitResult = HitResult::none;
-  if (invocation->m_pointerEventRef != 0)
+  if (invocation->m_eventRef != 0)
   {
-    lua_getref(L, invocation->m_pointerEventRef);
-    hitResult = lua_torive<ScriptedPointerEvent>(L, -1)->m_hitResult;
+    lua_getref(L, invocation->m_eventRef);
+    switch (invocation->invocation().kind())
+    {
+      case ListenerInvocationKind::pointer:
+        hitResult = lua_torive<ScriptedPointerEvent>(L, -1)->m_hitResult;
+        break;
+      case ListenerInvocationKind::keyboard:
+        hitResult = lua_torive<ScriptedKeyboardInvocation>(L, -1)->m_hitResult;
+        break;
+      case ListenerInvocationKind::textInput:
+        hitResult = lua_torive<ScriptedTextInputInvocation>(L, -1)->m_hitResult;
+        break;
+      default:
+        break;
+    }
     lua_pop(L, 1);
-    lua_unref(L, invocation->m_pointerEventRef);
-    invocation->m_pointerEventRef = 0;
+    lua_unref(L, invocation->m_eventRef);
+    invocation->m_eventRef = 0;
   }
   // A script that keeps the invocation past this call gets a fresh event
-  // from asPointerEvent again, with nothing left to anchor.
+  // from asPointerEvent and the others again, with nothing left to anchor.
   invocation->m_isDispatching = false;
   return hitResult;
 }
@@ -187,6 +200,23 @@ static int scripted_invocation_namecall(lua_State* L)
 
   auto pushBool = [&](bool v) {
     lua_pushboolean(L, v ? 1 : 0);
+    return 1;
+  };
+  // While dispatching, the event an as* call hands out is kept, so every
+  // call returns the same one and a hit() on any of them is read back.
+  auto pushAnchoredEvent = [&]() {
+    if (self->m_eventRef == 0)
+    {
+      return false;
+    }
+    lua_getref(L, self->m_eventRef);
+    return true;
+  };
+  auto anchorEvent = [&]() {
+    if (self->m_isDispatching)
+    {
+      self->m_eventRef = lua_ref(L, -1);
+    }
     return 1;
   };
 
@@ -217,9 +247,8 @@ static int scripted_invocation_namecall(lua_State* L)
     case (int)LuaAtoms::asPointerEvent:
       if (const PointerInvocation* p = inv.asPointer())
       {
-        if (self->m_pointerEventRef != 0)
+        if (pushAnchoredEvent())
         {
-          lua_getref(L, self->m_pointerEventRef);
           return 1;
         }
         lua_newrive<ScriptedPointerEvent>(
@@ -229,11 +258,7 @@ static int scripted_invocation_namecall(lua_State* L)
             p->previousPosition,
             static_cast<int>(p->hitEvent),
             p->timeStamp);
-        if (self->m_isDispatching)
-        {
-          self->m_pointerEventRef = lua_ref(L, -1);
-        }
-        return 1;
+        return anchorEvent();
       }
       lua_pushnil(L);
       return 1;
@@ -241,13 +266,17 @@ static int scripted_invocation_namecall(lua_State* L)
     case (int)LuaAtoms::asKeyboardEvent:
       if (const KeyboardInvocation* k = inv.asKeyboard())
       {
+        if (pushAnchoredEvent())
+        {
+          return 1;
+        }
         lua_newrive<ScriptedKeyboardInvocation>(
             L,
             k->key,
             k->modifiers,
             k->isPressed,
             k->isRepeat);
-        return 1;
+        return anchorEvent();
       }
       lua_pushnil(L);
       return 1;
@@ -255,8 +284,12 @@ static int scripted_invocation_namecall(lua_State* L)
     case (int)LuaAtoms::asTextInput:
       if (const TextInputInvocation* t = inv.asTextInput())
       {
+        if (pushAnchoredEvent())
+        {
+          return 1;
+        }
         lua_newrive<ScriptedTextInputInvocation>(L, t->text);
-        return 1;
+        return anchorEvent();
       }
       lua_pushnil(L);
       return 1;
@@ -476,6 +509,21 @@ static int text_input_invocation_index(lua_State* L)
       "%s is not a valid field of %s",
       luaL_checkstring(L, 1),
       ScriptedTextInputInvocation::luaName);
+  return 0;
+}
+
+// hit() on a key or text event stops it the way it stops a pointer event:
+// bare (opaque) claims it, hit(true) leaves it going.
+template <typename T> static int input_invocation_namecall(lua_State* L)
+{
+  int atom;
+  const char* str = lua_namecallatom(L, &atom);
+  if (str != nullptr && atom == (int)LuaAtoms::hit)
+  {
+    lua_torive<T>(L, 1)->m_hitResult = rive_lua_hit_result_arg(L, 2);
+    return 0;
+  }
+  luaL_error(L, "%s is not a valid method of %s", str, T::luaName);
   return 0;
 }
 
@@ -832,6 +880,11 @@ void rive_lua_register_listener_invocation_types(lua_State* L)
   lua_register_rive<ScriptedKeyboardInvocation>(L);
   lua_pushcfunction(L, keyboard_invocation_index, nullptr);
   lua_setfield(L, -2, "__index");
+  lua_pushcfunction(
+      L,
+      input_invocation_namecall<ScriptedKeyboardInvocation>,
+      nullptr);
+  lua_setfield(L, -2, "__namecall");
   lua_setreadonly(L, -1, true);
   lua_pop(L, 1);
 
@@ -867,6 +920,11 @@ void rive_lua_register_listener_invocation_types(lua_State* L)
   lua_register_rive<ScriptedTextInputInvocation>(L);
   lua_pushcfunction(L, text_input_invocation_index, nullptr);
   lua_setfield(L, -2, "__index");
+  lua_pushcfunction(
+      L,
+      input_invocation_namecall<ScriptedTextInputInvocation>,
+      nullptr);
+  lua_setfield(L, -2, "__namecall");
   lua_setreadonly(L, -1, true);
   lua_pop(L, 1);
 
