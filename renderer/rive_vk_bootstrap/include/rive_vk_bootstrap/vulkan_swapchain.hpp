@@ -29,6 +29,11 @@ public:
     VkImageUsageFlags imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     uint64_t initialFrameNumber = 0;
     uint32_t preferredImageCount = 2;
+
+    // If true, use the first entry of formatPreferences without querying the
+    // surface's supported formats, and ignore the rest. Only set this when the
+    // platform guarantees that every surface supports that format.
+    bool assumeFirstSurfaceFormatIsValid = false;
   };
 
   static std::unique_ptr<VulkanSwapchain> Create(

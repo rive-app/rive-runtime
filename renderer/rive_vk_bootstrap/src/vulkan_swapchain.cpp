@@ -72,11 +72,17 @@ VulkanSwapchain::VulkanSwapchain(
   RIVE_VK_SWAPCHAIN_INSTANCE_COMMANDS(LOAD);
 #undef LOAD
 
-  // Check the device to see what our best-match image format is
-  auto surfaceFormat = tryFindBestFormat(
-      device,
-      surface,
-      opts.formatPreferences);
+  // Check the device to see what our best-match image format is, unless the
+  // caller says the surface supports the first preference
+  std::optional<VkSurfaceFormatKHR> surfaceFormat;
+  if (!opts.assumeFirstSurfaceFormatIsValid)
+  {
+    surfaceFormat = tryFindBestFormat(device, surface, opts.formatPreferences);
+  }
+  else if (!opts.formatPreferences.empty())
+  {
+    surfaceFormat = opts.formatPreferences.front();
+  }
   CONFIRM_OR_RETURN(surfaceFormat.has_value());
   auto presentMode = tryFindBestPresentMode(
       device,
