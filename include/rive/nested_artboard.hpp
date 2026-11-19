@@ -160,6 +160,11 @@ public:
 #endif
   void updateArtboard(
       ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  /// With mount false, only lets go of the artboard the value replaces, for
+  /// a later call to mount the new one.
+  virtual void swapArtboard(
+      ViewModelInstanceArtboard* viewModelInstanceArtboard,
+      bool mount);
   /// Whether remount() would bring this host back to how it was instanced:
   /// it mounts the artboard it was authored with. One bound to an artboard
   /// property mounts whatever that names, and a stateful one keeps view model

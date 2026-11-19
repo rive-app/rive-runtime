@@ -256,7 +256,7 @@ void NestedArtboardLayout::referencedArtboard(Artboard* artboard)
 void NestedArtboardLayout::remount()
 {
 #ifdef WITH_RIVE_LAYOUT
-  // As updateArtboard: the owning layout lets go of the outgoing instance's
+  // As swapArtboard: the owning layout lets go of the outgoing instance's
   // node and collects the new one's.
   auto* layout = owningLayout(parent());
   if (layout != nullptr)
@@ -275,8 +275,9 @@ void NestedArtboardLayout::remount()
 #endif
 }
 
-void NestedArtboardLayout::updateArtboard(
-    ViewModelInstanceArtboard* viewModelInstanceArtboard)
+void NestedArtboardLayout::swapArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard,
+    bool mount)
 {
 #ifdef WITH_RIVE_LAYOUT
   // Re-collect on the layout that owns our node, not on parent(), or a
@@ -287,7 +288,7 @@ void NestedArtboardLayout::updateArtboard(
     layout->clearLayoutChildren();
   }
 #endif
-  NestedArtboard::updateArtboard(viewModelInstanceArtboard);
+  NestedArtboard::swapArtboard(viewModelInstanceArtboard, mount);
   updateWidthOverride();
   updateHeightOverride();
 #ifdef WITH_RIVE_LAYOUT

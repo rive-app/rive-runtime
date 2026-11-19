@@ -15,6 +15,7 @@
 #include <rive/custom_property_boolean.hpp>
 #include <rive/constraints/follow_path_constraint.hpp>
 #include <rive/viewmodel/viewmodel_instance_artboard.hpp>
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include <rive/viewmodel/runtime/viewmodel_instance_runtime.hpp>
@@ -26,6 +27,7 @@
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
+#include "rive/nested_artboard_leaf.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -1009,4 +1011,308 @@ TEST_CASE(
   CHECK(
       context->resolveGlobalViewModel(foreignFile.get(), global.c_str()) !=
       hostGlobal->instance());
+}
+namespace
+{
+// assets/hidden_slot_release.riv: each host's layout "Page" hides when `hidden`
+// is 1; inside it "Slot" is bound to `piece`. Slot is a NestedArtboard in Main,
+// a NestedArtboardLeaf in MainLeaf, a NestedArtboardLayout in MainLayout, and
+// in MainNested it sits in nested artboard "Inner", bound through `seat`.
+// Game and Other are mounted; Empty is the slot's default.
+struct HiddenSlot
+{
+  const char* host;
+  rcp<File> file = ReadRiveFile("assets/hidden_slot_release.riv");
+  std::unique_ptr<ArtboardInstance> artboard = file->artboardNamed(host);
+  std::unique_ptr<StateMachineInstance> stateMachine = artboard->stateMachineAt(
+      0);
+  rcp<ViewModelInstance> vmi = file->createDefaultViewModelInstance(
+      artboard.get());
+  NestedArtboard* slot = nullptr;
+  // What the hidden layout collapses: the slot, or MainNested's "Inner".
+  NestedArtboard* hidden = nullptr;
+  ViewModelInstanceArtboard* piece = nullptr;
+  rcp<BindableArtboard> game = file->bindableArtboardNamed("Game");
+  rcp<BindableArtboard> other = file->bindableArtboardNamed("Other");
+
+  HiddenSlot(const char* hostName) : host(hostName)
+  {
+    stateMachine->bindViewModelInstance(vmi);
+    advance();
+    auto* inner = artboard->find<NestedArtboard>("Inner");
+    Artboard* scope = inner != nullptr ? inner->artboardInstance()
+                                       : artboard.get();
+    auto model = inner != nullptr ? vmi->propertyValue("seat")
+                                        ->as<ViewModelInstanceViewModel>()
+                                        ->referenceViewModelInstance()
+                                  : vmi;
+    slot = scope->find<NestedArtboard>("Slot");
+    hidden = inner != nullptr ? inner : slot;
+    piece = model->propertyValue("piece")->as<ViewModelInstanceArtboard>();
+    REQUIRE(slot != nullptr);
+    // The fixture is binary: pin each host to the kind of slot it stands for.
+    uint16_t kind = strcmp(host, "MainLeaf") == 0
+                        ? NestedArtboardLeafBase::typeKey
+                    : strcmp(host, "MainLayout") == 0
+                        ? NestedArtboardLayoutBase::typeKey
+                        : NestedArtboardBase::typeKey;
+    REQUIRE(slot->coreType() == kind);
+    REQUIRE(game != nullptr);
+    REQUIRE(other != nullptr);
+  }
+
+  void advance() { stateMachine->advanceAndApply(0.016f); }
+
+  void hide(bool value)
+  {
+    vmi->propertyValue("hidden")->as<ViewModelInstanceNumber>()->propertyValue(
+        value ? 1.0f : 0.0f);
+    advance();
+    REQUIRE(hidden->isCollapsed() == value);
+  }
+
+  std::string mounted()
+  {
+    auto instance = slot->artboardInstance();
+    return instance == nullptr ? "" : instance->name();
+  }
+};
+} // namespace
+
+TEST_CASE(
+    "An artboard slot emptied while hidden lets go of its artboard now",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  h.piece->asset(h.game);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  REQUIRE(h.mounted() == "Game");
+
+  h.piece->asset(nullptr);
+  h.advance();
+  CHECK(h.mounted() == "");
+  // Only this test still holds Game's bindable.
+  CHECK(h.game->debugging_refcnt() == 1);
+
+  // Showing again runs only the display bind; the slot's isn't re-applied.
+  auto updates = DataBindContainer::sm_dataBindUpdates;
+  h.hide(false);
+  CHECK(DataBindContainer::sm_dataBindUpdates - updates == 1);
+  CHECK(h.mounted() == "");
+  CHECK(h.game->debugging_refcnt() == 1);
+}
+
+TEST_CASE(
+    "An artboard slot set while hidden waits until it shows",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  h.hide(true);
+
+  h.piece->asset(h.other);
+  h.advance();
+  CHECK(h.mounted() == "");
+
+  h.hide(false);
+  CHECK(h.mounted() == "Other");
+}
+
+TEST_CASE(
+    "An artboard slot set before the update that hides it still mounts",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  // Written first, so the display bind hides the slot before the slot's bind
+  // runs in the same update.
+  h.vmi->propertyValue("hidden")->as<ViewModelInstanceNumber>()->propertyValue(
+      1.0f);
+  h.piece->asset(h.other);
+  h.advance();
+  REQUIRE(h.hidden->isCollapsed());
+  CHECK(h.mounted() == "Other");
+}
+
+TEST_CASE(
+    "An artboard slot swapped while hidden lets go of the old artboard now",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  h.piece->asset(h.game);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  h.piece->asset(h.other);
+  h.advance();
+  CHECK(h.mounted() == "");
+  CHECK(h.game->debugging_refcnt() == 1);
+
+  // Showing runs the display bind and the slot's, once each.
+  auto updates = DataBindContainer::sm_dataBindUpdates;
+  h.hide(false);
+  CHECK(DataBindContainer::sm_dataBindUpdates - updates == 2);
+  CHECK(h.mounted() == "Other");
+}
+
+TEST_CASE(
+    "An artboard slot holding an id and given a bindable while hidden mounts "
+    "it when shown",
+    "[data binding]")
+{
+  // Moving off an id passes through an empty value before the bindable is
+  // stored; that must not count as the slot's final value.
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  uint32_t gameId = 0;
+  while (h.file->artboard(gameId)->name() != "Game")
+  {
+    gameId++;
+  }
+  h.piece->propertyValue(gameId);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  h.piece->asset(h.other);
+  h.advance();
+  CHECK(h.mounted() == "");
+
+  h.hide(false);
+  CHECK(h.mounted() == "Other");
+}
+
+TEST_CASE(
+    "An artboard slot swapped then emptied while hidden stays empty when shown",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  h.piece->asset(h.game);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  h.piece->asset(h.other);
+  h.advance();
+  REQUIRE(h.mounted() == "");
+
+  h.piece->asset(nullptr);
+  h.advance();
+  CHECK(h.game->debugging_refcnt() == 1);
+  CHECK(h.other->debugging_refcnt() == 1);
+
+  // Emptied, the slot has nothing left to mount: only the display bind runs.
+  auto updates = DataBindContainer::sm_dataBindUpdates;
+  h.hide(false);
+  CHECK(DataBindContainer::sm_dataBindUpdates - updates == 1);
+  CHECK(h.mounted() == "");
+}
+
+TEST_CASE(
+    "An artboard slot given an unknown id while hidden keeps its artboard",
+    "[data binding]")
+{
+  HiddenSlot h(GENERATE("Main", "MainLeaf", "MainLayout"));
+  CAPTURE(h.host);
+  h.piece->asset(h.game);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  h.piece->propertyValue(9999);
+  h.advance();
+  CHECK(h.mounted() == "Game");
+
+  SECTION("when shown")
+  {
+    h.hide(false);
+    CHECK(h.mounted() == "Game");
+  }
+  SECTION("until emptied")
+  {
+    h.piece->asset(nullptr);
+    h.advance();
+    CHECK(h.mounted() == "");
+    CHECK(h.game->debugging_refcnt() == 1);
+  }
+}
+
+TEST_CASE(
+    "A stateful artboard slot swapped while hidden keeps its view model "
+    "instance",
+    "[data binding]")
+{
+  auto file = ReadRiveFile("assets/stateful_source_switch.riv");
+  auto artboard = file->artboardNamed("ParentArtboard");
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto advance = [&]() {
+    for (int i = 0; i < 3; i++)
+    {
+      stateMachine->advanceAndApply(0.016f);
+    }
+  };
+  advance();
+  auto* source = vmi->propertyValue("sourceArtboard")
+                     ->as<ViewModelInstanceArtboard>();
+  NestedArtboard* slot = nullptr;
+  for (auto nested : artboard->nestedArtboards())
+  {
+    if (nested->isStateful())
+    {
+      slot = nested;
+    }
+  }
+  REQUIRE(slot != nullptr);
+  auto bound = [slot]() {
+    return slot->artboardInstance()->dataContext()->mainViewModelInstance();
+  };
+
+  // Its view model isn't the slot's own, so the slot makes it an instance.
+  source->asset(file->bindableArtboardNamed("DifferentArtboardB"));
+  advance();
+  REQUIRE(slot->artboardInstance() != nullptr);
+  // Held, so a new instance can't land on the same address.
+  rcp<ViewModelInstance> before = bound();
+  REQUIRE(before != nullptr);
+
+  slot->collapse(true);
+  source->asset(file->bindableArtboardNamed("DifferentArtboardB"));
+  advance();
+  REQUIRE(slot->artboardInstance() == nullptr);
+
+  slot->collapse(false);
+  advance();
+  REQUIRE(slot->artboardInstance() != nullptr);
+  CHECK(bound() == before);
+}
+
+TEST_CASE(
+    "An artboard slot emptied inside a hidden nested artboard waits until it "
+    "shows",
+    "[data binding]")
+{
+  // Known limit: a collapsed NestedArtboard doesn't run its artboard's binds.
+  HiddenSlot h("MainNested");
+  h.piece->asset(h.game);
+  h.advance();
+  REQUIRE(h.mounted() == "Game");
+
+  h.hide(true);
+  h.piece->asset(nullptr);
+  h.advance();
+  CHECK(h.mounted() == "Game");
+  CHECK(h.game->debugging_refcnt() == 2);
+
+  h.hide(false);
+  CHECK(h.mounted() == "");
+  CHECK(h.game->debugging_refcnt() == 1);
 }

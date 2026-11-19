@@ -47,6 +47,8 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/component.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
 
@@ -477,6 +479,8 @@ bool DataBind::canSkip()
 
 void DataBind::update(ComponentDirt value)
 {
+  bool queuedToRelease = hasFlag(Flag::QueuedToRelease);
+  setFlag(Flag::QueuedToRelease, false);
   if (m_Source != nullptr && m_ContextValue != nullptr)
   {
     if ((value & ComponentDirt::Bindings) == ComponentDirt::Bindings)
@@ -487,6 +491,16 @@ void DataBind::update(ComponentDirt value)
       auto flagsValue = static_cast<DataBindFlags>(flags());
       if (toTarget())
       {
+        auto* slot = queuedToRelease && hasFlag(Flag::Collapsed) ? slotSource()
+                                                                 : nullptr;
+        if (slot != nullptr && !slot->isEmpty())
+        {
+          // Dirtied while hidden, the slot only lets go of its artboard.
+          // Stay dirty so the new one mounts once it shows.
+          target()->as<NestedArtboard>()->swapArtboard(slot, false);
+          m_Dirt |= value;
+          return;
+        }
         // Alternative A: a TwoWay bind subscribes to its target via
         // Core::notifyPropertyChanged. Without suppression, writing
         // the target here would push-notify ourselves and add a
@@ -551,9 +565,27 @@ ComponentDirt DataBind::reconcileDirt()
          (toSource() ? ComponentDirt::BindingsTarget : ComponentDirt::None);
 }
 
+ViewModelInstanceArtboard* DataBind::slotSource()
+{
+  if (propertyKey() != NestedArtboardBase::artboardIdPropertyKey ||
+      outputType() != DataType::artboard)
+  {
+    return nullptr;
+  }
+  auto* host = target();
+  if (host == nullptr || !host->is<NestedArtboard>())
+  {
+    return nullptr;
+  }
+  return m_Source->as<ViewModelInstanceArtboard>();
+}
+
 void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
-  if (hasFlag(Flag::SuppressDirt) || (m_Dirt & value) == value)
+  // A hidden slot's bind still runs, to let go of its artboard and the sounds
+  // it plays.
+  bool releases = hasFlag(Flag::Collapsed) && slotSource() != nullptr;
+  if (hasFlag(Flag::SuppressDirt) || ((m_Dirt & value) == value && !releases))
   {
     // Already marked.
     return;
@@ -592,8 +624,9 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
   {
     m_ContextValue->invalidate();
   }
-  if (m_container && !hasFlag(Flag::Collapsed))
+  if (m_container && (!hasFlag(Flag::Collapsed) || releases))
   {
+    setFlag(Flag::QueuedToRelease, releases);
     m_container->addDirtyDataBind(this);
   }
 }

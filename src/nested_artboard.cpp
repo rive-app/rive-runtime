@@ -295,18 +295,24 @@ void NestedArtboard::clearNestedAnimations()
 void NestedArtboard::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
+  swapArtboard(viewModelInstanceArtboard, true);
+}
+
+void NestedArtboard::swapArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard,
+    bool mount)
+{
   // A VM artboard swap means this host is data-bound.
   m_hostFlags |= NestedArtboardHostFlags::artboardDataBound;
 
-  // Resolve the swap target BEFORE tearing anything down. asset == nullptr
-  // and propertyValue == -1 is the user explicitly clearing the artboard (a
-  // real "set to null"); any OTHER unresolvable id must leave the currently
-  // displayed artboard — and its focus tree — untouched, rather than blanking
-  // focus for content that stays on screen. findArtboard has no side effects,
-  // so resolving it early is safe.
+  // Resolve the swap target BEFORE tearing anything down. An empty value is
+  // the user explicitly clearing the artboard (a real "set to null"); any
+  // OTHER unresolvable id must leave the currently displayed artboard — and
+  // its focus tree — untouched, rather than blanking focus for content that
+  // stays on screen. findArtboard has no side effects, so resolving it early
+  // is safe.
   bool explicitNull = viewModelInstanceArtboard != nullptr &&
-                      viewModelInstanceArtboard->asset() == nullptr &&
-                      viewModelInstanceArtboard->propertyValue() == -1;
+                      viewModelInstanceArtboard->isEmpty();
   Artboard* artboard = explicitNull ? nullptr
                                     : findArtboard(
                                           viewModelInstanceArtboard,
@@ -332,7 +338,7 @@ void NestedArtboard::updateArtboard(
   clearNestedAnimations();
   m_boundNestedStateMachine = nullptr;
 
-  if (explicitNull)
+  if (explicitNull || !mount)
   {
     // Only detach a non-owned reference; an owned instance must be
     // destroyed with m_host intact so ~LayoutComponent can clean the
@@ -352,7 +358,11 @@ void NestedArtboard::updateArtboard(
     // Nothing mounted means nothing to sync from again, so the masks hear
     // about the empty host now or never.
     invalidateLayerMasks();
-    setActiveViewModelInstance(nullptr, false);
+    // A swap leaves the stateful instance to the next mount.
+    if (explicitNull)
+    {
+      setActiveViewModelInstance(nullptr, false);
+    }
     return;
   }
 
@@ -1430,7 +1440,7 @@ void NestedArtboard::remount()
     return;
   }
   // The outgoing instance leaves the trees it joined while it is whole, as
-  // in updateArtboard.
+  // in swapArtboard.
   m_Instance->cleanupFocusTree();
   m_Instance->cleanupSemanticTree();
   // The nested animations' instances run on the outgoing artboard, so they

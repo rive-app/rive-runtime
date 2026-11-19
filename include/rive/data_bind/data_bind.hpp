@@ -16,6 +16,7 @@ namespace rive
 class DataBindContextValue;
 class DataBindContainer;
 class File;
+class ViewModelInstanceArtboard;
 #ifdef WITH_RIVE_TOOLS
 class DataBind;
 typedef void (*DataBindChanged)();
@@ -151,8 +152,11 @@ private:
     // it.
     TargetOrigin = 1 << 5,
     InstanceValueBind = 1 << 6,
+    QueuedToRelease = 1 << 7,
   };
   uint8_t m_flags = 0;
+  // The view model artboard this bind mounts in a nested artboard, if any.
+  ViewModelInstanceArtboard* slotSource();
   bool hasFlag(Flag f) const
   {
     return (m_flags & static_cast<uint8_t>(f)) != 0;

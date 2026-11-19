@@ -20,6 +20,11 @@ public:
   void asset(rcp<BindableArtboard> value);
   void boundViewModelInstance(rcp<ViewModelInstance> value);
   rcp<BindableArtboard> asset() { return m_bindableArtboard; }
+  // Set to no artboard. An id that doesn't resolve is not empty.
+  bool isEmpty() const
+  {
+    return m_bindableArtboard == nullptr && propertyValue() == kEmptyId;
+  }
   void applyValue(DataValueInteger*);
   rcp<ViewModelInstance> boundViewModelInstance()
   {

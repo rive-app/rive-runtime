@@ -180,11 +180,10 @@ void TextStyleGlobal::updateArtboard(
     return;
   }
 
-  // asset == nullptr and propertyValue == -1 is the property explicitly set
-  // to no artboard. A run can't shape without a paint, so revert to the
-  // authored style instead of clearing it.
-  bool explicitNull = viewModelInstanceArtboard->asset() == nullptr &&
-                      viewModelInstanceArtboard->propertyValue() == -1;
+  // An empty value is the property explicitly set to no artboard. A run can't
+  // shape without a paint, so revert to the authored style instead of clearing
+  // it.
+  bool explicitNull = viewModelInstanceArtboard->isEmpty();
   Artboard* target = explicitNull ? m_sourceArtboard
                                   : findArtboard(
                                         viewModelInstanceArtboard,
