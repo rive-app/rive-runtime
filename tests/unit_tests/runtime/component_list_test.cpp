@@ -26,6 +26,7 @@
 #include "rive_testing.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -235,6 +236,65 @@ TEST_CASE("Component list state machine listener", "[component_list]")
     REQUIRE(hoverInput3->value() == true);
   }
   delete stateMachineInstance;
+}
+
+// Rows are hit through the list's transform first and their own offset after
+// (HitComponentList maps into the list once per event). A rotated list
+// squashed to half its height tells the two orders apart: the third row's
+// offset taken off in the wrong space lands the pointer on the second row.
+TEST_CASE(
+    "Component list rows take pointers through a rotated and scaled list",
+    "[component_list]")
+{
+  auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  REQUIRE(stateMachine != nullptr);
+  auto stateMachineInstance = std::make_unique<rive::StateMachineInstance>(
+      stateMachine,
+      artboard.get());
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  artboard->advance(0.0f);
+
+  // Over the first and third rows' shapes, as in "Component list state
+  // machine listener", taken into the list's own space.
+  const rive::Mat2D untransformed = list->worldTransform();
+  rive::Mat2D toList;
+  REQUIRE(untransformed.invert(&toList));
+  const rive::Vec2D overFirst = toList * rive::Vec2D(100.0f, 30.0f);
+  const rive::Vec2D overThird = toList * rive::Vec2D(100.0f, 150.0f);
+
+  list->rotation(0.3f);
+  list->scaleX(1.5f);
+  list->scaleY(0.5f);
+  artboard->advance(0.0f);
+  const rive::Mat2D transformed = list->worldTransform();
+  REQUIRE(!(transformed == untransformed));
+
+  auto hoverFirst = list->stateMachineInstance(0)->getBool("Hover");
+  auto hoverSecond = list->stateMachineInstance(1)->getBool("Hover");
+  auto hoverThird = list->stateMachineInstance(2)->getBool("Hover");
+  REQUIRE(hoverFirst != nullptr);
+  REQUIRE(hoverSecond != nullptr);
+  REQUIRE(hoverThird != nullptr);
+
+  stateMachineInstance->pointerMove(transformed * overFirst);
+  artboard->advance(0.0f);
+  stateMachineInstance->advanceAndApply(0.0f);
+  CHECK(hoverFirst->value());
+  CHECK(!hoverSecond->value());
+  CHECK(!hoverThird->value());
+
+  stateMachineInstance->pointerMove(transformed * overThird);
+  artboard->advance(0.0f);
+  stateMachineInstance->advanceAndApply(0.0f);
+  CHECK(!hoverSecond->value());
+  CHECK(hoverThird->value());
 }
 
 TEST_CASE("Number To List Artboard Count", "[component_list]")

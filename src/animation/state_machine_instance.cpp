@@ -2240,6 +2240,12 @@ private:
   }
 };
 
+// Every row sits under the same list transform, so an event's position is
+// mapped into the list once (worldToList), then into each row by taking off
+// that row's offset (listToLocal). Keep worldToLocal out of the row loops:
+// Safari's WebAssembly optimizer (JavaScriptCore's OMG tier, reported on
+// Safari 26.4 and iOS 26.5) miscompiled them when it inlined worldToLocal,
+// and only the first row walked, the top-most, kept getting pointer events.
 class HitComponentList : public HitComponent
 {
 public:
@@ -2253,7 +2259,9 @@ public:
   bool hitTest(Vec2D position) const override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed() || componentList->isHidden())
+    Vec2D inList;
+    if (componentList->isCollapsed() || componentList->isHidden() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
@@ -2262,9 +2270,9 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
-        // Mounted artboard isn't ready or has a 0 scale transform.
+        // Mounted artboard isn't ready.
         continue;
       }
       auto stateMachine = componentList->stateMachineInstance(i);
@@ -2278,7 +2286,9 @@ public:
   bool hitTestBounded(Vec2D position) const override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed() || componentList->isHidden())
+    Vec2D inList;
+    if (componentList->isCollapsed() || componentList->isHidden() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
@@ -2287,7 +2297,7 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2300,22 +2310,22 @@ public:
     return false;
   }
 
-  /// Maps a parent-space delta into item i. A delta is a vector, so it
-  /// takes the mapping's linear part only.
-  bool itemDelta(
+  /// Maps a parent-space delta into the list, where position maps to
+  /// inList. A delta is a vector, so it takes the mapping's linear part
+  /// only, and a row's offset doesn't change it: it's the same in every row.
+  static bool listDelta(
       ArtboardComponentList* componentList,
-      int i,
       Vec2D position,
-      Vec2D listPosition,
+      Vec2D inList,
       Vec2D delta,
       Vec2D& out)
   {
     Vec2D shifted;
-    if (!componentList->worldToLocal(position + delta, &shifted, i))
+    if (!componentList->worldToList(position + delta, &shifted))
     {
       return false;
     }
-    out = shifted - listPosition;
+    out = shifted - inList;
     return true;
   }
 
@@ -2324,7 +2334,11 @@ public:
   bool wantsScroll(Vec2D position, const ScrollEvent& event) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed())
+    Vec2D inList;
+    ScrollEvent mapped = event;
+    if (componentList->isCollapsed() ||
+        !componentList->worldToList(position, &inList) ||
+        !listDelta(componentList, position, inList, event.delta, mapped.delta))
     {
       return false;
     }
@@ -2333,23 +2347,12 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
       auto stateMachine = componentList->stateMachineInstance(i);
       if (stateMachine == nullptr)
-      {
-        continue;
-      }
-      ScrollEvent mapped = event;
-      if (!itemDelta(
-              componentList,
-              i,
-              position,
-              listPosition,
-              event.delta,
-              mapped.delta))
       {
         continue;
       }
@@ -2368,7 +2371,9 @@ public:
   bool hasScrollTarget(Vec2D position) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed())
+    Vec2D inList;
+    if (componentList->isCollapsed() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
@@ -2377,7 +2382,7 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2401,7 +2406,9 @@ public:
   bool listensToButtonAt(Vec2D position, PointerButton button) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed() || componentList->isHidden())
+    Vec2D inList;
+    if (componentList->isCollapsed() || componentList->isHidden() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
@@ -2410,7 +2417,7 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2427,7 +2434,9 @@ public:
   bool occludesScroll(Vec2D position) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed())
+    Vec2D inList;
+    if (componentList->isCollapsed() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
@@ -2436,7 +2445,7 @@ public:
     {
       const int i = *it;
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2499,7 +2508,11 @@ public:
       int pointerId) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed())
+    Vec2D inList;
+    ScrollEvent mapped = event;
+    if (componentList->isCollapsed() ||
+        !componentList->worldToList(position, &inList) ||
+        !listDelta(componentList, position, inList, event.delta, mapped.delta))
     {
       return HitResult::none;
     }
@@ -2517,18 +2530,7 @@ public:
           continue;
         }
         Vec2D listPosition;
-        if (!componentList->worldToLocal(position, &listPosition, i))
-        {
-          continue;
-        }
-        ScrollEvent mapped = event;
-        if (!itemDelta(
-                componentList,
-                i,
-                position,
-                listPosition,
-                event.delta,
-                mapped.delta))
+        if (!componentList->listToLocal(inList, &listPosition, i))
         {
           continue;
         }
@@ -2590,12 +2592,15 @@ public:
     {
       m_pressed.add(pointerId);
     }
+    Vec2D inList;
+    const bool listMapped = componentList->worldToList(position, &inList);
     const auto& order = componentList->orderedListIndices();
     for (auto it = order.rbegin(); it != order.rend(); ++it)
     {
       const int i = *it;
       Vec2D listPosition;
-      bool mapped = componentList->worldToLocal(position, &listPosition, i);
+      bool mapped = listMapped &&
+                    componentList->listToLocal(inList, &listPosition, i);
       auto stateMachine = componentList->stateMachineInstance(i);
       if (hidden || !mapped)
       {
@@ -2829,14 +2834,16 @@ public:
   bool blocksCapture(Vec2D position) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed() || componentList->isHidden())
+    Vec2D inList;
+    if (componentList->isCollapsed() || componentList->isHidden() ||
+        !componentList->worldToList(position, &inList))
     {
       return false;
     }
     for (int i : componentList->orderedListIndices())
     {
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2862,7 +2869,9 @@ public:
       PointerButton button) override
   {
     auto componentList = m_component->as<ArtboardComponentList>();
-    if (componentList->isCollapsed() || componentList->isHidden())
+    Vec2D inList;
+    if (componentList->isCollapsed() || componentList->isHidden() ||
+        !componentList->worldToList(position, &inList))
     {
       return HitResult::none;
     }
@@ -2881,7 +2890,7 @@ public:
         continue;
       }
       Vec2D listPosition;
-      if (!componentList->worldToLocal(position, &listPosition, i))
+      if (!componentList->listToLocal(inList, &listPosition, i))
       {
         continue;
       }
@@ -2891,7 +2900,7 @@ public:
         auto aboveMachine = componentList->stateMachineInstance(above);
         Vec2D abovePosition;
         if (aboveMachine != nullptr &&
-            componentList->worldToLocal(position, &abovePosition, above) &&
+            componentList->listToLocal(inList, &abovePosition, above) &&
             aboveMachine->pointerOccludedAt(abovePosition))
         {
           occluded = true;

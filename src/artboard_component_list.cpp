@@ -2660,24 +2660,40 @@ Vec2D ArtboardComponentList::artboardPosition(ArtboardInstance* artboard)
 bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
 {
   assert(local != nullptr);
+  Vec2D list;
+  return artboardInstance(index) != nullptr && worldToList(world, &list) &&
+         listToLocal(list, local, index);
+}
+
+bool ArtboardComponentList::worldToList(Vec2D world, Vec2D* list)
+{
+  assert(list != nullptr);
+  // A virtualized list places its rows in its parent layout's space.
+  const WorldTransformComponent* space = this;
+  if (virtualizationEnabled())
+  {
+    space = parent()->as<LayoutComponent>();
+  }
+  Mat2D toList;
+  if (!space->worldTransform().invert(&toList))
+  {
+    // A 0 scale transform: nothing in the list can be reached.
+    return false;
+  }
+  *list = toList * world;
+  return true;
+}
+
+bool ArtboardComponentList::listToLocal(Vec2D list, Vec2D* local, int index)
+{
+  assert(local != nullptr);
   auto artboard = artboardInstance(index);
   if (artboard == nullptr)
   {
+    // Mounted artboard isn't ready.
     return false;
   }
-  Vec2D offset = artboardPosition(artboard);
-  auto transform = virtualizationEnabled()
-                       ? parent()->as<LayoutComponent>()->worldTransform()
-                       : worldTransform();
-  auto artboardTransform = transform * Mat2D::fromTranslate(offset.x, offset.y);
-  Mat2D toMountedArtboard;
-  if (!artboardTransform.invert(&toMountedArtboard))
-  {
-    return false;
-  }
-
-  *local = toMountedArtboard * world;
-
+  *local = list - artboardPosition(artboard);
   return true;
 }
 

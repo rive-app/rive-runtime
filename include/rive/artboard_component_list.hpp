@@ -88,6 +88,11 @@ public:
   int indexOfArtboardInstance(ArtboardInstance* instance) const;
   StateMachineInstance* stateMachineInstance(int index = 0);
   bool worldToLocal(Vec2D world, Vec2D* local, int index);
+  /// worldToLocal in two steps, for mapping one point into many rows: the
+  /// list's transform is the same for every row, so worldToList inverts it
+  /// once and listToLocal only takes off each row's offset.
+  bool worldToList(Vec2D world, Vec2D* list);
+  bool listToLocal(Vec2D list, Vec2D* local, int index);
   /// Where a pointer last was, in the space worldToLocal maps from, as the
   /// host passes it on to the rows. Forgotten once it exits.
   void notePointer(int pointerId, Vec2D position);
