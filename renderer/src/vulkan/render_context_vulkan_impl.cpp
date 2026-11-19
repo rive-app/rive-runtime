@@ -1198,7 +1198,6 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
       })
     , m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
     , m_pathBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
-    , m_paintAuxBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_contourBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_virtualPatchBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)
     , m_gradSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
@@ -1548,7 +1547,6 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
   // These should all have gotten recycled at the end of the last frame.
   assert(m_flushUniformBuffer == nullptr);
   assert(m_pathBuffer == nullptr);
-  assert(m_paintAuxBuffer == nullptr);
   assert(m_contourBuffer == nullptr);
   assert(m_virtualPatchBuffer == nullptr);
   assert(m_gradSpanBuffer == nullptr);
@@ -2113,7 +2111,6 @@ void RenderContextVulkanImpl::prepareToFlush(
   // These should all have gotten recycled at the end of the last frame.
   assert(m_flushUniformBuffer == nullptr);
   assert(m_pathBuffer == nullptr);
-  assert(m_paintAuxBuffer == nullptr);
   assert(m_contourBuffer == nullptr);
   assert(m_gradSpanBuffer == nullptr);
   assert(m_tessSpanBuffer == nullptr);
@@ -2136,7 +2133,6 @@ void RenderContextVulkanImpl::prepareToFlush(
   // Acquire buffers for the flush.
   m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
   m_pathBuffer = m_pathBufferPool.acquire();
-  m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
   m_contourBuffer = m_contourBufferPool.acquire();
   m_virtualPatchBuffer = m_virtualPatchBufferPool.acquire();
   m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
@@ -2159,7 +2155,7 @@ constexpr static uint32_t kMaxSampledImageUpdates = 1;
 // color, coverage, clip, scratch in clockwise mode.
 constexpr static uint32_t kMaxStorageImageUpdates = 4;
 constexpr static uint32_t
-    kMaxStorageBufferUpdates = 8 + // path/paint/contour/patch/uniform buffers
+    kMaxStorageBufferUpdates = 7 + // path/contour/patch/uniform buffers
                                1;  // coverage buffer in clockwiseAtomic mode
 constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
@@ -2708,24 +2704,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
           .offset = desc.firstPath * sizeof(gpu::PathData),
           .range = VK_WHOLE_SIZE,
       }});
-
-  // NOTE: This technically could be part of the above call (passing two
-  // buffers instead of one to set them both at once), but there is a bug on
-  // some Adreno devices where the second one does not get applied properly
-  // (all reads from PaintAuxBuffer end up reading 0s), so instead we'll do it
-  // as a separate call.
-  m_vk->updateBufferDescriptorSets(
-      descriptorSetAllocator.perFlushDescriptorSet(),
-      {
-          .dstBinding = PAINT_AUX_BUFFER_IDX,
-          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      },
-      {{
-          .buffer = *m_paintAuxBuffer,
-          .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
-          .range = VK_WHOLE_SIZE,
-      }});
-  static_assert(PAINT_AUX_BUFFER_IDX == PATH_BUFFER_IDX + 1);
 
   m_vk->updateBufferDescriptorSets(
       descriptorSetAllocator.perFlushDescriptorSet(),
@@ -4438,7 +4416,6 @@ void RenderContextVulkanImpl::postFlush(const RenderContext::FlushResources&)
   // Recycle buffers.
   m_flushUniformBufferPool.recycle(std::move(m_flushUniformBuffer));
   m_pathBufferPool.recycle(std::move(m_pathBuffer));
-  m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
   m_contourBufferPool.recycle(std::move(m_contourBuffer));
   m_virtualPatchBufferPool.recycle(std::move(m_virtualPatchBuffer));
   m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));

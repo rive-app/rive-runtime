@@ -168,28 +168,29 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   uint joinSegmentCount = @a_args.z >> 20;
   uint contourIDWithFlags = @a_args.w;
   uint contourID = contourIDWithFlags & CONTOUR_ID_MASK;
-  uint pathID = contourID > 0u
-                    // Clamp contourID at 1, even though this is the <true>
-                    // expression of "contourID > 0u", and even though GLSL
-                    // specifies short-circuit evaluation for the ternary
-                    // operator.
-                    //
-                    // PowerVR (B-Series BXM-8-256, build 1.15) appears to
-                    // evaluate this expression unconditionally, leading to a
-                    // load at buffer index 0xffffffff when contourID == 0,
-                    // which crashes the render pass.
-                    ? STORAGE_BUFFER_LOAD4(
-                          @contourBuffer,
-                          max(contourID, 1u) - 1u)
-                          .z
-                    : 0u;
-  uint4 pathData2 = pathID != 0u
-                        ? STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u)
-                        : uint4(0u, 0u, 0u, 0u);
-  float strokeRadius = uintBitsToFloat(pathData2.x);
-  float featherRadius = uintBitsToFloat(pathData2.y);
+  // Clamp contourStartIdx at 0, even though we gate contourBuffer loads on
+  // "contourID > 0u", and even though GLSL specifies short-circuit evaluation
+  // for the ternary operator.
+  // PowerVR (B-Series BXM-8-256, build 1.15) appears to evaluate both ternary
+  // sides unconditionally, leading to a load at buffer index 0xffffffff when
+  // contourID == 0, which crashes the render pass.
+  uint contourStartIdx = (max(contourID, 1u) - 1u) * 2u;
+  uint4 contourData = contourID > 0u ? STORAGE_BUFFER_LOAD4(
+                                           @contourBuffer,
+                                           contourStartIdx)
+                                     : uint4(0u, 0u, 0u, 0u);
+  uint pathID = contourData.z & CONTOUR_PATH_ID_MASK;
+  bool isStroke = (contourData.z & CONTOUR_FLAG_STROKE) != 0u;
+  float featherRadius = .0;
+  // (contourData is all zeros when contourID == 0, so this also skips the
+  // load for contourID 0.)
+  if ((contourData.z & CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER) != 0u)
+  {
+    featherRadius = uintBitsToFloat(
+        STORAGE_BUFFER_LOAD4(@contourBuffer, contourStartIdx + 1u).w);
+  }
 
-  if (featherRadius != .0 && strokeRadius == .0)
+  if (featherRadius != .0 && !isStroke)
   {
     // We're a cubic from a feathered fill. To simulate the
     // feather-softening effect that happens with curvature, reduce the
@@ -248,8 +249,8 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Wang's formula to figure out how many segments we actually need, and
     // make any excess segments degenerate by co-locating their vertices at
     // T=0.
-    float2x2 mat = make_float2x2(
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
+    float2x2 mat = make_float2x2(uintBitsToFloat(
+        STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * PATH_DATA_ELEMENT_COUNT)));
     float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
     float2 d1 = MUL(mat, -2. * p2 + p3 + p1);
     float m = max(dot(d0, d0), dot(d1, d1));

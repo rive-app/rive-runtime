@@ -40,7 +40,6 @@ VERTEX_TEXTURE_BLOCK_END
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
-STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 // clang-format off
 // The Qualcomm compiler can't handle line breaks in #ifs.
@@ -348,25 +347,32 @@ INLINE bool unpack_tessellated_path_vertex(
   // anyway because in the event of a bug, a buffer load at index "0u - 1" can
   // be very serious and hard to catch.
   uint contourID = max(contourIDWithFlags & CONTOUR_ID_MASK, 1u);
-  uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contourID - 1u);
+  uint4 contourData = STORAGE_BUFFER_LOAD4(
+      @contourBuffer,
+      (contourID - 1u) * 2u);
   float2 midpoint = uintBitsToFloat(contourData.xy);
-  outPathID = contourData.z & 0xffffu;
+  outPathID = contourData.z & CONTOUR_PATH_ID_MASK;
   uint vertexIndex0 = contourData.w;
 
   // Fetch and unpack the path.
-  float2x2 M = make_float2x2(
-      uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
-  uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
+  float2x2 M = make_float2x2(uintBitsToFloat(
+      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * PATH_DATA_ELEMENT_COUNT)));
+  uint4 pathData = STORAGE_BUFFER_LOAD4(
+      @pathBuffer,
+      outPathID * PATH_DATA_ELEMENT_COUNT + 1u);
   float2 translate = uintBitsToFloat(pathData.xy);
-  float strokeRadius = .0;
+  // Strokes have no midpoint; they keep their radius in .y instead.
+  float strokeRadius = (contourData.z & CONTOUR_FLAG_STROKE) != 0u ? midpoint.y
+                                                                   : .0;
+  float additionalOutset = .0;
   float featherRadius = .0;
-  float additionalOutset = 0.0;
-  if ((pathData.z & PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA) != 0u)
+  if ((contourData.z & CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER) != 0u)
   {
-    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-    strokeRadius = uintBitsToFloat(pathData2.x);
-    featherRadius = uintBitsToFloat(pathData2.y);
-    additionalOutset = uintBitsToFloat(pathData2.z);
+    uint4 contourPathParams = STORAGE_BUFFER_LOAD4(
+        @contourBuffer,
+        (contourID - 1u) * 2u + 1u);
+    additionalOutset = uintBitsToFloat(contourPathParams.z);
+    featherRadius = uintBitsToFloat(contourPathParams.w);
   }
 
   // Fix the tessellation vertex if we fetched the wrong one in order to
@@ -395,8 +401,7 @@ INLINE bool unpack_tessellated_path_vertex(
       // We crossed over into a new contour. Either wrap to the first
       // vertex in the contour or leave it clamped at the final vertex of
       // the contour.
-      bool isClosed = strokeRadius == .0 || // filled
-                      midpoint.x != .0;     // explicity closed stroke
+      bool isClosed = (contourData.z & CONTOUR_FLAG_CLOSED) != 0u;
       if (isClosed)
       {
         tessVertexIdx = int(vertexIndex0);
@@ -855,7 +860,9 @@ INLINE float2 unpack_interior_triangle_vertex(
         VERTEX_CONTEXT_DECL)
 {
   outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
-  uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
+  uint4 pathData = STORAGE_BUFFER_LOAD4(
+      @pathBuffer,
+      outPathID * PATH_DATA_ELEMENT_COUNT + 1u);
   #ifdef @RENDER_MODE_DEPTH_STENCIL
   outPathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
   #else
@@ -863,8 +870,8 @@ INLINE float2 unpack_interior_triangle_vertex(
   #endif
   float2 vertexPos = triangleVertex.xy;
   // FEATHER_ATLAS_BLIT draws vertices in screen space.
-  float2x2 M = make_float2x2(
-      uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
+  float2x2 M = make_float2x2(uintBitsToFloat(
+      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * PATH_DATA_ELEMENT_COUNT)));
   float2 translate = uintBitsToFloat(pathData.xy);
   vertexPos = MUL(M, vertexPos) + translate;
   return vertexPos;
@@ -883,13 +890,20 @@ INLINE float2 unpack_atlas_coverage_vertex(
   outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
   #ifdef @RENDER_MODE_DEPTH_STENCIL
   outPathZIndex = cast_uint_to_ushort(
-      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u).z >> 16u);
+      STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          outPathID * PATH_DATA_ELEMENT_COUNT + 1u)
+          .z >>
+      16u);
   #endif
   float2 vertexPos = triangleVertex.xy;
   // outAtlasCoord tells the fragment shader where to fetch coverage from the
   // atlas, when using atlas coverage.
   float3 atlasTransform = uintBitsToFloat(
-      STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 3u).xyz);
+      STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          outPathID * PATH_DATA_ELEMENT_COUNT + 2u)
+          .xyz);
   outAtlasCoord = (vertexPos * atlasTransform.x + atlasTransform.yz) *
                   uniforms.atlasTextureInverseSize;
   return vertexPos;

@@ -15,6 +15,7 @@
 #include "image_draw_attributes.hpp"
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
 
 #include "generated/shaders/draw_path.vert.exports.h"
@@ -24,11 +25,18 @@ namespace rive::gpu
 static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
 static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
+static_assert(StorageTextureWidth == STORAGE_TEXTURE_WIDTH);
 static_assert(kMidpointFanPatchSegmentSpan == MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
 static_assert(OuterCubicPatchSegmentSpan == OUTER_CUBIC_PATCH_SEGMENT_SPAN);
 static_assert(
     OuterCubicPatchSegmentSpanPlusBowtie ==
     OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE);
+
+static_assert(ContourData::PathIDMask == CONTOUR_PATH_ID_MASK);
+static_assert(ContourData::FlagClosed == CONTOUR_FLAG_CLOSED);
+static_assert(ContourData::FlagStroke == CONTOUR_FLAG_STROKE);
+static_assert(
+    ContourData::FlagHasOutsetOrFeather == CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER);
 
 static_assert(DSMidpointFanFillPatchStrideLog2 == DS_MIDPOINT_FAN_STRIDE_LOG2);
 static_assert(DSOuterCubicFillPatchStrideLog2 == DS_OUTER_CUBIC_STRIDE_LOG2);
@@ -78,9 +86,9 @@ static_assert(
     1u << 16);
 
 static_assert(
-    sizeof(PaintAuxData) /
-        StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) ==
-    PAINT_AUX_ENTRY_ELEMENT_COUNT);
+    sizeof(PathData) /
+        StorageBufferElementSizeInBytes(PathData::kBufferStructure) ==
+    PATH_DATA_ELEMENT_COUNT);
 
 // packNormalizedDepth() only supports 23 bits of payload. (See common.glsl.)
 static_assert(DEPTH_Z_INDEX_BIT_COUNT + DEPTH_COVERAGE_BIT_COUNT == 23);
@@ -1216,40 +1224,32 @@ static void writeTranslate(volatile float* dst, const Mat2D& matrix)
   dst[1] = vals[5];
 }
 
-PathData::PathData(
+ContourPathParams ContourPathParams::Make(
     const PathDraw& draw,
     uint32_t zIndex,
     InterlockMode interlockMode,
     const PlatformFeatures& platformFeatures)
 {
   assert(zIndex < (1u << 16));
-
-  // First & second uint32x4s.
-  write_matrix(m_matrix, draw.paintMatrix());
-
-  uint32_t localParams = paint_type_to_glsl_id(draw.paintType()) |
-                         (ConvertBlendModeToPLSBlendMode(draw.blendMode())
-                          << 4);
+  ContourPathParams pathParams;
+  pathParams.params = paint_type_to_glsl_id(draw.paintType()) |
+                      (ConvertBlendModeToPLSBlendMode(draw.blendMode()) << 4);
   if (draw.isNonZeroFill())
-    localParams |= PAINT_FLAG_NON_ZERO_FILL;
+    pathParams.params |= PAINT_FLAG_NON_ZERO_FILL;
   else if (draw.isEvenOddFill())
-    localParams |= PAINT_FLAG_EVEN_ODD_FILL;
+    pathParams.params |= PAINT_FLAG_EVEN_ODD_FILL;
   if (draw.hasClipRect())
-    localParams |= PAINT_FLAG_HAS_CLIP_RECT;
+    pathParams.params |= PAINT_FLAG_HAS_CLIP_RECT;
   if (draw.hasImageTexture())
-    localParams |= PAINT_FLAG_HAS_IMAGE;
-  if (draw.strokeRadius() != 0 || draw.featherRadius() != 0 ||
-      draw.additionalOutset() != 0)
-    localParams |= PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA;
+    pathParams.params |= PAINT_FLAG_HAS_IMAGE;
   // depthStencil uses a zIndex instead of clipIDs. depthStencil does clipping
   // in the stencil buffer.
   if (interlockMode == InterlockMode::depthStencil)
-    localParams |= zIndex << 16;
+    pathParams.params |= zIndex << 16;
   else if (draw.paintType() == PaintType::clipUpdate)
-    localParams |= draw.simplePaintValue().outerClipID << 16;
+    pathParams.params |= draw.simplePaintValue().outerClipID << 16;
   else
-    localParams |= draw.clipID() << 16;
-  m_params = localParams;
+    pathParams.params |= draw.clipID() << 16;
 
   switch (draw.paintType())
   {
@@ -1259,7 +1259,7 @@ PathData::PathData(
       if (draw.blendMode() == BlendMode::srcOver)
       {
         // srcOver draws are premultiplied with additiveness baked into alpha.
-        m_color = swizzleRiveColorToRGBAPremulAdditive(
+        pathParams.paint.color = swizzleRiveColorToRGBAPremulAdditive(
             draw.simplePaintValue().color,
             1.f - draw.additiveness());
       }
@@ -1268,12 +1268,14 @@ PathData::PathData(
           platformFeatures.supportsBlendAdvancedKHR)
       {
         // KHR-blend draws take premultiplied alpha and ignore additiveness.
-        m_color = SwizzleRiveColorToRGBAPremul(draw.simplePaintValue().color);
+        pathParams.paint.color = SwizzleRiveColorToRGBAPremul(
+            draw.simplePaintValue().color);
       }
       else
       {
         // Advanced-blend draws take unmultiplied color and ignore additiveness.
-        m_color = SwizzleRiveColorToRGBA(draw.simplePaintValue().color);
+        pathParams.paint.color = SwizzleRiveColorToRGBA(
+            draw.simplePaintValue().color);
       }
       break;
     }
@@ -1282,23 +1284,36 @@ PathData::PathData(
     case PaintType::radialGradient:
     case PaintType::angularGradient:
     {
-      m_gradientAdditivenessComplement = 1.0f - draw.additiveness();
+      pathParams.paint.gradientAdditivenessComplement = 1.0f -
+                                                        draw.additiveness();
       break;
     }
 
     case PaintType::clipUpdate:
     {
-      m_shiftedClipReplacementID = draw.clipID() << 16;
+      pathParams.paint.shiftedClipReplacementID = draw.clipID() << 16;
       break;
     }
   }
 
-  // Third uint32x4.
-  m_strokeRadius = draw.strokeRadius(); // 0 if the path is filled.
-  m_featherRadius = draw.featherRadius();
-  m_additionalOutset = draw.additionalOutset();
+  pathParams.additionalOutset = draw.additionalOutset();
+  pathParams.featherRadius = draw.featherRadius();
+  return pathParams;
+}
 
-  // Fourth uint32x4. A draw may allocate either a coverage buffer range or a
+PathData::PathData(
+    const PathDraw& draw,
+    const ContourPathParams& pathParams,
+    const PlatformFeatures& platformFeatures,
+    GradTextureLayout gradTextureLayout,
+    const RenderTarget* renderTarget)
+{
+  // First & second uint32x4s.
+  write_matrix(m_matrix, draw.paintMatrix());
+  m_params = pathParams.params;
+  m_shaderPaintValue = math::bit_cast<uint32_t>(pathParams.paint);
+
+  // Third uint32x4. A draw may allocate either a coverage buffer range or a
   // feather atlas region.
   if (draw.coverageType() == PathDraw::CoverageType::clockwiseAtomic)
   {
@@ -1315,6 +1330,99 @@ PathData::PathData(
     m_featherAtlasTransform.translateX = atlasTransform.translateX;
     m_featherAtlasTransform.translateY = atlasTransform.translateY;
   }
+
+  // Paint data, starting at the fourth uint32x4.
+  const Texture* imageTexture = draw.imageTexture();
+  const ClipRectInverseMatrix*
+      clipRectInverseMatrix = draw.clipRectInverseMatrix();
+  switch (draw.paintType())
+  {
+    case PaintType::linearGradient:
+    case PaintType::radialGradient:
+    case PaintType::angularGradient:
+    {
+      assert(draw.gradient() != nullptr);
+      Mat2D paintMatrix;
+      // Need local versions of these because the members are `volatile`
+      // and won't pass by reference to the function.
+      int32_t gradTextureX;
+      uint32_t gradTextureY;
+      getGradientMatrixAndCoord(
+          draw.gradient(),
+          draw.simplePaintValue().colorRampLocation,
+          gradTextureLayout,
+          draw.inverseGradientTransform(),
+          draw.paintMatrix(),
+          renderTarget,
+          platformFeatures,
+          paintMatrix,
+          gradTextureX,
+          gradTextureY);
+      m_gradTextureX = float(gradTextureX);
+      m_gradTextureY = float(gradTextureY);
+      write_matrix(m_paintMatrix, paintMatrix);
+    }
+
+      [[fallthrough]];
+
+    case PaintType::solidColor:
+    {
+      if (imageTexture != nullptr)
+      {
+        Mat2D matrix;
+        draw.imageMatrix().invert(&matrix);
+        if (renderTarget->bottomUp(platformFeatures))
+        {
+          // Flip _fragCoord.y.
+          matrix *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+        }
+
+        // Since we don't use perspective transformations, the image
+        // mipmap level-of-detail is constant throughout the entire
+        // path. Compute it ahead of time here.
+        float dudx = matrix.xx() * imageTexture->width();
+        float dudy = matrix.yx() * imageTexture->height();
+        float dvdx = matrix.xy() * imageTexture->width();
+        float dvdy = matrix.yy() * imageTexture->height();
+        float maxScaleFactorPow2 = std::max(
+            dudx * dudx + dvdx * dvdx,
+            dudy * dudy + dvdy * dvdy);
+        // Instead of finding sqrt(maxScaleFactorPow2), just
+        // multiply the log by .5.
+        m_imageTextureLOD = (log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f) +
+                            MIP_MAP_LOD_BIAS;
+
+        write_matrix(m_imageMatrix, matrix);
+      }
+
+      break;
+    }
+    case PaintType::clipUpdate:
+    {
+      break;
+    }
+  }
+
+  if (clipRectInverseMatrix != nullptr)
+  {
+    Mat2D m = clipRectInverseMatrix->inverseMatrix();
+    if (renderTarget->bottomUp(platformFeatures))
+    {
+      // Flip _fragCoord.y.
+      m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+    }
+    write_matrix(m_clipRectInverseMatrix, m);
+    m_inverseFwidth.x = -1.f / (fabsf(m.xx()) + fabsf(m.xy()));
+    m_inverseFwidth.y = -1.f / (fabsf(m.yx()) + fabsf(m.yy()));
+  }
+  else
+  {
+    write_matrix(
+        m_clipRectInverseMatrix,
+        ClipRectInverseMatrix::WideOpen().inverseMatrix());
+    m_inverseFwidth.x = 0;
+    m_inverseFwidth.y = 0;
+  }
 }
 
 PathData::PathData(ColorInt clearColor)
@@ -1322,7 +1430,7 @@ PathData::PathData(ColorInt clearColor)
   // A premultiplied srcOver solid color with no clip.
   m_params = paint_type_to_glsl_id(PaintType::solidColor) |
              (ConvertBlendModeToPLSBlendMode(BlendMode::srcOver) << 4);
-  m_color = swizzleRiveColorToRGBAPremulAdditive(clearColor, 1.f);
+  m_shaderPaintValue = swizzleRiveColorToRGBAPremulAdditive(clearColor, 1.f);
 }
 
 void getGradientMatrixAndCoord(
@@ -1401,109 +1509,6 @@ void getGradientMatrixAndCoord(
   else
   {
     gradXOut = rampLocation.col;
-  }
-}
-
-void PaintAuxData::set(
-    const Mat2D& viewMatrix,
-    const Mat2D& imageMatrix,
-    PaintType paintType,
-    SimplePaintValue simplePaintValue,
-    GradTextureLayout gradTextureLayout,
-    const Gradient* gradient,
-    const Mat2D& inverseGradientTransform,
-    const Texture* imageTexture,
-    const ClipRectInverseMatrix* clipRectInverseMatrix,
-    const RenderTarget* renderTarget,
-    const PlatformFeatures& platformFeatures)
-{
-  switch (paintType)
-  {
-    case PaintType::linearGradient:
-    case PaintType::radialGradient:
-    case PaintType::angularGradient:
-    {
-      assert(gradient != nullptr);
-      Mat2D paintMatrix;
-      // Need local versions of these because the members are `volatile`
-      // and won't pass by reference to the function.
-      int32_t gradTextureX;
-      uint32_t gradTextureY;
-      getGradientMatrixAndCoord(
-          gradient,
-          simplePaintValue.colorRampLocation,
-          gradTextureLayout,
-          inverseGradientTransform,
-          viewMatrix,
-          renderTarget,
-          platformFeatures,
-          paintMatrix,
-          gradTextureX,
-          gradTextureY);
-      m_gradTextureX = float(gradTextureX);
-      m_gradTextureY = float(gradTextureY);
-      write_matrix(m_paintMatrix, paintMatrix);
-    }
-
-      [[fallthrough]];
-
-    case PaintType::solidColor:
-    {
-      if (imageTexture != nullptr)
-      {
-        Mat2D matrix;
-        imageMatrix.invert(&matrix);
-        if (renderTarget->bottomUp(platformFeatures))
-        {
-          // Flip _fragCoord.y.
-          matrix *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
-        }
-
-        // Since we don't use perspective transformations, the image
-        // mipmap level-of-detail is constant throughout the entire
-        // path. Compute it ahead of time here.
-        float dudx = matrix.xx() * imageTexture->width();
-        float dudy = matrix.yx() * imageTexture->height();
-        float dvdx = matrix.xy() * imageTexture->width();
-        float dvdy = matrix.yy() * imageTexture->height();
-        float maxScaleFactorPow2 = std::max(
-            dudx * dudx + dvdx * dvdx,
-            dudy * dudy + dvdy * dvdy);
-        // Instead of finding sqrt(maxScaleFactorPow2), just
-        // multiply the log by .5.
-        m_imageTextureLOD = (log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f) +
-                            MIP_MAP_LOD_BIAS;
-
-        write_matrix(m_imageMatrix, matrix);
-      }
-
-      break;
-    }
-    case PaintType::clipUpdate:
-    {
-      break;
-    }
-  }
-
-  if (clipRectInverseMatrix != nullptr)
-  {
-    Mat2D m = clipRectInverseMatrix->inverseMatrix();
-    if (renderTarget->bottomUp(platformFeatures))
-    {
-      // Flip _fragCoord.y.
-      m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
-    }
-    write_matrix(m_clipRectInverseMatrix, m);
-    m_inverseFwidth.x = -1.f / (fabsf(m.xx()) + fabsf(m.xy()));
-    m_inverseFwidth.y = -1.f / (fabsf(m.yx()) + fabsf(m.yy()));
-  }
-  else
-  {
-    write_matrix(
-        m_clipRectInverseMatrix,
-        ClipRectInverseMatrix::WideOpen().inverseMatrix());
-    m_inverseFwidth.x = 0;
-    m_inverseFwidth.y = 0;
   }
 }
 
@@ -1705,7 +1710,7 @@ ImageMeshInstance::getAttributes()
   return ImageMeshInstanceAttributes;
 }
 
-std::tuple<uint32_t, uint32_t> StorageTextureSize(
+std::tuple<uint32_t, uint32_t> storageTextureSize(
     size_t bufferSizeInBytes,
     StorageBufferStructure bufferStructure)
 {
@@ -1716,19 +1721,30 @@ std::tuple<uint32_t, uint32_t> StorageTextureSize(
   uint32_t elementCount = math::lossless_numeric_cast<uint32_t>(
                               bufferSizeInBytes) /
                           gpu::StorageBufferElementSizeInBytes(bufferStructure);
-  uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) /
-                    STORAGE_TEXTURE_WIDTH;
+  uint32_t height = storageTextureHeight(elementCount);
   // RenderContext is responsible for breaking up a flush before any storage
   // buffer grows larger than can be supported by a GL texture of width
-  // "STORAGE_TEXTURE_WIDTH". (2048 is the min required value for
-  // GL_MAX_TEXTURE_SIZE.)
-  constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;
-  assert(height <= kMaxRequredTextureHeight);
+  // "STORAGE_TEXTURE_WIDTH".
+  assert(height <= MaxStorageTextureHeight);
   uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
   return {width, height};
 }
 
-size_t StorageTextureBufferSize(
+std::tuple<uint32_t, uint32_t> storageTextureAllocationSize(
+    size_t capacityInBytes,
+    StorageBufferStructure bufferStructure)
+{
+  uint32_t elementCount = math::lossless_numeric_cast<uint32_t>(
+                              capacityInBytes) /
+                          gpu::StorageBufferElementSizeInBytes(bufferStructure);
+  uint32_t height = std::min<uint32_t>(
+      storageTextureHeight(elementCount),
+      MaxStorageTextureHeight);
+  uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
+  return {width, height};
+}
+
+size_t storageTextureBufferSize(
     size_t bufferSizeInBytes,
     StorageBufferStructure bufferStructure)
 {

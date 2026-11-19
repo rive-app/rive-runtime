@@ -545,7 +545,6 @@ PLS_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
-STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
 INLINE uint to_fixed(float x)
@@ -608,7 +607,10 @@ INLINE void resolve_paint(
   #endif
         FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL)
 {
-  uint2 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u).zw;
+  uint2 paintData = STORAGE_BUFFER_LOAD4(
+                        @pathBuffer,
+                        pathID * PATH_DATA_ELEMENT_COUNT + 1u)
+                        .zw;
   half coverage = coverageCount;
   if ((paintData.x & (PAINT_FLAG_NON_ZERO_FILL | PAINT_FLAG_EVEN_ODD_FILL)) !=
       0u)
@@ -637,12 +639,12 @@ INLINE void resolve_paint(
   #ifdef @ENABLE_CLIP_RECT
   if (@ENABLE_CLIP_RECT && (paintData.x & PAINT_FLAG_HAS_CLIP_RECT) != 0u)
   {
-    float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
-    float4 translate = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
+    float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 5u)));
+    float4 translate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 6u));
     float2 clipCoord = MUL(M, _fragCoord) + translate.xy;
     // translate.zw contains -1 / fwidth(clipCoord), which we use to
     // calculate antialiasing.
@@ -685,12 +687,12 @@ INLINE void resolve_paint(
   }
   else // *_GRADIENT_PAINT_TYPE
   {
-    float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
-    float4 translate = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
+    float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 3u)));
+    float4 translate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 4u));
     float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
     float2 gradOrigin = translate.zw;
     bool isComplex = gradOrigin.x < 0.0;

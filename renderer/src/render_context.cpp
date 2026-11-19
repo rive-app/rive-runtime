@@ -49,6 +49,30 @@ constexpr uint32_t kMaxTextureHeight = 2048;
 constexpr size_t kMaxTessellationVertexCount = kMaxTextureHeight *
                                                kTessTextureWidth;
 
+// Every texture that polyfills a storage buffer has to fit a single flush's
+// records within MaxStorageTextureHeight rows of STORAGE_TEXTURE_WIDTH.
+// +1 for the clearColor path record.
+static_assert(
+    storageTextureHeight(
+        (MaxPathID(1) + 1) *
+        (sizeof(PathData) /
+         StorageBufferElementSizeInBytes(PathData::kBufferStructure))) <=
+    MaxStorageTextureHeight);
+static_assert(
+    storageTextureHeight(
+        kMaxContourID *
+        (sizeof(ContourData) /
+         StorageBufferElementSizeInBytes(ContourData::kBufferStructure))) <=
+    MaxStorageTextureHeight);
+// Inkbleed draws a virtual patch for every midpointFan patch in each of its 2
+// passes.
+static_assert(
+    storageTextureHeight(
+        kMaxTessellationVertexCount / kMidpointFanPatchSegmentSpan * 2 *
+        (sizeof(VirtualPatchData) / StorageBufferElementSizeInBytes(
+                                        VirtualPatchData::kBufferStructure))) <=
+    MaxStorageTextureHeight);
+
 // The depthStencil vertex shader requires contourIDs to be consecutive in the
 // tessellation texture, so a flush allocates 2 throwaway contourIDs:
 //   * A padding-only ID between midpointFan and outerCubic regions.
@@ -339,7 +363,6 @@ void RenderContext::LogicalFlush::rewind()
   m_combinedDrawContents = gpu::DrawContents::none;
 
   m_pathPaddingCount = 0;
-  m_paintAuxPaddingCount = 0;
   m_contourPaddingCount = 0;
   m_virtualPatchPaddingCount = 0;
   m_gradSpanPaddingCount = 0;
@@ -859,8 +882,6 @@ void RenderContext::flush(const FlushResources& flushResources)
       .flushUniformBufferCount = m_logicalFlushes.size(),
       .pathBufferCount = totalFrameResourceCounts.pathCount +
                          layoutCounts.pathPaddingCount,
-      .paintAuxBufferCount = totalFrameResourceCounts.pathCount +
-                             layoutCounts.paintAuxPaddingCount,
       .contourBufferCount = totalFrameResourceCounts.contourCount() +
                             layoutCounts.contourPaddingCount,
       .virtualPatchBufferCount = totalFrameResourceCounts.virtualPatchCount +
@@ -947,7 +968,6 @@ void RenderContext::flush(const FlushResources& flushResources)
   constexpr static ResourceAllocationCounts OVERALLOC_x4 = {
       .flushUniformBufferCount = 5,        // 125%
       .pathBufferCount = 5,                // 125%
-      .paintAuxBufferCount = 5,            // 125%
       .contourBufferCount = 5,             // 125%
       .virtualPatchBufferCount = 5,        // 125%
       .gradSpanBufferCount = 5,            // 125%
@@ -1001,7 +1021,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     constexpr static ResourceAllocationCounts SHRINK_THRESHOLD_x3 = {
         .flushUniformBufferCount = 2,        // 66.7%
         .pathBufferCount = 2,                // 66.7%
-        .paintAuxBufferCount = 2,            // 66.7%
         .contourBufferCount = 2,             // 66.7%
         .virtualPatchBufferCount = 2,        // 66.7%
         .gradSpanBufferCount = 2,            // 66.7%
@@ -1072,9 +1091,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(
         m_pathData.elementsWritten() ==
         totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount);
-    assert(
-        m_paintAuxData.elementsWritten() ==
-        totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount);
     assert(
         m_contourData.elementsWritten() ==
         totalFrameResourceCounts.contourCount() +
@@ -1240,8 +1256,6 @@ void RenderContext::LogicalFlush::layoutResources(
   // Storage buffer offsets are required to be aligned on multiples of 256.
   m_pathPaddingCount = math::padding_to_align_up<
       gpu::kPathBufferAlignmentInElements>(m_resourceCounts.pathCount);
-  m_paintAuxPaddingCount = math::padding_to_align_up<
-      gpu::kPaintAuxBufferAlignmentInElements>(m_resourceCounts.pathCount);
   m_contourPaddingCount = math::padding_to_align_up<
       gpu::kContourBufferAlignmentInElements>(m_resourceCounts.contourCount());
   m_virtualPatchPaddingCount = math::padding_to_align_up<
@@ -1433,8 +1447,6 @@ void RenderContext::LogicalFlush::layoutResources(
       m_resourceCounts.pathCount);
   m_flushDesc.firstPath = runningFrameResourceCounts->pathCount +
                           runningFrameLayoutCounts->pathPaddingCount;
-  m_flushDesc.firstPaintAux = runningFrameResourceCounts->pathCount +
-                              runningFrameLayoutCounts->paintAuxPaddingCount;
   m_flushDesc.contourCount = math::lossless_numeric_cast<uint32_t>(
       m_resourceCounts.contourCount());
   m_flushDesc.firstContour = runningFrameResourceCounts->contourCount() +
@@ -1466,7 +1478,6 @@ void RenderContext::LogicalFlush::layoutResources(
   POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
   runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
-  runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
   runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
   runningFrameLayoutCounts
       ->virtualPatchPaddingCount += m_virtualPatchPaddingCount;
@@ -1494,8 +1505,6 @@ void RenderContext::LogicalFlush::layoutResources(
       runningFrameLayoutCounts->maxCoverageBufferLength);
 
   assert(m_flushDesc.firstPath % gpu::kPathBufferAlignmentInElements == 0);
-  assert(
-      m_flushDesc.firstPaintAux % gpu::kPaintAuxBufferAlignmentInElements == 0);
   assert(
       m_flushDesc.firstContour % gpu::kContourBufferAlignmentInElements == 0);
   assert(
@@ -1542,7 +1551,6 @@ void RenderContext::LogicalFlush::writeResources()
   const gpu::PlatformFeatures& platformFeatures = m_ctx->platformFeatures();
   assert(m_hasDoneLayout);
   assert(m_flushDesc.firstPath == m_ctx->m_pathData.elementsWritten());
-  assert(m_flushDesc.firstPaintAux == m_ctx->m_paintAuxData.elementsWritten());
 
   // Wait until here before we record these texture sizes; they aren't decided
   // until after all LogicalFlushes have run layoutResources().
@@ -1655,7 +1663,6 @@ void RenderContext::LogicalFlush::writeResources()
   // Write a path record for the clearColor paint (used by atomic mode).
   // This also allows us to index the storage buffers directly by pathID.
   m_ctx->m_pathData.emplace_back(m_ctx->frameDescriptor().clearColor);
-  m_ctx->m_paintAuxData.skip_back();
 
   // Reserve all the contour records up front. These are written out of order.
   assert(m_ctx->m_contourData.elementsWritten() == m_flushDesc.firstContour);
@@ -1673,6 +1680,8 @@ void RenderContext::LogicalFlush::writeResources()
         m_flushDesc.firstContour + contourID - 1,
         Vec2D{0, 0},
         /*pathID=*/0,
+        /*closed=*/true,
+        /*isStroke=*/false,
         /*vertexIndex0=*/0);
   }
 
@@ -2628,7 +2637,6 @@ void RenderContext::LogicalFlush::writeResources()
 
   // Pad our buffers to 256-byte alignment.
   m_ctx->m_pathData.push_back_n(nullptr, m_pathPaddingCount);
-  m_ctx->m_paintAuxData.push_back_n(nullptr, m_paintAuxPaddingCount);
   m_ctx->m_contourData.push_back_n(nullptr, m_contourPaddingCount);
   m_ctx->m_virtualPatchData.push_back_n(nullptr, m_virtualPatchPaddingCount);
   m_ctx->m_gradSpanData.push_back_n(nullptr, m_gradSpanPaddingCount);
@@ -2636,10 +2644,6 @@ void RenderContext::LogicalFlush::writeResources()
   assert(
       m_ctx->m_pathData.elementsWritten() ==
       m_flushDesc.firstPath + m_resourceCounts.pathCount + m_pathPaddingCount);
-  assert(
-      m_ctx->m_paintAuxData.elementsWritten() ==
-      m_flushDesc.firstPaintAux + m_resourceCounts.pathCount +
-          m_paintAuxPaddingCount);
   assert(
       m_ctx->m_contourData.elementsWritten() ==
       m_flushDesc.firstContour + m_resourceCounts.contourCount() +
@@ -2950,16 +2954,6 @@ void RenderContext::setResourceSizes(
         gpu::PathData::kBufferStructure);
   }
 
-  LOG_BUFFER_RING_SIZE(paintAuxBufferCount, sizeof(gpu::PaintAuxData));
-  if (allocs.paintAuxBufferCount !=
-          m_currentResourceAllocations.paintAuxBufferCount ||
-      forceRealloc)
-  {
-    m_impl->resizePaintAuxBuffer(
-        allocs.paintAuxBufferCount * sizeof(gpu::PaintAuxData),
-        gpu::PaintAuxData::kBufferStructure);
-  }
-
   LOG_BUFFER_RING_SIZE(contourBufferCount, sizeof(gpu::ContourData));
   if (allocs.contourBufferCount !=
           m_currentResourceAllocations.contourBufferCount ||
@@ -3172,15 +3166,6 @@ bool RenderContext::mapResourceBuffers(
   }
   assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
 
-  if (mapCounts.paintAuxBufferCount > 0)
-  {
-    HANDLE_MAP_FAILURE(m_paintAuxData.mapElements(
-        m_impl.get(),
-        &RenderContextImpl::mapPaintAuxBuffer,
-        mapCounts.paintAuxBufferCount));
-  }
-  assert(m_paintAuxData.hasRoomFor(mapCounts.paintAuxBufferCount));
-
   if (mapCounts.contourBufferCount > 0)
   {
     HANDLE_MAP_FAILURE(m_contourData.mapElements(
@@ -3267,13 +3252,6 @@ void RenderContext::unmapResourceBuffers(
         m_impl.get(),
         &RenderContextImpl::unmapPathBuffer,
         mapCounts.pathBufferCount);
-  }
-  if (m_paintAuxData)
-  {
-    m_paintAuxData.unmapElements(
-        m_impl.get(),
-        &RenderContextImpl::unmapPaintAuxBuffer,
-        mapCounts.paintAuxBufferCount);
   }
   if (m_contourData)
   {
@@ -3366,9 +3344,7 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
   return location;
 }
 
-uint32_t RenderContext::LogicalFlush::pushPath(
-    const PathDraw* draw,
-    uint32_t zIndex)
+uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
 {
   RIVE_PROF_SCOPE_L(2)
   assert(m_hasDoneLayout);
@@ -3378,28 +3354,14 @@ uint32_t RenderContext::LogicalFlush::pushPath(
 
   m_ctx->m_pathData.emplace_back(
       *draw,
-      zIndex,
-      m_ctx->frameInterlockMode(),
-      m_ctx->platformFeatures());
-  m_ctx->m_paintAuxData.set_back(
-      draw->paintMatrix(),
-      draw->imageMatrix(),
-      draw->paintType(),
-      draw->simplePaintValue(),
+      draw->contourPathParams(),
+      m_ctx->platformFeatures(),
       m_gradTextureLayout,
-      draw->gradient(),
-      draw->inverseGradientTransform(),
-      draw->imageTexture(),
-      draw->clipRectInverseMatrix(),
-      m_flushDesc.renderTarget,
-      m_ctx->platformFeatures());
+      m_flushDesc.renderTarget);
 
   assert(
       m_flushDesc.firstPath + m_currentPathID + 1 ==
       m_ctx->m_pathData.elementsWritten());
-  assert(
-      m_flushDesc.firstPaintAux + m_currentPathID + 1 ==
-      m_ctx->m_paintAuxData.elementsWritten());
 
   return m_currentPathID;
 }
@@ -3407,6 +3369,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(
 RenderContext::TessellationWriter::TessellationWriter(
     LogicalFlush* flush,
     uint32_t pathID,
+    const gpu::ContourPathParams& pathParams,
     gpu::ContourDirections contourDirections,
     uint32_t forwardTessVertexCount,
     uint32_t forwardTessLocation,
@@ -3418,6 +3381,7 @@ RenderContext::TessellationWriter::TessellationWriter(
     : m_flush(flush)
     , m_tessSpanData(m_flush->m_ctx->m_tessSpanData)
     , m_pathID(pathID)
+    , m_pathParams(pathParams)
     , m_contourDirections(contourDirections)
     , m_isDepthStencil(isDepthStencil)
     , m_pathTessLocation(forwardTessLocation)
@@ -3481,6 +3445,7 @@ RenderContext::TessellationWriter::~TessellationWriter()
 uint32_t RenderContext::LogicalFlush::pushContour(
     uint32_t contourID,
     uint32_t pathID,
+    const gpu::ContourPathParams& pathParams,
     Vec2D midpoint,
     bool isStroke,
     bool closed,
@@ -3494,15 +3459,14 @@ uint32_t RenderContext::LogicalFlush::pushContour(
   assert(contourID < m_resourceCounts.contourCount());
   assert(contourID != m_resourceCounts.midpointFanContourCount + 1);
 
-  if (isStroke)
-  {
-    midpoint.x = closed ? 1 : 0;
-  }
   m_ctx->m_contourData.emplace_at(
       m_flushDesc.firstContour + contourID - 1,
       midpoint,
       pathID,
-      vertexIndex0);
+      closed,
+      isStroke,
+      vertexIndex0,
+      pathParams);
   return contourID;
 }
 
@@ -3545,6 +3509,7 @@ uint32_t RenderContext::TessellationWriter::pushContour(
   return m_flush->pushContour(
       contourID,
       m_pathID,
+      m_pathParams,
       midpoint,
       isStroke,
       closed,
@@ -3831,6 +3796,7 @@ void RenderContext::LogicalFlush::pushPaddingSpokes(
   TessellationWriter(
       this,
       /*pathID=*/0,
+      /*pathParams=*/{},
       gpu::ContourDirections::forward,
       count,
       tessLocation)

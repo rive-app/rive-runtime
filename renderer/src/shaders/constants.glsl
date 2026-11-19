@@ -94,13 +94,13 @@
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
-// resource buffer. The paintAuxBuffer is the bottleneck here, it is large
-// enough that we need a width of 256 for all of the values to sit within the
-// minimum-required texture height of 2048. If not for that, a width of 128
-// would be sufficient (as paths and contours just store 16-bit indices).
-#define STORAGE_TEXTURE_WIDTH 256
-#define STORAGE_TEXTURE_SHIFT_Y 8
-#define STORAGE_TEXTURE_MASK_X 0xffu
+// resource buffer. The virtualPatchBuffer is the bottleneck here: a flush can
+// write one record per midpointFan patch for each of its 2 passes, which needs
+// a width of 512 to sit within the minimum-required texture height of 2048.
+// (See the static_asserts in render_context.cpp.)
+#define STORAGE_TEXTURE_WIDTH 512
+#define STORAGE_TEXTURE_SHIFT_Y 9
+#define STORAGE_TEXTURE_MASK_X 0x1ffu
 
 // Flags that state whether/how we need to render solid-color borders to the
 // left and/or right side of a GradientSpan. (Borders of complex gradients
@@ -164,6 +164,21 @@
 
 #define CONTOUR_ID_MASK 0xffffu
 
+// ContourData[0].z: [unused (13 bits) | outset/feather | stroke | closed |
+// pathID (16 bits)].
+#define CONTOUR_PATH_ID_MASK 0xffffu
+
+// Fills are always closed. Strokes are closed if they end in a close verb.
+#define CONTOUR_FLAG_CLOSED (1u << 16u)
+
+// The contour belongs to a stroke, so ContourData[0].xy holds stroke data
+// instead of a midpoint.
+#define CONTOUR_FLAG_STROKE (1u << 17u)
+
+// The contour's path has a nonzero additionalOutset or featherRadius, so its
+// readers need to load them from ContourData[1].
+#define CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER (1u << 18u)
+
 // This is guaranteed to not collide with any path IDs being rendered.
 #define INVALID_PATH_ID .0
 
@@ -190,7 +205,6 @@
 #define PAINT_FLAG_EVEN_ODD_FILL 0x200u
 #define PAINT_FLAG_HAS_CLIP_RECT 0x400u
 #define PAINT_FLAG_HAS_IMAGE 0x800u
-#define PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA 0x8000u
 
 // PLS draw resources are either updated per flush or per draw. They go into set
 // 0 or set 1, depending on how often they are updated.
@@ -203,22 +217,21 @@
 #define FLUSH_UNIFORM_BUFFER_IDX 0
 #define DRAW_ARGUMENTS_UNIFORM_BUFFER_IDX 1
 #define PATH_BUFFER_IDX 2
-#define PAINT_AUX_BUFFER_IDX 3
-#define CONTOUR_BUFFER_IDX 4
+#define CONTOUR_BUFFER_IDX 3
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX 5
-#define VIRTUAL_PATCH_BUFFER_IDX 6
-#define TESS_VERTEX_TEXTURE_IDX 7
-#define GRAD_TEXTURE_IDX 8
-#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 9
-#define FEATHER_ATLAS_TEXTURE_IDX 10
-#define IMAGE_TEXTURE_IDX 11
-#define DST_COLOR_TEXTURE_IDX 12
-#define DEFAULT_BINDINGS_SET_SIZE 13
+#define COVERAGE_BUFFER_IDX 4
+#define VIRTUAL_PATCH_BUFFER_IDX 5
+#define TESS_VERTEX_TEXTURE_IDX 6
+#define GRAD_TEXTURE_IDX 7
+#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 8
+#define FEATHER_ATLAS_TEXTURE_IDX 9
+#define IMAGE_TEXTURE_IDX 10
+#define DST_COLOR_TEXTURE_IDX 11
+#define DEFAULT_BINDINGS_SET_SIZE 12
 
 // WebGPU needs image sampler index as a separate value.
-#define WEBGPU_IMAGE_SAMPLER_IDX 13
-#define WEBGPU_BINDINGS_SET_SIZE 14
+#define WEBGPU_IMAGE_SAMPLER_IDX 12
+#define WEBGPU_BINDINGS_SET_SIZE 13
 
 // In Metal, vertex attributes just come in as buffers. Since we use up to 3
 // vertex attrib buffers, offset the Rive resources by 3 so they don't alias
@@ -406,8 +419,8 @@
 #define BUFFER_IMAGE_TILE_SIZE 32u
 #define BUFFER_IMAGE_TILE_SIZE_LOG2 5u
 
-// The paint aux data has a specific number of float32x4 elements in it
-#define PAINT_AUX_ENTRY_ELEMENT_COUNT 8u
+// PathData has a specific number of uint32x4 elements in it.
+#define PATH_DATA_ELEMENT_COUNT 9u
 
 #ifdef __cplusplus
   #if __cplusplus >= 201703

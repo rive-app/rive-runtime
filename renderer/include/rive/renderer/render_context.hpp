@@ -423,7 +423,7 @@ private:
   // LogicalFlush::LayoutCounters.
   struct ResourceAllocationCounts
   {
-    constexpr static int NUM_ELEMENTS = 20;
+    constexpr static int NUM_ELEMENTS = 19;
     using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
     RIVE_ALWAYS_INLINE VecType toVec() const
@@ -447,7 +447,6 @@ private:
 
     size_t flushUniformBufferCount = 0;
     size_t pathBufferCount = 0;
-    size_t paintAuxBufferCount = 0;
     size_t contourBufferCount = 0;
     size_t virtualPatchBufferCount = 0;
     size_t gradSpanBufferCount = 0;
@@ -542,7 +541,6 @@ private:
 
   WriteOnlyMappedMemory<gpu::FlushUniforms> m_flushUniformData;
   WriteOnlyMappedMemory<gpu::PathData> m_pathData;
-  WriteOnlyMappedMemory<gpu::PaintAuxData> m_paintAuxData;
   WriteOnlyMappedMemory<gpu::ContourData> m_contourData;
   WriteOnlyMappedMemory<gpu::VirtualPatchData> m_virtualPatchData;
   WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
@@ -721,7 +719,6 @@ private:
     struct LayoutCounters
     {
       uint32_t pathPaddingCount = 0;
-      uint32_t paintAuxPaddingCount = 0;
       uint32_t contourPaddingCount = 0;
       uint32_t virtualPatchPaddingCount = 0;
       uint32_t gradSpanCount = 0;
@@ -819,7 +816,7 @@ private:
     // This method does not add the path to the draw list. The caller must
     // define that draw specifically with a separate call to
     // pushMidpointFanDraw() or pushOuterCubicsDraw().
-    [[nodiscard]] uint32_t pushPath(const PathDraw* draw, uint32_t zIndex);
+    [[nodiscard]] uint32_t pushPath(const PathDraw* draw);
 
     // Pushes a contour record to the GPU that references the given path.
     //
@@ -839,6 +836,7 @@ private:
     [[nodiscard]] uint32_t pushContour(
         uint32_t contourID,
         uint32_t pathID,
+        const gpu::ContourPathParams&,
         Vec2D midpoint,
         bool isStroke,
         bool closed,
@@ -1006,7 +1004,6 @@ private:
 
     // State computed during layout.
     uint32_t m_pathPaddingCount;
-    uint32_t m_paintAuxPaddingCount;
     uint32_t m_contourPaddingCount;
     uint32_t m_virtualPatchPaddingCount;
     uint32_t m_gradSpanPaddingCount;
@@ -1076,6 +1073,7 @@ private:
     TessellationWriter(
         LogicalFlush* flush,
         uint32_t pathID,
+        const gpu::ContourPathParams&,
         gpu::ContourDirections,
         uint32_t forwardTessVertexCount,
         uint32_t forwardTessLocation,
@@ -1183,6 +1181,7 @@ private:
     LogicalFlush* const m_flush;
     WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
     const uint32_t m_pathID;
+    const gpu::ContourPathParams m_pathParams;
     const gpu::ContourDirections m_contourDirections;
     // depthStencil contours record their first vertex in memory, even when
     // mirrored. (See pushContour().)

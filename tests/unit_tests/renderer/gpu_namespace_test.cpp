@@ -404,4 +404,16 @@ TEST_CASE("shader_unique_keys_do_not_collide", "[gpu]")
   }
 }
 
+TEST_CASE("storage_texture_allocation_caps_its_height", "[gpu]")
+{
+  // A buffer ring is sized for the whole frame (plus room to grow), which can
+  // be more than a single flush ever uploads to its polyfill texture.
+  auto [width, height] = gpu::storageTextureAllocationSize(
+      size_t(STORAGE_TEXTURE_WIDTH) * gpu::MaxStorageTextureHeight * 2 *
+          sizeof(uint32_t),
+      gpu::StorageBufferStructure::uint32x1);
+  CHECK(width == STORAGE_TEXTURE_WIDTH);
+  CHECK(height == gpu::MaxStorageTextureHeight);
+}
+
 } // namespace rive

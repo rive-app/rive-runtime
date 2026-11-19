@@ -160,7 +160,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
   #endif // !DRAW_INTERIOR_TRIANGLES
 
   // The paint lives in the second half of the path record's second uint4.
-  uint2 paintData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u).zw;
+  uint2 paintData = STORAGE_BUFFER_LOAD4(
+                        @pathBuffer,
+                        pathID * PATH_DATA_ELEMENT_COUNT + 1u)
+                        .zw;
 
   #if !defined(@FEATHER_ATLAS_BLIT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
   // Encode the integral pathID as a "half" that we know the hardware will see
@@ -214,12 +217,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
   {
     // clipRectInverseMatrix transforms from pixel coordinates to a space
     // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
-    float2x2 clipRectInverseMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
-    float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
+    float2x2 clipRectInverseMatrix = make_float2x2(
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+            @pathBuffer,
+            pathID * PATH_DATA_ELEMENT_COUNT + 5u)));
+    float4 clipRectInverseTranslate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 6u));
     #ifndef @RENDER_MODE_DEPTH_STENCIL
     v_clipRect = find_clip_rect_coverage_distances(
         clipRectInverseMatrix,
@@ -250,12 +254,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
   #endif
   else
   {
-    float2x2 paintMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
-    float4 paintTranslate = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
+    float2x2 paintMatrix = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 3u)));
+    float4 paintTranslate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 4u));
 
     float additivenessComplement = uintBitsToFloat(paintData.y);
     v_paint = packGradientData(
@@ -271,12 +275,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
   #if defined(@ENABLE_MODULATED_IMAGE)
   if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
   {
-    float2x2 imageMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
-    float4 paintTranslateAndLOD = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
+    float2x2 imageMatrix = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 7u)));
+    float4 paintTranslateAndLOD = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 8u));
     float2 imageCoord = MUL(imageMatrix, fragCoord) + paintTranslateAndLOD.xy;
 
     // Add 1 to the LOD because a z value of 0 means "we don't have an
@@ -300,7 +304,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
   #ifdef @RENDER_MODE_DEPTH_STENCIL
     pos.z = packNormalizedDepth(pathZIndex, 0xffu);
   #elif defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
-    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
+    uint4 coverageData = STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 2u);
     v_coveragePlacement = coverageData.xy;
     v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
   #endif

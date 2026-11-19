@@ -680,7 +680,6 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     , m_resourceManager(make_rcp<D3D12ResourceManager>(device))
     , m_flushUniformBufferPool(m_resourceManager, sizeof(FlushUniforms))
     , m_pathBufferPool(m_resourceManager)
-    , m_paintAuxBufferPool(m_resourceManager)
     , m_contourBufferPool(m_resourceManager)
     , m_virtualPatchBufferPool(m_resourceManager)
     , m_gradSpanBufferPool(m_resourceManager)
@@ -1076,7 +1075,6 @@ void RenderContextD3D12Impl::prepareToFlush(
   // These should all have gotten recycled at the end of the last frame.
   assert(m_flushUniformBuffer == nullptr);
   assert(m_pathBuffer == nullptr);
-  assert(m_paintAuxBuffer == nullptr);
   assert(m_contourBuffer == nullptr);
   assert(m_virtualPatchBuffer == nullptr);
   assert(m_gradSpanBuffer == nullptr);
@@ -1105,7 +1103,6 @@ void RenderContextD3D12Impl::prepareToFlush(
   // Acquire buffers for the flush.
   m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
   m_pathBuffer = m_pathBufferPool.acquire();
-  m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
   m_contourBuffer = m_contourBufferPool.acquire();
   m_virtualPatchBuffer = m_virtualPatchBufferPool.acquire();
   m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
@@ -1120,7 +1117,6 @@ void RenderContextD3D12Impl::prepareToFlush(
 
   VNAME_D3D12_OBJECT(m_flushUniformBuffer);
   VNAME_D3D12_OBJECT(m_pathBuffer);
-  VNAME_D3D12_OBJECT(m_paintAuxBuffer);
   VNAME_D3D12_OBJECT(m_contourBuffer);
   VNAME_D3D12_OBJECT(m_virtualPatchBuffer);
   VNAME_D3D12_OBJECT(m_gradSpanBuffer);
@@ -1199,7 +1195,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     // copies are slow, so do it all at once
     m_flushUniformBuffer->sync(copyCmdList, 0);
     m_pathBuffer->sync(copyCmdList, 0);
-    m_paintAuxBuffer->sync(copyCmdList, 0);
     m_contourBuffer->sync(copyCmdList, 0);
     m_virtualPatchBuffer->sync(copyCmdList, 0);
     m_tessSpanBuffer->sync(copyCmdList, 0);
@@ -1356,15 +1351,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         sizeof(PathData),
         StorageBufferElementSizeInBytes(PathData::kBufferStructure),
         desc.firstPath);
-
-    m_cpuSrvUavCbvHeap->markSrvToIndex(
-        m_device.Get(),
-        m_paintAuxBuffer->resource(),
-        PAINT_AUX_BUFFER_HEAP_OFFSET,
-        desc.pathCount,
-        sizeof(PaintAuxData),
-        StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure),
-        desc.firstPaintAux);
   }
   else
   {
@@ -1374,10 +1360,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         m_device.Get(),
         PATH_BUFFER_HEAP_OFFSET,
         StorageBufferElementSizeInBytes(PathData::kBufferStructure));
-    m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
-        m_device.Get(),
-        PAINT_AUX_BUFFER_HEAP_OFFSET,
-        StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure));
   }
 
   if (desc.contourCount > 0)
@@ -2414,7 +2396,6 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
   // Recycle buffers.
   m_flushUniformBufferPool.recycle(std::move(m_flushUniformBuffer));
   m_pathBufferPool.recycle(std::move(m_pathBuffer));
-  m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
   m_contourBufferPool.recycle(std::move(m_contourBuffer));
   m_virtualPatchBufferPool.recycle(std::move(m_virtualPatchBuffer));
   m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));

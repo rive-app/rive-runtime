@@ -17,6 +17,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <algorithm>
+#include <numeric>
 #include <functional>
 #include <optional>
 #include <type_traits>
@@ -1741,7 +1742,6 @@ struct FlushDescriptor
   size_t flushUniformDataOffsetInBytes = 0;
   uint32_t pathCount = 0;
   size_t firstPath = 0;
-  size_t firstPaintAux = 0;
   uint32_t contourCount = 0;
   size_t firstContour = 0;
   uint32_t virtualPatchCount = 0;
@@ -1930,6 +1930,37 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
   RIVE_UNREACHABLE();
 }
 
+// Quick 32-bit value for paints, exactly how shaders read it from the buffers.
+// Solid colors can get by entirely on this value without having to make chained
+// fetches into the path buffer for extra paint data.
+union ShaderPaintValue
+{
+  uint32_t color;                       // SOLID_COLOR_PAINT_TYPE
+  float gradientAdditivenessComplement; // *_GRADIENT_PAINT_TYPE
+  uint32_t shiftedClipReplacementID;    // CLIP_UPDATE_PAINT_TYPE
+};
+static_assert(sizeof(ShaderPaintValue) == 4);
+
+// Per-path values that ride along per contour. (Packing per contour eliminates
+// a chained, dependent fetch on pathID and improves performance.)
+// NOTE: This info is currently duplicated in the ContourData and PathData
+// records, to support legacy modes like atomic. In the future it will only live
+// in ContourData.
+struct ContourPathParams
+{
+  static ContourPathParams Make(
+      const PathDraw&,
+      uint32_t zIndex,
+      InterlockMode,
+      const PlatformFeatures&);
+
+  uint32_t params = 0; // [clipID|zIndex, flags, blendMode, paintType]
+  ShaderPaintValue paint = {};
+  float additionalOutset = 0;
+  float featherRadius = 0;
+};
+static_assert(sizeof(ContourPathParams) == 16);
+
 // Defines a transform from screen space into a region of an atlas.
 // The atlas may have a different scale factor than the screen.
 struct AtlasTransform
@@ -1964,9 +1995,10 @@ public:
 
   PathData(
       const PathDraw&,
-      uint32_t zIndex,
-      InterlockMode,
-      const PlatformFeatures&);
+      const ContourPathParams&,
+      const PlatformFeatures&,
+      GradTextureLayout,
+      const RenderTarget*);
 
   // clearColor pseudo-path (pathID 0 in atomic mode). The shader only reads the
   // paint, so most of the record stays uninitialized.
@@ -1975,56 +2007,20 @@ public:
 private:
   // First & second uint32x4s.
   WRITEONLY float m_matrix[6];
-  WRITEONLY uint32_t m_params; // [clipID|zIndex, flags, blendMode, paintType]
-  union
-  {
-    WRITEONLY uint32_t m_color;                       // SOLID_COLOR_PAINT_TYPE
-    WRITEONLY float m_gradientAdditivenessComplement; // *_GRADIENT_PAINT_TYPE
-    WRITEONLY uint32_t m_shiftedClipReplacementID;    // CLIP_UPDATE_PAINT_TYPE
-  };
+  // NOTE: We don't store a literal ContourPathParams here so legacy modes get
+  // more efficient fetching. Eventually, ContourPathParams will not exist in
+  // this struct at all.
+  WRITEONLY uint32_t m_params; // ContourPathParams::params.
+  WRITEONLY uint32_t m_shaderPaintValue;
 
-  // Third uint32x4. Only loaded when
-  // PAINT_FLAG_LOAD_RADIUS_AND_OUTSET_PATH_DATA is set.
-  WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled.
-  WRITEONLY float m_featherRadius;
-  WRITEONLY float m_additionalOutset;
-  WRITEONLY uint32_t m_unused;
-
-  // Fourth uint32x4. Only loaded for @FEATHER_ATLAS_BLIT or clockwiseAtomic.
+  // Third uint32x4. Only loaded for @FEATHER_ATLAS_BLIT or clockwiseAtomic.
   union
   {
     WRITEONLY AtlasTransform m_featherAtlasTransform;
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
   };
-};
-static_assert(
-    sizeof(PathData) ==
-    StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
-static_assert(256 % sizeof(PathData) == 0);
-constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 
-// Structure of the "paintAux" storage buffer. Gradients, images, and clipRects
-// store their details here, indexed by pathID.
-struct PaintAuxData
-{
-public:
-  constexpr static StorageBufferStructure
-      kBufferStructure = StorageBufferStructure::float32x4;
-
-  void set(
-      const Mat2D& viewMatrix,
-      const Mat2D& imageMatrix,
-      PaintType,
-      SimplePaintValue,
-      GradTextureLayout,
-      const Gradient*,
-      const Mat2D& inverseGradientTransform,
-      const Texture*,
-      const ClipRectInverseMatrix*,
-      const RenderTarget*,
-      const gpu::PlatformFeatures&);
-
-private:
+  // Paint data, starting at the fourth uint32x4.
   WRITEONLY float m_paintMatrix[6]; // Maps _fragCoord to paint coordinates.
   WRITEONLY float m_gradTextureX;   // Paintype::*Gradient, negative for a
                                     // complex gradient
@@ -2035,16 +2031,22 @@ private:
                                     // antialiasing.
   WRITEONLY float m_imageMatrix[6]; // Maps _fragCoord to image coordinates.
   WRITEONLY float m_imageTextureLOD;
-  WRITEONLY float
-      m_padding[9]; // Padding out to 128 bytes (to have 256 byte alignment)
+
+  // Padding out to a whole uint32x4.
+  WRITEONLY float m_padding[1];
 };
 static_assert(
-    sizeof(PaintAuxData) ==
-    StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) * 8);
-static_assert(256 % sizeof(PaintAuxData) == 0);
-constexpr static size_t kPaintAuxBufferAlignmentInElements = 256 /
-                                                             sizeof(
-                                                                 PaintAuxData);
+    sizeof(PathData) %
+        StorageBufferElementSizeInBytes(PathData::kBufferStructure) ==
+    0);
+// PathData doesn't have to divide into 256 in order to align flush boundaries
+// on 256 bytes (as required by buffer binding offsets). If it's 144 bytes,
+// we can align at 16 * 144 == 9 * 256 bytes.
+constexpr static size_t kPathBufferAlignmentInElements = 256 /
+                                                         std::gcd<size_t>(
+                                                             256,
+                                                             sizeof(PathData));
+static_assert(kPathBufferAlignmentInElements * sizeof(PathData) % 256 == 0);
 
 // High level structure of the "contour" storage buffer. Each contour of every
 // path has a data record describing its info.
@@ -2054,33 +2056,64 @@ public:
   constexpr static StorageBufferStructure
       kBufferStructure = StorageBufferStructure::uint32x4;
 
-  ContourData(Vec2D midpoint, uint32_t pathID, uint32_t vertexIndex0)
+  // Mirrors of CONTOUR_PATH_ID_MASK, CONTOUR_FLAG_CLOSED,
+  // CONTOUR_FLAG_STROKE, and CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER from
+  // constants.glsl.
+  constexpr static uint32_t PathIDMask = 0xffff;
+  constexpr static uint32_t FlagClosed = 1u << 16;
+  constexpr static uint32_t FlagStroke = 1u << 17;
+  constexpr static uint32_t FlagHasOutsetOrFeather = 1u << 18;
+
+  ContourData(
+      Vec2D midpoint,
+      uint32_t pathID,
+      bool closed,
+      bool isStroke,
+      uint32_t vertexIndex0,
+      const ContourPathParams& pathParams = {})
       : m_midpoint(midpoint)
-      , m_pathID(pathID)
+      , m_pathIDAndFlags([&]() {
+        uint32_t pathIDAndFlags = pathID;
+        if (closed)
+          pathIDAndFlags |= FlagClosed;
+        if (isStroke)
+          pathIDAndFlags |= FlagStroke;
+        if (pathParams.additionalOutset != 0 || pathParams.featherRadius != 0)
+          pathIDAndFlags |= FlagHasOutsetOrFeather;
+        return pathIDAndFlags;
+      }())
       , m_vertexIndex0(vertexIndex0)
-  {}
+      , m_pathParams(pathParams)
+  {
+    assert(pathID <= PathIDMask);
+  }
 
 private:
-  // Midpoint of the curve endpoints in just this contour.
+  // First uint4.
+  // Holds different values depending on what's being drawn:
+  //   - Fills: midpoint of all segment endpoints
+  //   - Strokes: [unused, strokeRadius]
   WRITEONLY Vec2D m_midpoint;
-  // ID of the path this contour belongs to.
-  WRITEONLY uint32_t m_pathID;
+  // [unused (13 bits) | outset/feather | stroke | closed | pathID (16 bits)].
+  // (See CONTOUR_PATH_ID_MASK and CONTOUR_FLAG_* in constants.glsl.)
+  WRITEONLY uint32_t m_pathIDAndFlags;
   // Indexes the tessellation texture and has a different meaning depending on
   // interlockMode:
-  //
-  //   * non-depthStencil: Index of the contour's logical vertex zero. If the
+  //   - non-depthStencil: Index of the contour's logical vertex zero. If the
   //     contour is mirrored, this will be the final vertex in memory rather
   //     than the first.
-  //
-  //   * depthStencil: Index of the first vertex in tessellation memory that
+  //   - depthStencil: Index of the first vertex in tessellation memory that
   //     belongs to the contour, regardless of whether the contour is
   //     mirrored.
-  //
   WRITEONLY uint32_t m_vertexIndex0;
+
+  // Second uint4: the path's ContourPathParams, so the contour's readers don't
+  // have to follow the pathID.
+  WRITEONLY ContourPathParams m_pathParams;
 };
 static_assert(
     sizeof(ContourData) ==
-    StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
+    StorageBufferElementSizeInBytes(ContourData::kBufferStructure) * 2);
 static_assert(256 % sizeof(ContourData) == 0);
 constexpr static size_t kContourBufferAlignmentInElements = 256 /
                                                             sizeof(ContourData);
@@ -2287,14 +2320,37 @@ constexpr size_t
                                          ImageDrawInstanceBase::FirstAttribIdx;
 
 // The maximum number of storage buffers we will ever use in a vertex or
-// fragment shader (path, paintAux, contour, virtualPatch).
-constexpr static size_t kMaxStorageBuffers = 4;
+// fragment shader (path, contour, virtualPatch).
+constexpr static size_t kMaxStorageBuffers = 3;
 
-// If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill
+// The tallest texture we polyfill a storage buffer with: the minimum required
+// GL_MAX_TEXTURE_SIZE. A single flush never uploads more rows than this.
+// (static_asserted based on tessellation texture limits.)
+constexpr static uint32_t MaxStorageTextureHeight = 2048;
+
+// Mirrors STORAGE_TEXTURE_WIDTH from constants.glsl.
+constexpr static uint32_t StorageTextureWidth = 512;
+
+// Rows of StorageTextureWidth needed to hold elementCount elements.
+constexpr uint32_t storageTextureHeight(size_t elementCount)
+{
+  return static_cast<uint32_t>(
+      (elementCount + StorageTextureWidth - 1) / StorageTextureWidth);
+}
+
+// If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill
 // with textures. This function returns the dimensions to use for these
 // textures.
-std::tuple<uint32_t, uint32_t> StorageTextureSize(
+std::tuple<uint32_t, uint32_t> storageTextureSize(
     size_t bufferSizeInBytes,
+    StorageBufferStructure);
+
+// Like storageTextureSize(), but for allocating the texture that services an
+// entire buffer ring. The ring is sized for the whole frame (plus room to
+// grow), which can be more than one flush ever uploads, so this caps the height
+// at MaxStorageTextureHeight.
+std::tuple<uint32_t, uint32_t> storageTextureAllocationSize(
+    size_t capacityInBytes,
     StorageBufferStructure);
 
 // If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill
@@ -2302,7 +2358,7 @@ std::tuple<uint32_t, uint32_t> StorageTextureSize(
 // time, meaning, its transfer buffer might need to be larger than requested.
 // This function returns a size that is large enough to service a worst-case
 // texture update.
-size_t StorageTextureBufferSize(
+size_t storageTextureBufferSize(
     size_t bufferSizeInBytes,
     StorageBufferStructure);
 

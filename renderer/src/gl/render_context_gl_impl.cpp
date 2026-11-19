@@ -1080,11 +1080,11 @@ public:
       gpu::StorageBufferStructure bufferStructure,
       rcp<GLState> state)
       : BufferRing(
-            gpu::StorageTextureBufferSize(capacityInBytes, bufferStructure))
+            gpu::storageTextureBufferSize(capacityInBytes, bufferStructure))
       , m_bufferStructure(bufferStructure)
       , m_state(std::move(state))
   {
-    std::tie(m_width, m_height) = gpu::StorageTextureSize(
+    std::tie(m_width, m_height) = gpu::storageTextureAllocationSize(
         capacityInBytes,
         m_bufferStructure);
     for (glutils::Texture& texture : m_textures)
@@ -1123,7 +1123,7 @@ public:
 
     assert(0 <= slot && slot < gpu::kBufferRingSize);
 
-    auto [updateWidth, updateHeight] = gpu::StorageTextureSize(
+    auto [updateWidth, updateHeight] = gpu::storageTextureSize(
         bindingSizeInBytes,
         m_bufferStructure);
     glActiveTexture(GL_TEXTURE0 + bindingIdx);
@@ -1998,11 +1998,10 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     // Our GL driver doesn't support storage buffers. We polyfill these buffers
     // as textures.
     // Since atomic mode emits the color of the *previous* path, it always needs
-    // the path and paintAux textures bound.
+    // the path texture bound.
     if (isPaintDraw || interlockMode == gpu::InterlockMode::atomics)
     {
       glutils::Uniform1iByName(m_id, GLSL_pathBuffer, PATH_BUFFER_IDX);
-      glutils::Uniform1iByName(m_id, GLSL_paintAuxBuffer, PAINT_AUX_BUFFER_IDX);
     }
     if (isTessellationDraw)
     {
@@ -2328,15 +2327,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         PATH_BUFFER_IDX,
         desc.pathCount * sizeof(gpu::PathData),
         desc.firstPath * sizeof(gpu::PathData),
-        polyfillBufferTextureSlot,
-        reallocatePolyfillBufferTextures);
-
-    bind_storage_buffer(
-        m_capabilities,
-        paintAuxBufferRing(),
-        PAINT_AUX_BUFFER_IDX,
-        desc.pathCount * sizeof(gpu::PaintAuxData),
-        desc.firstPaintAux * sizeof(gpu::PaintAuxData),
         polyfillBufferTextureSlot,
         reallocatePolyfillBufferTextures);
   }
@@ -3897,7 +3887,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
       capabilities.ARB_shader_storage_buffer_object = false;
     }
 
-    // We need four storage buffers in the vertex shader. Disable the
+    // We need three storage buffers in the vertex shader. Disable the
     // extension if this isn't supported.
     int maxVertexShaderStorageBlocks;
     glGetIntegerv(

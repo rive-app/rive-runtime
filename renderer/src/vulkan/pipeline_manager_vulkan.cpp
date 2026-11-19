@@ -121,14 +121,6 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
                         VK_SHADER_STAGE_FRAGMENT_BIT,
       },
       {
-          .binding = PAINT_AUX_BUFFER_IDX,
-          .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-          .descriptorCount = 1,
-          // Atomic mode reads the paintAux buffer from the fragment shader.
-          .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
-                        VK_SHADER_STAGE_FRAGMENT_BIT,
-      },
-      {
           .binding = CONTOUR_BUFFER_IDX,
           .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
           .descriptorCount = 1,

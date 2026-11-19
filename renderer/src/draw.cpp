@@ -2234,7 +2234,12 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
   if (m_pathID == 0)
   {
     // Reserve our pathID and write out a path record.
-    m_pathID = flush->pushPath(this, zIndex);
+    m_contourPathParams = gpu::ContourPathParams::Make(
+        *this,
+        zIndex,
+        flush->interlockMode(),
+        flush->platformFeatures());
+    m_pathID = flush->pushPath(this);
   }
 
   switch (m_coverageType)
@@ -2610,6 +2615,7 @@ void PathDraw::pushTessellationData(
   RenderContext::TessellationWriter tessWriter(
       flush,
       m_pathID,
+      m_contourPathParams,
       m_contourDirections,
       forwardTessVertexCount,
       forwardTessLocation,
@@ -2701,9 +2707,19 @@ void PathDraw::pushMidpointFanTessellationData(
       }
     }
 
-    // Make a data record for this current contour on the GPU.
+    // Make a data record for this current contour on the GPU. Strokes have no
+    // midpoint. They store [unused, strokeRadius] instead.
+    Vec2D midpoint;
+    if (!isStroke())
+    {
+      midpoint = contour.midpoint;
+    }
+    else
+    {
+      midpoint = {0, m_strokeRadius};
+    }
     uint32_t contourIDWithFlags = m_tessFlags | tessWriter->pushContour(
-                                                    contour.midpoint,
+                                                    midpoint,
                                                     isStroke(),
                                                     contour.closed,
                                                     contour.paddingVertexCount,
@@ -3104,10 +3120,11 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           // it would break the consecutive-IDs invariant.
           if (m_outerCubicContours[contourCount].patchCount != 0)
           {
+            assert(!isStroke());
             contourIDWithFlags = m_tessFlags |
                                  tessWriter->pushContour(
                                      {0, 0},
-                                     isStroke(),
+                                     /*isStroke=*/false,
                                      /*closed=*/true,
                                      0,
                                      m_outerCubicContours[contourCount]
@@ -3313,10 +3330,11 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
   {
     if (retrofitPatchCount != 0)
     {
+      assert(!isStroke());
       contourIDWithFlags = m_tessFlags |
                            tessWriter->pushContour(
                                {0, 0},
-                               isStroke(),
+                               /*isStroke=*/false,
                                /*closed=*/true,
                                0,
                                retrofitPatchCount *

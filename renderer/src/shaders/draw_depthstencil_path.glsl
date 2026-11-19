@@ -17,15 +17,15 @@ INLINE bool isStroke()
   return false;
 }
 
-// Fills and hairlines are always closed; strokes encode it in their contour's
-// midpoint.x, which is otherwise unused.
 // Defined as a function because Naga doesn't accept any operation on a
 // specialization constant, including "!@DS_POLAR_STROKE".
-INLINE bool isContourClosed(float2 midpoint)
+INLINE bool isContourClosed(uint contourFlags)
 {
+  // Fills and hairlines are always closed, and strokes encode whether they are
+  // closed in their flags.
 #ifdef @DS_POLAR_STROKE
   if (@DS_POLAR_STROKE)
-    return midpoint.x != .0;
+    return (contourFlags & CONTOUR_FLAG_CLOSED) != 0u;
 #endif
   return true;
 }
@@ -187,25 +187,23 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   // NOTE: The contourID is guaranteed to be >= 1 at this point, but clamp it
   // anyway because in the event of a bug, a buffer load at index "0u - 1" can
   // be very serious and hard to catch.
-  uint4 contourData = STORAGE_BUFFER_LOAD4(
-      @contourBuffer,
-      max(contourID, 1u) - 1u);
+  uint contourStartIdx = (max(contourID, 1u) - 1u) * 2u;
+  uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contourStartIdx);
   float2 midpoint = uintBitsToFloat(contourData.xy);
-  uint pathID = contourData.z & 0xffffu;
+  uint contourFlags = contourData.z;
+  uint pathID = contourFlags & CONTOUR_PATH_ID_MASK;
   uint firstSpokeIndexMemory = contourData.w;
 
   // Fetch and unpack the path.
-  float2x2 M = make_float2x2(
-      uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
-  uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
+  float2x2 M = make_float2x2(uintBitsToFloat(
+      STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * PATH_DATA_ELEMENT_COUNT)));
+  uint4 pathData = STORAGE_BUFFER_LOAD4(
+      @pathBuffer,
+      pathID * PATH_DATA_ELEMENT_COUNT + 1u);
   float2 translate = uintBitsToFloat(pathData.xy);
   ushort pathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
-  float strokeRadius = .0;
-  if (isPolarStroke)
-  {
-    strokeRadius = uintBitsToFloat(
-        STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u).x);
-  }
+  // Strokes repurpose "midpoint" since they don't use the real midpoint.
+  float strokeRadius = isPolarStroke ? midpoint.y : .0;
 
   // The contour-closing spoke reached into our neighbor's contour. It needs to
   // either wrap back around to the starting spoke (fills, closed strokes), or
@@ -215,8 +213,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     tessVertexData = TEXEL_FETCH(
         @tessVertexTexture,
         tess_texel_coord(
-            isContourClosed(midpoint) ? int(firstSpokeIndexMemory)
-                                      : tessSpokeIdx - 1));
+            isContourClosed(contourFlags) ? int(firstSpokeIndexMemory)
+                                          : tessSpokeIdx - 1));
     contourIDWithFlags = tessVertexData.w;
   }
 
@@ -349,12 +347,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   {
     // clipRectInverseMatrix transforms from pixel coordinates to a space
     // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
-    float2x2 clipRectInverseMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
-    float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(
-        @paintAuxBuffer,
-        pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
+    float2x2 clipRectInverseMatrix = make_float2x2(
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+            @pathBuffer,
+            pathID * PATH_DATA_ELEMENT_COUNT + 5u)));
+    float4 clipRectInverseTranslate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+        @pathBuffer,
+        pathID * PATH_DATA_ELEMENT_COUNT + 6u));
     set_clip_rect_plane_distances(
         clipRectInverseMatrix,
         clipRectInverseTranslate.xy,
@@ -402,13 +401,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     }
     else // Gradient.
     {
-      float2x2 paintMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-          @paintAuxBuffer,
-          pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
+      float2x2 paintMatrix = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          pathID * PATH_DATA_ELEMENT_COUNT + 3u)));
 
-      float4 paintTranslate = STORAGE_BUFFER_LOAD4(
-          @paintAuxBuffer,
-          pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
+      float4 paintTranslate = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          pathID * PATH_DATA_ELEMENT_COUNT + 4u));
 
       float additivenessComplement = uintBitsToFloat(pathData.w);
       v_paint = packGradientData(
@@ -424,12 +423,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   #ifdef @ENABLE_MODULATED_IMAGE
     if (@ENABLE_MODULATED_IMAGE && (pathData.z & PAINT_FLAG_HAS_IMAGE) != 0u)
     {
-      float2x2 imageMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(
-          @paintAuxBuffer,
-          pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
-      float4 paintTranslateAndLOD = STORAGE_BUFFER_LOAD4(
-          @paintAuxBuffer,
-          pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
+      float2x2 imageMatrix = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          pathID * PATH_DATA_ELEMENT_COUNT + 7u)));
+      float4 paintTranslateAndLOD = uintBitsToFloat(STORAGE_BUFFER_LOAD4(
+          @pathBuffer,
+          pathID * PATH_DATA_ELEMENT_COUNT + 8u));
       float2 imageCoord = MUL(imageMatrix, fragCoord) + paintTranslateAndLOD.xy;
 
       // Add 1 to the LOD because a z value of 0 means "we don't have an

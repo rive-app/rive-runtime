@@ -1934,13 +1934,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 desc.pathCount,
                 math::lossless_numeric_cast<UINT>(desc.firstPath))
           : nullptr,
-      desc.pathCount > 0
-          ? flush_structured_buffer<gpu::PaintAuxData>(
-                m_gpuContext.Get(),
-                paintAuxBufferRing(),
-                desc.pathCount,
-                math::lossless_numeric_cast<UINT>(desc.firstPaintAux))
-          : nullptr,
       desc.contourCount > 0
           ? flush_structured_buffer<gpu::ContourData>(
                 m_gpuContext.Get(),
@@ -1949,18 +1942,17 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 math::lossless_numeric_cast<UINT>(desc.firstContour))
           : nullptr,
   };
-  static_assert(PAINT_AUX_BUFFER_IDX == PATH_BUFFER_IDX + 1);
-  static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
+  static_assert(CONTOUR_BUFFER_IDX == PATH_BUFFER_IDX + 1);
   m_gpuContext->VSSetShaderResources(
       PATH_BUFFER_IDX,
       std::size(storageBufferBufferSRVs),
       storageBufferBufferSRVs);
   if (desc.interlockMode == gpu::InterlockMode::atomics)
   {
-    // Atomic mode reads the path and paintAux buffers from the pixel shader.
+    // Atomic mode reads the path buffer from the pixel shader.
     m_gpuContext->PSSetShaderResources(
         PATH_BUFFER_IDX,
-        2,
+        1,
         storageBufferBufferSRVs);
   }
 

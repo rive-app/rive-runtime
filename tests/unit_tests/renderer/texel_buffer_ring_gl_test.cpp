@@ -2,7 +2,7 @@
  * Copyright 2026 Rive
  *
  * The GLES 3.0 storage-buffer polyfill (TexelBufferRingWebGL, which explains
- * why) uploads path, paint, paintAux and contour data into textures on every
+ * why) uploads path and contour data into textures on every
  * flush. With avoidTexSubImage2DOnInFlightTextures, the textures rotate
  * through a ring of gpu::kBufferRingSize, so a flush never rewrites the texture
  * a still-executing flush is reading. Without it, every flush uses one texture.

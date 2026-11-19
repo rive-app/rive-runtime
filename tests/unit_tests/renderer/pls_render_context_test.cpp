@@ -22,7 +22,7 @@ class RenderContextNULLTestImplForMapFail : public RenderContextNULL
   using Super = RenderContextNULL;
 
 public:
-  static constexpr auto MAP_COUNT = 9u;
+  static constexpr auto MAP_COUNT = 8u;
 
   RenderContextNULLTestImplForMapFail(uint32_t failingMapIndex)
       : Super()
@@ -60,13 +60,12 @@ public:
 
   MAKE_MAP_UNMAP(0, FlushUniformBuffer)
   MAKE_MAP_UNMAP(1, PathBuffer)
-  MAKE_MAP_UNMAP(2, PaintAuxBuffer)
-  MAKE_MAP_UNMAP(3, ContourBuffer)
-  MAKE_MAP_UNMAP(4, GradSpanBuffer)
-  MAKE_MAP_UNMAP(5, TessVertexSpanBuffer)
-  MAKE_MAP_UNMAP(6, TriangleVertexBuffer)
-  MAKE_MAP_UNMAP(7, ImageRectInstanceBuffer)
-  MAKE_MAP_UNMAP(8, ImageMeshInstanceBuffer)
+  MAKE_MAP_UNMAP(2, ContourBuffer)
+  MAKE_MAP_UNMAP(3, GradSpanBuffer)
+  MAKE_MAP_UNMAP(4, TessVertexSpanBuffer)
+  MAKE_MAP_UNMAP(5, TriangleVertexBuffer)
+  MAKE_MAP_UNMAP(6, ImageRectInstanceBuffer)
+  MAKE_MAP_UNMAP(7, ImageMeshInstanceBuffer)
 
 #undef MAKE_MAP_UNMAP
 
@@ -223,9 +222,13 @@ TEST_CASE("ResourceTriming", "[RenderContext]")
                                     .contourBufferCount;
   CHECK(baselineContourCount <= gpu::kContourBufferAlignmentInElements * 2);
 
-  // Check that resources grow to fit.
+  // Check that resources grow to fit. (Start at a full path alignment so the
+  // first frame outgrows the baseline's padding.)
+  const int firstPathCount = static_cast<int>(
+      gpu::kPathBufferAlignmentInElements);
+  const int lastPathCount = firstPathCount * 100;
   auto lastCounts = ctx.currentResourceAllocations();
-  for (int i = 10; i <= 1000; i *= 10)
+  for (int i = firstPathCount; i <= lastPathCount; i *= 10)
   {
     ctx.beginFrame(makeSimpleFrameDescriptor());
     for (int j = 0; j < i; ++j)
@@ -244,7 +247,7 @@ TEST_CASE("ResourceTriming", "[RenderContext]")
   }
 
   // Check that resources don't shrink before the time limit has passed.
-  for (int i = 1000; i > 0; i /= 10)
+  for (int i = lastPathCount; i > 0; i /= 10)
   {
     ctx.beginFrame(makeSimpleFrameDescriptor());
     for (int j = 0; j < i; ++j)

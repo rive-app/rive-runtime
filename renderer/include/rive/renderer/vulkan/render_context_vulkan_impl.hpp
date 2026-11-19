@@ -187,7 +187,6 @@ private:
 
   IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBuffer)
   IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBuffer)
-  IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBuffer)
   IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBuffer)
   IMPLEMENT_PLS_STRUCTURED_BUFFER(VirtualPatchBuffer, m_virtualPatchBuffer)
   IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
@@ -428,7 +427,6 @@ private:
   // RenderContextVulkanImpl is already synchronized.
   vkutil::BufferPool m_flushUniformBufferPool;
   vkutil::BufferPool m_pathBufferPool;
-  vkutil::BufferPool m_paintAuxBufferPool;
   vkutil::BufferPool m_contourBufferPool;
   vkutil::BufferPool m_virtualPatchBufferPool;
   vkutil::BufferPool m_gradSpanBufferPool;
@@ -441,7 +439,6 @@ private:
   // When the frame ends, these get recycled back in their respective pools.
   rcp<vkutil::Buffer> m_flushUniformBuffer;
   rcp<vkutil::Buffer> m_pathBuffer;
-  rcp<vkutil::Buffer> m_paintAuxBuffer;
   rcp<vkutil::Buffer> m_contourBuffer;
   rcp<vkutil::Buffer> m_virtualPatchBuffer;
   rcp<vkutil::Buffer> m_gradSpanBuffer;

@@ -424,6 +424,10 @@ public:
   // outputting triangle vertices (because of a left-handed view matrix or
   // TESS_FLAG_NEGATE_FILL_COVERAGE).
   bool triangulatorNegateWinding() const { return m_triangulatorNegateWinding; }
+  const gpu::ContourPathParams& contourPathParams() const
+  {
+    return m_contourPathParams;
+  }
 
   bool allocateResources(RenderContext::LogicalFlush*) override;
   void countSubpasses(const gpu::PlatformFeatures&) override;
@@ -591,6 +595,9 @@ protected:
 
   // Unique ID used by shaders for the current frame.
   uint32_t m_pathID = 0;
+
+  // Copied into each of our contour records.
+  gpu::ContourPathParams m_contourPathParams;
 
   union
   {

@@ -138,7 +138,12 @@ public:
     if (tessVertexCount > 0)
     {
       gpu::DrawContents drawContents = subpassDrawContents(signedSubpassIdx);
-      m_pathID = flush->pushPath(this, zIndex);
+      m_contourPathParams = gpu::ContourPathParams::Make(
+          *this,
+          zIndex,
+          flush->interlockMode(),
+          flush->platformFeatures());
+      m_pathID = flush->pushPath(this);
 
       uint32_t tessLocation = flush->allocateOuterCubicTessVertices(
           tessVertexCount);
@@ -162,6 +167,7 @@ public:
       RenderContext::TessellationWriter tessWriter(
           flush,
           m_pathID,
+          m_contourPathParams,
           m_contourDirections,
           forwardTessVertexCount,
           forwardTessLocation,

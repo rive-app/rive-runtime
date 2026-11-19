@@ -86,22 +86,6 @@ public:
     RenderContextNULL::unmapContourBuffer(mapSizeInBytes);
   }
 
-  void* mapPathBuffer(size_t mapSizeInBytes) override
-  {
-    m_mappedPaths = static_cast<const uint32_t*>(
-        RenderContextNULL::mapPathBuffer(mapSizeInBytes));
-    return const_cast<uint32_t*>(m_mappedPaths);
-  }
-
-  void unmapPathBuffer(size_t mapSizeInBytes) override
-  {
-    // Keep a copy so flush() can tell which paths are feathered.
-    m_pathWords.assign(
-        m_mappedPaths,
-        m_mappedPaths + mapSizeInBytes / sizeof(uint32_t));
-    RenderContextNULL::unmapPathBuffer(mapSizeInBytes);
-  }
-
   void flush(const FlushDescriptor& desc) override
   {
     if (desc.drawList != nullptr)
@@ -253,24 +237,25 @@ private:
       return;
     }
     REQUIRE(
-        (desc.firstContour + desc.contourCount) * 4 <= m_contourWords.size());
+        (desc.firstContour + desc.contourCount) * ContourWords <=
+        m_contourWords.size());
     // The padding between the midpoint-fan and outer-cubic regions is the
     // only contour record with no path.
     auto pathIDOf = [&](uint32_t contourID) {
-      return m_contourWords[(desc.firstContour + contourID - 1) * 4 + 2] &
+      return m_contourWords
+                 [(desc.firstContour + contourID - 1) * ContourWords + 2] &
              0xffffu;
     };
     auto vertexIndex0Of = [&](uint32_t contourID) {
-      return m_contourWords[(desc.firstContour + contourID - 1) * 4 + 3];
+      return m_contourWords
+          [(desc.firstContour + contourID - 1) * ContourWords + 3];
     };
-    // Feathered paths draw through the featherAtlas. (gpu::PathData is 4
-    // uint4s; the feather radius is the y of the third, where the tessellator
-    // reads it.)
-    static_assert(sizeof(gpu::PathData) == 16 * sizeof(uint32_t));
-    auto isFeathered = [&](uint32_t pathID) {
-      const size_t word = (desc.firstPath + pathID) * 16 + 2 * 4 + 1;
-      REQUIRE(word < m_pathWords.size());
-      return m_pathWords[word] != 0; // Any nonzero float.
+    // Feathered paths draw through the featherAtlas. (The feather radius is the
+    // w of the contour record's second uint4, where the tessellator reads it.)
+    auto isFeathered = [&](uint32_t contourID) {
+      return m_contourWords
+                 [(desc.firstContour + contourID - 1) * ContourWords + 7] !=
+             0; // Any nonzero float.
     };
     // Checks a finished contour's record, given its texels in memory.
     auto checkVertexIndex0 =
@@ -280,7 +265,7 @@ private:
           {
             return true; // Padding: nothing wraps to it.
           }
-          const bool feathered = isFeathered(pathID);
+          const bool feathered = isFeathered(contourID);
           const bool mirrored = (texels[first].contourIDWithFlags &
                                  TESS_FLAG_MIRRORED) != 0;
           ++m_pathContourCount;
@@ -385,8 +370,8 @@ private:
   const TessVertexSpan* m_mappedSpans = nullptr;
   const uint32_t* m_mappedContours = nullptr;
   std::vector<uint32_t> m_contourWords;
-  const uint32_t* m_mappedPaths = nullptr;
-  std::vector<uint32_t> m_pathWords;
+  constexpr static size_t ContourWords = sizeof(gpu::ContourData) /
+                                         sizeof(uint32_t);
   size_t m_pathContourCount = 0;
   size_t m_featheredContourCount = 0;
   size_t m_mirroredFeatheredContourCount = 0;
