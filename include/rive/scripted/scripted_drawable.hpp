@@ -5,6 +5,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/listener_group.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/custom_property_group.hpp"
@@ -94,22 +95,31 @@ private:
 class HitScriptedDrawable : public HitComponent
 {
 private:
-  ScriptedDrawable* m_drawable;
+  // A pointer a hosted node may still hear outside where its artboard shows:
+  // its buttons pressed inside (1 << PointerButton), and an exit it's owed.
+  struct HeldPointer
+  {
+    int id;
+    uint8_t buttons;
+    bool inside;
+  };
+  static_assert(sizeof(HeldPointer) == 8);
+  LazyVector<HeldPointer> m_pointers;
   bool handlesEvent(bool canHit, ListenerType hitEvent);
   std::string methodName(bool canHit, ListenerType hitEvent);
+  bool inArtboard(Vec2D position) const;
+  bool showsAt(Vec2D position) const;
 
 public:
   HitScriptedDrawable(
       ScriptedDrawable* drawable,
       StateMachineInstance* stateMachineInstance)
       : HitComponent(drawable, stateMachineInstance)
-  {
-    this->m_drawable = drawable;
-  }
+  {}
 
   bool hitTest(Vec2D position) const override
   {
-    return m_drawable->hasPointerHandler();
+    return m_component->as<ScriptedDrawable>()->hasPointerHandler();
   }
   bool hitTestBounded(Vec2D position) const override;
   bool withinBounds(Vec2D position) const;
@@ -133,7 +143,10 @@ public:
     return hasScrollTarget(position);
   }
   bool scrollGestureActive() override;
-  void cancelScroll() override { m_drawable->scrollLatched(false); }
+  void cancelScroll() override
+  {
+    m_component->as<ScriptedDrawable>()->scrollLatched(false);
+  }
   HitResult processScroll(
       Vec2D position,
       const ScrollEvent& event,

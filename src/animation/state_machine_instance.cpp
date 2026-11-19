@@ -1275,6 +1275,21 @@ static bool isDragPass(ListenerType hitType)
   return hitType == ListenerType::dragStart || hitType == ListenerType::dragEnd;
 }
 
+// A hover exit stays one all the way down: the pointer hasn't left.
+static HitResult forwardExit(
+    const StateMachineInstance* host,
+    StateMachineInstance* nested,
+    Vec2D position,
+    int pointerId)
+{
+  if (nested == nullptr)
+  {
+    return HitResult::none;
+  }
+  return host->inHoverExit() ? nested->hoverExit(position, pointerId)
+                             : nested->pointerExit(position, pointerId);
+}
+
 class HitDrawable : public HitComponent
 {
 public:
@@ -1944,7 +1959,10 @@ public:
   {
     auto nestedArtboard = m_component->as<NestedArtboard>();
     HitResult hitResult = HitResult::none;
-    if (hitType == ListenerType::exit)
+    // Something above covers the pointer, which hasn't left or lifted.
+    const bool hover = hitType == ListenerType::exit &&
+                       m_stateMachineInstance->inHoverExit();
+    if (hitType == ListenerType::exit && !hover)
     {
       // The pointer left: the machines below forget it, and so does this.
       m_pointersOff.remove(pointerId);
@@ -1952,7 +1970,7 @@ public:
     // A lift for a press this host passed down has to reach the machines
     // below, or the press stays behind in their listener groups.
     const bool lifted = hitType == ListenerType::up ||
-                        hitType == ListenerType::exit;
+                        (hitType == ListenerType::exit && !hover);
     const bool liftsPress = lifted && m_pressed.has(pointerId);
     if (lifted)
     {
@@ -2058,7 +2076,9 @@ public:
               }
               break;
             case ListenerType::exit:
-              hitResult = nestedStateMachine->pointerExit(
+              hitResult = forwardExit(
+                  m_stateMachineInstance,
+                  nestedStateMachine->stateMachineInstance(),
                   nestedPosition,
                   pointerId);
               break;
@@ -2088,11 +2108,18 @@ public:
               // left: a drag or claim here that turned it off still holds.
               if (auto smi = nestedStateMachine->stateMachineInstance())
               {
-                smi->hoverExit(nestedPosition, pointerId);
+                smi->hoverExit(
+                    nestedPosition,
+                    pointerId,
+                    hitType == ListenerType::up);
               }
               break;
             case ListenerType::exit:
-              nestedStateMachine->pointerExit(nestedPosition, pointerId);
+              forwardExit(
+                  m_stateMachineInstance,
+                  nestedStateMachine->stateMachineInstance(),
+                  nestedPosition,
+                  pointerId);
               break;
             case ListenerType::dragStart:
             case ListenerType::dragEnd:
@@ -2563,20 +2590,24 @@ public:
     auto componentList = m_component->as<ArtboardComponentList>();
     HitResult hitResult = HitResult::none;
     bool runningCanHit = canHit;
+    // See HitNestedArtboard::processEvent.
+    const bool hover = hitType == ListenerType::exit &&
+                       m_stateMachineInstance->inHoverExit();
     if (hitType == ListenerType::exit)
     {
-      // See HitNestedArtboard::processEvent.
-      m_pointersOff.remove(pointerId);
-      componentList->forgetPointer(pointerId);
+      if (!hover)
+      {
+        m_pointersOff.remove(pointerId);
+        componentList->forgetPointer(pointerId);
+      }
     }
     else
     {
       // For a row the list stops showing, which gets its exit then.
       componentList->notePointer(pointerId, position);
     }
-    // See HitNestedArtboard::processEvent.
     const bool lifted = hitType == ListenerType::up ||
-                        hitType == ListenerType::exit;
+                        (hitType == ListenerType::exit && !hover);
     const bool liftsPress = lifted && m_pressed.has(pointerId);
     if (lifted)
     {
@@ -2641,7 +2672,9 @@ public:
                   pointerId);
               break;
             case ListenerType::exit:
-              itemHitResult = stateMachine->pointerExit(
+              itemHitResult = forwardExit(
+                  m_stateMachineInstance,
+                  stateMachine,
                   listPosition,
                   pointerId);
               break;
@@ -2693,10 +2726,17 @@ public:
             case ListenerType::move:
               // Covered by an item or something drawn above, not left: see
               // HitNestedArtboard::processEvent.
-              stateMachine->hoverExit(listPosition, pointerId);
+              stateMachine->hoverExit(
+                  listPosition,
+                  pointerId,
+                  hitType == ListenerType::up);
               break;
             case ListenerType::exit:
-              stateMachine->pointerExit(listPosition, pointerId);
+              forwardExit(
+                  m_stateMachineInstance,
+                  stateMachine,
+                  listPosition,
+                  pointerId);
               break;
             case ListenerType::dragStart:
             case ListenerType::dragEnd:
@@ -4547,6 +4587,7 @@ StateMachineInstance::StateMachineInstance(
     , m_hostDispatching(false)
     , m_captureRunByHost(false)
     , m_inPointerMiss(false)
+    , m_inHoverExit(false)
     , m_awaitingAsync(false)
 {
   const auto count = machine->inputCount();
@@ -6785,12 +6826,18 @@ bool StateMachineInstance::isPointerDisabled(int pointerId) const
   return std::find(ids.begin(), ids.end(), pointerId) != ids.end();
 }
 
-HitResult StateMachineInstance::hoverExit(Vec2D position, int pointerId)
+HitResult StateMachineInstance::hoverExit(
+    Vec2D position,
+    int pointerId,
+    bool lifted)
 {
   const bool disabled = isPointerDisabled(pointerId);
   // The exit releases every group's state for the pointer, the disabled
   // phase among them, so what turned the pointer off has to again.
+  const bool wasInHoverExit = m_inHoverExit;
+  m_inHoverExit = !lifted;
   HitResult result = pointerExit(position, pointerId);
+  m_inHoverExit = wasInHoverExit;
   if (disabled)
   {
     disablePointerEvents(pointerId);

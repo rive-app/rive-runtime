@@ -106,6 +106,11 @@ bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
   return true;
 }
 
+static uint8_t buttonBit(PointerButton button)
+{
+  return static_cast<uint8_t>(1 << static_cast<int>(button));
+}
+
 HitResult HitScriptedDrawable::processEvent(
     Vec2D position,
     ListenerType hitType,
@@ -115,23 +120,89 @@ HitResult HitScriptedDrawable::processEvent(
     PointerButton button)
 {
   HitResult hitResult = HitResult::none;
-  auto scriptAsset = m_drawable->scriptAsset();
-  auto backend = m_drawable->backend();
-  if (backend == nullptr || !backend->valid() || scriptAsset == nullptr ||
-      !handlesEvent(canHit, hitType))
+  auto drawable = m_component->as<ScriptedDrawable>();
+  auto scriptAsset = drawable->scriptAsset();
+  auto backend = drawable->backend();
+  if (backend == nullptr || !backend->valid() || scriptAsset == nullptr)
+  {
+    return HitResult::none;
+  }
+  // Drag passes reach no handler, so they don't put a pointer inside.
+  if (canHit &&
+      (hitType == ListenerType::dragStart || hitType == ListenerType::dragEnd))
+  {
+    return HitResult::none;
+  }
+  // A claim here stops the host's later hit components, so a hosted script
+  // hears only where its artboard shows, a press that started there (claimed
+  // or not), and one exit.
+  bool leaving = false;
+  auto artboard = drawable->artboard();
+  if (artboard != nullptr && artboard->host() != nullptr)
+  {
+    auto isPointer = [pointerId](const HeldPointer& held) {
+      return held.id == pointerId;
+    };
+    // Kept only while a button is pressed or the pointer is inside.
+    HeldPointer* held = m_pointers.findIf(isPointer);
+    const bool pressed = held != nullptr && held->buttons != 0;
+    // A hover exit is a host shape covering the pointer, not a lift.
+    const bool ended = hitType == ListenerType::exit &&
+                       !m_stateMachineInstance->inHoverExit();
+    if (ended && held != nullptr)
+    {
+      held->buttons = 0;
+    }
+    else if (hitType == ListenerType::up && held != nullptr)
+    {
+      held->buttons &= static_cast<uint8_t>(~buttonBit(button));
+    }
+    // An ended pointer the script held reaches pointerExit, once.
+    if (ended || (!pressed && !showsAt(position)))
+    {
+      if (!pressed && (held == nullptr || !held->inside))
+      {
+        return HitResult::none;
+      }
+      leaving = true;
+      canHit = false;
+    }
+    if (canHit && hitType != ListenerType::exit)
+    {
+      const uint8_t bit = hitType == ListenerType::down ? buttonBit(button) : 0;
+      if (held == nullptr)
+      {
+        m_pointers.push_back({pointerId, bit, true});
+      }
+      else
+      {
+        held->buttons |= bit;
+        held->inside = true;
+      }
+    }
+    else if (held != nullptr)
+    {
+      held->inside = false;
+      if (held->buttons == 0)
+      {
+        m_pointers.eraseIf(isPointer);
+      }
+    }
+  }
+  if (!handlesEvent(canHit, hitType))
   {
     return HitResult::none;
   }
   Vec2D localPos;
-  auto hasLocalPos = m_drawable->worldToLocal(position, &localPos);
+  auto hasLocalPos = drawable->worldToLocal(position, &localPos);
   if (!hasLocalPos)
   {
     return hitResult;
   }
   auto mName = methodName(canHit, hitType);
   if (backend->callPointerEvent(
-          m_drawable,
-          m_drawable->self(),
+          drawable,
+          drawable->self(),
           mName.c_str(),
           pointerId,
           localPos,
@@ -139,9 +210,9 @@ HitResult HitScriptedDrawable::processEvent(
           timeStamp,
           &hitResult))
   {
-    m_drawable->wakeAdvance();
+    drawable->wakeAdvance();
   }
-  return hitResult;
+  return leaving ? HitResult::none : hitResult;
 }
 
 HitResult HitScriptedDrawable::processScroll(
@@ -151,37 +222,37 @@ HitResult HitScriptedDrawable::processScroll(
     int pointerId)
 {
   HitResult hitResult = HitResult::none;
-  auto backend = m_drawable->backend();
+  auto drawable = m_component->as<ScriptedDrawable>();
+  auto backend = drawable->backend();
   Mat2D toLocal;
   if (backend == nullptr || !backend->valid() ||
-      m_drawable->scriptAsset() == nullptr || m_drawable->isCollapsed() ||
-      !m_drawable->worldTransform().invert(&toLocal))
+      drawable->scriptAsset() == nullptr || drawable->isCollapsed() ||
+      !drawable->worldTransform().invert(&toLocal))
   {
-    m_drawable->scrollLatched(false);
+    drawable->scrollLatched(false);
     return hitResult;
   }
   Vec2D localPos = toLocal * position;
   ScrollEvent local = event;
   local.delta = toLocal * (position + event.delta) - localPos;
   if (backend->callScrollEvent(
-          m_drawable,
-          m_drawable->self(),
+          drawable,
+          drawable->self(),
           pointerId,
           localPos,
           local,
           timeStamp,
           &hitResult))
   {
-    m_drawable->wakeAdvance();
+    drawable->wakeAdvance();
   }
   // A claim latches the gesture, which then stays until it ends; a wheel
   // detent never latches.
   bool latchable = event.phase == ScrollPhase::begin ||
                    event.phase == ScrollPhase::momentum ||
                    (event.phase == ScrollPhase::update && event.precise);
-  m_drawable->scrollLatched(
-      latchable &&
-      (hitResult != HitResult::none || m_drawable->scrollLatched()));
+  drawable->scrollLatched(
+      latchable && (hitResult != HitResult::none || drawable->scrollLatched()));
   return hitResult;
 }
 
@@ -399,7 +470,7 @@ void ScriptedDrawable::markNeedsUpdate()
 
 bool HitScriptedDrawable::hitTestBounded(Vec2D position) const
 {
-  if (!m_drawable->hasPointerHandler())
+  if (!m_component->as<ScriptedDrawable>()->hasPointerHandler())
   {
     return false;
   }
@@ -409,18 +480,19 @@ bool HitScriptedDrawable::hitTestBounded(Vec2D position) const
 // Box test shared by pointer hits and scroll.
 bool HitScriptedDrawable::withinBounds(Vec2D position) const
 {
-  if (!m_drawable->is<ScriptedLayout>())
+  auto drawable = m_component->as<ScriptedDrawable>();
+  if (!drawable->is<ScriptedLayout>())
   {
     // A scripted node has no box of its own; everywhere, like hitTest.
     return true;
   }
   Vec2D size;
-  if (!m_drawable->as<ScriptedLayout>()->layoutSize(size))
+  if (!drawable->as<ScriptedLayout>()->layoutSize(size))
   {
     return false;
   }
   Vec2D local;
-  if (!m_drawable->worldToLocal(position, &local))
+  if (!drawable->worldToLocal(position, &local))
   {
     return false;
   }
@@ -430,28 +502,42 @@ bool HitScriptedDrawable::withinBounds(Vec2D position) const
 
 bool HitScriptedDrawable::hasScrollTarget(Vec2D position)
 {
-  if (!m_drawable->wantsPointerScroll() || m_drawable->isCollapsed())
+  auto drawable = m_component->as<ScriptedDrawable>();
+  if (!drawable->wantsPointerScroll() || drawable->isCollapsed())
   {
     return false;
   }
-  if (m_drawable->is<ScriptedLayout>())
+  if (drawable->is<ScriptedLayout>())
   {
     return withinBounds(position);
   }
   // A node has no box, so its artboard bounds it; hosts would otherwise
   // lose every wheel event to it.
-  auto artboard = m_drawable->artboard();
+  return inArtboard(position);
+}
+
+bool HitScriptedDrawable::inArtboard(Vec2D position) const
+{
+  auto artboard = m_component->artboard();
   return artboard != nullptr && artboard->bounds().contains(position);
+}
+
+// Also inside the clips a host draws the artboard in, as for its shapes.
+bool HitScriptedDrawable::showsAt(Vec2D position) const
+{
+  return inArtboard(position) &&
+         m_component->artboard()->hitTestPoint(position, true, false);
 }
 
 bool HitScriptedDrawable::scrollGestureActive()
 {
   // Like a collapsed ScrollConstraint, a collapsed script ends its gesture.
-  if (m_drawable->isCollapsed())
+  auto drawable = m_component->as<ScriptedDrawable>();
+  if (drawable->isCollapsed())
   {
-    m_drawable->scrollLatched(false);
+    drawable->scrollLatched(false);
   }
-  return m_drawable->scrollLatched();
+  return drawable->scrollLatched();
 }
 
 bool ScriptedDrawable::worldToLocal(Vec2D world, Vec2D* local)
@@ -469,23 +555,24 @@ bool ScriptedDrawable::worldToLocal(Vec2D world, Vec2D* local)
 
 bool HitScriptedDrawable::handlesEvent(bool canHit, ListenerType hitEvent)
 {
+  auto drawable = m_component->as<ScriptedDrawable>();
   if (canHit)
   {
     switch (hitEvent)
     {
       case ListenerType::down:
-        return m_drawable->wantsPointerDown();
+        return drawable->wantsPointerDown();
       case ListenerType::up:
-        return m_drawable->wantsPointerUp();
+        return drawable->wantsPointerUp();
       case ListenerType::dragStart:
         return false;
       case ListenerType::dragEnd:
         return false;
       default:
-        return m_drawable->wantsPointerMove();
+        return drawable->wantsPointerMove();
     }
   }
-  return m_drawable->wantsPointerExit();
+  return drawable->wantsPointerExit();
 }
 
 std::string HitScriptedDrawable::methodName(bool canHit, ListenerType hitEvent)

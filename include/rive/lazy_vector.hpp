@@ -134,6 +134,18 @@ public:
     m_v->erase(std::remove_if(m_v->begin(), m_v->end(), predicate), m_v->end());
   }
 
+  // First element matching `predicate`, editable in place, or nullptr. The
+  // pointer is good until the next push or erase.
+  template <typename Predicate> T* findIf(Predicate predicate)
+  {
+    if (m_v == nullptr)
+    {
+      return nullptr;
+    }
+    auto it = std::find_if(m_v->begin(), m_v->end(), predicate);
+    return it == m_v->end() ? nullptr : &*it;
+  }
+
   void clear()
   {
     if (m_v != nullptr)

@@ -260,6 +260,8 @@ public:
   /// sets off. Hosted machines then miss too rather than see the pointer
   /// exit, which would end their drags.
   bool inPointerMiss() const { return m_inPointerMiss; }
+  /// Whether a hoverExit is running for a pointer that hasn't lifted.
+  bool inHoverExit() const { return m_inHoverExit; }
   HitResult dragStart(
       Vec2D position,
       float timeStamp = 0,
@@ -659,7 +661,8 @@ public:
   /// contents covers the pointer, which hasn't left. Unlike pointerExit, it
   /// leaves the pointer off if it was: the drag or claim that turned it off
   /// still holds.
-  HitResult hoverExit(Vec2D position, int pointerId = 0);
+  /// Pass lifted for an up under the cover: a script's press then ends.
+  HitResult hoverExit(Vec2D position, int pointerId = 0, bool lifted = false);
   /// The exit a host sends a machine it is about to stop showing (a list
   /// row going). Unlike pointerExit, nothing that turned the pointer off
   /// for this machine or a machine it hosts (a drag, a capture claim) keeps
@@ -709,6 +712,8 @@ private:
   bool m_captureRunByHost : 1;
   // See inPointerMiss.
   bool m_inPointerMiss : 1;
+  // See inHoverExit.
+  bool m_inHoverExit : 1;
   // The last advanceAndApply(float) settled with only its scripts' async
   // work outstanding and marked the artboard quiet, so frames skip the
   // advance until something wakes it (see skipWhileAwaitingAsync).

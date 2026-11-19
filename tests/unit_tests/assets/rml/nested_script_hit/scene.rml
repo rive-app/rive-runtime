@@ -1,0 +1,501 @@
+<Rive version="1" kind="fragment">
+<!-- Game is a 200 x 200 artboard whose script node claims every press, move
+     and release, and counts each event (and each exit) on the root view
+     model. Host nests it in a clipping 200 x 200 layout at (50,50), beside a
+     grey Button (450..550, 100..200) whose listeners set over, pressed and
+     released. Overflow nests it at (50,50) in a clipping 150 x 250 layout, so
+     part of Game is clipped away and part of the clip has no Game under it.
+     LayoutGame, LayoutHost and LayoutOverflow are the same with the script
+     as a scripted layout that fills its artboard. SmallLayoutGame's layout
+     is a 100 x 100 box at (50,50); SmallLayoutHost nests it as Host does.
+     CoverHost and CoverLayoutHost add an opaque Cover (200..300, 100..200)
+     drawn above the slot, whose enter sets covered. HoverGame's script hears
+     moves without claiming them and has no press handler; HoverHost nests
+     it as Host does. DeepCoverHost is CoverHost with MidGame in its slot,
+     a 200 x 200 artboard that nests Game. ClipGame's script counts presses
+     without claiming them, under a full-size Target whose down sets hit.
+     ScaledMountHost, RotatedMountHost and FitHost clip it to (50,50)..
+     (200,200), scaled 2x by its mount, turned 90 degrees, or fit 2x. -->
+    <ViewModel name="H" id="0:40">
+        <ViewModelPropertyBoolean name="over" id="0:41"/>
+        <ViewModelPropertyBoolean name="pressed" id="0:42"/>
+        <ViewModelPropertyBoolean name="released" id="0:43"/>
+        <ViewModelPropertyNumber name="downs" id="0:44"/>
+        <ViewModelPropertyNumber name="moves" id="0:45"/>
+        <ViewModelPropertyNumber name="ups" id="0:46"/>
+        <ViewModelPropertyNumber name="exits" id="0:47"/>
+        <ViewModelPropertyBoolean name="covered" id="0:49"/>
+        <ViewModelPropertyBoolean name="hit" id="0:50"/>
+        <ViewModelInstance name="Default" id="0:48">
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:41"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:42"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:43"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:44"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:45"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:46"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:47"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:49"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:50"/>
+        </ViewModelInstance>
+    </ViewModel>
+    <Artboard defaultStateMachineId="0:20" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:2" name="Host" id="0:1">
+        <LayoutComponentStyle name="Host Style" id="0:2"/>
+        <Fill name="Bg">
+            <SolidColor colorValue="FF16191D" name="C"/>
+        </Fill>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:4" name="Slot Clip" id="0:3">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:4"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:100" name="Slot" id="0:5">
+                <NestedStateMachine animationId="0:120" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:10">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:20">
+            <StateMachineListenerSingle targetId="0:10" listenerTypeValue="enter" name="In" id="0:30">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:10" listenerTypeValue="down" name="Down" id="0:31">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:10" listenerTypeValue="up" name="Up" id="0:32">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:21"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="0" y="400" defaultStateMachineId="0:220" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:202" name="Overflow" id="0:201">
+        <LayoutComponentStyle name="Overflow Style" id="0:202"/>
+        <LayoutComponent clip="true" width="150" height="250" styleId="0:204" name="Short Clip" id="0:203">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Short Clip Style" id="0:204"/>
+            <NestedArtboard artboardId="0:100" name="Slot" id="0:205">
+                <NestedStateMachine animationId="0:120" name="SM"/>
+            </NestedArtboard>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:220">
+            <StateMachineLayer name="L" id="0:221"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="700" defaultStateMachineId="0:120" clip="true" width="200" height="200" name="Game" id="0:100">
+        <Fill name="Bg">
+            <SolidColor colorValue="FF3D7EFF" name="C"/>
+        </Fill>
+        <ScriptedDrawable scriptAssetId="0:80" name="Touch" id="0:101"/>
+        <StateMachine name="SM" id="0:120">
+            <StateMachineLayer name="L" id="0:121"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="1000" y="0" defaultStateMachineId="0:320" clip="true" width="200" height="200" styleId="0:303" name="LayoutGame" id="0:300">
+        <LayoutComponentStyle name="LayoutGame Style" id="0:303"/>
+        <Fill name="Bg">
+            <SolidColor colorValue="FF3D7EFF" name="C"/>
+        </Fill>
+        <LayoutComponent width="200" height="200" styleId="0:311" name="Root" id="0:310">
+            <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" widthUnitsValue="auto" heightUnitsValue="auto" name="Root Style" id="0:311"/>
+            <ScriptedLayout scriptAssetId="0:81" name="Touch" id="0:302"/>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:320">
+            <StateMachineLayer name="L" id="0:321"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="1000" y="400" defaultStateMachineId="0:370" clip="true" width="200" height="200" styleId="0:353" name="SmallLayoutGame" id="0:350">
+        <LayoutComponentStyle name="SmallLayoutGame Style" id="0:353"/>
+        <Fill name="Bg">
+            <SolidColor colorValue="FF3D7EFF" name="C"/>
+        </Fill>
+        <LayoutComponent width="100" height="100" styleId="0:361" name="Box" id="0:360">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Box Style" id="0:361"/>
+            <ScriptedLayout scriptAssetId="0:81" name="Touch" id="0:352"/>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:370">
+            <StateMachineLayer name="L" id="0:371"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="1700" y="0" defaultStateMachineId="0:420" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:402" name="LayoutHost" id="0:401">
+        <LayoutComponentStyle name="LayoutHost Style" id="0:402"/>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:404" name="Slot Clip" id="0:403">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:404"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:300" name="Slot" id="0:405">
+                <NestedStateMachine animationId="0:320" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:410">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:420">
+            <StateMachineListenerSingle targetId="0:410" listenerTypeValue="enter" name="In" id="0:430">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:410" listenerTypeValue="down" name="Down" id="0:431">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:410" listenerTypeValue="up" name="Up" id="0:432">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:421"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="1700" y="800" defaultStateMachineId="0:520" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:502" name="SmallLayoutHost" id="0:501">
+        <LayoutComponentStyle name="SmallLayoutHost Style" id="0:502"/>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:504" name="Slot Clip" id="0:503">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:504"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:350" name="Slot" id="0:505">
+                <NestedStateMachine animationId="0:370" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:510">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:520">
+            <StateMachineListenerSingle targetId="0:510" listenerTypeValue="enter" name="In" id="0:530">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:510" listenerTypeValue="down" name="Down" id="0:531">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:510" listenerTypeValue="up" name="Up" id="0:532">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:521"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="1700" y="400" defaultStateMachineId="0:720" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:702" name="LayoutOverflow" id="0:701">
+        <LayoutComponentStyle name="LayoutOverflow Style" id="0:702"/>
+        <LayoutComponent clip="true" width="150" height="250" styleId="0:704" name="Short Clip" id="0:703">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Short Clip Style" id="0:704"/>
+            <NestedArtboard artboardId="0:300" name="Slot" id="0:705">
+                <NestedStateMachine animationId="0:320" name="SM"/>
+            </NestedArtboard>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:720">
+            <StateMachineLayer name="L" id="0:721"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="2400" y="0" defaultStateMachineId="0:820" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:802" name="CoverHost" id="0:801">
+        <LayoutComponentStyle name="CoverHost Style" id="0:802"/>
+        <Shape isTargetOpaque="true" x="250" y="150" name="Cover" id="0:806">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FFE0A030" name="C"/>
+            </Fill>
+        </Shape>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:804" name="Slot Clip" id="0:803">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:804"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:100" name="Slot" id="0:805">
+                <NestedStateMachine animationId="0:120" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:810">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:820">
+            <StateMachineListenerSingle targetId="0:810" listenerTypeValue="enter" name="In" id="0:830">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:810" listenerTypeValue="down" name="Down" id="0:831">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:810" listenerTypeValue="up" name="Up" id="0:832">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:806" listenerTypeValue="enter" name="Covered" id="0:833">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:49" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:821"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="2400" y="400" defaultStateMachineId="0:920" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:902" name="CoverLayoutHost" id="0:901">
+        <LayoutComponentStyle name="CoverLayoutHost Style" id="0:902"/>
+        <Shape isTargetOpaque="true" x="250" y="150" name="Cover" id="0:906">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FFE0A030" name="C"/>
+            </Fill>
+        </Shape>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:904" name="Slot Clip" id="0:903">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:904"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:300" name="Slot" id="0:905">
+                <NestedStateMachine animationId="0:320" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:910">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:920">
+            <StateMachineListenerSingle targetId="0:910" listenerTypeValue="enter" name="In" id="0:930">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:910" listenerTypeValue="down" name="Down" id="0:931">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:910" listenerTypeValue="up" name="Up" id="0:932">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:906" listenerTypeValue="enter" name="Covered" id="0:933">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:49" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:921"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="3800" defaultStateMachineId="0:620" clip="true" width="200" height="200" name="HoverGame" id="0:600">
+        <Fill name="Bg">
+            <SolidColor colorValue="FF3D7EFF" name="C"/>
+        </Fill>
+        <ScriptedDrawable scriptAssetId="0:82" name="Hover" id="0:601"/>
+        <StateMachine name="SM" id="0:620">
+            <StateMachineLayer name="L" id="0:621"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="3100" y="0" defaultStateMachineId="0:1020" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:1002" name="HoverHost" id="0:1001">
+        <LayoutComponentStyle name="HoverHost Style" id="0:1002"/>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:1004" name="Slot Clip" id="0:1003">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:1004"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:600" name="Slot" id="0:1005">
+                <NestedStateMachine animationId="0:620" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:1010">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:1020">
+            <StateMachineListenerSingle targetId="0:1010" listenerTypeValue="enter" name="In" id="0:1030">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:1010" listenerTypeValue="down" name="Down" id="0:1031">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:1010" listenerTypeValue="up" name="Up" id="0:1032">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:1021"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="3800" y="400" defaultStateMachineId="0:1120" clip="true" width="200" height="200" styleId="0:1102" name="MidGame" id="0:1100">
+        <LayoutComponentStyle name="MidGame Style" id="0:1102"/>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:1104" name="Game Clip" id="0:1103">
+            <LayoutComponentStyle positionLeft="0" positionTop="0" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Game Clip Style" id="0:1104"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:100" name="Game" id="0:1105">
+                <NestedStateMachine animationId="0:120" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:1120">
+            <StateMachineLayer name="L" id="0:1121"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="3100" y="400" defaultStateMachineId="0:1220" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:1202" name="DeepCoverHost" id="0:1201">
+        <LayoutComponentStyle name="DeepCoverHost Style" id="0:1202"/>
+        <Shape isTargetOpaque="true" x="250" y="150" name="Cover" id="0:1206">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FFE0A030" name="C"/>
+            </Fill>
+        </Shape>
+        <LayoutComponent clip="true" width="200" height="200" styleId="0:1204" name="Slot Clip" id="0:1203">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Clip Style" id="0:1204"/>
+            <NestedArtboardLeaf fit="contain" artboardId="0:1100" name="Slot" id="0:1205">
+                <NestedStateMachine animationId="0:1120" name="SM"/>
+            </NestedArtboardLeaf>
+        </LayoutComponent>
+        <Shape x="500" y="150" name="Button" id="0:1210">
+            <Rectangle width="100" height="100" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF808080" name="C"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="SM" id="0:1220">
+            <StateMachineListenerSingle targetId="0:1210" listenerTypeValue="enter" name="In" id="0:1230">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:1210" listenerTypeValue="down" name="Down" id="0:1231">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:1210" listenerTypeValue="up" name="Up" id="0:1232">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:1206" listenerTypeValue="enter" name="Covered" id="0:1233">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:49" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:1221"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="4500" y="800" defaultStateMachineId="0:1320" clip="true" width="200" height="200" name="ClipGame" id="0:1300">
+        <Fill name="Bg">
+            <SolidColor colorValue="FF3D7EFF" name="C"/>
+        </Fill>
+        <Shape x="100" y="100" name="Target" id="0:1302">
+            <Rectangle width="200" height="200" name="Path"/>
+            <Fill name="F">
+                <SolidColor colorValue="FF30A0E0" name="C"/>
+            </Fill>
+        </Shape>
+        <ScriptedDrawable scriptAssetId="0:83" name="Press" id="0:1301"/>
+        <StateMachine name="SM" id="0:1320">
+            <StateMachineListenerSingle targetId="0:1302" listenerTypeValue="down" name="Hit" id="0:1330">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:50" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="L" id="0:1321"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="4500" y="1200" defaultStateMachineId="0:1420" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:1401" name="ScaledMountHost" id="0:1400">
+        <LayoutComponentStyle name="ScaledMountHost Style" id="0:1401"/>
+        <LayoutComponent clip="true" width="150" height="150" styleId="0:1403" name="Clip" id="0:1402">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Clip Style" id="0:1403"/>
+            <NestedArtboard scaleX="2" scaleY="2" artboardId="0:1300" name="Slot" id="0:1405">
+                <NestedStateMachine animationId="0:1320" name="SM"/>
+            </NestedArtboard>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:1420">
+            <StateMachineLayer name="L" id="0:1421"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="5200" y="1200" defaultStateMachineId="0:1520" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:1501" name="RotatedMountHost" id="0:1500">
+        <LayoutComponentStyle name="RotatedMountHost Style" id="0:1501"/>
+        <LayoutComponent clip="true" width="150" height="150" styleId="0:1503" name="Clip" id="0:1502">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Clip Style" id="0:1503"/>
+            <NestedArtboard x="150" rotation="1.5707964" artboardId="0:1300" name="Slot" id="0:1505">
+                <NestedStateMachine animationId="0:1320" name="SM"/>
+            </NestedArtboard>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:1520">
+            <StateMachineLayer name="L" id="0:1521"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard x="5900" y="1200" defaultStateMachineId="0:1620" viewModelId="0:40" viewModelInstanceId="0:48" clip="true" width="600" height="300" styleId="0:1601" name="FitHost" id="0:1600">
+        <LayoutComponentStyle name="FitHost Style" id="0:1601"/>
+        <LayoutComponent clip="true" width="150" height="150" styleId="0:1603" name="Clip" id="0:1602">
+            <LayoutComponentStyle positionLeft="50" positionTop="50" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Clip Style" id="0:1603"/>
+            <LayoutComponent width="400" height="400" styleId="0:1607" name="Slot Box" id="0:1606">
+                <LayoutComponentStyle positionLeft="0" positionTop="0" positionLeftUnitsValue="points" positionTopUnitsValue="points" positionTypeValue="absolute" name="Slot Box Style" id="0:1607"/>
+                <NestedArtboardLeaf fit="contain" artboardId="0:1300" name="Slot" id="0:1605">
+                    <NestedStateMachine animationId="0:1320" name="SM"/>
+                </NestedArtboardLeaf>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="SM" id="0:1620">
+            <StateMachineLayer name="L" id="0:1621"><AnyState x="200" y="-120"/><ExitState x="400" y="-120"/><EntryState/></StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <ScriptAsset file="touch.luau" name="touch" id="0:80"/>
+    <ScriptAsset file="touch_layout.luau" name="touch_layout" id="0:81"/>
+    <ScriptAsset file="hover.luau" name="hover" id="0:82"/>
+    <ScriptAsset file="press.luau" name="press" id="0:83"/>
+</Rive>
