@@ -980,7 +980,8 @@ BuildStatus ContextGL::finishLink(
   if (status)
   {
     oreGLFixupProgramBindings(program, vsModule, fsModule);
-    return BuildStatus::ready;
+    return pipeline->separateShadowUnits(outError) ? BuildStatus::ready
+                                                   : BuildStatus::failed;
   }
   // A deferred compile failure reads as a link failure; report its cause.
   for (ShaderModule* module : {vsModule, fsModule})

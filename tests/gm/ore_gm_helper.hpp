@@ -311,6 +311,11 @@ enum OreGMShader : uint32_t
   kLayoutSlotsShadow = 15,
   kUnitCompare = 16,
   kUnitFetch = 17,
+  kUnitCompareFetch = 18,
+  kUnitStageSplit = 19,
+  kUnitTwinPair = 20,
+  kUnitDeadCompare = 21,
+  kUnitDeadPlain = 22,
 };
 
 struct OreGMShaderResult

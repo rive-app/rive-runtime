@@ -231,13 +231,16 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
     return;
   }
   m_pipelineFailed = false;
-  m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
+  auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
+  assert(glPipeline);
+  auto* previous = lite_rtti_cast<PipelineGL*>(m_currentPipeline.get());
+  m_unappliedGroups |= movedGroups(previous, pipeline);
+  // A twin unit takes its texture when the group applies.
+  if (previous != nullptr && previous->m_unitTwins != glPipeline->m_unitTwins)
+    m_unappliedGroups |= movedGroups(nullptr, pipeline);
   m_currentPipeline = ref_rcp(pipeline);
   m_samplerBindingsDirty = true;
   m_sampledLevelsDirty = true;
-
-  auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
-  assert(glPipeline);
   const auto& desc = pipeline->desc();
 
   glUseProgram(glPipeline->m_glProgram);
@@ -473,7 +476,7 @@ void RenderPassGL::applyBindGroup(uint32_t groupIndex)
 {
   auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[groupIndex].get());
   assert(glBg);
-  const Pipeline* pipeline = m_currentPipeline.get();
+  auto* pipeline = lite_rtti_cast<PipelineGL*>(m_currentPipeline.get());
   const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
   const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
   uint32_t dynIdx = 0;
@@ -499,16 +502,29 @@ void RenderPassGL::applyBindGroup(uint32_t groupIndex)
         pipeline->slots(groupIndex, tex.binding, SlotSpace::texture));
     if (unit == BindingMap::kAbsent)
       continue;
-    glActiveTexture(GL_TEXTURE0 + unit);
-    glBindTexture(tex.target, tex.texture);
-
-    if (!m_usedSamplers || unit > m_maxSamplerSlot)
-      m_maxSamplerSlot = unit;
-    m_usedSamplers = true;
+    bindUnitTexture(unit, tex.target, tex.texture);
+    const uint16_t twin = pipeline->twinOf(unit);
+    if (twin != BindingMap::kAbsent)
+      bindUnitTexture(twin, tex.target, tex.texture);
   }
 }
 
-SamplerGL* RenderPassGL::pairedSampler(uint32_t group, uint32_t binding) const
+void RenderPassGL::bindUnitTexture(
+    uint16_t unit,
+    unsigned int target,
+    unsigned int texture)
+{
+  glActiveTexture(GL_TEXTURE0 + unit);
+  glBindTexture(target, texture);
+  if (!m_usedSamplers || unit > m_maxSamplerSlot)
+    m_maxSamplerSlot = unit;
+  m_usedSamplers = true;
+}
+
+SamplerGL* RenderPassGL::pairedSampler(
+    uint32_t group,
+    uint32_t binding,
+    bool comparison) const
 {
   for (const auto& pair : m_currentPipeline->m_textureSamplerPairs)
   {
@@ -521,11 +537,25 @@ SamplerGL* RenderPassGL::pairedSampler(uint32_t group, uint32_t binding) const
       continue;
     for (const auto& samp : glBg->m_glSamplers)
     {
-      if (samp.binding == pair.samplerBinding)
+      if (samp.binding != pair.samplerBinding)
+        continue;
+      if (samp.sampler == nullptr || samp.sampler->comparison() == comparison)
         return samp.sampler;
     }
   }
   return nullptr;
+}
+
+void RenderPassGL::bindUnitSampler(uint16_t unit, SamplerGL* sampler)
+{
+  if (unit >= m_unitSamplers.size())
+    m_unitSamplers.resize(unit + 1u);
+  UnitSampler& held = m_unitSamplers[unit];
+  if (held.known && held.bound.get() == sampler)
+    return;
+  glBindSampler(unit, sampler != nullptr ? sampler->m_glSampler : 0);
+  held.bound = ref_rcp(sampler);
+  held.known = true;
 }
 
 // GLSL folds a texture and its sampler into one uniform at the texture's unit,
@@ -536,6 +566,7 @@ void RenderPassGL::applySamplerBindings()
     return;
   m_samplerBindingsDirty = false;
 
+  auto* pipeline = lite_rtti_cast<PipelineGL*>(m_currentPipeline.get());
   for (uint32_t group = 0; group < kMaxBindGroups; ++group)
   {
     auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
@@ -544,20 +575,17 @@ void RenderPassGL::applySamplerBindings()
     for (const auto& tex : glBg->m_glTextures)
     {
       const uint16_t unit = glUnit(
-          m_currentPipeline->slots(group, tex.binding, SlotSpace::texture));
+          pipeline->slots(group, tex.binding, SlotSpace::texture));
       if (unit == BindingMap::kAbsent)
         continue;
-      // A fetch gets no sampler, since WebGL rejects a depth fetch through a
-      // comparison sampler an earlier draw left on its unit.
-      SamplerGL* sampler = pairedSampler(group, tex.binding);
-      if (unit >= m_unitSamplers.size())
-        m_unitSamplers.resize(unit + 1u);
-      UnitSampler& held = m_unitSamplers[unit];
-      if (held.known && held.bound.get() == sampler)
-        continue;
-      glBindSampler(unit, sampler != nullptr ? sampler->m_glSampler : 0);
-      held.bound = ref_rcp(sampler);
-      held.known = true;
+      // A unit takes a sampler of the type its uniform has after link, or none,
+      // since WebGL rejects a depth read through a sampler of the other type.
+      bindUnitSampler(
+          unit,
+          pairedSampler(group, tex.binding, pipeline->comparesAt(unit)));
+      const uint16_t twin = pipeline->twinOf(unit);
+      if (twin != BindingMap::kAbsent)
+        bindUnitSampler(twin, pairedSampler(group, tex.binding, false));
     }
   }
 }

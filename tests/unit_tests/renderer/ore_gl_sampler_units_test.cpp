@@ -3,7 +3,8 @@
  */
 
 // WebGL rejects a fetch whose unit still holds the last draw's comparison
-// sampler, so our GL backend clears it.
+// sampler, so our GL backend clears it, and GL fails a draw whose unit two
+// sampler types read, so a depth texture read both ways gets a second unit.
 
 #include "ore_test_backends.hpp"
 
@@ -17,6 +18,7 @@
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include <iterator>
+#include <set>
 #include <vector>
 
 using namespace rive;
@@ -28,6 +30,7 @@ struct SamplerUnit
 {
   GLint unit;
   GLint sampler;
+  GLint texture;
   bool shadow;
 };
 
@@ -49,10 +52,11 @@ std::vector<SamplerUnit> programSamplerUnits()
     glGetActiveUniform(program, i, sizeof(name), nullptr, &size, &type, name);
     if (type != GL_SAMPLER_2D && type != GL_SAMPLER_2D_SHADOW)
       continue;
-    SamplerUnit unit{0, -1, type == GL_SAMPLER_2D_SHADOW};
+    SamplerUnit unit{0, -1, 0, type == GL_SAMPLER_2D_SHADOW};
     glGetUniformiv(program, glGetUniformLocation(program, name), &unit.unit);
     glActiveTexture(GL_TEXTURE0 + unit.unit);
     glGetIntegerv(GL_SAMPLER_BINDING, &unit.sampler);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &unit.texture);
     units.push_back(unit);
   }
   glActiveTexture(active);
@@ -62,9 +66,11 @@ std::vector<SamplerUnit> programSamplerUnits()
 rcp<Pipeline> makeFullscreenPipeline(
     Context& ctx,
     const ore_gm::OreGMShaderResult& shader,
-    BindGroupLayout* layout)
+    BindGroupLayout* layout,
+    bool deferBuildCheck = false)
 {
   PipelineDesc desc{};
+  desc.deferBuildCheck = deferBuildCheck;
   desc.vertexModule = shader.vsModule.get();
   desc.fragmentModule = shader.psModule.get();
   desc.vertexEntryPoint = shader.vsEntryPoint;
@@ -79,6 +85,39 @@ rcp<Pipeline> makeFullscreenPipeline(
   INFO("makePipeline: " << error);
   REQUIRE(pipeline != nullptr);
   return pipeline;
+}
+
+struct DepthScene
+{
+  rcp<Texture> texture;
+  rcp<TextureView> view;
+  rcp<Sampler> compare;
+};
+
+DepthScene makeDepthScene(Context& ctx)
+{
+  DepthScene scene;
+  TextureDesc depthDesc{};
+  depthDesc.width = 1;
+  depthDesc.height = 1;
+  depthDesc.format = TextureFormat::depth32float;
+  depthDesc.renderTarget = true;
+  depthDesc.numMipmaps = 1;
+  depthDesc.label = "ore_gl_sampler_units_depth";
+  scene.texture = ctx.makeTexture(depthDesc);
+  REQUIRE(scene.texture != nullptr);
+  TextureViewDesc viewDesc{};
+  viewDesc.texture = scene.texture.get();
+  viewDesc.mipCount = 1;
+  viewDesc.layerCount = 1;
+  viewDesc.aspect = TextureAspect::depthOnly;
+  scene.view = ctx.makeTextureView(viewDesc);
+  REQUIRE(scene.view != nullptr);
+  SamplerDesc compareDesc{};
+  compareDesc.compare = CompareFunction::less;
+  scene.compare = ctx.makeSampler(compareDesc);
+  REQUIRE(scene.compare != nullptr);
+  return scene;
 }
 
 void runFetchAfterCompareScenario(TestingWindow* window)
@@ -114,34 +153,13 @@ void runFetchAfterCompareScenario(TestingWindow* window)
       fetchShader,
       compareLayout.get());
 
-  TextureDesc depthDesc{};
-  depthDesc.width = 1;
-  depthDesc.height = 1;
-  depthDesc.format = TextureFormat::depth32float;
-  depthDesc.renderTarget = true;
-  depthDesc.numMipmaps = 1;
-  depthDesc.label = "ore_gl_sampler_units_depth";
-  auto depthTex = ctx.makeTexture(depthDesc);
-  REQUIRE(depthTex != nullptr);
-  TextureViewDesc viewDesc{};
-  viewDesc.texture = depthTex.get();
-  viewDesc.mipCount = 1;
-  viewDesc.layerCount = 1;
-  viewDesc.aspect = TextureAspect::depthOnly;
-  auto depthView = ctx.makeTextureView(viewDesc);
-  REQUIRE(depthView != nullptr);
-
-  SamplerDesc compareDesc{};
-  compareDesc.compare = CompareFunction::less;
-  auto compareSampler = ctx.makeSampler(compareDesc);
-  REQUIRE(compareSampler != nullptr);
-
+  auto scene = makeDepthScene(ctx);
   BindGroupDesc::TexEntry texture{};
   texture.slot = 0;
-  texture.view = depthView.get();
+  texture.view = scene.view.get();
   BindGroupDesc::SampEntry sampler{};
   sampler.slot = 1;
-  sampler.sampler = compareSampler.get();
+  sampler.sampler = scene.compare.get();
   BindGroupDesc compareGroupDesc{};
   compareGroupDesc.layout = compareLayout.get();
   compareGroupDesc.textures = &texture;
@@ -209,7 +227,154 @@ void runFetchAfterCompareScenario(TestingWindow* window)
   ore_gm::invalidateGLStateAfterOre(renderContext);
   window->endFrame();
 }
+
+bool compares(GLint sampler)
+{
+  GLint mode = GL_NONE;
+  if (sampler != 0)
+    glGetSamplerParameteriv(sampler, GL_TEXTURE_COMPARE_MODE, &mode);
+  return mode == GL_COMPARE_REF_TO_TEXTURE;
+}
+
+struct TwinDraw
+{
+  uint32_t shader;
+  // Keeps the last draw's group, so only the twin tells the pass to bind the
+  // texture again.
+  bool keepsGroup;
+  // Binds the plain sampler and a second texture as well.
+  bool fourBindings;
+  size_t uniforms;
+  // Plain reads sharing a shadow read's texture, which the twin unit holds.
+  int twins;
+  int plainSamplers;
+};
+
+// A draw that only compares; one entry fetching what it compares, keeping that
+// group; a vertex stage fetching what its fragment stage compares; two
+// textures read both ways, one through a plain sampler; and two whose
+// comparison or plain sample goes unused, leaving GL one uniform of the two.
+template <bool deferBuildCheck>
+void runCompareAndFetchScenario(TestingWindow* window)
+{
+  auto* renderContext = window->renderContext();
+  ore_gm::OreGMContext oreGM;
+  REQUIRE(oreGM.ensureContext(renderContext));
+  auto& ctx = *renderContext->getOreContext();
+  if (deferBuildCheck && !ctx.defersBuildChecks())
+  {
+    WARN("no KHR_parallel_shader_compile; links stay synchronous");
+    return;
+  }
+  auto scene = makeDepthScene(ctx);
+  auto second = makeDepthScene(ctx);
+  auto plainSampler = ctx.makeSampler(SamplerDesc{});
+  REQUIRE(plainSampler != nullptr);
+  auto canvas = renderContext->makeRenderCanvas(4, 4);
+  REQUIRE(canvas != nullptr);
+  auto target = ctx.wrapCanvasTexture(canvas.get());
+  REQUIRE(target != nullptr);
+
+  auto renderer = window->beginFrame(
+      {.name = "ore_gl_sampler_units_split", .doClear = true});
+  oreGM.beginFrame(renderContext);
+  RenderPassDesc passDesc{};
+  passDesc.colorAttachments[0].view = target.get();
+  passDesc.colorAttachments[0].loadOp = LoadOp::clear;
+  passDesc.colorAttachments[0].storeOp = StoreOp::store;
+  passDesc.colorCount = 1;
+  auto pass = ctx.beginRenderPass(passDesc);
+  REQUIRE(pass != nullptr);
+
+  const TwinDraw draws[] = {
+      {ore_gm::kUnitCompare, false, false, 1, 0, 0},
+      {ore_gm::kUnitCompareFetch, true, false, 2, 1, 0},
+      {ore_gm::kUnitStageSplit, false, false, 2, 1, 0},
+      {ore_gm::kUnitTwinPair, false, true, 4, 2, 1},
+      {ore_gm::kUnitDeadCompare, false, false, 1, 0, 0},
+      {ore_gm::kUnitDeadPlain, false, true, 2, 0, 0},
+  };
+  rcp<BindGroupLayout> layout;
+  rcp<BindGroup> group;
+  std::vector<rcp<Pipeline>> pipelines;
+  for (const TwinDraw& draw : draws)
+  {
+    INFO("shader " << draw.shader);
+    auto shader = ore_gm::loadShader(ctx, draw.shader);
+    REQUIRE(shader.vsModule);
+    if (!draw.keepsGroup)
+    {
+      layout = ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 0);
+      BindGroupDesc::TexEntry textures[2] = {};
+      textures[0].slot = 0;
+      textures[0].view = scene.view.get();
+      textures[1].slot = 3;
+      textures[1].view = second.view.get();
+      BindGroupDesc::SampEntry samplers[2] = {};
+      samplers[0].slot = 1;
+      samplers[0].sampler = scene.compare.get();
+      samplers[1].slot = 2;
+      samplers[1].sampler = plainSampler.get();
+      BindGroupDesc groupDesc{};
+      groupDesc.layout = layout.get();
+      groupDesc.textures = textures;
+      groupDesc.textureCount = draw.fourBindings ? 2 : 1;
+      groupDesc.samplers = samplers;
+      groupDesc.samplerCount = draw.fourBindings ? 2 : 1;
+      group = ctx.makeBindGroup(groupDesc);
+      REQUIRE(group != nullptr);
+    }
+    pipelines.push_back(
+        makeFullscreenPipeline(ctx, shader, layout.get(), deferBuildCheck));
+
+    while (glGetError() != GL_NO_ERROR)
+    {
+    }
+    pass->setPipeline(pipelines.back().get());
+    if (!draw.keepsGroup)
+      pass->setBindGroup(0, group.get());
+    pass->draw(3);
+    CHECK(glGetError() == GL_NO_ERROR);
+    const auto units = programSamplerUnits();
+    REQUIRE(units.size() == draw.uniforms);
+    std::set<GLint> distinct;
+    int twins = 0;
+    int plainSamplers = 0;
+    for (const SamplerUnit& unit : units)
+    {
+      distinct.insert(unit.unit);
+      CHECK(compares(unit.sampler) == unit.shadow);
+      if (unit.shadow)
+        continue;
+      plainSamplers += unit.sampler != 0;
+      for (const SamplerUnit& shadow : units)
+        twins += shadow.shadow && shadow.texture == unit.texture;
+    }
+    CHECK(distinct.size() == units.size());
+    CHECK(twins == draw.twins);
+    CHECK(plainSamplers == draw.plainSamplers);
+  }
+
+  pass->finish();
+  oreGM.endFrame(renderContext);
+  ore_gm::invalidateGLStateAfterOre(renderContext);
+  window->endFrame();
+}
 } // namespace
+
+TEST_CASE(
+    "ore GL gives a depth texture read with and without a comparison two units",
+    "[ore][gl]")
+{
+  if (ore_test::runOnBackends(
+          ore_test::kGLBackends,
+          &runCompareAndFetchScenario<false>) == 0)
+    WARN("no Ore GL backend available headless; skipping");
+  // A link left to settle at setPipeline has to split its units there.
+  ore_test::runOnBackends(
+      ore_test::kGLBackends,
+      &runCompareAndFetchScenario<true>);
+}
 
 TEST_CASE(
     "ore GL clears a comparison sampler off a unit the next draw only fetches",

@@ -82,7 +82,15 @@ private:
     bool known = false;
   };
   std::vector<UnitSampler> m_unitSamplers;
-  SamplerGL* pairedSampler(uint32_t group, uint32_t binding) const;
+  void bindUnitSampler(uint16_t unit, SamplerGL* sampler);
+  void bindUnitTexture(
+      uint16_t unit,
+      unsigned int target,
+      unsigned int texture);
+
+  // The first of a texture's paired samplers that compares, or that does not.
+  SamplerGL* pairedSampler(uint32_t group, uint32_t binding, bool comparison)
+      const;
 
   // Per draw, since any bound group can hold a view of the same texture.
   void applySampledLevels();
