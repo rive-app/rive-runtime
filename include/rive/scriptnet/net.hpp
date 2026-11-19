@@ -9,6 +9,7 @@
 #include "rive/refcnt.hpp"
 
 #include <cstdint>
+#include <functional>
 
 // Script networking. A script's fetch() becomes a request here; NetPolicy and
 // the per-VM limits run first, then the host's Provider sends it, and the
@@ -63,6 +64,37 @@ rcp<Provider> makePlatformProvider();
 
 /// Replaces the transport. Null (the default) denies every request.
 void setProvider(rcp<Provider> provider);
+
+/// Where a script's rive/cloud calls go. The host supplies this at startup and
+/// nothing in a file can set it. A script names only a path, as
+/// `rive-cloud:/v1/...`: the host fills in the address and the namespace, says
+/// hello with the device key, keeps the player token and adds it to each
+/// request, saying hello again when the engine answers 401. So a script can
+/// neither choose the address nor touch the key or the token. A script's own
+/// `POST rive-cloud:/v1/hello`, with an optional `{"display_name": ...}`, is
+/// answered by the host with the engine's hello answer less its token. Each
+/// `Idempotency-Key` a script sends gains a prefix that differs every run.
+struct CloudEndpoint
+{
+  /// May be http: or a local address, which fetch() refuses: the host chose it.
+  std::string baseUrl;
+  std::string namespaceId;
+  /// A label sent with the hello. The player comes from the device key.
+  std::string installId;
+  /// Signs `message` with this device's P-256 key: the public key as a JWK and
+  /// the raw r||s signature in base64url. The key never leaves the host.
+  std::function<bool(
+      const std::string& message,
+      std::string* publicJwk,
+      std::string* signature)>
+      signHello;
+};
+/// Requests made for the last endpoint and not yet sent fail as Aborted.
+void setCloudEndpoint(CloudEndpoint endpoint);
+
+/// Whether plain fetch() is allowed. A host can turn on rive-cloud alone, so a
+/// file that talks to its own backend gets no general access to the network.
+void setGeneralFetchEnabled(bool enabled);
 bool hasProvider();
 
 void setLimits(const NetLimits& limits);

@@ -6,10 +6,14 @@
 
 #include "rive/scriptnet/net.hpp"
 
+#include <algorithm>
+#include <cctype>
+
 #include <atomic>
 #include <chrono>
 #include <deque>
 #include <mutex>
+#include <random>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -131,6 +135,268 @@ namespace
 {
 using Clock = std::chrono::steady_clock;
 
+enum class HelloStep : uint8_t
+{
+  None,
+  Challenge,
+  Hello,
+};
+
+// No script owns the host's own hello calls.
+constexpr uint64_t kHostOwner = UINT64_MAX;
+
+// How often a 401 with no challenge may cost a new hello.
+constexpr std::chrono::minutes kBlindHelloInterval{1};
+
+// What a request not yet sent fails with once the host names another endpoint.
+NetError endpointReplaced()
+{
+  return {NetErrorCode::Aborted, "the host named another Rive Cloud endpoint"};
+}
+
+// The top-level members of a JSON object, each as the raw text of its name
+// (quotes included) and of its value. False for anything else. It checks
+// only as much as it needs to split the text, since the engine wrote it.
+bool jsonMembers(
+    const std::string& text,
+    std::vector<std::pair<std::string, std::string>>* members)
+{
+  size_t at = 0;
+  auto skipSpace = [&]() {
+    while (at < text.size() && (text[at] == ' ' || text[at] == '\t' ||
+                                text[at] == '\r' || text[at] == '\n'))
+    {
+      at++;
+    }
+  };
+  // Leaves `at` past the closing quote.
+  auto skipString = [&]() {
+    if (at >= text.size() || text[at] != '"')
+    {
+      return false;
+    }
+    for (at++; at < text.size(); at++)
+    {
+      if (text[at] == '\\')
+      {
+        at++;
+      }
+      else if (text[at] == '"')
+      {
+        at++;
+        return true;
+      }
+    }
+    return false;
+  };
+  skipSpace();
+  if (at >= text.size() || text[at] != '{')
+  {
+    return false;
+  }
+  at++;
+  skipSpace();
+  if (at < text.size() && text[at] == '}')
+  {
+    return true;
+  }
+  for (;;)
+  {
+    skipSpace();
+    size_t nameStart = at;
+    if (!skipString())
+    {
+      return false;
+    }
+    std::string name = text.substr(nameStart, at - nameStart);
+    skipSpace();
+    if (at >= text.size() || text[at] != ':')
+    {
+      return false;
+    }
+    at++;
+    skipSpace();
+    size_t valueStart = at;
+    if (at < text.size() && text[at] == '"')
+    {
+      if (!skipString())
+      {
+        return false;
+      }
+    }
+    else
+    {
+      int depth = 0;
+      while (at < text.size())
+      {
+        char c = text[at];
+        if (c == '"')
+        {
+          if (!skipString())
+          {
+            return false;
+          }
+          continue;
+        }
+        if (c == '{' || c == '[')
+        {
+          depth++;
+        }
+        else if (c == '}' || c == ']')
+        {
+          if (depth == 0)
+          {
+            break;
+          }
+          depth--;
+        }
+        else if (c == ',' && depth == 0)
+        {
+          break;
+        }
+        at++;
+      }
+    }
+    size_t valueEnd = at;
+    while (valueEnd > valueStart &&
+           (text[valueEnd - 1] == ' ' || text[valueEnd - 1] == '\t' ||
+            text[valueEnd - 1] == '\r' || text[valueEnd - 1] == '\n'))
+    {
+      valueEnd--;
+    }
+    if (valueEnd == valueStart)
+    {
+      return false;
+    }
+    members->push_back(
+        {std::move(name), text.substr(valueStart, valueEnd - valueStart)});
+    skipSpace();
+    if (at >= text.size())
+    {
+      return false;
+    }
+    if (text[at] == '}')
+    {
+      return true;
+    }
+    if (text[at] != ',')
+    {
+      return false;
+    }
+    at++;
+  }
+}
+
+// The raw text of the member called `name`, or "" without one.
+std::string jsonMember(
+    const std::vector<std::pair<std::string, std::string>>& members,
+    const char* name)
+{
+  std::string quoted = std::string("\"") + name + "\"";
+  for (const auto& member : members)
+  {
+    if (member.first == quoted)
+    {
+      return member.second;
+    }
+  }
+  return "";
+}
+
+// What a raw JSON string holds when it is plain: no escapes, and only the
+// characters tokens, challenges and player IDs are made of. "" otherwise.
+std::string plainString(const std::string& raw)
+{
+  if (raw.size() < 2 || raw.front() != '"' || raw.back() != '"')
+  {
+    return "";
+  }
+  for (size_t i = 1; i + 1 < raw.size(); i++)
+  {
+    char c = raw[i];
+    if (!std::isalnum((unsigned char)c) && c != '.' && c != '-' && c != '_')
+    {
+      return "";
+    }
+  }
+  return raw.substr(1, raw.size() - 2);
+}
+
+std::string bodyText(const std::vector<uint8_t>& body)
+{
+  return std::string(body.begin(), body.end());
+}
+
+// Whether a segment of the path is "." or "..", which a transport may resolve
+// and which a URL parser also takes spelled %2e. A key may hold dots.
+bool hasDotSegment(const std::string& path)
+{
+  size_t end = std::min(path.find('?'), path.size());
+  for (size_t start = 0; start <= end;)
+  {
+    size_t stop = std::min(path.find('/', start), end);
+    size_t at = start;
+    size_t dots = 0;
+    for (; at < stop; dots++)
+    {
+      if (path[at] == '.')
+      {
+        at++;
+      }
+      else if (
+          stop - at >= 3 && path[at] == '%' && path[at + 1] == '2' &&
+          (path[at + 2] == 'e' || path[at + 2] == 'E'))
+      {
+        at += 3;
+      }
+      else
+      {
+        break;
+      }
+    }
+    if (at == stop && (dots == 1 || dots == 2))
+    {
+      return true;
+    }
+    start = stop + 1;
+  }
+  return false;
+}
+
+// The player this host is, to the Rive Cloud engine. The host says hello,
+// keeps the token and adds it to each rive-cloud: request, so a script never
+// holds it.
+struct CloudSession
+{
+  std::string token;
+  uint64_t tokenGeneration = 0;
+  // What a script's POST /v1/hello is answered with: the engine's hello
+  // answer without its token.
+  std::string answer;
+  // The player's name as the engine last gave it, and one a script asked
+  // for that the next hello carries. Both as raw JSON strings.
+  std::string displayName;
+  std::string wantedName;
+  // The name the hello now out carries, to tell whether one asked for
+  // meanwhile still has to be sent.
+  std::string helloName;
+  // A challenge to sign: from hello/challenge, or from a 401's body.
+  std::string challenge;
+  // A hello call is out, so no other starts.
+  bool helloInFlight = false;
+  // The engine refused a signed challenge and gave another, which is signed
+  // once more and no further.
+  bool signedAgain = false;
+  // The earliest a 401 with no challenge may next drop the token.
+  Clock::time_point nextBlindHello;
+  // Rises when the host names another endpoint, so an answer from the last
+  // one is dropped.
+  uint64_t epoch = 0;
+  // Put before each Idempotency-Key a script sends, so its keys, which count
+  // from 1 in every run, never match another run's.
+  std::string keyPrefix;
+};
+
 struct Outstanding
 {
   uint64_t ownerId = 0;
@@ -161,6 +427,25 @@ struct Outstanding
   // fetch() aborts once start() has returned.
   bool starting = false;
   bool cancelled = false;
+  // A rive-cloud: request. It waits for the host's player token, is sent
+  // with it, and is kept here so it can be sent again.
+  bool cloud = false;
+  // A script's POST /v1/hello. The host answers it from what the engine's
+  // hello said, without the token, and never sends it.
+  bool session = false;
+  // Sent again after a 401, with a new token. Once.
+  bool retried = false;
+  // Which token it was sent with, so one expired token is dropped once
+  // however many requests come back 401 with it.
+  uint64_t tokenGeneration = 0;
+  // One of the host's own two hello calls. It has no listener and no owner,
+  // and its answer changes the session instead of reaching a script.
+  HelloStep helloStep = HelloStep::None;
+  // The endpoint a hello call or a rive-cloud: request was made for.
+  uint64_t epoch = 0;
+  // The rive-cloud: URL the script asked for, which is the URL its response
+  // names: the engine's address and the namespace are the host's to know.
+  std::string scriptUrl;
 };
 
 struct Owner
@@ -197,6 +482,9 @@ public:
   // ever called with it released, since both can re-enter this file.
   std::mutex mutex;
   rcp<Provider> provider;
+  CloudEndpoint cloud;
+  CloudSession session;
+  bool generalFetchEnabled = true;
   NetLimits limits;
   RequestId nextId = 1;
   std::unordered_map<RequestId, Outstanding> outstanding;
@@ -344,7 +632,7 @@ public:
   }
 
   // The host and the policy; fills `error` and returns false to refuse.
-  bool allow(HttpRequest& request, NetError* error)
+  bool allow(HttpRequest& request, Outstanding& entry, NetError* error)
   {
     if (provider == nullptr)
     {
@@ -352,7 +640,340 @@ public:
       error->message = "network access is not enabled for scripts in this host";
       return false;
     }
+    static const std::string kCloudScheme = "rive-cloud:";
+    if (request.url.compare(0, kCloudScheme.size(), kCloudScheme) == 0)
+    {
+      return allowCloud(request, entry, kCloudScheme.size(), error);
+    }
+    if (!generalFetchEnabled)
+    {
+      error->code = NetErrorCode::Disabled;
+      error->message = "network access is not enabled for scripts in this host";
+      return false;
+    }
     return NetPolicy::check(request, limits, error);
+  }
+
+  // A rive-cloud: request passes every rule a fetch does (method, headers,
+  // sizes, URL characters), judged against a stand-in public address. Then the
+  // host's own address replaces it, so http: and loopback are reachable here
+  // and only here, and only at the one address the host named.
+  bool allowCloud(
+      HttpRequest& request,
+      Outstanding& entry,
+      size_t schemeLength,
+      NetError* error)
+  {
+    if (cloud.baseUrl.empty())
+    {
+      error->code = NetErrorCode::Disabled;
+      error->message = "this host has no Rive Cloud endpoint";
+      return false;
+    }
+    std::string path = request.url.substr(schemeLength);
+    // A fragment never reaches the engine, so /v1/hello#x would be its hello
+    // under a name the hello rule below does not know.
+    if (path.compare(0, 4, "/v1/") != 0 || hasDotSegment(path) ||
+        path.find('#') != std::string::npos)
+    {
+      error->code = NetErrorCode::Policy;
+      error->message = "a rive-cloud: URL is a path under /v1/ with no . or "
+                       ".. segment and no fragment";
+      return false;
+    }
+    // The engine decodes a segment before it matches a route, so an encoded
+    // route family would slip past the hello rule below. None needs encoding.
+    size_t familyEnd = path.find_first_of("/?", 4);
+    if (path.substr(
+                4,
+                familyEnd == std::string::npos ? familyEnd : familyEnd - 4)
+            .find('%') != std::string::npos)
+    {
+      error->code = NetErrorCode::Policy;
+      error->message = "a rive-cloud: route is not percent-encoded";
+      return false;
+    }
+    HttpRequest probe = request;
+    probe.url = "https://cloud.example.com" + path;
+    if (!NetPolicy::check(probe, limits, error))
+    {
+      return false;
+    }
+    // Keep what the check normalized, such as the default timeout.
+    request = std::move(probe);
+    // The namespace goes in the path, where a CORS preflight can see it.
+    request.url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId +
+                  path.substr(3);
+    // The host's values win over anything the script set, and the token is
+    // the host's to add.
+    for (size_t i = request.headers.size(); i-- > 0;)
+    {
+      std::string lower = lowerAscii(request.headers[i].name);
+      if (lower == "x-rive-namespace" || lower == "x-rive-install-id" ||
+          lower == "x-rive-challenge" || lower == "authorization")
+      {
+        request.headers.erase(request.headers.begin() + i);
+      }
+      else if (lower == "idempotency-key")
+      {
+        // The owner is one VM, so a reloaded script, which counts its keys
+        // from 1 again, never repeats the last one's.
+        request.headers[i].value = session.keyPrefix + "." +
+                                   std::to_string(entry.ownerId) + "." +
+                                   request.headers[i].value;
+      }
+    }
+    entry.cloud = true;
+    entry.epoch = session.epoch;
+    entry.scriptUrl = "rive-cloud:" + path;
+    std::string route = path.substr(0, path.find('?'));
+    if (route.compare(0, 9, "/v1/hello") != 0 ||
+        (route.size() > 9 && route[9] != '/'))
+    {
+      return true;
+    }
+    // The host says hello. A script's own POST /v1/hello asks who the player
+    // is, and may name them; nothing else under hello is a script's to call.
+    if (route != "/v1/hello" || request.method != "POST")
+    {
+      error->code = NetErrorCode::Policy;
+      error->message = "the host says hello; a script only posts /v1/hello";
+      return false;
+    }
+    entry.session = true;
+    std::vector<std::pair<std::string, std::string>> members;
+    std::string body = bodyText(request.body);
+    if (body.find_first_not_of(" \t\r\n") != std::string::npos &&
+        !jsonMembers(body, &members))
+    {
+      error->code = NetErrorCode::Policy;
+      error->message = "a hello body is a JSON object";
+      return false;
+    }
+    std::string name = jsonMember(members, "display_name");
+    if (name.size() >= 2 && name.front() == '"' && name != session.displayName)
+    {
+      // Only a hello carries a name to the engine, so the next request
+      // waits for a new one.
+      session.wantedName = name;
+      session.token.clear();
+    }
+    return true;
+  }
+
+  // What a script's POST /v1/hello resolves with.
+  HttpResponse sessionAnswer(const Outstanding& entry) const
+  {
+    HttpResponse response;
+    response.status = 200;
+    response.statusText = "OK";
+    response.url = entry.scriptUrl;
+    response.headers.push_back({"content-type", "application/json"});
+    response.body.assign(session.answer.begin(), session.answer.end());
+    return response;
+  }
+
+  // Takes a request that waits for the token out of its owner's queue.
+  void unqueue(RequestId id, Outstanding& entry)
+  {
+    if (!entry.queued)
+    {
+      return;
+    }
+    entry.queued = false;
+    auto owner = owners.find(entry.ownerId);
+    if (owner == owners.end())
+    {
+      return;
+    }
+    std::deque<RequestId>& waiting = owner->second.waiting;
+    for (auto at = waiting.begin(); at != waiting.end(); ++at)
+    {
+      if (*at == id)
+      {
+        waiting.erase(at);
+        break;
+      }
+    }
+    owner->second.waitingBodyBytes -= entry.request.body.size();
+  }
+
+  // The hello came to nothing: every request waiting for its token hears so,
+  // as an answer or an error, and the script decides whether to try again.
+  // The next rive-cloud: request starts a new hello.
+  void failHello(const HttpResponse* response, const NetError* error)
+  {
+    session.helloInFlight = false;
+    session.signedAgain = false;
+    session.challenge.clear();
+    // Only a refusal is a script's to read: any other answer may hold a token.
+    NetError unusable;
+    if (response != nullptr && response->status < 400)
+    {
+      unusable.message = "the engine answered the host's hello with a " +
+                         std::to_string(response->status) +
+                         " the host cannot use";
+      response = nullptr;
+      error = &unusable;
+    }
+    for (auto& [id, entry] : outstanding)
+    {
+      if (!entry.cloud || !entry.queued || entry.settled)
+      {
+        continue;
+      }
+      unqueue(id, entry);
+      entry.settled = true;
+      Outcome outcome;
+      outcome.id = id;
+      if (response != nullptr)
+      {
+        outcome.ok = true;
+        outcome.response = *response;
+        outcome.response.url = entry.scriptUrl;
+        // A hello's 404 or 409 would read as a data request's own answer, so
+        // it gets a 401. Too many requests or a failing engine is true of both.
+        if (!entry.session && response->status != 429 && response->status < 500)
+        {
+          outcome.response.status = 401;
+          outcome.response.statusText = standardReasonPhrase(401);
+        }
+      }
+      else
+      {
+        outcome.error = *error;
+      }
+      queue(std::move(outcome));
+    }
+  }
+
+  // The engine answered one of the host's hello calls.
+  void helloAnswered(HelloStep step, const HttpResponse& response)
+  {
+    std::vector<std::pair<std::string, std::string>> members;
+    bool parsed = jsonMembers(bodyText(response.body), &members);
+    std::string challenge = parsed
+                                ? plainString(jsonMember(members, "challenge"))
+                                : "";
+    if (step == HelloStep::Challenge)
+    {
+      if (response.status != 200 || challenge.empty())
+      {
+        failHello(&response, nullptr);
+        return;
+      }
+      session.challenge = challenge;
+      session.helloInFlight = false;
+      return;
+    }
+    if (response.status == 401 && !challenge.empty() && !session.signedAgain)
+    {
+      // challenge_invalid, with one that is valid.
+      session.challenge = challenge;
+      session.signedAgain = true;
+      session.helloInFlight = false;
+      return;
+    }
+    std::string token = parsed ? plainString(jsonMember(members, "token")) : "";
+    if (response.status != 200 || token.empty())
+    {
+      if (response.status == 400 && session.wantedName == session.helloName)
+      {
+        // The engine refused the hello as written, which for a hello the
+        // host built means the name. Kept, it would fail every later hello,
+        // and with them every request.
+        session.wantedName.clear();
+      }
+      failHello(&response, nullptr);
+      return;
+    }
+    session.challenge.clear();
+    session.signedAgain = false;
+    session.helloInFlight = false;
+    if (session.wantedName != session.helloName)
+    {
+      // A script chose a name after this hello left. Its token is dropped
+      // and the next hello carries the name, so no request goes out, and no
+      // script hears who the player is, under the old one.
+      return;
+    }
+    session.token = std::move(token);
+    session.tokenGeneration++;
+    session.displayName = jsonMember(members, "display_name");
+    session.wantedName.clear();
+    session.answer = "{";
+    for (const auto& member : members)
+    {
+      if (member.first == "\"token\"")
+      {
+        continue;
+      }
+      if (session.answer.size() > 1)
+      {
+        session.answer += ",";
+      }
+      session.answer += member.first + ":" + member.second;
+    }
+    session.answer += "}";
+  }
+
+  // A rive-cloud: request came back 401: its token has expired. It goes back
+  // to the front of its owner's queue to be sent with the next token, once.
+  // False when it cannot, and the 401 is the script's.
+  bool retryWithNewToken(
+      RequestId id,
+      Outstanding& entry,
+      const HttpResponse& response)
+  {
+    auto owner = owners.find(entry.ownerId);
+    // A request made for another endpoint keeps that address, which must not
+    // see this one's token.
+    if (!entry.cloud || entry.retried || entry.cancelled ||
+        response.status != 401 || owner == owners.end() ||
+        entry.epoch != session.epoch)
+    {
+      return false;
+    }
+    std::vector<std::pair<std::string, std::string>> members;
+    std::string challenge;
+    if (jsonMembers(bodyText(response.body), &members))
+    {
+      challenge = plainString(jsonMember(members, "challenge"));
+    }
+    bool current = entry.tokenGeneration == session.tokenGeneration;
+    if (challenge.empty() && current && !session.token.empty())
+    {
+      // Only an expired token's 401 carries a challenge. Without one the route
+      // may refuse any token, so a script cannot cost a hello on every call.
+      Clock::time_point now = Clock::now();
+      if (now < session.nextBlindHello)
+      {
+        return false;
+      }
+      session.nextBlindHello = now + kBlindHelloInterval;
+    }
+    entry.retried = true;
+    if (current)
+    {
+      session.token.clear();
+      // Signing the 401's challenge saves the challenge call.
+      if (!challenge.empty() && !session.helloInFlight)
+      {
+        session.challenge = std::move(challenge);
+      }
+    }
+    release(entry);
+    entry.started = false;
+    entry.queued = true;
+    owner->second.waiting.push_front(id);
+    owner->second.waitingBodyBytes += entry.request.body.size();
+    return true;
+  }
+
+  void addToken(Outstanding& entry, HttpRequest& request) const
+  {
+    entry.tokenGeneration = session.tokenGeneration;
+    request.headers.push_back({"Authorization", "Bearer " + session.token});
   }
 
   // Whether `owner` has a slot free and room for more answers than poll()
@@ -433,6 +1054,13 @@ static void startRequest(
       net.erase(it);
       return;
     }
+    // The host named another endpoint after this one was readied for the last.
+    if (it->second.cloud && it->second.epoch != net.session.epoch)
+    {
+      it->second.starting = false;
+      net.settle(id, it->second, endpointReplaced());
+      return;
+    }
   }
   provider->start(id, request);
   bool abortNow = false;
@@ -455,6 +1083,120 @@ static void startRequest(
   }
 }
 
+// Sends the host's next hello call, if one is due: the challenge, or the
+// hello that signs it. Any thread with a request waiting for the token calls
+// this, and the answer changes the session from whichever thread the
+// transport reports it on. True when it sent one.
+static bool driveHello(Net& net)
+{
+  std::string challenge;
+  CloudEndpoint cloud;
+  std::string wantedName;
+  uint64_t epoch;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    CloudSession& session = net.session;
+    if (session.helloInFlight || !session.token.empty() ||
+        net.provider == nullptr || net.cloud.baseUrl.empty())
+    {
+      return false;
+    }
+    session.helloInFlight = true;
+    challenge = session.challenge;
+    wantedName = session.wantedName;
+    session.helloName = wantedName;
+    cloud = net.cloud;
+    epoch = session.epoch;
+  }
+  HttpRequest request;
+  request.method = "POST";
+  request.url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId + "/hello";
+  HelloStep step = HelloStep::Hello;
+  NetError refusal;
+  refusal.code = NetErrorCode::Policy;
+  if (challenge.empty())
+  {
+    step = HelloStep::Challenge;
+    request.url += "/challenge";
+  }
+  else
+  {
+    // Signed without the lock: a host may take a while to reach its key.
+    std::string jwk, signature;
+    if (!cloud.signHello)
+    {
+      refusal.message = "this host has no device key, so it cannot say hello";
+    }
+    else if (!cloud.signHello("rive-hello-v1\n" + challenge, &jwk, &signature))
+    {
+      refusal.message = "the device key could not sign the hello";
+    }
+    else
+    {
+      std::string body = "{\"challenge\":\"" + challenge +
+                         "\",\"device\":{\"key\":" + jwk + ",\"sig\":\"" +
+                         signature + "\"}";
+      bool plainId = !cloud.installId.empty();
+      for (char c : cloud.installId)
+      {
+        plainId = plainId && (std::isalnum((unsigned char)c) || c == '-' ||
+                              c == '_' || c == '.');
+      }
+      if (plainId)
+      {
+        body += ",\"install_id\":\"" + cloud.installId + "\"";
+      }
+      if (!wantedName.empty())
+      {
+        body += ",\"display_name\":" + wantedName;
+      }
+      body += "}";
+      request.body.assign(body.begin(), body.end());
+      request.headers.push_back({"Content-Type", "application/json"});
+    }
+  }
+  RequestId id;
+  rcp<Provider> provider;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    if (net.session.epoch != epoch)
+    {
+      // The host named another endpoint meanwhile, which reset the session.
+      return false;
+    }
+    if (!refusal.message.empty() || net.provider == nullptr)
+    {
+      if (refusal.message.empty())
+      {
+        refusal.code = NetErrorCode::Disabled;
+        refusal
+            .message = "network access is not enabled for scripts in this host";
+      }
+      net.failHello(nullptr, &refusal);
+      return true;
+    }
+    request.timeoutMs = net.limits.defaultTimeoutMs;
+    id = net.allocateId();
+    Outstanding& entry = net.outstanding[id];
+    net.outstandingCount.store(
+        net.outstanding.size(),
+        std::memory_order_relaxed);
+    entry.ownerId = kHostOwner;
+    entry.thread = std::this_thread::get_id();
+    entry.helloStep = step;
+    entry.epoch = epoch;
+    entry.started = true;
+    entry.starting = true;
+    entry.provider = net.provider;
+    entry.deadline = Clock::now() +
+                     std::chrono::milliseconds(request.timeoutMs) +
+                     std::chrono::milliseconds(net.limits.watchdogGraceMs);
+    provider = net.provider;
+  }
+  startRequest(net, id, request, provider);
+  return true;
+}
+
 // Starts `thread`'s queued requests while their owners' limits allow, as
 // fetch() would have started them, and again after each batch, since a
 // transport answering inside start() frees its slot at once.
@@ -464,6 +1206,7 @@ static void startQueued(Net& net, std::thread::id thread)
   {
     std::vector<std::pair<RequestId, HttpRequest>> ready;
     rcp<Provider> provider;
+    bool wantsToken = false;
     {
       std::lock_guard<std::mutex> lock(net.mutex);
       provider = net.provider;
@@ -477,12 +1220,25 @@ static void startQueued(Net& net, std::thread::id thread)
             owner.waiting.pop_front();
             continue;
           }
-          if (it->second.thread != thread || !net.canStart(owner))
+          Outstanding& entry = it->second;
+          if (entry.thread != thread)
+          {
+            break;
+          }
+          // A rive-cloud: request waits for the host's hello, and holds its
+          // owner's later requests behind it, as any queued request does.
+          bool needsToken = entry.cloud && provider != nullptr &&
+                            net.session.token.empty();
+          if (needsToken)
+          {
+            wantsToken = true;
+            break;
+          }
+          if (!entry.session && provider != nullptr && !net.canStart(owner))
           {
             break;
           }
           owner.waiting.pop_front();
-          Outstanding& entry = it->second;
           owner.waitingBodyBytes -= entry.request.body.size();
           entry.queued = false;
           if (provider == nullptr)
@@ -494,12 +1250,33 @@ static void startQueued(Net& net, std::thread::id thread)
                  "network access is not enabled for scripts in this host"});
             continue;
           }
+          if (entry.session)
+          {
+            entry.settled = true;
+            Outcome outcome;
+            outcome.id = it->first;
+            outcome.ok = true;
+            outcome.response = net.sessionAnswer(entry);
+            net.queue(std::move(outcome));
+            continue;
+          }
           net.begin(owner, entry, entry.request.timeoutMs);
-          ready.push_back({it->first, std::move(entry.request)});
+          if (entry.cloud)
+          {
+            // Kept, to send again should this token have expired.
+            ready.push_back({it->first, entry.request});
+            net.addToken(entry, ready.back().second);
+          }
+          else
+          {
+            ready.push_back({it->first, std::move(entry.request)});
+          }
         }
       }
     }
-    if (ready.empty())
+    // A hello call answered inside start() leaves the next step due at once.
+    bool saidHello = wantsToken && driveHello(net);
+    if (ready.empty() && !saidHello)
     {
       return;
     }
@@ -508,6 +1285,42 @@ static void startQueued(Net& net, std::thread::id thread)
       startRequest(net, id, request, provider);
     }
   }
+}
+
+void setCloudEndpoint(CloudEndpoint endpoint)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  // Requests still waiting name the last endpoint's address, and must not go
+  // there with this one's token.
+  NetError replaced = endpointReplaced();
+  net.failHello(nullptr, &replaced);
+  while (!endpoint.baseUrl.empty() && endpoint.baseUrl.back() == '/')
+  {
+    endpoint.baseUrl.pop_back();
+  }
+  net.cloud = std::move(endpoint);
+  // Another endpoint is another player, and its hello starts from nothing.
+  uint64_t epoch = net.session.epoch + 1;
+  net.session = CloudSession();
+  net.session.epoch = epoch;
+  std::random_device random;
+  static const char kHex[] = "0123456789abcdef";
+  for (int i = 0; i < 4; i++)
+  {
+    uint32_t word = random();
+    for (int nibble = 0; nibble < 8; nibble++)
+    {
+      net.session.keyPrefix += kHex[(word >> (nibble * 4)) & 0xf];
+    }
+  }
+}
+
+void setGeneralFetchEnabled(bool enabled)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  net.generalFetchEnabled = enabled;
 }
 
 void setProvider(rcp<Provider> provider)
@@ -546,6 +1359,8 @@ RequestId fetch(
   Net& net = Net::instance();
   RequestId id;
   rcp<Provider> provider;
+  bool waitsForToken = false;
+  bool queued = false;
   {
     std::lock_guard<std::mutex> lock(net.mutex);
     id = net.allocateId();
@@ -557,24 +1372,44 @@ RequestId fetch(
     entry.thread = std::this_thread::get_id();
     entry.listener = std::move(listener);
     NetError error;
-    if (!net.allow(request, &error))
+    if (!net.allow(request, entry, &error))
     {
       net.settle(id, entry, std::move(error));
       return id;
     }
     // Past the limits a request waits its turn, as a browser holds those
-    // past its connection limit.
+    // past its connection limit. A rive-cloud: request also waits for the
+    // host's token, and a script's hello is answered from the queue.
     Owner& owner = net.owners[ownerId];
-    if (!owner.waiting.empty() || !net.canStart(owner))
+    waitsForToken = entry.cloud && (entry.session || net.session.token.empty());
+    if (waitsForToken || !owner.waiting.empty() || !net.canStart(owner))
     {
       if (!net.enqueue(owner, id, entry, std::move(request), &error))
       {
         net.settle(id, entry, std::move(error));
+        return id;
       }
-      return id;
+      queued = true;
     }
-    net.begin(owner, entry, request.timeoutMs);
-    provider = net.provider;
+    else
+    {
+      net.begin(owner, entry, request.timeoutMs);
+      if (entry.cloud)
+      {
+        // Kept, to send again should this token have expired.
+        entry.request = request;
+        net.addToken(entry, request);
+      }
+      provider = net.provider;
+    }
+  }
+  if (queued)
+  {
+    if (waitsForToken)
+    {
+      driveHello(net);
+    }
+    return id;
   }
   startRequest(net, id, request, provider);
   return id;
@@ -588,7 +1423,8 @@ bool cancel(RequestId id)
   {
     std::lock_guard<std::mutex> lock(net.mutex);
     auto it = net.outstanding.find(id);
-    if (it == net.outstanding.end() || it->second.cancelled)
+    if (it == net.outstanding.end() || it->second.cancelled ||
+        it->second.helloStep != HelloStep::None)
     {
       return false;
     }
@@ -671,6 +1507,7 @@ uint32_t poll(uint32_t maxDeliveries)
   }
   std::thread::id thread = std::this_thread::get_id();
   std::vector<std::pair<RequestId, rcp<Provider>>> overdue;
+  std::vector<RequestId> overdueHellos;
   uint64_t before;
   {
     std::lock_guard<std::mutex> lock(net.mutex);
@@ -681,10 +1518,28 @@ uint32_t poll(uint32_t maxDeliveries)
           now >= entry.second.deadline)
       {
         overdue.push_back({entry.first, entry.second.provider});
+        if (entry.second.helloStep != HelloStep::None)
+        {
+          // Settled below, where the map can lose it.
+          entry.second.settled = true;
+          overdueHellos.push_back(entry.first);
+          continue;
+        }
         net.settle(
             entry.first,
             entry.second,
             {NetErrorCode::Timeout, "no response before the timeout"});
+      }
+    }
+    for (RequestId id : overdueHellos)
+    {
+      auto it = net.outstanding.find(id);
+      bool current = it->second.epoch == net.session.epoch;
+      net.erase(it);
+      if (current)
+      {
+        NetError error{NetErrorCode::Timeout, "no response before the timeout"};
+        net.failHello(nullptr, &error);
       }
     }
     // Outcomes queued while this poll delivers wait for the next one.
@@ -775,6 +1630,25 @@ void complete(RequestId id, HttpResponse&& response)
   {
     return;
   }
+  if (it->second.helloStep != HelloStep::None)
+  {
+    HelloStep step = it->second.helloStep;
+    bool current = it->second.epoch == net.session.epoch;
+    net.erase(it);
+    if (current)
+    {
+      net.helloAnswered(step, response);
+    }
+    return;
+  }
+  if (net.retryWithNewToken(id, it->second, response))
+  {
+    return;
+  }
+  if (it->second.cloud)
+  {
+    response.url = it->second.scriptUrl;
+  }
   if (response.body.size() > net.limits.maxResponseBodyBytes)
   {
     net.settle(
@@ -801,6 +1675,16 @@ void fail(RequestId id, NetError&& error)
   auto it = net.outstanding.find(id);
   if (it == net.outstanding.end() || it->second.settled)
   {
+    return;
+  }
+  if (it->second.helloStep != HelloStep::None)
+  {
+    bool current = it->second.epoch == net.session.epoch;
+    net.erase(it);
+    if (current)
+    {
+      net.failHello(nullptr, &error);
+    }
     return;
   }
   net.settle(id, it->second, std::move(error));
