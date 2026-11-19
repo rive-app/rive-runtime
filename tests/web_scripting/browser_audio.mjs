@@ -133,7 +133,8 @@ if (offline > 0) {
     }
     Module._harness_audio(offline);
 }
-const expected = ${JSON.stringify(expected)};
+// Lines starting "page " print after this loop, so waiting on them runs all 1000 turns.
+const expected = ${JSON.stringify(expected.filter((want) => !want.startsWith('page ')))};
 for (let turn = 0; turn < 1000; turn++) {
     if (expected.every((want) => lines.some((line) => line.includes(want)))) {
         break;
