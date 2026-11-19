@@ -258,32 +258,41 @@ void ShapePaint::draw(
     // leaves the path undrawn rather than in its bare color.
     RenderPaint* paint = overridePaint != nullptr ? overridePaint
                                                   : renderPaint();
-    ModulatedDrawTarget target;
-    target.renderer = renderer;
-    if (!applyModulatedImage(
-            renderer,
-            paint,
-            shapePaintPath,
-            imageBounds,
-            &target))
+    // Most paints have no child and no stale image to clear: draw them
+    // straight away, keeping the modulated target off their path.
+    if (paintImage() == nullptr && !m_hasModulatedImage)
     {
-      // Nothing to draw; still restore below.
-    }
-    else if (target.renderer != renderer)
-    {
-      // An artboard source rasterized on an immediate host, which leaves
-      // [renderer] unable to sample the result; draw through the clean
-      // renderer it handed back (already clipped), with this draw's transform
-      // and opacity.
-      target.renderer->save();
-      target.renderer->transform(target.transform);
-      target.renderer->modulateOpacity(target.opacity);
-      target.renderer->drawPath(renderPath, paint);
-      target.renderer->restore();
+      renderer->drawPath(renderPath, paint);
     }
     else
     {
-      renderer->drawPath(renderPath, paint);
+      ModulatedDrawTarget target;
+      target.renderer = renderer;
+      if (!applyModulatedImage(
+              renderer,
+              paint,
+              shapePaintPath,
+              imageBounds,
+              &target))
+      {
+        // Nothing to draw; still restore below.
+      }
+      else if (target.renderer != renderer)
+      {
+        // An artboard source rasterized on an immediate host, which leaves
+        // [renderer] unable to sample the result; draw through the clean
+        // renderer it handed back (already clipped), with this draw's
+        // transform and opacity.
+        target.renderer->save();
+        target.renderer->transform(target.transform);
+        target.renderer->modulateOpacity(target.opacity);
+        target.renderer->drawPath(renderPath, paint);
+        target.renderer->restore();
+      }
+      else
+      {
+        renderer->drawPath(renderPath, paint);
+      }
     }
   }
 
