@@ -1969,6 +1969,23 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
   }
   m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+  // RenderContext::makeImageFromPixels refuses images larger than this.
+  if (deviceLimitsValid &&
+      deviceLimits.maxTextureDimension2D != wgpu::kLimitU32Undefined)
+  {
+    m_platformFeatures.maxTextureSize = deviceLimits.maxTextureDimension2D;
+  }
+  else
+  {
+    m_platformFeatures.maxTextureSize =
+#if RIVE_WEBGPU > 1
+        m_contextOptions.compatibilityMode
+            ? 4096 // Compatibility mode guarantees 4096.
+            :
+#endif
+            8192; // Core WebGPU guarantees 8192.
+  }
+
 #ifdef RIVE_WAGYU
   // We can only use advanced blend if the client enabled it when setting up
   // the device.

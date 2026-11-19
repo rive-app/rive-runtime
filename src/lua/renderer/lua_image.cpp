@@ -155,8 +155,50 @@ static int imagesampler_construct(lua_State* L)
   return 1;
 }
 
+// A whole number makeImageFromPixels takes as a size, or 0, which it refuses.
+static uint32_t pixelSize(double value)
+{
+  return value >= 1 && value <= Factory::maxImageSize &&
+                 value == static_cast<uint32_t>(value)
+             ? static_cast<uint32_t>(value)
+             : 0;
+}
+
+// Image.fromPixels(width, height, data): premultiplied RGBA8, the layout of
+// DecodedImage.data. Nil when the factory makes no image from them.
+static int image_fromPixels(lua_State* L)
+{
+  double w = luaL_checknumber(L, 1);
+  double h = luaL_checknumber(L, 2);
+  size_t len = 0;
+  const void* data = luaL_checkbuffer(L, 3, &len);
+  auto* ctx = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  Factory* factory = ctx != nullptr ? ctx->factory() : nullptr;
+  rcp<RenderImage> image;
+  if (factory != nullptr)
+  {
+    image = factory->makeImageFromPixels(
+        pixelSize(w),
+        pixelSize(h),
+        Span<const uint8_t>(static_cast<const uint8_t*>(data), len));
+  }
+  if (image == nullptr)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+  ScriptedImage::luaNew(L)->image = std::move(image);
+  return 1;
+}
+
+static const luaL_Reg imageStaticMethods[] = {
+    {"fromPixels", image_fromPixels},
+    {nullptr, nullptr}};
+
 int luaopen_rive_image(lua_State* L)
 {
+  luaL_register(L, ScriptedImage::luaName, imageStaticMethods);
+  lua_pop(L, 1);
   lua_register_rive<ScriptedImage>(L);
 
   lua_pushcfunction(L, image_index, nullptr);

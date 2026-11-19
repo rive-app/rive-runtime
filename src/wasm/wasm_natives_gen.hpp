@@ -471,6 +471,7 @@ void imageReleaseImpl(WasmScriptingVM* vm, uint32_t image);
 uint32_t imageDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount, uint32_t token);
 void imageDecodeCancelImpl(WasmScriptingVM* vm, uint32_t token);
 uint32_t imageLoadImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount);
+uint32_t imageFromPixelsImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t byteCount);
 uint32_t fontFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t length);
 #ifdef WITH_RIVE_TEXT
 uint32_t fontDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount);
@@ -2142,6 +2143,11 @@ uint32_t imageLoad(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount
     WasmScriptingVM* vm = vmFromEnv(env);
     return imageLoadImpl(vm, bytes, byteCount);
 }
+uint32_t imageFromPixels(wasm_exec_env_t env, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return imageFromPixelsImpl(vm, width, height, pixels, byteCount);
+}
 uint32_t fontFromAsset(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -3091,6 +3097,7 @@ NativeSymbol kImageNatives[] = {
     {"decode", (void*)imageDecode, "(*~i)i", nullptr},
     {"decode_cancel", (void*)imageDecodeCancel, "(i)", nullptr},
     {"load", (void*)imageLoad, "(*~)i", nullptr},
+    {"from_pixels", (void*)imageFromPixels, "(ii*~)i", nullptr},
 };
 
 NativeSymbol kFontNatives[] = {

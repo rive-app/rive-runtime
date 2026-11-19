@@ -144,6 +144,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
       case RenderCmd::decodeImage:
         r.read<DecodeImagePOD>();
         break;
+      case RenderCmd::makeImageFromPixels:
+        r.read<MakeImageFromPixelsPOD>();
+        break;
       case RenderCmd::makeBuffer:
         r.read<MakeBufferPOD>();
         break;
@@ -326,6 +329,9 @@ static void diagnose_replay_coverage(
         break;
       case RenderCmd::decodeImage:
         r.read<DecodeImagePOD>();
+        break;
+      case RenderCmd::makeImageFromPixels:
+        r.read<MakeImageFromPixelsPOD>();
         break;
       case RenderCmd::makeBuffer:
         r.read<MakeBufferPOD>();

@@ -306,6 +306,32 @@ public:
   }
 
 protected:
+  rcp<RenderImage> onMakeImageFromPixels(
+      uint32_t width,
+      uint32_t height,
+      Span<const uint8_t> rgbaPremul) override
+  {
+    // Blob lengths are 32-bit in the stream.
+    if (rgbaPremul.size() > UINT32_MAX)
+    {
+      return nullptr;
+    }
+    auto a = m_imageIds.alloc();
+    uint64_t off = m_buffer.appendBlob(
+        rgbaPremul.data(),
+        static_cast<uint32_t>(rgbaPremul.size()));
+    m_buffer.append(
+        static_cast<uint8_t>(RenderCmd::makeImageFromPixels),
+        MakeImageFromPixelsPOD{a.id, a.generation, off, width, height});
+    return make_rcp<DeferredRenderImage>(
+        a.id,
+        a.generation,
+        static_cast<int>(width),
+        static_cast<int>(height),
+        &m_buffer,
+        &m_imageIds);
+  }
+
   // Registry used to resolve foreign/canvas images (e.g. a Luau canvas
   // snapshot) referenced by a paint's modulatedImage, mirroring how the
   // renderer resolves them for drawImage. DeferredSession points this at its

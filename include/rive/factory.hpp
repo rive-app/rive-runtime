@@ -132,6 +132,39 @@ public:
     return deferredCanvasHost();
   }
 
+  // An image from width * height premultiplied RGBA8 pixels, mipmapped like
+  // a decoded image. Null when the pixels do not match the size, or where
+  // the factory cannot make images from pixels. A size past the device's max
+  // texture size is null only from an immediate RenderContext: a factory that
+  // creates the texture later (DeferredFactory at replay, WebGL2 at upload)
+  // returns an image that draws nothing, as decodeImage does there.
+  rcp<RenderImage> makeImageFromPixels(
+      uint32_t width,
+      uint32_t height,
+      Span<const uint8_t> rgbaPremul)
+  {
+    return validImagePixels(width, height, rgbaPremul)
+               ? onMakeImageFromPixels(width, height, rgbaPremul)
+               : nullptr;
+  }
+
+  // The largest side makeImageFromPixels takes, so every caller refuses the
+  // same sizes.
+  static constexpr uint32_t maxImageSize = 65535;
+
+  // True when rgbaPremul is exactly width * height RGBA8 pixels and no side
+  // passes maxImageSize, without the multiplication that wraps in 32 bits.
+  static bool validImagePixels(
+      uint32_t width,
+      uint32_t height,
+      Span<const uint8_t> rgbaPremul)
+  {
+    return width != 0 && height != 0 && width <= maxImageSize &&
+           height <= maxImageSize && rgbaPremul.size() % 4 == 0 &&
+           static_cast<uint64_t>(width) * height ==
+               static_cast<uint64_t>(rgbaPremul.size() / 4);
+  }
+
   rcp<Font> decodeFont(Span<const uint8_t>);
   rcp<Font> decodeFont(std::vector<uint8_t>&&);
 
@@ -140,6 +173,16 @@ public:
   // Non-virtual helpers
 
   rcp<RenderPath> makeRenderPath(const AABB&);
+
+protected:
+  // makeImageFromPixels, for pixels that match the size.
+  virtual rcp<RenderImage> onMakeImageFromPixels(
+      uint32_t /*width*/,
+      uint32_t /*height*/,
+      Span<const uint8_t> /*rgbaPremul*/)
+  {
+    return nullptr;
+  }
 };
 
 } // namespace rive

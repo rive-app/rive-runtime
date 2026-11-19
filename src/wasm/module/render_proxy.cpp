@@ -315,6 +315,22 @@ public:
     return make_rcp<ModuleRenderPaint>();
   }
   rcp<RenderImage> decodeImage(Span<const uint8_t>) override { return nullptr; }
+  rcp<RenderImage> onMakeImageFromPixels(
+      uint32_t width,
+      uint32_t height,
+      Span<const uint8_t> rgbaPremul) override
+  {
+    if (rgbaPremul.size() > UINT32_MAX)
+    {
+      return nullptr;
+    }
+    uint32_t handle = rive_image_from_pixels(
+        width,
+        height,
+        rgbaPremul.data(),
+        (uint32_t)rgbaPremul.size());
+    return handle != 0 ? make_rcp<ModuleRenderImage>(handle) : nullptr;
+  }
 };
 
 class ModuleRenderer : public Renderer

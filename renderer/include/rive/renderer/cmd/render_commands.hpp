@@ -26,6 +26,7 @@ enum class RenderCmd : uint8_t
   makeRadialGradient,     // RadialGradientPOD (+ colors[]+stops[] blob)
   makeAngularGradient,    // AngualrGradientPOD (+ colors[]+stops[] blob)
   decodeImage,            // DecodeImagePOD (+ encoded-bytes blob)
+  makeImageFromPixels,    // MakeImageFromPixelsPOD (+ premultiplied RGBA8 blob)
   makeBuffer,             // MakeBufferPOD
   bufferData,             // BufferDataPOD (+ data blob), a map()/unmap() write
   makeImageMeshInstances, // MakeImageMeshInstancesPOD
@@ -298,6 +299,18 @@ static_assert(
     sizeof(DecodeImagePOD) == 8 * sizeof(uint32_t),
     "wire POD must be pointer-free and padding-free");
 
+struct MakeImageFromPixelsPOD
+{
+  RenderHandle id;
+  uint32_t generation;
+  uint64_t blobOffset;
+  uint32_t width;
+  uint32_t height;
+};
+static_assert(
+    sizeof(MakeImageFromPixelsPOD) == 6 * sizeof(uint32_t),
+    "wire POD must be pointer-free and padding-free");
+
 struct MakeBufferPOD
 {
   RenderHandle id;
@@ -401,6 +414,7 @@ struct ComposeLayerMaskPOD
   X(makeRadialGradient, RadialGradientPOD)                                     \
   X(makeAngularGradient, AngularGradientPOD)                                   \
   X(decodeImage, DecodeImagePOD)                                               \
+  X(makeImageFromPixels, MakeImageFromPixelsPOD)                               \
   X(makeBuffer, MakeBufferPOD)                                                 \
   X(bufferData, BufferDataPOD)                                                 \
   X(makeImageMeshInstances, MakeImageMeshInstancesPOD)                         \

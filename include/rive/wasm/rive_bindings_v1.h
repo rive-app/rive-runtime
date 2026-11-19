@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "ebee5666ef4e80d3"
+#define RIVE_BINDINGS_V1_CONTRACT "239d57b8b797978c"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -791,6 +791,8 @@ RIVE_BINDING_IMPORT("rive_image_v1", "decode_cancel")
 void rive_image_decode_cancel(uint32_t token);
 RIVE_BINDING_IMPORT("rive_image_v1", "load")
 uint32_t rive_image_load(const uint8_t* bytes, uint32_t byteCount);
+RIVE_BINDING_IMPORT("rive_image_v1", "from_pixels")
+uint32_t rive_image_from_pixels(uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t byteCount);
 
 // rive_font_v1
 RIVE_BINDING_IMPORT("rive_font_v1", "from_asset")

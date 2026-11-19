@@ -1,10 +1,12 @@
 
 #include "catch.hpp"
+#include "pixel_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "scripting_test_utilities.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/async/work_pool.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
+#include "utils/no_op_factory.hpp"
 
 #include <cstring>
 
@@ -218,4 +220,54 @@ TEST_CASE(
   REQUIRE(renderImage != nullptr);
   CHECK(renderImage->width() == 226);
   CHECK(renderImage->height() == 128);
+}
+
+// ============================================================================
+// Image.fromPixels
+// ============================================================================
+
+TEST_CASE(
+    "Image.fromPixels sizes the image from its arguments",
+    "[scripting][image_decode]")
+{
+  PixelFactory factory;
+  ScriptingTest test(
+      R"(
+        local image = Image.fromPixels(2, 3, buffer.create(24))
+        local mismatched = Image.fromPixels(2, 2, buffer.create(24))
+        local fractional = Image.fromPixels(1.5, 4, buffer.create(24))
+        local empty = Image.fromPixels(0, 6, buffer.create(24))
+        local oversized = Image.fromPixels(65536, 1, buffer.create(262144))
+        return image.width, image.height,
+            mismatched == nil and fractional == nil and empty == nil and
+            oversized == nil
+    )",
+      3,
+      false,
+      {},
+      true,
+      &factory);
+
+  lua_State* L = test.state();
+  CHECK(lua_tonumber(L, -3) == 2);
+  CHECK(lua_tonumber(L, -2) == 3);
+  CHECK(lua_toboolean(L, -1) != 0);
+}
+
+TEST_CASE(
+    "Image.fromPixels is nil where the factory cannot make images",
+    "[scripting][image_decode]")
+{
+  NoOpFactory factory;
+  ScriptingTest test(
+      R"(
+        return Image.fromPixels(2, 3, buffer.create(24)) == nil
+    )",
+      1,
+      false,
+      {},
+      true,
+      &factory);
+
+  CHECK(lua_toboolean(test.state(), -1) != 0);
 }

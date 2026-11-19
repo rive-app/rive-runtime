@@ -3385,6 +3385,31 @@ uint32_t imageLoadImpl(
       new HostImage{std::move(image)});
 }
 
+uint32_t imageFromPixelsImpl(
+    WasmScriptingVM* vm,
+    uint32_t width,
+    uint32_t height,
+    const uint8_t* pixels,
+    uint32_t byteCount)
+{
+  if (vm == nullptr || vm->factory() == nullptr || pixels == nullptr)
+  {
+    return 0;
+  }
+  // The factory checks the size against the pixels.
+  auto image = vm->factory()->makeImageFromPixels(
+      width,
+      height,
+      Span<const uint8_t>(pixels, byteCount));
+  if (image == nullptr)
+  {
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::image,
+      new HostImage{std::move(image)});
+}
+
 #ifdef RIVE_CANVAS
 // A deferred host mints a canvas before any device binds; only immediate
 // needs a render context.

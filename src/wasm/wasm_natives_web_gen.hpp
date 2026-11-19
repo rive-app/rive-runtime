@@ -1411,6 +1411,11 @@ uint32_t rive_web_image_load(uint32_t vmHandle, const uint8_t* bytes, uint32_t b
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return imageLoadImpl(vm, bytes, byteCount);
 }
+uint32_t rive_web_image_from_pixels(uint32_t vmHandle, uint32_t width, uint32_t height, const uint8_t* pixels, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return imageFromPixelsImpl(vm, width, height, pixels, byteCount);
+}
 uint32_t rive_web_font_from_asset(uint32_t vmHandle, uint32_t object, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2248,6 +2253,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_image_decode,
     (void*)rive_web_image_decode_cancel,
     (void*)rive_web_image_load,
+    (void*)rive_web_image_from_pixels,
     (void*)rive_web_font_from_asset,
 #ifdef WITH_RIVE_TEXT
     (void*)rive_web_font_decode,

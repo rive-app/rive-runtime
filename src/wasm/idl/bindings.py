@@ -1093,6 +1093,14 @@ NAMESPACES = [
         # bytes; the web and deferred factories return an image that decodes
         # later, blank when the bytes are bad.
         op('load', [buf('uint8_t', 'bytes', 'byteCount')], ret='u32'),
+        # An image from width * height premultiplied RGBA8 pixels, for
+        # Image.fromPixels; 0 when the size does not match or the renderer
+        # cannot make one.
+        op('from_pixels', [
+            u32('width'),
+            u32('height'),
+            buf('uint8_t', 'pixels', 'byteCount'),
+        ], ret='u32'),
     ]),
     # The Luau Font builtin: metrics, variable instances and glyph outlines.
     ns('rive_font_v1', 'font', [

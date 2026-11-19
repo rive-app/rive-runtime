@@ -321,6 +321,24 @@ void replayRenderCommands(
             c.generation);
         break;
       }
+      case RenderCmd::makeImageFromPixels:
+      {
+        auto c = reader.read<MakeImageFromPixelsPOD>();
+        // A corrupt size past the 32-bit blob limit makes nothing.
+        uint64_t pixels = static_cast<uint64_t>(c.width) * c.height;
+        images.set(
+            c.id,
+            pixels == 0 || pixels > UINT32_MAX / 4
+                ? rcp<RenderImage>()
+                : factory->makeImageFromPixels(
+                      c.width,
+                      c.height,
+                      reader.blobAt(
+                          c.blobOffset,
+                          static_cast<uint32_t>(pixels * 4))),
+            c.generation);
+        break;
+      }
       case RenderCmd::makeBuffer:
       {
         auto c = reader.read<MakeBufferPOD>();

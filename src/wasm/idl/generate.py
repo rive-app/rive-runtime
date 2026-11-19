@@ -657,6 +657,7 @@ AS_OWNING_FACTORIES = {
     ('mesh_instances', 'new'),
     ('image', 'from_asset'),
     ('image', 'load'),
+    ('image', 'from_pixels'),
     ('shader', 'linear'),
     ('shader', 'radial'),
     ('measure', 'path_new'),

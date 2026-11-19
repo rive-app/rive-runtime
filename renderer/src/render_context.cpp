@@ -312,6 +312,31 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
                             : nullptr;
 }
 
+rcp<RenderImage> RenderContext::onMakeImageFromPixels(
+    uint32_t width,
+    uint32_t height,
+    Span<const uint8_t> rgbaPremul)
+{
+  // Past the device's limit, backends differ: some fail, some assert.
+  const uint32_t maxSize = platformFeatures().maxTextureSize;
+  if (width > maxSize || height > maxSize)
+  {
+    return nullptr;
+  }
+  rcp<Texture> texture = m_impl->makeImageTexture(
+      width,
+      height,
+      math::msb(height | width),
+      GPUTextureFormat::rgba32,
+      rgbaPremul.data(),
+      /*blockWidth=*/1,
+      /*blockHeight=*/1,
+      /*srgb=*/false,
+      /*generateRemainingMips=*/true);
+  return texture != nullptr ? make_rcp<RiveRenderImage>(std::move(texture))
+                            : nullptr;
+}
+
 void RenderContext::releaseResources()
 {
   assert(!m_didBeginFrame);

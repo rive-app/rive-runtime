@@ -398,6 +398,11 @@ public:
   Factory* renderContext() override { return this; }
 
 private:
+  rcp<RenderImage> onMakeImageFromPixels(
+      uint32_t width,
+      uint32_t height,
+      Span<const uint8_t> rgbaPremul) override;
+
   friend class Draw;
   friend class PathDraw;
   friend class ImageRectDraw;
