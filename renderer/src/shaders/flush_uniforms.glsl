@@ -60,4 +60,13 @@ DECLARE_UNIFORM_UINT(renderTargetBottomUp)
 // Scale and Bias computes gradient V coord from integral row
 DECLARE_UNIFORM_FLOAT(gradTextureYScale)
 DECLARE_UNIFORM_FLOAT(gradTextureYBias)
+// Selects which mode the tessellator should operate in for non-feathers.
+//   0: Legacy -- tessellator outputs vertices and tangents in path space.
+//      Vertex shader transforms and figures out stroke outsets.
+//   1: Modern (depthStencil) -- tessellator transforms vertices by the
+//      viewMatrix and outputs complete stroke outsets, including for joins.
+//   1 | TESS_FLAG_DS_OUT_MSAA_BEVEL: Same as 1, but also inkbleed MSAA
+//                                    bevels by 1/2px to visually match other
+//                                    modes.
+DECLARE_UNIFORM_UINT(tessellationMode)
 UNIFORM_BLOCK_END(uniforms)

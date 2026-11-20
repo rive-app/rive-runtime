@@ -17,6 +17,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <functional>
 #include <optional>
@@ -1680,6 +1681,7 @@ struct FlushDescriptor
   ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
   InterlockMode interlockMode = InterlockMode::rasterOrdering;
   uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
+  bool enableInkbleed = false;  // (requires msaaSampleCount == 1.)
 
   LoadAction colorLoadAction = LoadAction::clear;
   ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -1894,8 +1896,17 @@ private:
   // Scale and bias to get V coord of gradient from integral row value
   WRITEONLY float m_gradTextureYScale;
   WRITEONLY float m_gradTextureYBias;
+  // Selects which mode the tessellator should operate in for non-feathers.
+  //   0: Legacy -- tessellator outputs vertices and tangents in path space.
+  //      Vertex shader transforms and figures out stroke outsets.
+  //   1: Modern (depthStencil) -- tessellator transforms vertices by the
+  //      viewMatrix and outputs complete stroke outsets, including for joins.
+  //   1 | TESS_FLAG_DS_OUT_MSAA_BEVEL: Same as 1, but also inkbleed MSAA
+  //                                    bevels by 1/2px to visually match other
+  //                                    modes.
+  WRITEONLY uint32_t m_tessellationMode;
   // Uniform blocks must be multiples of 256 bytes in size.
-  WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
+  WRITEONLY uint8_t m_padTo256Bytes[256 - 120];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -2090,12 +2101,15 @@ public:
 
 private:
   // First uint4.
+  //
   // Holds different values depending on what's being drawn:
-  //   - Fills: midpoint of all segment endpoints
-  //   - Strokes: [unused, strokeRadius]
+  //   - Fills: midpoint of all segment endpoints (transformed to screen space
+  //     in depthStencil)
+  //   - Legacy strokes: [unused, strokeRadius]
+  //   - depthStencil strokes: [1/matrixMaxScale, strokeRadius * matrixMaxScale]
   WRITEONLY Vec2D m_midpoint;
   // [unused (13 bits) | outset/feather | stroke | closed | pathID (16 bits)].
-  // (See CONTOUR_PATH_ID_MASK and CONTOUR_FLAG_* in constants.glsl.)
+  // (See CONTOUR_PATH_ID_MASK and CONTOUR_FLAG_*.)
   WRITEONLY uint32_t m_pathIDAndFlags;
   // Indexes the tessellation texture and has a different meaning depending on
   // interlockMode:

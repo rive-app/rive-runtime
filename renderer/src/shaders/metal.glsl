@@ -355,6 +355,8 @@ INLINE half4 pls_swizzle_bgra(half4 color, uint targetIsBGRA)
   #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                      \
     DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(         \
         Varyings _varyings [[$stage_in]],                                      \
+        $constant @FlushUniforms& uniforms                                     \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         FragmentTextures _textures)                                            \
     {
 #endif
@@ -617,6 +619,7 @@ INLINE uint packHalf2x16(half2 x) { return $as_type<uint>(x); }
 INLINE half4 unpackUnorm4x8(uint x) { return $unpack_unorm4x8_to_half(x); }
 INLINE uint packUnorm4x8(half4 x) { return $pack_half_to_unorm4x8(x); }
 INLINE float2 unpackUnorm2x16(uint x) { return $unpack_unorm2x16_to_float(x); }
+INLINE uint packUnorm2x16(float2 x) { return $pack_float_to_unorm2x16(x); }
 
 INLINE float2x2 inverse(float2x2 m)
 {

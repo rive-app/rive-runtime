@@ -885,9 +885,18 @@ DrawUniquePtr PathDraw::Make(
   assert(paint != nullptr);
   assert(!tessellatesEmpty(path.get(), paint));
 
+  const float matrixMaxScale = paintMatrix.findMaxScale();
+  if (matrixMaxScale == 0)
+  {
+    // The matrix is degenerate in float, even if transformCollapses() didn't
+    // catch it (e.g., its squared terms underflowed). The path is invisible,
+    // and stroke math would divide by this scale.
+    return nullptr;
+  }
+
   CoverageType coverageType = SelectCoverageType(
       paint,
-      paintMatrix.findMaxScale(),
+      matrixMaxScale,
       context->platformFeatures(),
       context->frameInterlockMode());
 
@@ -2707,12 +2716,22 @@ void PathDraw::pushMidpointFanTessellationData(
       }
     }
 
-    // Make a data record for this current contour on the GPU. Strokes have no
-    // midpoint. They store [unused, strokeRadius] instead.
+    // Make a data record for this current contour on the GPU.
+    // NOTE: "midpoint" has different meanings depending on what's being drawn.
+    // (See ContourData.)
     Vec2D midpoint;
     if (!isStroke())
     {
-      midpoint = contour.midpoint;
+      midpoint = m_coverageType == CoverageType::depthStencil
+                     ? m_paintMatrix * contour.midpoint
+                     : contour.midpoint;
+    }
+    else if (m_coverageType == CoverageType::depthStencil)
+    {
+      assert(m_strokeMatrixMaxScale > 0);
+      midpoint = {
+          1 / m_strokeMatrixMaxScale,
+          m_strokeRadius * m_strokeMatrixMaxScale};
     }
     else
     {

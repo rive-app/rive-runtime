@@ -1930,6 +1930,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                           offset:desc.flushUniformDataOffsetInBytes
                          atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
+    [tessEncoder setFragmentBuffer:mtl_buffer(flushUniformBufferRing())
+                            offset:desc.flushUniformDataOffsetInBytes
+                           atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
     [tessEncoder
         setVertexBuffer:mtl_buffer(tessSpanBufferRing())
                  offset:desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan)

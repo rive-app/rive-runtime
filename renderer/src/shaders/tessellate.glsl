@@ -78,9 +78,11 @@ NO_PERSPECTIVE VARYING(1, float4, v_p2p3);
 // [vertexIdx, totalVertexCount, joinSegmentCount,
 //  parametricSegmentCount, radsPerPolarSegment]
 NO_PERSPECTIVE VARYING(2, float4, v_args);
-// [joinTangent, radsPerJoinSegment]
-NO_PERSPECTIVE VARYING(3, float3, v_joinArgs);
-FLAT VARYING(4, uint, v_contourIDWithFlags);
+// [joinTangent, radsPerJoinSegment,
+//  dsStrokeOutsetScale (if depthStencil, else -1)]
+NO_PERSPECTIVE VARYING(3, float4, v_joinArgs);
+NO_PERSPECTIVE VARYING(4, float4, v_dsViewMatrix); // (depthStencil only)
+FLAT VARYING(5, uint, v_contourIDWithFlags);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -123,7 +125,8 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   VARYING_INIT(v_p0p1, float4);
   VARYING_INIT(v_p2p3, float4);
   VARYING_INIT(v_args, float4);
-  VARYING_INIT(v_joinArgs, float3);
+  VARYING_INIT(v_joinArgs, float4);
+  VARYING_INIT(v_dsViewMatrix, float4);
   VARYING_INIT(v_contourIDWithFlags, uint);
 
   float2 p0 = @a_p0p1_.xy;
@@ -258,6 +261,65 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     parametricSegmentCount = min(uint(n), parametricSegmentCount);
   }
 
+  float2 joinTangent = @a_joinTan_and_ys.xy;
+  float dsStrokeOutsetScale = -1.; // -1 indicates a non-depthStencil spoke
+                                   // (non-depthStencil flush or feather).
+  float2x2 dsViewMatrix = float2x2(1., .0, .0, 1.);
+  if (uniforms.tessellationMode != 0u && featherRadius == .0)
+  {
+    // We are a depthStencil spoke. dsStrokeOutsetScale >= 0 indicates this to
+    // the fragment stage.
+    dsStrokeOutsetScale = .0;
+    if (pathID != 0u) // Don't transform padding vertices.
+    {
+      // depthStencil paths get transformed inside the tessellator. Transform as
+      // much as we can in the vertex stage.
+      float2x2 M = make_float2x2(uintBitsToFloat(
+          STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * PATH_DATA_ELEMENT_COUNT)));
+      float2 translate = uintBitsToFloat(
+          STORAGE_BUFFER_LOAD4(
+              @pathBuffer,
+              pathID * PATH_DATA_ELEMENT_COUNT + 1u)
+              .xy);
+      if (isStroke)
+      {
+        // In the next stage, strokes tessellate and outset in path space. Apply
+        // the translate now to avoid a varying, but let the fragment stage
+        // apply the 2x2.
+        float2 pathTranslate = MUL(inverse(M), translate);
+        p0 += pathTranslate;
+        p1 += pathTranslate;
+        p2 += pathTranslate;
+        p3 += pathTranslate;
+        dsViewMatrix = M;
+        // Strokes repurpose "midpoint" (contourData.xy) since they don't use
+        // the real midpoint.
+        float oneOverMatrixMaxScale = uintBitsToFloat(contourData.x);
+        // depthStencil strokeOutsets are normalized to the range:
+        //
+        //   [0, 0xffff] => [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT]
+        //
+        // (See the fragment stage for details.)
+        dsStrokeOutsetScale = oneOverMatrixMaxScale * (.5 / RIVE_MITER_LIMIT);
+      }
+      else
+      {
+        // Fills and hairlines have no path-relative stroke width, and cubics
+        // are affine invariant, so we can fully transform p0..p3 upfront.
+        p0 = MUL(M, p0) + translate;
+        p1 = MUL(M, p1) + translate;
+        p2 = MUL(M, p2) + translate;
+        p3 = MUL(M, p3) + translate;
+        joinTangent = MUL(M, joinTangent);
+        if ((contourIDWithFlags & TESS_FLAG_RETROFIT_TRI_STRIP) != 0u)
+        {
+          // Retrofit tri strips actually use joinTangent as a 5th point.
+          joinTangent += translate;
+        }
+      }
+    }
+  }
+
   // Polar and parametric segments share the same beginning and ending
   // vertices, so the merged *vertex* count is equal to the sum of polar and
   // parametric *segment* counts.
@@ -289,10 +351,10 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   // Always forward the joinTangent slot. A real join (joinSegmentCount > 1)
   // also needs to take the branch below and get radsPerJoinSegment in .z, but
   // retrofitted triangle strips reuse .xy, and do not take the branch.
-  v_joinArgs.xy = @a_joinTan_and_ys.xy;
+  v_joinArgs.xy = joinTangent;
   if (joinSegmentCount > 1u)
   {
-    float2x2 joinTangents = float2x2(tangents[1], @a_joinTan_and_ys.xy);
+    float2x2 joinTangents = float2x2(tangents[1], joinTangent);
     float joinTheta = acos(
         cosine_between_vectors(joinTangents[0], joinTangents[1]));
     float joinSpan = float(joinSegmentCount);
@@ -312,6 +374,8 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
       radsPerJoinSegment = -radsPerJoinSegment;
     v_joinArgs.z = radsPerJoinSegment;
   }
+  v_joinArgs.w = dsStrokeOutsetScale;
+  v_dsViewMatrix = float4(dsViewMatrix[0], dsViewMatrix[1]);
 
   if (x1 < x0) // Reflections are drawn right to left.
   {
@@ -332,6 +396,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   VARYING_PACK(v_p2p3);
   VARYING_PACK(v_args);
   VARYING_PACK(v_joinArgs);
+  VARYING_PACK(v_dsViewMatrix);
   VARYING_PACK(v_contourIDWithFlags);
   EMIT_VERTEX(pos);
 }
@@ -341,12 +406,36 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_TEXTURE_BLOCK_BEGIN
 FRAG_TEXTURE_BLOCK_END
 
+// True if we are processing a spoke for the depthStencil shader. Those shaders
+// expect different tessData than the others.
+INLINE bool isDepthStencilSpoke(float dsStrokeOutsetScale)
+{
+  // depthStencil is indicated via sign(dsStrokeOutsetScale).
+  return dsStrokeOutsetScale >= .0;
+}
+
+// True if we are processing a depthStencil stroke, which finds its outsets,
+// including joins, here in the tessellator.
+INLINE bool isDepthStencilStroke(float dsStrokeOutsetScale)
+{
+  // Fills (and padding) set dsStrokeOutsetScale to 0.
+  return dsStrokeOutsetScale > .0;
+}
+
+// inverse(m) == adjugate(m) / determinant(m).
+// When scale doesn't matter, adjucate() is faster than inverse().
+INLINE float2x2 adjugate(float2x2 m)
+{
+  return float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]);
+}
+
 FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
 {
   VARYING_UNPACK(v_p0p1, float4);
   VARYING_UNPACK(v_p2p3, float4);
   VARYING_UNPACK(v_args, float4);
-  VARYING_UNPACK(v_joinArgs, float3);
+  VARYING_UNPACK(v_joinArgs, float4);
+  VARYING_UNPACK(v_dsViewMatrix, float4);
   VARYING_UNPACK(v_contourIDWithFlags, uint);
 
   float2 p0 = v_p0p1.xy;
@@ -363,6 +452,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
   float joinSegmentCount = float(
       joinSegmentCount_and_parametricSegmentCount >> 10);
   float radsPerPolarSegment = v_args.w;
+  float dsStrokeOutsetScale = v_joinArgs.w;
   uint contourIDWithFlags = resolveContourBoundaryFlags(
       v_contourIDWithFlags,
       vertexIdx,
@@ -444,13 +534,14 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
           mergedVertexID < halfJoin + 1.)
         contourIDWithFlags |= TESS_FLAG_JOIN_TANGENT_INNER;
       // Miter and bevel spokes snap to either the beginning or end
-      // of the join section, and then get placed by the vertex shader.
+      // of the join section, and then get placed later on.
       mergedVertexID = mergedVertexID < halfJoin ? .0 : mergedSegmentCount;
     }
   }
 
   float2 tessCoord;
-  float theta = .0;
+  float theta = .0; // Unused by (non-feathered) depthStencil.
+  float2 spokeTangent = float2(1., .0); // [cos(theta == 0), sin(theta == 0)]
   if (mergedVertexID == .0 || mergedVertexID == mergedSegmentCount)
   {
     // Tessellated vertices at the beginning and end of the strip use exact
@@ -458,7 +549,9 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     // instances.
     bool isTan0 = mergedVertexID < mergedSegmentCount * .5;
     tessCoord = isTan0 ? p0 : p3;
-    theta = atan2(isTan0 ? tangents[0] : tangents[1]);
+    spokeTangent = isTan0 ? tangents[0] : tangents[1];
+    if (!isDepthStencilSpoke(dsStrokeOutsetScale))
+      theta = atan2(spokeTangent);
   }
   else if ((contourIDWithFlags & TESS_FLAG_RETROFIT_TRI_STRIP) != 0u)
   {
@@ -571,6 +664,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
       // Find the tangent vector on the vertex at lastPolarVertexID.
       theta = lastPolarVertexID * radsPerPolarSegment + theta0;
       float2 norm = float2(sin(theta), -cos(theta));
+      spokeTangent = float2(-norm.y, norm.x);
 
       // Find the T value where the tangent is orthogonal to norm. This is
       // a quadratic:
@@ -622,45 +716,195 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     // at the polar theta found previously. (In the event that
     // parametricT == polarT, we keep the polar theta.)
     if (T != polarT)
-      theta = atan2(bcd - abc);
+    {
+      spokeTangent = bcd - abc;
+      if (!isDepthStencilSpoke(dsStrokeOutsetScale))
+        theta = atan2(spokeTangent);
+    }
   }
 
-  uint4 tessData;
-  tessData.xy = floatBitsToUint(tessCoord);
-  if ((contourIDWithFlags & TESS_MASK_JOIN_TYPE) == TESS_FLAG_FEATHER_JOIN)
+  uint tessData = 0u;
+  uint outContourIDWithFlags = contourIDWithFlags;
+  if (!isDepthStencilSpoke(dsStrokeOutsetScale))
   {
-    // Feather joins work out their stepping in the vertex shader, so we
-    // emit the original tessellation parameters instead of just the tangent
-    // angle and let the vertex shader work it all out.
-    // Pack these as integers instead of using packHalf2x16() because the
-    // latter does not work on ARM Mali.
-    tessData.z = (uint(mergedSegmentCount) << 16) | uint(mergedVertexID);
+    if ((contourIDWithFlags & TESS_MASK_JOIN_TYPE) == TESS_FLAG_FEATHER_JOIN)
+    {
+      // Feather joins work out their stepping in the vertex shader, so we
+      // emit the original tessellation parameters instead of just the tangent
+      // angle and let the vertex shader work it all out.
+      // Pack these as integers instead of using packHalf2x16() because the
+      // latter does not work on ARM Mali.
+      tessData = (uint(mergedSegmentCount) << 16) | uint(mergedVertexID);
+    }
+    else
+    {
+      // Otherwise, provide the vertex shader with "tangentAngle:miterRatio"
+      // in z, both 16-bit unorm.
+      // NOTE: multiply theta by 65536 (NOT 65535) because this is a cyclic
+      // function, and 0xffff is the final discrete step before wrapping back
+      // to 0. This also makes "& 0xffffu" the natural modular reduction of
+      // the angle without having to mod().
+      uint theta16 = uint(int(round(theta * (65536. / _2PI)))) & 0xffffu;
+      uint miterRatio16 = 0u;
+      if ((contourIDWithFlags & TESS_MASK_JOIN_TYPE) > TESS_FLAG_ROUND_JOIN)
+      {
+        // This spoke belongs to a miter or bevel join, which need the
+        // miterRatio.
+        float cosJoinAngle = clamp(
+            cosine_between_vectors(tangents[0], tangents[1]),
+            -1.,
+            1.);
+        // miterRatio is cos(joinAngle/2). Use a trig identity to find it.
+        // NOTE: multiply by 65535 here because miterRatio is 0..1.
+        miterRatio16 = uint(round(sqrt((1. + cosJoinAngle) * .5) * 65535.));
+      }
+      tessData = (theta16 << 16) | miterRatio16;
+    }
   }
   else
   {
-    // Otherwise, provide the vertex shader with "tangentAngle:miterRatio"
-    // in z, both 16-bit unorm.
-    // NOTE: multiply theta by 65536 (NOT 65535) because this is a cyclic
-    // function, and 0xffff is the final discrete step before wrapping back
-    // to 0. This also makes "& 0xffffu" the natural modular reduction of
-    // the angle without having to mod().
-    uint theta16 = uint(int(round(theta * (65536. / _2PI)))) & 0xffffu;
-    uint miterRatio16 = 0u;
-    if ((contourIDWithFlags & TESS_MASK_JOIN_TYPE) > TESS_FLAG_ROUND_JOIN)
+    float2 norm = dot(spokeTangent, spokeTangent) > .0
+                      ? normalize(float2(spokeTangent.y, -spokeTangent.x))
+                      : float2(.0, -1.); // atan2(0, 0), matching legacy modes.
+    float2 aaDir = norm;
+
+    // The depthStencil TESS_FLAG inputs and outputs alias each other because
+    // we ran out of bits. Clear the input flags on our output variable.
+    outContourIDWithFlags &= ~TESS_MASK_DS_INPUT_ONLY;
+
+    if (isDepthStencilStroke(dsStrokeOutsetScale))
     {
-      // This spoke belongs to a miter or bevel join, which need the
-      // miterRatio.
-      float cosJoinAngle = clamp(
-          cosine_between_vectors(tangents[0], tangents[1]),
-          -1.,
-          1.);
-      // miterRatio is cos(joinAngle/2). Use a trig identity to find it.
-      // NOTE: multiply by 65535 here because miterRatio is 0..1.
-      miterRatio16 = uint(round(sqrt((1. + cosJoinAngle) * .5) * 65535.));
+      // Unlike legacy modes, depthStencil strokes compute their outsets,
+      // including joins, here in the tessellator.
+      float2 strokeOutset = norm;
+      uint joinType = contourIDWithFlags & TESS_MASK_JOIN_TYPE;
+      if (joinType > TESS_FLAG_ROUND_JOIN)
+      {
+        // This spoke belongs to a miter, bevel, or miterClip join.
+        float cosJoinAngle = clamp(
+            cosine_between_vectors(tangents[0], tangents[1]),
+            -1.,
+            1.);
+        // miterRatio is strokeRadius/miterRadius, which comes out to
+        // cos(joinAngle/2). Use the identity: cos(t/2) == sqrt((1 + cos(t))/2).
+        float miterRatioPow2 = .5 * cosJoinAngle + .5;
+        float miterRatio = sqrt(miterRatioPow2);
+        float sinJoinAngleOver2 = sqrt(max(1. - miterRatioPow2, .0));
+        if (!isExactlyOneFlagSet(
+                contourIDWithFlags,
+                TESS_FLAG_JOIN_TANGENT_0,
+                TESS_FLAG_LEFT_JOIN))
+        {
+          sinJoinAngleOver2 = -sinJoinAngleOver2;
+        }
+        // Find the bisector by rotating norm by joinAngle/2.
+        float2x2 rot = float2x2(
+            miterRatio,
+            sinJoinAngleOver2,
+            -sinJoinAngleOver2,
+            miterRatio);
+        float2 bisector = MUL(rot, norm);
+        // Bevels have 2 spokes (0 inner), miters have 3 (1 inner), and
+        // miterClips have 4 (2 inner).
+        bool isInnerJoinSpoke = (contourIDWithFlags &
+                                 TESS_FLAG_JOIN_TANGENT_INNER) != 0u;
+        if (joinType == TESS_FLAG_MITER_CLIP_JOIN)
+        {
+          // For now, square caps are the only miterClips: 180-degree joins with
+          // a miter limit of 1. Every spoke sits on a corner at norm +
+          // bisector. The inner pair outsets AA along the bisector, the outer
+          // pair along norm.
+          strokeOutset = norm + bisector;
+          if (isInnerJoinSpoke)
+            aaDir = bisector;
+        }
+        else if (
+            joinType == TESS_FLAG_BEVEL_JOIN ||
+            miterRatio < 1. / RIVE_MITER_LIMIT)
+        {
+          // Bevel (or a miter past the miter limit). Spokes stay on the
+          // curve, except a reverted miter's center, which sits on the bevel
+          // edge. They all outset AA along the bisector.
+          if (isInnerJoinSpoke)
+            strokeOutset = bisector * miterRatio;
+          aaDir = bisector;
+          // The vertex shader treats MSAA bevels (and butt caps) as a special
+          // case and manually inkbleeds them 1/2px. MSAA doesn't need inkbleed,
+          // but every analytic AA mode inkbleeds bevels, so we do it in MSAA
+          // as well, just to match.
+          // NOTE: uniforms.tessellationMode sets the
+          // TESS_FLAG_DS_OUT_MSAA_BEVEL bit only in MSAA mode.
+          outContourIDWithFlags |= TESS_FLAG_DS_OUT_MSAA_BEVEL &
+                                   uniforms.tessellationMode;
+        }
+        else
+        {
+          // Miter. Every join spoke sits on the miter corner; the center spoke
+          // outsets AA along the bisector, the others along their own sides.
+          strokeOutset = bisector * (1. / miterRatio);
+          if (isInnerJoinSpoke)
+            aaDir = bisector;
+        }
+      }
+
+      // Now that the strokes have been outset in path space, finish
+      // transforming them to screen space.
+      // (p0..p3 already arrived pre-translated, so we just need the 2x2.)
+      float2x2 M = make_float2x2(v_dsViewMatrix);
+      tessCoord = MUL(M, tessCoord);
+
+      // Normals go to screen space as:
+      //
+      //   screenNorm == M^-T * aaDir == aaDir * adj(M) / det(M)
+      //
+      // Since scale doesn't matter for aaDir, just use adj(M). A flip for
+      // negative determinant occurs below, for both strokes and fills.
+      aaDir = MUL(aaDir, adjugate(M));
+
+      // Pack the strokeOutset into 32-bit tessData. Since we are limited in
+      // precision, use unorm16 normalized relative to
+      // "strokeRadius * matrixMaxScale". i.e.:
+      //
+      //   [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT] => [0, 0xffff]
+      //
+      // (This works because strokeOutset is never wider than the miter limit.)
+      //
+      // At 1000px wide, this errs by up to ~0.03px everywhere.
+      // fp16 would err by up to ~0.12px on normal spokes and ~0.5px on miters.
+      tessData = packUnorm2x16(MUL(M, strokeOutset) * dsStrokeOutsetScale + .5);
     }
-    tessData.z = (theta16 << 16) | miterRatio16;
+
+    // Fill control points came into this stage fully transformed, and strokes
+    // just barely finished transforming into screen space. In both cases,
+    // everything is now screen space except that we still need to flip aaDir
+    // in the case of a left-handed viewMatrix (and for different reasons):
+    //
+    //   Fills: We blindly rotated the tangent 90 deg with [y, -x].
+    //          For a left-handed matrix, that should have been [-y, x].
+    //
+    //   Strokes: We transformed aaDir by adj(M), ignoring sign(det(M)).
+    //            (See above.)
+    //
+    if ((contourIDWithFlags & TESS_FLAG_NEGATIVE_DETERMINANT) != 0u)
+      aaDir = -aaDir;
+
+    // AA always outsets to a 45 degree corner in screen space. When x or y are
+    // 0, we therefore have to arbitrarily pick a corner. Picking the sign of
+    // the other component seems like a reasonable-enough rule that renders
+    // deterministically and evenly splits which side we pick.
+    if (aaDir.x == .0)
+      aaDir.x = aaDir.y;
+    if (aaDir.y == .0)
+      aaDir.y = aaDir.x;
+
+    // The vertex shader only needs to know which of 4 screen-space corners to
+    // outset AA into. (2 bits.)
+    if (aaDir.x < .0)
+      outContourIDWithFlags |= TESS_FLAG_DS_OUT_AA_LEFT;
+    if (aaDir.y < .0)
+      outContourIDWithFlags |= TESS_FLAG_DS_OUT_AA_UP;
   }
-  tessData.w = contourIDWithFlags;
-  EMIT_FRAG_DATA(tessData);
+  EMIT_FRAG_DATA(
+      uint4(floatBitsToUint(tessCoord), tessData, outContourIDWithFlags));
 }
 #endif

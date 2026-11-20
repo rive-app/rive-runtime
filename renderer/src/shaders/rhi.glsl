@@ -579,6 +579,12 @@ INLINE float2 unpackUnorm2x16(uint u)
   return float2(vals) * (1. / 65535.);
 }
 
+INLINE uint packUnorm2x16(float2 v)
+{
+  uint2 vals = uint2($round($saturate(v) * 65535.));
+  return (vals.y << 16) | vals.x;
+}
+
 INLINE uint packUnorm4x8(half4 color)
 {
   // Clamp before quantizing: additive blending produces channel values > 1,

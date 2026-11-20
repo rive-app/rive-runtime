@@ -162,6 +162,22 @@
 // use this to flip their outset so triangles remain clockwise.)
 #define TESS_FLAG_NEGATIVE_DETERMINANT (1u << 17u)
 
+// The depthStencil TESS_FLAG inputs and outputs alias each other because we ran
+// out of bits. This mask defines the input-only bits that the tessellator
+// clears and reuses for the TESS_FLAG_DS_OUT outputs below.
+#define TESS_MASK_DS_INPUT_ONLY                                                \
+  (TESS_FLAG_CULL_EXCESS_TESSELLATION_SEGMENTS | TESS_MASK_JOIN_TYPE |         \
+   TESS_FLAG_EMULATED_STROKE_CAP)
+
+// This pair of bits selects which 45 degree screen-space corner inkbleed AA
+// outsets into. (Named after their input aliases. See TESS_MASK_DS_INPUT_ONLY.)
+#define TESS_FLAG_DS_OUT_AA_LEFT TESS_FLAG_BEVEL_JOIN
+#define TESS_FLAG_DS_OUT_AA_UP TESS_FLAG_CUSP_JOIN
+
+// Special case for MSAA bevels to bleed out by 1/2px in order to visually match
+// other modes. (Named after its input alias. See TESS_MASK_DS_INPUT_ONLY.)
+#define TESS_FLAG_DS_OUT_MSAA_BEVEL TESS_FLAG_FEATHER_JOIN
+
 #define CONTOUR_ID_MASK 0xffffu
 
 // ContourData[0].z: [unused (13 bits) | outset/feather | stroke | closed |

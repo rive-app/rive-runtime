@@ -1357,6 +1357,7 @@ void RenderContext::LogicalFlush::layoutResources(
   m_flushDesc.renderTarget = flushResources.renderTarget;
   m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
   m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
+  m_flushDesc.enableInkbleed = frameDescriptor.inkbleedOverride;
   // A nonzero sample count is exactly what selects depthStencil.
   assert(
       (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil) ==

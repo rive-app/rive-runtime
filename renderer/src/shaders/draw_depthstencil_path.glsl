@@ -189,27 +189,26 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   // be very serious and hard to catch.
   uint contourStartIdx = (max(contourID, 1u) - 1u) * 2u;
   uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contourStartIdx);
-  float2 midpoint = uintBitsToFloat(contourData.xy);
+  float2 screenMidpoint = uintBitsToFloat(contourData.xy); // Pre-xformed by CPU
   uint contourFlags = contourData.z;
   uint pathID = contourFlags & CONTOUR_PATH_ID_MASK;
   uint firstSpokeIndexMemory = contourData.w;
 
-  // Fetch and unpack the path.
-  float2x2 M = make_float2x2(uintBitsToFloat(
-      STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * PATH_DATA_ELEMENT_COUNT)));
-  uint4 pathData = STORAGE_BUFFER_LOAD4(
-      @pathBuffer,
-      pathID * PATH_DATA_ELEMENT_COUNT + 1u);
-  float2 translate = uintBitsToFloat(pathData.xy);
-  ushort pathZIndex = cast_uint_to_ushort(pathData.z >> 16u);
-  // Strokes repurpose "midpoint" since they don't use the real midpoint.
-  float strokeRadius = isPolarStroke ? midpoint.y : .0;
+  // Fetch and unpack the common path data that rides along per contour.
+  // (Packing per contour eliminates a chained, dependent fetch on pathID and
+  // improves performance.)
+  uint4 contourPathData = STORAGE_BUFFER_LOAD4(
+      @contourBuffer,
+      contourStartIdx + 1u);
+  uint pathParams = contourPathData.x;
+  uint simplePaintValue = contourPathData.y;
+  ushort pathZIndex = cast_uint_to_ushort(pathParams >> 16u);
 
-  // The contour-closing spoke reached into our neighbor's contour. It needs to
-  // either wrap back around to the starting spoke (fills, closed strokes), or
-  // else stay clamped at the final vertex (open strokes).
   if (isContourClosingSpoke)
   {
+    // The contour-closing spoke reached into our neighbor's contour. It needs
+    // to either wrap back around to the starting spoke (fills, closed strokes),
+    // or else stay clamped at the final vertex (open strokes).
     tessVertexData = TEXEL_FETCH(
         @tessVertexTexture,
         tess_texel_coord(
@@ -218,7 +217,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     contourIDWithFlags = tessVertexData.w;
   }
 
-  float2 vertexPosition;
+  // Pre-transformed by the tessellator.
+  float2 screenCoord = uintBitsToFloat(tessVertexData.xy);
+
   if (isStroke())
   {
     // Ensure strokes always emit clockwise triangles. A left-handed matrix and
@@ -231,15 +232,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
       outset = -outset;
     }
 
-    // Find the tangent angle of the curve at our vertex.
-    float theta = unpackTessTheta(tessVertexData.z);
-    float2 norm = float2(sin(theta), -cos(theta));
-    float2 origin = uintBitsToFloat(tessVertexData.xy);
-
-    float2 vertexOffset = norm;
-    float2 aaOutsetDir = norm;
     // NOTE: 'outset' is only ever -1, 0, or +1.
-    float aaOutsetMagnitude = (coverage == .0) ? outset : .0;
+    float aaOutsetPx = (coverage == .0) ? outset : .0;
 
     if (isPolarStroke)
     {
@@ -249,92 +243,52 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
         outset = min(outset, .0);
       if ((contourIDWithFlags & TESS_FLAG_RIGHT_JOIN) != 0u)
         outset = max(outset, .0);
-
-      uint joinType = contourIDWithFlags & TESS_MASK_JOIN_TYPE;
-      if (joinType > TESS_FLAG_ROUND_JOIN)
-      {
-        bool isTan0 = (contourIDWithFlags & TESS_FLAG_JOIN_TANGENT_0) != 0u;
-        bool isLeftJoin = (contourIDWithFlags & TESS_FLAG_LEFT_JOIN) != 0u;
-        // This vertex belongs to a miter or bevel join. Begin by
-        // finding the bisector, which is the same as norm rotated by
-        // joinAngle/2. The tessellator already packed cos(joinAngle/2)
-        // (the miterRatio), so we use that.
-        float miterRatio = unpackTessMiterJoinRatio(tessVertexData.z);
-        // Trig identity to find sin(joinAngle/2).
-        // (miterRatio == cos(joinAngle/2).)
-        float sinJoinAngleOver2 = sqrt(max(1. - miterRatio * miterRatio, .0));
-        if (isTan0 == isLeftJoin)
-          sinJoinAngleOver2 = -sinJoinAngleOver2;
-        // Rotate norm by joinAngle/2 using a sin/cos rotation matrix.
-        float2x2 rot = float2x2(
-            miterRatio,
-            sinJoinAngleOver2,
-            -sinJoinAngleOver2,
-            miterRatio);
-        float2 bisector = MUL(rot, norm);
-        // Miter joins that are further away than 4x the stroke radius
-        // snap to bevel joins. A miter clip is a cap, and never snaps.
-        bool isBevel = joinType == TESS_FLAG_BEVEL_JOIN ||
-                       (joinType != TESS_FLAG_MITER_CLIP_JOIN &&
-                        miterRatio < .25);
-        // Bevels have 2 spokes and miters 3; a miter clip has 4,
-        // carrying an inner pair instead of a single center.
-        bool isInnerJoinSpoke = (contourIDWithFlags &
-                                 TESS_FLAG_JOIN_TANGENT_INNER) != 0u;
-        if (joinType == TESS_FLAG_MITER_CLIP_JOIN)
-        {
-          // For now, square caps are the only miter-clip: a
-          // 180-degree join whose miterLimit is 1. Simplify the
-          // miter-clip to only handle this specific case.
-          vertexOffset = norm + bisector;
-        }
-        else if (isInnerJoinSpoke || !isBevel)
-        {
-          // Fun little mathematical relationship: distance along the
-          // bisector to the bevel edge and to the miter corner turn
-          // out to be reciprocals of one another.
-          float t = isBevel ? miterRatio : 1. / miterRatio;
-          vertexOffset = bisector * t;
-        }
-        // Bevel spokes, the miter's center spoke, and the miter-clip's
-        // inner pair all outset their AA in the direction of the
-        // bisector.
-        if (isBevel || isInnerJoinSpoke)
-          aaOutsetDir = bisector;
-        // Rive always inkbleeds butt caps and bevel joins (partly to
-        // avoid hairline cracks and partly because it just makes the AA
-        // easier). This is not necessary for MSAA, but bleed out half a
-        // pixel anyway in MSAA so that strokes look the same in all
-        // modes.
-        if (!isAAPolarStroke && isBevel)
-          aaOutsetMagnitude = .5 * outset;
-      }
+      // The tessellator already wrote every stroke outset, joins included, in
+      // screen space. Their lengths are normalized relative to
+      // "strokeRadius * matrixMaxScale". i.e.:
+      //
+      //   [0, 0xffff] => [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT]
+      //
+      // (This works because strokeOutset is never wider than the miter limit.)
+      float2 strokeOutset = unpackUnorm2x16(tessVertexData.z) *
+                                (2. * RIVE_MITER_LIMIT) +
+                            -RIVE_MITER_LIMIT;
+      // Strokes repurpose "screenMidpoint" since they don't use the real
+      // midpoint.
+      float strokeRadiusTimesMatrixMaxScale = screenMidpoint.y;
+      screenCoord += strokeOutset * (outset * strokeRadiusTimesMatrixMaxScale);
+      // Treat MSAA bevels (and butt caps) as a special case and manually
+      // inkbleed them 1/2px. MSAA doesn't need inkbleed, but every analytic AA
+      // mode inkbleeds bevels, so we do it in MSAA as well, just to match.
+      if ((contourIDWithFlags & TESS_FLAG_DS_OUT_MSAA_BEVEL) != 0u)
+        aaOutsetPx = .5 * outset;
     }
 
-    vertexPosition = MUL(M, origin + vertexOffset * (outset * strokeRadius)) +
-                     translate;
-    if (aaOutsetMagnitude != .0)
+    if (aaOutsetPx != .0)
     {
-      // Push outward from the stroke edge by 'aaOutsetMagnitude' in both
-      // screen dimensions.
-      // Using sign() instead of normalize() makes the AA line offset in
-      // "Manhattan" distance instead of Euclidean, which is exactly what
-      // we want for square pixels.
-      vertexPosition += sign(MUL(aaOutsetDir, inverse(M))) * aaOutsetMagnitude;
+      // AA outsets are always diagonal in screen space. This offsets the AA
+      // edge in "Manhattan" distance instead of Euclidean, which is exactly
+      // what we want for square pixels. The tessellator already decided which
+      // quadrant we should outset into.
+      if ((contourIDWithFlags & TESS_FLAG_DS_OUT_AA_LEFT) != 0u)
+        screenCoord.x -= aaOutsetPx;
+      else
+        screenCoord.x += aaOutsetPx;
+      if ((contourIDWithFlags & TESS_FLAG_DS_OUT_AA_UP) != 0u)
+        screenCoord.y -= aaOutsetPx;
+      else
+        screenCoord.y += aaOutsetPx;
     }
   }
-  else
+  else if (isFillMidpointVertex)
   {
-    // depthStencil fills never outset.
-    float2 origin = isFillMidpointVertex ? midpoint
-                                         : uintBitsToFloat(tessVertexData.xy);
-    vertexPosition = MUL(M, origin) + translate;
+    screenCoord = screenMidpoint;
   }
 
   // Paint matrices operate on the fragment shader's "_fragCoord", which
   // counts from memory row 0. A bottom up target needs it flipped into Rive
   // pixel space.
-  float2 fragCoord = vertexPosition;
+  float2 fragCoord = screenCoord;
   #ifdef @ENABLE_RENDER_TARGET_BOTTOM_UP
   if (uniforms.renderTargetBottomUp != 0u)
   {
@@ -373,12 +327,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   }
   else
   {
-    uint paintType = pathData.z & 0xfu;
+    uint paintType = pathParams & 0xfu;
     bool paintHasAdvancedBlend = false;
   #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-      uint blendMode = (pathData.z >> 4) & 0xfu;
+      uint blendMode = (pathParams >> 4) & 0xfu;
       v_blendMode = float(blendMode);
       paintHasAdvancedBlend = blendMode != BLEND_SRC_OVER;
     }
@@ -387,7 +341,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
-      v_paint = float4(unpackUnorm4x8(pathData.w));
+      v_paint = float4(unpackUnorm4x8(simplePaintValue));
       if (paintHasAdvancedBlend)
       {
         // Advanced blends take an unmultiplied color, so coverage only
@@ -409,7 +363,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
           @pathBuffer,
           pathID * PATH_DATA_ELEMENT_COUNT + 4u));
 
-      float additivenessComplement = uintBitsToFloat(pathData.w);
+      float additivenessComplement = uintBitsToFloat(simplePaintValue);
       v_paint = packGradientData(
           fragCoord,
           paintMatrix,
@@ -421,7 +375,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     }
 
   #ifdef @ENABLE_MODULATED_IMAGE
-    if (@ENABLE_MODULATED_IMAGE && (pathData.z & PAINT_FLAG_HAS_IMAGE) != 0u)
+    if (@ENABLE_MODULATED_IMAGE && (pathParams & PAINT_FLAG_HAS_IMAGE) != 0u)
     {
       float2x2 imageMatrix = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(
           @pathBuffer,
@@ -443,7 +397,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
   #endif
   }
 
-  float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+  float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(screenCoord);
   #ifdef @POST_INVERT_Y
   pos.y = -pos.y;
   #endif

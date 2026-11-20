@@ -1195,6 +1195,16 @@ FlushUniforms::FlushUniforms(
     , m_renderTargetBottomUp(flushDesc.renderTarget->bottomUp(platformFeatures))
     , m_gradTextureYScale(1.f / flushDesc.gradTextureHeight)
     , m_gradTextureYBias(0.5f / flushDesc.gradTextureHeight)
+    , m_tessellationMode([&flushDesc]() -> uint32_t {
+      if (flushDesc.interlockMode == InterlockMode::depthStencil)
+      {
+        uint32_t mode = 1;
+        if (!flushDesc.enableInkbleed)
+          mode |= TESS_FLAG_DS_OUT_MSAA_BEVEL;
+        return mode;
+      }
+      return 0u;
+    }())
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
