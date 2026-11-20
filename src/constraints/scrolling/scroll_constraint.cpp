@@ -945,10 +945,10 @@ bool ScrollConstraint::advanceComponent(
     m_lastFrameOffsetX = scrollOffsetX();
     m_lastFrameOffsetY = scrollOffsetY();
   }
-  // Keep advancing while a drag is active so the next new-frame advance can
-  // detect a paused pointer and clear velocity when the pointer holds still.
-  // A live scroll gesture keeps frames coming for its idle timer.
-  return m_physics->enabled() || m_isScrollBarDragging || m_isDragging ||
+  // Only isRunning() moves the view; enabled() also holds while a wheel's
+  // primed helpers sit idle. Drag and gesture terms feed the paused-pointer
+  // check and the idle timer.
+  return m_physics->isRunning() || m_isScrollBarDragging || m_isDragging ||
          m_isScrolling;
 }
 
