@@ -2,6 +2,7 @@
 #include "rive/generated/core_registry.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/assets/font_asset.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive_file_reader.hpp"
@@ -344,6 +345,117 @@ TEST_CASE(
           &text,
           rive::TextBase::verticalTrimTopValuePropertyKey) == 0xFF);
   REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+}
+
+TEST_CASE("ink trim hugs the glyph outlines", "[text]")
+{
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  auto run = artboard->find<rive::TextValueRun>()[0];
+  rive::NoOpRenderer renderer;
+  text->sizingValue((uint32_t)rive::TextSizing::autoWidth);
+
+  auto measureHeight = [&](const char* value,
+                           rive::TextTrimTop top,
+                           rive::TextTrimBottom bottom) {
+    run->text(value);
+    text->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+    return text->localBounds().height();
+  };
+  auto inkHeight = [&](const char* value) {
+    return measureHeight(
+        value,
+        rive::TextTrimTop::ink,
+        rive::TextTrimBottom::ink);
+  };
+
+  // 'H' and 'x' stand on the baseline and are what the font measures its
+  // cap- and x-height from, so the ink box is exactly that tall.
+  float hHeight = inkHeight("H");
+  const rive::GlyphRun& glyphRun = text->shape()[0].runs[0];
+  const rive::Font::LineMetrics& metrics = glyphRun.font->lineMetrics();
+  float size = glyphRun.size;
+  CHECK(hHeight == Approx(-metrics.capHeight * size));
+  CHECK(inkHeight("x") == Approx(-metrics.xHeight * size));
+
+  // The first line's highest outline sits on the box top.
+  inkHeight("H");
+  CHECK(
+      text->orderedLines()[0].y() + metrics.capHeight * size ==
+      Approx(text->localBounds().minY));
+
+  // The box follows the text: a descender extends it below the baseline,
+  // but no further than the font's descent.
+  float descenderHeight = inkHeight("xg");
+  CHECK(descenderHeight > inkHeight("x"));
+  CHECK(
+      descenderHeight <
+      measureHeight("xg", rive::TextTrimTop::ex, rive::TextTrimBottom::none));
+
+  // The edges are independent: ink at the top only keeps the descent band.
+  CHECK(
+      measureHeight("x", rive::TextTrimTop::ink, rive::TextTrimBottom::none) ==
+      Approx(measureHeight(
+          "x",
+          rive::TextTrimTop::ex,
+          rive::TextTrimBottom::none)));
+
+  // Nothing to hug: a line of spaces keeps the untrimmed box.
+  CHECK(
+      inkHeight(" ") == Approx(measureHeight(
+                            " ",
+                            rive::TextTrimTop::none,
+                            rive::TextTrimBottom::none)));
+}
+
+TEST_CASE(
+    "ink trim grows the box around outlines that leave the line",
+    "[text]")
+{
+  auto file = ReadRiveFile("assets/hello_world.riv");
+  auto artboard = file->artboard();
+  auto text = artboard->find<rive::Text>()[0];
+  auto style = artboard->find<rive::TextStyle>()[0];
+  auto run = artboard->find<rive::TextValueRun>()[0];
+  rive::NoOpRenderer renderer;
+  text->sizingValue((uint32_t)rive::TextSizing::autoWidth);
+
+  auto layout = [&](const char* value,
+                    rive::TextTrimTop top,
+                    rive::TextTrimBottom bottom) {
+    run->text(value);
+    text->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+    artboard->advance(0.0f);
+    artboard->draw(&renderer);
+  };
+
+  // The first line's top is the font's ascent whatever the line height, so
+  // only a glyph taller than the font, like stacked accents, leaves it at
+  // the top. The box grows above the line to keep them. Inter positions
+  // each mark on the one below it.
+  auto inter = HBFont::Decode(ReadFile("assets/fonts/Inter_18pt-Regular.ttf"));
+  file->asset(style->fontAssetId())->as<rive::FontAsset>()->font(inter);
+  const char* stacked = "H\xCC\x81\xCC\x81\xCC\x81";
+  layout(stacked, rive::TextTrimTop::ink, rive::TextTrimBottom::none);
+  CHECK(text->orderedLines()[0].top() > text->localBounds().minY);
+  // The font-metric edges never grow it.
+  layout(stacked, rive::TextTrimTop::cap, rive::TextTrimBottom::none);
+  CHECK(text->orderedLines()[0].top() <= text->localBounds().minY);
+
+  // A line height far shorter than the glyphs lifts the line's bottom above
+  // its descenders, and the box grows below the line to keep them.
+  layout("Hg", rive::TextTrimTop::ink, rive::TextTrimBottom::ink);
+  float inkHeight = text->localBounds().height();
+  style->lineHeight(style->fontSize() * 0.3f);
+  layout("Hg", rive::TextTrimTop::ink, rive::TextTrimBottom::ink);
+  // The outlines don't move with the line height, so neither does the box.
+  CHECK(text->localBounds().height() == Approx(inkHeight));
+  CHECK(text->orderedLines()[0].bottom() < text->localBounds().maxY);
+  layout("Hg", rive::TextTrimTop::ink, rive::TextTrimBottom::text);
+  CHECK(text->orderedLines()[0].bottom() == Approx(text->localBounds().maxY));
 }
 
 TEST_CASE("ellipsis is shown", "[text]")

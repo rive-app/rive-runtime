@@ -120,9 +120,11 @@ struct TextBoundsInfo
   float totalHeight;
   int ellipsisLine;
   bool isEllipsisLineLast;
-  // Vertical trim removed from the top (ascent above the first line's cap- or
-  // x-height) and bottom (descent below the last line's baseline / natural
-  // descent). Both are zero when trim is disabled (TextTrimTop/Bottom::none).
+  // Vertical trim removed from the top (ascent above the first line's cap-
+  // or x-height, or highest outline) and bottom (descent below the last
+  // line's baseline / natural descent, or lowest outline). Both are zero when
+  // trim is disabled (TextTrimTop/Bottom::none). Only the ink edges go
+  // negative, growing the box around an outline that leaves its line.
   float topTrim;
   float bottomTrim;
 };

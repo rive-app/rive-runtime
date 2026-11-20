@@ -610,3 +610,31 @@ TEST_CASE(
   CHECK(factory.linear == 1);
   CHECK(factory.radial == 1);
 }
+
+TEST_CASE("color glyphs measure their ink extents", "[color_glyph]")
+{
+  // COLRv0 layers and COLRv1 paint both report the extent of what they draw,
+  // which the ink vertical trim reads.
+  for (const char* path : {emojiFont, colrV1Font})
+  {
+    auto font = loadFont(path);
+    REQUIRE(font != nullptr);
+    GlyphID glyph = 2;
+    REQUIRE(font->isColorGlyph(glyph));
+    Font::InkExtents ink = font->glyphInkExtents(glyph);
+    REQUIRE(!ink.empty());
+
+    std::vector<Font::ColorGlyphLayer> layers;
+    REQUIRE(font->getColorLayers(glyph, layers) > 0);
+    for (const auto& layer : layers)
+    {
+      if (layer.path.empty())
+      {
+        continue;
+      }
+      AABB bounds = layer.path.preciseBounds();
+      CHECK(bounds.minY >= ink.top - 1e-3f);
+      CHECK(bounds.maxY <= ink.bottom + 1e-3f);
+    }
+  }
+}

@@ -46,6 +46,7 @@ enum class TextTrimTop : uint8_t
   none = 0, // No trim: box top stays at the font ascent.
   cap = 1,  // Box top at the cap-height line.
   ex = 2,   // Box top at the x-height line.
+  ink = 3,  // Box top at the highest glyph outline on the first line.
 };
 
 // Bottom edge the vertical bounding box is trimmed to.
@@ -54,6 +55,7 @@ enum class TextTrimBottom : uint8_t
   none = 0,       // No trim: box bottom stays at the font descent.
   alphabetic = 1, // Box bottom at the baseline.
   text = 2,       // Box bottom at the text (natural descent) line.
+  ink = 3,        // Box bottom at the lowest glyph outline on the last line.
 };
 
 // Text::verticalTrimValue packs an independent top and bottom trim edge so new
@@ -325,6 +327,21 @@ public:
   // relative to (0,0) with the typographic baseline at y = 0.
   //
   virtual RawPath getPath(GlyphID) const = 0;
+
+  // Vertical extent of a glyph's outline at a font size of 1, stored like
+  // ascent (up is -Y): top is its highest point and bottom its lowest.
+  // Kept POD (no member initializers) so bindings can return it by value
+  // across C linkage; {} is empty.
+  struct InkExtents
+  {
+    float top, bottom;
+    // A glyph that draws nothing, like a space.
+    bool empty() const { return top >= bottom; }
+  };
+
+  // The base measures getPath, so a font with a cheaper source of glyph
+  // bounds should override it.
+  virtual InkExtents glyphInkExtents(GlyphID) const;
 
   // The same path as getPath, lent instead of copied. It stays valid until
   // the next glyphPath or getPath on this font, either of which may replace

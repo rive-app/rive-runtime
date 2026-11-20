@@ -80,6 +80,7 @@ public:
   bool isItalic() const override;
 
   rive::RawPath getPath(rive::GlyphID) const override;
+  InkExtents glyphInkExtents(rive::GlyphID) const override;
   const rive::RawPath& glyphPath(rive::GlyphID) const override;
   const rive::RawPath* cachedGlyphPath(rive::GlyphID) const override;
   size_t glyphPathCacheRoom() const override;

@@ -534,6 +534,17 @@ float OrderedLine::bottom() const
 uint64_t Font::sm_shapeCount = 0;
 #endif
 
+Font::InkExtents Font::glyphInkExtents(GlyphID glyph) const
+{
+  RawPath path = getPath(glyph);
+  if (path.empty())
+  {
+    return {};
+  }
+  AABB bounds = path.preciseBounds();
+  return {bounds.minY, bounds.maxY};
+}
+
 SimpleArray<Paragraph> Font::shapeText(
     Span<const Unichar> text,
     Span<const TextRun> runs,

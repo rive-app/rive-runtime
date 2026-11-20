@@ -128,6 +128,54 @@ TEST_CASE("font exposes cap and x height for vertical trim", "[text_styles]")
   }
 }
 
+TEST_CASE("font measures glyph ink extents", "[text_styles]")
+{
+  std::vector<const char*> fontPaths = {
+      "assets/fonts/Inter_18pt-Regular.ttf",
+      "assets/Montserrat.ttf",
+  };
+  for (const char* path : fontPaths)
+  {
+    SECTION(path)
+    {
+      rive::rcp<Font> font = loadFont(path);
+      std::vector<rive::Unichar> text;
+      std::vector<rive::TextRun> runs;
+      runs.push_back(append(&text, font, 1.0f, "Hxg "));
+      auto shape = font->shapeText(text, runs);
+      REQUIRE(shape.size() == 1);
+      const rive::GlyphRun& run = shape[0].runs[0];
+      REQUIRE(run.glyphs.size() == 4);
+      const Font::LineMetrics& metrics = font->lineMetrics();
+
+      // 'H' and 'x' are what the cap- and x-height are measured from, and
+      // both stand on the baseline. Up is -Y, like ascent.
+      Font::InkExtents h = font->glyphInkExtents(run.glyphs[0]);
+      CHECK(h.top == Approx(metrics.capHeight));
+      CHECK(h.bottom == Approx(0.0f).margin(1e-6f));
+      Font::InkExtents x = font->glyphInkExtents(run.glyphs[1]);
+      CHECK(x.top == Approx(metrics.xHeight));
+      CHECK(x.bottom == Approx(0.0f).margin(1e-6f));
+
+      // A descender hangs below the baseline.
+      CHECK(font->glyphInkExtents(run.glyphs[2]).bottom > 0.0f);
+
+      // A space draws nothing.
+      CHECK(font->glyphInkExtents(run.glyphs[3]).empty());
+
+      // HarfBuzz's extents match the outline the renderer draws, which the
+      // base implementation measures.
+      for (size_t i = 0; i < 3; i++)
+      {
+        Font::InkExtents fromFont = font->glyphInkExtents(run.glyphs[i]);
+        Font::InkExtents fromPath = font->Font::glyphInkExtents(run.glyphs[i]);
+        CHECK(fromFont.top == Approx(fromPath.top).margin(1e-3f));
+        CHECK(fromFont.bottom == Approx(fromPath.bottom).margin(1e-3f));
+      }
+    }
+  }
+}
+
 TEST_CASE("fallback glyphs are found", "[text_fallback]")
 {
   REQUIRE(fallbackFonts.empty());

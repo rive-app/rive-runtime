@@ -292,10 +292,41 @@ void Text::clearRenderStyles()
   }
 }
 
-// Vertical trim: the ascent above the first line's cap- or x-height and the
-// descent below the last line's baseline (or natural descent) that should be
-// removed from the box. Glyph layout is unchanged. Shared by computeBoundsInfo
-// (rendering) and measure (layout), so it operates on supplied lines/shape.
+// Vertical extent of the glyph outlines on [line] (y-down, relative to its
+// baseline). Empty when nothing on the line draws, like a line of spaces.
+static Font::InkExtents lineInkExtents(
+    const Paragraph& paragraph,
+    const GlyphLine& line)
+{
+  Font::InkExtents ink = {
+      std::numeric_limits<float>::max(),
+      std::numeric_limits<float>::lowest()};
+  for (uint32_t r = line.startRunIndex; r <= line.endRunIndex; ++r)
+  {
+    const GlyphRun& run = paragraph.runs[r];
+    uint32_t start = r == line.startRunIndex ? line.startGlyphIndex : 0;
+    uint32_t end = r == line.endRunIndex ? line.endGlyphIndex
+                                         : (uint32_t)run.glyphs.size();
+    for (uint32_t i = start; i < end; ++i)
+    {
+      Font::InkExtents glyph = run.font->glyphInkExtents(run.glyphs[i]);
+      if (glyph.empty())
+      {
+        continue;
+      }
+      float y = run.offsets[i].y;
+      ink.top = std::min(ink.top, y + glyph.top * run.size);
+      ink.bottom = std::max(ink.bottom, y + glyph.bottom * run.size);
+    }
+  }
+  return ink;
+}
+
+// Vertical trim: the ascent above the first line's cap-height, x-height or
+// highest outline and the descent below the last line's baseline, natural
+// descent or lowest outline that should be removed from the box. Glyph layout
+// is unchanged. Shared by computeBoundsInfo (rendering) and measure (layout),
+// so it operates on supplied lines/shape.
 static void computeVerticalTrim(
     const SimpleArray<SimpleArray<GlyphLine>>& lines,
     const SimpleArray<Paragraph>& shape,
@@ -312,7 +343,19 @@ static void computeVerticalTrim(
     return;
   }
 
-  if (trimTop != TextTrimTop::none && !lines.front().empty())
+  if (trimTop == TextTrimTop::ink && !lines.front().empty())
+  {
+    // Unlike the font's metrics, an outline can reach above the line (stacked
+    // accents taller than the font's ascent), so this trim goes negative
+    // there and grows the box to keep the glyph inside it.
+    const GlyphLine& firstLine = lines.front().front();
+    Font::InkExtents ink = lineInkExtents(shape[0], firstLine);
+    if (!ink.empty())
+    {
+      topTrim = (firstLine.baseline + ink.top) - firstLine.top;
+    }
+  }
+  else if (trimTop != TextTrimTop::none && !lines.front().empty())
   {
     const GlyphLine& firstLine = lines.front().front();
     const Paragraph& firstParagraph = shape[0];
@@ -346,6 +389,16 @@ static void computeVerticalTrim(
       {
         // Box bottom at the baseline: remove the whole descent.
         bottomTrim = std::max(0.0f, descentBand);
+      }
+      else if (trimBottom == TextTrimBottom::ink)
+      {
+        // Box bottom at the lowest outline, which hangs below the line when
+        // the line height is shorter than the glyphs, growing the box.
+        Font::InkExtents ink = lineInkExtents(shape[p], lastLine);
+        if (!ink.empty())
+        {
+          bottomTrim = descentBand - ink.bottom;
+        }
       }
       else
       {
@@ -427,8 +480,8 @@ TextBoundsInfo Text::computeBoundsInfo()
   auto totalHeight = ellipsisLine > 0 ? ellipsedHeight : y;
   isEllipsisLineLast = lastLineIndex == ellipsisLine;
 
-  // Vertical trim: shrink the box to the chosen cap/x-height + baseline band.
-  // Glyph layout is unchanged; fixed sizing keeps its authored box.
+  // Vertical trim: fit the box to the chosen top and bottom edges. Glyph
+  // layout is unchanged; fixed sizing keeps its authored box.
   float topTrim = 0.0f;
   float bottomTrim = 0.0f;
   if (effectiveSizing() != TextSizing::fixed)
@@ -908,7 +961,7 @@ void Text::buildRenderStyles()
   }
 
   // Step 6: add the glyphs to render paths. Shift content up by topTrim so
-  // the first line's cap-height line aligns with the (trimmed) box top.
+  // the first line's trim edge aligns with the (trimmed) box top.
   float curY = minY - topTrim;
   int lineIndex = 0;
   int paragraphIndex = 0;

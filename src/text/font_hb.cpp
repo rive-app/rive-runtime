@@ -1258,6 +1258,22 @@ rive::RawPath HBFont::getPath(rive::GlyphID glyph) const
   return glyphPath(glyph);
 }
 
+rive::Font::InkExtents HBFont::glyphInkExtents(rive::GlyphID glyph) const
+{
+  // HarfBuzz reads these from the font's own bounds (glyf, CFF, COLR clip
+  // boxes and bitmap strikes), so this never draws the outline.
+  hb_glyph_extents_t extents;
+  if (!hb_font_get_glyph_extents(m_font, glyph, &extents) ||
+      extents.height == 0)
+  {
+    return {};
+  }
+  // y_bearing is the top with up as +Y and height runs down from it.
+  return {
+      -extents.y_bearing * gInvScale,
+      -(extents.y_bearing + extents.height) * gInvScale};
+}
+
 const rive::RawPath& HBFont::glyphPath(rive::GlyphID glyph) const
 {
   auto cached = m_glyphPathCache.find(glyph);
