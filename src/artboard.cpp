@@ -4647,11 +4647,13 @@ void buildFocusTreeVisit(
   if (component->is<NestedArtboard>())
   {
     auto* nestedHost = component->as<NestedArtboard>();
-    // Wire the nested state machines to this manager before placing the
-    // scope: setExternalFocusManager rebuilds the nested focus tree at the
-    // manager root, so it must run first. Track whether any was actually
-    // re-wired — a re-wire leaves the tree at the root and requires
-    // re-homing under the scope (forceRebuild); an already-wired tree is
+    // Wire the nested state machines to this manager without building: the
+    // sync below builds the nested tree where it belongs. Building it at the
+    // manager root here too walked every nested subtree twice, and the
+    // sync's teardown unwired the grandchildren, so the next level doubled
+    // again (2^k builds for an artboard under k hosts). Track whether any
+    // was actually re-wired — a re-wire leaves the tree unbuilt and requires
+    // the build under the scope (forceRebuild); an already-wired tree is
     // left in place.
     bool rewired = false;
     for (auto* animation : nestedHost->nestedAnimations())
@@ -4662,17 +4664,15 @@ void buildFocusTreeVisit(
         auto* smi = nsm->stateMachineInstance();
         if (smi != nullptr && smi->focusManager() != focusManager)
         {
-          smi->setExternalFocusManager(focusManager);
+          smi->setExternalFocusManager(focusManager, /*buildTree=*/false);
           rewired = true;
         }
       }
     }
-    // Scope placement must be the final write so it overrides the root
-    // rebuild above. For data-bound hosts this parents the nested focus
-    // tree under the host's persistent structural scope; static hosts
-    // build directly under focusNode. placeScope=true: the build pass is
-    // the ordering authority — the scope is re-appended at the walk's
-    // position.
+    // For data-bound hosts this parents the nested focus tree under the
+    // host's persistent structural scope; static hosts build directly under
+    // focusNode. placeScope=true: the build pass is the ordering authority —
+    // the scope is re-appended at the walk's position.
     nestedHost->syncNestedFocusTree(
         focusNode,
         /*placeScope=*/true,

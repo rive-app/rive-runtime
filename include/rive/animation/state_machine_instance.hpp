@@ -535,8 +535,10 @@ public:
   /// Set an external focus manager to use instead of the internal one.
   /// This is used when a nested artboard should share focus with its parent.
   /// If the focus tree was already built with a different manager, it will
-  /// be rebuilt with the new manager.
-  void setExternalFocusManager(FocusManager* manager);
+  /// be rebuilt with the new manager. With [buildTree] false the new tree is
+  /// left to the caller, which builds it where it belongs (see
+  /// Artboard::adoptFocusManager).
+  void setExternalFocusManager(FocusManager* manager, bool buildTree = true);
 
   /// Set focus to a specific FocusData's node.
   void setFocus(FocusData* focusData);

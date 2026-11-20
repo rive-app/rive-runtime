@@ -52,7 +52,11 @@ void NestedStateMachine::initializeAnimation(
           parentArtboard->focusManager() != nullptr)
       {
         auto* parentFM = parentArtboard->focusManager();
-        m_StateMachineInstance->setExternalFocusManager(parentFM);
+        // The sync builds the tree under the host's scope, so wiring
+        // doesn't build it at the manager root first.
+        m_StateMachineInstance->setExternalFocusManager(
+            parentFM,
+            /*buildTree=*/false);
 
         nestedArtboard->syncNestedFocusTree(
             FocusData::findClosestFocusNode(nestedArtboard));

@@ -5462,11 +5462,13 @@ void StateMachineInstance::applyEvents()
   }
 }
 
-void StateMachineInstance::setExternalFocusManager(FocusManager* manager)
+void StateMachineInstance::setExternalFocusManager(
+    FocusManager* manager,
+    bool buildTree)
 {
   if (m_artboardInstance != nullptr)
   {
-    m_artboardInstance->adoptFocusManager(manager);
+    m_artboardInstance->adoptFocusManager(manager, buildTree);
   }
 }
 

@@ -4495,6 +4495,94 @@ TEST_CASE("A list builds a new row's focus tree once", "[focus]")
 }
 #endif
 
+namespace
+{
+// Every artboard instance mounted at or below [artboard], and the most nested
+// hosts with a state machine on any path down from it.
+struct NestedCensus
+{
+  size_t instances = 0;
+  int stateMachineDepth = 0;
+};
+
+void countNested(rive::Artboard* artboard, int depth, NestedCensus& census)
+{
+  census.instances++;
+  census.stateMachineDepth = std::max(census.stateMachineDepth, depth);
+  for (auto* host : artboard->nestedArtboards())
+  {
+    auto* instance = host->artboardInstance(0);
+    if (instance == nullptr)
+    {
+      continue;
+    }
+    bool hasStateMachine = false;
+    for (auto* animation : host->nestedAnimations())
+    {
+      hasStateMachine |= animation->is<rive::NestedStateMachine>();
+    }
+    countNested(instance, depth + (hasStateMachine ? 1 : 0), census);
+  }
+}
+
+void checkSharesManager(rive::Artboard* artboard, rive::FocusManager* fm)
+{
+  CHECK(artboard->focusManager() == fm);
+  for (auto* host : artboard->nestedArtboards())
+  {
+    if (auto* instance = host->artboardInstance(0))
+    {
+      checkSharesManager(instance, fm);
+    }
+  }
+}
+} // namespace
+
+// Wiring a nested state machine to its parent's manager used to build the
+// nested focus tree at the manager root, and the sync that followed tore it
+// down and built it again under the host. The teardown unwired the next level,
+// so it doubled again: an artboard under k hosts with state machines was built
+// 2^k times.
+TEST_CASE("Each nested artboard's focus tree is built once", "[focus]")
+{
+  auto file = ReadRiveFile("assets/layoutstest_8-planets-grid.riv");
+  const uint64_t buildsBefore = rive::Artboard::sm_focusTreeBuilds;
+  auto artboard = file->artboardAt(0);
+  REQUIRE(artboard != nullptr);
+  const uint64_t builds = rive::Artboard::sm_focusTreeBuilds - buildsBefore;
+
+  NestedCensus census;
+  countNested(artboard.get(), 0, census);
+  REQUIRE(census.stateMachineDepth >= 3);
+  CHECK(builds == census.instances);
+  checkSharesManager(artboard.get(), artboard->focusManager());
+
+  // Remounting a host builds its new subtree once too.
+  rive::NestedArtboard* host = nullptr;
+  NestedCensus hostCensus;
+  for (auto* candidate : artboard->nestedArtboards())
+  {
+    if (candidate->canRemount() && candidate->artboardInstance(0) != nullptr)
+    {
+      NestedCensus candidateCensus;
+      countNested(candidate->artboardInstance(0), 0, candidateCensus);
+      if (candidateCensus.stateMachineDepth >= 2)
+      {
+        host = candidate;
+        hostCensus = candidateCensus;
+        break;
+      }
+    }
+  }
+  REQUIRE(host != nullptr);
+  const uint64_t remountBuildsBefore = rive::Artboard::sm_focusTreeBuilds;
+  host->remount();
+  CHECK(
+      rive::Artboard::sm_focusTreeBuilds - remountBuildsBefore ==
+      hostCensus.instances);
+  checkSharesManager(artboard.get(), artboard->focusManager());
+}
+
 TEST_CASE("Focus based transitions work", "[silver]")
 {
   rive::SerializingFactory silver;
@@ -4612,6 +4700,55 @@ TEST_CASE(
   CHECK(targetRow->manager() == fm);
   CHECK_FALSE(targetRow->children().empty());
   CHECK(list->stateMachineInstance(targetIndex)->focusManager() == fm);
+}
+
+TEST_CASE(
+    "A rewired list item with a data-bound host stays under its row when "
+    "the parent is rebuilt in place",
+    "[FocusManager][list]")
+{
+  // Each ListItem nests a data-bound host and has no FocusData of its own, so
+  // the host's persistent scope is the only thing under the item's row.
+  // Unwiring the item leaves that scope there (cleanupFocusTree doesn't own
+  // it). Rewiring it without a build must still build it under the row,
+  // even though the row isn't empty.
+  auto file = ReadRiveFile("assets/game_menu_ad_police_files.riv");
+  auto artboard = file->artboardAt(0);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  auto* fm = stateMachine->focusManager();
+  REQUIRE(fm != nullptr);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(vmi != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
+
+  REQUIRE(artboard->artboardComponentLists().size() == 1);
+  auto* list = artboard->artboardComponentLists()[0];
+  auto scope = list->listScopeFocusNode();
+  REQUIRE(scope != nullptr);
+  REQUIRE(list->artboardCount() > 0);
+  REQUIRE(list->stateMachineInstance(0) != nullptr);
+  REQUIRE(scope->children().size() == list->artboardCount());
+  auto row = scope->children()[0];
+  REQUIRE(row->children().size() == 1);
+  auto hostScope = row->children()[0];
+
+  list->stateMachineInstance(0)->setExternalFocusManager(nullptr);
+  REQUIRE(hostScope->parent() == row.get());
+#ifdef WITH_RIVE_TOOLS
+  // Tools builds remember the row and build under it when asked for the
+  // manager root, which would hide a build at the root. Runtimes don't.
+  list->artboardInstance(0)->setExternalParentFocusNode(nullptr);
+#endif
+
+  artboard->buildFocusTree(fm, nullptr);
+
+  CHECK(list->stateMachineInstance(0)->focusManager() == fm);
+  CHECK(scope->children()[0] == row);
+  CHECK(hostScope->parent() == row.get());
 }
 
 TEST_CASE(

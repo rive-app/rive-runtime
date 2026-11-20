@@ -466,12 +466,11 @@ void NestedArtboard::swapArtboard(
       auto* smi = m_boundNestedStateMachine->stateMachineInstance();
       if (smi != nullptr && smi->focusManager() != parentFM)
       {
-        smi->setExternalFocusManager(parentFM);
+        smi->setExternalFocusManager(parentFM, /*buildTree=*/false);
       }
     }
-    // Re-home the nested instance's focus tree under the host's scope.
-    // setExternalFocusManager above rebuilds the nested tree at the
-    // manager root, so scope placement must be the final write.
+    // Build the nested instance's focus tree under the host's scope. The
+    // wiring above left it unbuilt, so this is its one build.
     syncNestedFocusTree(FocusData::findClosestFocusNode(this));
 
     // Register the swapped-in instance with the host's semantic manager,
@@ -601,14 +600,19 @@ void NestedArtboard::syncNestedFocusTree(
   // this manager and was not just re-wired (forceRebuild): rebuilding an
   // untouched nested instance clears focus resting inside it, while the scope
   // placement above already keeps tab order correct. forceRebuild is set
-  // after setExternalFocusManager (which rebuilds at the manager root) or on
-  // a swap.
+  // after setExternalFocusManager (which leaves the tree unbuilt, or built at
+  // the manager root) or on a swap.
   if (!forceRebuild && nestedInstance->focusManager() == parentFM)
   {
     return;
   }
 
-  nestedInstance->cleanupFocusTree();
+  // A deferred tree was torn down when the manager was wired and has not
+  // been built since: there is nothing to clean up.
+  if (!nestedInstance->focusTreeDeferred())
+  {
+    nestedInstance->cleanupFocusTree();
+  }
   // Under the scope when data-bound, else under fallbackParent (the caller's
   // resolved closest ancestor).
   nestedInstance->buildFocusTree(

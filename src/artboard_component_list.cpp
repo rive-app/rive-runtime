@@ -943,6 +943,14 @@ bool ArtboardComponentList::listItemNeedsBuildUnderRow(
   {
     return true;
   }
+  // A deferred tree hasn't been built since its manager was wired, so what
+  // the row holds says nothing about it: an earlier build can leave a
+  // data-bound host's persistent scope there, which cleanupFocusTree doesn't
+  // remove.
+  if (inst->focusTreeDeferred())
+  {
+    return artboardHasFocusContent(inst);
+  }
   // If the artboard has focus content but the row is empty, that content is
   // attached outside the row (setExternalFocusManager builds at the manager
   // root) and must be rebuilt under the row. Focus content includes
@@ -1216,28 +1224,28 @@ void ArtboardComponentList::buildListRowFocusTrees(FocusManager* fm)
     }
     // A row linked since it was last built has no tree yet (see
     // linkStateMachineToArtboard); this is its one build.
-    const bool deferred = inst->focusTreeDeferred();
     rcp<FocusNode> row = m_listRowFocusNodes[static_cast<size_t>(i)];
     if (row == nullptr)
     {
-      if (deferred)
+      if (inst->focusTreeDeferred())
       {
         inst->buildFocusTree(fm, nullptr);
       }
       continue;
     }
-    // Wire the item's state machine to the shared manager first:
-    // setExternalFocusManager rebuilds the item's focus tree at the manager
-    // root, so it must run before building under the row. Same "wire first,
-    // place last" ordering as buildFocusTreeVisit and updateArtboard.
+    // Wire the item's state machine to the shared manager first, without
+    // building: the tree is built once below, under the row or at the root.
+    // Same "wire first, place last" ordering as buildFocusTreeVisit and
+    // updateArtboard.
     auto* smi = stateMachineInstance(i);
     if (smi != nullptr && smi->focusManager() != fm)
     {
-      smi->setExternalFocusManager(fm);
+      smi->setExternalFocusManager(fm, /*buildTree=*/false);
     }
+    const bool deferred = inst->focusTreeDeferred();
     if (listItemNeedsBuildUnderRow(fm, inst, row))
     {
-      if (inst->focusManager() != nullptr)
+      if (inst->focusManager() != nullptr && !deferred)
       {
         inst->cleanupFocusTree();
       }
