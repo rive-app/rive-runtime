@@ -512,6 +512,9 @@ enum class LuaAtoms : int16_t
   // Keyboard and text input forwarded to a script's artboard
   keyboardEvent,
   textEvent,
+
+  // The artboard a scripted object lives in
+  artboard,
 };
 
 struct ScriptedMat2D
@@ -2531,9 +2534,9 @@ public:
 };
 
 /// Whether a scripted object is still alive. The script cannot own the
-/// artboard that object lives in, so the nodes it is lent of that artboard
-/// hold one of these instead, and the object's context ends it as the object
-/// goes away.
+/// artboard that object lives in, so the nodes and views it is lent of that
+/// artboard hold one of these instead, and the object's context ends it as the
+/// object goes away.
 class ScriptedObjectLease : public RefCnt<ScriptedObjectLease>
 {
 public:
@@ -2542,6 +2545,9 @@ public:
   void end() { m_owner = nullptr; }
   /// The scripted object, null once the lease has ended.
   ScriptedObject* owner() const { return m_owner; }
+  /// Notes a read for the update or advance running, while the owner is
+  /// alive (see ScriptedObject::trackRead).
+  void trackRead(Component* component, ComponentDirt dirt);
 
 private:
   ScriptedObject* m_owner;
@@ -2569,6 +2575,15 @@ public:
   rcp<ScriptedObjectLease> lease() { return m_lease; }
   /// Whether a write to this node lands: not once its lease has ended.
   bool takesWrite() const { return m_lease == nullptr || m_lease->alive(); }
+  /// Notes a read of the node for the update or advance running. A node of
+  /// an owned artboard has no lease and is not tracked.
+  void trackRead(ComponentDirt dirt)
+  {
+    if (m_lease != nullptr)
+    {
+      m_lease->trackRead(m_component, dirt);
+    }
+  }
 
   const ShapePaint* shapePaint();
   void shapePaint(const ShapePaint* shapePaint) { m_shapePaint = shapePaint; }
@@ -2610,6 +2625,31 @@ private:
   uint32_t m_id = 0;
   // The node get() returns, a registry ref; 0 until the first get.
   int m_nodeRef = 0;
+};
+
+/// The artboard a scripted object lives in, from context:artboard(). The
+/// script does not own it, so it is lent only what walking it needs, and
+/// reads as empty once the object's lease ends.
+class ScriptedArtboardView
+{
+public:
+  ScriptedArtboardView(rcp<ScriptedObjectLease> lease, Artboard* artboard)
+      : m_lease(std::move(lease))
+      , m_artboard(artboard)
+  {}
+
+  static constexpr uint8_t luaTag = LUA_T_COUNT + 80;
+  static constexpr const char* luaName = "ArtboardView";
+  static constexpr bool hasMetatable = true;
+
+  /// Null once the lease has ended.
+  Artboard* artboard() { return m_lease->alive() ? m_artboard : nullptr; }
+  rcp<ScriptedObjectLease> lease() { return m_lease; }
+  void trackRead(ComponentDirt dirt);
+
+private:
+  rcp<ScriptedObjectLease> m_lease;
+  Artboard* m_artboard = nullptr;
 };
 
 // The drawable handed to an artboard:draw visitor, borrowed for that call.
@@ -2796,6 +2836,10 @@ public:
   int pushGlobalViewModel(lua_State*);
   int pushGlobalViewModelNames(lua_State*);
   int pushDataContext(lua_State*);
+  /// The artboard the scripted object lives in, or nil without one.
+  int pushArtboard(lua_State*);
+  /// The scripted object as a node, or nil when it is not a transform.
+  int pushNode(lua_State*);
   static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
   static constexpr const char* luaName = "Context";
   static constexpr bool hasMetatable = true;
@@ -2815,6 +2859,10 @@ private:
   std::unordered_map<std::string, ScriptedWrapperCache<ViewModelInstance>>
       m_globalViewModels;
   ScriptedWrapperCache<DataContext> m_dataContext;
+
+  // context:artboard() and context:node(), kept for the lease they hold.
+  ScriptedWrapperCache<ScriptedObjectLease> m_artboardView;
+  ScriptedWrapperCache<ScriptedObjectLease> m_node;
 };
 
 /// Wraps [`ListenerInvocation`] for `performAction` in scripted listener

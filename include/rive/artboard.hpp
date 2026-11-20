@@ -59,6 +59,7 @@ struct RasterPlan;
 struct CachedRaster;
 } // namespace offscreen
 class LayerMask;
+class ScriptedReadTracker;
 class LayerMaskProxyDrawable;
 enum class LayerMaskOp : uint8_t;
 class BitmapCache;
@@ -184,6 +185,14 @@ private:
 #endif
 
   unsigned int m_DirtDepth = 0;
+#ifdef WITH_RIVE_SCRIPTING
+  // Bumped before each component update, so a scripted update can tell a
+  // component update that came after what it read from one it saw.
+  uint64_t m_updateSerial = 0;
+  // What scripted objects' updates read from this artboard, made by the
+  // first one that reads anything.
+  std::unique_ptr<ScriptedReadTracker> m_readTracker;
+#endif
   Factory* m_Factory = nullptr;
   Drawable* m_FirstDrawable = nullptr;
   bool m_IsInstance = false;
@@ -822,6 +831,15 @@ public:
   /// pointer. Null on a non-instance, or when no clone could be vended.
   ScriptedInterpolator* statefulInterpolator(
       const ScriptedInterpolator* source);
+#ifdef WITH_RIVE_SCRIPTING
+  /// The number of the component update running, or of the last one.
+  uint64_t updateSerial() const { return m_updateSerial; }
+  ScriptedReadTracker* readTracker() const { return m_readTracker.get(); }
+  ScriptedReadTracker* makeReadTracker();
+  /// A script set `component`'s world transform directly, which raises no
+  /// dirt: what read it is due again as if it had updated.
+  void scriptWroteWorldTransform(Component* component);
+#endif
   void calculateLayout();
   bool canHaveOverrides() override { return true; }
 

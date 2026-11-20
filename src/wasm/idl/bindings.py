@@ -272,6 +272,7 @@ def ns(module, short, ops, lanes=(), boots=False, as_class=True):
 FEATURES = [
     'parallelCalls',
     'identity',
+    'hostArtboard',
 ]
 HOST_FEATURES = (1 << len(FEATURES)) - 1
 
@@ -631,6 +632,24 @@ NAMESPACES = [
         # 1 while a node from node_ref still names its target: its object
         # lives, and in the editor its target is still one the input takes.
         op('node_live', [handle('node')], ret='u32'),
+        # The artboard a scripted object lives in, and the object itself, as
+        # node handles the module owns; 0 when the object has no artboard or
+        # is not a transform. They, and the nodes reached from them, go stale
+        # with the object.
+        op('host_artboard', [handle('object')], ret='u32'),
+        op('host_node', [handle('object')], ret='u32'),
+        # Retrying copy-out of the node's name, empty when it was not
+        # exported or the node is stale.
+        op('node_name', [handle('node'),
+                         mutbuf('char', 'out', 'outCount', written='size')],
+           ret='u32'),
+        # The transform of that name in the node's artboard as a new node
+        # handle, 0 when there is none.
+        op('node_find', [handle('node'), string('name', 'length')],
+           ret='u32'),
+        # width, height, minX, minY, maxX, maxY of the node's artboard.
+        op('node_artboard_metrics', [handle('node'),
+                                     mutbuf('float', 'out', 'outCount')]),
     ]),
     # The Luau Audio surface: sources resolve from the object's file by
     # asset name, sounds come back from the play ops. Frame clocks cross as

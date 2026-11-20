@@ -145,7 +145,7 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
             },
             'now': () => performance.now(),
             'date_now': () => Date.now(),
-            'features': () => 0x3,
+            'features': () => 0x7,
             'debug_enter': calls.rive_rt_debug_enter,
             'debug_line': calls.rive_rt_debug_line,
             'debug_leave': calls.rive_rt_debug_leave,
@@ -795,6 +795,44 @@ export function createRiveModuleImports(host, moduleMemory, only = null) {
             },
             'node_ref': calls.rive_artboard_node_ref,
             'node_live': calls.rive_artboard_node_live,
+            'host_artboard': calls.rive_artboard_host_artboard,
+            'host_node': calls.rive_artboard_host_node,
+            'node_name': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageOut(out, outCount);
+                    const ret = calls.rive_artboard_node_name(node, out_p, outCount);
+                    copyOut(out_p, out, fitted(ret, outCount));
+                    return ret;
+                } finally {
+                    unstage(out_p, outCount);
+                    stackRestore(mark);
+                }
+            },
+            'node_find': (node, name, length) => {
+                const mark = stackSave();
+                let name_p = 0;
+                try {
+                    name_p = stageIn(name, length);
+                    return calls.rive_artboard_node_find(node, name_p, length);
+                } finally {
+                    unstage(name_p, length);
+                    stackRestore(mark);
+                }
+            },
+            'node_artboard_metrics': (node, out, outCount) => {
+                const mark = stackSave();
+                let out_p = 0;
+                try {
+                    out_p = stageIn(out, outCount * 4);
+                    calls.rive_artboard_node_artboard_metrics(node, out_p, outCount);
+                    copyOut(out_p, out, outCount * 4);
+                } finally {
+                    unstage(out_p, outCount * 4);
+                    stackRestore(mark);
+                }
+            },
         },
         'rive_audio_v1': want('rive_audio_v1') && {
             'source': (object, name, nameLength) => {
@@ -3107,6 +3145,49 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.raised !== null) raise();
             return ret;
         })(hostCall(131)),
+        rive_artboard_host_artboard: want('rive_artboard_v1') && ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(132)),
+        rive_artboard_host_node: want('rive_artboard_v1') && ((fn) => (a0) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(133)),
+        rive_artboard_node_name: want('rive_artboard_v1') && ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(134)),
+        rive_artboard_node_find: want('rive_artboard_v1') && ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            let ret;
+            try { ret = fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+            return ret;
+        })(hostCall(135)),
+        rive_artboard_node_artboard_metrics: want('rive_artboard_v1') && ((fn) => (a0, a1, a2) => {
+            if (ctx.vm === 0) released();
+            if (counters.on) counters.hostCalls++;
+            try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
+            if (ctx.hostFault) nestedFault();
+            if (ctx.raised !== null) raise();
+        })(hostCall(136)),
         rive_audio_source: want('rive_audio_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3115,14 +3196,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(132)),
+        })(hostCall(137)),
         rive_audio_source_release: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(133)),
+        })(hostCall(138)),
         rive_audio_source_duration: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3131,7 +3212,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(134)),
+        })(hostCall(139)),
         rive_audio_source_sample_rate: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3140,7 +3221,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(135)),
+        })(hostCall(140)),
         rive_audio_source_channels: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3149,7 +3230,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(136)),
+        })(hostCall(141)),
         rive_audio_source_to_blob: want('rive_audio_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3158,7 +3239,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(137)),
+        })(hostCall(142)),
         rive_audio_stream: want('rive_audio_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3167,7 +3248,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(138)),
+        })(hostCall(143)),
         rive_audio_stream_ring: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3176,7 +3257,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(139)),
+        })(hostCall(144)),
         rive_audio_stream_seeks: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3185,7 +3266,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(140)),
+        })(hostCall(145)),
         rive_audio_stream_channels: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3194,7 +3275,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(141)),
+        })(hostCall(146)),
         rive_audio_stream_sample_rate: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3203,7 +3284,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(142)),
+        })(hostCall(147)),
         rive_audio_stream_seek_frame: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3212,14 +3293,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(143)),
+        })(hostCall(148)),
         rive_audio_stream_set_loop: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(144)),
+        })(hostCall(149)),
         rive_audio_stream_ended: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3228,14 +3309,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(145)),
+        })(hostCall(150)),
         rive_audio_stream_release: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(146)),
+        })(hostCall(151)),
         rive_audio_play: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3244,7 +3325,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(147)),
+        })(hostCall(152)),
         rive_audio_play_at_time: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3253,7 +3334,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(148)),
+        })(hostCall(153)),
         rive_audio_play_in_time: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3262,7 +3343,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(149)),
+        })(hostCall(154)),
         rive_audio_play_at_frame: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3271,7 +3352,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(150)),
+        })(hostCall(155)),
         rive_audio_play_in_frame: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3280,7 +3361,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(151)),
+        })(hostCall(156)),
         rive_audio_time: want('rive_audio_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3289,7 +3370,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(152)),
+        })(hostCall(157)),
         rive_audio_time_frame: want('rive_audio_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3298,7 +3379,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(153)),
+        })(hostCall(158)),
         rive_audio_sample_rate: want('rive_audio_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3307,7 +3388,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(154)),
+        })(hostCall(159)),
         rive_audio_processor_sample_rate: want('rive_audio_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3316,7 +3397,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(155)),
+        })(hostCall(160)),
         rive_audio_processor_channels: want('rive_audio_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3325,42 +3406,42 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(156)),
+        })(hostCall(161)),
         rive_audio_sound_release: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(157)),
+        })(hostCall(162)),
         rive_audio_sound_play: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(158)),
+        })(hostCall(163)),
         rive_audio_sound_pause: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(159)),
+        })(hostCall(164)),
         rive_audio_sound_resume: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(160)),
+        })(hostCall(165)),
         rive_audio_sound_stop: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(161)),
+        })(hostCall(166)),
         rive_audio_sound_seek: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3369,7 +3450,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(162)),
+        })(hostCall(167)),
         rive_audio_sound_seek_frame: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3378,7 +3459,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(163)),
+        })(hostCall(168)),
         rive_audio_sound_completed: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3387,7 +3468,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(164)),
+        })(hostCall(169)),
         rive_audio_sound_time: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3396,7 +3477,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(165)),
+        })(hostCall(170)),
         rive_audio_sound_time_frame: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3405,7 +3486,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(166)),
+        })(hostCall(171)),
         rive_audio_sound_volume: want('rive_audio_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3414,14 +3495,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(167)),
+        })(hostCall(172)),
         rive_audio_sound_set_volume: want('rive_audio_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(168)),
+        })(hostCall(173)),
         rive_path_new: want('rive_path_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3430,28 +3511,28 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(169)),
+        })(hostCall(174)),
         rive_path_update: want('rive_path_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(170)),
+        })(hostCall(175)),
         rive_path_release: want('rive_path_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(171)),
+        })(hostCall(176)),
         rive_path_add: want('rive_path_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(172)),
+        })(hostCall(177)),
         rive_path_verbs: want('rive_path_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3460,7 +3541,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(173)),
+        })(hostCall(178)),
         rive_path_points: want('rive_path_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3469,14 +3550,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(174)),
+        })(hostCall(179)),
         rive_path_effect_result: want('rive_path_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(175)),
+        })(hostCall(180)),
         rive_measure_path_new: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3485,7 +3566,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(176)),
+        })(hostCall(181)),
         rive_measure_contours_new: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3494,7 +3575,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(177)),
+        })(hostCall(182)),
         rive_measure_contour_next: want('rive_measure_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3503,7 +3584,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(178)),
+        })(hostCall(183)),
         rive_measure_length: want('rive_measure_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3512,7 +3593,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(179)),
+        })(hostCall(184)),
         rive_measure_is_closed: want('rive_measure_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3521,21 +3602,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(180)),
+        })(hostCall(185)),
         rive_measure_pos_tan: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(181)),
+        })(hostCall(186)),
         rive_measure_warp: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(182)),
+        })(hostCall(187)),
         rive_measure_extract: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3544,7 +3625,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(183)),
+        })(hostCall(188)),
         rive_measure_extract_read: want('rive_measure_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3553,14 +3634,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(184)),
+        })(hostCall(189)),
         rive_measure_release: want('rive_measure_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(185)),
+        })(hostCall(190)),
         rive_paint_new: want('rive_paint_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3569,77 +3650,77 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(186)),
+        })(hostCall(191)),
         rive_paint_release: want('rive_paint_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(187)),
+        })(hostCall(192)),
         rive_paint_style: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(188)),
+        })(hostCall(193)),
         rive_paint_color: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(189)),
+        })(hostCall(194)),
         rive_paint_thickness: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(190)),
+        })(hostCall(195)),
         rive_paint_join: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(191)),
+        })(hostCall(196)),
         rive_paint_cap: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(192)),
+        })(hostCall(197)),
         rive_paint_blend_mode: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(193)),
+        })(hostCall(198)),
         rive_paint_feather: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(194)),
+        })(hostCall(199)),
         rive_paint_shader: want('rive_paint_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(195)),
+        })(hostCall(200)),
         rive_paint_shader_transform: want('rive_paint_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(196)),
+        })(hostCall(201)),
         rive_canvas_new: want('rive_canvas_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3648,14 +3729,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(197)),
+        })(hostCall(202)),
         rive_canvas_release: want('rive_canvas_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(198)),
+        })(hostCall(203)),
         rive_canvas_width: want('rive_canvas_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3664,7 +3745,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(199)),
+        })(hostCall(204)),
         rive_canvas_height: want('rive_canvas_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3673,7 +3754,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(200)),
+        })(hostCall(205)),
         rive_canvas_resize: want('rive_canvas_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3682,7 +3763,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(201)),
+        })(hostCall(206)),
         rive_canvas_image: want('rive_canvas_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3691,7 +3772,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(202)),
+        })(hostCall(207)),
         rive_canvas_begin_frame: want('rive_canvas_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3700,14 +3781,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(203)),
+        })(hostCall(208)),
         rive_canvas_end_frame: want('rive_canvas_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(204)),
+        })(hostCall(209)),
         rive_gpu_features: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3716,7 +3797,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(205)),
+        })(hostCall(210)),
         rive_gpu_canvas_new: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3725,14 +3806,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(206)),
+        })(hostCall(211)),
         rive_gpu_canvas_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(207)),
+        })(hostCall(212)),
         rive_gpu_canvas_color_view: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3741,7 +3822,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(208)),
+        })(hostCall(213)),
         rive_gpu_canvas_image: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3750,7 +3831,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(209)),
+        })(hostCall(214)),
         rive_gpu_canvas_resize: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3759,7 +3840,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(210)),
+        })(hostCall(215)),
         rive_gpu_target_view: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3768,7 +3849,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(211)),
+        })(hostCall(216)),
         rive_gpu_pass_begin: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3777,91 +3858,91 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(212)),
+        })(hostCall(217)),
         rive_gpu_pass_set_pipeline: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(213)),
+        })(hostCall(218)),
         rive_gpu_pass_set_vertex_buffer: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(214)),
+        })(hostCall(219)),
         rive_gpu_pass_set_index_buffer: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(215)),
+        })(hostCall(220)),
         rive_gpu_pass_set_bind_group: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(216)),
+        })(hostCall(221)),
         rive_gpu_pass_set_viewport: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(217)),
+        })(hostCall(222)),
         rive_gpu_pass_set_scissor: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(218)),
+        })(hostCall(223)),
         rive_gpu_pass_set_stencil_reference: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(219)),
+        })(hostCall(224)),
         rive_gpu_pass_set_blend_color: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(220)),
+        })(hostCall(225)),
         rive_gpu_pass_draw: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(221)),
+        })(hostCall(226)),
         rive_gpu_pass_draw_indexed: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(222)),
+        })(hostCall(227)),
         rive_gpu_pass_finish: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(223)),
+        })(hostCall(228)),
         rive_gpu_pass_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(224)),
+        })(hostCall(229)),
         rive_gpu_image_view: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3870,7 +3951,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(225)),
+        })(hostCall(230)),
         rive_gpu_buffer_new: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3879,21 +3960,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(226)),
+        })(hostCall(231)),
         rive_gpu_buffer_update: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(227)),
+        })(hostCall(232)),
         rive_gpu_buffer_update_blob: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(228)),
+        })(hostCall(233)),
         rive_gpu_buffer_new_blob: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3902,14 +3983,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(229)),
+        })(hostCall(234)),
         rive_gpu_buffer_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(230)),
+        })(hostCall(235)),
         rive_gpu_texture_new: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3918,21 +3999,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(231)),
+        })(hostCall(236)),
         rive_gpu_texture_upload: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(232)),
+        })(hostCall(237)),
         rive_gpu_texture_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(233)),
+        })(hostCall(238)),
         rive_gpu_sampler_new: want('rive_gpu_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3941,14 +4022,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(234)),
+        })(hostCall(239)),
         rive_gpu_sampler_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(235)),
+        })(hostCall(240)),
         rive_gpu_texture_view_new: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3957,14 +4038,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(236)),
+        })(hostCall(241)),
         rive_gpu_texture_view_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(237)),
+        })(hostCall(242)),
         rive_gpu_shader_target: want('rive_gpu_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3973,7 +4054,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(238)),
+        })(hostCall(243)),
         rive_gpu_shader_asset_bytes: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3982,7 +4063,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(239)),
+        })(hostCall(244)),
         rive_gpu_shader_asset_id: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -3991,7 +4072,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(240)),
+        })(hostCall(245)),
         rive_gpu_shader_module_from_asset: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4000,7 +4081,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(241)),
+        })(hostCall(246)),
         rive_gpu_shader_module_from_rstb: want('rive_gpu_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_gpu_v1', 'shader_module_from_rstb') : (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4009,14 +4090,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(242)),
+        })(hostCall(247)),
         rive_gpu_shader_module_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(243)),
+        })(hostCall(248)),
         rive_gpu_bind_group_layout_new: want('rive_gpu_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4025,14 +4106,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(244)),
+        })(hostCall(249)),
         rive_gpu_bind_group_layout_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(245)),
+        })(hostCall(250)),
         rive_gpu_bind_group_layout_from_shader: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4041,7 +4122,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(246)),
+        })(hostCall(251)),
         rive_gpu_bind_group_layout_from_shaders: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4050,7 +4131,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(247)),
+        })(hostCall(252)),
         rive_gpu_bind_group_layout_from_entries: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4059,7 +4140,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(248)),
+        })(hostCall(253)),
         rive_gpu_bind_group_new: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4068,14 +4149,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(249)),
+        })(hostCall(254)),
         rive_gpu_bind_group_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(250)),
+        })(hostCall(255)),
         rive_gpu_pipeline_new: want('rive_gpu_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4084,21 +4165,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(251)),
+        })(hostCall(256)),
         rive_gpu_pipeline_release: want('rive_gpu_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(252)),
+        })(hostCall(257)),
         rive_mat4_multiply: want('rive_mat4_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(253)),
+        })(hostCall(258)),
         rive_mat4_invert: want('rive_mat4_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4107,7 +4188,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(254)),
+        })(hostCall(259)),
         rive_buffer_new: want('rive_buffer_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4116,21 +4197,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(255)),
+        })(hostCall(260)),
         rive_buffer_update: want('rive_buffer_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(256)),
+        })(hostCall(261)),
         rive_buffer_release: want('rive_buffer_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(257)),
+        })(hostCall(262)),
         rive_mesh_instances_new: want('rive_mesh_instances_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4139,28 +4220,28 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(258)),
+        })(hostCall(263)),
         rive_mesh_instances_resize: want('rive_mesh_instances_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(259)),
+        })(hostCall(264)),
         rive_mesh_instances_update: want('rive_mesh_instances_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(260)),
+        })(hostCall(265)),
         rive_mesh_instances_release: want('rive_mesh_instances_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(261)),
+        })(hostCall(266)),
         rive_blob_asset_bytes: want('rive_blob_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4169,7 +4250,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(262)),
+        })(hostCall(267)),
         rive_blob_asset_read: want('rive_blob_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4178,7 +4259,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(263)),
+        })(hostCall(268)),
         rive_image_from_asset: want('rive_image_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4187,7 +4268,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(264)),
+        })(hostCall(269)),
         rive_image_width: want('rive_image_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4196,7 +4277,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(265)),
+        })(hostCall(270)),
         rive_image_height: want('rive_image_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4205,14 +4286,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(266)),
+        })(hostCall(271)),
         rive_image_release: want('rive_image_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(267)),
+        })(hostCall(272)),
         rive_image_decode: want('rive_image_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4221,14 +4302,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(268)),
+        })(hostCall(273)),
         rive_image_decode_cancel: want('rive_image_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(269)),
+        })(hostCall(274)),
         rive_image_load: want('rive_image_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4237,7 +4318,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(270)),
+        })(hostCall(275)),
         rive_image_from_pixels: want('rive_image_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4246,7 +4327,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(271)),
+        })(hostCall(276)),
         rive_font_from_asset: want('rive_font_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4255,7 +4336,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(272)),
+        })(hostCall(277)),
         rive_font_decode: want('rive_font_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'decode') : (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4264,21 +4345,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(273)),
+        })(hostCall(278)),
         rive_font_release: want('rive_font_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(274)),
+        })(hostCall(279)),
         rive_font_metrics: want('rive_font_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(275)),
+        })(hostCall(280)),
         rive_font_weight: want('rive_font_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4287,7 +4368,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(276)),
+        })(hostCall(281)),
         rive_font_is_italic: want('rive_font_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4296,7 +4377,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(277)),
+        })(hostCall(282)),
         rive_font_axis_count: want('rive_font_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4305,14 +4386,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(278)),
+        })(hostCall(283)),
         rive_font_axis: want('rive_font_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(279)),
+        })(hostCall(284)),
         rive_font_axis_value: want('rive_font_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4321,7 +4402,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(280)),
+        })(hostCall(285)),
         rive_font_features: want('rive_font_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4330,7 +4411,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(281)),
+        })(hostCall(286)),
         rive_font_has_glyph: want('rive_font_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4339,7 +4420,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(282)),
+        })(hostCall(287)),
         rive_font_with_options: want('rive_font_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4348,7 +4429,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(283)),
+        })(hostCall(288)),
         rive_font_glyph_verbs: want('rive_font_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'glyph_verbs') : (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4357,7 +4438,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(284)),
+        })(hostCall(289)),
         rive_font_glyph_points: want('rive_font_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_font_v1', 'glyph_points') : (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4366,7 +4447,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(285)),
+        })(hostCall(290)),
         rive_text_new: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'new') : () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4375,49 +4456,49 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(286)),
+        })(hostCall(291)),
         rive_text_release: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'release') : (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(287)),
+        })(hostCall(292)),
         rive_text_append: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'append') : (a0, a1, a2, a3, a4, a5, a6, a7, a8) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7, a8); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(288)),
+        })(hostCall(293)),
         rive_text_clear: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'clear') : (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(289)),
+        })(hostCall(294)),
         rive_text_layout: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'layout') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(290)),
+        })(hostCall(295)),
         rive_text_draw: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'draw') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(291)),
+        })(hostCall(296)),
         rive_text_bounds: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'bounds') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(292)),
+        })(hostCall(297)),
         rive_text_length: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'length') : (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4426,7 +4507,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(293)),
+        })(hostCall(298)),
         rive_text_lines: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'lines') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4435,7 +4516,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(294)),
+        })(hostCall(299)),
         rive_text_runs: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'runs') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4444,7 +4525,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(295)),
+        })(hostCall(300)),
         rive_text_glyphs: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'glyphs') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4453,7 +4534,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(296)),
+        })(hostCall(301)),
         rive_text_hit_test: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'hit_test') : (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4462,7 +4543,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(297)),
+        })(hostCall(302)),
         rive_text_caret: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'caret') : (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4471,7 +4552,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(298)),
+        })(hostCall(303)),
         rive_text_selection_rects: want('rive_text_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_text_v1', 'selection_rects') : (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4480,7 +4561,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(299)),
+        })(hostCall(304)),
         rive_shader_linear: want('rive_shader_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4489,7 +4570,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(300)),
+        })(hostCall(305)),
         rive_shader_radial: want('rive_shader_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4498,14 +4579,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(301)),
+        })(hostCall(306)),
         rive_shader_release: want('rive_shader_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(302)),
+        })(hostCall(307)),
         rive_test_blob: want('rive_test_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4514,14 +4595,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(303)),
+        })(hostCall(308)),
         rive_transition_child_draw: want('rive_transition_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(304)),
+        })(hostCall(309)),
         rive_transition_child_width: want('rive_transition_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4530,7 +4611,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(305)),
+        })(hostCall(310)),
         rive_transition_child_height: want('rive_transition_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4539,77 +4620,77 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(306)),
+        })(hostCall(311)),
         rive_renderer_save: want('rive_renderer_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(307)),
+        })(hostCall(312)),
         rive_renderer_restore: want('rive_renderer_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(308)),
+        })(hostCall(313)),
         rive_renderer_transform: want('rive_renderer_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(309)),
+        })(hostCall(314)),
         rive_renderer_draw_path: want('rive_renderer_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(310)),
+        })(hostCall(315)),
         rive_renderer_clip_path: want('rive_renderer_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(311)),
+        })(hostCall(316)),
         rive_renderer_modulate_opacity: want('rive_renderer_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(312)),
+        })(hostCall(317)),
         rive_renderer_modulate_color: want('rive_renderer_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(313)),
+        })(hostCall(318)),
         rive_renderer_draw_image: want('rive_renderer_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(314)),
+        })(hostCall(319)),
         rive_renderer_draw_image_mesh: want('rive_renderer_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(315)),
+        })(hostCall(320)),
         rive_renderer_draw_image_mesh_instanced: want('rive_renderer_v1') && ((fn) => (a0, a1, a2, a3, a4, a5, a6) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(316)),
+        })(hostCall(321)),
         rive_net_fetch: want('rive_net_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4618,14 +4699,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(317)),
+        })(hostCall(322)),
         rive_net_fetch_cancel: want('rive_net_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(318)),
+        })(hostCall(323)),
         rive_file_decode: want('rive_file_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4634,14 +4715,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(319)),
+        })(hostCall(324)),
         rive_file_release: want('rive_file_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(320)),
+        })(hostCall(325)),
         rive_file_artboard_count: want('rive_file_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4650,7 +4731,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(321)),
+        })(hostCall(326)),
         rive_file_artboard_name: want('rive_file_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4659,7 +4740,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(322)),
+        })(hostCall(327)),
         rive_file_bindable: want('rive_file_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4668,14 +4749,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(323)),
+        })(hostCall(328)),
         rive_file_bindable_release: want('rive_file_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(324)),
+        })(hostCall(329)),
         rive_file_bindable_name: want('rive_file_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4684,7 +4765,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(325)),
+        })(hostCall(330)),
         rive_file_bindable_data: want('rive_file_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4693,7 +4774,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(326)),
+        })(hostCall(331)),
         rive_file_host_bindable: want('rive_file_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4702,7 +4783,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(327)),
+        })(hostCall(332)),
         rive_file_bindable_equal: want('rive_file_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4711,7 +4792,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(328)),
+        })(hostCall(333)),
         rive_file_bindable_identity: want('rive_file_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4720,7 +4801,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(329)),
+        })(hostCall(334)),
         rive_lanes_start: want('rive_lanes_v1') && ((fn) => (a0, a1, a2, a3, a4, a5) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4729,7 +4810,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(330)),
+        })(hostCall(335)),
         rive_lanes_state: want('rive_lanes_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4738,7 +4819,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(331)),
+        })(hostCall(336)),
         rive_lanes_failed: want('rive_lanes_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4747,21 +4828,21 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(332)),
+        })(hostCall(337)),
         rive_lanes_stop: want('rive_lanes_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(333)),
+        })(hostCall(338)),
         rive_lanes_release: want('rive_lanes_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(334)),
+        })(hostCall(339)),
         rive_lanes_result: want('rive_lanes_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4770,7 +4851,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(335)),
+        })(hostCall(340)),
         rive_lanes_watch: want('rive_lanes_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4779,7 +4860,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(336)),
+        })(hostCall(341)),
         rive_lanes_wait: want('rive_lanes_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4788,14 +4869,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(337)),
+        })(hostCall(342)),
         rive_lanes_cancel_wait: want('rive_lanes_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(338)),
+        })(hostCall(343)),
         rive_lanes_wait_within: want('rive_lanes_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4804,7 +4885,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(339)),
+        })(hostCall(344)),
         rive_jobs_threads: want('rive_jobs_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4813,7 +4894,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(340)),
+        })(hostCall(345)),
         rive_jobs_join: want('rive_jobs_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4822,7 +4903,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(341)),
+        })(hostCall(346)),
         rive_jobs_join_any: want('rive_jobs_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4831,7 +4912,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(342)),
+        })(hostCall(347)),
         rive_parallel_size: want('rive_parallel_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4840,7 +4921,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(343)),
+        })(hostCall(348)),
         rive_parallel_run: want('rive_parallel_v1') && ((fn) => fn === undefined ? unlinkedImport('rive_parallel_v1', 'run') : (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4849,7 +4930,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(344)),
+        })(hostCall(349)),
         rive_shared_region_create: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4858,7 +4939,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(345)),
+        })(hostCall(350)),
         rive_shared_region_size: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4867,7 +4948,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(346)),
+        })(hostCall(351)),
         rive_shared_region_lock: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4876,14 +4957,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(347)),
+        })(hostCall(352)),
         rive_shared_region_unlock: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(348)),
+        })(hostCall(353)),
         rive_shared_region_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4892,7 +4973,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(349)),
+        })(hostCall(354)),
         rive_shared_region_write: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4901,7 +4982,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(350)),
+        })(hostCall(355)),
         rive_shared_region_poisoned: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4910,7 +4991,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(351)),
+        })(hostCall(356)),
         rive_shared_atomic_load: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4919,7 +5000,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(352)),
+        })(hostCall(357)),
         rive_shared_atomic_store: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4928,7 +5009,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(353)),
+        })(hostCall(358)),
         rive_shared_atomic_add: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4937,7 +5018,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(354)),
+        })(hostCall(359)),
         rive_shared_atomic_cas: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4946,7 +5027,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(355)),
+        })(hostCall(360)),
         rive_shared_ring_create: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4955,7 +5036,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(356)),
+        })(hostCall(361)),
         rive_shared_ring_write: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4964,7 +5045,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(357)),
+        })(hostCall(362)),
         rive_shared_ring_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4973,7 +5054,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(358)),
+        })(hostCall(363)),
         rive_shared_ring_drop: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4982,7 +5063,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(359)),
+        })(hostCall(364)),
         rive_shared_ring_used: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -4991,7 +5072,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(360)),
+        })(hostCall(365)),
         rive_shared_ring_signal: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5000,7 +5081,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(361)),
+        })(hostCall(366)),
         rive_shared_snapshot_create: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5009,7 +5090,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(362)),
+        })(hostCall(367)),
         rive_shared_snapshot_publish: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3, a4) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5018,7 +5099,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(363)),
+        })(hostCall(368)),
         rive_shared_snapshot_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5027,7 +5108,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(364)),
+        })(hostCall(369)),
         rive_shared_snapshot_seq: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5036,14 +5117,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(365)),
+        })(hostCall(370)),
         rive_shared_read_done: want('rive_shared_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(366)),
+        })(hostCall(371)),
         rive_shared_signal_create: want('rive_shared_v1') && ((fn) => () => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5052,14 +5133,14 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(367)),
+        })(hostCall(372)),
         rive_shared_signal_notify: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(368)),
+        })(hostCall(373)),
         rive_shared_signal_seq: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5068,7 +5149,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(369)),
+        })(hostCall(374)),
         rive_shared_blob_create: want('rive_shared_v1') && ((fn) => (a0, a1) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5077,7 +5158,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(370)),
+        })(hostCall(375)),
         rive_shared_blob_size: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5086,7 +5167,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(371)),
+        })(hostCall(376)),
         rive_shared_blob_read: want('rive_shared_v1') && ((fn) => (a0, a1, a2, a3) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5095,7 +5176,7 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(372)),
+        })(hostCall(377)),
         rive_shared_retain: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
@@ -5104,28 +5185,28 @@ export function bindRiveHostCalls(hostCall, ctx, only = null) {
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
             return ret;
-        })(hostCall(373)),
+        })(hostCall(378)),
         rive_shared_release: want('rive_shared_v1') && ((fn) => (a0) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(374)),
+        })(hostCall(379)),
         rive_console: want('env') && ((fn) => (a0, a1, a2) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(375)),
+        })(hostCall(380)),
         rive_trace: want('env') && ((fn) => (a0, a1, a2, a3, a4, a5, a6, a7) => {
             if (ctx.vm === 0) released();
             if (counters.on) counters.hostCalls++;
             try { fn(ctx.vm, a0, a1, a2, a3, a4, a5, a6, a7); } catch (error) { fault(error); }
             if (ctx.hostFault) nestedFault();
             if (ctx.raised !== null) raise();
-        })(hostCall(376)),
+        })(hostCall(381)),
     };
 }
 

@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/artboard.hpp"
+#include "rive/transform_component.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/assets/font_asset.hpp"
@@ -176,6 +178,64 @@ void ScriptedContext::clearScriptedObject()
   m_rootViewModel.release();
   m_dataContext.release();
   m_globalViewModels.clear();
+  m_artboardView.release();
+  m_node.release();
+}
+
+void ScriptedObjectLease::trackRead(Component* component, ComponentDirt dirt)
+{
+  // The owner only vouches that the component is still there; the read
+  // counts for whichever script is running.
+  if (m_owner != nullptr)
+  {
+    ScriptedObject::trackRead(component, dirt);
+  }
+}
+
+void ScriptedArtboardView::trackRead(ComponentDirt dirt)
+{
+  m_lease->trackRead(m_artboard, dirt);
+}
+
+int ScriptedContext::pushArtboard(lua_State* L)
+{
+  auto component = m_scriptedObject->component();
+  auto artboard = component == nullptr ? nullptr : component->artboard();
+  if (artboard == nullptr)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+  auto lease = this->lease();
+  if (m_artboardView.push(L, lease))
+  {
+    return 1;
+  }
+  lua_newrive<ScriptedArtboardView>(L, lease, artboard);
+  m_artboardView.store(L, lease);
+  return 1;
+}
+
+int ScriptedContext::pushNode(lua_State* L)
+{
+  auto component = m_scriptedObject->component();
+  if (component == nullptr || !component->is<TransformComponent>())
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+  auto lease = this->lease();
+  if (m_node.push(L, lease))
+  {
+    return 1;
+  }
+  lua_newrive<ScriptedNode>(
+      L,
+      nullptr,
+      component->as<TransformComponent>(),
+      lease);
+  m_node.store(L, lease);
+  return 1;
 }
 
 // Pushes the wrapper for `viewModelInstance`, reusing the cached one when the
@@ -692,6 +752,16 @@ static int context_namecall(lua_State* L)
         // Defined in lua_image_decode.cpp.
         extern int context_loadImage_impl(lua_State * L);
         return context_loadImage_impl(L);
+      }
+
+      case (int)LuaAtoms::artboard:
+      {
+        return scriptedContext->pushArtboard(L);
+      }
+
+      case (int)LuaAtoms::node:
+      {
+        return scriptedContext->pushNode(L);
       }
 
       case (int)LuaAtoms::bindableArtboard:

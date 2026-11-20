@@ -8178,9 +8178,10 @@ void artboardAnimationSetTimeImpl(
 }
 
 // Nodes pin their artboard; the component pointer lives inside its instance.
-// A node with an object is a NodeRef's target or a node reached from it:
-// kept like an owned one, it lives in that scripted object's artboard, so it
-// reads as stale, and drops writes, once the object's handle is released.
+// A node with an object is of the artboard that scripted object lives in: a
+// NodeRef's target, context:artboard() or context:node(), or a node reached
+// from one. Kept like an owned one, it reads as stale, and drops writes, once
+// the object's handle is released.
 // With neither owner nor object the node is borrowed for the host's call
 // into the module: a path effect's shape for that update.
 struct HostNode
@@ -8224,6 +8225,8 @@ uint32_t mintNode(
 }
 
 #ifdef WITH_RIVE_TOOLS
+// Scoped to the call that lent the source, unless an object's source backs
+// it, which holds as long as that object.
 uint32_t mintSourceNode(
     WasmScriptingVM* vm,
     WasmNodeSource* source,
@@ -8441,6 +8444,20 @@ uint32_t artboardNodeLiveImpl(WasmScriptingVM* vm, uint32_t handle)
   return 1;
 }
 
+// Notes a read of an object node, one resolveNode found live, for the update
+// or advance running (see ScriptedObject::trackRead). A node of an owned
+// artboard is not tracked.
+void trackNodeRead(
+    const HostNode* host,
+    Component* component,
+    ComponentDirt dirt)
+{
+  if (host->object != 0)
+  {
+    ScriptedObject::trackRead(component, dirt);
+  }
+}
+
 void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
   auto host = resolveNodeHandle(vm, handle);
@@ -8478,6 +8495,7 @@ void artboardNodeTransformImpl(
     return;
   }
 #endif
+  trackNodeRead(host, host->component, ComponentDirt::Transform);
   out[0] = host->component->x();
   out[1] = host->component->y();
   out[2] = host->component->rotation();
@@ -8576,6 +8594,10 @@ void artboardNodeWorldTransformImpl(
     return;
   }
 #endif
+  if (host != nullptr)
+  {
+    trackNodeRead(host, host->component, ComponentDirt::WorldTransform);
+  }
   Mat2D world = host != nullptr ? host->component->worldTransform() : Mat2D();
   for (int i = 0; i < 6; i++)
   {
@@ -8601,13 +8623,19 @@ void artboardNodeSetWorldTransformImpl(
     return;
   }
 #endif
-  host->component->mutableWorldTransform() = Mat2D(
-      values[0],
-      values[1],
-      values[2],
-      values[3],
-      values[4],
-      values[5]);
+  Mat2D value(values[0], values[1], values[2], values[3], values[4], values[5]);
+  Mat2D& transform = host->component->mutableWorldTransform();
+  // Writing back the matrix it holds wakes nothing, so a script that writes
+  // what it read settles.
+  if (transform == value)
+  {
+    return;
+  }
+  transform = value;
+  if (auto artboard = host->component->artboard())
+  {
+    artboard->scriptWroteWorldTransform(host->component);
+  }
 }
 
 void artboardNodeDecomposeImpl(
@@ -8662,7 +8690,9 @@ const RawPath* nodeRawPath(WasmScriptingVM* vm, uint32_t handle)
   {
     return nullptr;
   }
-  return &host->component->as<Path>()->rawPath();
+  auto path = host->component->as<Path>();
+  trackNodeRead(host, path, ScriptedReadTracker::pathDirt(path));
+  return &path->rawPath();
 }
 
 uint32_t artboardNodePathVerbsImpl(
@@ -8866,6 +8896,154 @@ uint32_t artboardNodeRefImpl(
     return 0;
   }
   return mintNode(vm, nullptr, target, object);
+}
+
+ScriptedObject* resolveScriptedObject(WasmScriptingVM* vm, uint32_t object)
+{
+  if (vm == nullptr)
+  {
+    return nullptr;
+  }
+  return static_cast<ScriptedObject*>(
+      vm->handles().resolve(object, WasmScriptingVM::HandleTable::Tag::object));
+}
+
+uint32_t artboardHostArtboardImpl(WasmScriptingVM* vm, uint32_t object)
+{
+  auto scriptedObject = resolveScriptedObject(vm, object);
+  if (scriptedObject == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  auto stage = scriptedObject->stageNodes();
+  if (stage.source != nullptr)
+  {
+    return stage.artboard == 0
+               ? 0
+               : mintSourceNode(vm, stage.source, stage.artboard, object);
+  }
+#endif
+  auto component = scriptedObject->component();
+  auto artboard = component != nullptr ? component->artboard() : nullptr;
+  return artboard != nullptr ? mintNode(vm, nullptr, artboard, object) : 0;
+}
+
+uint32_t artboardHostNodeImpl(WasmScriptingVM* vm, uint32_t object)
+{
+  auto scriptedObject = resolveScriptedObject(vm, object);
+  if (scriptedObject == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  auto stage = scriptedObject->stageNodes();
+  if (stage.source != nullptr)
+  {
+    return stage.self == 0
+               ? 0
+               : mintSourceNode(vm, stage.source, stage.self, object);
+  }
+#endif
+  auto component = scriptedObject->component();
+  if (component == nullptr || !component->is<TransformComponent>())
+  {
+    return 0;
+  }
+  return mintNode(vm, nullptr, component->as<TransformComponent>(), object);
+}
+
+uint32_t artboardNodeNameImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    char* out,
+    uint32_t outCount)
+{
+  auto host = resolveNode(vm, handle);
+  if (host == nullptr)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    std::string name;
+    host->source->name(sourceNodeId(host), name);
+    return fillModuleString(vm, name, out, outCount);
+  }
+#endif
+  return fillModuleString(vm, host->component->name(), out, outCount);
+}
+
+uint32_t artboardNodeFindImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    const char* name,
+    uint32_t length)
+{
+  auto host = resolveNode(vm, handle);
+  // Names that were not exported are empty at runtime, so an empty name
+  // names nothing.
+  if (host == nullptr || length == 0)
+  {
+    return 0;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    uint32_t id = host->source->find(
+        sourceNodeId(host),
+        std::string(name, length));
+    return id == 0 ? 0 : mintSourceNode(vm, host->source, id, host->object);
+  }
+#endif
+  auto artboard = host->component->artboard();
+  auto component = artboard != nullptr ? artboard->find<TransformComponent>(
+                                             std::string(name, length))
+                                       : nullptr;
+  return component != nullptr
+             ? mintNode(vm, host->owner, component, host->object)
+             : 0;
+}
+
+void artboardNodeArtboardMetricsImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    float* out,
+    uint32_t outCount)
+{
+  if (outCount < 6)
+  {
+    return;
+  }
+  auto host = resolveNode(vm, handle);
+  if (host == nullptr)
+  {
+    memset(out, 0, 6 * sizeof(float));
+    return;
+  }
+#ifdef WITH_RIVE_TOOLS
+  if (host->source != nullptr)
+  {
+    host->source->artboardMetrics(sourceNodeId(host), out);
+    return;
+  }
+#endif
+  auto artboard = host->component->artboard();
+  if (artboard == nullptr)
+  {
+    memset(out, 0, 6 * sizeof(float));
+    return;
+  }
+  // A size change reaches the artboard as path dirt, as its frame is rebuilt.
+  trackNodeRead(host, artboard, ComponentDirt::Path);
+  AABB bounds = artboard->bounds();
+  out[0] = artboard->width();
+  out[1] = artboard->height();
+  out[2] = bounds.minX;
+  out[3] = bounds.minY;
+  out[4] = bounds.maxX;
+  out[5] = bounds.maxY;
 }
 
 // --- rive_data_v1 asset properties (image/font/blob) ------------------------

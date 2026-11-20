@@ -705,6 +705,32 @@ uint32_t rive_web_artboard_node_live(uint32_t vmHandle, uint32_t node)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return artboardNodeLiveImpl(vm, node);
 }
+uint32_t rive_web_artboard_host_artboard(uint32_t vmHandle, uint32_t object)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardHostArtboardImpl(vm, object);
+}
+uint32_t rive_web_artboard_host_node(uint32_t vmHandle, uint32_t object)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardHostNodeImpl(vm, object);
+}
+uint32_t rive_web_artboard_node_name(uint32_t vmHandle, uint32_t node, char* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return artboardNodeNameImpl(vm, node, out, outCount);
+}
+uint32_t rive_web_artboard_node_find(uint32_t vmHandle, uint32_t node, const char* name, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardNodeFindImpl(vm, node, nameUtf8.data(), nameUtf8.size());
+}
+void rive_web_artboard_node_artboard_metrics(uint32_t vmHandle, uint32_t node, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    artboardNodeArtboardMetricsImpl(vm, node, out, outCount);
+}
 uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2110,6 +2136,11 @@ static void* const kRiveWebCalls[] = {
 #endif
     (void*)rive_web_artboard_node_ref,
     (void*)rive_web_artboard_node_live,
+    (void*)rive_web_artboard_host_artboard,
+    (void*)rive_web_artboard_host_node,
+    (void*)rive_web_artboard_node_name,
+    (void*)rive_web_artboard_node_find,
+    (void*)rive_web_artboard_node_artboard_metrics,
     (void*)rive_web_audio_source,
     (void*)rive_web_audio_source_release,
     (void*)rive_web_audio_source_duration,

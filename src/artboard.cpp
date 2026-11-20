@@ -74,6 +74,7 @@
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
+#include "rive/scripted/scripted_read_tracker.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #ifdef WITH_RIVE_SCRIPTING
@@ -1542,6 +1543,12 @@ void Artboard::sortDependencies()
   m_RecipeState = RecipeState::unbuilt;
   m_collapsedRunsDirty = true;
   m_Dirt |= ComponentDirt::Components;
+#ifdef WITH_RIVE_SCRIPTING
+  if (m_readTracker != nullptr)
+  {
+    m_readTracker->dependencyOrderChanged(m_DependencyOrder.size());
+  }
+#endif
 }
 
 void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
@@ -1560,6 +1567,41 @@ void Artboard::addScriptedObject(ScriptedObject* object)
 {
   m_ScriptedObjects.push_back(object);
 }
+
+#ifdef WITH_RIVE_SCRIPTING
+ScriptedReadTracker* Artboard::makeReadTracker()
+{
+  if (m_readTracker == nullptr)
+  {
+    m_readTracker = std::unique_ptr<ScriptedReadTracker>(
+        new ScriptedReadTracker(m_DependencyOrder.size()));
+  }
+  return m_readTracker.get();
+}
+
+void Artboard::scriptWroteWorldTransform(Component* component)
+{
+  // The update or advance running is due again once it finishes when it
+  // read this before writing it.
+  bool due = ScriptedObject::wroteAfterRead(
+      component,
+      ComponentDirt::WorldTransform);
+  if (m_readTracker != nullptr)
+  {
+    m_readTracker->updated(
+        component,
+        ComponentDirt::WorldTransform,
+        ++m_updateSerial);
+    due = due || m_readTracker->hasDue();
+  }
+  // The next update pass runs them, when there is one to run; a write in
+  // draw comes after this frame's.
+  if (due)
+  {
+    m_Dirt |= ComponentDirt::Components;
+  }
+}
+#endif
 
 ScriptedInterpolator* Artboard::statefulInterpolator(
     const ScriptedInterpolator* source)
@@ -2525,6 +2567,12 @@ bool Artboard::updateComponents()
   int step = 0;
   auto count = m_DependencyOrder.size();
   bool didUpdate = false;
+#ifdef WITH_RIVE_SCRIPTING
+  if (m_readTracker != nullptr)
+  {
+    m_readTracker->beginUpdates();
+  }
+#endif
   while (hasDirt(ComponentDirt::Components) && step < maxSteps)
   {
     m_Dirt = m_Dirt & ~ComponentDirt::Components;
@@ -2567,8 +2615,19 @@ bool Artboard::updateComponents()
         continue;
       }
       component->m_Dirt = ComponentDirt::None;
+#ifdef WITH_RIVE_SCRIPTING
+      uint64_t serial = ++m_updateSerial;
+#endif
       component->update(d);
       didUpdate = true;
+#ifdef WITH_RIVE_SCRIPTING
+      // Checked per component, as a scripted update earlier in this pass
+      // can be what starts tracking.
+      if (m_readTracker != nullptr && m_readTracker->isRead(i))
+      {
+        m_readTracker->updated(component, d, serial);
+      }
+#endif
 
       // If the update changed the dirt depth by adding dirt
       // to something before us (in the DAG), early out and
@@ -2579,7 +2638,23 @@ bool Artboard::updateComponents()
       }
     }
     step++;
+#ifdef WITH_RIVE_SCRIPTING
+    // Once the pass settles, the scripted updates that read something it
+    // changed run again, with everything they read current.
+    if (m_readTracker != nullptr && !hasDirt(ComponentDirt::Components))
+    {
+      m_readTracker->runDue();
+    }
+#endif
   }
+#ifdef WITH_RIVE_SCRIPTING
+  // Due again after running again in this call: they run in the next one,
+  // which the artboard reports it needs.
+  if (m_readTracker != nullptr && m_readTracker->hasDue())
+  {
+    m_Dirt |= ComponentDirt::Components;
+  }
+#endif
   if (didUpdate)
   {
     // A draw can consume the change notification before pending updates

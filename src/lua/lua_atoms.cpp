@@ -394,6 +394,7 @@ constexpr LuaAtomName atoms[] = {
     {"pointerScroll", (int16_t)LuaAtoms::pointerScroll},
     {"keyboardEvent", (int16_t)LuaAtoms::keyboardEvent},
     {"textEvent", (int16_t)LuaAtoms::textEvent},
+    {"artboard", (int16_t)LuaAtoms::artboard},
 };
 
 constexpr size_t atomCount = std::size(atoms);

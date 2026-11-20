@@ -75,6 +75,12 @@ public:
   // A continuation is a handler too: what it stored only advance() and
   // draw() can show.
   void asyncWorkDelivered() override { wakeAdvance(); }
+  bool tracksReads() override { return true; }
+  void readsWokeAdvance() override
+  {
+    m_redrawAfterAdvance = true;
+    wakeAdvance();
+  }
   /// Whether a scroll gesture this script claimed is still in flight.
   bool scrollLatched() const { return m_scrollLatched; }
   void scrollLatched(bool value)
@@ -85,6 +91,9 @@ public:
 
 private:
   bool m_isAdvanceActive = true;
+  // Woken because what its last advance read changed: the next advance draws
+  // again whatever it returns.
+  bool m_redrawAfterAdvance = false;
   bool m_scrollLatched = false;
   float m_scrollIdleSeconds = 0;
   // One zero step after a reinit so advance driven content, like gpu

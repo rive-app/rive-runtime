@@ -18,6 +18,7 @@
 #include "rive/constraints/constraint.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/path.hpp"
+#include "rive/scripted/scripted_read_tracker.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -802,6 +803,42 @@ const ShapePaint* ScriptedNode::shapePaint()
   return nullptr;
 }
 
+// A node reached from another shares its artboard and its lease.
+static void pushRelatedNode(
+    lua_State* L,
+    ScriptedNode* from,
+    TransformComponent* component)
+{
+  lua_newrive<ScriptedNode>(L, from->artboard(), component, from->lease());
+}
+
+// Pushes a table of the container's children that are transforms.
+static void pushChildNodes(
+    lua_State* L,
+    ContainerComponent* container,
+    rcp<ScriptReffedArtboard> artboard,
+    rcp<ScriptedObjectLease> lease)
+{
+  // speculative pre-alloc the table
+  auto& children = container->children();
+  lua_createtable(L, (int)children.size(), 0);
+
+  int index = 1;
+  for (auto child : children)
+  {
+    if (child->is<TransformComponent>())
+    {
+      lua_newrive<ScriptedNode>(
+          L,
+          artboard,
+          child->as<TransformComponent>(),
+          lease);
+      // Set table[i] = value, pops the value
+      lua_rawseti(L, -2, index++);
+    }
+  }
+}
+
 // Direct field getters bypass the __index Lua frame. They are dispatched by
 // LOP_GETTABLEKS via global_State::udatadirectfields[tag]. Only fields that
 // read a primitive without allocation or side effects belong here; the
@@ -983,44 +1020,43 @@ int ScriptedAnimation::setTime(std::string mode)
   return 0;
 }
 
+// The component a direct field read reaches, noted for the update reading
+// it.
+static TransformComponent* readTransform(void* udata)
+{
+  auto node = (ScriptedNode*)udata;
+  node->trackRead(ComponentDirt::Transform);
+  return node->component();
+}
+
 static void node_direct_x(void* udata, void* result)
 {
-  lua_userdatadirectfield_setnumber(
-      result,
-      ((ScriptedNode*)udata)->component()->x());
+  lua_userdatadirectfield_setnumber(result, readTransform(udata)->x());
 }
 
 static void node_direct_y(void* udata, void* result)
 {
-  lua_userdatadirectfield_setnumber(
-      result,
-      ((ScriptedNode*)udata)->component()->y());
+  lua_userdatadirectfield_setnumber(result, readTransform(udata)->y());
 }
 
 static void node_direct_rotation(void* udata, void* result)
 {
-  lua_userdatadirectfield_setnumber(
-      result,
-      ((ScriptedNode*)udata)->component()->rotation());
+  lua_userdatadirectfield_setnumber(result, readTransform(udata)->rotation());
 }
 
 static void node_direct_scaleX(void* udata, void* result)
 {
-  lua_userdatadirectfield_setnumber(
-      result,
-      ((ScriptedNode*)udata)->component()->scaleX());
+  lua_userdatadirectfield_setnumber(result, readTransform(udata)->scaleX());
 }
 
 static void node_direct_scaleY(void* udata, void* result)
 {
-  lua_userdatadirectfield_setnumber(
-      result,
-      ((ScriptedNode*)udata)->component()->scaleY());
+  lua_userdatadirectfield_setnumber(result, readTransform(udata)->scaleY());
 }
 
 static void node_direct_position(void* udata, void* result)
 {
-  auto component = ((ScriptedNode*)udata)->component();
+  auto component = readTransform(udata);
   lua_userdatadirectfield_setvector(
       result,
       component->x(),
@@ -1035,7 +1071,7 @@ static void node_direct_position(void* udata, void* result)
 
 static void node_direct_scale(void* udata, void* result)
 {
-  auto component = ((ScriptedNode*)udata)->component();
+  auto component = readTransform(udata);
   lua_userdatadirectfield_setvector(
       result,
       component->scaleX(),
@@ -1062,6 +1098,7 @@ static int node_index(lua_State* L)
   switch (atom)
   {
     case (int)LuaAtoms::position:
+      scriptedNode->trackRead(ComponentDirt::Transform);
       rive_lua_pushvector2(
           L,
           scriptedNode->component()->x(),
@@ -1069,10 +1106,12 @@ static int node_index(lua_State* L)
       return 1;
 
     case (int)LuaAtoms::rotation:
+      scriptedNode->trackRead(ComponentDirt::Transform);
       lua_pushnumber(L, scriptedNode->component()->rotation());
       return 1;
 
     case (int)LuaAtoms::scale:
+      scriptedNode->trackRead(ComponentDirt::Transform);
       rive_lua_pushvector2(
           L,
           scriptedNode->component()->scaleX(),
@@ -1080,14 +1119,17 @@ static int node_index(lua_State* L)
       return 1;
 
     case (int)LuaAtoms::scaleX:
+      scriptedNode->trackRead(ComponentDirt::Transform);
       lua_pushnumber(L, scriptedNode->component()->scaleX());
       return 1;
 
     case (int)LuaAtoms::scaleY:
+      scriptedNode->trackRead(ComponentDirt::Transform);
       lua_pushnumber(L, scriptedNode->component()->scaleY());
       return 1;
 
     case (int)LuaAtoms::worldTransform:
+      scriptedNode->trackRead(ComponentDirt::WorldTransform);
       lua_newrive<ScriptedMat2D>(
           L,
           scriptedNode->component()->worldTransform());
@@ -1098,25 +1140,11 @@ static int node_index(lua_State* L)
       auto component = scriptedNode->component();
       if (component->is<ContainerComponent>())
       {
-        auto container = component->as<ContainerComponent>();
-        // speculative pre-alloc the table
-        auto& children = container->children();
-        lua_createtable(L, (int)children.size(), 0);
-
-        int index = 1;
-        for (auto child : children)
-        {
-          if (child->is<TransformComponent>())
-          {
-            lua_newrive<ScriptedNode>(
-                L,
-                scriptedNode->artboard(),
-                child->as<TransformComponent>(),
-                scriptedNode->lease());
-            // Set table[i] = value, pops the value
-            lua_rawseti(L, -2, index++);
-          }
-        }
+        pushChildNodes(
+            L,
+            component->as<ContainerComponent>(),
+            scriptedNode->artboard(),
+            scriptedNode->lease());
       }
       return 1;
     }
@@ -1126,16 +1154,19 @@ static int node_index(lua_State* L)
       auto parent = scriptedNode->component()->parent();
       if (parent != nullptr && parent->is<TransformComponent>())
       {
-        lua_newrive<ScriptedNode>(
-            L,
-            scriptedNode->artboard(),
-            parent->as<TransformComponent>(),
-            scriptedNode->lease());
+        pushRelatedNode(L, scriptedNode, parent->as<TransformComponent>());
       }
       else
       {
         lua_pushnil(L);
       }
+      return 1;
+    }
+
+    case (int)LuaAtoms::name:
+    {
+      const std::string& name = scriptedNode->component()->name();
+      lua_pushlstring(L, name.c_str(), name.size());
       return 1;
     }
     case (int)LuaAtoms::paint:
@@ -1156,9 +1187,11 @@ static int node_index(lua_State* L)
       switch (key[0])
       {
         case 'x':
+          scriptedNode->trackRead(ComponentDirt::Transform);
           lua_pushnumber(L, scriptedNode->component()->x());
           return 1;
         case 'y':
+          scriptedNode->trackRead(ComponentDirt::Transform);
           lua_pushnumber(L, scriptedNode->component()->y());
           return 1;
       }
@@ -1226,8 +1259,18 @@ static int node_newindex(lua_State* L)
 
     case (int)LuaAtoms::worldTransform:
     {
+      const Mat2D& value = *(Mat2D*)lua_torive<ScriptedMat2D>(L, 3);
       Mat2D& transform = component->mutableWorldTransform();
-      transform = *(Mat2D*)lua_torive<ScriptedMat2D>(L, 3);
+      // Writing back the matrix it holds wakes nothing, so a script that
+      // writes what it read settles.
+      if (transform != value)
+      {
+        transform = value;
+        if (auto artboard = component->artboard())
+        {
+          artboard->scriptWroteWorldTransform(component);
+        }
+      }
       return 0;
     }
 
@@ -1309,7 +1352,9 @@ static int node_namecall(lua_State* L)
         auto component = scriptedNode->component();
         if (component->is<Path>())
         {
-          lua_newrive<ScriptedPathData>(L, &component->as<Path>()->rawPath());
+          auto path = component->as<Path>();
+          scriptedNode->trackRead(ScriptedReadTracker::pathDirt(path));
+          lua_newrive<ScriptedPathData>(L, &path->rawPath());
         }
         else
         {
@@ -1417,6 +1462,98 @@ static int nodeRef_namecall(lua_State* L)
   return 0;
 }
 
+static int artboard_view_index(lua_State* L)
+{
+  int atom;
+  const char* key = lua_tostringatom(L, 2, &atom);
+  if (!key)
+  {
+    luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    return 0;
+  }
+
+  auto view = lua_torive<ScriptedArtboardView>(L, 1);
+  auto artboard = view->artboard();
+  switch (atom)
+  {
+    // A size change reaches the artboard as path dirt, as its frame is
+    // rebuilt.
+    case (int)LuaAtoms::width:
+      view->trackRead(ComponentDirt::Path);
+      lua_pushnumber(L, artboard != nullptr ? artboard->width() : 0.0f);
+      return 1;
+    case (int)LuaAtoms::height:
+      view->trackRead(ComponentDirt::Path);
+      lua_pushnumber(L, artboard != nullptr ? artboard->height() : 0.0f);
+      return 1;
+    case (int)LuaAtoms::children:
+      if (artboard == nullptr)
+      {
+        lua_createtable(L, 0, 0);
+      }
+      else
+      {
+        pushChildNodes(L, artboard, nullptr, view->lease());
+      }
+      return 1;
+
+    default:
+      break;
+  }
+
+  luaL_error(
+      L,
+      "'%s' is not a valid index of %s",
+      key,
+      ScriptedArtboardView::luaName);
+  return 0;
+}
+
+static int artboard_view_namecall(lua_State* L)
+{
+  int atom;
+  const char* str = lua_namecallatom(L, &atom);
+  if (str != nullptr)
+  {
+    auto view = lua_torive<ScriptedArtboardView>(L, 1);
+    auto artboard = view->artboard();
+    switch (atom)
+    {
+      case (int)LuaAtoms::bounds:
+      {
+        view->trackRead(ComponentDirt::Path);
+        AABB bounds = artboard != nullptr ? artboard->bounds() : AABB();
+        lua_pushvec2d(L, bounds.min());
+        lua_pushvec2d(L, bounds.max());
+        return 2;
+      }
+      case (int)LuaAtoms::node:
+      {
+        const char* name = luaL_checkstring(L, 2);
+        // Names that were not exported are empty at runtime, so an empty
+        // name names nothing.
+        auto component = artboard == nullptr || name[0] == '\0'
+                             ? nullptr
+                             : artboard->find<TransformComponent>(name);
+        if (component == nullptr)
+        {
+          lua_pushnil(L);
+          return 1;
+        }
+        lua_newrive<ScriptedNode>(L, nullptr, component, view->lease());
+        return 1;
+      }
+    }
+  }
+
+  luaL_error(
+      L,
+      "%s is not a valid method of %s",
+      str,
+      ScriptedArtboardView::luaName);
+  return 0;
+}
+
 int luaopen_rive_artboards(lua_State* L)
 {
   lua_register_rive<ScriptedArtboard>(L);
@@ -1452,6 +1589,17 @@ int luaopen_rive_artboards(lua_State* L)
   lua_register_rive<ScriptedNodeRef>(L);
 
   lua_pushcfunction(L, nodeRef_namecall, nullptr);
+  lua_setfield(L, -2, "__namecall");
+
+  lua_setreadonly(L, -1, true);
+  lua_pop(L, 1); // pop the metatable
+
+  lua_register_rive<ScriptedArtboardView>(L);
+
+  lua_pushcfunction(L, artboard_view_index, nullptr);
+  lua_setfield(L, -2, "__index");
+
+  lua_pushcfunction(L, artboard_view_namecall, nullptr);
   lua_setfield(L, -2, "__namecall");
 
   lua_setreadonly(L, -1, true);

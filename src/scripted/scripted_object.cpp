@@ -145,13 +145,29 @@ void ScriptedObject::trigger(std::string name)
   addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
+thread_local ScriptedObject* ScriptedObject::s_reader = nullptr;
+
 bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 {
   if (!advances() || m_vm == nullptr || !m_vm->valid())
   {
     return false;
   }
-  return m_vm->callAdvance(this, m_self, elapsedSeconds);
+  // The last component update before it: what it reads is current up to
+  // that one.
+  auto artboard = readsArtboard();
+  uint64_t serial = artboard != nullptr ? artboard->updateSerial() : 0;
+  m_reads.clear();
+  m_readsWentStale = false;
+  auto reader = s_reader;
+  s_reader = artboard != nullptr ? this : nullptr;
+  bool result = m_vm->callAdvance(this, m_self, elapsedSeconds);
+  s_reader = reader;
+  if (artboard != nullptr)
+  {
+    trackReads(artboard, ScriptedReadPhase::advance, serial);
+  }
+  return result;
 }
 
 void ScriptedObject::scriptUpdate()
@@ -160,7 +176,91 @@ void ScriptedObject::scriptUpdate()
   {
     return;
   }
+  // The update running now, the object's own: what it reads is current up
+  // to it.
+  auto artboard = readsArtboard();
+  uint64_t serial = artboard != nullptr ? artboard->updateSerial() : 0;
+  m_reads.clear();
+  m_readsWentStale = false;
+  auto reader = s_reader;
+  s_reader = artboard != nullptr ? this : nullptr;
   m_vm->callUpdate(this, m_self);
+  s_reader = reader;
+  if (artboard != nullptr)
+  {
+    trackReads(artboard, ScriptedReadPhase::update, serial);
+  }
+}
+
+Artboard* ScriptedObject::readsArtboard()
+{
+  if (!tracksReads())
+  {
+    return nullptr;
+  }
+  auto owner = component();
+  return owner != nullptr ? owner->artboard() : nullptr;
+}
+
+void ScriptedObject::trackReads(
+    Artboard* artboard,
+    ScriptedReadPhase phase,
+    uint64_t serial)
+{
+  if (m_readsArtboard != artboard)
+  {
+    untrackReads();
+  }
+  // Only the artboard's own components update with it.
+  m_reads.erase(
+      std::remove_if(
+          m_reads.begin(),
+          m_reads.end(),
+          [artboard](const ScriptedRead& read) {
+            return read.component->artboard() != artboard;
+          }),
+      m_reads.end());
+  // Nothing read now and nothing read before: no tracker needed.
+  if (m_reads.empty() && m_readsArtboard == nullptr)
+  {
+    return;
+  }
+  bool tracked = artboard->makeReadTracker()
+                     ->track(this, phase, serial, m_reads, m_readsWentStale);
+  m_readsArtboard = tracked ? artboard : nullptr;
+}
+
+bool ScriptedObject::wroteAfterRead(Component* component, ComponentDirt dirt)
+{
+  auto reader = s_reader;
+  // Reads of other artboards are not tracked.
+  if (reader == nullptr || component->artboard() != reader->readsArtboard())
+  {
+    return false;
+  }
+  for (auto& read : reader->m_reads)
+  {
+    if (read.component == component &&
+        (read.dirt & dirt) != ComponentDirt::None)
+    {
+      reader->m_readsWentStale = true;
+      return true;
+    }
+  }
+  return false;
+}
+
+void ScriptedObject::untrackReads()
+{
+  if (m_readsArtboard == nullptr)
+  {
+    return;
+  }
+  if (auto tracker = m_readsArtboard->readTracker())
+  {
+    tracker->untrack(this);
+  }
+  m_readsArtboard = nullptr;
 }
 
 bool ScriptedObject::tryUserInit()
@@ -310,6 +410,9 @@ void ScriptedObject::scriptDispose()
   disposeScriptInputs();
   disposeTrackedProperties();
   m_trackedScriptedProperties.clear();
+  // Through the artboard it kept, not component(): this also runs from the
+  // destructor, where that is no longer callable.
+  untrackReads();
 
   if (m_vm != nullptr && m_vm->valid())
   {

@@ -414,13 +414,18 @@ bool ScriptedDrawable::advanceComponent(
   {
     elapsedSeconds = 0;
   }
+  bool redraw = m_redrawAfterAdvance;
+  m_redrawAfterAdvance = false;
   auto advanced = scriptAdvance(elapsedSeconds);
   if (advanced)
   {
     m_isAdvanceActive = true;
+  }
+  if (advanced || redraw)
+  {
     addScriptedDirt(ComponentDirt::Paint);
   }
-  return advanced || m_scrollLatched;
+  return advanced || redraw || m_scrollLatched;
 }
 
 bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)

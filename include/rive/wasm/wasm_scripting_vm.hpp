@@ -82,10 +82,11 @@ public:
 };
 
 #ifdef WITH_RIVE_TOOLS
-/// The objects behind a path effect's node handles for a host whose shapes
-/// are not runtime TransformComponents, like the editor's Dart stage. Ids
-/// are the source's own, 0 is none; they and every node they back hold for
-/// the one update that lent the shape.
+/// The objects behind node handles for a host whose shapes are not runtime
+/// TransformComponents, like the editor's Dart stage. Ids are the source's
+/// own, 0 is none. A path effect's source holds for the one update that lent
+/// the shape; a scripted object's (ScriptedObject::stageNodes) for as long as
+/// the object.
 class WasmNodeSource
 {
 public:
@@ -107,6 +108,12 @@ public:
   /// The node a NodeRef id names right now, 0 for none: its target can be
   /// deleted or stop being one it accepts after the id was handed out.
   virtual uint32_t resolveRef(uint32_t ref) { return ref; }
+  /// The name a runtime would read, empty when it was not exported.
+  virtual void name(uint32_t node, std::string& out) = 0;
+  /// The node of that exported name in the node's artboard, 0 when none.
+  virtual uint32_t find(uint32_t node, const std::string& name) = 0;
+  /// width, height, minX, minY, maxX, maxY of the node's artboard.
+  virtual void artboardMetrics(uint32_t node, float out[6]) = 0;
 };
 #endif
 

@@ -16,11 +16,12 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "239d57b8b797978c"
+#define RIVE_BINDINGS_V1_CONTRACT "3b6a00704fafc1bf"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
 #define RIVE_HOST_FEATURE_IDENTITY (1u << 1)
+#define RIVE_HOST_FEATURE_HOST_ARTBOARD (1u << 2)
 
 #define RIVE_BINDING_IMPORT(module, name)                            \
     __attribute__((import_module(module), import_name(name)))
@@ -491,6 +492,16 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "node_ref")
 uint32_t rive_artboard_node_ref(uint32_t object, uint32_t id, uint32_t type_key);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_live")
 uint32_t rive_artboard_node_live(uint32_t node);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "host_artboard")
+uint32_t rive_artboard_host_artboard(uint32_t object);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "host_node")
+uint32_t rive_artboard_host_node(uint32_t object);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_name")
+uint32_t rive_artboard_node_name(uint32_t node, char* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_find")
+uint32_t rive_artboard_node_find(uint32_t node, const char* name, uint32_t length);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_artboard_metrics")
+void rive_artboard_node_artboard_metrics(uint32_t node, float* out, uint32_t outCount);
 
 // rive_audio_v1
 RIVE_BINDING_IMPORT("rive_audio_v1", "source")
