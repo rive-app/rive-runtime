@@ -3217,11 +3217,19 @@ bool CommandServer::processCommands()
           auto file = getFile(fileHandle);
           if (file)
           {
-            auto defaultViewModel = file->defaultArtboardViewModel(artboard);
-
-            if (defaultViewModel)
+            if (artboard->viewModelId() == kEmptyId)
             {
-              auto defaultInstance = defaultViewModel->createDefaultInstance();
+              // An artboard without a view model gets an empty answer.
+              std::unique_lock<std::mutex> messageLock(
+                  m_commandQueue->m_messageMutex);
+              messageStream << CommandQueue::Message::defaultViewModelReceived;
+              messageStream << artboardHandle;
+              messageStream << requestId;
+              messageStream << false;
+            }
+            else if (auto viewModel = file->defaultArtboardViewModel(artboard))
+            {
+              auto defaultInstance = viewModel->createDefaultInstance();
               if (defaultInstance)
               {
                 std::unique_lock<std::mutex> messageLock(
@@ -3230,7 +3238,8 @@ bool CommandServer::processCommands()
                     << CommandQueue::Message::defaultViewModelReceived;
                 messageStream << artboardHandle;
                 messageStream << requestId;
-                m_commandQueue->m_messageNames << defaultViewModel->name();
+                messageStream << true;
+                m_commandQueue->m_messageNames << viewModel->name();
                 m_commandQueue->m_messageNames << defaultInstance->name();
               }
               else

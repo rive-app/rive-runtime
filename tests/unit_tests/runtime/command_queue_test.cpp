@@ -4970,27 +4970,26 @@ public:
     CHECK(m_hasErrorCallback == false);
     CHECK(requestId == m_requestId);
     CHECK(handle == m_handle);
+    m_error = std::move(error);
     m_hasErrorCallback = true;
   }
 
   virtual void onDefaultViewModelInfoReceived(
       const ArtboardHandle handle,
       uint64_t requestId,
-      std::string viewModelName,
-      std::string viewModelInstanceName) override
+      std::optional<CommandQueue::DefaultViewModelInfo> info) override
   {
     CHECK(requestId == m_requestId);
     CHECK(handle == m_handle);
-    CHECK(viewModelName == m_expectedViewModel);
-    CHECK(viewModelInstanceName == m_expectedViewModelInstance);
 
+    m_info = std::move(info);
     m_hasCallback = true;
   }
 
   uint64_t m_requestId;
   ArtboardHandle m_handle;
-  std::string m_expectedViewModel = "Test All";
-  std::string m_expectedViewModelInstance = "Test Default";
+  std::optional<CommandQueue::DefaultViewModelInfo> m_info;
+  std::string m_error;
   bool m_hasCallback = false;
   bool m_hasErrorCallback = false;
 };
@@ -5024,6 +5023,9 @@ TEST_CASE("requestDefaultViewModel", "[CommandQueue]")
 
   CHECK(artboardListener.m_hasCallback);
   CHECK(!artboardListener.m_hasErrorCallback);
+  REQUIRE(artboardListener.m_info.has_value());
+  CHECK(artboardListener.m_info->viewModelName == "Test All");
+  CHECK(artboardListener.m_info->instanceName == "Test Default");
 
   FileHandle badFile = commandQueue->loadFile(
       std::vector<uint8_t>(100 * 1024, 0));
@@ -5060,6 +5062,12 @@ TEST_CASE("requestDefaultViewModel", "[CommandQueue]")
   noViewModelListener.m_handle = commandQueue->instantiateDefaultArtboard(
       noViewModelFile,
       &noViewModelListener);
+  noViewModelListener.m_requestId = 0x41;
+
+  TestArtboardDefaultViewModelListener globalListener;
+  globalListener.m_handle = noViewModelListener.m_handle;
+  globalListener.m_requestId = noViewModelListener.m_requestId;
+  commandQueue->setGlobalArtboardListener(&globalListener);
 
   commandQueue->requestDefaultViewModelInfo(
       noViewModelListener.m_handle,
@@ -5070,7 +5078,55 @@ TEST_CASE("requestDefaultViewModel", "[CommandQueue]")
 
   commandQueue->processMessages();
 
-  CHECK(artboardListener.m_hasErrorCallback);
+  CHECK(noViewModelListener.m_hasCallback);
+  CHECK(!noViewModelListener.m_hasErrorCallback);
+  CHECK(!noViewModelListener.m_info.has_value());
+  CHECK(globalListener.m_hasCallback);
+  CHECK(!globalListener.m_hasErrorCallback);
+  CHECK(!globalListener.m_info.has_value());
+
+  commandQueue->setGlobalArtboardListener(nullptr);
+  commandQueue->disconnect();
+  serverThread.join();
+}
+
+TEST_CASE(
+    "requestDefaultViewModel reports a view model missing from the file",
+    "[CommandQueue]")
+{
+  auto commandQueue = make_rcp<CommandQueue>();
+  std::thread serverThread(server_thread, commandQueue);
+
+  std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+  FileHandle file = commandQueue->loadFile(
+      std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+  TestArtboardDefaultViewModelListener listener;
+  listener.m_handle = commandQueue->instantiateArtboardNamed(
+      file,
+      "Test Artboard",
+      &listener);
+  listener.m_requestId = 0x42;
+
+  // Point the artboard at a view model the file doesn't have.
+  commandQueue->runOnce([handle = listener.m_handle](CommandServer* server) {
+    server->getArtboardInstance(handle)->viewModelId(999);
+  });
+  commandQueue->requestDefaultViewModelInfo(
+      listener.m_handle,
+      file,
+      listener.m_requestId);
+
+  wait_for_server(commandQueue.get());
+
+  commandQueue->processMessages();
+
+  CHECK(listener.m_hasErrorCallback);
+  CHECK(
+      listener.m_error ==
+      "Could not find default view model for artboard when getting default "
+      "view model info");
+  CHECK(!listener.m_hasCallback);
 
   commandQueue->disconnect();
   serverThread.join();
@@ -6460,14 +6516,22 @@ public:
       11,
       std::vector<std::string>,
       stateMachineNames);
-  DEFINE_TEST_CALLBACK_TWO_PARAM(
-      onDefaultViewModelInfoReceived,
-      ArtboardHandle,
-      20,
-      std::string,
-      viewModelName,
-      std::string,
-      instanceName);
+  bool m_onDefaultViewModelInfoReceivedWasCalled = false;
+  virtual void onDefaultViewModelInfoReceived(
+      const ArtboardHandle handle,
+      uint64_t requestId,
+      std::optional<CommandQueue::DefaultViewModelInfo> info) override
+  {
+    CHECK(handle == m_handle);
+    CHECK(requestId == 20);
+    CHECK(info.has_value());
+    if (info)
+    {
+      CHECK(info->viewModelName == m_viewModelName);
+      CHECK(info->instanceName == m_instanceName);
+    }
+    m_onDefaultViewModelInfoReceivedWasCalled = true;
+  }
 
   ArtboardHandle m_handle;
   StateMachineHandle m_stateMachineHandle;
@@ -6651,6 +6715,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
   CHECK_CALLBACK(globalArtboardListener, onArtboardDeleted);
   CHECK_CALLBACK(globalArtboardListener, onStateMachineInstantiated);
   CHECK_CALLBACK(globalArtboardListener, onStateMachinesListed);
+  CHECK_CALLBACK(globalArtboardListener, onDefaultViewModelInfoReceived);
 
   CHECK_CALLBACK(globalFileListener, onFileDeleted);
   CHECK_CALLBACK(globalFileListener, onFileLoaded);

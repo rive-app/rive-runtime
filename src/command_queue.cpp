@@ -1633,12 +1633,17 @@ void CommandQueue::processMessages()
       {
         ArtboardHandle handle;
         uint64_t requestId;
-        std::string defaultViewModel;
-        std::string defaultViewModelInstance;
+        bool hasDefaultViewModel;
         m_messageStream >> handle;
         m_messageStream >> requestId;
-        m_messageNames >> defaultViewModel;
-        m_messageNames >> defaultViewModelInstance;
+        m_messageStream >> hasDefaultViewModel;
+        std::optional<DefaultViewModelInfo> info;
+        if (hasDefaultViewModel)
+        {
+          info.emplace();
+          m_messageNames >> info->viewModelName;
+          m_messageNames >> info->instanceName;
+        }
         lock.unlock();
 
         if (m_globalArtboardListener)
@@ -1646,8 +1651,7 @@ void CommandQueue::processMessages()
           m_globalArtboardListener->onDefaultViewModelInfoReceived(
               handle,
               requestId,
-              defaultViewModel,
-              defaultViewModelInstance);
+              info);
         }
 
         auto itr = m_artboardListeners.find(handle);
@@ -1656,8 +1660,7 @@ void CommandQueue::processMessages()
           itr->second->onDefaultViewModelInfoReceived(
               itr->first,
               requestId,
-              std::move(defaultViewModel),
-              std::move(defaultViewModelInstance));
+              std::move(info));
         }
 
         break;

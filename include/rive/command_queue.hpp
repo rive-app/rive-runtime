@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -300,6 +301,13 @@ public:
     {}
   };
 
+  // The names of an artboard's default view model and its default instance.
+  struct DefaultViewModelInfo
+  {
+    std::string viewModelName;
+    std::string instanceName;
+  };
+
   class ArtboardListener
       : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
   {
@@ -310,11 +318,16 @@ public:
         std::string error)
     {}
 
+    /**
+     * Called with the answer to requestDefaultViewModelInfo.
+     *
+     * @param info The default view model and instance names, or std::nullopt
+     * if the artboard has no default view model.
+     */
     virtual void onDefaultViewModelInfoReceived(
         const ArtboardHandle,
         uint64_t requestId,
-        std::string viewModelName,
-        std::string instanceName)
+        std::optional<DefaultViewModelInfo> info)
     {}
 
     virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId) {}
