@@ -30,7 +30,9 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <queue>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -252,6 +254,27 @@ private:
   FocusManager* m_activeFocusManager = nullptr;
   SemanticManager* m_activeSemanticManager = nullptr;
   rcp<SemanticNode> m_semanticBoundaryNode;
+
+  // A vector used within drawDrawableRange, cached here to avoid excessive
+  // allocation.
+  std::vector<Drawable*> m_drawDrawableRangePendingClips;
+
+#ifndef NDEBUG
+  // Because we're sharing the above vector across calls to drawDrawableRange,
+  // if this were called from multiple threads it would be bad, so in debug
+  // builds, we'll do some additional validation to ensure that the above vector
+  // is only being used within one thread.
+  std::thread::id m_drawDrawableRangeThreadID;
+#else
+  // Keep this in the structure in release mode, but give it a different name to
+  // ensure we don't actually use it where we're not expecting to.
+  // std::thread::id is no larger than 64 bits on any platform.
+  //
+  // Doing this keeps the size of the structure the same even if there's a
+  // debug/ndebug mismatch between header and source.
+  std::thread::id m_unusedThreadID;
+#endif
+
 #ifdef WITH_RIVE_TOOLS
   rcp<FocusNode> m_externalParentFocusNode;
   uint32_t m_seenImageRevealGeneration = 0;

@@ -36,6 +36,7 @@
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/span.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/paint_image.hpp"
 #include "rive/watermark.hpp"
@@ -3507,16 +3508,49 @@ void Artboard::drawDrawableRange(
     Drawable* first,
     Drawable* stop)
 {
+#ifndef NDEBUG
+  // In debug builds we're going to do some validation to ensure that this
+  // function on this artboard isn't being called from multiple threads, due to
+  // the shared vector we're using.
+  struct ThreadIDTracker
+  {
+    ThreadIDTracker(Artboard* ab)
+        : m_thisArtboard{ab}
+        , m_hadID{ab->m_drawDrawableRangeThreadID != std::thread::id{}}
+    {
+      if (m_hadID)
+        assert(ab->m_drawDrawableRangeThreadID == std::this_thread::get_id());
+      else
+        ab->m_drawDrawableRangeThreadID = std::this_thread::get_id();
+    }
+
+    ~ThreadIDTracker()
+    {
+      if (!m_hadID)
+        m_thisArtboard->m_drawDrawableRangeThreadID = std::thread::id{};
+    }
+
+    Artboard* m_thisArtboard;
+    bool m_hadID = false;
+  };
+
+  ThreadIDTracker threadIDTracker{this};
+#endif
+
   // Empty clips is a counter for clipping shapes that are empty, for
   // example because they are hidden in a solo. If emptyClips > 0, the
   // drawables should not be drawn. A layer mask's source bracket rides the
   // same counter to suppress the source in the normal pass.
   int emptyClips = 0;
+
+  // Store the length of the pending clip vector, which is our base index.
+  // (We could be recursed from another call to this function, which has put
+  // things into the list, and we want to ignore those).
+  size_t basePendingClipIndex = m_drawDrawableRangePendingClips.size();
+
   // We stack clip operations to avoid calling a save + clip + restore on
   // clipping that don't have any drawables in between. this is a common
   // case with drawables in solos where the drawables are not drawn.
-  // Deliberately a local: this function recurses through drawMasked.
-  std::vector<Drawable*> pendingClipOperations;
   for (auto drawable = first; drawable != stop; drawable = drawable->prev)
   {
     auto prevClips = emptyClips;
@@ -3527,26 +3561,34 @@ void Artboard::drawDrawableRange(
     }
     if (drawable->isClipStart())
     {
-      pendingClipOperations.push_back(drawable);
+      m_drawDrawableRangePendingClips.push_back(drawable);
       continue;
     }
-    else if (pendingClipOperations.size() > 0)
+    else if (m_drawDrawableRangePendingClips.size() > basePendingClipIndex)
     {
       // If there are clip operations pending and the next drawable is
       // a clip end, the clipping operation does not clip anything and
       // both can be skipped.
       if (drawable->isClipEnd())
       {
-        pendingClipOperations.pop_back();
+        m_drawDrawableRangePendingClips.pop_back();
         continue;
       }
       else
       {
-        for (auto& pendingClip : pendingClipOperations)
+        // Iterate the clips in the range starting at the first one added by
+        // this call of drawDrawableRange.
+        for (auto& pendingClip : rive::Span{
+                 m_drawDrawableRangePendingClips,
+                 basePendingClipIndex,
+                 ToEnd})
         {
           pendingClip->draw(renderer);
         }
-        pendingClipOperations.clear();
+
+        // Clear out all of the elements that were added during this run of the
+        // function.
+        m_drawDrawableRangePendingClips.resize(basePendingClipIndex);
       }
     }
     if (drawable->isMaskStart())
@@ -3581,6 +3623,8 @@ void Artboard::drawDrawableRange(
       drawable->draw(renderer);
     }
   }
+
+  assert(m_drawDrawableRangePendingClips.size() == basePendingClipIndex);
 }
 
 #ifdef RIVE_CANVAS
