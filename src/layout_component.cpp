@@ -1443,7 +1443,7 @@ void LayoutComponent::clearLayoutChildren()
 }
 
 #ifdef TESTING
-uint32_t LayoutComponent::sm_layoutChildRebuilds = 0;
+std::atomic<uint32_t> LayoutComponent::sm_layoutChildRebuilds{0};
 LayoutComponent* LayoutComponent::sm_countSyncsOf = nullptr;
 uint32_t LayoutComponent::sm_countedSyncs = 0;
 #endif

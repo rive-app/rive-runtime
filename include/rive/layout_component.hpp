@@ -12,6 +12,7 @@
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/layout/layout_enums.hpp"
+#include <atomic>
 #include <memory>
 
 namespace rive
@@ -614,8 +615,9 @@ public:
   void syncStyle();
   void syncLayoutChildren();
 #ifdef TESTING
-  // Syncs that found the children changed and rebuilt Yoga's list.
-  static uint32_t sm_layoutChildRebuilds;
+  // Syncs that found the children changed and rebuilt Yoga's list. Atomic,
+  // as instances of one file can be made on several threads at once.
+  static std::atomic<uint32_t> sm_layoutChildRebuilds;
   // Counts the syncs of one layout, when set.
   static LayoutComponent* sm_countSyncsOf;
   static uint32_t sm_countedSyncs;

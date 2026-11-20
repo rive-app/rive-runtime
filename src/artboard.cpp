@@ -96,6 +96,7 @@
 #include <cmath>
 #endif
 
+#include <mutex>
 #include <set>
 #include <unordered_map>
 
@@ -118,9 +119,9 @@ struct ArtboardScriptedInterpolators
 uint64_t Artboard::sm_frameId = 0;
 #ifdef TESTING
 uint64_t Artboard::sm_layoutPassCount = 0;
-uint64_t Artboard::sm_dirtNotifications = 0;
+std::atomic<uint64_t> Artboard::sm_dirtNotifications{0};
 uint64_t Artboard::sm_collapsedRunSkips = 0;
-uint64_t Artboard::sm_focusTreeBuilds = 0;
+std::atomic<uint64_t> Artboard::sm_focusTreeBuilds{0};
 #endif
 
 Artboard::Artboard()
@@ -1413,16 +1414,28 @@ Component* Artboard::componentForOrderEntry(
 const std::vector<Artboard::DependencyOrderEntry>* Artboard::
     dependencyOrderRecipe() const
 {
-  switch (m_RecipeState)
+  // The first instance of a source builds its recipe, and instances of one
+  // source can be made on several threads at once. Two builds sharing the
+  // recipe would clear each other's entries and both take the unusable path,
+  // one freeing the recipe while the other still writes into it. So builds
+  // run one at a time, and the state is published only once a build is done.
+  RecipeState state = m_RecipeState.load(std::memory_order_acquire);
+  if (state == RecipeState::unbuilt)
   {
-    case RecipeState::valid:
-      return m_DependencyOrderRecipe.get();
-    case RecipeState::unusable:
-      return nullptr;
-    case RecipeState::unbuilt:
-      break;
+    static std::mutex buildMutex;
+    std::lock_guard<std::mutex> lock(buildMutex);
+    state = m_RecipeState.load(std::memory_order_relaxed);
+    if (state == RecipeState::unbuilt)
+    {
+      state = buildDependencyOrderRecipe();
+      m_RecipeState.store(state, std::memory_order_release);
+    }
   }
+  return state == RecipeState::valid ? m_DependencyOrderRecipe.get() : nullptr;
+}
 
+Artboard::RecipeState Artboard::buildDependencyOrderRecipe() const
+{
   // No reverse Component* -> index map is needed: sortDependencies() has
   // already stamped every component in m_DependencyOrder with its position
   // via m_GraphOrder, so one walk of m_Objects can scatter each entry
@@ -1485,11 +1498,9 @@ const std::vector<Artboard::DependencyOrderEntry>* Artboard::
     // Something in the order isn't addressable as index/slot (or the
     // graph-order stamps disagree). Don't emit a partial order.
     m_DependencyOrderRecipe.reset();
-    m_RecipeState = RecipeState::unusable;
-    return nullptr;
+    return RecipeState::unusable;
   }
-  m_RecipeState = RecipeState::valid;
-  return m_DependencyOrderRecipe.get();
+  return RecipeState::valid;
 }
 
 bool Artboard::replaySourceDependencyOrder(const Artboard* source)
@@ -1539,8 +1550,10 @@ void Artboard::sortDependencies()
   {
     component->m_GraphOrder = graphOrder++;
   }
+  // This artboard isn't shared yet while it sorts (a source sorts as it
+  // decodes, before anything instances it), so no lock is needed here.
   m_DependencyOrderRecipe.reset();
-  m_RecipeState = RecipeState::unbuilt;
+  m_RecipeState.store(RecipeState::unbuilt, std::memory_order_relaxed);
   m_collapsedRunsDirty = true;
   m_Dirt |= ComponentDirt::Components;
 #ifdef WITH_RIVE_SCRIPTING

@@ -1818,7 +1818,7 @@ void ArtboardComponentList::verifyQuietRows(
       }
       else
       {
-        auto dirt = Artboard::sm_dirtNotifications;
+        uint64_t dirt = Artboard::sm_dirtNotifications;
         auto updates = DataBindContainer::sm_dataBindUpdates;
         bool didWork = false;
         // A nested list's verifier runs inside this pass.

@@ -612,9 +612,8 @@ TEST_CASE("concurrent first uses decode each artboard once", "[lazy_artboard]")
   size_t deferred = pendingCount(file.get());
   REQUIRE(deferred > 2);
 
-  // Only the decodes race: instancing artboards of one file from several
-  // threads adds to its assets' referencer lists concurrently, which is a
-  // separate matter.
+  // Only the decodes race here: concurrent_instancing_test.cpp races
+  // instancing.
   int decodesBefore = File::deferredArtboardDecodeCount;
   constexpr int kThreads = 8;
   std::vector<std::thread> threads;
@@ -694,8 +693,8 @@ TEST_CASE(
 // Decodes of every kind (artboards, animations, view model instances) take
 // one lock (deferredDecodeMutex): each clones the data converters of the
 // binds it reads, and a scripted converter's clone joins its asset's
-// referencer list, which isn't synchronized. Run on many threads at once,
-// they leave each asset with the referencers a single thread would.
+// referencer list. Run on many threads at once, they leave each asset with
+// the referencers a single thread would.
 TEST_CASE(
     "decodes of every kind on many threads leave assets consistent",
     "[lazy_artboard]")

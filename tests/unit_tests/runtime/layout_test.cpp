@@ -585,7 +585,7 @@ TEST_CASE("Syncing a layout's unchanged children keeps Yoga's list", "[layout]")
   REQUIRE(target2->worldTransform().decompose().x() == 100);
   REQUIRE(target3->worldTransform().decompose().x() == 200);
 
-  auto rebuilds = rive::LayoutComponent::sm_layoutChildRebuilds;
+  uint32_t rebuilds = rive::LayoutComponent::sm_layoutChildRebuilds;
   artboard->syncLayoutChildren();
   artboard->syncLayoutChildren();
   CHECK(rive::LayoutComponent::sm_layoutChildRebuilds == rebuilds);

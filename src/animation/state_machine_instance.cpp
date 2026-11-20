@@ -5973,7 +5973,7 @@ bool StateMachineInstance::skipWhileAwaitingAsync(float seconds)
   if (sm_verifyAsyncSkips)
   {
     // Advancing by 0 always reports keep going (see the overload below).
-    auto dirt = Artboard::sm_dirtNotifications;
+    uint64_t dirt = Artboard::sm_dirtNotifications;
     auto sequence = ViewModelInstanceValue::latestChangeSequence();
     bool keepGoing = advanceAndApply(seconds, true) && seconds != 0.0f;
     if (keepGoing || dirt != Artboard::sm_dirtNotifications ||

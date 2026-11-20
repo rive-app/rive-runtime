@@ -20,9 +20,8 @@ void FontAsset::font(rcp<Font> font)
   // We could try to tie this to some generic FileAssetReferencer callback
   // but for that we'd need this to be behind a more generic setter like
   // ::asset(rcp<Asset> asset)
-  for (FileAssetReferencer* fileAssetReferencer : fileAssetReferencers())
-  {
+  forEachFileAssetReferencer([](FileAssetReferencer* fileAssetReferencer) {
     static_cast<TextStyle*>(fileAssetReferencer)
         ->addDirt(ComponentDirt::TextShape);
-  }
+  });
 }

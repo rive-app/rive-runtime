@@ -18,10 +18,8 @@ ImageAsset::~ImageAsset()
 #if defined(__EMSCRIPTEN__)
 void ImageAsset::decodedAsync()
 {
-  for (auto ref : fileAssetReferencers())
-  {
-    ref->assetUpdated();
-  }
+  forEachFileAssetReferencer(
+      [](FileAssetReferencer* ref) { ref->assetUpdated(); });
 }
 #endif
 
@@ -43,10 +41,8 @@ void ImageAsset::renderImage(rcp<RenderImage> renderImage)
     m_RenderImage->delegate(this);
   }
 #endif
-  for (auto ref : fileAssetReferencers())
-  {
-    ref->assetUpdated();
-  }
+  forEachFileAssetReferencer(
+      [](FileAssetReferencer* ref) { ref->assetUpdated(); });
 }
 
 std::string ImageAsset::fileExtension() const { return "png"; }

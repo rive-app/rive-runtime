@@ -22,6 +22,37 @@ StatusCode FileAsset::import(ImportStack& importStack)
   return Super::import(importStack);
 }
 
+std::mutex& FileAsset::referencersMutex()
+{
+  // Never destroyed: files released during exit still remove their
+  // referencers after function statics would have been torn down.
+  static std::mutex* mutex = new std::mutex();
+  return *mutex;
+}
+
+void FileAsset::addFileAssetReferencer(FileAssetReferencer* referencer)
+{
+  std::lock_guard<std::mutex> lock(referencersMutex());
+  m_fileAssetReferencers.push_back(referencer);
+}
+
+void FileAsset::removeFileAssetReferencer(FileAssetReferencer* referencer)
+{
+  std::lock_guard<std::mutex> lock(referencersMutex());
+  auto itr = m_fileAssetReferencers.begin();
+  while (itr != m_fileAssetReferencers.end())
+  {
+    if (*itr == referencer)
+    {
+      itr = m_fileAssetReferencers.erase(itr);
+    }
+    else
+    {
+      itr++;
+    }
+  }
+}
+
 std::string FileAsset::uniqueName() const
 {
   // remove final extension

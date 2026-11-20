@@ -28,6 +28,7 @@
 #include "rive/semantic/semantic_node.hpp"
 #include "rive/scripting_slots.hpp"
 
+#include <atomic>
 #include <memory>
 #include <queue>
 #include <unordered_set>
@@ -360,8 +361,13 @@ private:
   /// null if that slot is empty on this artboard.
   Component* componentForOrderEntry(const DependencyOrderEntry& entry) const;
   /// Builds (once) and returns this artboard's order recipe, or null if it
-  /// could not be expressed as index/slot pairs.
+  /// could not be expressed as index/slot pairs. Safe to call from several
+  /// threads at once, as instances of one source can be made on different
+  /// threads.
   const std::vector<DependencyOrderEntry>* dependencyOrderRecipe() const;
+  /// Fills m_DependencyOrderRecipe and says whether it is usable. Only
+  /// dependencyOrderRecipe calls it, holding the lock that serializes builds.
+  RecipeState buildDependencyOrderRecipe() const;
   /// Fills m_DependencyOrder from [source]'s recipe. False if unavailable or
   /// if anything about this instance does not line up, in which case the
   /// caller must fall back to sorting.
@@ -371,7 +377,9 @@ private:
   // source's through replaySourceDependencyOrder. Sidecar'd so the
   // instances that never build one carry 8 B rather than a vector header.
   mutable Sidecar<std::vector<DependencyOrderEntry>> m_DependencyOrderRecipe;
-  mutable RecipeState m_RecipeState = RecipeState::unbuilt;
+  // Published with release once the recipe is complete, so a reader that
+  // acquires valid sees the whole recipe without taking the build lock.
+  mutable std::atomic<RecipeState> m_RecipeState{RecipeState::unbuilt};
   void sortDrawOrder();
   // Injects each LayoutComponent's DrawableProxy into m_Drawables after its
   // last child, for layouts that paint, clip or are hit targets. Expects
@@ -403,12 +411,14 @@ public:
   // can tell a settled artboard from one that re-solves every frame.
   static uint64_t layoutPassCount() { return sm_layoutPassCount; }
   // Dirt reported to any artboard (onComponentDirty and onDirty calls).
-  static uint64_t sm_dirtNotifications;
+  // Atomic like sm_focusTreeBuilds: instances of one file can be made on
+  // several threads at once, and initializing one reports dirt.
+  static std::atomic<uint64_t> sm_dirtNotifications;
   // Runs of collapsed components updateComponents skipped in one step.
   static uint64_t sm_collapsedRunSkips;
   // Focus trees built (buildFocusTree calls that had a manager) across every
   // artboard.
-  static uint64_t sm_focusTreeBuilds;
+  static std::atomic<uint64_t> sm_focusTreeBuilds;
   static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
   static void incFrameId() { sm_frameId++; }
