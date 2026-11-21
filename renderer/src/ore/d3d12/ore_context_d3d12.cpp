@@ -545,8 +545,8 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = true;
-  f.storageBuffers = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
   f.bc = true;
   f.etc2 = false;
   f.astc = false;

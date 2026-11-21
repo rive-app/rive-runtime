@@ -171,6 +171,7 @@ do
             'renderer/ore_gl_sampler_units_test.mm',
             'renderer/ore_layout_intern_test.mm',
             'renderer/ore_layout_native_slots_test.mm',
+            'renderer/ore_metal_vertex_buffer_slots_test.mm',
             'renderer/ore_scratch_pass_objects_test.mm',
             'renderer/ore_split_stage_test.mm',
         })
@@ -181,6 +182,7 @@ do
             'renderer/ore_gl_sampler_units_test.cpp',
             'renderer/ore_layout_intern_test.cpp',
             'renderer/ore_layout_native_slots_test.cpp',
+            'renderer/ore_metal_vertex_buffer_slots_test.cpp',
             'renderer/ore_scratch_pass_objects_test.cpp',
             'renderer/ore_split_stage_test.cpp',
         })

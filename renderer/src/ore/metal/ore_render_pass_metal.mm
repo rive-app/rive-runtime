@@ -72,11 +72,6 @@ static MTLWinding oreWindingToMTL(FaceWinding winding)
   RIVE_UNREACHABLE();
 }
 
-// Vertex buffers are bound at slots [kMetalVertexBufferBase, ...) to avoid
-// colliding with uniform buffers mapped to the low buffer indices
-// ([[buffer(0)]] etc). Must stay in sync with ore_context_metal.mm.
-static constexpr uint32_t kMetalVertexBufferBase = 16;
-
 // ============================================================================
 // RenderPassMetal
 // ============================================================================
@@ -109,6 +104,8 @@ void RenderPassMetal::setPipeline(Pipeline* pipeline)
   [m_mtlEncoder setFrontFacingWinding:oreWindingToMTL(desc.winding)];
   m_mtlPrimitiveType = orePrimitiveTopologyToMTL(desc.topology);
   m_currentPipeline = ref_rcp(pipeline);
+  // Each pipeline places vertex buffers at its own slots.
+  m_dirtyVertexSlots = kAllVertexSlotsDirty;
 
   if (desc.depthStencil.depthBias != 0 ||
       desc.depthStencil.depthBiasSlopeScale != 0.0f)
@@ -123,11 +120,23 @@ void RenderPassMetal::setVertexBuffer(
     uint32_t slot, Buffer* buffer, uint32_t offset)
 {
   validate();
+  if (slot >= kMaxVertexBufferSlots)
+    return;
   auto* b = static_cast<BufferMetal*>(buffer);
   b->markBound();
-  [m_mtlEncoder setVertexBuffer:b->current()
-                         offset:offset
-                        atIndex:slot + kMetalVertexBufferBase];
+  m_mtlVertexBuffers[slot] = {b->current(), offset};
+  m_dirtyVertexSlots |= static_cast<uint8_t>(1u << slot);
+}
+
+void RenderPassMetal::applyVertexBuffer(uint32_t slot)
+{
+  const VertexBufferBacking& bound = m_mtlVertexBuffers[slot];
+  auto* pipeline = static_cast<PipelineMetal*>(m_currentPipeline.get());
+  if (bound.buffer == nil || slot >= pipeline->desc().vertexBufferCount)
+    return;
+  [m_mtlEncoder setVertexBuffer:bound.buffer
+                         offset:bound.offset
+                        atIndex:pipeline->m_vertexBufferIndex[slot]];
 }
 
 void RenderPassMetal::setIndexBuffer(
@@ -242,6 +251,7 @@ void RenderPassMetal::draw(
     return; // setPipeline was rejected (see lastError), drawing would crash
   }
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   [m_mtlEncoder drawPrimitives:m_mtlPrimitiveType
                    vertexStart:firstVertex
                    vertexCount:vertexCount
@@ -262,6 +272,7 @@ void RenderPassMetal::drawIndexed(
     return; // rejected pipeline or missing index buffer, see lastError
   }
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   assert(
       m_mtlIndexBuffer != nil && "Must call setIndexBuffer before drawIndexed");
 
@@ -292,6 +303,8 @@ void RenderPassMetal::finish()
     m_mtlEncoder = nil;
   }
   releaseBoundResources();
+  for (VertexBufferBacking& bound : m_mtlVertexBuffers)
+    bound = {};
   m_currentPipeline.reset();
 }
 

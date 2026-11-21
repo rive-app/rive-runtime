@@ -474,8 +474,8 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = true;
-  f.storageBuffers = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
   f.bc = false;
   f.etc2 = true;
   f.astc = false;

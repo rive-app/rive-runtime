@@ -1529,8 +1529,8 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = true;
-  f.storageBuffers = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
   f.bc = true;
   f.etc2 = false;
   f.astc = false;

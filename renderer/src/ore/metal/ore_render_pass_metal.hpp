@@ -58,8 +58,18 @@ private:
   // came from another shader.
   void applyBindGroup(uint32_t groupIndex);
 
+  // At the slot the pipeline placed it.
+  void applyVertexBuffer(uint32_t slot);
+
   id<MTLRenderCommandEncoder> m_mtlEncoder = nil;
   id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
+  // The backing each vertex buffer had when it was set, as the index buffer's.
+  struct VertexBufferBacking
+  {
+    id<MTLBuffer> buffer = nil;
+    NSUInteger offset = 0;
+  };
+  VertexBufferBacking m_mtlVertexBuffers[kMaxVertexBufferSlots];
   id<MTLBuffer> m_mtlIndexBuffer = nil;
   MTLIndexType m_mtlIndexType = MTLIndexTypeUInt16;
   NSUInteger m_mtlIndexBufferOffset = 0;

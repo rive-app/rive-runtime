@@ -339,12 +339,45 @@ static MTLColorWriteMask oreColorWriteMaskToMTL(ColorWriteMask mask)
   return mtl;
 }
 
-// Metal uses a single [[buffer(n)]] namespace for both vertex buffers and
-// uniform/constant buffers. WGSL→MSL compilation assigns uniform buffers
-// starting at buffer index 0. To avoid collisions we reserve the first N
-// slots for uniforms and map vertex buffers to slots
-// [kMetalVertexBufferBase, ...).
-static constexpr uint32_t kMetalVertexBufferBase = 16;
+// A later buffer's attribute replaces an earlier one at the same slot.
+static bool readsVertexBuffer(
+    MTLVertexDescriptor* vd, const VertexBufferLayout& layout, uint32_t index)
+{
+  for (uint32_t i = 0; i < layout.attributeCount; ++i)
+  {
+    if (vd.attributes[layout.attributes[i].shaderSlot].bufferIndex == index)
+      return true;
+  }
+  return false;
+}
+
+// From kMetalVertexBufferBase up and then below it, skipping the slots the
+// pipeline binds a buffer at.
+static bool placeVertexBuffers(
+    const BindingMap& map, uint32_t count, uint8_t* indices)
+{
+  if (count > kMaxVertexBufferSlots)
+    return false;
+  uint32_t taken = 0;
+  for (size_t i = 0; i < map.size(); ++i)
+  {
+    const BindingMap::Entry& e = map.at(i);
+    const uint16_t
+        slot = e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
+    if (slotSpace(e.kind) == SlotSpace::buffer &&
+        slot < kMetalReservedBufferSlot)
+      taken |= 1u << slot;
+  }
+  uint32_t placed = 0;
+  for (uint32_t i = 0; i < kMetalReservedBufferSlot && placed < count; ++i)
+  {
+    const uint32_t index = (kMetalVertexBufferBase + i) %
+                           kMetalReservedBufferSlot;
+    if ((taken & (1u << index)) == 0)
+      indices[placed++] = static_cast<uint8_t>(index);
+  }
+  return placed == count;
+}
 
 static TextureFormat mtlFormatToOre(MTLPixelFormat fmt)
 {
@@ -382,8 +415,8 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = true;
-  f.storageBuffers = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
 
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
   f.bc = false;
@@ -715,6 +748,19 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(
     }
   }
 
+  if (!placeVertexBuffers(
+          pipeline->m_bindingMap,
+          desc.vertexBufferCount,
+          pipeline->m_vertexBufferIndex))
+  {
+    const char* msg = "more vertex buffers than Metal has buffer slots free";
+    if (outError)
+      *outError = msg;
+    else
+      setLastError("makePipeline: %s", msg);
+    return nullptr;
+  }
+
   // Vertex descriptor.
   if (desc.vertexBufferCount > 0)
   {
@@ -722,14 +768,7 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(
     for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
     {
       const auto& layout = desc.vertexBuffers[bufIdx];
-      uint32_t mtlBufIdx = bufIdx + kMetalVertexBufferBase;
-      vd.layouts[mtlBufIdx].stride = layout.stride;
-      vd.layouts[mtlBufIdx]
-          .stepFunction = layout.stepMode == VertexStepMode::instance
-                              ? MTLVertexStepFunctionPerInstance
-                              : MTLVertexStepFunctionPerVertex;
-      vd.layouts[mtlBufIdx].stepRate = 1;
-
+      uint32_t mtlBufIdx = pipeline->m_vertexBufferIndex[bufIdx];
       for (uint32_t attrIdx = 0; attrIdx < layout.attributeCount; ++attrIdx)
       {
         const auto& attr = layout.attributes[attrIdx];
@@ -738,6 +777,20 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(
         vd.attributes[attr.shaderSlot].offset = attr.offset;
         vd.attributes[attr.shaderSlot].bufferIndex = mtlBufIdx;
       }
+    }
+    for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
+    {
+      const auto& layout = desc.vertexBuffers[bufIdx];
+      uint32_t mtlBufIdx = pipeline->m_vertexBufferIndex[bufIdx];
+      // Metal aborts on a layout no attribute reads.
+      if (!readsVertexBuffer(vd, layout, mtlBufIdx))
+        continue;
+      vd.layouts[mtlBufIdx].stride = layout.stride;
+      vd.layouts[mtlBufIdx]
+          .stepFunction = layout.stepMode == VertexStepMode::instance
+                              ? MTLVertexStepFunctionPerInstance
+                              : MTLVertexStepFunctionPerVertex;
+      vd.layouts[mtlBufIdx].stepRate = 1;
     }
     rpd.vertexDescriptor = vd;
   }

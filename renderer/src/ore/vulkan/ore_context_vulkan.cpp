@@ -362,8 +362,8 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = true;
-  f.storageBuffers = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
   // Compressed format support via format properties.
   f.bc = enabled.textureCompressionBC;
   f.etc2 = enabled.textureCompressionETC2;
