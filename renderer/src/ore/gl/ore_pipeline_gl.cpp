@@ -84,6 +84,9 @@ bool PipelineGL::separateShadowUnits(std::string* error)
   // Querying a uniform is a round trip on WebGL, so only where it can matter.
   if (!shadows)
     return true;
+  // Emscripten resolves a uniform location against the current program, not
+  // the one passed in, so the program is current before the first query.
+  glUseProgram(program);
   for (SamplerUniform& uniform : uniforms)
   {
     uniform.location = glGetUniformLocation(program, uniform.name.c_str());
@@ -93,7 +96,6 @@ bool PipelineGL::separateShadowUnits(std::string* error)
   GLint units = 0;
   glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &units);
   uint32_t next = firstFreeTextureUnit(*this);
-  glUseProgram(program);
   for (const SamplerUniform& shadow : uniforms)
   {
     const auto unit = static_cast<uint16_t>(shadow.unit);
