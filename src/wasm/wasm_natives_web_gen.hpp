@@ -1771,6 +1771,12 @@ uint32_t rive_web_file_bindable_identity(uint32_t vmHandle, uint32_t bindable)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return fileBindableIdentityImpl(vm, bindable);
 }
+uint32_t rive_web_file_artboard(uint32_t vmHandle, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileArtboardImpl(vm, file, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
 uint32_t rive_web_lanes_start(uint32_t vmHandle, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
 {
     WasmScriptingVM* vm = bootVmFromHandle(vmHandle);
@@ -2411,6 +2417,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_file_host_bindable,
     (void*)rive_web_file_bindable_equal,
     (void*)rive_web_file_bindable_identity,
+    (void*)rive_web_file_artboard,
     (void*)rive_web_lanes_start,
     (void*)rive_web_lanes_state,
     (void*)rive_web_lanes_failed,

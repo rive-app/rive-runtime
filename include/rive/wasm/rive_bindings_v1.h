@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "3b6a00704fafc1bf"
+#define RIVE_BINDINGS_V1_CONTRACT "a081fd4bbcf2f628"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -936,6 +936,8 @@ RIVE_BINDING_IMPORT("rive_file_v1", "bindable_equal")
 uint32_t rive_file_bindable_equal(uint32_t a, uint32_t b);
 RIVE_BINDING_IMPORT("rive_file_v1", "bindable_identity")
 uint32_t rive_file_bindable_identity(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "artboard")
+uint32_t rive_file_artboard(uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
 
 // rive_lanes_v1
 RIVE_BINDING_IMPORT("rive_lanes_v1", "start")

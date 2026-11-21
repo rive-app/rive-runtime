@@ -1326,6 +1326,12 @@ NAMESPACES = [
         # The bindable artboard's stable id, to hash it by; 0 for a stale
         # handle.
         op('bindable_identity', [handle('bindable')], ret='u32'),
+        # A new instance of the named artboard, or of the file's default one
+        # when useDefault is set, as a rive_artboard_v1 handle the module
+        # owns: a root bound to its own view model instance and its file's
+        # global view model instances; 0 when absent.
+        op('artboard', [handle('file'), string('name', 'nameLength'),
+                        u32('useDefault')], ret='u32'),
     ]),
     # Jobs, workers and audio processors, each an instance of its lane module;
     # kinds and states are lane_layout.py's.

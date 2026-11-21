@@ -7455,9 +7455,15 @@ uint32_t dataGlobalViewModelImpl(
   auto object = static_cast<ScriptedObject*>(vm->handles().resolve(
       objectHandle,
       WasmScriptingVM::HandleTable::Tag::object));
+  if (object != nullptr && object->dataContext() == nullptr)
+  {
+    // Not bound yet, as when init runs on a new instance: init runs again
+    // once a data context arrives, as it does for context.viewModel().
+    vm->noteMissingRequestedData();
+    return 0;
+  }
   if (object == nullptr || object->scriptAsset() == nullptr ||
-      object->scriptAsset()->file() == nullptr ||
-      object->dataContext() == nullptr)
+      object->scriptAsset()->file() == nullptr)
   {
     return 0;
   }
@@ -7607,6 +7613,8 @@ struct HostArtboard : public RefCnt<HostArtboard>
   std::unique_ptr<StateMachineInstance> stateMachine;
   rcp<ViewModelInstance> viewModelInstance;
   rcp<DataContext> parentDataContext;
+  // Set on a RiveFile.artboard root, which pins its file.
+  rcp<File> decodedFile;
 
   HostArtboard(
       File* fileValue,
@@ -7640,6 +7648,14 @@ struct HostArtboard : public RefCnt<HostArtboard>
     }
   }
 
+  HostArtboard(rcp<File> decoded, DecodedRoot&& root)
+      : file(decoded.get())
+      , artboard(std::move(root.artboard))
+      , stateMachine(std::move(root.stateMachine))
+      , viewModelInstance(std::move(root.viewModel))
+      , decodedFile(std::move(decoded))
+  {}
+
   ~HostArtboard()
   {
     // State machine before artboard; its destructor touches the artboard.
@@ -7649,6 +7665,14 @@ struct HostArtboard : public RefCnt<HostArtboard>
 
   bool advance(float seconds)
   {
+    if (decodedFile != nullptr)
+    {
+      // A root, which no host frame advances: the per-frame entry point for a
+      // machine; without one, keep ticking while async work is pending.
+      return stateMachine != nullptr ? stateMachine->advanceAndApply(seconds)
+                                     : artboard->advance(seconds) ||
+                                           artboard->hasPendingAsyncWork();
+    }
     if (stateMachine != nullptr)
     {
       // Bound view models advance with the host frame, not here.
@@ -7926,9 +7950,25 @@ uint32_t artboardInstanceImpl(
   {
     return 0;
   }
+  auto vmi = vmiHandle != 0 ? resolveVmiArg(vm, vmiHandle) : nullptr;
+  if (host->decodedFile != nullptr)
+  {
+    // A fresh root from the file, not a copy of this one's live state, with
+    // view model instances of its own.
+    DecodedRoot root = decodedRootLike(
+        *host->decodedFile,
+        *host->artboard,
+        std::move(vmi));
+    if (root.artboard == nullptr)
+    {
+      return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::artboard,
+        new HostArtboard(host->decodedFile, std::move(root)));
+  }
   auto clone = host->artboard->instance();
   clone->frameOrigin(false);
-  auto vmi = vmiHandle != 0 ? resolveVmiArg(vm, vmiHandle) : nullptr;
   return vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::artboard,
       new HostArtboard(
@@ -9985,6 +10025,13 @@ uint32_t fileArtboardNameImpl(
       capacity);
 }
 
+// A rive_file_v1 artboard name for the decoded_file lookups: null for the
+// file's default artboard, else all nameLength bytes, NUL included.
+const char* artboardLookupName(const char* name, uint32_t useDefault)
+{
+  return useDefault != 0 ? nullptr : (name != nullptr ? name : "");
+}
+
 uint32_t fileBindableImpl(
     WasmScriptingVM* vm,
     uint32_t file,
@@ -9997,10 +10044,10 @@ uint32_t fileBindableImpl(
   {
     return 0;
   }
-  std::string named(name, nameLength);
   DecodedBindable decoded = decodedBindable(
       *host->file,
-      useDefault != 0 ? nullptr : named.c_str());
+      artboardLookupName(name, useDefault),
+      nameLength);
   if (decoded.artboard == nullptr)
   {
     return 0;
@@ -10064,6 +10111,33 @@ uint32_t fileBindableIdentityImpl(WasmScriptingVM* vm, uint32_t bindable)
   return host != nullptr ? host->artboard->stableId() : 0;
 }
 
+// RiveFile.artboard: a root the module owns, as rive_artboard_v1 handles an
+// Artboard input's instance, bound to its own file's data.
+uint32_t fileArtboardImpl(
+    WasmScriptingVM* vm,
+    uint32_t file,
+    const char* name,
+    uint32_t nameLength,
+    uint32_t useDefault)
+{
+  auto host = resolveRiveFile(vm, file);
+  if (host == nullptr)
+  {
+    return 0;
+  }
+  DecodedRoot root = decodedRoot(
+      *host->file,
+      artboardLookupName(name, useDefault),
+      nameLength);
+  if (root.artboard == nullptr)
+  {
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::artboard,
+      new HostArtboard(host->file, std::move(root)));
+}
+
 // context.bindableArtboard: one of the script's own file's artboards, with no
 // view model of its own, so the host binds it as an authored artboard id.
 uint32_t fileHostBindableImpl(
@@ -10085,10 +10159,10 @@ uint32_t fileHostBindableImpl(
   {
     return 0;
   }
-  std::string named(name, nameLength);
   auto bindable = hostBindableArtboard(
       *object->scriptAsset()->file(),
-      useDefault != 0 ? nullptr : named.c_str());
+      artboardLookupName(name, useDefault),
+      nameLength);
   if (bindable == nullptr)
   {
     return 0;

@@ -302,6 +302,12 @@ public:
   std::unique_ptr<ArtboardInstance> artboardDefault() const;
   std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
   std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
+  /// An instance of source, one of this file's artboards, for content that
+  /// embeds it (a script's root of a file it decoded): no watermark.
+  std::unique_ptr<ArtboardInstance> embeddedArtboard(Artboard* source) const
+  {
+    return instanceArtboard(source);
+  }
   rcp<BindableArtboard> bindableArtboardNamed(std::string name) const;
   rcp<BindableArtboard> bindableArtboardDefault() const;
   rcp<BindableArtboard> internalBindableArtboardFromArtboard(Artboard*) const;

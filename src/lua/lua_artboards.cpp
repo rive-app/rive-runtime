@@ -18,6 +18,7 @@
 #include "rive/constraints/constraint.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/path.hpp"
+#include "rive/scripted/decoded_file.hpp"
 #include "rive/scripted/scripted_read_tracker.hpp"
 
 #include <math.h>
@@ -117,6 +118,16 @@ ScriptReffedArtboard::ScriptReffedArtboard(
   }
 #endif
 }
+
+ScriptReffedArtboard::ScriptReffedArtboard(
+    rcp<File> decodedFile,
+    DecodedRoot&& root)
+    : m_file(decodedFile.get())
+    , m_decodedFile(std::move(decodedFile))
+    , m_artboard(std::move(root.artboard))
+    , m_stateMachine(std::move(root.stateMachine))
+    , m_viewModelInstance(std::move(root.viewModel))
+{}
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
@@ -400,6 +411,14 @@ static int drawable_namecall(lua_State* L)
 bool ScriptedArtboard::advance(float seconds)
 {
   auto machine = stateMachine();
+  if (m_scriptReffedArtboard->decodedFile() != nullptr)
+  {
+    // A root, which no host frame advances: the per-frame entry point for a
+    // machine; without one, keep ticking while async work is pending.
+    return machine != nullptr ? machine->advanceAndApply(seconds)
+                              : artboard()->advance(seconds) ||
+                                    artboard()->hasPendingAsyncWork();
+  }
   if (machine)
   {
     // A scripted artboard's view models are advanced/reset by the host
@@ -571,9 +590,7 @@ static int artboard_namecall(lua_State* L)
         {
 
           auto scriptedViewModel = lua_torive<ScriptedViewModel>(L, 2);
-          return scriptedArtboard->instance(
-              L,
-              scriptedViewModel->viewModelInstance());
+          return scriptedArtboard->instance(L, scriptedViewModel);
         }
         return scriptedArtboard->instance(L, nullptr);
       }
@@ -684,10 +701,27 @@ int ScriptedArtboard::pushData(lua_State* L)
   return 1;
 }
 
-int ScriptedArtboard::instance(
-    lua_State* L,
-    rcp<ViewModelInstance> viewModelInstance)
+int ScriptedArtboard::instance(lua_State* L, ScriptedViewModel* viewModel)
 {
+  if (m_scriptReffedArtboard->decodedFile() != nullptr)
+  {
+    // Another root from the file, not a copy of this one's live state, made
+    // inside its userdata; nothing else is left to destroy if this errors.
+    auto* copy = lua_newrive<ScriptedArtboard>(
+        L,
+        L,
+        *m_scriptReffedArtboard,
+        viewModel);
+    if (copy->artboard() == nullptr)
+    {
+      luaL_error(L, "Could not instantiate artboard");
+    }
+    return 1;
+  }
+  rcp<ViewModelInstance> viewModelInstance = viewModel != nullptr
+                                                 ? viewModel
+                                                       ->viewModelInstance()
+                                                 : nullptr;
 #ifdef WITH_RIVE_EDITOR
   auto* context = ScriptingContext::from(L);
   auto artboardInstance = context ? context->instantiateArtboard(artboard())
@@ -716,16 +750,12 @@ int ScriptedArtboard::instance(
 
 int ScriptedArtboard::animation(lua_State* L, const char* animationName)
 {
-  if (artboard()->isInstance())
+  // Checked against the definitions; the instance is made inside the
+  // userdata, and keeps the artboard it plays.
+  if (artboard()->isInstance() && artboard()->animation(animationName))
   {
-
-    auto animation = static_cast<ArtboardInstance*>(artboard())
-                         ->animationNamed(animationName);
-    if (animation)
-    {
-      lua_newrive<ScriptedAnimation>(L, L, std::move(animation));
-      return 1;
-    }
+    lua_newrive<ScriptedAnimation>(L, L, m_scriptReffedArtboard, animationName);
+    return 1;
   }
   return 0;
 }
@@ -964,6 +994,42 @@ ScriptedArtboard::ScriptedArtboard(
     , m_dataContext(dataContext)
 {}
 
+ScriptedArtboard::ScriptedArtboard(
+    lua_State* L,
+    const rcp<File>& decodedFile,
+    const char* name,
+    size_t length)
+    : m_state(L)
+    , m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
+          decodedFile,
+          decodedRoot(*decodedFile, name, length)))
+{}
+
+static DecodedRoot decodedCopy(
+    ScriptReffedArtboard& like,
+    ScriptedViewModel* viewModel)
+{
+  auto* artboard = like.artboard();
+  if (artboard == nullptr)
+  {
+    return DecodedRoot();
+  }
+  return decodedRootLike(
+      *like.decodedFile(),
+      *static_cast<ArtboardInstance*>(artboard),
+      viewModel != nullptr ? viewModel->viewModelInstance() : nullptr);
+}
+
+ScriptedArtboard::ScriptedArtboard(
+    lua_State* L,
+    ScriptReffedArtboard& like,
+    ScriptedViewModel* viewModel)
+    : m_state(L)
+    , m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
+          like.decodedFile(),
+          decodedCopy(like, viewModel)))
+{}
+
 ScriptedArtboard::~ScriptedArtboard()
 {
   lua_unref(m_state, m_dataRef);
@@ -972,9 +1038,12 @@ ScriptedArtboard::~ScriptedArtboard()
 
 ScriptedAnimation::ScriptedAnimation(
     lua_State* L,
-    std::unique_ptr<LinearAnimationInstance> animation)
+    const rcp<ScriptReffedArtboard>& owner,
+    const char* name)
     : m_state(L)
-    , m_animation(std::move(animation))
+    , m_owner(owner)
+    , m_animation(static_cast<ArtboardInstance*>(owner->artboard())
+                      ->animationNamed(name))
 {}
 
 float ScriptedAnimation::duration()

@@ -86,10 +86,16 @@ int riveFileNamecall(lua_State* L)
   auto* self = lua_torive<ScriptedRiveFile>(L, 1);
   if (name != nullptr && atom == (int)LuaAtoms::bindableArtboard)
   {
-    const char* artboardName = lua_isnoneornil(L, 2) ? nullptr
-                                                     : luaL_checkstring(L, 2);
+    // Names are whole Luau strings, NUL included.
+    size_t length = 0;
+    const char* artboardName = lua_isnoneornil(L, 2)
+                                   ? nullptr
+                                   : luaL_checklstring(L, 2, &length);
     auto* bindable = lua_newrive<ScriptedBindableArtboard>(L);
-    DecodedBindable decoded = decodedBindable(*self->file, artboardName);
+    DecodedBindable decoded = decodedBindable(
+        *self->file,
+        artboardName,
+        length);
     if (decoded.artboard == nullptr)
     {
       lua_pop(L, 1);
@@ -98,6 +104,27 @@ int riveFileNamecall(lua_State* L)
     }
     bindable->artboard = std::move(decoded.artboard);
     bindable->viewModel = std::move(decoded.viewModel);
+    return 1;
+  }
+  if (name != nullptr && atom == (int)LuaAtoms::artboard)
+  {
+    size_t length = 0;
+    const char* artboardName = lua_isnoneornil(L, 2)
+                                   ? nullptr
+                                   : luaL_checklstring(L, 2, &length);
+    // The root is made inside the userdata, after the allocation that can
+    // longjmp past C++ destructors, so a failed one strands nothing.
+    auto* artboard = lua_newrive<ScriptedArtboard>(
+        L,
+        L,
+        self->file,
+        artboardName,
+        length);
+    if (artboard->artboard() == nullptr)
+    {
+      lua_pop(L, 1);
+      lua_pushnil(L);
+    }
     return 1;
   }
   luaL_error(
@@ -158,8 +185,10 @@ int bindableArtboardEq(lua_State* L)
 // it as it binds an authored artboard id.
 int context_bindableArtboard_impl(lua_State* L)
 {
-  const char* artboardName = lua_isnoneornil(L, 2) ? nullptr
-                                                   : luaL_checkstring(L, 2);
+  size_t length = 0;
+  const char* artboardName = lua_isnoneornil(L, 2)
+                                 ? nullptr
+                                 : luaL_checklstring(L, 2, &length);
   auto* context = lua_torive<ScriptedContext>(L, 1);
   auto* object = context != nullptr ? context->scriptedObject() : nullptr;
   auto* scriptAsset = object != nullptr ? object->scriptAsset() : nullptr;
@@ -170,7 +199,7 @@ int context_bindableArtboard_impl(lua_State* L)
     return 1;
   }
   auto* bindable = lua_newrive<ScriptedBindableArtboard>(L);
-  bindable->artboard = hostBindableArtboard(*file, artboardName);
+  bindable->artboard = hostBindableArtboard(*file, artboardName, length);
   if (bindable->artboard == nullptr)
   {
     lua_pop(L, 1);

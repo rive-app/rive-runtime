@@ -784,9 +784,11 @@ end
 
   {
     lua_getglobal(L, "testGlobalViewModel");
-    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    auto* context = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
     CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
     CHECK(top == lua_gettop(L));
+    // An init asking before any binding runs again once one arrives.
+    CHECK(context->missingRequestedData());
   }
 
   {
@@ -937,6 +939,54 @@ end
     lua_getglobal(L, "getNameMatched");
     CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
     CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
+}
+
+TEST_CASE(
+    "context:globalViewModel retries init only while nothing is bound",
+    "[scripting]")
+{
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+  REQUIRE(file != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+
+  // Bound, but the file has no global by that name: nil, and init keeps its
+  // result rather than waiting for one that never comes.
+  ScriptedObjectWithFile scriptedObjectWithFile;
+  scriptedObjectWithFile.setFileForScriptAsset(file.get());
+  scriptedObjectWithFile.dataContext(make_rcp<DataContext>(
+      file->createDefaultViewModelInstance(artboard.get())));
+
+  ScriptingTest vm(
+      R"(
+local found = true
+
+function testGlobal(context: Context)
+  found = context:globalViewModel("NoSuchGlobal") ~= nil
+end
+
+function getFound(): boolean
+  return found
+end
+)");
+
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  {
+    lua_getglobal(L, "testGlobal");
+    auto* context = lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+    CHECK_FALSE(context->missingRequestedData());
+  }
+  {
+    lua_getglobal(L, "getFound");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 0);
     lua_pop(L, 1);
     CHECK(top == lua_gettop(L));
   }

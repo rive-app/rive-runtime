@@ -569,6 +569,7 @@ uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t fileHostBindableImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint32_t useDefault);
 uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
 uint32_t fileBindableIdentityImpl(WasmScriptingVM* vm, uint32_t bindable);
+uint32_t fileArtboardImpl(WasmScriptingVM* vm, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
 uint32_t lanesStartImpl(WasmScriptingVM* vm, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount);
 uint32_t lanesStateImpl(WasmScriptingVM* vm, uint32_t lane);
 uint32_t lanesFailedImpl(WasmScriptingVM* vm, uint32_t lane, char* buffer, uint32_t capacity);
@@ -2564,6 +2565,12 @@ uint32_t fileBindableIdentity(wasm_exec_env_t env, uint32_t bindable)
     WasmScriptingVM* vm = vmFromEnv(env);
     return fileBindableIdentityImpl(vm, bindable);
 }
+uint32_t fileArtboard(wasm_exec_env_t env, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileArtboardImpl(vm, file, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
 uint32_t lanesStart(wasm_exec_env_t env, uint32_t kind, uint32_t entry, const uint8_t* input, uint32_t inputByteCount, const uint32_t* holds, uint32_t holdCount)
 {
     WasmScriptingVM* vm = bootVmFromEnv(env);
@@ -3254,6 +3261,7 @@ NativeSymbol kFileNatives[] = {
     {"host_bindable", (void*)fileHostBindable, "(i*~i)i", nullptr},
     {"bindable_equal", (void*)fileBindableEqual, "(ii)i", nullptr},
     {"bindable_identity", (void*)fileBindableIdentity, "(i)i", nullptr},
+    {"artboard", (void*)fileArtboard, "(i*~i)i", nullptr},
 };
 
 NativeSymbol kLanesNatives[] = {

@@ -300,7 +300,14 @@ int ScriptedContext::pushGlobalViewModel(lua_State* state)
   {
     auto scriptAsset = m_scriptedObject->scriptAsset();
     auto dataContext = m_scriptedObject->dataContext();
-    if (scriptAsset != nullptr && dataContext != nullptr)
+    if (dataContext == nullptr)
+    {
+      // Not bound yet, as when init runs on a new instance: init runs again
+      // once a data context arrives, as it does for context:viewModel().
+      m_missingRequestedData = true;
+      return 0;
+    }
+    if (scriptAsset != nullptr)
     {
       File* file = scriptAsset->file();
       if (file != nullptr)

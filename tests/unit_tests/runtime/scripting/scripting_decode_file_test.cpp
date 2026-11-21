@@ -12,6 +12,7 @@
 #include "rive/scriptnet/net.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "utils/serializing_factory.hpp"
 
 #include <cstring>
@@ -766,6 +767,269 @@ end
     CHECK(host.mounted() != nullptr);
   }
   scriptnet::setProvider(nullptr);
+}
+
+namespace
+{
+// Built from assets/rml/decoded_game_guest.rml: Game (default, 600x600) with
+// a machine and the Game view model (score 7), Other (300x200) with neither.
+constexpr const char* kGuestAsset = "assets/decoded_game_guest.riv";
+
+// file:artboard, an artboard of a decoded file the script owns.
+constexpr const char* kOwnScript = R"(
+file = nil
+game = nil
+copy = nil
+anim = nil
+
+function decode(context: Context, bytes: buffer)
+    local status = "unsettled"
+    context:decodeFile(bytes):andThen(function(decoded)
+        file = decoded
+        status = "ok"
+    end, function(reason)
+        status = reason
+    end)
+    return status
+end
+
+local function score(artboard): string
+    local data = artboard.data
+    if data == nil then
+        return "none"
+    end
+    local value = data:getNumber("score")
+    return if value then tostring(value.value) else "noscore"
+end
+
+function own(name)
+    game = if name == "" then file:artboard() else file:artboard(name)
+    if game == nil then
+        return "nil"
+    end
+    return `{game.width} {score(game)}`
+end
+
+function bump()
+    game.data:getNumber("score").value = 1
+    return score(game)
+end
+
+function copyOf(vm)
+    copy = if vm == nil then game:instance() else game:instance(vm)
+    return score(copy)
+end
+
+function copyShared()
+    copy = game:instance(game.data)
+    return score(copy)
+end
+
+function forget()
+    file = nil
+    return nil
+end
+
+function keepAnimation(name)
+    anim = game:animation(name)
+    return if anim == nil then "nil" else "kept"
+end
+
+function stepAnimation()
+    return tostring(anim:advance(0.5))
+end
+
+function nulNames()
+    local name = "Game\0Other"
+    return `{file:artboard("Game") ~= nil} {file:artboard(name) ~= nil} {file:bindableArtboard(name) ~= nil}`
+end
+
+function dropGame()
+    game = nil
+    return nil
+end
+
+function frame(renderer: Renderer, seconds: number)
+    if game then
+        game:advance(seconds)
+        game:draw(renderer)
+    end
+    if copy then
+        copy:advance(seconds)
+        copy:draw(renderer)
+    end
+end
+)";
+
+struct OwnHost
+{
+  ScriptingTest test;
+  ScriptedObjectTest object;
+
+  explicit OwnHost(Factory* factory)
+      : test(kOwnScript, 1, false, {}, true, factory)
+  {}
+
+  lua_State* state() { return test.state(); }
+
+  std::string decode(const std::vector<uint8_t>& bytes)
+  {
+    lua_State* L = state();
+    pushBytes(L, bytes);
+    REQUIRE(callWithContext(L, &object, "decode", 1) == LUA_OK);
+    return popString(L);
+  }
+
+  std::string call(
+      const char* name,
+      const char* arg = nullptr,
+      ViewModelInstance* viewModel = nullptr)
+  {
+    lua_State* L = state();
+    lua_getglobal(L, name);
+    int args = 0;
+    if (arg != nullptr)
+    {
+      lua_pushstring(L, arg);
+      args++;
+    }
+    if (viewModel != nullptr)
+    {
+      lua_newrive<ScriptedViewModel>(
+          L,
+          L,
+          ref_rcp(viewModel->viewModel()),
+          ref_rcp(viewModel));
+      args++;
+    }
+    if (lua_pcall(L, args, 1, 0) != LUA_OK)
+    {
+      std::string error = popString(L);
+      FAIL(error);
+    }
+    return popString(L);
+  }
+
+  void frame(Renderer* renderer, float seconds)
+  {
+    lua_State* L = state();
+    lua_getglobal(L, "frame");
+    auto scripted = lua_newrive<ScriptedRenderer>(L, renderer);
+    lua_pushnumber(L, seconds);
+    if (lua_pcall(L, 2, 0, 0) != LUA_OK)
+    {
+      std::string error = popString(L);
+      FAIL(error);
+    }
+    CHECK(scripted->end());
+  }
+
+  void collect() { lua_gc(state(), LUA_GCCOLLECT, 0); }
+};
+} // namespace
+
+TEST_CASE(
+    "file:artboard gives a script a decoded artboard to own",
+    "[scripting][decode_file]")
+{
+  SerializingFactory factory;
+  OwnHost script(&factory);
+  REQUIRE(script.decode(ReadFile(kGuestAsset)) == "ok");
+  CHECK(script.call("own", "Nope") == "nil");
+  CHECK(script.call("own", "Other") == "300 none");
+  // The default artboard, on the file's default instance of its view model.
+  CHECK(script.call("own", "") == "600 7");
+  CHECK(script.call("bump") == "1");
+  // instance() is another root with an instance of its own.
+  CHECK(script.call("copyOf") == "7");
+}
+
+TEST_CASE(
+    "an owned artboard's instance() binds only its own file's view models",
+    "[scripting][decode_file]")
+{
+  SerializingFactory factory;
+  OwnHost script(&factory);
+  REQUIRE(script.decode(ReadFile(kGuestAsset)) == "ok");
+  REQUIRE(script.call("own", "") == "600 7");
+  REQUIRE(script.call("bump") == "1");
+  // One of the file's own is shared, as passed.
+  CHECK(script.call("copyShared") == "1");
+  // Another file's instance, even of a same-named view model, gives way to
+  // the file's default: it would bind by this file's property ids.
+  auto other = ReadRiveFile(kGuestAsset, &factory);
+  auto foreign = other->createDefaultViewModelInstance(
+      other->viewModel("Game"));
+  REQUIRE(foreign != nullptr);
+  foreign->propertyValue("score")->as<ViewModelInstanceNumber>()->propertyValue(
+      3.0f);
+  CHECK(script.call("copyOf", nullptr, foreign.get()) == "7");
+}
+
+// Run under ASan: the animation plays its artboard, whose file holds its
+// definition, after the script has dropped both.
+TEST_CASE(
+    "an owned artboard's animation keeps the artboard it plays",
+    "[scripting][decode_file]")
+{
+  // The guest's timeline ships without its name, as the editor exports
+  // timelines unless asked; coin.riv predates that and names its animation.
+  constexpr const char* kCoin = "assets/coin.riv";
+  SerializingFactory factory;
+  auto coin = ReadRiveFile(kCoin, &factory);
+  REQUIRE(coin->artboard()->animationCount() > 0);
+  std::string name = coin->artboard()->animation(0)->name();
+  REQUIRE(!name.empty());
+  coin = nullptr;
+
+  OwnHost script(&factory);
+  REQUIRE(script.decode(ReadFile(kCoin)) == "ok");
+  REQUIRE(script.call("own", "") != "nil");
+  REQUIRE(script.call("keepAnimation", name.c_str()) == "kept");
+  script.call("forget");
+  script.call("dropGame");
+  script.collect();
+  for (int i = 0; i < 3; i++)
+  {
+    script.call("stepAnimation");
+  }
+}
+
+TEST_CASE(
+    "a decoded file matches an artboard's whole name, NUL included",
+    "[scripting][decode_file]")
+{
+  SerializingFactory factory;
+  OwnHost script(&factory);
+  REQUIRE(script.decode(ReadFile(kGuestAsset)) == "ok");
+  CHECK(script.call("nulNames") == "true false false");
+}
+
+// Run under ASan: once the script drops the file, the owned artboard and its
+// copy are all that keep it, and the copy outlives the artboard it came from.
+TEST_CASE(
+    "an owned artboard keeps its decoded file alive",
+    "[scripting][decode_file]")
+{
+  SerializingFactory factory;
+  OwnHost script(&factory);
+  REQUIRE(script.decode(ReadFile(kGuestAsset)) == "ok");
+  REQUIRE(script.call("own", "") == "600 7");
+  REQUIRE(script.call("copyOf") == "7");
+  script.call("forget");
+  script.collect();
+  factory.frameSize(600, 600);
+  auto renderer = factory.makeRenderer();
+  for (int i = 0; i < 3; i++)
+  {
+    script.frame(renderer.get(), 0.016f);
+  }
+  script.call("dropGame");
+  script.collect();
+  for (int i = 0; i < 3; i++)
+  {
+    script.frame(renderer.get(), 0.016f);
+  }
 }
 
 #endif

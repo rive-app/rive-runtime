@@ -1,0 +1,78 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source of assets/decoded_game_guest.riv. Rebuild from a directory holding
+      this as scene.rml and a rive.yaml (main: "Game"), then copy
+      build/decoded_game_guest.riv into assets/:
+
+          rive . --unsigned-riv
+
+      Game centres Target, whose fill reads the global Theme.accent; a click
+      on it fires Game's finished. Play moves Ticker right from time zero.
+      Other has no state machine; its Swatch reads the same global.
+    -->
+    <Artboard defaultStateMachineId="0:80" viewModelId="0:60" viewModelInstanceId="0:65"
+              clip="true" width="600" height="600" styleId="0:3" name="Game" id="0:2">
+        <LayoutComponentStyle layoutAlignmentType="center" name="Game Style" id="0:3"/>
+        <LayoutComponent width="200" height="200" styleId="0:11" name="Target" exportName="true" id="0:10">
+            <LayoutComponentStyle name="Target Style" id="0:11"/>
+            <Fill name="Fill" id="0:12">
+                <SolidColor colorValue="FF444444" name="C" id="0:13">
+                    <DataBindContext sourcePathIds="0:70-0:71" propertyKey="37" id="0:14"/>
+                </SolidColor>
+            </Fill>
+        </LayoutComponent>
+        <Node name="Ticker" exportName="true" id="0:20"/>
+        <LinearAnimation duration="60" name="Play" id="0:90">
+            <KeyedObject objectId="0:20">
+                <KeyedProperty propertyKey="13">
+                    <KeyFrameDouble value="0" interpolationType="1"/>
+                    <KeyFrameDouble value="600" interpolationType="1" frame="60"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="Game Machine" id="0:80">
+            <StateMachineListenerSingle targetId="0:10" listenerTypeValue="click" name="Target Click" id="0:81">
+                <ListenerViewModelChange id="0:82">
+                    <BindablePropertyTrigger propertyValue="1" id="0:83">
+                        <DataBindContext sourcePathIds="0:60-0:62" propertyKey="686" direction="true" id="0:84"/>
+                    </BindablePropertyTrigger>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="Game Layer" id="0:85">
+                <AnyState x="200" y="-120" id="0:86"/>
+                <ExitState x="400" y="-120" id="0:87"/>
+                <EntryState x="0" y="0" id="0:88">
+                    <StateTransition stateToId="0:89"/>
+                </EntryState>
+                <AnimationState x="160" y="0" animationId="0:90" stateName="Play" id="0:89"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard clip="true" width="300" height="200" name="Other" id="0:30">
+        <Shape x="50" y="50" name="Swatch" exportName="true" id="0:31">
+            <Rectangle width="40" height="40" name="Path" id="0:32"/>
+            <Fill name="Fill" id="0:33">
+                <SolidColor colorValue="FF444444" name="C" id="0:34">
+                    <DataBindContext sourcePathIds="0:70-0:71" propertyKey="37" id="0:35"/>
+                </SolidColor>
+            </Fill>
+        </Shape>
+    </Artboard>
+
+    <ViewModel defaultInstanceId="0:65" name="Game" id="0:60">
+        <ViewModelPropertyNumber name="score" id="0:61"/>
+        <ViewModelPropertyTrigger name="finished" id="0:62"/>
+        <ViewModelInstance exports="true" name="Default" id="0:65">
+            <ViewModelInstanceNumber propertyValue="7" viewModelPropertyId="0:61"/>
+            <ViewModelInstanceTrigger viewModelPropertyId="0:62"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel viewModelType="global" defaultInstanceId="0:75" name="Theme" id="0:70">
+        <ViewModelPropertyColor name="accent" id="0:71"/>
+        <ViewModelInstance exports="true" name="Default" id="0:75">
+            <ViewModelInstanceColor propertyValue="FF00FF00" viewModelPropertyId="0:71"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

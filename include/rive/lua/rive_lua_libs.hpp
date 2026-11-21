@@ -1344,6 +1344,9 @@ private:
   Mat2D m_worldTransform;
 };
 
+struct DecodedRoot;
+class ScriptedViewModel;
+
 class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
@@ -1358,6 +1361,9 @@ public:
       rcp<File> filePin = nullptr
 #endif
   );
+  /// A RiveFile:artboard root, which decodedRoot has already bound to its
+  /// own file's data; it pins that file.
+  ScriptReffedArtboard(rcp<File> decodedFile, DecodedRoot&& root);
 
   ~ScriptReffedArtboard();
   rive::File* file();
@@ -1367,6 +1373,8 @@ public:
 #ifdef WITH_RIVE_TOOLS
   rcp<File> filePin() { return m_filePin; }
 #endif
+  /// The file a RiveFile:artboard root pins; null for any other artboard.
+  const rcp<File>& decodedFile() const { return m_decodedFile; }
 
 private:
   File* m_file;
@@ -1375,6 +1383,8 @@ private:
   // own file: that would cycle File -> VM -> userdata -> File and leak.
   rcp<File> m_filePin;
 #endif
+  // Before the artboard, so it outlives it.
+  rcp<File> m_decodedFile;
   std::unique_ptr<ArtboardInstance> m_artboard;
   std::unique_ptr<StateMachineInstance> m_stateMachine;
   rcp<ViewModelInstance> m_viewModelInstance;
@@ -1397,6 +1407,23 @@ public:
       rcp<File> filePin = nullptr
 #endif
   );
+  // RiveFile:artboard roots, with no parent data context. Each is made inside
+  // the userdata, after the allocation that can longjmp past C++ destructors,
+  // so a failed one strands nothing; it is empty (artboard() is null) when
+  // the file has no such artboard.
+  /// The artboard named by name's length bytes, or the file's default one
+  /// when name is null.
+  ScriptedArtboard(
+      lua_State* L,
+      const rcp<File>& decodedFile,
+      const char* name,
+      size_t length);
+  /// Another root of like's artboard, bound to viewModel's instance when it
+  /// is one of the file's.
+  ScriptedArtboard(
+      lua_State* L,
+      ScriptReffedArtboard& like,
+      ScriptedViewModel* viewModel);
   ~ScriptedArtboard();
 
   static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
@@ -1419,7 +1446,8 @@ public:
   }
 
   int pushData(lua_State* L);
-  int instance(lua_State* L, rcp<ViewModelInstance> viewModelInstance);
+  /// viewModel, if any, is the userdata the script passed.
+  int instance(lua_State* L, ScriptedViewModel* viewModel);
   int animation(lua_State* L, const char* animationName);
 
   bool advance(float seconds);
@@ -1436,9 +1464,13 @@ private:
 class ScriptedAnimation
 {
 public:
+  /// The named animation of owner's artboard, which the caller checked it
+  /// has. Made inside the userdata, after the allocation that can longjmp
+  /// past C++ destructors.
   ScriptedAnimation(
       lua_State* L,
-      std::unique_ptr<LinearAnimationInstance> animation);
+      const rcp<ScriptReffedArtboard>& owner,
+      const char* name);
 
   static constexpr uint8_t luaTag = LUA_T_COUNT + 32;
   static constexpr const char* luaName = "Animation";
@@ -1449,6 +1481,9 @@ public:
 
 private:
   lua_State* m_state;
+  // The animation plays its artboard, and a decoded root's file holds its
+  // definition, so it keeps both: before the animation, so it outlives it.
+  rcp<ScriptReffedArtboard> m_owner;
   std::unique_ptr<LinearAnimationInstance> m_animation;
 };
 
@@ -2767,8 +2802,9 @@ private:
 class BindableArtboard;
 class ViewModelInstanceArtboard;
 
-/// A Rive file a script decoded from bytes. Its artboards reach the host only
-/// as BindableArtboards assigned to view model artboard properties.
+/// A Rive file a script decoded from bytes. Its artboards reach the host as
+/// BindableArtboards assigned to view model artboard properties, or the
+/// script owns them as Artboards (file:artboard).
 class ScriptedRiveFile
 {
 public:
