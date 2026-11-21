@@ -40,6 +40,16 @@ int LayerMaskProxyDrawable::emptyClipCount()
   {
     return 0;
   }
+  // Suppression is for the normal pass. A coverage pass skips its own opening
+  // marker, but two masks sharing a source splice two brackets around the same
+  // drawables, one inside the other, so the outer mask's coverage walk meets
+  // the inner mask's marker and would hide the very source it is drawing. A
+  // source nested in another mask's source is the same case.
+  Artboard* owner = m_mask->artboard();
+  if (owner != nullptr && owner->drawsMaskCoverage())
+  {
+    return 0;
+  }
   return m_op == LayerMaskOp::sourceStart ? 1 : -1;
 }
 

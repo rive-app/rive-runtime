@@ -3683,7 +3683,8 @@ BoundsFidelity Artboard::rangeDrawBounds(
   // excluded, and so is a nested mask's source range -- its markers push the
   // same empty-clip counter -- while a nested mask's own members are
   // included, which is correct because a mask only ever attenuates what is
-  // already there.
+  // already there. Measuring coverage, source markers push nothing, the same
+  // as when the coverage is drawn.
   int emptyClips = 0;
   AABB accumulated = AABB::forExpansion();
   BoundsFidelity worst = BoundsFidelity::exact;
@@ -3799,6 +3800,28 @@ bool Artboard::drawMasked(
     }
     ~MaskedRangeGuard() { artboard.m_drawsMaskedRange = was; }
   } maskedRangeGuard(*this);
+  // Set while the source range is measured and while it is drawn as
+  // coverage, so no source bracket suppresses inside it (see
+  // LayerMaskProxyDrawable::emptyClipCount).
+  //
+  // Cleared for everything else this mask draws, including when it is itself
+  // drawn inside another mask's coverage pass. That happens to a mask nested
+  // in a source that also draws normally: it is drawn on screen too, in the
+  // same frame. Its rasters have to be the same both times, because a frame
+  // replays only the last raster each canvas recorded. So its content always
+  // draws as it would on screen.
+  struct CoverageGuard
+  {
+    Artboard& artboard;
+    bool was;
+    CoverageGuard(Artboard& a, bool value)
+        : artboard(a)
+        , was(a.m_drawsMaskCoverage)
+    {
+      artboard.m_drawsMaskCoverage = value;
+    }
+    ~CoverageGuard() { artboard.m_drawsMaskCoverage = was; }
+  } contentGuard(*this, false);
 
   // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
   // rasterize into. No host means nobody can give us an offscreen frame (a
@@ -3894,6 +3917,7 @@ bool Artboard::drawMasked(
       // Over the source bracket rather than sourceDrawables(), matching
       // what the coverage pass below actually draws -- so a clipping
       // shape nested inside the source is accounted for the same way.
+      CoverageGuard coverageGuard(*this, true);
       sourceFidelity = rangeDrawBounds(
           mask.sourceStart()->prevDrawable(),
           mask.sourceEnd(),
@@ -4108,6 +4132,7 @@ bool Artboard::drawMasked(
         // means the source draws nothing, so the canvas stays empty.
         if (mask.sourceStart() != nullptr)
         {
+          CoverageGuard coverageGuard(*this, true);
           drawDrawableRange(
               r,
               mask.sourceStart()->prevDrawable(),

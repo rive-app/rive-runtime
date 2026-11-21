@@ -85,7 +85,20 @@ public:
   // suppressing the source needs no new code in the hot loop -- and why it
   // does not touch DrawableFlag::Hidden, which would also (wrongly) suppress
   // the source in the coverage pass and break LayoutComponent's render path.
+  // Returns 0 while the artboard draws mask coverage, where no source bracket
+  // suppresses anything.
   int emptyClipCount() override;
+
+  // A source marker paints nothing and has no bounds, so it never passes for
+  // a drawable. That matters whenever its count is 0 (in coverage, or for a
+  // mask whose source also draws): otherwise rangeDrawBounds would measure it,
+  // get `none`, and fall back to the artboard box. The count still applies,
+  // because both walks read emptyClipCount() before willDraw(). The mask
+  // markers have to pass, or drawMasked would never be reached.
+  bool willDraw() override
+  {
+    return m_op == LayerMaskOp::maskStart || m_op == LayerMaskOp::maskEnd;
+  }
 
   bool isHidden() const override { return false; }
   Drawable* hittableComponent() override { return nullptr; }

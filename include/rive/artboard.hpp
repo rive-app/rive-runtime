@@ -341,6 +341,9 @@ private:
   // state machine controllers to sort their hittable components when they are
   // out of sync
   uint8_t m_drawOrderChangeCounter = 0;
+  // Set while a layer mask draws or measures its coverage; see
+  // drawsMaskCoverage. In the padding after m_drawOrderChangeCounter.
+  bool m_drawsMaskCoverage = false;
 #ifdef WITH_RIVE_TOOLS
   uint16_t m_artboardId = 0;
   // Instances borrow their source's animations and state machines, so
@@ -653,6 +656,10 @@ public:
   // canvas. A clip pushed on the frame's renderer before the range isn't on
   // that canvas's renderer, though its owner still reads as clipping.
   bool drawsMaskedRange() const { return m_drawsMaskedRange; }
+  // Whether a layer mask is drawing or measuring its coverage on this
+  // artboard. Source brackets suppress only in the normal pass, so while this
+  // is set none of them hide anything.
+  bool drawsMaskCoverage() const { return m_drawsMaskCoverage; }
   uint32_t changeSerial() const { return m_changeSerial; }
   // Moves the change serial alone: a value the artboard's objects will be
   // set to changed (see BlendAccumulator's layer mode), so a pose resting on

@@ -217,6 +217,58 @@ TEST_CASE("the mask source is suppressed in the normal pass", "[layer-mask]")
   }
 }
 
+namespace
+{
+// Two masked nodes with one shape each, both masked in alpha mode by one
+// source group holding one shape. Everything sits at the origin, so it all
+// overlaps.
+void buildSharedSourceMasks(rive::Artboard& artboard)
+{
+  artboard.addObject(&artboard);
+
+  auto* sourceGroup = new rive::Node();
+  artboard.addObject(sourceGroup);
+  sourceGroup->parentId(artboard.idOf(&artboard));
+  auto* src = makeShape(artboard, "Src");
+  src->parentId(artboard.idOf(sourceGroup));
+
+  for (const char* name : {"A", "B"})
+  {
+    auto* masked = new rive::Node();
+    artboard.addObject(masked);
+    masked->parentId(artboard.idOf(&artboard));
+    auto* content = makeShape(artboard, name);
+    content->parentId(artboard.idOf(masked));
+
+    auto* mask = new rive::LayerMask();
+    artboard.addObject(mask);
+    mask->parentId(artboard.idOf(masked));
+    mask->sourceId(artboard.idOf(sourceGroup));
+  }
+}
+} // namespace
+
+TEST_CASE("two masks sharing one source nest their brackets", "[layer-mask]")
+{
+  rive::NoOpFactory factory;
+  rive::Artboard artboard(&factory);
+  buildSharedSourceMasks(artboard);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.advance(0.0f);
+
+  // Both source brackets hug the same shape, so the second lands inside the
+  // first.
+  const auto shape = listShape(artboard);
+  INFO("draw list: " << shape);
+  REQUIRE(shape == "[S][S]{{S}}");
+
+  // The source still stays out of the normal pass: only the two masked shapes
+  // reach the renderer, inline, since this factory has no canvases.
+  CountingRenderer renderer;
+  artboard.draw(&renderer);
+  REQUIRE(renderer.drawPaths == 2);
+}
+
 TEST_CASE("a mask bracket nests inside a clip bracket", "[layer-mask]")
 {
   // The ordering that matters: an ancestor clip has to constrain the
@@ -500,14 +552,15 @@ rive::ore::ReplayCaps knownCaps()
   return caps;
 }
 
-// canvasContentBegin ops in the recorded stream, i.e. how many times something
-// actually rasterized offscreen this frame.
-size_t countCanvasOpens(const rive::cmd::RenderCommandBuffer& buffer)
+// `wanted` ops in the recorded stream.
+size_t countCommands(
+    const rive::cmd::RenderCommandBuffer& buffer,
+    rive::cmd::RenderCmd wanted)
 {
   using rive::cmd::RenderCmd;
   auto bytes = buffer.commandBytes();
   rive::cmd::CommandReader<uint8_t> reader(bytes, buffer.blobBytes());
-  size_t opens = 0;
+  size_t count = 0;
   uint8_t type;
   while (reader.next(type))
   {
@@ -516,13 +569,20 @@ size_t countCanvasOpens(const rive::cmd::RenderCommandBuffer& buffer)
     {
       break;
     }
-    if (cmd == RenderCmd::canvasContentBegin)
+    if (cmd == wanted)
     {
-      opens++;
+      count++;
     }
     reader.skip(rive::cmd::payloadSizeOf(cmd));
   }
-  return opens;
+  return count;
+}
+
+// canvasContentBegin ops in the recorded stream, i.e. how many times something
+// actually rasterized offscreen this frame.
+size_t countCanvasOpens(const rive::cmd::RenderCommandBuffer& buffer)
+{
+  return countCommands(buffer, rive::cmd::RenderCmd::canvasContentBegin);
 }
 } // namespace
 
@@ -943,6 +1003,229 @@ TEST_CASE("disjoint content and source skip the GPU entirely", "[layer-mask]")
   mask->maskModeValue(static_cast<uint32_t>(rive::MaskMode::invertedAlpha));
   sourceGroup->x(80.0f);
   REQUIRE(frame() == 0);
+}
+
+TEST_CASE(
+    "two masks sharing one source both draw it as coverage",
+    "[layer-mask]")
+{
+  // The second mask's source bracket lands inside the first's, and the outer
+  // mask's coverage walk starts just past its own opening marker -- on the
+  // inner one. Source brackets used to suppress there too, so the outer mask
+  // measured no coverage and erased its whole layer.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  session.bindRenderContext(renderContext.get());
+
+  rive::Artboard artboard(&session);
+  buildSharedSourceMasks(artboard);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+
+  artboard.advance(0.0f);
+  artboard.drawInternal(session.screenRenderer());
+  const auto& buffer = session.commandBuffer();
+
+  // Measured as drawing, so neither mask takes the empty-coverage shortcut:
+  // a coverage canvas and a content canvas each.
+  CHECK(countCanvasOpens(buffer) == 4);
+  // And drawn: one shape into each of the four canvases. Measuring right but
+  // still suppressing in the draw would rasterize an empty coverage canvas
+  // for the outer mask, which the count above cannot see.
+  CHECK(countCommands(buffer, rive::cmd::RenderCmd::drawPath) == 4);
+}
+
+namespace
+{
+struct NestedInSource
+{
+  rive::LayerMask* outer = nullptr;
+  rive::LayerMask* inner = nullptr;
+};
+
+// `outer` masks a shape by a source group that also draws normally, and that
+// group holds `inner`'s masked node: a shape plus a third mask's source. So
+// inner is drawn twice a frame, on screen and inside outer's coverage.
+// `coverageFirst` picks which comes first.
+NestedInSource buildNestedInSource(rive::Artboard& artboard, bool coverageFirst)
+{
+  artboard.addObject(&artboard);
+  auto group = [&](rive::ContainerComponent* parent) {
+    auto* node = new rive::Node();
+    artboard.addObject(node);
+    node->parentId(artboard.idOf(parent));
+    return node;
+  };
+  auto shape = [&](rive::ContainerComponent* parent, const char* name) {
+    makeShape(artboard, name)->parentId(artboard.idOf(parent));
+  };
+  auto mask = [&](rive::Node* masked, rive::Node* source) {
+    auto* layerMask = new rive::LayerMask();
+    artboard.addObject(layerMask);
+    layerMask->parentId(artboard.idOf(masked));
+    layerMask->sourceId(artboard.idOf(source));
+    return layerMask;
+  };
+
+  // Shapes draw in reverse of the order they were added. Outer's content
+  // shape added last draws first, so outer's coverage pass, and inner's
+  // visit inside it, comes before the source group draws on screen.
+  auto* outerContent = group(&artboard);
+  auto* outerSource = group(&artboard);
+  if (!coverageFirst)
+  {
+    shape(outerContent, "OuterContent");
+  }
+
+  auto* innerContent = group(outerSource);
+  shape(innerContent, "InnerContent");
+  auto* thirdSource = group(innerContent);
+  shape(thirdSource, "ThirdSource");
+
+  auto* innerSource = group(&artboard);
+  shape(innerSource, "InnerSource");
+  auto* thirdContent = group(&artboard);
+  shape(thirdContent, "ThirdContent");
+  if (coverageFirst)
+  {
+    shape(outerContent, "OuterContent");
+  }
+
+  // In this order so each mask is bracketed before a source bracket lands
+  // inside its range.
+  NestedInSource f;
+  f.outer = mask(outerContent, outerSource);
+  f.inner = mask(innerContent, innerSource);
+  mask(thirdContent, thirdSource);
+  return f;
+}
+} // namespace
+
+TEST_CASE(
+    "a mask drawn on screen and inside a coverage pass rasters once",
+    "[layer-mask]")
+{
+  // A frame replays only the last raster each canvas recorded, so both of
+  // inner's visits have to want the same raster. Its content draws as on
+  // screen even inside outer's coverage, with the third mask's source
+  // suppressed.
+  const bool coverageFirst = GENERATE(true, false);
+  INFO("coverage visit first: " << coverageFirst);
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  session.bindRenderContext(renderContext.get());
+
+  rive::Artboard artboard(&session);
+  NestedInSource f = buildNestedInSource(artboard, coverageFirst);
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  f.outer->sourceDraws(true);
+
+  // Masks rasterized (one composeLayerMask each) and paths drawn. Not canvas
+  // opens: drawing that switches back to a canvas records another
+  // canvasContentBegin, so a mask rasterized inside another mask's canvas
+  // adds opens that rasterize nothing.
+  struct Counts
+  {
+    size_t rasters;
+    size_t paths;
+  };
+  auto frame = [&]() {
+    artboard.advance(0.0f);
+    artboard.drawInternal(session.screenRenderer());
+    const auto& buffer = session.commandBuffer();
+    Counts c{
+        countCommands(buffer, rive::cmd::RenderCmd::composeLayerMask),
+        countCommands(buffer, rive::cmd::RenderCmd::drawPath)};
+    session.resetFrame();
+    return c;
+  };
+
+  // Each mask once. Inner's two canvases draw its source and its content
+  // shape, outer's content adds 1, and the third mask's two canvases 2. Inner
+  // drawing the third mask's source inside outer's coverage makes 6 when that
+  // visit comes first, and puts a suppressed source on screen.
+  const Counts first = frame();
+  INFO("draw list: " << listShape(artboard));
+  CHECK(first.rasters == 3);
+  CHECK(first.paths == 5);
+
+  const Counts second = frame();
+  CHECK(second.rasters == 0);
+  CHECK(second.paths == 0);
+}
+
+TEST_CASE(
+    "a source bracket in the masked range keeps the mask box measured",
+    "[layer-mask]")
+{
+  // A mask whose source also draws leaves markers that count 0. Inside
+  // another mask's range they used to pass for drawables with no bounds, so
+  // measuring the range gave up and fell back to the artboard box, which
+  // crops content past the edge of an unclipped artboard.
+  auto renderContext = RenderContextNULL::MakeContext();
+  rive::cmd::DeferredSession session{knownCaps()};
+  session.bindRenderContext(renderContext.get());
+
+  rive::Artboard artboard(&session);
+  artboard.addObject(&artboard);
+  auto group = [&](rive::ContainerComponent* parent) {
+    auto* node = new rive::Node();
+    artboard.addObject(node);
+    node->parentId(artboard.idOf(parent));
+    return node;
+  };
+
+  // Added in hierarchy order, as a file would be: shapes draw in reverse of
+  // the order they were added, so this keeps each subtree contiguous.
+  auto* masked = group(&artboard);
+  auto* content = makeShape(artboard, "Content");
+  content->parentId(artboard.idOf(masked));
+  auto* secondSource = group(masked);
+  makeShape(artboard, "SecondSource")->parentId(artboard.idOf(secondSource));
+
+  auto* source = group(&artboard);
+  makeShape(artboard, "Src")->parentId(artboard.idOf(source));
+
+  auto* secondMasked = group(&artboard);
+  makeShape(artboard, "SecondContent")->parentId(artboard.idOf(secondMasked));
+
+  // The first mask before the second, so its range is bracketed before the
+  // second's source bracket lands inside it.
+  auto* mask = new rive::LayerMask();
+  artboard.addObject(mask);
+  mask->parentId(artboard.idOf(masked));
+  mask->sourceId(artboard.idOf(source));
+
+  auto* second = new rive::LayerMask();
+  artboard.addObject(second);
+  second->parentId(artboard.idOf(secondMasked));
+  second->sourceId(artboard.idOf(secondSource));
+
+  REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+  artboard.width(200.0f);
+  artboard.height(200.0f);
+  artboard.clip(false);
+  second->sourceDraws(true);
+
+  artboard.advance(0.0f);
+  artboard.drawInternal(session.screenRenderer());
+  INFO("draw list: " << listShape(artboard));
+  REQUIRE(listShape(artboard) == "[S]{S}[{S}S]");
+
+  rive::AABB contentBounds;
+  REQUIRE(
+      content->paintedWorldBounds(&contentBounds) !=
+      rive::BoundsFidelity::none);
+  // makeShape centres its rectangle on the origin, so the badge straddles the
+  // artboard's left and top edges.
+  REQUIRE(contentBounds.left() < 0.0f);
+
+  const rive::AABB box = mask->testBox();
+  CHECK(box.left() <= contentBounds.left());
+  CHECK(box.top() <= contentBounds.top());
 }
 
 TEST_CASE(
