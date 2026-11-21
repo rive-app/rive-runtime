@@ -456,7 +456,7 @@ void RenderContext::LogicalFlush::resetContainers()
 gpu::InterlockMode RenderContext::selectInterlockMode(
     const RenderContext::FrameDescriptor& frameDescriptor)
 {
-  if (frameDescriptor.msaaSampleCount != 0)
+  if (frameDescriptor.msaaSampleCount != 0 || frameDescriptor.enableInkbleed)
   {
     return gpu::InterlockMode::depthStencil;
   }
@@ -496,12 +496,22 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
   assert(!m_didBeginFrame);
   // Zero-area frames are legal (a collapsed canvas) and draw nothing.
   m_frameDescriptor = frameDescriptor;
+  // Inkbleed is depthStencil with msaaSampleCount == 0, and wins over MSAA.
+  // It also only supports clockwise fills.
+  if (m_frameDescriptor.enableInkbleed)
+  {
+    m_frameDescriptor.msaaSampleCount = 0;
+    m_frameDescriptor.clockwiseFillOverride = true;
+  }
   m_frameInterlockMode = selectInterlockMode(m_frameDescriptor);
-  if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
+  // TEMP: If we're falling back on depthStencil out of necessity rather than
+  // choice, don't use inkbleed.
+  if (!m_frameDescriptor.enableInkbleed &&
+      m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
       m_frameDescriptor.msaaSampleCount == 0)
   {
-    // No other mode was supported. Say so once, since MSAA costs
-    // differently and a host that wants it should ask for it.
+    // No other mode was supported. Say so once, since MSAA costs differently
+    // and a host that wants it should ask for it.
     [[maybe_unused]] static const bool warned = [] {
       const char* msg = "rive: no interlock mode supports this frame, "
                         "drawing it in depthStencil with 4x MSAA\n";
@@ -515,10 +525,6 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     }();
     m_frameDescriptor.msaaSampleCount = 4;
   }
-  // Inkbleed is analytic antialiasing for 1x depthStencil. Don't let it
-  // through for MSAA.
-  m_frameDescriptor.inkbleedOverride = frameDescriptor.inkbleedOverride &&
-                                       m_frameDescriptor.msaaSampleCount == 1;
   m_frameShaderFeaturesMask = gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);
   m_triangulationController.beginFrame(
       m_frameDescriptor.triangulationThresholds);
@@ -1356,8 +1362,17 @@ void RenderContext::LogicalFlush::layoutResources(
 
   m_flushDesc.renderTarget = flushResources.renderTarget;
   m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
-  m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
-  m_flushDesc.enableInkbleed = frameDescriptor.inkbleedOverride;
+  m_flushDesc.enableInkbleed = frameDescriptor.enableInkbleed;
+  if (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil)
+  {
+    // Backends need a physical sample count in depthStencil, including 1x for
+    // inkbleed (which we denote earlier using msaaSampleCount == 0).
+    m_flushDesc.msaaSampleCount = std::max(frameDescriptor.msaaSampleCount, 1u);
+  }
+  else
+  {
+    m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
+  }
   // A nonzero sample count is exactly what selects depthStencil.
   assert(
       (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil) ==
@@ -1708,6 +1723,7 @@ void RenderContext::LogicalFlush::writeResources()
         /*pathID=*/0,
         /*closed=*/true,
         /*isStroke=*/false,
+        /*inkbleedComplement=*/0,
         /*vertexIndex0=*/0);
   }
 
@@ -3396,6 +3412,7 @@ RenderContext::TessellationWriter::TessellationWriter(
     LogicalFlush* flush,
     uint32_t pathID,
     const gpu::ContourPathParams& pathParams,
+    uint8_t inkbleedComplement,
     gpu::ContourDirections contourDirections,
     uint32_t forwardTessVertexCount,
     uint32_t forwardTessLocation,
@@ -3408,6 +3425,7 @@ RenderContext::TessellationWriter::TessellationWriter(
     , m_tessSpanData(m_flush->m_ctx->m_tessSpanData)
     , m_pathID(pathID)
     , m_pathParams(pathParams)
+    , m_inkbleedComplement(inkbleedComplement)
     , m_contourDirections(contourDirections)
     , m_isDepthStencil(isDepthStencil)
     , m_pathTessLocation(forwardTessLocation)
@@ -3472,6 +3490,7 @@ uint32_t RenderContext::LogicalFlush::pushContour(
     uint32_t contourID,
     uint32_t pathID,
     const gpu::ContourPathParams& pathParams,
+    uint8_t inkbleedComplement,
     Vec2D midpoint,
     bool isStroke,
     bool closed,
@@ -3491,6 +3510,7 @@ uint32_t RenderContext::LogicalFlush::pushContour(
       pathID,
       closed,
       isStroke,
+      inkbleedComplement,
       vertexIndex0,
       pathParams);
   return contourID;
@@ -3536,6 +3556,7 @@ uint32_t RenderContext::TessellationWriter::pushContour(
       contourID,
       m_pathID,
       m_pathParams,
+      m_inkbleedComplement,
       midpoint,
       isStroke,
       closed,
@@ -3823,6 +3844,7 @@ void RenderContext::LogicalFlush::pushPaddingSpokes(
       this,
       /*pathID=*/0,
       /*pathParams=*/{},
+      /*inkbleedComplement=*/0,
       gpu::ContourDirections::forward,
       count,
       tessLocation)

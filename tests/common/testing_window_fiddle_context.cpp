@@ -258,10 +258,10 @@ public:
       {
         glfwWindowHint(GLFW_SAMPLES, m_backendParams.msaaSampleCount);
       }
-      if (m_backendParams.msaaSampleCount >= 1)
+      if (m_backendParams.msaaSampleCount >= 1 ||
+          m_backendParams.enableInkbleed)
       {
-        // msaaSampleCount >= 1 selects depthStencil, which renders
-        // directly to the screen.
+        // These select depthStencil, which renders directly to the screen.
         glfwWindowHint(GLFW_STENCIL_BITS, 8);
         glfwWindowHint(GLFW_DEPTH_BITS, 24);
       }
@@ -416,7 +416,7 @@ public:
         m_glfwWindow,
         m_width,
         m_height,
-        m_backendParams.msaaSampleCount);
+        m_backendParams.enableInkbleed ? 1u : m_backendParams.msaaSampleCount);
   }
 
   ~TestingWindowFiddleContext() override
@@ -443,7 +443,8 @@ public:
           m_glfwWindow,
           width,
           height,
-          m_backendParams.msaaSampleCount);
+          m_backendParams.enableInkbleed ? 1u
+                                         : m_backendParams.msaaSampleCount);
       m_width = width;
       m_height = height;
     }
@@ -516,7 +517,8 @@ public:
         std::max(m_backendParams.msaaSampleCount, options.forceMSAA ? 4u : 0u),
         options.disableRasterOrdering,
         m_backendParams.clockwise || options.clockwiseFillOverride,
-        m_backendParams.inkbleed};
+        m_backendParams.inkbleedOverride,
+        m_backendParams.enableInkbleed};
   }
 
   std::unique_ptr<rive::Renderer> beginFrame(
@@ -531,6 +533,7 @@ public:
                           : rive::gpu::LoadAction::preserveRenderTarget,
         .clearColor = options.clearColor,
         .msaaSampleCount = mode.msaaSampleCount,
+        .enableInkbleed = mode.enableInkbleed,
         .disableRasterOrdering = mode.disableRasterOrdering,
         .triangulationThresholds = options.triangulationThresholds,
         .wireframe = options.wireframe,

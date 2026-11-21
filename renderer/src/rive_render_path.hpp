@@ -107,7 +107,7 @@ public:
       const Mat2D& matrix,
       const std::optional<StrokeParams>& strokeParams,
       float feather,
-      bool inkbleed = false) const;
+      uint8_t inkbleed = 0) const; // 0xff => 1/2px.
 
 private:
   // The copy makeSoftenedCopyForFeathering() last made, and the rotation

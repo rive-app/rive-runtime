@@ -849,9 +849,9 @@ TEST_CASE("tess contour IDs: inkbleed", "[tess_contour_ids]")
   RenderContext::FrameDescriptor frameDesc;
   frameDesc.renderTargetWidth = TargetSize;
   frameDesc.renderTargetHeight = TargetSize;
-  frameDesc.msaaSampleCount = 1;
   frameDesc.clockwiseFillOverride = true;
-  frameDesc.inkbleedOverride = true;
+  frameDesc.enableInkbleed = true;
+  frameDesc.inkbleedOverride = 0xff;
   TessCapturingRenderContext* capture;
   const Mat2D matrix = sceneMatrix(GENERATE(0, 1, 2, 3));
   INFO(
@@ -896,8 +896,8 @@ RenderContext::FrameDescriptor inkbleedFrame()
   RenderContext::FrameDescriptor frameDesc;
   frameDesc.renderTargetWidth = TargetSize;
   frameDesc.renderTargetHeight = TargetSize;
-  frameDesc.msaaSampleCount = 1;
-  frameDesc.inkbleedOverride = true;
+  frameDesc.enableInkbleed = true;
+  frameDesc.inkbleedOverride = 0xff;
   return frameDesc;
 }
 

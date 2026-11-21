@@ -46,6 +46,7 @@ public:
   void join(StrokeJoin join) override { m_data.m_join = join; }
   void cap(StrokeCap cap) override { m_data.m_cap = cap; }
   void feather(float feather) override { m_data.m_feather = fabsf(feather); }
+  void inkbleed(uint8_t inkbleed) override { m_data.m_inkbleed = inkbleed; }
   void strokePosition(StrokePosition pos) override
   {
     m_data.m_strokePosition = pos;
@@ -100,6 +101,7 @@ public:
 
   StrokePosition getStrokePosition() const { return m_data.m_strokePosition; }
   float getFeather() const { return m_data.m_feather; }
+  uint8_t getInkbleed() const { return m_data.m_inkbleed; }
   float getAdditiveness() const { return m_data.m_additiveness; }
   BlendMode getBlendMode() const { return m_data.m_blendMode; }
   gpu::SimplePaintValue getSimpleValue() const { return m_data.m_simpleValue; }
@@ -139,6 +141,7 @@ private:
     float m_additiveness = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
     bool m_stroked = false;
+    uint8_t m_inkbleed = 0;
     Mat2D m_imageTransform;
     bool m_forceClosed = false;
 

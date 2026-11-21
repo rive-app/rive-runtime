@@ -196,9 +196,8 @@ std::unique_ptr<RenderContext> drawRects(
   ctx->beginFrame({
       .renderTargetWidth = TargetSize,
       .renderTargetHeight = TargetSize,
-      .msaaSampleCount = 1,
-      .clockwiseFillOverride = true,
-      .inkbleedOverride = true,
+      .enableInkbleed = true,
+      .inkbleedOverride = 0xff,
   });
   REQUIRE(ctx->frameInterlockMode() == InterlockMode::depthStencil);
 

@@ -85,7 +85,8 @@ public:
                 paint,
                 1,
                 context->platformFeatures(),
-                context->frameInterlockMode()),
+                context->frameInterlockMode(),
+                context->frameDescriptor().msaaSampleCount),
             context->frameDescriptor())
   {
     m_resourceCounts.pathCount = 1;
@@ -168,6 +169,7 @@ public:
           flush,
           m_pathID,
           m_contourPathParams,
+          /*inkbleedComplement=*/0,
           m_contourDirections,
           forwardTessVertexCount,
           forwardTessLocation,
@@ -175,7 +177,7 @@ public:
           mirroredTessLocation,
           /*nonEmptyContourCount=*/1,
           /*isOuterCubic=*/true,
-          m_coverageType == CoverageType::depthStencil);
+          usesDepthStencil());
 
       uint32_t contourID = tessWriter.pushContour(
           {0, 0},
@@ -200,9 +202,8 @@ public:
 
       return &flush->pushOuterCubicsDraw(
           this,
-          m_coverageType == CoverageType::depthStencil
-              ? gpu::DrawType::stencilOuterCubics
-              : gpu::DrawType::outerCurvePatches,
+          usesDepthStencil() ? gpu::DrawType::stencilOuterCubics
+                             : gpu::DrawType::outerCurvePatches,
           drawContents,
           tessVertexCount,
           tessLocation,

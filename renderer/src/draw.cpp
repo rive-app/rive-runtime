@@ -56,7 +56,7 @@ constexpr static int numSpokesInFixedJoin(
     StrokeJoin join)
 {
   assert(join != StrokeJoin::round);
-  if (coverageType == PathDraw::CoverageType::depthStencil)
+  if (PathDraw::usesDepthStencil(coverageType))
   {
     switch (join)
     {
@@ -82,7 +82,7 @@ constexpr static int numSegmentsInFixedJoin(
 constexpr static int numSegmentsInMiterClipJoin(
     PathDraw::CoverageType coverageType)
 {
-  return (coverageType != PathDraw::CoverageType::depthStencil
+  return (!PathDraw::usesDepthStencil(coverageType)
               ? NumSpokesInMiterOrBevelJoin
               : NumSpokesInDepthStencilMiterClipJoin) +
          1;
@@ -756,7 +756,8 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
     const RiveRenderPaint* paint,
     float matrixMaxScale,
     const gpu::PlatformFeatures& platformFeatures,
-    gpu::InterlockMode interlockMode)
+    gpu::InterlockMode interlockMode,
+    uint32_t msaaSampleCount)
 {
   if (paint->getFeather() != 0)
   {
@@ -780,7 +781,10 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
     case gpu::InterlockMode::clockwiseAtomic:
       return CoverageType::clockwiseAtomic;
     case gpu::InterlockMode::depthStencil:
-      return CoverageType::depthStencil;
+      return msaaSampleCount == 0 &&
+                     paint->getType() != gpu::PaintType::clipUpdate
+                 ? CoverageType::inkbleed
+                 : CoverageType::depthStencil;
   }
   RIVE_UNREACHABLE();
 }
@@ -840,7 +844,7 @@ IAABB PathDraw::calculatePixelBounds(
     const Mat2D& paintMatrix,
     const RiveRenderPath* path,
     const RiveRenderPaint* paint,
-    bool inkbleed)
+    uint8_t inkbleed)
 {
   std::optional<StrokeParams> stroke;
   if (paint->getIsStroked())
@@ -866,7 +870,7 @@ IAABB PathDraw::calculatePixelBounds(
       paintMatrix,
       stroke,
       paint->getFeather(),
-      inkbleed && paint->getType() != gpu::PaintType::clipUpdate);
+      paint->getType() != gpu::PaintType::clipUpdate ? inkbleed : uint8_t(0));
 }
 
 DrawUniquePtr PathDraw::Make(
@@ -898,7 +902,8 @@ DrawUniquePtr PathDraw::Make(
       paint,
       matrixMaxScale,
       context->platformFeatures(),
-      context->frameInterlockMode());
+      context->frameInterlockMode(),
+      context->frameDescriptor().msaaSampleCount);
 
   IAABB pixelBounds;
 
@@ -918,7 +923,11 @@ DrawUniquePtr PathDraw::Make(
         paintMatrix,
         path.get(),
         paint,
-        context->frameDescriptor().inkbleedOverride);
+        coverageType == CoverageType::inkbleed
+            ? std::max(
+                  context->frameDescriptor().inkbleedOverride,
+                  paint->getInkbleed())
+            : uint8_t(0));
   }
 
   // In debug mode, we always compute the pixel bounds, so validate that the
@@ -937,14 +946,18 @@ DrawUniquePtr PathDraw::Make(
     return nullptr;
   }
 
-  // Skip interior triangulation on inkbleed until we have a compute-based
-  // index generator. We're vertex bound on Android now, and outerCubic
-  // patches generate a lot of vertex waste, which then gets compounded by the
-  // multiple lanes and multiple passes of inkbleed hairlines.
+  // Skip interior triangulation for inkbleed coverage until we have a
+  // compute-based index generator. We're vertex bound on Android now, and
+  // outerCubic patches generate a lot of vertex waste, which then gets
+  // compounded by the multiple lanes and multiple passes of inkbleed hairlines.
+  //
+  // Clips in an inkbleed frame have no hairlines, so they may still
+  // triangulate.
+  //
   // We also don't allow interior triangulation for draws with an additional
   // outset.
   if (!paint->getIsStroked() && paint->getFeather() == 0 &&
-      !context->frameDescriptor().inkbleedOverride &&
+      coverageType != CoverageType::inkbleed &&
       paint->getAdditionalOutset() == 0.0f)
   {
     // Use interior triangulation to draw filled paths if they're large
@@ -1022,8 +1035,10 @@ PathDraw::PathDraw(
           Type::path)
     , m_pathRef(path.release())
     , m_pathFillRule(
-          frameDesc.clockwiseFillOverride ? FillRule::clockwise
-                                          : initialFillRule)
+          frameDesc.clockwiseFillOverride ||
+                  coverageType == CoverageType::inkbleed
+              ? FillRule::clockwise
+              : initialFillRule)
     , m_gradientRef(
           paint->getModulatedGradient(modulatedOpacity, modulatedColor)
               .release())
@@ -1038,16 +1053,19 @@ PathDraw::PathDraw(
 
   if (paint->getIsOpaque() &&
       // Inkbleed strokes introduce coverage, which is no longer opaque.
-      !(frameDesc.inkbleedOverride && paint->getIsStroked()))
+      !(m_coverageType == CoverageType::inkbleed && paint->getIsStroked()))
   {
     m_combinedDrawContents |= gpu::DrawContents::opaquePaint;
   }
 
-  m_hasHairlinePass = frameDesc.inkbleedOverride &&
-                      m_coverageType == CoverageType::depthStencil &&
-                      m_pathFillRule == FillRule::clockwise &&
-                      !paint->getIsStroked() && paint->getFeather() == 0 &&
-                      paint->getType() != gpu::PaintType::clipUpdate;
+  m_hasHairlinePass = m_coverageType == CoverageType::inkbleed &&
+                      !paint->getIsStroked();
+
+  m_inkbleedComplement = m_coverageType == CoverageType::inkbleed
+                             ? 0xff - std::max(
+                                          frameDesc.inkbleedOverride,
+                                          paint->getInkbleed())
+                             : 0;
 
   if (paint->getFeather() != 0)
   {
@@ -1085,8 +1103,7 @@ PathDraw::PathDraw(
       {
         m_combinedDrawContents |= gpu::DrawContents::featheredFill;
       }
-      if (initialFillRule == FillRule::clockwise ||
-          frameDesc.clockwiseFillOverride)
+      if (m_pathFillRule == FillRule::clockwise)
       {
         m_combinedDrawContents |= gpu::DrawContents::clockwiseFill;
       }
@@ -1121,7 +1138,7 @@ PathDraw::PathDraw(
     // so that the intended forward triangles remain clockwise.
     if (m_paintMatrix.determinant() < 0)
     {
-      m_contourDirections = (m_coverageType == CoverageType::depthStencil ||
+      m_contourDirections = (usesDepthStencil() ||
                              m_coverageType == CoverageType::featherAtlas)
                                 ? gpu::ContourDirections::reverse
                                 : gpu::ContourDirections::forwardThenReverse;
@@ -1130,16 +1147,16 @@ PathDraw::PathDraw(
     }
     else
     {
-      m_contourDirections = (m_coverageType == CoverageType::depthStencil ||
+      m_contourDirections = (usesDepthStencil() ||
                              m_coverageType == CoverageType::featherAtlas)
                                 ? gpu::ContourDirections::forward
                                 : gpu::ContourDirections::reverseThenForward;
     }
   }
-  else if (m_coverageType != CoverageType::depthStencil)
+  else if (!usesDepthStencil())
   {
     // atomic and rasterOrdering fills need reverse AND forward triangles.
-    if (frameDesc.clockwiseFillOverride &&
+    if (m_pathFillRule == FillRule::clockwise &&
         !m_pathRef->isClockwiseDominant(m_paintMatrix))
     {
       // For clockwiseFill, this is also our opportunity to logically
@@ -1159,7 +1176,8 @@ PathDraw::PathDraw(
   }
   else
   {
-    if (initialFillRule == FillRule::nonZero || frameDesc.clockwiseFillOverride)
+    if (initialFillRule == FillRule::nonZero ||
+        m_pathFillRule == FillRule::clockwise)
     {
       // Emit "nonZero" depthStencil fills in a direction such that the
       // dominant triangle winding area is always clockwise. This
@@ -1180,7 +1198,7 @@ PathDraw::PathDraw(
   // and increasing with tessellation spoke address. Double-sided paths can't
   // support this because both copies share contourIDs.
   assert(
-      m_coverageType != CoverageType::depthStencil ||
+      !usesDepthStencil() ||
       !gpu::ContourDirectionsAreDoubleSided(m_contourDirections));
   if (m_paintMatrix.determinant() < 0)
   {
@@ -1973,11 +1991,10 @@ void PathDraw::initForMidpointFan(
                                           m_contourDirections)
                                           ? tessVertexCount * 2
                                           : tessVertexCount;
-    if (m_coverageType == CoverageType::depthStencil &&
-        (isStroke() || m_hasHairlinePass))
+    if (usesDepthStencil() && (isStroke() || m_hasHairlinePass))
     {
       // depthStencil strokes use the virtual patch buffer for better batching.
-      const bool inkbleed = context->frameDescriptor().inkbleedOverride;
+      const bool inkbleed = m_coverageType == CoverageType::inkbleed;
       assert(!m_hasHairlinePass || inkbleed);
       const size_t passCount = inkbleed ? 2 : 1;
       m_resourceCounts
@@ -2150,6 +2167,7 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
       break;
 
     case CoverageType::depthStencil:
+    case CoverageType::inkbleed:
     {
       if (isStroke())
       {
@@ -2359,6 +2377,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
     }
 
     case CoverageType::depthStencil:
+    case CoverageType::inkbleed:
     {
       // The fill passes are either all opaque prepasses or else all
       // subpasses. The hairline adds one extra subpass on top of either.
@@ -2442,7 +2461,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
         {
           if (isStroke())
           {
-            depthStencilDrawType = flush->frameDescriptor().inkbleedOverride
+            depthStencilDrawType = m_coverageType == CoverageType::inkbleed
                                        ? gpu::DrawType::depthAAStrokes
                                        : gpu::DrawType::depthStrokes;
           }
@@ -2625,6 +2644,7 @@ void PathDraw::pushTessellationData(
       flush,
       m_pathID,
       m_contourPathParams,
+      m_inkbleedComplement,
       m_contourDirections,
       forwardTessVertexCount,
       forwardTessLocation,
@@ -2632,7 +2652,7 @@ void PathDraw::pushTessellationData(
       mirroredTessLocation,
       math::lossless_numeric_cast<uint32_t>(m_resourceCounts.contourCount()),
       m_triangulator != nullptr,
-      m_coverageType == CoverageType::depthStencil);
+      usesDepthStencil());
 
   if (m_triangulator != nullptr)
   {
@@ -2722,11 +2742,10 @@ void PathDraw::pushMidpointFanTessellationData(
     Vec2D midpoint;
     if (!isStroke())
     {
-      midpoint = m_coverageType == CoverageType::depthStencil
-                     ? m_paintMatrix * contour.midpoint
-                     : contour.midpoint;
+      midpoint = usesDepthStencil() ? m_paintMatrix * contour.midpoint
+                                    : contour.midpoint;
     }
-    else if (m_coverageType == CoverageType::depthStencil)
+    else if (usesDepthStencil())
     {
       assert(m_strokeMatrixMaxScale > 0);
       midpoint = {
@@ -3100,7 +3119,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
   // A straight edge produces a single-segment cubic patch. In depthStencil we
   // draw only the patch interior (not the AA border), and that interior is
   // degenerate for a single segment, so we skip these patches entirely.
-  const bool skipFlatOuterCubics = m_coverageType == CoverageType::depthStencil;
+  const bool skipFlatOuterCubics = usesDepthStencil();
   // Only used on the "emit" pass (tessWriter != nullptr).
   uint32_t contourIDWithFlags = 0;
   for (const auto [verb, pts] : rawPath)
@@ -3300,7 +3319,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
     // We also draw each "grout" triangle using an outerCubic patch.
     retrofitPatchCount = m_triangulator->groutList().count();
 
-    if (m_coverageType == CoverageType::depthStencil)
+    if (usesDepthStencil())
     {
       // depthStencil fills the path interior by smuggling its triangles
       // in with outerCubic patches (rather than a distinct
@@ -3334,7 +3353,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
           gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
               ? patchCount * OuterCubicPatchSegmentSpanPlusBowtie * 2
               : patchCount * OuterCubicPatchSegmentSpanPlusBowtie;
-      if (m_coverageType != CoverageType::depthStencil)
+      if (!usesDepthStencil())
       {
         // In depthStencil, the interior triangles are smuggled in with
         // outerCubic patches (counted above) instead of being drawn
@@ -3372,7 +3391,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
       }
 
       // Smuggle the interior triangles in with outerCubic patches.
-      if (m_coverageType == CoverageType::depthStencil)
+      if (usesDepthStencil())
       {
         patchCount += m_triangulator->polysToRetrofitCubicPatches(
             m_pathFillRule,

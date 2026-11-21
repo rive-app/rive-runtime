@@ -216,6 +216,7 @@ struct PaintShadow
   uint8_t join = 0;
   uint8_t cap = 0;
   uint8_t strokePosition = 1; // center
+  uint8_t inkbleed = 0;
   float feather = 0;
   float additiveness = 0;
   uint8_t blendMode = 3; // srcOver

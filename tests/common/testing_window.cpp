@@ -153,11 +153,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::gl;
   }
+  if (nameStr == "glcwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::gl;
+  }
   if (nameStr == "glcwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::gl;
   }
   if (nameStr == "glmsaa")
@@ -185,11 +191,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::d3d;
   }
+  if (nameStr == "d3dcwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::d3d;
+  }
   if (nameStr == "d3dcwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::d3d;
   }
   if (nameStr == "d3d12")
@@ -212,11 +224,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::d3d12;
   }
+  if (nameStr == "d3d12cwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::d3d12;
+  }
   if (nameStr == "d3d12cwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::d3d12;
   }
   if (nameStr == "metal")
@@ -249,11 +267,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::metal;
   }
+  if (nameStr == "metalcwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::metal;
+  }
   if (nameStr == "metalcwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::metal;
   }
   if (nameStr == "vulkan" || nameStr == "vk")
@@ -303,11 +327,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::vk;
   }
+  if (nameStr == "vkcwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::vk;
+  }
   if (nameStr == "vkcwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::vk;
   }
   if (nameStr == "moltenvk" || nameStr == "mvk")
@@ -325,11 +355,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::moltenvk;
   }
+  if (nameStr == "mvkcwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::moltenvk;
+  }
   if (nameStr == "mvkcwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::moltenvk;
   }
   if (nameStr == "swiftshader" || nameStr == "sw")
@@ -356,11 +392,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::dawn;
   }
+  if (nameStr == "dawncwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::dawn;
+  }
   if (nameStr == "dawncwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::dawn;
   }
   if (nameStr == "wgpu")
@@ -383,11 +425,17 @@ TestingWindow::Backend TestingWindow::TryParseBackend(
     params->msaaSampleCount = 1;
     return Backend::wgpu;
   }
+  if (nameStr == "wgpucwsb")
+  {
+    params->clockwise = true;
+    params->enableInkbleed = true;
+    return Backend::wgpu;
+  }
   if (nameStr == "wgpucwib")
   {
     params->clockwise = true;
-    params->msaaSampleCount = 1;
-    params->inkbleed = true;
+    params->enableInkbleed = true;
+    params->inkbleedOverride = 0xff;
     return Backend::wgpu;
   }
   if (nameStr == "external" || nameStr == "ext" || nameStr == "x")

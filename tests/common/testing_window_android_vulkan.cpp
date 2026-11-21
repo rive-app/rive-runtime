@@ -257,6 +257,7 @@ public:
                                       : gpu::LoadAction::preserveRenderTarget,
         .clearColor = options.clearColor,
         .msaaSampleCount = mode.msaaSampleCount,
+        .enableInkbleed = mode.enableInkbleed,
         .disableRasterOrdering = mode.disableRasterOrdering,
         .triangulationThresholds = options.triangulationThresholds,
         .wireframe = options.wireframe,
@@ -276,7 +277,8 @@ public:
         m_backendParams.msaaSampleCount,
         options.disableRasterOrdering,
         m_backendParams.clockwise || options.clockwiseFillOverride,
-        m_backendParams.inkbleed};
+        m_backendParams.inkbleedOverride,
+        m_backendParams.enableInkbleed};
   }
 
   // Ore and Rive must bind the same image, since scripts draw into it too.

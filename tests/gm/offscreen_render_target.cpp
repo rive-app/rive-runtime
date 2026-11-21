@@ -224,7 +224,9 @@ public:
       {
         assert(renderTarget);
         TestingWindow::Get()->flushPLSContext(renderTarget);
-        if (int sampleCount = frameDescriptor.msaaSampleCount)
+        // Only MSAA renders to a framebuffer other than the target texture.
+        // (At 1 sample the wipe below would clear the content itself.)
+        if (int sampleCount = frameDescriptor.msaaSampleCount; sampleCount > 1)
         {
           // If the MSAA framebuffer target is not the target texture,
           // wipe it to red behind the scenes in order to make sure
@@ -264,7 +266,9 @@ public:
       {
         assert(renderTarget);
         TestingWindow::Get()->flushPLSContext(renderTarget);
-        if (int sampleCount = frameDescriptor.msaaSampleCount)
+        // Only MSAA renders to a framebuffer other than the target texture.
+        // (At 1 sample the wipe below would clear the content itself.)
+        if (int sampleCount = frameDescriptor.msaaSampleCount; sampleCount > 1)
         {
           // If the MSAA framebuffer target is not the target texture,
           // wipe it to red behind the scenes in order to make sure

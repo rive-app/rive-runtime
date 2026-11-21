@@ -1681,7 +1681,7 @@ struct FlushDescriptor
   ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
   InterlockMode interlockMode = InterlockMode::rasterOrdering;
   uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
-  bool enableInkbleed = false;  // (requires msaaSampleCount == 1.)
+  bool enableInkbleed = false;  // (implies msaaSampleCount == 1.)
 
   LoadAction colorLoadAction = LoadAction::clear;
   ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -2068,18 +2068,20 @@ public:
       kBufferStructure = StorageBufferStructure::uint32x4;
 
   // Mirrors of CONTOUR_PATH_ID_MASK, CONTOUR_FLAG_CLOSED,
-  // CONTOUR_FLAG_STROKE, and CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER from
-  // constants.glsl.
+  // CONTOUR_FLAG_STROKE, CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER, and
+  // CONTOUR_INKBLEED_COMPLEMENT_SHIFT from constants.glsl.
   constexpr static uint32_t PathIDMask = 0xffff;
   constexpr static uint32_t FlagClosed = 1u << 16;
   constexpr static uint32_t FlagStroke = 1u << 17;
   constexpr static uint32_t FlagHasOutsetOrFeather = 1u << 18;
+  constexpr static uint32_t InkbleedComplementShift = 24;
 
   ContourData(
       Vec2D midpoint,
       uint32_t pathID,
       bool closed,
       bool isStroke,
+      uint8_t inkbleedComplement,
       uint32_t vertexIndex0,
       const ContourPathParams& pathParams = {})
       : m_midpoint(midpoint)
@@ -2091,6 +2093,8 @@ public:
           pathIDAndFlags |= FlagStroke;
         if (pathParams.additionalOutset != 0 || pathParams.featherRadius != 0)
           pathIDAndFlags |= FlagHasOutsetOrFeather;
+        pathIDAndFlags |= static_cast<uint32_t>(inkbleedComplement)
+                          << InkbleedComplementShift;
         return pathIDAndFlags;
       }())
       , m_vertexIndex0(vertexIndex0)
@@ -2108,7 +2112,8 @@ private:
   //   - Legacy strokes: [unused, strokeRadius]
   //   - depthStencil strokes: [1/matrixMaxScale, strokeRadius * matrixMaxScale]
   WRITEONLY Vec2D m_midpoint;
-  // [unused (13 bits) | outset/feather | stroke | closed | pathID (16 bits)].
+  // [inkbleedComplement (8 bits) | unused (5 bits) | outset/feather | stroke |
+  //  closed | pathID (16 bits)].
   // (See CONTOUR_PATH_ID_MASK and CONTOUR_FLAG_*.)
   WRITEONLY uint32_t m_pathIDAndFlags;
   // Indexes the tessellation texture and has a different meaning depending on

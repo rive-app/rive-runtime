@@ -69,6 +69,7 @@ public:
     TestingWindow::FrameMode mode = TestingWindow::Get()->canvasFrameMode(
         m_options);
     d.msaaSampleCount = mode.msaaSampleCount;
+    d.enableInkbleed = mode.enableInkbleed;
     d.disableRasterOrdering = mode.disableRasterOrdering;
     d.clockwiseFillOverride = mode.clockwiseFillOverride;
     d.inkbleedOverride = mode.inkbleed;

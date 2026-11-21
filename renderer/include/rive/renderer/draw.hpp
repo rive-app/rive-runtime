@@ -305,7 +305,7 @@ public:
       const Mat2D& paintMatrix,
       const RiveRenderPath* path,
       const RiveRenderPaint* paint,
-      bool inkbleed = false);
+      uint8_t inkbleed = 0); // 0xff => 1/2px.
 
   // Determines how coverage is calculated for antialiasing and feathers.
   // CoverageType is mostly decided by the InterlockMode, but we keep these
@@ -317,10 +317,28 @@ public:
     clockwise,         // InterlockMode::clockwise
     clockwiseAtomic,   // InterlockMode::clockwiseAtomic
     depthStencil,      // InterlockMode::depthStencil
+    inkbleed,          // (InterlockMode::depthStencil && msaaSampleCount == 0)
     featherAtlas,      // Any InterlockMode may opt to use atlas coverage for
                        // large feathers; depthStencil always has to use an
                        // atlas for feathers.
   };
+
+  constexpr static bool usesDepthStencil(CoverageType coverageType)
+  {
+    switch (coverageType)
+    {
+      case CoverageType::depthStencil:
+      case CoverageType::inkbleed:
+        return true;
+      case CoverageType::pixelLocalStorage:
+      case CoverageType::clockwise:
+      case CoverageType::clockwiseAtomic:
+      case CoverageType::featherAtlas:
+        return false;
+    }
+    RIVE_UNREACHABLE();
+  }
+  bool usesDepthStencil() const { return usesDepthStencil(m_coverageType); }
 
   PathDraw(
       IAABB pixelBounds,
@@ -480,7 +498,8 @@ protected:
       const RiveRenderPaint*,
       float matrixMaxScale,
       const gpu::PlatformFeatures&,
-      gpu::InterlockMode);
+      gpu::InterlockMode,
+      uint32_t msaaSampleCount);
 
   // Prepares to draw the path as a fan tessellated around the midpoint.
   void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
@@ -557,6 +576,9 @@ protected:
   // This fill draws its AA as a final, separate hairline stroke in its own
   // subpass. (depthStencil only).
   bool m_hasHairlinePass = false;
+  // How far depthStencil insets the path: "0xff - inkbleed" for inkbleed
+  // coverage, 0 otherwise. (0xff => 1/2px.)
+  uint8_t m_inkbleedComplement = 0;
   float m_strokeRadius = 0;
   float m_featherRadius = 0;
   float m_additionalOutset = 0.0f;

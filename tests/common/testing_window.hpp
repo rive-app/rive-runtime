@@ -115,7 +115,8 @@ public:
     bool core = false;
     bool srgb = false;
     bool clockwise = false;
-    bool inkbleed = false; // (Does nothing unless msaaSampleCount == 1.)
+    bool enableInkbleed = false;
+    uint8_t inkbleedOverride = 0;
     bool disableValidationLayers = false;
     bool disableDebugCallbacks = false;
     bool wantVulkanSynchronizationValidation = false;
@@ -319,7 +320,8 @@ public:
     uint32_t msaaSampleCount = 0;
     bool disableRasterOrdering = false;
     bool clockwiseFillOverride = false;
-    bool inkbleed = false;
+    uint8_t inkbleed = 0;
+    bool enableInkbleed = false;
   };
   // Windows that add backend settings resolve them here, so a replayed
   // canvas opens in the same mode as the screen.

@@ -82,7 +82,13 @@ NO_PERSPECTIVE VARYING(2, float4, v_args);
 //  dsStrokeOutsetScale (if depthStencil, else -1)]
 NO_PERSPECTIVE VARYING(3, float4, v_joinArgs);
 NO_PERSPECTIVE VARYING(4, float4, v_dsViewMatrix); // (depthStencil only)
-FLAT VARYING(5, uint, v_contourIDWithFlags);
+// [contourIDWithFlags, dsInsets]
+// dsInsets packs the "shrinkbleed" for depthStencil.
+//   [31:8] dsInset (fp32 with the low mantissa bits truncated).
+//          Fills: inkbleedInset (pixels)
+//          Strokes: inkbleedInset / strokeRadius
+//   [7:0]  Original inkbleedComplement for stroke fade math.
+FLAT VARYING(5, uint2, v_contourIDWithFlagsAndDSInsets);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -127,7 +133,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   VARYING_INIT(v_args, float4);
   VARYING_INIT(v_joinArgs, float4);
   VARYING_INIT(v_dsViewMatrix, float4);
-  VARYING_INIT(v_contourIDWithFlags, uint);
+  VARYING_INIT(v_contourIDWithFlagsAndDSInsets, uint2);
 
   float2 p0 = @a_p0p1_.xy;
   float2 p1 = @a_p0p1_.zw;
@@ -265,6 +271,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   float dsStrokeOutsetScale = -1.; // -1 indicates a non-depthStencil spoke
                                    // (non-depthStencil flush or feather).
   float2x2 dsViewMatrix = float2x2(1., .0, .0, 1.);
+  float dsInset = .0;
   if (uniforms.tessellationMode != 0u && featherRadius == .0)
   {
     // We are a depthStencil spoke. dsStrokeOutsetScale >= 0 indicates this to
@@ -272,6 +279,12 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     dsStrokeOutsetScale = .0;
     if (pathID != 0u) // Don't transform padding vertices.
     {
+      // How far to inset, in pixels, to counteract the thickening effect of
+      // inkbleed (aka "shrinkbleed"). 0xff => 1/2px.
+      float inkbleedInset = float(
+                                contourData.z >>
+                                CONTOUR_INKBLEED_COMPLEMENT_SHIFT) *
+                            (.5 / 255.);
       // depthStencil paths get transformed inside the tessellator. Transform as
       // much as we can in the vertex stage.
       float2x2 M = make_float2x2(uintBitsToFloat(
@@ -301,6 +314,10 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         //
         // (See the fragment stage for details.)
         dsStrokeOutsetScale = oneOverMatrixMaxScale * (.5 / RIVE_MITER_LIMIT);
+        // Strokes inset per path-space stroke radius.
+        float strokeRadiusTimesMaxScale = uintBitsToFloat(contourData.y);
+        dsInset = inkbleedInset /
+                  (strokeRadiusTimesMaxScale * oneOverMatrixMaxScale);
       }
       else
       {
@@ -316,6 +333,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
           // Retrofit tri strips actually use joinTangent as a 5th point.
           joinTangent += translate;
         }
+        dsInset = inkbleedInset;
       }
     }
   }
@@ -382,7 +400,10 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     contourIDWithFlags |= TESS_FLAG_MIRRORED;
   }
 
-  v_contourIDWithFlags = contourIDWithFlags;
+  v_contourIDWithFlagsAndDSInsets = uint2(
+      contourIDWithFlags,
+      (floatBitsToUint(dsInset) & 0xffffff00u) |
+          (contourData.z >> CONTOUR_INKBLEED_COMPLEMENT_SHIFT));
 
   float4 pos = pixel_coord_to_clip_coord(
       coord,
@@ -397,7 +418,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
   VARYING_PACK(v_args);
   VARYING_PACK(v_joinArgs);
   VARYING_PACK(v_dsViewMatrix);
-  VARYING_PACK(v_contourIDWithFlags);
+  VARYING_PACK(v_contourIDWithFlagsAndDSInsets);
   EMIT_VERTEX(pos);
 }
 #endif
@@ -414,19 +435,12 @@ INLINE bool isDepthStencilSpoke(float dsStrokeOutsetScale)
   return dsStrokeOutsetScale >= .0;
 }
 
-// True if we are processing a depthStencil stroke, which finds its outsets,
-// including joins, here in the tessellator.
-INLINE bool isDepthStencilStroke(float dsStrokeOutsetScale)
+// True if we are processing a depthStencil *polar* stroke (not hairline), which
+// finds its outsets, including joins, here in the tessellator.
+INLINE bool isDepthStencilPolarStroke(float dsStrokeOutsetScale)
 {
-  // Fills (and padding) set dsStrokeOutsetScale to 0.
+  // Fills, their hairlines, and padding set dsStrokeOutsetScale to 0.
   return dsStrokeOutsetScale > .0;
-}
-
-// inverse(m) == adjugate(m) / determinant(m).
-// When scale doesn't matter, adjucate() is faster than inverse().
-INLINE float2x2 adjugate(float2x2 m)
-{
-  return float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]);
 }
 
 FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
@@ -436,7 +450,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
   VARYING_UNPACK(v_args, float4);
   VARYING_UNPACK(v_joinArgs, float4);
   VARYING_UNPACK(v_dsViewMatrix, float4);
-  VARYING_UNPACK(v_contourIDWithFlags, uint);
+  VARYING_UNPACK(v_contourIDWithFlagsAndDSInsets, uint2);
 
   float2 p0 = v_p0p1.xy;
   float2 p1 = v_p0p1.zw;
@@ -454,7 +468,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
   float radsPerPolarSegment = v_args.w;
   float dsStrokeOutsetScale = v_joinArgs.w;
   uint contourIDWithFlags = resolveContourBoundaryFlags(
-      v_contourIDWithFlags,
+      v_contourIDWithFlagsAndDSInsets.x,
       vertexIdx,
       totalVertexCount);
 
@@ -767,13 +781,26 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
                       ? normalize(float2(spokeTangent.y, -spokeTangent.x))
                       : float2(.0, -1.); // atan2(0, 0), matching legacy modes.
     float2 aaDir = norm;
+    float2x2 M = make_float2x2(v_dsViewMatrix);
+    float dsInset = uintBitsToFloat(
+        v_contourIDWithFlagsAndDSInsets.y & 0xffffff00u);
 
     // The depthStencil TESS_FLAG inputs and outputs alias each other because
     // we ran out of bits. Clear the input flags on our output variable.
     outContourIDWithFlags &= ~TESS_MASK_DS_INPUT_ONLY;
 
-    if (isDepthStencilStroke(dsStrokeOutsetScale))
+    if (isDepthStencilPolarStroke(dsStrokeOutsetScale))
     {
+      // Normals go to screen space as: M^-T * norm
+      float2x2 inverseM = inverse(M);
+      aaDir = MUL(norm, inverseM);
+
+      // Inset the stroke when inkbleed isn't fully on, to counteract the
+      // thickening effect. Each edge is inset proportionally to the Manhattan
+      // width of its screen-space normal, which is precisely how much inkbleed
+      // thickens the spoke.
+      float shrink = dsInset * manhattan_width(aaDir);
+
       // Unlike legacy modes, depthStencil strokes compute their outsets,
       // including joins, here in the tessellator.
       float2 strokeOutset = norm;
@@ -816,7 +843,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
           // pair along norm.
           strokeOutset = norm + bisector;
           if (isInnerJoinSpoke)
-            aaDir = bisector;
+            aaDir = MUL(bisector, inverseM); // Like bevels, don't update shrink
         }
         else if (
             joinType == TESS_FLAG_BEVEL_JOIN ||
@@ -827,13 +854,16 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
           // edge. They all outset AA along the bisector.
           if (isInnerJoinSpoke)
             strokeOutset = bisector * miterRatio;
-          aaDir = bisector;
+          // Even though we are changing aaDir, don't recompute shrink. We are
+          // one of two colocated spokes, and we have to stay welded to our
+          // neighbor as we shrink.
+          aaDir = MUL(bisector, inverseM);
           // The vertex shader treats MSAA bevels (and butt caps) as a special
           // case and manually inkbleeds them 1/2px. MSAA doesn't need inkbleed,
           // but every analytic AA mode inkbleeds bevels, so we do it in MSAA
           // as well, just to match.
-          // NOTE: uniforms.tessellationMode sets the
-          // TESS_FLAG_DS_OUT_MSAA_BEVEL bit only in MSAA mode.
+          // NOTE: uniforms.tessellationMode only carries the
+          // TESS_FLAG_DS_OUT_MSAA_BEVEL bit in MSAA mode.
           outContourIDWithFlags |= TESS_FLAG_DS_OUT_MSAA_BEVEL &
                                    uniforms.tessellationMode;
         }
@@ -843,50 +873,58 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
           // outsets AA along the bisector, the others along their own sides.
           strokeOutset = bisector * (1. / miterRatio);
           if (isInnerJoinSpoke)
-            aaDir = bisector;
+            aaDir = MUL(bisector, inverseM);
+          // Every miter spoke sits on the same corner, so they all shrink by
+          // the average of both sides' widths. (Otherwise the corner would
+          // spur.) Reflect norm across the bisector to find the other side's
+          // normal.
+          float2 neighborNorm = (2. * miterRatio) * bisector - norm;
+          shrink = (shrink +
+                    dsInset * manhattan_width(MUL(neighborNorm, inverseM))) *
+                   .5;
         }
       }
 
       // Now that the strokes have been outset in path space, finish
       // transforming them to screen space.
       // (p0..p3 already arrived pre-translated, so we just need the 2x2.)
-      float2x2 M = make_float2x2(v_dsViewMatrix);
       tessCoord = MUL(M, tessCoord);
 
-      // Normals go to screen space as:
-      //
-      //   screenNorm == M^-T * aaDir == aaDir * adj(M) / det(M)
-      //
-      // Since scale doesn't matter for aaDir, just use adj(M). A flip for
-      // negative determinant occurs below, for both strokes and fills.
-      aaDir = MUL(aaDir, adjugate(M));
-
-      // Pack the strokeOutset into 32-bit tessData. Since we are limited in
-      // precision, use unorm16 normalized relative to
-      // "strokeRadius * matrixMaxScale". i.e.:
-      //
-      //   [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT] => [0, 0xffff]
-      //
-      // (This works because strokeOutset is never wider than the miter limit.)
-      //
-      // At 1000px wide, this errs by up to ~0.03px everywhere.
-      // fp16 would err by up to ~0.12px on normal spokes and ~0.5px on miters.
-      tessData = packUnorm2x16(MUL(M, strokeOutset) * dsStrokeOutsetScale + .5);
+      if (shrink < 1.)
+      {
+        // The shrink fits. Pack the strokeOutset into 32-bit tessData. Since we
+        // are limited in precision, use unorm16 normalized relative to
+        // "strokeRadius * matrixMaxScale". i.e.:
+        //
+        //   [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT] => [0, 0xffff]
+        //
+        // (This works because strokeOutset is never wider than the miter
+        // limit.)
+        //
+        // At 1000px wide, this errs by up to ~0.03px everywhere.
+        // fp16 would err by up to ~0.12px on normal spokes and ~0.5px on
+        // miters.
+        tessData = packUnorm2x16(
+            MUL(M, strokeOutset) * ((1. - shrink) * dsStrokeOutsetScale) + .5);
+      }
+      else
+      {
+        // We can't shrink past the stroke's centerline. Collapse onto it and
+        // fade. tessData carries the coverage multiplier instead.
+        float inkbleedComplement = float(
+            v_contourIDWithFlagsAndDSInsets.y & 0xffu);
+        outContourIDWithFlags |= TESS_FLAG_DS_OUT_STROKE_COLLAPSED;
+        tessData = floatBitsToUint(
+            ((1. / 255.) / shrink - (1. / 255.)) * inkbleedComplement + 1.);
+      }
     }
-
-    // Fill control points came into this stage fully transformed, and strokes
-    // just barely finished transforming into screen space. In both cases,
-    // everything is now screen space except that we still need to flip aaDir
-    // in the case of a left-handed viewMatrix (and for different reasons):
-    //
-    //   Fills: We blindly rotated the tangent 90 deg with [y, -x].
-    //          For a left-handed matrix, that should have been [-y, x].
-    //
-    //   Strokes: We transformed aaDir by adj(M), ignoring sign(det(M)).
-    //            (See above.)
-    //
-    if ((contourIDWithFlags & TESS_FLAG_NEGATIVE_DETERMINANT) != 0u)
-      aaDir = -aaDir;
+    else
+    {
+      // Fill (and hairline) path. We rotated the screen-space tangent 90 deg
+      // with [y, -x], which should have been [-y, x] for a mirrored contour.
+      if ((contourIDWithFlags & TESS_FLAG_MIRRORED) != 0u)
+        aaDir = -aaDir;
+    }
 
     // AA always outsets to a 45 degree corner in screen space. When x or y are
     // 0, we therefore have to arbitrarily pick a corner. Picking the sign of
@@ -903,6 +941,13 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
       outContourIDWithFlags |= TESS_FLAG_DS_OUT_AA_LEFT;
     if (aaDir.y < .0)
       outContourIDWithFlags |= TESS_FLAG_DS_OUT_AA_UP;
+
+    if (!isDepthStencilPolarStroke(dsStrokeOutsetScale))
+    {
+      // Inset fills (and their hairlines) when inkbleed isn't fully on, to
+      // counteract the thickening effect.
+      tessCoord -= sign(aaDir) * dsInset;
+    }
   }
   EMIT_FRAG_DATA(
       uint4(floatBitsToUint(tessCoord), tessData, outContourIDWithFlags));

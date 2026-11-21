@@ -79,12 +79,12 @@ class MSAACanvasSink : public CanvasModeSink
   }
 };
 
-// beginFrame drops inkbleed for anything but 1x, so this asks for 1x.
+// This asks for an inkbleed frame.
 class InkbleedCanvasSink : public CanvasModeSink
 {
   FrameMode canvasMode(gpu::RenderCanvas*) override
   {
-    return {.msaaSampleCount = 1, .inkbleedOverride = true};
+    return {.enableInkbleed = true, .inkbleedOverride = 0xff};
   }
 };
 
@@ -233,7 +233,7 @@ TEST_CASE("a canvas frame opens in the screen's mode", "[cmd][inline_host]")
   auto canvas = rc->makeDeferredRenderCanvas(64, 64);
   CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
   CHECK(rc->frameDescriptor().clockwiseFillOverride);
-  CHECK(!rc->frameDescriptor().inkbleedOverride);
+  CHECK(rc->frameDescriptor().inkbleedOverride == 0);
   CHECK(rc->frameDescriptor().msaaSampleCount == 0);
   CHECK(rc->frameInterlockMode() == gpu::InterlockMode::clockwise);
   sink.endCanvasContent();
@@ -259,8 +259,9 @@ TEST_CASE("a sink can open a canvas frame with inkbleed", "[cmd][inline_host]")
   gpu::RenderContext* rc = sink.renderContext();
   auto canvas = rc->makeDeferredRenderCanvas(64, 64);
   CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
-  CHECK(rc->frameDescriptor().inkbleedOverride);
-  CHECK(rc->frameDescriptor().msaaSampleCount == 1);
+  CHECK(rc->frameDescriptor().enableInkbleed);
+  CHECK(rc->frameDescriptor().inkbleedOverride == 0xff);
+  CHECK(rc->frameDescriptor().msaaSampleCount == 0);
   sink.endCanvasContent();
 }
 

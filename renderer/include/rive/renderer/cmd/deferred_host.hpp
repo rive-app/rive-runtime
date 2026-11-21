@@ -74,7 +74,8 @@ public:
     uint32_t msaaSampleCount = 0;
     bool disableRasterOrdering = false;
     bool clockwiseFillOverride = false;
-    bool inkbleedOverride = false;
+    bool enableInkbleed = false;
+    uint8_t inkbleedOverride = 0; // Alternate minimum inkbleed amount.
   };
 
   rive::Renderer* beginCanvasContent(

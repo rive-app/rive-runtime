@@ -994,13 +994,14 @@ void riveMainLoop()
       .renderTargetWidth = static_cast<uint32_t>(width),
       .renderTargetHeight = static_cast<uint32_t>(height),
       .clearColor = 0xff303030,
-      .msaaSampleCount = msaa,
+      .msaaSampleCount = inkbleed ? 0 : msaa,
+      .enableInkbleed = inkbleed,
       .disableRasterOrdering = forceAtomicMode,
       .wireframe = wireframe,
       .fillsDisabled = disableFill,
       .strokesDisabled = disableStroke,
       .clockwiseFillOverride = clockwiseFill,
-      .inkbleedOverride = inkbleed,
+      .inkbleedOverride = static_cast<uint8_t>(inkbleed ? 0xffu : 0u),
   });
 
   int instances = 1;

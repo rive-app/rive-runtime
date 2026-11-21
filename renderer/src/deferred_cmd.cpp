@@ -431,6 +431,7 @@ void replayRenderCommands(
               fresh->strokePosition(
                   static_cast<StrokePosition>(sh.strokePosition));
               fresh->feather(sh.feather);
+              fresh->inkbleed(sh.inkbleed);
               fresh->additiveness(sh.additiveness);
               fresh->blendMode(static_cast<BlendMode>(sh.blendMode));
               fresh->shaderTransform(sh.transform);
@@ -633,6 +634,16 @@ void replayRenderCommands(
         {
           pt->feather(c.value);
           table.paintShadows[c.paint].feather = c.value;
+        }
+        break;
+      }
+      case RenderCmd::paintInkbleed:
+      {
+        auto c = reader.read<PaintU8POD>();
+        if (auto* pt = paint(c.paint))
+        {
+          pt->inkbleed(c.value);
+          table.paintShadows[c.paint].inkbleed = c.value;
         }
         break;
       }

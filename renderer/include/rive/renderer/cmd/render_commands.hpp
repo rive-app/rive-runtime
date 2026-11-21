@@ -52,6 +52,7 @@ enum class RenderCmd : uint8_t
   paintCap,              // PaintU8POD
   paintStrokePosition,   // PaintU8POD
   paintFeather,          // PaintFloatPOD
+  paintInkbleed,         // PaintU8POD
   paintAdditiveness,     // PaintFloatPOD
   paintBlendMode,        // PaintU8POD
   paintShader,           // PaintShaderPOD
@@ -431,6 +432,7 @@ struct ComposeLayerMaskPOD
   X(paintCap, PaintU8POD)                                                      \
   X(paintStrokePosition, PaintU8POD)                                           \
   X(paintFeather, PaintFloatPOD)                                               \
+  X(paintInkbleed, PaintU8POD)                                                 \
   X(paintAdditiveness, PaintFloatPOD)                                          \
   X(paintBlendMode, PaintU8POD)                                                \
   X(paintShader, PaintShaderPOD)                                               \

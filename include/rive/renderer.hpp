@@ -192,8 +192,12 @@ public:
   virtual void cap(StrokeCap value) = 0;
   // TODO: implement on other backends besides Rive Renderer
   virtual void strokePosition(StrokePosition value) {}
-  virtual void feather(float value) {}      // Not supported on all renderers.
-  virtual void additiveness(float value) {} // Only used for srcOver
+  // Not supported on all renderers.
+  virtual void feather(float value) {}
+  // Expand (or bleed out) the path in screen space. (0xff => 1/2px.)
+  virtual void inkbleed(uint8_t value) {}
+  // Only used for srcOver.
+  virtual void additiveness(float value) {}
   virtual void blendMode(BlendMode value) = 0;
   virtual void shader(rcp<RenderShader>) = 0;
   virtual void shaderTransform(const Mat2D& transform) = 0;

@@ -113,11 +113,13 @@ public:
     // If nonzero, this forces depthStencil mode and specifies the number of
     // samples to use:
     //    0 => RenderContext chooses its preferred interlockMode
-    //    1 => depthStencil without MSAA
+    //    1 => depthStencil without antialiasing (neither MSAA nor inkbleed)
     //   >1 => MSAA via depthStencil
     uint32_t msaaSampleCount = 0;
-    // Use atomic mode (preferred) or depthStencil instead of
-    // rasterOrdering.
+    // Forces depthStencil mode, with paths antialiased by inkbleed. Overrides
+    // msaaSampleCount to 0 and forces clockwiseFillOverride.
+    bool enableInkbleed = false;
+    // Use atomic mode (preferred) or depthStencil instead of rasterOrdering.
     bool disableRasterOrdering = false;
     DitherMode ditherMode = DitherMode::interleavedGradientNoise;
     TriangulationThresholds triangulationThresholds;
@@ -142,10 +144,9 @@ public:
     // Override all paths' fill rules (winding or even/odd) to emulate
     // clockwiseAtomic mode.
     bool clockwiseFillOverride = false;
-    // When msaaSampleCount == 1 (depthStencil w/o MSAA), strokes get
-    // analytic antialiasing by bleeding out 1/2 pixel, regardless of the
-    // view matrix. (Fills are not antialiased yet.) Ignored otherwise.
-    bool inkbleedOverride = false;
+    // Alternate minimum inkbleed amount.
+    // NOTE: All inkbleed is ignored unless enableInkbleed is selected.
+    uint8_t inkbleedOverride = 0;
 #ifdef WITH_RIVE_TOOLS
     // Synthesize compilation failures to make sure the device handles them
     // gracefully. (e.g., by falling back on an uber shader or at least not
@@ -842,6 +843,7 @@ private:
         uint32_t contourID,
         uint32_t pathID,
         const gpu::ContourPathParams&,
+        uint8_t inkbleedComplement,
         Vec2D midpoint,
         bool isStroke,
         bool closed,
@@ -1079,6 +1081,7 @@ private:
         LogicalFlush* flush,
         uint32_t pathID,
         const gpu::ContourPathParams&,
+        uint8_t inkbleedComplement,
         gpu::ContourDirections,
         uint32_t forwardTessVertexCount,
         uint32_t forwardTessLocation,
@@ -1187,6 +1190,7 @@ private:
     WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
     const uint32_t m_pathID;
     const gpu::ContourPathParams m_pathParams;
+    const uint8_t m_inkbleedComplement;
     const gpu::ContourDirections m_contourDirections;
     // depthStencil contours record their first vertex in memory, even when
     // mirrored. (See pushContour().)

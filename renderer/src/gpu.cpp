@@ -37,6 +37,8 @@ static_assert(ContourData::FlagClosed == CONTOUR_FLAG_CLOSED);
 static_assert(ContourData::FlagStroke == CONTOUR_FLAG_STROKE);
 static_assert(
     ContourData::FlagHasOutsetOrFeather == CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER);
+static_assert(
+    ContourData::InkbleedComplementShift == CONTOUR_INKBLEED_COMPLEMENT_SHIFT);
 
 static_assert(DSMidpointFanFillPatchStrideLog2 == DS_MIDPOINT_FAN_STRIDE_LOG2);
 static_assert(DSOuterCubicFillPatchStrideLog2 == DS_OUTER_CUBIC_STRIDE_LOG2);

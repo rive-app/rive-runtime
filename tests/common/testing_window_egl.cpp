@@ -209,7 +209,8 @@ protected:
       const BackendParams& backendParams)
       : m_display(display)
       , m_config(config)
-      , m_isDepthStencil(backendParams.msaaSampleCount > 0)
+      , m_isDepthStencil(
+            backendParams.msaaSampleCount > 0 || backendParams.enableInkbleed)
   {}
 
   void deleteSurface()
@@ -363,7 +364,8 @@ public:
     // Android MSAA works by rendering offscreen (usually via
     // EXT_multisampled_render_to_texture). We only need depth/stencil on
     // the main framebuffer when using InterlockMode::depthStencil w/o MSAA.
-    const bool needsDepthStencil = backendParams.msaaSampleCount == 1;
+    const bool needsDepthStencil = backendParams.msaaSampleCount == 1 ||
+                                   backendParams.enableInkbleed;
 
     EGLint numConfigs;
     const EGLint configAttribs[] = {

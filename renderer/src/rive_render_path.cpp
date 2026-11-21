@@ -516,7 +516,7 @@ IAABB RiveRenderPath::calculatePixelBounds(
     const Mat2D& matrix,
     const std::optional<StrokeParams>& stroke,
     float feather,
-    bool inkbleed) const
+    uint8_t inkbleed) const
 {
   // If the matrix contains only translate and scale, we can simply map the
   // cached untransformed AABB. Otherwise, map all points to get tight bounds.
@@ -552,10 +552,10 @@ IAABB RiveRenderPath::calculatePixelBounds(
         strokePixelOutset.height() + 1);
   }
 
-  if (inkbleed)
+  if (inkbleed != 0)
   {
-    // Inkbleed pushes AA borders out an additional 1/2 pixel.
-    mappedBounds = mappedBounds.outset(.5f, .5f);
+    const float inkbleedOutsetPx = inkbleed * (.5f / 0xff); // 0xff => 1/2px.
+    mappedBounds = mappedBounds.outset(inkbleedOutsetPx, inkbleedOutsetPx);
   }
 
   return mappedBounds.roundOut();

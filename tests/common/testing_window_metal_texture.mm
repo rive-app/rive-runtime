@@ -54,6 +54,7 @@ public:
                           : rive::gpu::LoadAction::preserveRenderTarget,
         .clearColor = options.clearColor,
         .msaaSampleCount = mode.msaaSampleCount,
+        .enableInkbleed = mode.enableInkbleed,
         .disableRasterOrdering = mode.disableRasterOrdering,
         .triangulationThresholds = options.triangulationThresholds,
         .wireframe = options.wireframe,
@@ -75,7 +76,8 @@ public:
         std::max(m_backendParams.msaaSampleCount, options.forceMSAA ? 4u : 0u),
         options.disableRasterOrdering,
         m_backendParams.clockwise || options.clockwiseFillOverride,
-        m_backendParams.inkbleed};
+        m_backendParams.inkbleedOverride,
+        m_backendParams.enableInkbleed};
   }
 
   rive::gpu::RenderTarget* renderTarget() const override

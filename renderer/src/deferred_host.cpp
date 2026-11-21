@@ -101,6 +101,7 @@ rive::Renderer* HostFrameSink::beginCanvasContent(
   d.clearColor = clearColor;
   const FrameMode mode = canvasMode(canvas);
   d.msaaSampleCount = mode.msaaSampleCount;
+  d.enableInkbleed = mode.enableInkbleed;
   d.disableRasterOrdering = mode.disableRasterOrdering;
   d.clockwiseFillOverride = mode.clockwiseFillOverride;
   d.inkbleedOverride = mode.inkbleedOverride;

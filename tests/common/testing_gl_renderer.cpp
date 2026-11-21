@@ -76,7 +76,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
               options.forceMSAA ? 4u : 0u),
           m_backendParams.atomic || options.disableRasterOrdering,
           m_backendParams.clockwise || options.clockwiseFillOverride,
-          m_backendParams.inkbleed};
+          m_backendParams.inkbleedOverride,
+          m_backendParams.enableInkbleed};
     }
 
     void beginFrame(const TestingWindow::FrameOptions& options) override
@@ -96,6 +97,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                             : rive::gpu::LoadAction::preserveRenderTarget,
           .clearColor = options.clearColor,
           .msaaSampleCount = mode.msaaSampleCount,
+          .enableInkbleed = mode.enableInkbleed,
           .disableRasterOrdering = mode.disableRasterOrdering,
           .triangulationThresholds = options.triangulationThresholds,
           .wireframe = options.wireframe,

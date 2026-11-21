@@ -212,6 +212,14 @@ public:
     }
     emitFloat(RenderCmd::paintFeather, m_state.feather);
   }
+  void inkbleed(uint8_t v) override
+  {
+    if (absorbed(m_state.inkbleed, v))
+    {
+      return;
+    }
+    emitU8(RenderCmd::paintInkbleed, m_state.inkbleed);
+  }
   void additiveness(float v) override
   {
     if (absorbed(m_state.additiveness, v))
@@ -294,7 +302,8 @@ private:
     uint8_t join = 0;           // miter
     uint8_t cap = 0;            // butt
     uint8_t strokePosition = 1; // center
-    uint8_t blendMode = 3;      // srcOver
+    uint8_t inkbleed = 0;
+    uint8_t blendMode = 3; // srcOver
     Mat2D transform;
   };
 

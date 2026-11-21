@@ -222,41 +222,53 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 
   if (isStroke())
   {
-    // Ensure strokes always emit clockwise triangles. A left-handed matrix and
-    // a mirrored (backwards) contour each flip the outside.
-    if (isExactlyOneFlagSet(
-            contourIDWithFlags,
-            TESS_FLAG_NEGATIVE_DETERMINANT,
-            TESS_FLAG_MIRRORED))
-    {
-      outset = -outset;
-    }
-
     // NOTE: 'outset' is only ever -1, 0, or +1.
     float aaOutsetPx = (coverage == .0) ? outset : .0;
 
     if (isPolarStroke)
     {
+      // Ensure strokes always emit clockwise triangles. A left-handed matrix
+      // and a mirrored (backwards) contour each flip the outside.
+      if (isExactlyOneFlagSet(
+              contourIDWithFlags,
+              TESS_FLAG_NEGATIVE_DETERMINANT,
+              TESS_FLAG_MIRRORED))
+      {
+        outset = -outset;
+        aaOutsetPx = -aaOutsetPx;
+      }
+
       // Joins only emanate from the outer side of the stroke (except full
       // round joins, which emit both sides like curves).
       if ((contourIDWithFlags & TESS_FLAG_LEFT_JOIN) != 0u)
         outset = min(outset, .0);
       if ((contourIDWithFlags & TESS_FLAG_RIGHT_JOIN) != 0u)
         outset = max(outset, .0);
-      // The tessellator already wrote every stroke outset, joins included, in
-      // screen space. Their lengths are normalized relative to
-      // "strokeRadius * matrixMaxScale". i.e.:
-      //
-      //   [0, 0xffff] => [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT]
-      //
-      // (This works because strokeOutset is never wider than the miter limit.)
-      float2 strokeOutset = unpackUnorm2x16(tessVertexData.z) *
-                                (2. * RIVE_MITER_LIMIT) +
-                            -RIVE_MITER_LIMIT;
-      // Strokes repurpose "screenMidpoint" since they don't use the real
-      // midpoint.
-      float strokeRadiusTimesMatrixMaxScale = screenMidpoint.y;
-      screenCoord += strokeOutset * (outset * strokeRadiusTimesMatrixMaxScale);
+      if ((contourIDWithFlags & TESS_FLAG_DS_OUT_STROKE_COLLAPSED) != 0u)
+      {
+        // The "shrinkbleed" inset for strokes collapsed this spoke onto the
+        // centerline. Fade it instead of insetting further.
+        coverage *= uintBitsToFloat(tessVertexData.z);
+      }
+      else
+      {
+        // The tessellator already wrote every stroke outset, joins included, in
+        // screen space. Their lengths are normalized relative to
+        // "strokeRadius * matrixMaxScale". i.e.:
+        //
+        //   [0, 0xffff] => [-RIVE_MITER_LIMIT, +RIVE_MITER_LIMIT]
+        //
+        // (This works because strokeOutset is never wider than the miter
+        // limit.)
+        float2 strokeOutset = unpackUnorm2x16(tessVertexData.z) *
+                                  (2. * RIVE_MITER_LIMIT) +
+                              -RIVE_MITER_LIMIT;
+        // Strokes repurpose "screenMidpoint" since they don't use the real
+        // midpoint.
+        float strokeRadiusTimesMatrixMaxScale = screenMidpoint.y;
+        screenCoord += strokeOutset *
+                       (outset * strokeRadiusTimesMatrixMaxScale);
+      }
       // Treat MSAA bevels (and butt caps) as a special case and manually
       // inkbleed them 1/2px. MSAA doesn't need inkbleed, but every analytic AA
       // mode inkbleeds bevels, so we do it in MSAA as well, just to match.

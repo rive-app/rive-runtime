@@ -158,8 +158,8 @@
 #define TESS_FLAG_LEFT_JOIN (1u << 19u)
 #define TESS_FLAG_RIGHT_JOIN (1u << 18u)
 
-// The draw's paint matrix is left-handed. (depthStencil strokes and hairlines
-// use this to flip their outset so triangles remain clockwise.)
+// The draw's paint matrix is left-handed. (depthStencil strokes use this to
+// flip their outset so triangles remain clockwise.)
 #define TESS_FLAG_NEGATIVE_DETERMINANT (1u << 17u)
 
 // The depthStencil TESS_FLAG inputs and outputs alias each other because we ran
@@ -178,10 +178,14 @@
 // other modes. (Named after its input alias. See TESS_MASK_DS_INPUT_ONLY.)
 #define TESS_FLAG_DS_OUT_MSAA_BEVEL TESS_FLAG_FEATHER_JOIN
 
+// The "shrinkbleed" inset for strokes collapsed this spoke onto the centerline,
+// so instead of outset, the spoke's tessData (.z) has a coverage multiplier.
+#define TESS_FLAG_DS_OUT_STROKE_COLLAPSED (1u << 16u)
+
 #define CONTOUR_ID_MASK 0xffffu
 
-// ContourData[0].z: [unused (13 bits) | outset/feather | stroke | closed |
-// pathID (16 bits)].
+// ContourData[0].z: [inkbleedComplement (8 bits) | unused (5 bits) |
+// outset/feather | stroke | closed | pathID (16 bits)].
 #define CONTOUR_PATH_ID_MASK 0xffffu
 
 // Fills are always closed. Strokes are closed if they end in a close verb.
@@ -194,6 +198,10 @@
 // The contour's path has a nonzero additionalOutset or featherRadius, so its
 // readers need to load them from ContourData[1].
 #define CONTOUR_FLAG_HAS_OUTSET_OR_FEATHER (1u << 18u)
+
+// How far to inset an inkbleed path (aka "shrinkbleed") to counteract the
+// thickening effect: (0xff - inkbleed), where 0xff => 1/2px.
+#define CONTOUR_INKBLEED_COMPLEMENT_SHIFT 24u
 
 // This is guaranteed to not collide with any path IDs being rendered.
 #define INVALID_PATH_ID .0
