@@ -2,6 +2,7 @@
 // Scoped asset reference resolution, shared between the Luau backend and the
 // wasm module blob (which cannot link rive_lua_libs.cpp).
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/assets/library_asset_name.hpp"
 
 #include "lua.h"
 
@@ -61,41 +62,7 @@ ScriptingContext::ScopedAssetReference::ScopedAssetReference(
 bool ScriptingContext::ScopedAssetReference::matchesLibrary(
     const std::string& registeredName) const
 {
-  // <label>[#<digits>]@<digits>/<path>
-  if (registeredName.size() <= m_label.size() ||
-      registeredName.compare(0, m_label.size(), m_label) != 0)
-  {
-    return false;
-  }
-  size_t i = m_label.size();
-  if (registeredName[i] == '#')
-  {
-    size_t start = ++i;
-    while (i < registeredName.size() && registeredName[i] >= '0' &&
-           registeredName[i] <= '9')
-    {
-      i++;
-    }
-    if (i == start)
-    {
-      return false;
-    }
-  }
-  if (i >= registeredName.size() || registeredName[i] != '@')
-  {
-    return false;
-  }
-  size_t start = ++i;
-  while (i < registeredName.size() && registeredName[i] >= '0' &&
-         registeredName[i] <= '9')
-  {
-    i++;
-  }
-  if (i == start || i >= registeredName.size() || registeredName[i] != '/')
-  {
-    return false;
-  }
-  return registeredName.compare(i + 1, std::string::npos, m_path) == 0;
+  return isLibraryAssetName(registeredName, m_label, m_path);
 }
 
 int ScriptingContext::ScopedAssetReference::match(

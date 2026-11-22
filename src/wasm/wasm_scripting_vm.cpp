@@ -58,6 +58,7 @@
 #include "rive/wasm/artboard_wire.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/library_asset_name.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/async/work_pool.hpp"
 #include "rive/data_bind/data_context.hpp"
@@ -3218,8 +3219,68 @@ void paintShaderTransformImpl(
   }
 }
 
-// The object's file asset of type T by name; accept skips matches that
-// carry nothing, the way the Luau lookups keep scanning past them.
+// The scope the std leads a name with, slash included: a library's prefix,
+// or nothing for the project's. Empty for a name as a script wrote it.
+static std::string_view leadingScope(std::string_view name)
+{
+  std::string_view library = libraryAssetPrefix(name);
+  bool scoped = !library.empty() || name.substr(0, 1) == "/";
+  return name.substr(0, scoped ? library.size() + 1 : 0);
+}
+
+// Whether an asset at a path, of a bare name, answers a name as the std
+// sends it, which for one it scoped is as the Luau lookups match.
+static bool answersTo(
+    std::string_view path,
+    std::string_view bare,
+    std::string_view name)
+{
+  // All that a module baked before scopes sends, and Luau on this VM.
+  if (bare == name)
+  {
+    return true;
+  }
+  if (name.substr(0, 4) == "lib:")
+  {
+    size_t slash = name.find('/', 4);
+    return slash != std::string_view::npos && isLibraryAssetName(
+                                                  path,
+                                                  name.substr(4, slash - 4),
+                                                  name.substr(slash + 1));
+  }
+  std::string_view scope = leadingScope(name);
+  if (scope.empty())
+  {
+    return path == name;
+  }
+  std::string_view library = scope.substr(0, scope.size() - 1);
+  if (libraryAssetPrefix(path) != library)
+  {
+    return false;
+  }
+  std::string_view rest = name.substr(scope.size());
+  return bare == rest ||
+         path.substr(library.empty() ? 0 : scope.size()) == rest;
+}
+
+// A shader's path is its folder and name, as a module's, and any other
+// asset's is its name.
+static bool answersTo(const FileAsset* asset, std::string_view name)
+{
+  if (asset->is<ShaderAsset>() &&
+      !asset->as<ShaderAsset>()->folderPath().empty())
+  {
+    return answersTo(
+        asset->as<ShaderAsset>()->folderPath() + "/" + asset->name(),
+        asset->name(),
+        name);
+  }
+  return answersTo(asset->name(), asset->name(), name);
+}
+
+// The object's first file asset of type T that answers name; accept skips
+// matches that carry nothing, the way the Luau lookups keep scanning past
+// them.
 FileAsset* findFileAsset(
     WasmScriptingVM* vm,
     uint32_t objectHandle,
@@ -3240,14 +3301,11 @@ FileAsset* findFileAsset(
   {
     return nullptr;
   }
-  std::string key(name, length);
+  std::string_view key(name, length);
   for (const auto& asset : object->scriptAsset()->file()->assets())
   {
-    if (!asset->isTypeOf(typeKey) || asset->name() != key)
-    {
-      continue;
-    }
-    if (accept == nullptr || accept(asset.get()))
+    if (asset->isTypeOf(typeKey) && answersTo(asset.get(), key) &&
+        (accept == nullptr || accept(asset.get())))
     {
       return asset.get();
     }
@@ -4598,6 +4656,26 @@ uint32_t gpuShaderTargetImpl(WasmScriptingVM* vm)
                                : (uint32_t)ore::ShaderTarget::wgsl;
 }
 
+// The length of the RSTB a name found, copied out when it fits. All ones for
+// one with no bytes at a scoped name, where Luau looks no further.
+static uint32_t copyShaderBytes(
+    std::string_view name,
+    Span<const uint8_t> rstb,
+    uint8_t* out,
+    uint32_t outCount)
+{
+  // Only to a call giving no room, the std's: Luau's shim reads a length.
+  if (rstb.empty() && outCount == 0 && !leadingScope(name).empty())
+  {
+    return UINT32_MAX;
+  }
+  if (rstb.size() <= outCount)
+  {
+    memcpy(out, rstb.data(), rstb.size());
+  }
+  return (uint32_t)rstb.size();
+}
+
 uint32_t gpuShaderAssetBytesImpl(
     WasmScriptingVM* vm,
     uint32_t objectHandle,
@@ -4610,33 +4688,26 @@ uint32_t gpuShaderAssetBytesImpl(
   {
     return 0;
   }
+  std::string_view named(name, nameLength);
 #ifdef WITH_RIVE_TOOLS
   // Editor path first, matching the Luau lane: RSTBs compiled during
   // requestWasmVM shadow whatever a file asset carries.
   {
-    const std::vector<uint8_t>* rstb = vm->findShaderRstb(
-        std::string(name, nameLength));
+    const std::vector<uint8_t>* rstb = vm->findShaderRstb(std::string(named));
     if (rstb != nullptr)
     {
-      if (rstb->size() <= outCount)
-      {
-        memcpy(out, rstb->data(), rstb->size());
-      }
-      return (uint32_t)rstb->size();
+      return copyShaderBytes(
+          named,
+          Span<const uint8_t>(rstb->data(), rstb->size()),
+          out,
+          outCount);
     }
   }
 #endif
   auto asset = findFileAsset<ShaderAsset>(vm, objectHandle, name, nameLength);
-  if (asset == nullptr)
-  {
-    return 0;
-  }
-  auto rstb = asset->rstb();
-  if (rstb.size() <= outCount)
-  {
-    memcpy(out, rstb.data(), rstb.size());
-  }
-  return (uint32_t)rstb.size();
+  return asset == nullptr
+             ? 0
+             : copyShaderBytes(named, asset->rstb(), out, outCount);
 }
 
 uint32_t gpuShaderAssetIdImpl(
@@ -4748,6 +4819,9 @@ uint32_t gpuShaderModuleFromAssetImpl(
       objectHandle,
       name,
       nameLength);
+  // Messages name the shader as the script wrote it, as Luau's do.
+  std::string_view scoped(name, nameLength);
+  std::string written(scoped.substr(leadingScope(scoped).size()));
 #ifdef WITH_RIVE_TOOLS
   // Editor path first, matching shader_asset_bytes.
   if (const std::vector<uint8_t>* rstb = vm->findShaderRstb(
@@ -4759,7 +4833,7 @@ uint32_t gpuShaderModuleFromAssetImpl(
         rstb->data(),
         (uint32_t)rstb->size(),
         fileAsset != nullptr ? fileAsset->assetId() : 0,
-        std::string(name, nameLength),
+        written,
         entry);
   }
 #endif
@@ -4767,12 +4841,7 @@ uint32_t gpuShaderModuleFromAssetImpl(
   {
     return 0;
   }
-  return mintAssetEntryModule(
-      vm,
-      oreContext,
-      *fileAsset,
-      std::string(name, nameLength),
-      entry);
+  return mintAssetEntryModule(vm, oreContext, *fileAsset, written, entry);
 }
 
 #ifdef WITH_RIVE_TOOLS
@@ -15357,16 +15426,23 @@ const std::vector<uint8_t>* WasmScriptingVM::findShaderRstb(
   {
     return &it->second;
   }
-  // Registered names are library-mangled paths; scripts ask by short name.
+  // The first in order of the keys that answer, so every run gives the
+  // same one.
+  const std::pair<const std::string, std::vector<uint8_t>>* found = nullptr;
   for (const auto& entry : m_shaderRstbs)
   {
-    size_t slash = entry.first.rfind('/');
-    if (slash != std::string::npos && entry.first.substr(slash + 1) == name)
+    std::string_view path = entry.first;
+    size_t slash = path.rfind('/');
+    if (answersTo(
+            path,
+            slash == std::string_view::npos ? path : path.substr(slash + 1),
+            name) &&
+        (found == nullptr || entry.first < found->first))
     {
-      return &entry.second;
+      found = &entry;
     }
   }
-  return nullptr;
+  return found != nullptr ? &found->second : nullptr;
 }
 #endif
 

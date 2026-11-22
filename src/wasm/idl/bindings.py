@@ -967,7 +967,8 @@ NAMESPACES = [
         op('shader_target', ret='u32'),
         # Copies the named ShaderAsset's RSTB container, which modules read
         # only for its entry table; returns the full length for the retrying
-        # copy-out convention, 0 when absent.
+        # copy-out convention, 0 when absent, all ones for one with no bytes
+        # at a name the std scoped, asked with no room.
         op('shader_asset_bytes', [
             handle('object'),
             string('name', 'nameLength'),
