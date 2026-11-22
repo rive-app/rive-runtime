@@ -246,6 +246,8 @@ public:
   void hostDataContext(rcp<DataContext> value) override;
   void relinkHostDataContext() override;
   void updateHostedDataBinds() override;
+  void markInstancesQuiet(Artboard* host) override;
+  bool instancesMarkedQuiet() const override;
 
   void file(File* value) { m_file = value; }
   File* file() const { return m_file; }

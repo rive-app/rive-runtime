@@ -137,6 +137,8 @@ TextStyleInstance::TextStyleInstance(
 
 TextStyleInstance::~TextStyleInstance()
 {
+  // Tearing down is no change for the host to wake to.
+  m_instance->quietOwner(nullptr);
   // The state machine references the instance, whose data binds reference
   // the view model instance: tear down in that order.
   m_inputs.clear();
@@ -244,15 +246,41 @@ bool TextStyleInstance::advance(float elapsedSeconds, AdvanceFlags flags)
 
 AdvancingComponent::QuietState TextStyleInstance::quietState() const
 {
-  // A state machine, or binds reading data the host can change at any time
-  // without waking this Text's row, means advancing may always have work.
-  if (m_stateMachine != nullptr || m_readsOutsideOwnViewModel)
+  using QuietState = AdvancingComponent::QuietState;
+  // Exposed inputs still to copy from the values source. It changes while
+  // the row hosting this Text is awake: the host's binds write it, and so
+  // does the handle's own instance as it advances.
+  if (inputsChanged())
   {
-    return AdvancingComponent::QuietState::never;
+    return QuietState::busy;
   }
-  return m_instance->hasDirt(ComponentDirt::Components)
-             ? AdvancingComponent::QuietState::busy
-             : AdvancingComponent::QuietState::quiet;
+  // Once quiet, whatever may change the style wakes the row hosting its Text
+  // (see markQuiet), so the machine and the artboard answer as a row's do:
+  // the machine first, as a list checks its rows' (see
+  // ArtboardComponentList::rowQuietState).
+  if (m_stateMachine != nullptr)
+  {
+    auto state = m_stateMachine->rowQuietState();
+    if (state != QuietState::quiet)
+    {
+      return state;
+    }
+  }
+  return m_instance->rowQuietState();
+}
+
+void TextStyleInstance::markQuiet(Artboard* host)
+{
+  // The style's artboard is no row of anything; any value other than
+  // kNoQuietRow marks it.
+  m_instance->quietOwner(host);
+  m_instance->quietHostRow(0);
+  m_instance->markHostedQuiet();
+}
+
+bool TextStyleInstance::markedQuiet() const
+{
+  return m_instance->quietHostRow() != Artboard::kNoQuietRow;
 }
 
 void TextStyleInstance::styleShapeChanged()
@@ -301,72 +329,85 @@ void TextStyleInstance::copyValuesFrom(rcp<ViewModelInstance> source)
   syncInputs();
 }
 
+bool TextStyleInstance::InputLink::differs() const
+{
+  auto value = from.get();
+  switch (inputKind(value))
+  {
+    case InputKind::number:
+      return value->as<ViewModelInstanceNumber>()->propertyValue() != number;
+    case InputKind::boolean:
+      return value->as<ViewModelInstanceBoolean>()->propertyValue() != boolean;
+    case InputKind::string:
+      return value->as<ViewModelInstanceString>()->propertyValue() != string;
+    case InputKind::color:
+      return value->as<ViewModelInstanceColor>()->propertyValue() != color;
+    case InputKind::enumValue:
+      return value->as<ViewModelInstanceEnum>()->propertyValue() != index;
+    case InputKind::trigger:
+      return value->as<ViewModelInstanceTrigger>()->propertyValue() != index;
+    case InputKind::symbolListIndex:
+      return value->as<ViewModelInstanceSymbolListIndex>()->propertyValue() !=
+             index;
+    case InputKind::none:
+      break;
+  }
+  return false;
+}
+
+void TextStyleInstance::InputLink::record()
+{
+  auto value = from.get();
+  switch (inputKind(value))
+  {
+    case InputKind::number:
+      number = value->as<ViewModelInstanceNumber>()->propertyValue();
+      break;
+    case InputKind::boolean:
+      boolean = value->as<ViewModelInstanceBoolean>()->propertyValue();
+      break;
+    case InputKind::string:
+      string = value->as<ViewModelInstanceString>()->propertyValue();
+      break;
+    case InputKind::color:
+      color = value->as<ViewModelInstanceColor>()->propertyValue();
+      break;
+    case InputKind::enumValue:
+      index = value->as<ViewModelInstanceEnum>()->propertyValue();
+      break;
+    case InputKind::trigger:
+      index = value->as<ViewModelInstanceTrigger>()->propertyValue();
+      break;
+    case InputKind::symbolListIndex:
+      index = value->as<ViewModelInstanceSymbolListIndex>()->propertyValue();
+      break;
+    case InputKind::none:
+      break;
+  }
+}
+
+bool TextStyleInstance::inputsChanged() const
+{
+  for (auto& link : m_inputs)
+  {
+    if (link.differs())
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool TextStyleInstance::syncInputs()
 {
   bool changed = false;
   for (auto& link : m_inputs)
   {
-    auto from = link.from.get();
-    auto kind = inputKind(from);
-    bool differs = false;
-    switch (kind)
+    if (link.differs())
     {
-      case InputKind::number:
-      {
-        auto value = from->as<ViewModelInstanceNumber>()->propertyValue();
-        differs = value != link.number;
-        link.number = value;
-        break;
-      }
-      case InputKind::boolean:
-      {
-        auto value = from->as<ViewModelInstanceBoolean>()->propertyValue();
-        differs = value != link.boolean;
-        link.boolean = value;
-        break;
-      }
-      case InputKind::string:
-      {
-        auto& value = from->as<ViewModelInstanceString>()->propertyValue();
-        differs = value != link.string;
-        link.string = value;
-        break;
-      }
-      case InputKind::color:
-      {
-        auto value = from->as<ViewModelInstanceColor>()->propertyValue();
-        differs = value != link.color;
-        link.color = value;
-        break;
-      }
-      case InputKind::enumValue:
-      {
-        auto value = from->as<ViewModelInstanceEnum>()->propertyValue();
-        differs = value != link.index;
-        link.index = value;
-        break;
-      }
-      case InputKind::trigger:
-      {
-        auto value = from->as<ViewModelInstanceTrigger>()->propertyValue();
-        differs = value != link.index;
-        link.index = value;
-        break;
-      }
-      case InputKind::symbolListIndex:
-      {
-        auto value = from->as<ViewModelInstanceSymbolListIndex>()
-                         ->propertyValue();
-        differs = value != link.index;
-        link.index = value;
-        break;
-      }
-      case InputKind::none:
-        break;
-    }
-    if (differs)
-    {
-      copyValue(kind, from, link.to.get());
+      link.record();
+      auto from = link.from.get();
+      copyValue(inputKind(from), from, link.to.get());
       changed = true;
     }
   }

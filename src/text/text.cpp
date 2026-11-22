@@ -1857,6 +1857,30 @@ void Text::updateHostedDataBinds()
   }
 }
 
+void Text::markInstancesQuiet(Artboard* host)
+{
+  for (auto& style : m_onDemandStyles)
+  {
+    if (auto instance = style->instance())
+    {
+      instance->markQuiet(host);
+    }
+  }
+}
+
+bool Text::instancesMarkedQuiet() const
+{
+  for (auto& style : m_onDemandStyles)
+  {
+    auto instance = style->instance();
+    if (instance != nullptr && !instance->markedQuiet())
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 TextStyleReference* Text::styleReferenceNamed(const std::string& name)
 {
   for (auto child : children())
@@ -2834,6 +2858,8 @@ void Text::styleReferenceDidChange() {}
 void Text::hostDataContext(rcp<DataContext> value) {}
 void Text::relinkHostDataContext() {}
 void Text::updateHostedDataBinds() {}
+void Text::markInstancesQuiet(Artboard* host) {}
+bool Text::instancesMarkedQuiet() const { return true; }
 bool Text::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
   return false;

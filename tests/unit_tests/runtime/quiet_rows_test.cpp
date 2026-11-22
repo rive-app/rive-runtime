@@ -8,6 +8,11 @@
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/solo.hpp>
+#include <rive/text/text.hpp>
+#include <rive/text/text_style_global.hpp>
+#include <rive/text/text_style_instance.hpp>
+#include <rive/text/text_style_on_demand.hpp>
+#include <rive/text/text_value_run.hpp>
 #include <rive/viewmodel/viewmodel_instance.hpp>
 #include <rive/viewmodel/viewmodel_instance_boolean.hpp>
 #include <rive/viewmodel/viewmodel_instance_color.hpp>
@@ -735,4 +740,301 @@ TEST_CASE("Quiet rows with eased binds ease to a new value", "[component_list]")
                                 0xFF2060E0,
                                 0xFF808080,
                                 0xFF3BA55C});
+}
+
+namespace
+{
+// quiet_style_rows.riv's Main, bound with a Theme of its own and played for
+// 1.5 s: long enough for every row, and every style its texts draw with, to
+// have nothing left to do. Each row's texts draw with styles that have work
+// of their own: a state machine (Current, Pressable, Visited), binds reading
+// past the style's own view model (Current and Themed read the Theme global
+// view model, Visited its run's list item), a machine listening to its runs
+// (Pressable), and inputs copied from the Text's handle (Visited, whose runs
+// each get an instance of their own).
+struct StyleRows
+{
+  static constexpr const char* kStyles[] = {
+      "Current Style",
+      "Themed Style",
+      "Pressable Style",
+  };
+
+  rcp<File> file;
+  std::unique_ptr<ArtboardInstance> artboard;
+  std::unique_ptr<StateMachineInstance> machine;
+  rcp<ViewModelInstance> viewModelInstance;
+  rcp<ViewModelInstance> theme;
+  ArtboardComponentList* list = nullptr;
+
+  explicit StyleRows(bool quietRows)
+  {
+    ArtboardComponentList::sm_quietRowsEnabled = quietRows;
+    file = ReadRiveFile("assets/quiet_style_rows.riv");
+    artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+    theme = file->createDefaultViewModelInstance(file->viewModel("Theme"));
+    REQUIRE(theme != nullptr);
+    machine = artboard->stateMachineAt(0);
+    machine->setViewModelInstance(viewModelInstance);
+    REQUIRE(machine->setGlobalViewModelInstance("Theme", theme));
+    machine->bind();
+    list = artboard->find<ArtboardComponentList>("Rows");
+    REQUIRE(list != nullptr);
+    advance(90);
+    REQUIRE(list->artboardCount() == 2);
+  }
+
+  ~StyleRows() { ArtboardComponentList::sm_quietRowsEnabled = true; }
+
+  void advance(int frames)
+  {
+    for (int i = 0; i < frames; i++)
+    {
+      machine->advanceAndApply(1.0f / 60.0f);
+    }
+  }
+
+  ArtboardInstance* row(int index) { return list->artboardInstance(index); }
+
+  ViewModelInstance* item(int index)
+  {
+    return list->listItem(index)->viewModelInstance().get();
+  }
+
+  ViewModelInstance* runItem(int index)
+  {
+    auto runs = item(index)->propertyValue("runs")->as<ViewModelInstanceList>();
+    REQUIRE(runs->listItems().size() == 1);
+    return runs->listItems()[0]->viewModelInstance().get();
+  }
+
+  void setBoolean(ViewModelInstance* instance, const char* name, bool value)
+  {
+    instance->propertyValue(name)
+        ->as<ViewModelInstanceBoolean>()
+        ->propertyValue(value);
+  }
+
+  TextStyleGlobal* style(int index, const char* name)
+  {
+    auto style = row(index)->find<TextStyleGlobal>(name);
+    REQUIRE(style != nullptr);
+    return style;
+  }
+
+  // The style the row's one list run draws with: its own instance of
+  // Visited, made on demand.
+  TextStyleOnDemand* runStyle(int index)
+  {
+    auto text = row(index)->find<Text>("Runs");
+    REQUIRE(text != nullptr);
+    REQUIRE(text->runs().size() == 1);
+    auto style = text->runs()[0]->styleReference();
+    REQUIRE(style != nullptr);
+    REQUIRE_FALSE(style->is<TextStyleGlobal>());
+    auto onDemand = static_cast<TextStyleOnDemand*>(style);
+    REQUIRE(onDemand->instance() != nullptr);
+    return onDemand;
+  }
+
+  void themeColor(const char* name, int color)
+  {
+    theme->propertyValue(name)->as<ViewModelInstanceColor>()->propertyValue(
+        color);
+  }
+
+  static uint32_t inkOf(ArtboardInstance* styleArtboard)
+  {
+    auto ink = styleArtboard->find<SolidColor>("C");
+    REQUIRE(ink != nullptr);
+    return (uint32_t)ink->colorValue();
+  }
+
+  // The ink each row's texts draw with, row by row: its handles' styles in
+  // kStyles order, then its list run's.
+  std::vector<uint32_t> drawn()
+  {
+    std::vector<uint32_t> values;
+    for (int i = 0; i < 2; i++)
+    {
+      for (auto name : kStyles)
+      {
+        values.push_back(inkOf(style(i, name)->artboardInstance()));
+      }
+      values.push_back(inkOf(runStyle(i)->instance()->artboardInstance()));
+    }
+    return values;
+  }
+
+  bool allQuiet()
+  {
+    for (int i = 0; i < 2; i++)
+    {
+      if (row(i)->quietHostRow() != (uint32_t)i)
+      {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+} // namespace
+
+// A row whose texts draw with their own instances of global text styles goes
+// quiet once those styles would do nothing too: their state machines
+// settled, their binds applied. Each style's artboard is marked with the
+// row, so whatever changes it wakes the row.
+TEST_CASE(
+    "List rows whose texts' global styles have work of their own go quiet",
+    "[component_list]")
+{
+  StyleRows scene(true);
+  auto skips = ArtboardComponentList::sm_quietRowSkips;
+  scene.advance(10);
+  CHECK(ArtboardComponentList::sm_quietRowSkips > skips);
+  CHECK(scene.allQuiet());
+  for (int i = 0; i < 2; i++)
+  {
+    std::vector<ArtboardInstance*> styleArtboards;
+    for (auto name : StyleRows::kStyles)
+    {
+      auto style = scene.style(i, name);
+      REQUIRE_FALSE(style->isShared());
+      styleArtboards.push_back(style->artboardInstance());
+    }
+    styleArtboards.push_back(scene.runStyle(i)->instance()->artboardInstance());
+    for (auto styleArtboard : styleArtboards)
+    {
+      CHECK(styleArtboard->quietHostRow() != Artboard::kNoQuietRow);
+      CHECK(styleArtboard->quietOwner() == scene.row(i));
+    }
+  }
+  CHECK(
+      scene.drawn() == std::vector<uint32_t>{
+                           0xFF444444,
+                           0xFF777777,
+                           0xFF000000,
+                           0xFF888888,
+                           0xFF444444,
+                           0xFF777777,
+                           0xFF000000,
+                           0xFF888888});
+}
+
+// A quiet row wakes for what changes its texts' styles: its item flipping a
+// stateful style's input, a Theme color a style reads, a press on a run a
+// style's machine listens to, a list run's item changing what its own
+// style's machine reads. Each change shows on the frame it would without
+// quiet rows, and the rows go quiet again after.
+TEST_CASE(
+    "Quiet rows wake for changes to their texts' global styles",
+    "[component_list]")
+{
+  auto play = [](bool quietRows) {
+    StyleRows scene(quietRows);
+    std::vector<std::vector<uint32_t>> frames;
+    std::vector<bool> quietBefore;
+    auto step = [&](int count) {
+      scene.advance(count);
+      frames.push_back(scene.drawn());
+    };
+    // The first item becomes current: its Label's style moves to its active
+    // state, which writes the Theme's active color into its ink. Its run's
+    // instance copies the handle's `strong`, which shows nothing while the
+    // run isn't visited.
+    quietBefore.push_back(scene.allQuiet());
+    scene.setBoolean(scene.item(0), "current", true);
+    step(1);
+    step(1);
+    step(30);
+    // Every Note reads the Theme's note color, and nothing else in a row
+    // does.
+    quietBefore.push_back(scene.allQuiet());
+    scene.themeColor("note", (int)0xFF00AA00);
+    step(1);
+    step(30);
+    // The second row's Press: its style's machine hears the press on its
+    // run and keys its color.
+    quietBefore.push_back(scene.allQuiet());
+    scene.machine->pointerDown(Vec2D(210.0f, 112.0f));
+    scene.machine->pointerUp(Vec2D(210.0f, 112.0f));
+    step(1);
+    step(1);
+    step(30);
+    // The second row's run is visited: only its style's machine reads that.
+    quietBefore.push_back(scene.allQuiet());
+    scene.setBoolean(scene.runItem(1), "visited", true);
+    step(1);
+    step(1);
+    step(30);
+    // The second item becomes current: its Label goes active, and its run's
+    // instance copies `strong` from the handle and goes strong.
+    quietBefore.push_back(scene.allQuiet());
+    scene.setBoolean(scene.item(1), "current", true);
+    step(1);
+    step(1);
+    step(30);
+    return std::make_tuple(frames, quietBefore, scene.allQuiet());
+  };
+  auto quiet = play(true);
+  auto awake = play(false);
+  CHECK(std::get<0>(quiet) == std::get<0>(awake));
+  // Each change reached rows that were asleep, and they went back to sleep.
+  CHECK(std::get<1>(quiet) == std::vector<bool>{true, true, true, true, true});
+  CHECK(std::get<2>(quiet));
+  // The changes have to show, or matching proves nothing.
+  auto& frames = std::get<0>(quiet);
+  REQUIRE(frames.size() == 14);
+  CHECK(
+      frames[2] == std::vector<uint32_t>{
+                       0xFF0B57D0,
+                       0xFF777777,
+                       0xFF000000,
+                       0xFF888888,
+                       0xFF444444,
+                       0xFF777777,
+                       0xFF000000,
+                       0xFF888888});
+  CHECK(
+      frames[4] == std::vector<uint32_t>{
+                       0xFF0B57D0,
+                       0xFF00AA00,
+                       0xFF000000,
+                       0xFF888888,
+                       0xFF444444,
+                       0xFF00AA00,
+                       0xFF000000,
+                       0xFF888888});
+  CHECK(
+      frames[7] == std::vector<uint32_t>{
+                       0xFF0B57D0,
+                       0xFF00AA00,
+                       0xFF000000,
+                       0xFF888888,
+                       0xFF444444,
+                       0xFF00AA00,
+                       0xFFFF0000,
+                       0xFF888888});
+  CHECK(
+      frames[10] == std::vector<uint32_t>{
+                        0xFF0B57D0,
+                        0xFF00AA00,
+                        0xFF000000,
+                        0xFF888888,
+                        0xFF444444,
+                        0xFF00AA00,
+                        0xFFFF0000,
+                        0xFF00AAAA});
+  CHECK(
+      frames[13] == std::vector<uint32_t>{
+                        0xFF0B57D0,
+                        0xFF00AA00,
+                        0xFF000000,
+                        0xFF888888,
+                        0xFF0B57D0,
+                        0xFF00AA00,
+                        0xFFFF0000,
+                        0xFFAA00AA});
 }

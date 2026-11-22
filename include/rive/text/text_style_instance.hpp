@@ -81,7 +81,17 @@ public:
   /// Advances the style's state machine and artboard, then [flush]es.
   /// Returns whether it wants to keep advancing.
   bool advance(float elapsedSeconds, AdvanceFlags flags);
+  /// Whether [advance] would currently do nothing, as for a list row: its
+  /// state machine and artboard answer as a row's do (see
+  /// Artboard::rowQuietState).
   AdvancingComponent::QuietState quietState() const;
+  /// The artboard hosting this style's Text, [host], went quiet: marks the
+  /// style's artboard quiet with it, so that whatever may change the style
+  /// (its binds, the data they read, its state machine and its listeners)
+  /// wakes [host] (see Artboard::quietOwner).
+  void markQuiet(Artboard* host);
+  /// Whether the mark markQuiet set is still there.
+  bool markedQuiet() const;
 
   // TextStyleOwner
   void styleShapeChanged() override;
@@ -98,7 +108,15 @@ private:
     int color = 0;
     bool boolean = false;
     std::string string;
+
+    /// Whether the source's value differs from the one at the last copy.
+    bool differs() const;
+    /// Notes the source's value as the one at the last copy.
+    void record();
   };
+  /// Whether an exposed input changed on the values source since the last
+  /// copy (see syncInputs).
+  bool inputsChanged() const;
 
   // Destroyed before the rest (see the destructor).
   rcp<ViewModelInstance> m_valuesSource;

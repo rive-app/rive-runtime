@@ -171,10 +171,8 @@ AdvancingComponent::QuietState TextStyleOnDemand::quietState() const
   {
     return AdvancingComponent::QuietState::quiet;
   }
-  // An item-supplied view model the host can change at any time.
-  if (m_boundViewModelInstance != nullptr)
-  {
-    return AdvancingComponent::QuietState::never;
-  }
+  // A change to an item-supplied view model reaches the style's binds,
+  // which wake the Text's row once it is quiet (see
+  // Text::markInstancesQuiet).
   return m_instance->quietState();
 }

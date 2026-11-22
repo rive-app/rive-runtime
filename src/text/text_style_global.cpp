@@ -311,13 +311,22 @@ AdvancingComponent::QuietState TextStyleGlobal::quietState()
   {
     return QuietState::quiet;
   }
-  // A bound view model instance can change at any time without waking this
-  // row.
-  if (m_boundViewModelInstance != nullptr)
-  {
-    return QuietState::never;
-  }
+  // A change to a bound view model instance reaches the style's binds,
+  // which wake this row once it is quiet (see markInstancesQuiet).
   return m_instance->quietState();
+}
+
+void TextStyleGlobal::markInstancesQuiet(Artboard* host)
+{
+  if (m_instance != nullptr)
+  {
+    m_instance->markQuiet(host);
+  }
+}
+
+bool TextStyleGlobal::instancesMarkedQuiet() const
+{
+  return m_instance == nullptr || m_instance->markedQuiet();
 }
 
 bool TextStyleGlobal::listensToRuns() const

@@ -15,6 +15,7 @@
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/host_data_context_consumer.hpp"
 #include "rive/math/bitwise.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/viewmodel/viewmodel_instance_number_base.hpp"
@@ -1773,8 +1774,9 @@ void ArtboardComponentList::hostedRowWoke(Artboard* artboard, uint32_t row)
 }
 
 #ifdef TESTING
-// Whether every artboard hosted under artboard by nested artboards is marked
-// quiet, so a change to one of them wakes the row (see markHostedQuiet).
+// Whether every artboard hosted under artboard by nested artboards, or
+// instanced for its components (Texts' global text styles), is marked quiet,
+// so a change to one of them wakes the row (see markHostedQuiet).
 static bool hostedMarkedQuiet(Artboard* artboard)
 {
   for (auto nestedArtboard : artboard->nestedArtboards())
@@ -1782,6 +1784,13 @@ static bool hostedMarkedQuiet(Artboard* artboard)
     auto instance = nestedArtboard->artboardInstance();
     if (instance != nullptr &&
         (instance->quietHostRow() != 0 || !hostedMarkedQuiet(instance)))
+    {
+      return false;
+    }
+  }
+  for (auto consumer : artboard->hostDataContextConsumers())
+  {
+    if (!consumer->instancesMarkedQuiet())
     {
       return false;
     }

@@ -246,6 +246,8 @@ private:
   const File* m_drawVisitorFile = nullptr;
   Artboard* parentArtboard() const;
   ArtboardHost* m_host = nullptr;
+  // See quietOwner.
+  Artboard* m_quietOwner = nullptr;
   // This artboard's own manager, allocated only by roots — an artboard
   // opened from a File, a scripted artboard, or one a caller explicitly
   // asks. Null on source artboards and on nested / component-list
@@ -464,6 +466,12 @@ public:
   static constexpr uint32_t kNoQuietRow = 0xFFFFFFFF;
   uint32_t quietHostRow() const { return m_quietHostRow; }
   void quietHostRow(uint32_t row) { m_quietHostRow = row; }
+  /// For an artboard a component instances for itself instead of hosting it
+  /// (a Text's own instance of a global text style), which has no host to
+  /// wake: the artboard the component is in, which its wakes wake instead
+  /// while it is marked quiet (see markHostedQuiet).
+  Artboard* quietOwner() const { return m_quietOwner; }
+  void quietOwner(Artboard* owner) { m_quietOwner = owner; }
   /// The row of its host list this artboard was last put in, kNoQuietRow
   /// before any. The list may have moved it out since; see
   /// ArtboardComponentList::showsInARow.
@@ -499,8 +507,15 @@ public:
   /// Marks the artboards this one hosts in nested artboards, and theirs, as
   /// quiet with it, so whatever wakes one of them wakes this row: a list row
   /// goes quiet with all of them (see NestedArtboard::quietState). A nested
-  /// list's rows are already marked by that list.
+  /// list's rows are already marked by that list. So are the artboards its
+  /// Texts instance for their global text styles, with this one as their
+  /// quietOwner (see HostDataContextConsumer::markInstancesQuiet).
   void markHostedQuiet();
+  /// Components instancing things bound under this artboard's data context.
+  const std::vector<HostDataContextConsumer*>& hostDataContextConsumers() const
+  {
+    return m_hostDataContextConsumers;
+  }
   /// Whether, once marked, a collapsed host above this artboard can skip its
   /// advances. Each one notes where the change sequence stands for the
   /// machines below that read pending changes, so none may (see

@@ -4,6 +4,7 @@
 
 namespace rive
 {
+class Artboard;
 class Core;
 class DataContext;
 
@@ -23,6 +24,14 @@ public:
   virtual void relinkHostDataContext() = 0;
   /// The hosting artboard applied its binds: apply the instance's.
   virtual void updateHostedDataBinds() = 0;
+  /// The hosting artboard went quiet (see Artboard::markHostedQuiet): marks
+  /// the artboards this instanced quiet with it, so that whatever may change
+  /// one of them wakes the host.
+  virtual void markInstancesQuiet(Artboard* host) {}
+  /// Whether every artboard markInstancesQuiet marked is still marked. For
+  /// the TESTING verifier, but in every build: a virtual only some builds
+  /// declare would give their callers different tables.
+  virtual bool instancesMarkedQuiet() const { return true; }
 };
 } // namespace rive
 

@@ -2023,6 +2023,10 @@ void Artboard::wakeQuietRow()
   {
     m_host->hostedRowWoke(this, row);
   }
+  else if (m_quietOwner != nullptr)
+  {
+    m_quietOwner->wakeIfQuietRow();
+  }
 }
 
 AdvancingComponent::QuietState Artboard::rowQuietState()
@@ -2074,6 +2078,11 @@ void Artboard::markHostedQuiet()
       instance->quietHostRow(0);
       instance->markHostedQuiet();
     }
+  }
+  // What components instance for themselves has no host to tell.
+  for (auto consumer : m_hostDataContextConsumers)
+  {
+    consumer->markInstancesQuiet(this);
   }
 }
 

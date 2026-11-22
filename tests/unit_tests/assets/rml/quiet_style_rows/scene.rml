@@ -1,0 +1,435 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/quiet_style_rows.riv. Rebuild the .riv from
+      this file with the CLI, from a directory holding this scene.rml, a
+      rive.yaml naming it and Inter.ttf (a copy of
+      assets/fonts/Inter_18pt-Regular.ttf), then copy
+      build/quiet_style_rows.riv into assets/.
+
+          rive . --unsigned-riv
+
+      What it is for: quiet list rows whose texts use global text styles that
+      have work of their own (see quiet_rows_test.cpp). Each Row draws four
+      texts, each with its own instances of a style:
+      - Label: Current, a style with a state machine. Its `active` input is
+        bound to the item's `current`; entering a state writes a Theme color
+        into the style's ink.
+      - Note: Themed, a style with no state machine, inked straight from the
+        Theme global view model.
+      - Press: Pressable, a style whose state machine listens to the runs
+        drawn with it; a press keys its color red.
+      - Runs: its runs are the item's `runs`, each naming Visited, a style
+        with a state machine, so each run gets an instance of its own (on
+        demand). Its machine reads the run's `visited`, past the style's own
+        view model, and the style's `strong` input, which each run's instance
+        copies from the Text's handle, bound to the item's `current`.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row: four texts, each drawn with one of the styles below. Its
+         machine does nothing but pass pointers on to Press's style. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:60" viewModelId="0:50" x="400" width="300" height="90" styleId="0:35" name="Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="0:35"/>
+        <Text sizingValue="2" width="90" height="40" x="0" y="10" name="Label" id="0:31">
+            <TextValueRun styleId="0:32" text="label" name="Run"/>
+            <TextStyleGlobal artboardId="1:2" name="Current Style" id="0:32">
+                <ViewModelInstance viewModelId="1:40" exports="true" name="Current Values" id="0:33">
+                    <ViewModelInstanceBoolean viewModelPropertyId="1:41">
+                        <DataBindContext sourcePathIds="0:50-0:51" propertyKey="593"/>
+                    </ViewModelInstanceBoolean>
+                    <ViewModelInstanceColor propertyValue="FF000000" viewModelPropertyId="1:42"/>
+                </ViewModelInstance>
+            </TextStyleGlobal>
+        </Text>
+        <Text sizingValue="2" width="90" height="40" x="100" y="10" name="Note" id="0:36">
+            <TextValueRun styleId="0:37" text="note" name="Run"/>
+            <TextStyleGlobal artboardId="2:2" name="Themed Style" id="0:37"/>
+        </Text>
+        <Text sizingValue="2" width="90" height="40" x="200" y="10" name="Press" id="0:38">
+            <TextValueRun styleId="0:39" text="press" name="Run"/>
+            <TextStyleGlobal artboardId="3:2" name="Pressable Style" id="0:39"/>
+        </Text>
+        <Text sizingValue="2" width="290" height="35" x="0" y="50" name="Runs" id="0:90">
+            <TextStylePaint fontSize="20" fontAssetId="0:16" name="Runs Paint" id="0:91">
+                <Fill>
+                    <SolidColor colorValue="FFFFFFFF"/>
+                </Fill>
+            </TextStylePaint>
+            <TextStyleGlobal artboardId="5:2" name="Visited Style" id="0:92">
+                <ViewModelInstance viewModelId="5:40" exports="true" name="Visited Values" id="0:93">
+                    <ViewModelInstanceBoolean viewModelPropertyId="5:41">
+                        <DataBindContext sourcePathIds="0:50-0:51" propertyKey="593"/>
+                    </ViewModelInstanceBoolean>
+                </ViewModelInstance>
+            </TextStyleGlobal>
+            <DataBindContext sourcePathIds="0:50-0:52" propertyKey="932"/>
+        </Text>
+        <StateMachine name="Row Machine" id="0:60">
+            <StateMachineLayer name="Layer" id="0:61">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:62"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:65" id="0:62"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:65"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Row"/>
+
+    <!-- Current: idle | active, each writing a Theme color into the ink as
+         it is entered. -->
+    <Artboard isComponent="true" artboardKind="textStyle" viewModelId="1:40" viewModelInstanceId="1:44"
+              defaultStateMachineId="1:10" styleId="1:3" width="160" height="24" x="0" y="400" name="Current" id="1:2">
+        <LayoutComponentStyle name="Artboard Style" id="1:3"/>
+        <TextStylePaint fontSize="20" fontAssetId="0:16" name="Current Paint" id="1:4">
+            <Fill name="Ink">
+                <SolidColor colorValue="FF000000" name="C">
+                    <DataBindContext sourcePathIds="1:40-1:42" propertyKey="37"/>
+                </SolidColor>
+            </Fill>
+        </TextStylePaint>
+        <StateMachine name="Style" id="1:10">
+            <StateMachineLayer name="State" id="1:11">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState x="0" y="0">
+                    <StateTransition stateToId="1:12"/>
+                </EntryState>
+                <AnimationState x="200" y="0" animationId="1:20" id="1:12">
+                    <ListenerViewModelChange fromViewModelProperty="true" fromDataBindId="1:30">
+                        <BindablePropertyColor>
+                            <DataBindContext sourcePathIds="4:1-4:10" propertyKey="638" id="1:30"/>
+                            <DataBindContext sourcePathIds="1:40-1:42" propertyKey="638" direction="true"/>
+                        </BindablePropertyColor>
+                    </ListenerViewModelChange>
+                    <StateTransition stateToId="1:13">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="1:40-1:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" y="0" animationId="1:20" id="1:13">
+                    <ListenerViewModelChange fromViewModelProperty="true" fromDataBindId="1:31">
+                        <BindablePropertyColor>
+                            <DataBindContext sourcePathIds="4:1-4:11" propertyKey="638" id="1:31"/>
+                            <DataBindContext sourcePathIds="1:40-1:42" propertyKey="638" direction="true"/>
+                        </BindablePropertyColor>
+                    </ListenerViewModelChange>
+                    <StateTransition stateToId="1:12">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="1:40-1:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Hold" id="1:20"/>
+    </Artboard>
+    <ComponentAsset artboardId="1:2" name="Current"/>
+
+    <!-- Themed: no state machine; its ink reads the Theme global view model,
+         past the style's own. -->
+    <Artboard isComponent="true" artboardKind="textStyle" styleId="2:3" width="160" height="24" x="200" y="400" name="Themed" id="2:2">
+        <LayoutComponentStyle name="Artboard Style" id="2:3"/>
+        <TextStylePaint fontSize="20" fontAssetId="0:16" name="Themed Paint" id="2:4">
+            <Fill name="Ink">
+                <SolidColor colorValue="FF000000" name="C">
+                    <DataBindContext sourcePathIds="4:1-4:12" propertyKey="37"/>
+                </SolidColor>
+            </Fill>
+        </TextStylePaint>
+    </Artboard>
+    <ComponentAsset artboardId="2:2" name="Themed"/>
+
+    <!-- Pressable: up | pressed. A listener with no target listens to the
+         runs drawn with the style. -->
+    <Artboard isComponent="true" artboardKind="textStyle" viewModelId="3:40" viewModelInstanceId="3:44"
+              defaultStateMachineId="3:10" styleId="3:3" width="160" height="24" x="400" y="400" name="Pressable" id="3:2">
+        <LayoutComponentStyle name="Artboard Style" id="3:3"/>
+        <TextStylePaint fontSize="20" fontAssetId="0:16" name="Pressable Paint" id="3:4">
+            <Fill name="Ink">
+                <SolidColor colorValue="FF000000" name="C" id="3:5"/>
+            </Fill>
+        </TextStylePaint>
+        <StateMachine name="Style" id="3:10">
+            <StateMachineLayer name="State" id="3:11">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState x="0" y="0">
+                    <StateTransition stateToId="3:12"/>
+                </EntryState>
+                <AnimationState x="200" y="0" animationId="3:20" id="3:12">
+                    <StateTransition stateToId="3:13">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="3:40-3:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" y="0" animationId="3:21" id="3:13"/>
+            </StateMachineLayer>
+            <StateMachineListener name="Press" id="3:30">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="3:40-3:41" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Up" id="3:20">
+            <KeyedObject objectId="3:5">
+                <KeyedProperty propertyKey="37">
+                    <KeyFrameColor value="FF000000"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Pressed" id="3:21">
+            <KeyedObject objectId="3:5">
+                <KeyedProperty propertyKey="37">
+                    <KeyFrameColor value="FFFF0000"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="3:2" name="Pressable"/>
+
+    <!-- Visited: unseen | seen | strong, from the run's `visited` (its list
+         item's) and the style's own `strong` input. -->
+    <Artboard isComponent="true" artboardKind="textStyle" viewModelId="5:40" viewModelInstanceId="5:44"
+              defaultStateMachineId="5:10" styleId="5:3" width="160" height="24" x="600" y="400" name="Visited" id="5:2">
+        <LayoutComponentStyle name="Artboard Style" id="5:3"/>
+        <TextStylePaint fontSize="20" fontAssetId="0:16" name="Visited Paint" id="5:4">
+            <Fill name="Ink">
+                <SolidColor colorValue="FF000000" name="C" id="5:5"/>
+            </Fill>
+        </TextStylePaint>
+        <StateMachine name="Style" id="5:10">
+            <StateMachineLayer name="State" id="5:11">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState x="0" y="0">
+                    <StateTransition stateToId="5:12"/>
+                </EntryState>
+                <AnimationState x="200" y="0" animationId="5:20" id="5:12">
+                    <StateTransition stateToId="5:13">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:70-0:73" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="5:40-5:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="5:14">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:70-0:73" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="5:40-5:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" y="0" animationId="5:21" id="5:13">
+                    <StateTransition stateToId="5:12">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:70-0:73" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="5:14">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="5:40-5:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" y="200" animationId="5:22" id="5:14">
+                    <StateTransition stateToId="5:12">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="0:70-0:73" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="5:13">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean>
+                                    <DataBindContext sourcePathIds="5:40-5:41" propertyKey="634"/>
+                                </BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Unseen" id="5:20">
+            <KeyedObject objectId="5:5">
+                <KeyedProperty propertyKey="37">
+                    <KeyFrameColor value="FF888888"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Seen" id="5:21">
+            <KeyedObject objectId="5:5">
+                <KeyedProperty propertyKey="37">
+                    <KeyFrameColor value="FF00AAAA"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Strong" id="5:22">
+            <KeyedObject objectId="5:5">
+                <KeyedProperty propertyKey="37">
+                    <KeyFrameColor value="FFAA00AA"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ComponentAsset artboardId="5:2" name="Visited"/>
+
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="0:16"/>
+
+    <ViewModel viewModelType="global" defaultInstanceId="4:2" name="Theme" id="4:1">
+        <ViewModelPropertyColor name="idle" id="4:10"/>
+        <ViewModelPropertyColor name="active" id="4:11"/>
+        <ViewModelPropertyColor name="note" id="4:12"/>
+        <ViewModelInstance exports="true" name="Light" id="4:2">
+            <ViewModelInstanceColor propertyValue="FF444444" viewModelPropertyId="4:10"/>
+            <ViewModelInstanceColor propertyValue="FF0B57D0" viewModelPropertyId="4:11"/>
+            <ViewModelInstanceColor propertyValue="FF777777" viewModelPropertyId="4:12"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel viewModelType="textStyle" defaultInstanceId="1:44" name="Current" id="1:40">
+        <ViewModelPropertyBoolean input="true" name="active" id="1:41"/>
+        <ViewModelPropertyColor name="ink" id="1:42"/>
+        <ViewModelInstance exports="true" name="Idle" id="1:44">
+            <ViewModelInstanceBoolean viewModelPropertyId="1:41"/>
+            <ViewModelInstanceColor propertyValue="FF000000" viewModelPropertyId="1:42"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel viewModelType="textStyle" defaultInstanceId="3:44" name="Pressable" id="3:40">
+        <ViewModelPropertyBoolean name="pressed" id="3:41"/>
+        <ViewModelInstance exports="true" name="Up" id="3:44">
+            <ViewModelInstanceBoolean viewModelPropertyId="3:41"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel viewModelType="textStyle" defaultInstanceId="5:44" name="Visited" id="5:40">
+        <ViewModelPropertyBoolean input="true" name="strong" id="5:41"/>
+        <ViewModelInstance exports="true" name="Plain" id="5:44">
+            <ViewModelInstanceBoolean viewModelPropertyId="5:41"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:76" name="Run" id="0:70">
+        <ViewModelPropertyString symbolTypeValue="14" name="textContent" id="0:71"/>
+        <ViewModelPropertyTextStyle symbolTypeValue="17" name="globalTextStyle" id="0:72"/>
+        <ViewModelPropertyBoolean name="visited" id="0:73"/>
+        <ViewModelInstance exports="true" name="R1" id="0:76">
+            <ViewModelInstanceString propertyValue="first" viewModelPropertyId="0:71"/>
+            <ViewModelInstanceTextStyle propertyValue="5:2" viewModelPropertyId="0:72"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:73"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="R2" id="0:77">
+            <ViewModelInstanceString propertyValue="second" viewModelPropertyId="0:71"/>
+            <ViewModelInstanceTextStyle propertyValue="5:2" viewModelPropertyId="0:72"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:73"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:56" name="Item" id="0:50">
+        <ViewModelPropertyBoolean name="current" id="0:51"/>
+        <ViewModelPropertyList name="runs" id="0:52"/>
+        <ViewModelInstance exports="true" name="A" id="0:56">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceList viewModelPropertyId="0:52">
+                <ViewModelInstanceListItem viewModelId="0:70" viewModelInstanceId="0:76"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:57">
+            <ViewModelInstanceBoolean viewModelPropertyId="0:51"/>
+            <ViewModelInstanceList viewModelPropertyId="0:52">
+                <ViewModelInstanceListItem viewModelId="0:70" viewModelInstanceId="0:77"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:56"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:57"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>
