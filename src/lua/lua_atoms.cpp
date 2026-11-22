@@ -314,6 +314,10 @@ constexpr LuaAtomName atoms[] = {
     {"headers", (int16_t)LuaAtoms::headers},
     {"arrayBuffer", (int16_t)LuaAtoms::arrayBuffer},
     {"header", (int16_t)LuaAtoms::header},
+    {"body", (int16_t)LuaAtoms::body},
+    {"getReader", (int16_t)LuaAtoms::getReader},
+    {"locked", (int16_t)LuaAtoms::locked},
+    {"read", (int16_t)LuaAtoms::read},
     // Decoded Rive files
     {"decodeFile", (int16_t)LuaAtoms::decodeFile},
     {"artboardNames", (int16_t)LuaAtoms::artboardNames},

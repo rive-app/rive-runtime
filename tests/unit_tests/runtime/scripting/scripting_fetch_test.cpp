@@ -105,6 +105,13 @@ public:
     lua_pop(m_state, 2);
     return value;
   }
+  // Calls the function the script left in `field`.
+  void call(const char* field)
+  {
+    push(field);
+    lua_call(m_state, 0, 0);
+    lua_pop(m_state, 1);
+  }
 
 private:
   void push(const char* field)
@@ -515,7 +522,9 @@ TEST_CASE(
   CHECK(network.provider->starts.size() == 1);
 }
 
-TEST_CASE("fetch rejects a response over the size limit", "[scripting][fetch]")
+TEST_CASE(
+    "a body read whole past the size limit rejects the read",
+    "[scripting][fetch]")
 {
   MockNetwork network;
   scriptnet::NetLimits limits;
@@ -523,8 +532,186 @@ TEST_CASE("fetch rejects a response over the size limit", "[scripting][fetch]")
   scriptnet::setLimits(limits);
   ScriptingTest test(R"(
         local state = {}
-        fetch("https://example.com/"):catch(function(err)
-            state.error = err
+        fetch("https://example.com/"):andThen(function(response)
+            state.status = response.status
+            response:text():catch(function(err)
+                state.error = err
+            end)
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  scriptnet::receive(id, (const uint8_t*)"hello", 5);
+  rive_pollAsyncWork();
+  // The response is the script's; only reading its body whole is refused.
+  CHECK(state.number("status") == 200);
+  CHECK(
+      state.string("error") ==
+      "tooLarge: the response body is larger than 4 bytes");
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
+}
+
+namespace
+{
+// Reads a response's body through a reader, counting runs and bytes. A run
+// that starts with '!' cancels the reader.
+const char* kReaderScript = R"(
+    local state = { runs = 0, bytes = 0 }
+    fetch("https://example.com/"):andThen(function(response)
+        state.status = response.status
+        local reader = response.body:getReader()
+        state.locked = response.body.locked
+        local function pump()
+            reader:read():andThen(function(result)
+                if result.done then
+                    state.done = true
+                    return
+                end
+                state.runs += 1
+                state.bytes += buffer.len(result.value)
+                state.first = buffer.readu8(result.value, 0)
+                if state.first == 33 then
+                    reader:cancel()
+                end
+                pump()
+            end, function(err)
+                state.error = err
+            end)
+        end
+        pump()
+    end)
+    return state
+)";
+
+bool send(scriptnet::RequestId id, const std::string& text)
+{
+  return scriptnet::receive(id, (const uint8_t*)text.data(), text.size());
+}
+} // namespace
+
+TEST_CASE(
+    "a reader gives a response's body a run at a time as it arrives",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(kReaderScript);
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  // The response arrives ahead of its body.
+  CHECK(state.number("status") == 200);
+  CHECK(state.boolean("locked"));
+  CHECK(state.number("runs") == 0);
+
+  CHECK(send(id, "ab"));
+  rive_pollAsyncWork();
+  CHECK(state.number("runs") == 1);
+  CHECK(state.number("bytes") == 2);
+  CHECK(state.number("first") == 'a');
+  CHECK(!state.boolean("done"));
+
+  CHECK(send(id, "cd"));
+  CHECK(send(id, "e"));
+  scriptnet::finish(id);
+  rive_pollAsyncWork();
+  // What arrived between two reads comes as one run.
+  CHECK(state.number("runs") == 2);
+  CHECK(state.number("bytes") == 5);
+  CHECK(state.number("first") == 'c');
+  CHECK(state.boolean("done"));
+  CHECK(state.string("error") == "<nil>");
+  CHECK(network.provider->aborts.empty());
+}
+
+TEST_CASE(
+    "a body that fails part way rejects the reader's read",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(kReaderScript);
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  CHECK(send(id, "ab"));
+  scriptnet::fail(
+      id,
+      {scriptnet::NetErrorCode::Network, "the connection dropped"});
+  rive_pollAsyncWork();
+  CHECK(state.number("runs") == 1);
+  CHECK(state.string("error") == "network: the connection dropped");
+}
+
+TEST_CASE("cancelling a reader aborts the body", "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(kReaderScript);
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  CHECK(send(id, "!"));
+  rive_pollAsyncWork();
+  CHECK(state.number("runs") == 1);
+  // The read after the cancel ends the body.
+  CHECK(state.boolean("done"));
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
+}
+
+TEST_CASE(
+    "text() waits for a body that is still arriving",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            state.status = response.status
+            response:text():andThen(function(text)
+                state.text = text
+                -- A body being read whole has no reader to give.
+                state.reader = pcall(function()
+                    return response.body:getReader()
+                end)
+            end)
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  CHECK(send(id, "hel"));
+  rive_pollAsyncWork();
+  CHECK(state.number("status") == 200);
+  CHECK(state.string("text") == "<nil>");
+  CHECK(send(id, "lo"));
+  scriptnet::finish(id);
+  rive_pollAsyncWork();
+  CHECK(state.string("text") == "hello");
+  CHECK(!state.boolean("reader"));
+}
+
+TEST_CASE(
+    "a body its reader has cannot also be read whole",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            local reader = response.body:getReader()
+            state.second = pcall(function()
+                return response.body:getReader()
+            end)
+            response:text():catch(function(err)
+                state.error = err
+            end)
         end)
         return state
     )");
@@ -534,9 +721,200 @@ TEST_CASE("fetch rejects a response over the size limit", "[scripting][fetch]")
       network.provider->starts[0].id,
       textResponse(200, "hello"));
   rive_pollAsyncWork();
+  CHECK(!state.boolean("second"));
   CHECK(
       state.string("error") ==
-      "tooLarge: the response body is larger than 4 bytes");
+      "aborted: the body was read through its reader or cancelled");
+}
+
+TEST_CASE("text() rejects when the body fails part way", "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            response:text():catch(function(err)
+                state.error = err
+            end)
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  CHECK(send(id, "ab"));
+  rive_pollAsyncWork();
+  CHECK(state.string("error") == "<nil>");
+  scriptnet::fail(
+      id,
+      {scriptnet::NetErrorCode::Network, "the connection dropped"});
+  rive_pollAsyncWork();
+  CHECK(state.string("error") == "network: the connection dropped");
+}
+
+TEST_CASE(
+    "a cancelled read leaves what arrives for the next one",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            local reader = response.body:getReader()
+            reader:read():cancel()
+            state.read = function()
+                reader:read():andThen(function(result)
+                    state.bytes = buffer.len(result.value)
+                end, function(err)
+                    state.error = err
+                end)
+            end
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  // They arrive for a read nobody waits on any more, and stay.
+  CHECK(send(id, "abc"));
+  rive_pollAsyncWork();
+  state.call("read");
+  CHECK(state.string("error") == "<nil>");
+  CHECK(state.number("bytes") == 3);
+}
+
+TEST_CASE("a cancelled read is no longer pending work", "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            state.reader = response.body:getReader()
+            state.reader:read():cancel()
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::respond(network.provider->starts[0].id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  // The script still has the reader, and nothing waits on it.
+  CHECK_FALSE(scriptnet::hasPendingWork());
+  CHECK(network.provider->aborts.empty());
+}
+
+TEST_CASE(
+    "a cancelled text() does not keep a body nobody holds",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            state.status = response.status
+            response:text():cancel()
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  // Its body never ends, and the only read of it is cancelled.
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  CHECK(state.number("status") == 200);
+  CHECK_FALSE(scriptnet::hasPendingWork());
+  lua_gc(test.state(), LUA_GCCOLLECT, 0);
+  lua_gc(test.state(), LUA_GCCOLLECT, 0);
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
+}
+
+TEST_CASE(
+    "a response dropped unread frees its slot for a fetch already waiting",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/a"):andThen(function(response)
+            state.status = response.status
+        end)
+        fetch("https://example.com/b")
+        return state
+    )");
+  ScriptState state(test.state());
+  // The second waits for the first one's slot.
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  // Its body is still arriving when the script lets the response go.
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  CHECK(state.number("status") == 200);
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
+  rive_pollAsyncWork();
+  CHECK(network.provider->starts.size() == 2);
+}
+
+TEST_CASE(
+    "a fetch held back by responses the script dropped collects them",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  scriptnet::NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  scriptnet::setLimits(limits);
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/a"):andThen(function(response)
+            state.status = response.status
+        end)
+        state.again = function()
+            fetch("https://example.com/b")
+        end
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  // Its body is still arriving, unread, so it keeps the one slot.
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  CHECK(state.number("status") == 200);
+  state.call("again");
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
+  rive_pollAsyncWork();
+  CHECK(network.provider->starts.size() == 2);
+}
+
+TEST_CASE(
+    "a body nobody reads is cancelled once its response is collected",
+    "[scripting][fetch]")
+{
+  MockNetwork network;
+  ScriptingTest test(R"(
+        local state = {}
+        fetch("https://example.com/"):andThen(function(response)
+            state.status = response.status
+        end)
+        return state
+    )");
+  ScriptState state(test.state());
+  REQUIRE(network.provider->starts.size() == 1);
+  scriptnet::RequestId id = network.provider->starts[0].id;
+  scriptnet::respond(id, textResponse(200, ""));
+  rive_pollAsyncWork();
+  CHECK(state.number("status") == 200);
+  CHECK(network.provider->aborts.empty());
+  // The settled promise holds the response until it is collected itself.
+  lua_gc(test.state(), LUA_GCCOLLECT, 0);
+  lua_gc(test.state(), LUA_GCCOLLECT, 0);
+  CHECK(network.provider->aborts == std::vector<scriptnet::RequestId>{id});
 }
 
 TEST_CASE(

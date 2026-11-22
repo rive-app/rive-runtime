@@ -355,6 +355,9 @@ class SharedBlob : public SharedObject
 public:
   static constexpr Kind kKind = Kind::blob;
   explicit SharedBlob(Span<const uint8_t> bytes);
+  /// `size` bytes for write() to fill, before the blob is shared.
+  explicit SharedBlob(uint32_t size);
+  void write(uint32_t offset, Span<const uint8_t> bytes);
   uint32_t size() const { return block()->capacity; }
   const uint8_t* bytes() const { return data(); }
   /// Copies what lies past offset into out, up to capacity; answers the

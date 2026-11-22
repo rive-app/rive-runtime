@@ -761,6 +761,18 @@ SharedBlob::SharedBlob(Span<const uint8_t> bytes)
   }
 }
 
+SharedBlob::SharedBlob(uint32_t size)
+    : SharedObject(Kind::blob, sizeof(SharedHeader), size, size)
+{}
+
+void SharedBlob::write(uint32_t offset, Span<const uint8_t> bytes)
+{
+  if (made() && offset <= size() && bytes.size() <= size() - offset)
+  {
+    memcpy(data() + offset, bytes.data(), bytes.size());
+  }
+}
+
 uint32_t SharedBlob::read(uint32_t offset, uint8_t* out, uint32_t capacity)
     const
 {

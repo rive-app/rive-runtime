@@ -558,7 +558,13 @@ void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t 
 void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
 uint32_t netFetchImpl(WasmScriptingVM* vm, const uint8_t* request, uint32_t requestCount, uint32_t token);
 void netFetchCancelImpl(WasmScriptingVM* vm, uint32_t token);
+uint32_t netBodyReadImpl(WasmScriptingVM* vm, uint32_t token);
+uint32_t netBodyTakeImpl(WasmScriptingVM* vm, uint32_t token, uint8_t* out, uint32_t outByteCount);
+uint32_t netBodyBlobImpl(WasmScriptingVM* vm, uint32_t token);
+void netBodyUnwaitImpl(WasmScriptingVM* vm, uint32_t token);
+void netBodyCancelImpl(WasmScriptingVM* vm, uint32_t token);
 uint32_t fileDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+uint32_t fileDecodeBlobImpl(WasmScriptingVM* vm, uint32_t blob, uint32_t* statusOut, uint32_t statusCount);
 void fileReleaseImpl(WasmScriptingVM* vm, uint32_t file);
 uint32_t fileArtboardCountImpl(WasmScriptingVM* vm, uint32_t file);
 uint32_t fileArtboardNameImpl(WasmScriptingVM* vm, uint32_t file, uint32_t index, char* buffer, uint32_t capacity);
@@ -2504,6 +2510,31 @@ void netFetchCancel(wasm_exec_env_t env, uint32_t token)
     WasmScriptingVM* vm = vmFromEnv(env);
     netFetchCancelImpl(vm, token);
 }
+uint32_t netBodyRead(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return netBodyReadImpl(vm, token);
+}
+uint32_t netBodyTake(wasm_exec_env_t env, uint32_t token, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return netBodyTakeImpl(vm, token, out, outByteCount);
+}
+uint32_t netBodyBlob(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return netBodyBlobImpl(vm, token);
+}
+void netBodyUnwait(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    netBodyUnwaitImpl(vm, token);
+}
+void netBodyCancel(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    netBodyCancelImpl(vm, token);
+}
 uint32_t fileDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2512,6 +2543,15 @@ uint32_t fileDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCoun
         return {};
     }
     return fileDecodeImpl(vm, bytes, byteCount, statusOut, statusCount);
+}
+uint32_t fileDecodeBlob(wasm_exec_env_t env, uint32_t blob, uint32_t* statusOut, uint32_t statusCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (statusCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)statusOut, (uint64_t)statusCount * 4))
+    {
+        return {};
+    }
+    return fileDecodeBlobImpl(vm, blob, statusOut, statusCount);
 }
 void fileRelease(wasm_exec_env_t env, uint32_t file)
 {
@@ -3247,10 +3287,16 @@ NativeSymbol kRendererNatives[] = {
 NativeSymbol kNetNatives[] = {
     {"fetch", (void*)netFetch, "(*~i)i", nullptr},
     {"fetch_cancel", (void*)netFetchCancel, "(i)", nullptr},
+    {"body_read", (void*)netBodyRead, "(i)i", nullptr},
+    {"body_take", (void*)netBodyTake, "(i*~)i", nullptr},
+    {"body_blob", (void*)netBodyBlob, "(i)i", nullptr},
+    {"body_unwait", (void*)netBodyUnwait, "(i)", nullptr},
+    {"body_cancel", (void*)netBodyCancel, "(i)", nullptr},
 };
 
 NativeSymbol kFileNatives[] = {
     {"decode", (void*)fileDecode, "(*~*~)i", nullptr},
+    {"decode_blob", (void*)fileDecodeBlob, "(i*~)i", nullptr},
     {"release", (void*)fileRelease, "(i)", nullptr},
     {"artboard_count", (void*)fileArtboardCount, "(i)i", nullptr},
     {"artboard_name", (void*)fileArtboardName, "(ii*~)i", nullptr},

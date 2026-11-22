@@ -100,6 +100,12 @@ struct CannedResponse
 {
   std::string text;
   int delayMs = 0;
+  // Sent after text on the same connection, once the test sets tailGate.
+  std::string tail;
+  std::atomic<bool>* tailGate = nullptr;
+  // When set, text goes out this many bytes at a time with a pause between,
+  // as a network would bring it, not all at once.
+  size_t paceBytes = 0;
 };
 
 // Serves one canned response per connection, in order, and records each raw
@@ -137,6 +143,9 @@ public:
 
   uint16_t port() const { return m_port; }
 
+  // Bytes of the responses' text handed to the sockets so far.
+  size_t sent() const { return m_sent; }
+
   std::vector<std::string> requests()
   {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -163,12 +172,48 @@ private:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_requests.push_back(request);
       }
-      for (int waited = 0; waited < canned.delayMs && !m_stopping; waited += 10)
+      wait(canned.delayMs);
+      sendText(connection, canned);
+      if (!canned.tail.empty())
       {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        while (!*canned.tailGate && !m_stopping)
+        {
+          wait(10);
+        }
+        send(connection, canned.tail.data(), (int)canned.tail.size(), 0);
       }
-      send(connection, canned.text.data(), (int)canned.text.size(), 0);
       closeSocket(connection);
+    }
+  }
+
+  // Blocks while the client reads no more and the sockets are full.
+  void sendText(Socket connection, const CannedResponse& canned)
+  {
+    const std::string& text = canned.text;
+    size_t step = canned.paceBytes > 0 ? canned.paceBytes : text.size();
+    for (size_t at = 0; at < text.size() && !m_stopping;)
+    {
+      size_t count = std::min(step, text.size() - at);
+      // A send can take less than it was given.
+      auto sent = send(connection, text.data() + at, (int)count, 0);
+      if (sent <= 0)
+      {
+        return;
+      }
+      at += (size_t)sent;
+      m_sent += (size_t)sent;
+      if (canned.paceBytes > 0)
+      {
+        wait(1);
+      }
+    }
+  }
+
+  void wait(int ms)
+  {
+    for (int waited = 0; waited < ms && !m_stopping; waited += 10)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
@@ -227,6 +272,7 @@ private:
   Socket m_listener = kInvalidSocket;
   uint16_t m_port = 0;
   std::atomic<bool> m_stopping{false};
+  std::atomic<size_t> m_sent{0};
   std::mutex m_mutex;
   std::vector<std::string> m_requests;
   std::thread m_thread;
@@ -253,6 +299,7 @@ public:
   }
 
   void abort(scriptnet::RequestId id) override { m_inner->abort(id); }
+  void resume(scriptnet::RequestId id) override { m_inner->resume(id); }
 
 private:
   rcp<scriptnet::Provider> m_inner;
@@ -327,6 +374,47 @@ std::string lowered(std::string value)
 {
   std::transform(value.begin(), value.end(), value.begin(), ::tolower);
   return value;
+}
+
+// A listener that reads the body as it arrives.
+class StreamingListener : public RecordingListener
+{
+public:
+  bool streams() const override { return true; }
+};
+
+// Polls until `done` holds, asking it once a turn, or 30 s pass.
+template <typename Done> bool pollUntil(Done done)
+{
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  for (;;)
+  {
+    if (done())
+    {
+      return true;
+    }
+    if (std::chrono::steady_clock::now() >= deadline)
+    {
+      return false;
+    }
+    scriptnet::poll();
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+}
+
+// Reads what is left of `id`'s body onto `read`; how it ended.
+scriptnet::BodyState readRest(scriptnet::RequestId id, std::string& read)
+{
+  scriptnet::BodyState state = scriptnet::BodyState::Pending;
+  pollUntil([&] {
+    std::vector<uint8_t> bytes;
+    scriptnet::NetError error;
+    state = scriptnet::readBody(id, &bytes, &error);
+    read.append(bytes.begin(), bytes.end());
+    return state == scriptnet::BodyState::End ||
+           state == scriptnet::BodyState::Failed;
+  });
+  return state;
 }
 } // namespace
 
@@ -642,5 +730,187 @@ TEST_CASE(
   }
 }
 #endif
+
+TEST_CASE(
+    "the platform provider feeds a listener that reads the body as it arrives",
+    "[scriptnet][platform]")
+{
+  LoopbackServer server({{"HTTP/1.1 200 OK\r\n"
+                          "Content-Length: 5\r\n"
+                          "Connection: close\r\n\r\nhello"}});
+  LoopbackNetwork network(server.port());
+  auto listener = make_rcp<StreamingListener>();
+  scriptnet::RequestId id = scriptnet::fetch(
+      LoopbackNetwork::kOwner,
+      get("/stream"),
+      listener);
+  REQUIRE(pollUntil([&] { return listener->done; }));
+  REQUIRE(listener->ok);
+  CHECK(listener->response.status == 200);
+  CHECK(listener->response.body.empty());
+  std::string body;
+  CHECK(readRest(id, body) == scriptnet::BodyState::End);
+  CHECK(body == "hello");
+}
+
+TEST_CASE(
+    "the platform provider times a body it hands over whole",
+    "[scriptnet][platform]")
+{
+  // The headers and part of the body arrive; the rest never does.
+  std::atomic<bool> sendRest{false};
+  CannedResponse stalled;
+  stalled.text = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n"
+                 "Content-Type: application/octet-stream\r\n"
+                 "Connection: close\r\n\r\nfirst";
+  stalled.tail = "later";
+  stalled.tailGate = &sendRest;
+  LoopbackServer server({stalled});
+  LoopbackNetwork network(server.port());
+
+  scriptnet::HttpRequest request = get("/stalled");
+  request.timeoutMs = 300;
+  auto started = std::chrono::steady_clock::now();
+  auto listener = fetchAndWait(std::move(request));
+  auto elapsed = std::chrono::steady_clock::now() - started;
+  sendRest = true;
+
+  REQUIRE(listener->done);
+  CHECK_FALSE(listener->ok);
+  CHECK(listener->error.code == scriptnet::NetErrorCode::Timeout);
+  // By the transport's own clock, not the watchdog that trails it by 5 s.
+  CHECK(elapsed < std::chrono::milliseconds(4000));
+}
+
+namespace
+{
+// Reads `id`'s body until it has as much as `text`, ends or fails; what it
+// read.
+std::string readUntil(scriptnet::RequestId id, const std::string& text)
+{
+  std::string read;
+  pollUntil([&] {
+    std::vector<uint8_t> bytes;
+    scriptnet::NetError error;
+    scriptnet::BodyState state = scriptnet::readBody(id, &bytes, &error);
+    read.append(bytes.begin(), bytes.end());
+    return read.size() >= text.size() || state == scriptnet::BodyState::End ||
+           state == scriptnet::BodyState::Failed;
+  });
+  return read;
+}
+} // namespace
+
+TEST_CASE(
+    "the platform provider gives a response ahead of a body still arriving",
+    "[scriptnet][platform]")
+{
+  std::atomic<bool> sendRest{false};
+  CannedResponse slow;
+  slow.text = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n"
+              "Content-Type: application/octet-stream\r\n"
+              "Connection: close\r\n\r\nfirst";
+  slow.tail = "later";
+  slow.tailGate = &sendRest;
+  LoopbackServer server({slow});
+  LoopbackNetwork network(server.port());
+  auto listener = make_rcp<StreamingListener>();
+  scriptnet::RequestId id = scriptnet::fetch(
+      LoopbackNetwork::kOwner,
+      get("/slow"),
+      listener);
+  // Both arrive while the server still holds the rest back.
+  REQUIRE(pollUntil([&] { return listener->done; }));
+  REQUIRE(listener->ok);
+  std::string body = readUntil(id, "first");
+  CHECK(body == "first");
+  sendRest = true;
+  CHECK(readRest(id, body) == scriptnet::BodyState::End);
+  CHECK(body == "firstlater");
+}
+
+TEST_CASE(
+    "the platform provider's timeout does not cover a body read as it arrives",
+    "[scriptnet][platform]")
+{
+  std::atomic<bool> sendRest{false};
+  CannedResponse slow;
+  slow.text = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n"
+              "Content-Type: application/octet-stream\r\n"
+              "Connection: close\r\n\r\nfirst";
+  slow.tail = "later";
+  slow.tailGate = &sendRest;
+  LoopbackServer server({slow});
+  LoopbackNetwork network(server.port());
+  auto listener = make_rcp<StreamingListener>();
+  scriptnet::HttpRequest request = get("/slow");
+  request.timeoutMs = 2000;
+  scriptnet::RequestId id = scriptnet::fetch(
+      LoopbackNetwork::kOwner,
+      std::move(request),
+      listener);
+  REQUIRE(pollUntil([&] { return listener->done; }));
+  REQUIRE(listener->ok);
+  std::string body = readUntil(id, "first");
+  // The rest is sent well after the timeout, and still arrives.
+  std::this_thread::sleep_for(std::chrono::milliseconds(2500));
+  sendRest = true;
+  CHECK(readRest(id, body) == scriptnet::BodyState::End);
+  CHECK(body == "firstlater");
+}
+
+TEST_CASE(
+    "the platform provider stops reading a body nobody takes",
+    "[scriptnet][platform]")
+{
+  // More than the session and the sockets hold between them, in a pattern
+  // that shows bytes out of order.
+  CannedResponse big;
+  std::string body(64 << 20, '\0');
+  for (size_t i = 0; i < body.size(); i++)
+  {
+    body[i] = (char)(i % 251);
+  }
+  big.text = "HTTP/1.1 200 OK\r\nContent-Length: " +
+             std::to_string(body.size()) +
+             "\r\nContent-Type: application/octet-stream"
+             "\r\nConnection: close\r\n\r\n" +
+             body;
+  big.paceBytes = 256 << 10;
+  LoopbackServer server({big});
+  LoopbackNetwork network(server.port());
+  // 64 bytes of budget across 8 requests: 8 unread bytes stop a body.
+  scriptnet::NetLimits limits = scriptnet::limits();
+  limits.maxUndeliveredBytesPerOwner = 64;
+  scriptnet::setLimits(limits);
+  auto listener = make_rcp<StreamingListener>();
+  scriptnet::RequestId id = scriptnet::fetch(
+      LoopbackNetwork::kOwner,
+      get("/big"),
+      listener);
+  REQUIRE(pollUntil([&] { return listener->done; }));
+  // Left alone, the server ends up unable to send: wait for it to stand
+  // still for a while.
+  size_t sent = 0;
+  auto stoodSince = std::chrono::steady_clock::now();
+  pollUntil([&] {
+    auto now = std::chrono::steady_clock::now();
+    if (server.sent() != sent)
+    {
+      sent = server.sent();
+      stoodSince = now;
+    }
+    return now - stoodSince > std::chrono::milliseconds(500);
+  });
+  CHECK(sent < big.text.size());
+  // Reading starts it again, through to the end, with room to move.
+  limits.maxUndeliveredBytesPerOwner = scriptnet::NetLimits()
+                                           .maxUndeliveredBytesPerOwner;
+  scriptnet::setLimits(limits);
+  std::string read;
+  CHECK(readRest(id, read) == scriptnet::BodyState::End);
+  // Parenthesized so a failure does not print both.
+  CHECK((read == body));
+}
 
 #endif // WITH_RIVE_SCRIPTNET && (__APPLE__ || _WIN32)

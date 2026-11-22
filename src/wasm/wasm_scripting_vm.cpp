@@ -9994,6 +9994,24 @@ uint32_t fileDecodeImpl(
 #endif
 }
 
+uint32_t fileDecodeBlobImpl(
+    WasmScriptingVM* vm,
+    uint32_t blob,
+    uint32_t* statusOut,
+    uint32_t statusCount)
+{
+  // The lookup holds the blob while the file is decoded from its bytes.
+  auto found = vm == nullptr
+                   ? nullptr
+                   : SharedRegistry::find<SharedBlob>(blob, vm->sharedOwner());
+  return fileDecodeImpl(
+      vm,
+      found == nullptr ? nullptr : found->bytes(),
+      found == nullptr ? 0 : found->size(),
+      statusOut,
+      statusCount);
+}
+
 void fileReleaseImpl(WasmScriptingVM* vm, uint32_t file)
 {
   releaseHostHandle(vm, file, WasmScriptingVM::HandleTable::Tag::riveFile);
@@ -10240,6 +10258,41 @@ void netFetchCancelImpl(WasmScriptingVM* vm, uint32_t token)
   if (vm != nullptr)
   {
     vm->cancelFetch(token);
+  }
+}
+
+uint32_t netBodyReadImpl(WasmScriptingVM* vm, uint32_t token)
+{
+  return vm == nullptr ? NetWire::kBodyEnd : vm->readFetchBody(token);
+}
+
+uint32_t netBodyTakeImpl(
+    WasmScriptingVM* vm,
+    uint32_t token,
+    uint8_t* out,
+    uint32_t outByteCount)
+{
+  return vm == nullptr ? 0 : vm->takeFetchBody(token, out, outByteCount);
+}
+
+uint32_t netBodyBlobImpl(WasmScriptingVM* vm, uint32_t token)
+{
+  return vm == nullptr ? 0 : vm->blobFetchBody(token);
+}
+
+void netBodyUnwaitImpl(WasmScriptingVM* vm, uint32_t token)
+{
+  if (vm != nullptr)
+  {
+    vm->unwaitFetchBody(token);
+  }
+}
+
+void netBodyCancelImpl(WasmScriptingVM* vm, uint32_t token)
+{
+  if (vm != nullptr)
+  {
+    vm->cancelFetchBody(token);
   }
 }
 
@@ -13030,9 +13083,10 @@ std::string fetchRejection(
 class WasmFetchListener : public scriptnet::FetchListener
 {
 public:
-  WasmFetchListener(WasmScriptingVM* vm, uint32_t token)
+  WasmFetchListener(WasmScriptingVM* vm, uint32_t token, bool streams)
       : m_vm(vm)
       , m_token(token)
+      , m_streams(streams)
   {}
 
   void onResponse(scriptnet::HttpResponse&& response) override
@@ -13056,9 +13110,20 @@ public:
 
   void onCancel() override { m_vm = nullptr; }
 
+  bool streams() const override { return m_streams; }
+
+  void onBody() override
+  {
+    if (m_vm != nullptr)
+    {
+      m_vm->fetchBodyChanged(m_token);
+    }
+  }
+
 private:
   WasmScriptingVM* m_vm;
   uint32_t m_token;
+  bool m_streams;
 };
 } // namespace
 #endif
@@ -13067,7 +13132,7 @@ bool WasmScriptingVM::startFetch(Span<const uint8_t> wire, uint32_t token)
 {
 #ifdef WITH_RIVE_SCRIPTNET
   // Reusing a live token would leave its first request uncancellable.
-  if (m_pendingFetches.count(token) != 0)
+  if (m_pendingFetches.count(token) != 0 || m_fetchBodies.count(token) != 0)
   {
     return false;
   }
@@ -13086,7 +13151,7 @@ bool WasmScriptingVM::startFetch(Span<const uint8_t> wire, uint32_t token)
   m_pendingFetches[token] = scriptnet::fetch(
       m_netOwnerId,
       std::move(request),
-      make_rcp<WasmFetchListener>(this, token));
+      make_rcp<WasmFetchListener>(this, token, m_fetchStreamBody));
   return true;
 #else
   (void)wire;
@@ -13123,9 +13188,24 @@ void WasmScriptingVM::resolveFetch(
     return;
   }
   // Cancelled while held.
-  if (m_pendingFetches.erase(token) == 0 || !valid())
+  auto pending = m_pendingFetches.find(token);
+  if (pending == m_pendingFetches.end())
   {
     return;
+  }
+  uint32_t request = pending->second;
+  m_pendingFetches.erase(pending);
+  if (!valid())
+  {
+#ifdef WITH_RIVE_SCRIPTNET
+    // Nothing will read its body.
+    scriptnet::cancel(request);
+#endif
+    return;
+  }
+  if (m_fetchStreamBody)
+  {
+    m_fetchBodies[token].request = request;
   }
   auto tooLarge = [&](const char* message) {
 #ifdef WITH_RIVE_SCRIPTNET
@@ -13137,10 +13217,19 @@ void WasmScriptingVM::resolveFetch(
     (void)message;
 #endif
   };
+  // A module from before blob bodies gets the body through copies that
+  // cannot fail cleanly, so it keeps the ceiling bodies had then.
+  constexpr size_t kInlineBodyBytes = 64 << 20;
+  if (!m_fetchBlobBody && !m_fetchStreamBody &&
+      response.body.size() > kInlineBodyBytes)
+  {
+    tooLarge("the response body is larger than this file's scripts can take");
+    return;
+  }
   // The body stays in the host, so it reaches a lane without ever entering
   // module memory.
   uint32_t body = 0;
-  if (m_fetchBlobBody)
+  if (m_fetchBlobBody && !m_fetchStreamBody)
   {
     uint64_t size = response.body.size();
     uint64_t owner = sharedCreator(this, size, true, true, body);
@@ -13169,6 +13258,7 @@ void WasmScriptingVM::resolveFetch(
     {
       SharedRegistry::release(body, sharedOwner());
     }
+    cancelFetchBody(token);
     tooLarge("the response does not fit in script memory");
     return;
   }
@@ -13211,6 +13301,278 @@ void WasmScriptingVM::deliverFetchFailure(
   uint32_t args[4] = {m_L, token, code, messagePtr};
   callModule("host_fetch_failed", 4, args);
   guestFree(messagePtr);
+  asyncWorkDelivered();
+}
+
+uint32_t WasmScriptingVM::readFetchBody(uint32_t token)
+{
+#ifdef WITH_RIVE_SCRIPTNET
+  auto it = m_fetchBodies.find(token);
+  if (it != m_fetchBodies.end())
+  {
+    FetchBody& body = it->second;
+    if (!body.failure.empty())
+    {
+      failFetchBody(token, body.failure);
+      return 0;
+    }
+    if (!body.chunk.empty())
+    {
+      return (uint32_t)body.chunk.size();
+    }
+    scriptnet::NetError error;
+    switch (scriptnet::readBody(body.request, &body.chunk, &error))
+    {
+      case scriptnet::BodyState::Data:
+        return (uint32_t)body.chunk.size();
+      case scriptnet::BodyState::Pending:
+        body.awaited = true;
+        return 0;
+      case scriptnet::BodyState::End:
+        m_fetchBodies.erase(it);
+        break;
+      case scriptnet::BodyState::Failed:
+        failFetchBody(token, error);
+        return 0;
+    }
+  }
+#else
+  (void)token;
+#endif
+  return NetWire::kBodyEnd;
+}
+
+uint32_t WasmScriptingVM::takeFetchBody(
+    uint32_t token,
+    uint8_t* out,
+    uint32_t capacity)
+{
+  auto it = m_fetchBodies.find(token);
+  if (it == m_fetchBodies.end())
+  {
+    return 0;
+  }
+  std::vector<uint8_t> chunk = std::move(it->second.chunk);
+  it->second.chunk.clear();
+  uint32_t count = (uint32_t)std::min<size_t>(capacity, chunk.size());
+  memcpy(out, chunk.data(), count);
+  return count;
+}
+
+uint32_t WasmScriptingVM::blobFetchBody(uint32_t token)
+{
+  auto it = m_fetchBodies.find(token);
+  if (it == m_fetchBodies.end())
+  {
+#ifdef WITH_RIVE_SCRIPTNET
+    failFetchBody(
+        token,
+        {scriptnet::NetErrorCode::Aborted,
+         "the response is no longer being read"});
+#endif
+    return 0;
+  }
+  it->second.gathers = true;
+  return gatherFetchBody(token);
+}
+
+uint32_t WasmScriptingVM::gatherFetchBody(uint32_t token)
+{
+#ifdef WITH_RIVE_SCRIPTNET
+  FetchBody& body = m_fetchBodies[token];
+  if (!body.failure.empty())
+  {
+    failFetchBody(token, body.failure);
+    return 0;
+  }
+  // Past either, the rest is not worth downloading.
+  uint32_t limit = std::min(
+      scriptnet::limits().maxResponseBodyBytes,
+      kSharedMaxBytes);
+  for (;;)
+  {
+    if (!body.chunk.empty())
+    {
+      body.gatheredBytes += body.chunk.size();
+      body.gathered.push_back(std::move(body.chunk));
+      body.chunk.clear();
+    }
+    if (body.gatheredBytes > limit)
+    {
+      scriptnet::cancel(body.request);
+      failFetchBody(
+          token,
+          {scriptnet::NetErrorCode::TooLarge,
+           "the response body is larger than " + std::to_string(limit) +
+               " bytes"});
+      return 0;
+    }
+    scriptnet::NetError error;
+    scriptnet::BodyState state = scriptnet::readBody(
+        body.request,
+        &body.chunk,
+        &error);
+    if (state == scriptnet::BodyState::Data)
+    {
+      continue;
+    }
+    if (state == scriptnet::BodyState::Pending)
+    {
+      body.awaited = true;
+      return 0;
+    }
+    if (state == scriptnet::BodyState::Failed)
+    {
+      failFetchBody(token, error);
+      return 0;
+    }
+    break;
+  }
+  // The body stays in the host, so it reaches a lane without ever entering
+  // module memory.
+  uint32_t blob = 0;
+  uint64_t size = body.gatheredBytes;
+  uint64_t owner = sharedCreator(this, size, true, true, blob);
+  if (owner != 0)
+  {
+    auto made = make_rcp<SharedBlob>((uint32_t)size);
+    uint32_t at = 0;
+    for (std::vector<uint8_t>& part : body.gathered)
+    {
+      made->write(at, Span<const uint8_t>(part.data(), part.size()));
+      at += (uint32_t)part.size();
+      // Freed as it is copied, so the two never both stand whole for long.
+      std::vector<uint8_t>().swap(part);
+    }
+    blob = sharedCreated(this, owner, size, std::move(made));
+  }
+  if (!isSharedId(blob))
+  {
+    failFetchBody(
+        token,
+        {scriptnet::NetErrorCode::TooLarge,
+         "the response body does not fit in shared memory"});
+    return 0;
+  }
+  m_fetchBodies.erase(token);
+  return blob;
+#else
+  (void)token;
+  return 0;
+#endif
+}
+
+void WasmScriptingVM::unwaitFetchBody(uint32_t token)
+{
+  auto it = m_fetchBodies.find(token);
+  if (it == m_fetchBodies.end())
+  {
+    return;
+  }
+  it->second.awaited = false;
+#ifdef WITH_RIVE_SCRIPTNET
+  scriptnet::forgetRead(it->second.request);
+#endif
+}
+
+void WasmScriptingVM::cancelFetchBody(uint32_t token)
+{
+  auto it = m_fetchBodies.find(token);
+  if (it == m_fetchBodies.end())
+  {
+    return;
+  }
+  uint32_t request = it->second.request;
+  m_fetchBodies.erase(it);
+#ifdef WITH_RIVE_SCRIPTNET
+  scriptnet::cancel(request);
+#else
+  (void)request;
+#endif
+}
+
+void WasmScriptingVM::fetchBodyChanged(uint32_t token)
+{
+  if (inModuleCall())
+  {
+    holdOutcome([this, token] { fetchBodyChanged(token); });
+    return;
+  }
+  auto it = m_fetchBodies.find(token);
+  // The module stopped waiting: what arrived stays for whoever asks next.
+  if (it == m_fetchBodies.end() || !it->second.awaited)
+  {
+    return;
+  }
+  it->second.awaited = false;
+  if (!valid())
+  {
+    return;
+  }
+  if (!it->second.gathers)
+  {
+    deliverFetchBody(token, (uint32_t)NetWire::BodyEvent::changed, 0, "");
+    return;
+  }
+  uint32_t blob = gatherFetchBody(token);
+  if (blob != 0)
+  {
+    deliverFetchBody(token, (uint32_t)NetWire::BodyEvent::blob, blob, "");
+  }
+}
+
+#ifdef WITH_RIVE_SCRIPTNET
+void WasmScriptingVM::failFetchBody(
+    uint32_t token,
+    const scriptnet::NetError& error)
+{
+  failFetchBody(token, fetchRejection(error.code, error.message));
+}
+
+void WasmScriptingVM::failFetchBody(uint32_t token, std::string message)
+{
+  auto it = m_fetchBodies.find(token);
+  if (it != m_fetchBodies.end())
+  {
+    // A wait cancelled before it hears this leaves it for the next.
+    FetchBody failed;
+    failed.request = it->second.request;
+    failed.awaited = true;
+    failed.failure = message;
+    it->second = std::move(failed);
+  }
+  // Told on a later poll: this can be reached from inside the module's call.
+  holdOutcome([this, token, message] {
+    auto it = m_fetchBodies.find(token);
+    if (it != m_fetchBodies.end())
+    {
+      if (!it->second.awaited)
+      {
+        return;
+      }
+      m_fetchBodies.erase(it);
+    }
+    if (valid())
+    {
+      deliverFetchBody(token, (uint32_t)NetWire::BodyEvent::failed, 0, message);
+    }
+  });
+}
+#endif
+
+void WasmScriptingVM::deliverFetchBody(
+    uint32_t token,
+    uint32_t event,
+    uint32_t value,
+    const std::string& message)
+{
+  uint32_t messagePtr = message.empty() ? 0 : guestString(message.c_str());
+  uint32_t args[5] = {m_L, token, event, value, messagePtr};
+  callModule("host_fetch_body", 5, args);
+  if (messagePtr != 0)
+  {
+    guestFree(messagePtr);
+  }
   asyncWorkDelivered();
 }
 
@@ -13717,6 +14079,13 @@ void WasmScriptingVM::deliverLaneOutput()
 
 bool WasmScriptingVM::hasPendingAsyncWork() const
 {
+  for (const auto& body : m_fetchBodies)
+  {
+    if (body.second.awaited)
+    {
+      return true;
+    }
+  }
   // A started job keeps hosts ticking until the script can see it finish,
   // and a worker only while it needs a step, never for being alive.
   return !m_pendingDecodes.empty() || !m_pendingFetches.empty() ||
@@ -14370,6 +14739,7 @@ void WasmScriptingVM::noteModuleExport(const char* name)
   m_fuelBudget |= strcmp(name, "__riveFuelCheck") == 0;
   m_fuelShift |= strcmp(name, "__riveFuelShift") == 0;
   m_fetchBlobBody |= strcmp(name, "__riveFetchBlobBody") == 0;
+  m_fetchStreamBody |= strcmp(name, "__riveFetchStreamBody") == 0;
 }
 
 bool WasmScriptingVM::bootModule()

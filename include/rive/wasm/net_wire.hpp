@@ -19,10 +19,26 @@ namespace rive
 ///   request:  timeoutMs, method, url, header count, (name, value)*, body
 ///   response: status, statusText, url, header count, (name, value)*,
 ///             body blob id, or the body for modules from before blobs
-/// The response body stays in the host as a shared blob. The module side is
-/// script controlled, so decode checks every length against what is left.
+/// The response body stays in the host as a shared blob. A module that reads
+/// the body as it arrives gets an empty one here and the rest through
+/// rive_net_v1's body ops. The module side is script controlled, so decode
+/// checks every length against what is left.
 struct NetWire
 {
+  /// What rive_net_v1.body_read answers once the whole body has been read.
+  static constexpr uint32_t kBodyEnd = 0xffffffff;
+
+  /// What the module's host_fetch_body export hears about a streamed body.
+  enum class BodyEvent : uint32_t
+  {
+    /// More arrived, or it ended: body_read says which.
+    changed = 1,
+    /// It failed or its request is gone; the rejection comes with it.
+    failed = 2,
+    /// body_blob's blob is whole; its id comes with it.
+    blob = 3,
+  };
+
   /// A response as the module receives it.
   struct Response
   {

@@ -16,6 +16,12 @@ namespace
 const uint64_t kOwner = 77;
 const char* kBase = "http://127.0.0.1:8700/v1/ns/ns_test";
 
+// Each test runs four ways: for a listener that takes its body whole and one
+// that reads it as it arrives, from a transport that reports a response
+// whole and one that reports it in steps. Host sets these.
+bool g_listenerStreams = false;
+bool g_transportSteps = false;
+
 class Transport : public Provider
 {
 public:
@@ -40,17 +46,33 @@ public:
 class Result : public FetchListener
 {
 public:
+  RequestId id = 0;
   bool settled = false;
   uint16_t status = 0;
   std::string body;
   std::string url;
   std::string error;
+  bool streams() const override { return g_listenerStreams; }
   void onResponse(HttpResponse&& response) override
   {
     settled = true;
     status = response.status;
     url = response.url;
-    body.assign(response.body.begin(), response.body.end());
+    if (!g_listenerStreams)
+    {
+      body.assign(response.body.begin(), response.body.end());
+      return;
+    }
+    // The host read the answer whole, so all of it is there to read, and
+    // none of it came with the response.
+    CHECK(response.body.empty());
+    std::vector<uint8_t> bytes;
+    NetError failure;
+    while (readBody(id, &bytes, &failure) == BodyState::Data)
+    {
+      body.append(bytes.begin(), bytes.end());
+    }
+    CHECK(failure.message.empty());
   }
   void onError(const NetError& failure) override
   {
@@ -88,6 +110,8 @@ struct Host
 
   Host()
   {
+    g_listenerStreams = GENERATE(false, true);
+    g_transportSteps = GENERATE(false, true);
     setProvider(transport);
     setLimits(NetLimits());
     setGeneralFetchEnabled(false);
@@ -126,7 +150,7 @@ struct Host
     request.url = std::string("rive-cloud:") + path;
     request.headers = std::move(headers);
     request.body.assign(body, body + strlen(body));
-    fetch(kOwner, std::move(request), result);
+    result->id = fetch(kOwner, std::move(request), result);
     return result;
   }
 
@@ -150,8 +174,18 @@ struct Host
     response.status = status;
     // As a transport reports it: the address the request went to.
     response.url = transport->starts[index].request.url;
-    response.body.assign(body.begin(), body.end());
-    complete(transport->starts[index].id, std::move(response));
+    RequestId id = transport->starts[index].id;
+    if (g_transportSteps)
+    {
+      respond(id, std::move(response));
+      receive(id, (const uint8_t*)body.data(), body.size());
+      finish(id);
+    }
+    else
+    {
+      response.body.assign(body.begin(), body.end());
+      complete(id, std::move(response));
+    }
     poll();
   }
 
@@ -668,6 +702,33 @@ TEST_CASE(
   host.answer(200, "{\"challenge\":\"v1.abc\"}");
   poll();
   CHECK(result->error.rfind("policy: this host has no device key", 0) == 0);
+}
+
+TEST_CASE(
+    "a hello answer past the size limit fails the requests that wait on it",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  // Only a transport that reports in steps leaves the limit to scriptnet.
+  if (!g_transportSteps)
+  {
+    return;
+  }
+  NetLimits limits;
+  limits.maxResponseBodyBytes = 8;
+  setLimits(limits);
+  auto result = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\",\"expires_in\":60}");
+  REQUIRE(result->settled);
+  CHECK(result->error.rfind("tooLarge: ", 0) == 0);
+  // The session is free to say hello again for the next request.
+  setLimits(NetLimits());
+  auto next = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.sayHello();
+  host.answer(200, "{}");
+  CHECK(next->status == 200);
 }
 
 #endif // WITH_RIVE_SCRIPTNET

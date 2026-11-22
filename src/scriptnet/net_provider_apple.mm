@@ -31,49 +31,54 @@ std::string toString(NSString* value)
   return utf8 != nullptr ? std::string(utf8) : std::string();
 }
 
-// HEAD answers and null body statuses carry no body, whatever their
-// Content-Length says about the resource.
-bool expectsBody(NSURLSessionTask* task, NSURLResponse* response)
+// A response's status and headers, for scriptnet to have ahead of its body.
+HttpResponse headOf(NSHTTPURLResponse* http)
 {
-  if ([task.currentRequest.HTTPMethod isEqualToString:@"HEAD"])
-  {
-    return false;
-  }
-  if (![response isKindOfClass:[NSHTTPURLResponse class]])
-  {
-    return true;
-  }
-  switch (((NSHTTPURLResponse*)response).statusCode)
-  {
-    case 101:
-    case 103:
-    case 204:
-    case 205:
-    case 304:
-      return false;
-  }
-  return true;
+  HttpResponse response;
+  response.status = (uint16_t)http.statusCode;
+  // NSURLSession hides the server's reason phrase.
+  response.statusText = standardReasonPhrase(response.status);
+  response.url = toString(http.URL.absoluteString);
+  HttpHeaders* headers = &response.headers;
+  [http.allHeaderFields
+      enumerateKeysAndObjectsUsingBlock:^(id key, id value, BOOL* stop) {
+        if ([key isKindOfClass:[NSString class]] &&
+            [value isKindOfClass:[NSString class]])
+        {
+          headers->push_back({toString(key), toString(value)});
+        }
+      }];
+  return response;
 }
 
 struct TaskState
 {
   RequestId id = 0;
   NSURLSessionTask* task = nil;
-  uint32_t maxBodyBytes = 0;
-  std::vector<uint8_t> body;
-  // Set when this file stops the task itself (policy, size, timeout); it is
-  // reported instead of the cancellation it causes.
+  // scriptnet has the status and headers, and gets the body as it arrives.
+  bool responded = false;
+  // It said the script's timeout no longer covers the body.
+  bool untimed = false;
+  // Suspended because scriptnet asked for no more of the body yet, and
+  // whether it has asked to carry on since the data now arriving came.
+  bool suspended = false;
+  bool resumed = false;
+  // scriptnet aborted it, so the task is cancelled and must stay so.
+  bool cancelled = false;
+  // Set when this file stops the task itself (policy, timeout, an answer
+  // that is not HTTP); it is reported instead of the cancellation it causes.
   bool failed = false;
   NetError error;
 };
 } // namespace
 
 @interface RiveScriptNetDelegate : NSObject <NSURLSessionDataDelegate>
-- (void)track:(NSURLSessionTask*)task
-              id:(RequestId)requestId
-    maxBodyBytes:(uint32_t)maxBodyBytes;
+- (void)track:(NSURLSessionTask*)task id:(RequestId)requestId;
 - (void)cancelRequest:(RequestId)requestId;
-- (void)stopTask:(NSUInteger)taskIdentifier error:(NetError)error;
+- (void)resumeRequest:(RequestId)requestId;
+- (void)stopTask:(NSUInteger)taskIdentifier
+           error:(NetError)error
+       timedOnly:(BOOL)timedOnly;
 @end
 
 @implementation RiveScriptNetDelegate
@@ -83,15 +88,12 @@ struct TaskState
   std::unordered_map<RequestId, NSUInteger> _taskIds;
 }
 
-- (void)track:(NSURLSessionTask*)task
-              id:(RequestId)requestId
-    maxBodyBytes:(uint32_t)maxBodyBytes
+- (void)track:(NSURLSessionTask*)task id:(RequestId)requestId
 {
   std::lock_guard<std::mutex> lock(_mutex);
   TaskState& state = _tasks[task.taskIdentifier];
   state.id = requestId;
   state.task = task;
-  state.maxBodyBytes = maxBodyBytes;
   _taskIds[requestId] = task.taskIdentifier;
 }
 
@@ -108,21 +110,50 @@ struct TaskState
     auto state = _tasks.find(it->second);
     if (state != _tasks.end())
     {
+      state->second.cancelled = true;
       task = state->second.task;
     }
   }
   [task cancel];
 }
 
+// scriptnet has room for more of the body: undoes the suspend that asked
+// for, and tells data arriving now not to suspend for what it asked before.
+- (void)resumeRequest:(RequestId)requestId
+{
+  NSURLSessionTask* task = nil;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    auto it = _taskIds.find(requestId);
+    auto state = it == _taskIds.end() ? _tasks.end() : _tasks.find(it->second);
+    if (state == _tasks.end())
+    {
+      return;
+    }
+    state->second.resumed = true;
+    if (!state->second.suspended)
+    {
+      return;
+    }
+    state->second.suspended = false;
+    task = state->second.task;
+  }
+  [task resume];
+}
+
 // Records why the task is being stopped, then cancels it; didComplete
-// reports the recorded error.
-- (void)stopTask:(NSUInteger)taskIdentifier error:(NetError)error
+// reports the recorded error. timedOnly is the script's timeout, which
+// leaves alone a body scriptnet no longer times.
+- (void)stopTask:(NSUInteger)taskIdentifier
+           error:(NetError)error
+       timedOnly:(BOOL)timedOnly
 {
   NSURLSessionTask* task = nil;
   {
     std::lock_guard<std::mutex> lock(_mutex);
     auto it = _tasks.find(taskIdentifier);
-    if (it == _tasks.end() || it->second.failed)
+    if (it == _tasks.end() || it->second.failed ||
+        (timedOnly && it->second.untimed))
     {
       return;
     }
@@ -187,7 +218,8 @@ struct TaskState
   [self stopTask:task.taskIdentifier
            error:NetError{
                      NetErrorCode::Policy,
-                     "a redirect was refused: " + error.message}];
+                     "a redirect was refused: " + error.message}
+       timedOnly:NO];
 }
 
 - (void)URLSession:(NSURLSession*)session
@@ -196,33 +228,26 @@ struct TaskState
      completionHandler:
          (void (^)(NSURLSessionResponseDisposition))completionHandler
 {
-  // Without a body to expect, the length is no reason to stop or reserve;
-  // didReceiveData still counts what does arrive.
-  long long expected = expectsBody(dataTask, response)
-                           ? response.expectedContentLength
-                           : NSURLResponseUnknownLength;
-  uint32_t maxBodyBytes = 0;
+  NSHTTPURLResponse* http = [response isKindOfClass:[NSHTTPURLResponse class]]
+                                ? (NSHTTPURLResponse*)response
+                                : nil;
+  if (http == nil)
   {
+    [self stopTask:dataTask.taskIdentifier
+             error:NetError{NetErrorCode::Network, "no HTTP response arrived"}
+         timedOnly:NO];
+    completionHandler(NSURLSessionResponseCancel);
+    return;
+  }
+  {
+    // Held across respond(), so the timeout sees its answer with it.
     std::lock_guard<std::mutex> lock(_mutex);
     auto it = _tasks.find(dataTask.taskIdentifier);
-    if (it != _tasks.end())
+    if (it != _tasks.end() && !it->second.failed && !it->second.responded)
     {
-      maxBodyBytes = it->second.maxBodyBytes;
-      if (expected > 0 && expected <= maxBodyBytes)
-      {
-        it->second.body.reserve((size_t)expected);
-      }
+      it->second.responded = true;
+      it->second.untimed = !scriptnet::respond(it->second.id, headOf(http));
     }
-  }
-  if (expected != NSURLResponseUnknownLength && expected > maxBodyBytes)
-  {
-    completionHandler(NSURLSessionResponseCancel);
-    [self stopTask:dataTask.taskIdentifier
-             error:NetError{
-                       NetErrorCode::TooLarge,
-                       "the response body is larger than " +
-                           std::to_string(maxBodyBytes) + " bytes"}];
-    return;
   }
   completionHandler(NSURLSessionResponseAllow);
 }
@@ -231,39 +256,40 @@ struct TaskState
           dataTask:(NSURLSessionDataTask*)dataTask
     didReceiveData:(NSData*)data
 {
-  bool tooLarge = false;
-  uint32_t maxBodyBytes = 0;
+  RequestId requestId = 0;
   {
     std::lock_guard<std::mutex> lock(_mutex);
     auto it = _tasks.find(dataTask.taskIdentifier);
-    if (it == _tasks.end() || it->second.failed)
+    if (it == _tasks.end() || it->second.failed || !it->second.responded)
     {
       return;
     }
-    TaskState& state = it->second;
-    maxBodyBytes = state.maxBodyBytes;
-    if (state.body.size() + data.length > maxBodyBytes)
-    {
-      tooLarge = true;
-    }
-    else
-    {
-      std::vector<uint8_t>* body = &state.body;
-      [data enumerateByteRangesUsingBlock:^(
-                const void* bytes, NSRange range, BOOL* stop) {
-        const uint8_t* begin = static_cast<const uint8_t*>(bytes);
-        body->insert(body->end(), begin, begin + range.length);
-      }];
-    }
+    requestId = it->second.id;
+    // Only an ask to carry on that comes from here on is about this data.
+    it->second.resumed = false;
   }
-  if (tooLarge)
+  __block bool more = true;
+  [data enumerateByteRangesUsingBlock:^(
+            const void* bytes, NSRange range, BOOL* stop) {
+    more = scriptnet::receive(
+               requestId, static_cast<const uint8_t*>(bytes), range.length) &&
+           more;
+  }];
+  if (more)
   {
-    [self stopTask:dataTask.taskIdentifier
-             error:NetError{
-                       NetErrorCode::TooLarge,
-                       "the response body is larger than " +
-                           std::to_string(maxBodyBytes) + " bytes"}];
+    return;
   }
+  // scriptnet wants no more yet, unless it has since asked to carry on or
+  // has aborted the request.
+  std::lock_guard<std::mutex> lock(_mutex);
+  auto it = _tasks.find(dataTask.taskIdentifier);
+  if (it == _tasks.end() || it->second.suspended || it->second.resumed ||
+      it->second.cancelled || it->second.failed)
+  {
+    return;
+  }
+  it->second.suspended = true;
+  [dataTask suspend];
 }
 
 - (void)URLSession:(NSURLSession*)session
@@ -306,32 +332,13 @@ struct TaskState
         state.id, {code, message.empty() ? "request failed" : message});
     return;
   }
-  NSHTTPURLResponse* http = [task.response
-                                isKindOfClass:[NSHTTPURLResponse class]]
-                                ? (NSHTTPURLResponse*)task.response
-                                : nil;
-  if (http == nil)
+  if (!state.responded)
   {
     scriptnet::fail(
         state.id, {NetErrorCode::Network, "no HTTP response arrived"});
     return;
   }
-  HttpResponse response;
-  response.status = (uint16_t)http.statusCode;
-  // NSURLSession hides the server's reason phrase.
-  response.statusText = standardReasonPhrase(response.status);
-  response.url = toString(http.URL.absoluteString);
-  HttpHeaders* headers = &response.headers;
-  [http.allHeaderFields
-      enumerateKeysAndObjectsUsingBlock:^(id key, id value, BOOL* stop) {
-        if ([key isKindOfClass:[NSString class]] &&
-            [value isKindOfClass:[NSString class]])
-        {
-          headers->push_back({toString(key), toString(value)});
-        }
-      }];
-  response.body = std::move(state.body);
-  scriptnet::complete(state.id, std::move(response));
+  scriptnet::finish(state.id);
 }
 @end
 
@@ -379,7 +386,6 @@ public:
       urlRequest.HTTPMethod = [NSString
           stringWithUTF8String:request.method.c_str()];
       urlRequest.HTTPShouldHandleCookies = NO;
-      urlRequest.timeoutInterval = request.timeoutMs / 1000.0;
       for (const HttpHeader& header : request.headers)
       {
         NSString* name = [NSString stringWithUTF8String:header.name.c_str()];
@@ -396,17 +402,16 @@ public:
       }
 
       NSURLSessionDataTask* task = [m_session dataTaskWithRequest:urlRequest];
-      [m_delegate track:task
-                     id:id
-           maxBodyBytes:scriptnet::limits().maxResponseBodyBytes];
+      [m_delegate track:task id:id];
 
       // Not yet done (see NetPolicy): resolving the host on a background
       // queue before this resume, and before each redirect, to refuse
       // local and private addresses through NetPolicy::checkAddress, as
       // the Windows transport does.
 
-      // The request's timeoutInterval is an idle timeout; the script's
-      // timeout covers the whole exchange.
+      // The script's timeout covers the exchange, or only the wait for the
+      // response when its body is read as it arrives. Such a body's stall
+      // is the session's own idle timeout to catch.
       RiveScriptNetDelegate* delegate = m_delegate;
       NSUInteger taskIdentifier = task.taskIdentifier;
       dispatch_after(
@@ -417,13 +422,16 @@ public:
             [delegate stopTask:taskIdentifier
                          error:NetError{
                                    NetErrorCode::Timeout,
-                                   "no response before the timeout"}];
+                                   "no response before the timeout"}
+                     timedOnly:YES];
           });
       [task resume];
     }
   }
 
   void abort(RequestId id) override { [m_delegate cancelRequest:id]; }
+
+  void resume(RequestId id) override { [m_delegate resumeRequest:id]; }
 
 private:
   NSURLSession* m_session = nil;

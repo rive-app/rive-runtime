@@ -497,6 +497,10 @@ enum class LuaAtoms : int16_t
   headers,
   arrayBuffer,
   header,
+  body,
+  getReader,
+  locked,
+  read,
 
   // Decoded Rive files
   decodeFile,
@@ -1118,8 +1122,24 @@ int luaopen_rive_promise(lua_State* L);
 #ifdef WITH_RIVE_SCRIPTNET
 // ── fetch() Response ───────────────────────────────────────────────────────
 
-/// What a script's fetch() promise resolves with. Owns the whole response;
-/// text() and arrayBuffer() copy the body out on demand.
+/// A response's body as its script reads it; lua_scriptnet.cpp has it.
+class ScriptedFetchBody;
+
+/// One script object's hold on a body. Once the response, its stream and its
+/// reader have all been collected, a body still arriving is cancelled.
+class ScriptedFetchBodyHold
+{
+public:
+  explicit ScriptedFetchBodyHold(ScriptedFetchBody* body);
+  ~ScriptedFetchBodyHold();
+  ScriptedFetchBodyHold(const ScriptedFetchBodyHold&) = delete;
+  ScriptedFetchBodyHold& operator=(const ScriptedFetchBodyHold&) = delete;
+
+  ScriptedFetchBody* body;
+};
+
+/// What a script's fetch() promise resolves with: the status and headers,
+/// with the body read whole by text() and arrayBuffer() or through `body`.
 class ScriptedHttpResponse
 {
 public:
@@ -1127,11 +1147,39 @@ public:
   static constexpr const char* luaName = "Response";
   static constexpr bool hasMetatable = true;
 
-  ScriptedHttpResponse(scriptnet::HttpResponse&& value)
+  ScriptedHttpResponse(scriptnet::HttpResponse&& value, ScriptedFetchBody* body)
       : response(std::move(value))
+      , body(body)
   {}
 
   scriptnet::HttpResponse response;
+  ScriptedFetchBodyHold body;
+};
+
+/// A response's `body`: the stream its reader comes from.
+class ScriptedReadableStream
+{
+public:
+  static constexpr uint8_t luaTag = LUA_T_COUNT + 81;
+  static constexpr const char* luaName = "ReadableStream";
+  static constexpr bool hasMetatable = true;
+
+  explicit ScriptedReadableStream(ScriptedFetchBody* body) : body(body) {}
+
+  ScriptedFetchBodyHold body;
+};
+
+/// Reads a response's body a run at a time, as it arrives.
+class ScriptedStreamReader
+{
+public:
+  static constexpr uint8_t luaTag = LUA_T_COUNT + 82;
+  static constexpr const char* luaName = "ReadableStreamReader";
+  static constexpr bool hasMetatable = true;
+
+  explicit ScriptedStreamReader(ScriptedFetchBody* body) : body(body) {}
+
+  ScriptedFetchBodyHold body;
 };
 #endif
 

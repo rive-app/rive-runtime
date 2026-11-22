@@ -17,6 +17,7 @@
 #include <ws2tcpip.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -57,14 +58,15 @@
 // the proxy's to judge.
 //
 // WinHTTP's status callback runs on its own threads and, for the request
-// whose call is in progress, may re-enter on the calling thread. Every
-// outcome is therefore reported from WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING,
-// which WinHTTP guarantees is the last callback for a handle and never
-// overlaps another. Ending an exchange, whatever the reason (policy, size,
-// timeout, the script), is recording why and closing its handle; a handle is
-// never closed while a frame on any thread is inside a WinHTTP call on it,
-// which WinHTTP forbids. No WinHTTP call is made with a lock held: the call
-// may deliver its completion before returning.
+// whose call is in progress, may re-enter on the calling thread. Headers and
+// body runs are reported as they arrive, and how an exchange ends from
+// WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING, which WinHTTP guarantees is the
+// last callback for a handle and never overlaps another. Ending an exchange,
+// whatever the reason (policy, timeout, the script), is recording why and
+// closing its handle; a handle is never closed while a frame on any thread
+// is inside a WinHTTP call on it, which WinHTTP forbids. No WinHTTP call is
+// made with a lock held: the call may deliver its completion before
+// returning.
 
 using namespace rive;
 using namespace rive::scriptnet;
@@ -74,6 +76,15 @@ namespace
 using Clock = std::chrono::steady_clock;
 
 constexpr DWORD kReadChunkBytes = 64 * 1024;
+
+// The body read looping on this thread, and whether a run that completed
+// inside it asked for the next.
+struct ReadLoop
+{
+  const void* request;
+  bool owed;
+};
+thread_local ReadLoop* t_readLoop = nullptr;
 
 std::wstring toWide(const std::string& utf8)
 {
@@ -289,26 +300,6 @@ void parseHeaders(const std::wstring& raw, HttpHeaders* headers)
   }
 }
 
-// HEAD answers and null body statuses carry no body, whatever their
-// Content-Length says about the resource.
-bool expectsBody(bool head, uint16_t status)
-{
-  if (head)
-  {
-    return false;
-  }
-  switch (status)
-  {
-    case 101:
-    case 103:
-    case 204:
-    case 205:
-    case 304:
-      return false;
-  }
-  return true;
-}
-
 bool isRedirect(uint16_t status)
 {
   return status == 301 || status == 302 || status == 303 || status == 307 ||
@@ -439,11 +430,14 @@ public:
       , m_id(id)
       , m_hop(request)
       , m_deadline(Clock::now() + std::chrono::milliseconds(request.timeoutMs))
-      , m_maxBodyBytes(limits.maxResponseBodyBytes)
       , m_allowLocalAddresses(limits.allowLocalAddresses)
   {}
 
-  Clock::time_point deadline() const { return m_deadline; }
+  // Never, once scriptnet says the timeout no longer covers the body.
+  Clock::time_point deadline() const
+  {
+    return m_untimed ? Clock::time_point::max() : m_deadline;
+  }
 
   bool closing()
   {
@@ -462,6 +456,37 @@ public:
   // Any thread. Ends the exchange with `error`, which the closing callback
   // reports instead of the cancellation it causes. The first reason wins.
   void stop(NetError error) { settle(false, &error); }
+
+  // Any thread. The script's timeout, which leaves alone a body scriptnet
+  // no longer times.
+  void timeOut()
+  {
+    NetError error{NetErrorCode::Timeout, "no response before the timeout"};
+    settle(false, &error, true);
+  }
+
+  // Any thread. Reads on if the body waited for room, or tells the run being
+  // handed over not to wait.
+  void resume()
+  {
+    CallGuard guard(this);
+    if (!guard.held())
+    {
+      return;
+    }
+    HINTERNET handle = nullptr;
+    {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      m_resumed = true;
+      if (!m_paused)
+      {
+        return;
+      }
+      m_paused = false;
+      handle = m_request;
+    }
+    readOn(handle);
+  }
 
   // Any thread. The script or the host gave up; the outcome is dropped.
   void abort() { settle(false, nullptr); }
@@ -506,6 +531,9 @@ public:
         break;
       case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
         request->onHeaders(handle);
+        break;
+      case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE:
+        request->onAvailable(handle, *static_cast<DWORD*>(info));
         break;
       case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
         request->onRead(handle, length);
@@ -575,12 +603,12 @@ private:
   // reason recorded is the one reported. The handle is closed here unless
   // a frame is inside a WinHTTP call on it, or there is none at the
   // moment; then that frame, or the one opening the next, closes it.
-  void settle(bool completed, const NetError* error)
+  void settle(bool completed, const NetError* error, bool timedOnly = false)
   {
     HINTERNET toClose = nullptr;
     {
       std::lock_guard<std::mutex> lock(m_mutex);
-      if (m_closing)
+      if (m_closing || (timedOnly && m_untimed))
       {
         return;
       }
@@ -893,31 +921,55 @@ private:
       return;
     }
 
-    // Without a body to expect, the length is no reason to stop or reserve;
-    // onRead still counts what does arrive.
-    if (expectsBody(m_hop.method == "HEAD", response.status))
     {
-      const std::string* length = findHeader(
-          response.headers,
-          "content-length");
-      unsigned long long expected = length == nullptr ? 0
-                                                      : std::strtoull(
-                                                            length->c_str(),
-                                                            nullptr,
-                                                            10);
-      if (expected > m_maxBodyBytes)
+      // Held across respond(), so the timeout sees its answer with it.
+      std::lock_guard<std::mutex> lock(m_mutex);
+      if (m_closing)
       {
-        stop(
-            {NetErrorCode::TooLarge,
-             "the response body is larger than " +
-                 std::to_string(m_maxBodyBytes) + " bytes"});
         return;
       }
-      m_body.reserve((size_t)expected);
+      m_untimed = !respond(m_id, std::move(response));
     }
-    m_response = std::move(response);
+    if (m_untimed)
+    {
+      // As in a browser, nothing times such a body's reads; 0 waits forever.
+      int timeout = (int)m_hop.timeoutMs;
+      WinHttpSetTimeouts(handle, timeout, timeout, timeout, 0);
+    }
     m_chunk.resize(kReadChunkBytes);
-    if (!WinHttpReadData(handle, m_chunk.data(), kReadChunkBytes, nullptr))
+    readOn(handle);
+  }
+
+  // Asks for the body's next run. Runs that complete on this thread call back
+  // inside the ask, so the loop asks again rather than nesting deeper.
+  void readOn(HINTERNET handle)
+  {
+    if (t_readLoop != nullptr && t_readLoop->request == this)
+    {
+      t_readLoop->owed = true;
+      return;
+    }
+    ReadLoop loop{this, true};
+    ReadLoop* outer = t_readLoop;
+    t_readLoop = &loop;
+    while (loop.owed && !closing())
+    {
+      loop.owed = false;
+      if (!WinHttpQueryDataAvailable(handle, nullptr))
+      {
+        stop({NetErrorCode::Network, errorMessage(GetLastError())});
+      }
+    }
+    t_readLoop = outer;
+  }
+
+  // Reads only what arrived, since WinHttpReadData waits to fill its buffer.
+  // None available is not yet the end; a read of nothing is.
+  void onAvailable(HINTERNET handle, DWORD available)
+  {
+    DWORD size = available == 0 ? kReadChunkBytes
+                                : std::min(available, kReadChunkBytes);
+    if (!WinHttpReadData(handle, m_chunk.data(), size, nullptr))
     {
       stop({NetErrorCode::Network, errorMessage(GetLastError())});
     }
@@ -930,19 +982,22 @@ private:
       settle(true, nullptr);
       return;
     }
-    if (m_body.size() + length > m_maxBodyBytes)
     {
-      stop(
-          {NetErrorCode::TooLarge,
-           "the response body is larger than " +
-               std::to_string(m_maxBodyBytes) + " bytes"});
-      return;
+      // Only an ask to carry on that comes from here on is about this run.
+      std::lock_guard<std::mutex> lock(m_mutex);
+      m_resumed = false;
     }
-    m_body.insert(m_body.end(), m_chunk.begin(), m_chunk.begin() + length);
-    if (!WinHttpReadData(handle, m_chunk.data(), kReadChunkBytes, nullptr))
+    if (!receive(m_id, m_chunk.data(), length))
     {
-      stop({NetErrorCode::Network, errorMessage(GetLastError())});
+      // scriptnet wants no more yet, unless it has since asked to carry on.
+      std::lock_guard<std::mutex> lock(m_mutex);
+      if (!m_resumed)
+      {
+        m_paused = true;
+        return;
+      }
     }
+    readOn(handle);
   }
 
   void onError(DWORD code)
@@ -991,13 +1046,11 @@ private:
     bool failed;
     bool completed;
     NetError error;
-    HttpResponse response;
     {
       std::lock_guard<std::mutex> lock(m_mutex);
       failed = m_failed;
       completed = m_completed;
       error = std::move(m_error);
-      response = std::move(m_response);
     }
     if (failed)
     {
@@ -1005,8 +1058,7 @@ private:
     }
     else if (completed)
     {
-      response.body = std::move(m_body);
-      complete(m_id, std::move(response));
+      finish(m_id);
     }
     else
     {
@@ -1022,7 +1074,6 @@ private:
   HttpRequest m_hop;
   uint32_t m_hops = 0;
   Clock::time_point m_deadline;
-  uint32_t m_maxBodyBytes;
   bool m_allowLocalAddresses;
 
   // Only the callback thread of the moment touches these; WinHTTP never
@@ -1032,8 +1083,8 @@ private:
   // proxy, which it resolves instead.
   std::wstring m_hopHost;
   bool m_proxied = false;
+  // The run being read.
   std::vector<uint8_t> m_chunk;
-  std::vector<uint8_t> m_body;
 
   std::mutex m_mutex;
   // The hop's handle, from its creation to its closing callback.
@@ -1049,7 +1100,13 @@ private:
   bool m_failed = false;
   NetError m_error;
   bool m_completed = false;
-  HttpResponse m_response;
+  // scriptnet said the script's timeout no longer covers the body. Set with
+  // m_mutex held; the watchdog reads it without.
+  std::atomic<bool> m_untimed{false};
+  // No read is out because scriptnet asked for no more of the body yet, and
+  // whether it has asked to carry on since the run now being handed over.
+  bool m_paused = false;
+  bool m_resumed = false;
 };
 
 class WindowsProvider : public Provider
@@ -1179,9 +1236,27 @@ public:
     }
   }
 
+  void resume(RequestId id) override
+  {
+    rcp<Request> entry;
+    {
+      std::lock_guard<std::mutex> lock(m_registry->mutex);
+      auto it = m_registry->requests.find(id);
+      if (it != m_registry->requests.end())
+      {
+        entry = it->second;
+      }
+    }
+    if (entry != nullptr)
+    {
+      entry->resume();
+    }
+  }
+
 private:
   // WinHTTP's timeouts are per phase; the script's covers the whole
-  // exchange, so a thread stops whatever outlives its deadline.
+  // exchange, or only the wait for the response when its body is read as it
+  // arrives, so a thread stops whatever outlives its deadline.
   static void watch(rcp<Registry> registry)
   {
     std::unique_lock<std::mutex> lock(registry->mutex);
@@ -1211,8 +1286,7 @@ private:
         lock.unlock();
         for (const rcp<Request>& request : expired)
         {
-          request->stop(
-              {NetErrorCode::Timeout, "no response before the timeout"});
+          request->timeOut();
         }
         lock.lock();
         continue;

@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "a081fd4bbcf2f628"
+#define RIVE_BINDINGS_V1_CONTRACT "6c35b161f9733076"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -912,10 +912,22 @@ RIVE_BINDING_IMPORT("rive_net_v1", "fetch")
 uint32_t rive_net_fetch(const uint8_t* request, uint32_t requestCount, uint32_t token);
 RIVE_BINDING_IMPORT("rive_net_v1", "fetch_cancel")
 void rive_net_fetch_cancel(uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "body_read")
+uint32_t rive_net_body_read(uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "body_take")
+uint32_t rive_net_body_take(uint32_t token, uint8_t* out, uint32_t outByteCount);
+RIVE_BINDING_IMPORT("rive_net_v1", "body_blob")
+uint32_t rive_net_body_blob(uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "body_unwait")
+void rive_net_body_unwait(uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "body_cancel")
+void rive_net_body_cancel(uint32_t token);
 
 // rive_file_v1
 RIVE_BINDING_IMPORT("rive_file_v1", "decode")
 uint32_t rive_file_decode(const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+RIVE_BINDING_IMPORT("rive_file_v1", "decode_blob")
+uint32_t rive_file_decode_blob(uint32_t blob, uint32_t* statusOut, uint32_t statusCount);
 RIVE_BINDING_IMPORT("rive_file_v1", "release")
 void rive_file_release(uint32_t file);
 RIVE_BINDING_IMPORT("rive_file_v1", "artboard_count")

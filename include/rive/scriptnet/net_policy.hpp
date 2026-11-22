@@ -25,13 +25,19 @@ struct NetLimits
   uint32_t maxQueuedBodyBytesPerOwner = 32 * 1024 * 1024;
   /// Answers one VM may have that poll() has yet to deliver, counting those
   /// in flight, and their body bytes; while either is reached, its requests
-  /// wait to start. A body's size is known only once it arrives, so the
-  /// bytes held can exceed the cap by what is in flight, at most
-  /// maxInFlightPerOwner times maxResponseBodyBytes.
+  /// wait to start. A body read as it arrives counts its unread bytes, and
+  /// its transport waits once they fill an equal share of the bytes for
+  /// each request the VM may have in flight. One handed over whole is sized
+  /// only once it arrives, so those can exceed the cap by what is in
+  /// flight, at most maxInFlightPerOwner times maxResponseBodyBytes.
   uint32_t maxUndeliveredPerOwner = 64;
   uint32_t maxUndeliveredBytesPerOwner = 64 * 1024 * 1024;
   uint32_t maxRequestBodyBytes = 8 * 1024 * 1024;
+  /// The largest body handed over whole. One read as it arrives has no
+  /// limit here; a transport that only reports whole responses keeps this.
   uint32_t maxResponseBodyBytes = 16 * 1024 * 1024;
+  /// How long a response may take. Its body is not timed when it is read as
+  /// it arrives, from a transport that reports it so.
   uint32_t defaultTimeoutMs = 30 * 1000;
   uint32_t maxTimeoutMs = 60 * 1000;
   /// How long past its own timeout a request may go unanswered before

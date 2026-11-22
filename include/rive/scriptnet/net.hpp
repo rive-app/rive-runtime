@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 // Script networking. A script's fetch() becomes a request here; NetPolicy and
 // the per-VM limits run first, then the host's Provider sends it, and the
@@ -28,7 +29,8 @@ namespace rive::scriptnet
 using RequestId = uint32_t;
 
 /// Receives the outcome of one request. Exactly one of onResponse, onError or
-/// onCancel is called.
+/// onCancel is called, though a listener that streams() can get onCancel()
+/// after its onResponse(), until it has read the body to its end.
 class FetchListener : public RefCnt<FetchListener>
 {
 public:
@@ -40,11 +42,20 @@ public:
   /// From cancel() or cancelAllForOwner(), possibly while the owner's VM is
   /// closing, so it must not call into Lua.
   virtual void onCancel() {}
+  /// True to get the response once its headers arrive, without its body,
+  /// which readBody() then takes as it arrives. A body read this way is held
+  /// to no size limit or timeout here, but for a rive-cloud: answer, which
+  /// the host reads whole first; a transport that only reports whole
+  /// responses still holds it to its own.
+  virtual bool streams() const { return false; }
+  /// From poll(), after readBody() answered Pending: more of the body has
+  /// arrived, or it has ended or failed.
+  virtual void onBody() {}
 };
 
 /// A transport, chosen by the host, never by a file. start() runs on the
-/// thread that called fetch(); outcomes come back through complete() and
-/// fail() below, from any thread.
+/// thread that called fetch(); outcomes come back through complete(), or
+/// respond(), receive() and finish(), and fail() below, from any thread.
 class Provider : public RefCnt<Provider>
 {
 public:
@@ -54,6 +65,9 @@ public:
   virtual void start(RequestId id, const HttpRequest& request) = 0;
   /// Best effort; later outcomes for `id` are dropped either way.
   virtual void abort(RequestId id) {}
+  /// receive() answered false for `id`, and its body has room again. It can
+  /// arrive before that receive() has returned.
+  virtual void resume(RequestId id) {}
 };
 
 /// This platform's transport, or null where there is none yet. Apple builds
@@ -111,7 +125,8 @@ RequestId fetch(
     rcp<FetchListener> listener);
 
 /// Forgets the request and aborts it at the provider. Returns true when the
-/// listener got onCancel(), false when it was or is being delivered instead.
+/// listener got onCancel(), false when it was or is being delivered instead;
+/// a response whose body is still being read counts as not delivered.
 bool cancel(RequestId id);
 
 /// cancel() for everything `ownerId` started. Call before the owner's Lua
@@ -124,15 +139,58 @@ void cancelAllForOwner(uint64_t ownerId);
 uint32_t poll(uint32_t maxDeliveries = 16);
 
 /// True while a request this thread started is outstanding or awaiting
-/// delivery.
+/// delivery. A delivered response whose body nothing waits to read is
+/// neither.
 bool hasPendingWork();
 
 /// hasPendingWork() for the requests `ownerId` started, on any thread.
 bool hasPendingWorkForOwner(uint64_t ownerId);
 
+/// True when `ownerId` has a request waiting to start and a response whose
+/// body, with no read waiting on it, keeps a slot or bytes of its budget,
+/// whether or not that is all that holds the request back. A binding whose
+/// responses a collector frees runs it then.
+bool waitsOnUnreadBodies(uint64_t ownerId);
+
 /// Any thread. The provider's outcome for `id`; ignored once `id` has been
 /// cancelled, timed out or already completed.
 void complete(RequestId id, HttpResponse&& response);
 void fail(RequestId id, NetError&& error);
+
+/// Any thread. complete() in steps, for a transport that reports a response
+/// as it arrives: respond() with the status and headers, receive() for each
+/// run of body bytes, then finish(). fail() ends a body part way.
+///
+/// respond() answers whether the request's timeout still covers the body,
+/// which it does unless a listener reads the body as it arrives.
+///
+/// receive() answers false when the transport is to stop reading: until
+/// Provider::resume(), when the body waiting to be read is full, or for good
+/// when the request is over, which it may be because receive() aborted it
+/// for a body past the size limit.
+bool respond(RequestId id, HttpResponse&& head);
+bool receive(RequestId id, const uint8_t* bytes, size_t size);
+void finish(RequestId id);
+
+enum class BodyState : uint8_t
+{
+  /// `bytes` holds all that had arrived.
+  Data,
+  /// Nothing has arrived since the last read; onBody() says when to read.
+  Pending,
+  /// The whole body has been read.
+  End,
+  /// The transport failed or the request is gone; `error` says why.
+  Failed,
+};
+
+/// For a listener that streams(), from its onResponse() on and on that
+/// thread: takes what has arrived of `id`'s body. End and Failed forget the
+/// request.
+BodyState readBody(RequestId id, std::vector<uint8_t>* bytes, NetError* error);
+
+/// Nothing waits any more on the read readBody() answered Pending for, so
+/// no onBody() is owed and the request stops counting as pending work.
+void forgetRead(RequestId id);
 
 } // namespace rive::scriptnet

@@ -1714,10 +1714,40 @@ void rive_web_net_fetch_cancel(uint32_t vmHandle, uint32_t token)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     netFetchCancelImpl(vm, token);
 }
+uint32_t rive_web_net_body_read(uint32_t vmHandle, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return netBodyReadImpl(vm, token);
+}
+uint32_t rive_web_net_body_take(uint32_t vmHandle, uint32_t token, uint8_t* out, uint32_t outByteCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return netBodyTakeImpl(vm, token, out, outByteCount);
+}
+uint32_t rive_web_net_body_blob(uint32_t vmHandle, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return netBodyBlobImpl(vm, token);
+}
+void rive_web_net_body_unwait(uint32_t vmHandle, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    netBodyUnwaitImpl(vm, token);
+}
+void rive_web_net_body_cancel(uint32_t vmHandle, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    netBodyCancelImpl(vm, token);
+}
 uint32_t rive_web_file_decode(uint32_t vmHandle, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return fileDecodeImpl(vm, bytes, byteCount, statusOut, statusCount);
+}
+uint32_t rive_web_file_decode_blob(uint32_t vmHandle, uint32_t blob, uint32_t* statusOut, uint32_t statusCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return fileDecodeBlobImpl(vm, blob, statusOut, statusCount);
 }
 void rive_web_file_release(uint32_t vmHandle, uint32_t file)
 {
@@ -2406,7 +2436,13 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_renderer_draw_image_mesh_instanced,
     (void*)rive_web_net_fetch,
     (void*)rive_web_net_fetch_cancel,
+    (void*)rive_web_net_body_read,
+    (void*)rive_web_net_body_take,
+    (void*)rive_web_net_body_blob,
+    (void*)rive_web_net_body_unwait,
+    (void*)rive_web_net_body_cancel,
     (void*)rive_web_file_decode,
+    (void*)rive_web_file_decode_blob,
     (void*)rive_web_file_release,
     (void*)rive_web_file_artboard_count,
     (void*)rive_web_file_artboard_name,

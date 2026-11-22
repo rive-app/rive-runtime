@@ -1286,6 +1286,22 @@ NAMESPACES = [
         op('fetch', [buf('uint8_t', 'request', 'requestCount'),
                      u32('token')], ret='u32'),
         op('fetch_cancel', [u32('token')]),
+        # A response body that streams, named by its fetch's token from the
+        # response on. body_read answers the bytes waiting for body_take, 0
+        # when none have arrived or the read failed (host_fetch_body says
+        # which, later), or NetWire::kBodyEnd.
+        op('body_read', [u32('token')], ret='u32'),
+        op('body_take', [u32('token'),
+                         mutbuf('uint8_t', 'out', 'outByteCount',
+                                written='size')], ret='u32'),
+        # The whole body gathered into a shared blob, so it never enters
+        # module memory: its id, or 0 when host_fetch_body brings it later.
+        op('body_blob', [u32('token')], ret='u32'),
+        # The read or the whole body the module waited for was cancelled:
+        # nothing is owed through host_fetch_body, and the body keeps what
+        # has arrived for whoever asks next.
+        op('body_unwait', [u32('token')]),
+        op('body_cancel', [u32('token')]),
     ]),
     # context:decodeFile and what it returns: decoded files and their
     # bindable artboards are host objects behind handles. The bindable ops
@@ -1296,6 +1312,11 @@ NAMESPACES = [
         # FileDecodeWire status saying why.
         op('decode', [buf('uint8_t', 'bytes', 'byteCount'),
                       mutbuf('uint32_t', 'statusOut', 'statusCount')],
+           ret='u32'),
+        # decode from a shared blob of the caller's file, so the bytes never
+        # enter module memory.
+        op('decode_blob', [u32('blob'),
+                           mutbuf('uint32_t', 'statusOut', 'statusCount')],
            ret='u32'),
         op('release', [handle('file')]),
         # The artboard count, then each name by index with the retrying

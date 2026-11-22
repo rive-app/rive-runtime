@@ -56,7 +56,8 @@ struct PathEffectPaintWire;
 namespace scriptnet
 {
 struct HttpResponse;
-}
+struct NetError;
+} // namespace scriptnet
 
 /// A debugger's view of a module baked with rasc's line probes. Everything
 /// arrives on the module's thread: the probes from inside the module, the
@@ -343,6 +344,16 @@ public:
   /// its "<code>: <message>" rejection.
   void resolveFetch(uint32_t token, scriptnet::HttpResponse&& response);
   void rejectFetch(uint32_t token, uint32_t code, const std::string& message);
+  /// A streamed response body, named by its fetch's token: rive_net_v1's
+  /// body ops, which bindings.py describes.
+  uint32_t readFetchBody(uint32_t token);
+  uint32_t takeFetchBody(uint32_t token, uint8_t* out, uint32_t capacity);
+  uint32_t blobFetchBody(uint32_t token);
+  void unwaitFetchBody(uint32_t token);
+  void cancelFetchBody(uint32_t token);
+  /// scriptnet listener callback: more of a streamed body arrived, or it
+  /// ended or failed.
+  void fetchBodyChanged(uint32_t token);
   /// Delivers the decode and fetch outcomes that landed while a module
   /// call was running; a no-op while one still is.
   void deliverHeldOutcomes();
@@ -1048,6 +1059,34 @@ private:
   /// cancel everything it started.
   std::unordered_map<uint32_t, uint32_t> m_pendingFetches;
   uint64_t m_netOwnerId = 0;
+  /// A streamed body the module has yet to read to its end.
+  struct FetchBody
+  {
+    /// Its scriptnet request id.
+    uint32_t request = 0;
+    /// Bytes body_read announced, held for body_take.
+    std::vector<uint8_t> chunk;
+    /// body_blob asked for the whole body: what has arrived of it.
+    bool gathers = false;
+    std::vector<std::vector<uint8_t>> gathered;
+    size_t gatheredBytes = 0;
+    /// The module waits to hear of it through host_fetch_body.
+    bool awaited = false;
+    /// Why it failed, kept until a wait hears it.
+    std::string failure;
+  };
+  std::unordered_map<uint32_t, FetchBody> m_fetchBodies;
+  /// The gathered body as a blob id once whole, else 0, having told the
+  /// module why when it failed.
+  uint32_t gatherFetchBody(uint32_t token);
+  void failFetchBody(uint32_t token, const scriptnet::NetError& error);
+  void failFetchBody(uint32_t token, std::string message);
+  /// Calls host_fetch_body with a NetWire::BodyEvent.
+  void deliverFetchBody(
+      uint32_t token,
+      uint32_t event,
+      uint32_t value,
+      const std::string& message);
   void deliverFetchFailure(
       uint32_t token,
       uint32_t code,
@@ -1137,6 +1176,9 @@ private:
   /// Module exports __riveFuelCheck: it traps itself once a call overruns.
   bool m_fuelBudget = false;
   bool m_fuelShift = false;
+  /// Module exports __riveFetchStreamBody: it reads a fetched body as it
+  /// arrives.
+  bool m_fetchStreamBody = false;
   /// Module exports __riveFetchBlobBody: a fetched body crosses as a blob.
   bool m_fetchBlobBody = false;
   /// Set once the watchdog interrupts a call or the collector traps; the

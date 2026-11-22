@@ -411,13 +411,15 @@ struct Outstanding
   // Handed to the provider, as opposed to refused up front or queued.
   bool started = false;
   // Holding one of its owner's in-flight slots, from its start until the
-  // transport answers.
+  // transport answers, or has finished a body that streams.
   bool counted = false;
-  // Answered and counted against its owner's undelivered budget, with its
-  // body's bytes, until poll() delivers or drops it.
+  // Answered and counted against its owner's undelivered budget until
+  // poll() delivers or drops it. undeliveredBytes is its body's bytes, or
+  // the unread bytes of a body that streams.
   bool undelivered = false;
   size_t undeliveredBytes = 0;
-  // An outcome is queued; any later one is dropped.
+  // An outcome is queued, or the head of a response that streams was; any
+  // later one is dropped.
   bool settled = false;
   // The transport that started it, and so the one to abort it, even after
   // setProvider() swaps transports.
@@ -446,6 +448,30 @@ struct Outstanding
   // The rive-cloud: URL the script asked for, which is the URL its response
   // names: the engine's address and the namespace are the host's to know.
   std::string scriptUrl;
+  // Its listener reads the body with readBody().
+  bool listenerStreams = false;
+  // The body goes to that listener as the transport reports it; a
+  // rive-cloud: answer only once the host has read it whole.
+  bool streams = false;
+  // respond() gave the status and headers. Unless the body streams,
+  // `response` holds them and what has arrived of it.
+  bool responded = false;
+  HttpResponse response;
+  // The rest is for a body that streams. Its bytes not yet read, counted in
+  // undeliveredBytes.
+  std::deque<std::vector<uint8_t>> chunks;
+  // poll() delivered the response, so readBody() may be called.
+  bool delivered = false;
+  // The transport has finished the body, or failed it with bodyError.
+  bool ended = false;
+  bool failed = false;
+  NetError bodyError;
+  // readBody() answered Pending, so the next change is announced.
+  bool wantsBody = false;
+  // An onBody() is queued.
+  bool bodyQueued = false;
+  // receive() answered false, so the transport waits for resume().
+  bool paused = false;
 };
 
 struct Owner
@@ -465,6 +491,8 @@ struct Outcome
   RequestId id = 0;
   uint64_t sequence = 0;
   bool ok = false;
+  // An onBody() rather than a response or an error.
+  bool body = false;
   HttpResponse response;
   NetError error;
 };
@@ -515,9 +543,9 @@ public:
     }
     release(it->second);
     auto owner = owners.find(it->second.ownerId);
-    if (it->second.undelivered && owner != owners.end())
+    if (owner != owners.end())
     {
-      owner->second.undelivered--;
+      owner->second.undelivered -= it->second.undelivered ? 1 : 0;
       owner->second.undeliveredBytes -= it->second.undeliveredBytes;
     }
     if (it->second.queued)
@@ -549,6 +577,13 @@ public:
       return;
     }
     release(entry);
+    hold(entry, bytes);
+  }
+
+  // Counts an answer, or the head of one whose body still arrives, against
+  // its owner's undelivered budget.
+  void hold(Outstanding& entry, size_t bytes)
+  {
     auto owner = owners.find(entry.ownerId);
     if (owner != owners.end())
     {
@@ -557,6 +592,126 @@ public:
       entry.undelivered = true;
       entry.undeliveredBytes = bytes;
     }
+  }
+
+  // Whether the transport still works on the entry, so a cancel aborts it.
+  static bool withTransport(const Outstanding& entry)
+  {
+    return entry.started &&
+           (entry.streams && entry.responded ? !entry.ended : !entry.settled);
+  }
+
+  // The unread bytes one streamed body may hold before its transport waits:
+  // an equal share of the owner's budget for each request it may have out.
+  size_t bodyWindow() const
+  {
+    // At least a byte, so an empty run never stops a transport.
+    return std::max<size_t>(
+        1,
+        limits.maxUndeliveredBytesPerOwner /
+            std::max<uint32_t>(1, limits.maxInFlightPerOwner));
+  }
+
+  // Announces a change to a streamed body its listener waits on.
+  void announceBody(RequestId id, Outstanding& entry)
+  {
+    if (!entry.wantsBody)
+    {
+      return;
+    }
+    entry.wantsBody = false;
+    // One announcement in the queue is enough.
+    if (entry.bodyQueued)
+    {
+      return;
+    }
+    entry.bodyQueued = true;
+    Outcome outcome;
+    outcome.id = id;
+    outcome.body = true;
+    queue(std::move(outcome));
+  }
+
+  // Whether poll() still owes the entry's listener a call.
+  static bool owesDelivery(const Outstanding& entry)
+  {
+    return !entry.delivered || entry.wantsBody || entry.bodyQueued;
+  }
+
+  // The status and headers of a response that streams, queued for poll()
+  // while its body keeps the transport.
+  void respondStream(RequestId id, Outstanding& entry, HttpResponse&& head)
+  {
+    entry.settled = true;
+    entry.responded = true;
+    if (entry.counted)
+    {
+      hold(entry, 0);
+    }
+    Outcome outcome;
+    outcome.id = id;
+    outcome.ok = true;
+    outcome.response = std::move(head);
+    queue(std::move(outcome));
+  }
+
+  // More of a streamed body; false once its unread bytes fill their window.
+  bool receiveStream(
+      RequestId id,
+      Outstanding& entry,
+      std::vector<uint8_t>&& chunk)
+  {
+    auto owner = owners.find(entry.ownerId);
+    if (!chunk.empty() && owner != owners.end())
+    {
+      owner->second.undeliveredBytes += chunk.size();
+      entry.undeliveredBytes += chunk.size();
+    }
+    if (!chunk.empty())
+    {
+      entry.chunks.push_back(std::move(chunk));
+      announceBody(id, entry);
+    }
+    // Kept until a read takes the bytes, whatever the limits become.
+    entry.paused = entry.paused || entry.undeliveredBytes >= bodyWindow();
+    return !entry.paused;
+  }
+
+  // The transport is done with a streamed body, having failed it when
+  // `error` is given.
+  void endStream(RequestId id, Outstanding& entry, const NetError* error)
+  {
+    entry.ended = true;
+    if (error != nullptr)
+    {
+      entry.failed = true;
+      entry.bodyError = *error;
+    }
+    release(entry);
+    announceBody(id, entry);
+  }
+
+  // A whole response for poll(): as it is, or for a listener that streams
+  // as its head with the body there to read.
+  void deliverWhole(RequestId id, Outstanding& entry, HttpResponse&& response)
+  {
+    if (!entry.listenerStreams)
+    {
+      entry.settled = true;
+      answer(entry, response.body.size());
+      Outcome outcome;
+      outcome.id = id;
+      outcome.ok = true;
+      outcome.response = std::move(response);
+      queue(std::move(outcome));
+      return;
+    }
+    std::vector<uint8_t> body = std::move(response.body);
+    response.body.clear();
+    entry.streams = true;
+    respondStream(id, entry, std::move(response));
+    receiveStream(id, entry, std::move(body));
+    endStream(id, entry, nullptr);
   }
 
   // Frees the entry's in-flight slot, once.
@@ -572,6 +727,14 @@ public:
     {
       owner->second.inFlight--;
     }
+  }
+
+  NetError tooLarge() const
+  {
+    return {
+        NetErrorCode::TooLarge,
+        "the response body is larger than " +
+            std::to_string(limits.maxResponseBodyBytes) + " bytes"};
   }
 
   RequestId allocateId()
@@ -600,6 +763,25 @@ public:
     queue(std::move(outcome));
   }
 
+  // A request that is not streaming failed: the host's own hello fails the
+  // session, and a script's request settles with the error.
+  void failWhole(
+      std::unordered_map<RequestId, Outstanding>::iterator it,
+      NetError&& error)
+  {
+    if (it->second.helloStep == HelloStep::None)
+    {
+      settle(it->first, it->second, std::move(error));
+      return;
+    }
+    bool current = it->second.epoch == session.epoch;
+    erase(it);
+    if (current)
+    {
+      failHello(nullptr, &error);
+    }
+  }
+
   // Detaches the first deliverable outcome for `thread` queued before
   // `before`.
   bool take(
@@ -622,9 +804,29 @@ public:
         ++it;
         continue;
       }
-      *listener = std::move(entry->second.listener);
       *outcome = std::move(*it);
       outcomes.erase(it);
+      Outstanding& found = entry->second;
+      if (outcome->body)
+      {
+        found.bodyQueued = false;
+        *listener = found.listener;
+        return true;
+      }
+      if (outcome->ok && found.streams && found.responded)
+      {
+        // Kept for its body; only the head leaves the undelivered count.
+        found.delivered = true;
+        auto owner = owners.find(found.ownerId);
+        if (found.undelivered && owner != owners.end())
+        {
+          owner->second.undelivered--;
+        }
+        found.undelivered = false;
+        *listener = found.listener;
+        return true;
+      }
+      *listener = std::move(found.listener);
       erase(entry, true);
       return true;
     }
@@ -823,27 +1025,25 @@ public:
         continue;
       }
       unqueue(id, entry);
-      entry.settled = true;
-      Outcome outcome;
-      outcome.id = id;
-      if (response != nullptr)
+      if (response == nullptr)
       {
-        outcome.ok = true;
-        outcome.response = *response;
-        outcome.response.url = entry.scriptUrl;
-        // A hello's 404 or 409 would read as a data request's own answer, so
-        // it gets a 401. Too many requests or a failing engine is true of both.
-        if (!entry.session && response->status != 429 && response->status < 500)
-        {
-          outcome.response.status = 401;
-          outcome.response.statusText = standardReasonPhrase(401);
-        }
-      }
-      else
-      {
+        entry.settled = true;
+        Outcome outcome;
+        outcome.id = id;
         outcome.error = *error;
+        queue(std::move(outcome));
+        continue;
       }
-      queue(std::move(outcome));
+      HttpResponse answered = *response;
+      answered.url = entry.scriptUrl;
+      // A hello's 404 or 409 would read as a data request's own answer, so
+      // it gets a 401. Too many requests or a failing engine is true of both.
+      if (!entry.session && response->status != 429 && response->status < 500)
+      {
+        answered.status = 401;
+        answered.statusText = standardReasonPhrase(401);
+      }
+      deliverWhole(id, entry, std::move(answered));
     }
   }
 
@@ -1072,7 +1272,7 @@ static void startRequest(
       it->second.starting = false;
       if (it->second.cancelled)
       {
-        abortNow = !it->second.settled;
+        abortNow = Net::withTransport(it->second);
         net.erase(it);
       }
     }
@@ -1252,12 +1452,7 @@ static void startQueued(Net& net, std::thread::id thread)
           }
           if (entry.session)
           {
-            entry.settled = true;
-            Outcome outcome;
-            outcome.id = it->first;
-            outcome.ok = true;
-            outcome.response = net.sessionAnswer(entry);
-            net.queue(std::move(outcome));
+            net.deliverWhole(it->first, entry, net.sessionAnswer(entry));
             continue;
           }
           net.begin(owner, entry, entry.request.timeoutMs);
@@ -1361,6 +1556,7 @@ RequestId fetch(
   rcp<Provider> provider;
   bool waitsForToken = false;
   bool queued = false;
+  bool streams = listener != nullptr && listener->streams();
   {
     std::lock_guard<std::mutex> lock(net.mutex);
     id = net.allocateId();
@@ -1377,6 +1573,8 @@ RequestId fetch(
       net.settle(id, entry, std::move(error));
       return id;
     }
+    entry.listenerStreams = streams;
+    entry.streams = streams && !entry.cloud;
     // Past the limits a request waits its turn, as a browser holds those
     // past its connection limit. A rive-cloud: request also waits for the
     // host's token, and a script's hello is answered from the queue.
@@ -1435,7 +1633,7 @@ bool cancel(RequestId id)
     }
     else
     {
-      if (it->second.started && !it->second.settled)
+      if (Net::withTransport(it->second))
       {
         provider = it->second.provider;
       }
@@ -1474,7 +1672,7 @@ void cancelAllForOwner(uint64_t ownerId)
         ++it;
         continue;
       }
-      if (it->second.started && !it->second.settled)
+      if (Net::withTransport(it->second))
       {
         toAbort.push_back({it->first, it->second.provider});
       }
@@ -1572,7 +1770,11 @@ uint32_t poll(uint32_t maxDeliveries)
     {
       continue;
     }
-    if (outcome.ok)
+    if (outcome.body)
+    {
+      listener->onBody();
+    }
+    else if (outcome.ok)
     {
       listener->onResponse(std::move(outcome.response));
     }
@@ -1595,7 +1797,7 @@ bool hasPendingWork()
   std::thread::id thread = std::this_thread::get_id();
   for (const auto& entry : net.outstanding)
   {
-    if (entry.second.thread == thread)
+    if (entry.second.thread == thread && Net::owesDelivery(entry.second))
     {
       return true;
     }
@@ -1613,7 +1815,7 @@ bool hasPendingWorkForOwner(uint64_t ownerId)
   std::lock_guard<std::mutex> lock(net.mutex);
   for (const auto& entry : net.outstanding)
   {
-    if (entry.second.ownerId == ownerId)
+    if (entry.second.ownerId == ownerId && Net::owesDelivery(entry.second))
     {
       return true;
     }
@@ -1621,15 +1823,15 @@ bool hasPendingWorkForOwner(uint64_t ownerId)
   return false;
 }
 
-void complete(RequestId id, HttpResponse&& response)
+namespace
 {
-  Net& net = Net::instance();
-  std::lock_guard<std::mutex> lock(net.mutex);
-  auto it = net.outstanding.find(id);
-  if (it == net.outstanding.end() || it->second.settled)
-  {
-    return;
-  }
+using Entry = std::unordered_map<RequestId, Outstanding>::iterator;
+
+// A response that does not stream, whole: the host's own answers are acted
+// on, and a script's is queued for poll().
+void completeWhole(Net& net, Entry it, HttpResponse&& response)
+{
+  RequestId id = it->first;
   if (it->second.helloStep != HelloStep::None)
   {
     HelloStep step = it->second.helloStep;
@@ -1651,24 +1853,46 @@ void complete(RequestId id, HttpResponse&& response)
   }
   if (response.body.size() > net.limits.maxResponseBodyBytes)
   {
-    net.settle(
-        id,
-        it->second,
-        {NetErrorCode::TooLarge,
-         "the response body is larger than " +
-             std::to_string(net.limits.maxResponseBodyBytes) + " bytes"});
+    net.settle(id, it->second, net.tooLarge());
     return;
   }
-  it->second.settled = true;
-  net.answer(it->second, response.body.size());
-  Outcome outcome;
-  outcome.id = id;
-  outcome.ok = true;
-  outcome.response = std::move(response);
-  net.queue(std::move(outcome));
+  net.deliverWhole(id, it->second, std::move(response));
+}
+} // namespace
+
+void forgetRead(RequestId id)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  auto it = net.outstanding.find(id);
+  if (it != net.outstanding.end())
+  {
+    it->second.wantsBody = false;
+  }
 }
 
-void fail(RequestId id, NetError&& error)
+bool waitsOnUnreadBodies(uint64_t ownerId)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  auto owner = net.owners.find(ownerId);
+  if (owner == net.owners.end() || owner->second.waiting.empty())
+  {
+    return false;
+  }
+  for (const auto& [id, entry] : net.outstanding)
+  {
+    // One a read waits on is in use, not dropped.
+    if (entry.ownerId == ownerId && entry.delivered && !entry.wantsBody &&
+        !entry.bodyQueued && (entry.counted || entry.undeliveredBytes != 0))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+void complete(RequestId id, HttpResponse&& response)
 {
   Net& net = Net::instance();
   std::lock_guard<std::mutex> lock(net.mutex);
@@ -1677,17 +1901,189 @@ void fail(RequestId id, NetError&& error)
   {
     return;
   }
-  if (it->second.helloStep != HelloStep::None)
+  if (!it->second.streams)
   {
-    bool current = it->second.epoch == net.session.epoch;
-    net.erase(it);
-    if (current)
+    completeWhole(net, it, std::move(response));
+    return;
+  }
+  std::vector<uint8_t> body = std::move(response.body);
+  response.body.clear();
+  net.respondStream(id, it->second, std::move(response));
+  net.receiveStream(id, it->second, std::move(body));
+  net.endStream(id, it->second, nullptr);
+}
+
+bool respond(RequestId id, HttpResponse&& head)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  auto it = net.outstanding.find(id);
+  if (it == net.outstanding.end())
+  {
+    return true;
+  }
+  // Its head is already in, or the request is over: nothing changes.
+  if (it->second.settled || it->second.responded)
+  {
+    return !it->second.streams;
+  }
+  head.body.clear();
+  if (it->second.streams)
+  {
+    net.respondStream(id, it->second, std::move(head));
+    return false;
+  }
+  it->second.responded = true;
+  it->second.response = std::move(head);
+  return true;
+}
+
+bool receive(RequestId id, const uint8_t* bytes, size_t size)
+{
+  Net& net = Net::instance();
+  rcp<Provider> refused;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    auto it = net.outstanding.find(id);
+    if (it == net.outstanding.end() || !it->second.responded ||
+        it->second.ended)
     {
-      net.failHello(nullptr, &error);
+      return false;
+    }
+    Outstanding& entry = it->second;
+    if (entry.streams)
+    {
+      return net.receiveStream(
+          id,
+          entry,
+          std::vector<uint8_t>(bytes, bytes + size));
+    }
+    if (entry.settled)
+    {
+      return false;
+    }
+    std::vector<uint8_t>& body = entry.response.body;
+    if (body.size() + size <= net.limits.maxResponseBodyBytes)
+    {
+      body.insert(body.end(), bytes, bytes + size);
+      return true;
+    }
+    entry.response = HttpResponse();
+    refused = entry.provider;
+    net.failWhole(it, net.tooLarge());
+  }
+  if (refused != nullptr)
+  {
+    refused->abort(id);
+  }
+  return false;
+}
+
+void finish(RequestId id)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  auto it = net.outstanding.find(id);
+  if (it == net.outstanding.end() || !it->second.responded)
+  {
+    return;
+  }
+  if (it->second.streams)
+  {
+    if (!it->second.ended)
+    {
+      net.endStream(id, it->second, nullptr);
     }
     return;
   }
-  net.settle(id, it->second, std::move(error));
+  if (it->second.settled)
+  {
+    return;
+  }
+  // Taken out first: completing can erase the entry, or send its request
+  // again for an answer of its own.
+  HttpResponse response = std::move(it->second.response);
+  it->second.response = HttpResponse();
+  it->second.responded = false;
+  completeWhole(net, it, std::move(response));
+}
+
+void fail(RequestId id, NetError&& error)
+{
+  Net& net = Net::instance();
+  std::lock_guard<std::mutex> lock(net.mutex);
+  auto it = net.outstanding.find(id);
+  if (it == net.outstanding.end())
+  {
+    return;
+  }
+  if (it->second.streams && it->second.responded)
+  {
+    if (!it->second.ended)
+    {
+      net.endStream(id, it->second, &error);
+    }
+    return;
+  }
+  if (it->second.settled)
+  {
+    return;
+  }
+  net.failWhole(it, std::move(error));
+}
+
+BodyState readBody(RequestId id, std::vector<uint8_t>* bytes, NetError* error)
+{
+  Net& net = Net::instance();
+  rcp<Provider> resumed;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    auto it = net.outstanding.find(id);
+    if (it == net.outstanding.end() || !it->second.delivered)
+    {
+      *error = {NetErrorCode::Aborted, "the response is no longer being read"};
+      return BodyState::Failed;
+    }
+    Outstanding& entry = it->second;
+    if (entry.chunks.empty())
+    {
+      if (!entry.ended)
+      {
+        entry.wantsBody = true;
+        return BodyState::Pending;
+      }
+      BodyState state = entry.failed ? BodyState::Failed : BodyState::End;
+      if (entry.failed)
+      {
+        *error = std::move(entry.bodyError);
+      }
+      net.erase(it);
+      return state;
+    }
+    *bytes = std::move(entry.chunks.front());
+    entry.chunks.pop_front();
+    for (const std::vector<uint8_t>& chunk : entry.chunks)
+    {
+      bytes->insert(bytes->end(), chunk.begin(), chunk.end());
+    }
+    entry.chunks.clear();
+    auto owner = net.owners.find(entry.ownerId);
+    if (owner != net.owners.end())
+    {
+      owner->second.undeliveredBytes -= entry.undeliveredBytes;
+    }
+    entry.undeliveredBytes = 0;
+    if (entry.paused && !entry.ended)
+    {
+      entry.paused = false;
+      resumed = entry.provider;
+    }
+  }
+  if (resumed != nullptr)
+  {
+    resumed->resume(id);
+  }
+  return BodyState::Data;
 }
 
 } // namespace rive::scriptnet
