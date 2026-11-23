@@ -72,10 +72,18 @@ public:
 
 /// This platform's transport, or null where there is none yet. Apple builds
 /// get a cookie-less, credential-less NSURLSession; Windows builds the same
-/// over WinHTTP, and Linux hosts that link our curl over it. Nothing is
-/// installed by default: a host opts in with
+/// over WinHTTP, and Linux hosts that link our curl over it. Android builds
+/// get the platform's HttpURLConnection once setJavaVM() has named the VM,
+/// without cookies or a cache but under the app's other java.net defaults.
+/// Nothing is installed by default: a host opts in with
 /// setProvider(makePlatformProvider()).
 rcp<Provider> makePlatformProvider();
+
+#ifdef __ANDROID__
+/// The app's JavaVM (a JavaVM*), which Android's transport sends through.
+/// makePlatformProvider() gives null until this names one.
+void setJavaVM(void* javaVM);
+#endif
 
 /// Replaces the transport. Null (the default) denies every request.
 void setProvider(rcp<Provider> provider);

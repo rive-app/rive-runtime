@@ -1,5 +1,6 @@
-#if defined(WITH_RIVE_SCRIPTNET) && (defined(__APPLE__) || defined(_WIN32) ||  \
-                                     defined(WITH_RIVE_SCRIPTNET_CURL))
+#if defined(WITH_RIVE_SCRIPTNET) &&                                            \
+    (defined(__APPLE__) || defined(_WIN32) ||                                  \
+     defined(WITH_RIVE_SCRIPTNET_CURL) || defined(SCRIPTNET_TESTS_HOST_ART))
 
 #include "catch.hpp"
 #include "rive/scriptnet/net.hpp"
@@ -33,10 +34,11 @@
 #include <vector>
 
 // Drives the real platform provider (NSURLSession on Apple, WinHTTP on
-// Windows, curl where a host links ours) against a server on 127.0.0.1. The
-// policy refuses http: and IP hosts, so requests go through fetch() with a
-// policy-valid https URL and a wrapper provider rewrites them to the loopback
-// server before handing them to the platform provider.
+// Windows, curl where a host links ours, HttpURLConnection on Android from
+// scriptnet_android_tests, which hosts the Java VM) against a server on
+// 127.0.0.1. The policy refuses http: and IP hosts, so requests go through
+// fetch() with a policy-valid https URL and a wrapper provider rewrites them to
+// the loopback server before handing them to the platform provider.
 
 using namespace rive;
 
@@ -118,6 +120,8 @@ struct CannedResponse
   // The connection stays open for the next response, unless the client
   // closes it first.
   bool keepAlive = false;
+  // Once sent, the server waits for the client to close the connection.
+  bool untilClosed = false;
 };
 
 // Serves the canned responses in order, one per connection unless one keeps
@@ -157,6 +161,9 @@ public:
 
   // Bytes of the responses' text handed to the sockets so far.
   size_t sent() const { return m_sent; }
+
+  // Whether the client closed a connection an untilClosed response held.
+  bool closedByClient() const { return m_closedByClient; }
 
   std::vector<std::string> requests()
   {
@@ -212,6 +219,10 @@ private:
             (int)canned.tail.size(),
             kSendFlags);
       }
+      if (canned.untilClosed)
+      {
+        waitForClose(connection);
+      }
       if (!canned.keepAlive)
       {
         closeSocket(connection);
@@ -221,6 +232,20 @@ private:
     if (connection != kInvalidSocket)
     {
       closeSocket(connection);
+    }
+  }
+
+  // An end of stream or a reset both read as the client having gone.
+  void waitForClose(Socket connection)
+  {
+    char byte;
+    while (!m_stopping)
+    {
+      if (readable(connection, 50) && recv(connection, &byte, 1, 0) <= 0)
+      {
+        m_closedByClient = true;
+        return;
+      }
     }
   }
 
@@ -311,6 +336,7 @@ private:
   uint16_t m_port = 0;
   std::atomic<bool> m_stopping{false};
   std::atomic<size_t> m_sent{0};
+  std::atomic<bool> m_closedByClient{false};
   std::mutex m_mutex;
   std::vector<std::string> m_requests;
   std::thread m_thread;
@@ -1051,4 +1077,30 @@ TEST_CASE(
   CHECK((read == body));
 }
 
-#endif // WITH_RIVE_SCRIPTNET && (__APPLE__ || _WIN32 || curl)
+TEST_CASE(
+    "the platform provider drops the connection of a request it is told to "
+    "abort",
+    "[scriptnet][platform]")
+{
+  // The head and part of the body arrive, and the transport is left waiting
+  // for the rest, which only its giving up ends.
+  CannedResponse held;
+  held.text = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n"
+              "Content-Type: application/octet-stream\r\n"
+              "Connection: close\r\n\r\nfirst";
+  held.untilClosed = true;
+  LoopbackServer server({held});
+  LoopbackNetwork network(server.port());
+  auto listener = make_rcp<StreamingListener>();
+  scriptnet::RequestId id = scriptnet::fetch(
+      LoopbackNetwork::kOwner,
+      get("/held"),
+      listener);
+  REQUIRE(pollUntil([&] { return listener->done; }));
+  REQUIRE(listener->ok);
+  CHECK(readUntil(id, "first") == "first");
+  scriptnet::cancel(id);
+  CHECK(pollUntil([&] { return server.closedByClient(); }));
+}
+
+#endif // WITH_RIVE_SCRIPTNET && (__APPLE__ || _WIN32 || curl || ART host)

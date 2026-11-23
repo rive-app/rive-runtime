@@ -71,9 +71,9 @@ struct NetLimits
 /// The curl transport checks each address but a proxy's before it opens a
 /// socket to it, and again before each request on it. Neither checks the
 /// host's own rive-cloud endpoint (HttpRequest::hostChosen).
-/// Known gap, to be closed later: the Apple transport does not check yet.
-/// There, since only https: is allowed, the server must still hold a valid
-/// certificate for that name, which rules out routers and most local
+/// Known gap, to be closed later: the Apple and Android transports do not
+/// check yet. There, since only https: is allowed, the server must still hold a
+/// valid certificate for that name, which rules out routers and most local
 /// devices but not intranet sites with public certificates, and a failed
 /// connection still tells a script whether something answered.
 class NetPolicy

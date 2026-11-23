@@ -208,3 +208,26 @@ do
 
     filter({})
 end
+
+-- Android's script transport needs a Java VM, which unit_tests cannot host
+-- beside the signal handlers its other tests count on. Its platform tests run
+-- in this binary, which starts one: see scriptnet_android/main.cpp.
+if rive_target_os == 'android' then
+    project('scriptnet_android_tests')
+    do
+        kind('ConsoleApp')
+        exceptionhandling('On')
+        defines({ 'SCRIPTNET_TESTS_HOST_ART' })
+        includedirs({ '../include', '../../include' })
+        files({
+            'scriptnet_android/main.cpp',
+            'runtime/scriptnet/net_provider_platform_test.cpp',
+        })
+        links({ 'rive', 'dl', 'log' })
+        filter({ 'toolset:not msc' })
+        do
+            linkoptions({ '-fprofile-instr-generate', '-fcoverage-mapping' })
+        end
+        filter({})
+    end
+end

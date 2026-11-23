@@ -125,10 +125,10 @@ const char* standardReasonPhrase(uint16_t status)
   return "";
 }
 
-#if !defined(__APPLE__) && !defined(_WIN32) &&                                 \
+#if !defined(__APPLE__) && !defined(_WIN32) && !defined(__ANDROID__) &&        \
     !defined(WITH_RIVE_SCRIPTNET_CURL)
-// Apple, Windows and builds with our curl have transports. Hosts elsewhere
-// keep denying until theirs lands.
+// Apple, Windows, Android and builds with our curl have transports. Hosts
+// elsewhere keep denying until theirs lands.
 rcp<Provider> makePlatformProvider() { return nullptr; }
 #endif
 
