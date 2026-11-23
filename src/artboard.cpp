@@ -2222,12 +2222,17 @@ Artboard* Artboard::makeEmptyStandIn() const
   // Artboards are always their first object (Component::import).
   standIn->addObject(standIn);
   standIn->initialize();
+  // Stands in for a body that failed to decode, so it reports the failure
+  // too, as do its instances (see failedToDecode()).
+  standIn->m_sourceState.ensureAllocated()->deferral.failed = true;
   return standIn;
 }
 
 bool Artboard::failedToDecode() const
 {
-  const ArtboardSourceState* state = m_sourceState.get();
+  // Instances share their source's state, as they share its lists (see
+  // animationSource()).
+  const ArtboardSourceState* state = animationSource()->m_sourceState.get();
   return state != nullptr && state->deferral.failed;
 }
 

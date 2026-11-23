@@ -45,6 +45,7 @@
 #include "utils/svg_renderer.hpp"
 #include "utils/serialized_replay.hpp"
 #include "lazy_decode_test_helpers.hpp"
+#include "malformed_deferred_artboard.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -196,7 +197,15 @@ TEST_CASE(
       REQUIRE(lazyResult == ImportResult::success);
       for (size_t i = 0; i < lazy->artboardCount(); i++)
       {
-        CHECK(lazy->artboardAt(i) != nullptr);
+        auto instance = lazy->artboardAt(i);
+        CHECK(instance != nullptr);
+        // An instance reports whether what it was made from failed.
+        if (instance != nullptr)
+        {
+          CHECK(
+              instance->failedToDecode() ==
+              lazy->artboardHeader(i)->failedToDecode());
+        }
       }
       CHECK(lazy->deferredArtboardStats().decodeFailures > 0);
       continue;
@@ -351,8 +360,9 @@ TEST_CASE("lazy artboard bodies wait for their first use", "[lazy_artboard]")
     }
     int before = File::deferredArtboardDecodeCount;
     auto instance = header->instance();
-    CHECK(instance != nullptr);
+    REQUIRE(instance != nullptr);
     CHECK_FALSE(header->hasDeferredBody());
+    CHECK_FALSE(instance->failedToDecode());
     // Its nested artboards were decoded too, as instancing nests them.
     CHECK(File::deferredArtboardDecodeCount > before);
     int after = File::deferredArtboardDecodeCount;
@@ -462,59 +472,6 @@ TEST_CASE("lazy imports decode artboards that can't wait", "[lazy_artboard]")
   }
 }
 
-// The second artboard's mesh has no triangle indices, which fails it in
-// initialize: an import fails whole, a deferred decode only that artboard.
-// The first nests the second.
-static std::vector<uint8_t> meshWithoutIndices()
-{
-  std::vector<uint8_t> bytes;
-  VectorBinaryWriter writer(&bytes);
-  writer.write((const uint8_t*)"RIVE", 4);
-  writer.writeVarUint((uint32_t)File::majorVersion);
-  writer.writeVarUint((uint32_t)File::minorVersion);
-  writer.writeVarUint((uint32_t)0);
-  // No table of contents: every key is one the runtime knows.
-  writer.writeVarUint((uint32_t)0);
-  auto record = [&](uint16_t typeKey) {
-    writer.writeVarUint((uint32_t)typeKey);
-  };
-  auto uintProperty = [&](uint16_t key, uint32_t value) {
-    writer.writeVarUint((uint32_t)key);
-    writer.writeVarUint(value);
-  };
-  auto floatProperty = [&](uint16_t key, float value) {
-    writer.writeVarUint((uint32_t)key);
-    writer.writeFloat(value);
-  };
-  auto stringProperty = [&](uint16_t key, const std::string& value) {
-    writer.writeVarUint((uint32_t)key);
-    writer.write(value);
-  };
-  auto end = [&]() { writer.writeVarUint((uint32_t)0); };
-  auto artboard = [&](const char* name) {
-    record(ArtboardBase::typeKey);
-    stringProperty(ComponentBase::namePropertyKey, name);
-    floatProperty(LayoutComponentBase::widthPropertyKey, 100);
-    floatProperty(LayoutComponentBase::heightPropertyKey, 100);
-    end();
-  };
-  record(BackboardBase::typeKey);
-  end();
-  artboard("first");
-  record(NestedArtboardBase::typeKey);
-  uintProperty(ComponentBase::parentIdPropertyKey, 0);
-  uintProperty(NestedArtboardBase::artboardIdPropertyKey, 1);
-  end();
-  artboard("second");
-  record(ImageBase::typeKey);
-  uintProperty(ComponentBase::parentIdPropertyKey, 0);
-  end();
-  record(MeshBase::typeKey);
-  uintProperty(ComponentBase::parentIdPropertyKey, 1);
-  end();
-  return bytes;
-}
-
 TEST_CASE(
     "an artboard that fails part way through initialize instances empty",
     "[lazy_artboard]")
@@ -536,6 +493,9 @@ TEST_CASE(
   CHECK(nested->objects().size() == 1);
   CHECK(lazy->deferredArtboardStats().decodeFailures == 1);
   CHECK(lazy->artboardHeader(1)->failedToDecode());
+  // Instances report the failure of what they were made from.
+  CHECK(nested->failedToDecode());
+  CHECK_FALSE(host->failedToDecode());
 
   // The file hands out an empty artboard with its record in its place.
   Artboard* source = lazy->artboard(1);
@@ -546,6 +506,8 @@ TEST_CASE(
   CHECK(source->width() == 100);
   CHECK(source->objects().size() == 1);
   CHECK(source->animationCount() == 0);
+  // The stand-in reports the failure it stands in for.
+  CHECK(source->failedToDecode());
   std::unique_ptr<ArtboardInstance> instances[] = {
       lazy->artboardAt(1),
       lazy->artboardNamed("second")};
@@ -554,6 +516,7 @@ TEST_CASE(
     REQUIRE(instance != nullptr);
     CHECK(instance->artboardSource() == source);
     CHECK(instance->objects().size() == 1);
+    CHECK(instance->failedToDecode());
     auto stateMachine = instance->defaultStateMachine();
     if (stateMachine == nullptr)
     {

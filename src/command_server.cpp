@@ -1455,8 +1455,31 @@ bool CommandServer::processCommands()
         lock.unlock();
         if (rive::File* file = getFile(fileHandle))
         {
-          if (auto artboard = name.empty() ? file->bindableArtboardDefault()
-                                           : file->bindableArtboardNamed(name))
+          auto artboard = name.empty() ? file->bindableArtboardDefault()
+                                       : file->bindableArtboardNamed(name);
+          // Instancing decodes a deferred body. One that failed hands out an
+          // empty artboard, which is reported instead of stored.
+          const char* failure = nullptr;
+          if (!artboard)
+          {
+            failure = "not found.";
+          }
+          else if (artboard->artboard()->failedToDecode())
+          {
+            failure = "failed to decode.";
+          }
+          if (failure != nullptr)
+          {
+            ErrorReporter<FileHandle>(
+                this,
+                fileHandle,
+                requestId,
+                CommandQueue::Message::fileError)
+                << (name.empty() ? std::string("default artboard")
+                                 : "artboard \"" + name + "\"")
+                << " " << failure;
+          }
+          else
           {
             m_artboardDependencies[handle] = {};
             m_artboards[handle] = std::move(artboard);
@@ -1467,15 +1490,6 @@ bool CommandServer::processCommands()
             messageStream << fileHandle;
             messageStream << handle;
             messageStream << requestId;
-          }
-          else
-          {
-            ErrorReporter<FileHandle>(
-                this,
-                fileHandle,
-                requestId,
-                CommandQueue::Message::fileError)
-                << "artboard \"" << name << "\" not found.";
           }
         }
         else

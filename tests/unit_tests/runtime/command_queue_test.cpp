@@ -101,6 +101,7 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 }
 
 #include "catch.hpp"
+#include "malformed_deferred_artboard.hpp"
 #include <rive/assets/audio_asset.hpp>
 #include <rive/assets/blob_asset.hpp>
 #include <rive/assets/file_asset.hpp>
@@ -238,6 +239,86 @@ TEST_CASE("file decoding policy is per load", "[CommandQueue]")
   commandQueue->deleteFile(defaultFile);
   commandQueue->deleteFile(deferredFile);
   commandQueue->deleteFile(eagerFile);
+  commandQueue->disconnect();
+  serverThread.join();
+}
+
+// Records which artboard requests a file answered with an artboard and which
+// with an error.
+class TestArtboardOutcomeListener : public CommandQueue::FileListener
+{
+public:
+  void onArtboardInstantiated(
+      const FileHandle,
+      uint64_t requestId,
+      ArtboardHandle) override
+  {
+    m_instantiatedRequestIds.push_back(requestId);
+  }
+
+  void onFileError(const FileHandle, uint64_t requestId, std::string) override
+  {
+    m_errorRequestIds.push_back(requestId);
+  }
+
+  std::vector<uint64_t> m_instantiatedRequestIds;
+  std::vector<uint64_t> m_errorRequestIds;
+};
+
+TEST_CASE(
+    "an artboard that fails to decode reports a file error",
+    "[CommandQueue]")
+{
+  auto commandQueue = make_rcp<CommandQueue>();
+  std::thread serverThread(server_thread, commandQueue);
+
+  TestArtboardOutcomeListener listener;
+  FileImportOptions options;
+  options.deferDecoding = true;
+  FileHandle file = commandQueue->loadFile(
+      lazy_decode_test::meshWithoutIndices(),
+      &listener,
+      1,
+#ifdef WITH_RIVE_SCRIPTING
+      nullptr,
+#endif
+      options);
+
+  // "first" nests "second", whose deferred body fails to decode. The host
+  // still instances, with its nested artboard empty.
+  ArtboardHandle first = commandQueue->instantiateArtboardNamed(
+      file,
+      "first",
+      nullptr,
+      2);
+  // "second" itself is reported as an error rather than an empty artboard,
+  // and again on every later request.
+  ArtboardHandle second = commandQueue->instantiateArtboardNamed(
+      file,
+      "second",
+      nullptr,
+      3);
+  ArtboardHandle secondAgain = commandQueue->instantiateArtboardNamed(
+      file,
+      "second",
+      nullptr,
+      4);
+
+  commandQueue->runOnce([=](CommandServer* server) {
+    CHECK(server->getArtboardInstance(first) != nullptr);
+    // A failed artboard is never stored.
+    CHECK(server->getArtboardInstance(second) == nullptr);
+    CHECK(server->getArtboardInstance(secondAgain) == nullptr);
+  });
+
+  wait_for_server(commandQueue.get());
+  commandQueue->processMessages();
+
+  CHECK(listener.m_instantiatedRequestIds == std::vector<uint64_t>{2});
+  CHECK(listener.m_errorRequestIds == std::vector<uint64_t>{3, 4});
+
+  commandQueue->deleteArtboard(first);
+  commandQueue->deleteFile(file);
   commandQueue->disconnect();
   serverThread.join();
 }

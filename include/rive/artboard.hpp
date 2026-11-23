@@ -1047,7 +1047,8 @@ public:
   /// nothing but this.
   bool handsOut(const Artboard* artboard) const;
   /// Whether the body failed to decode (a malformed file), which leaves the
-  /// artboard, or the one decoded() hands out in its place, empty.
+  /// artboard, or the one decoded() hands out in its place, empty. Instances
+  /// of either report it too.
   bool failedToDecode() const;
   /// What the import saw in a body it deferred: whether it may hold a text
   /// style paint or a state machine listener. Always true once decoded,

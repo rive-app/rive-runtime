@@ -683,11 +683,32 @@ public:
    */
   void removeGlobalAudioAsset(std::string name, uint64_t requestId = 0);
 
+  /**
+   * Instantiates the artboard with the given name from a loaded file.
+   *
+   * On success, the file's listener receives onArtboardInstantiated. If the
+   * file has no artboard with that name, or the artboard's deferred body
+   * failed to decode (see FileImportOptions::deferDecoding), the file's
+   * listener receives onFileError instead and no artboard is created: the
+   * returned handle refers to nothing. [listener] stays registered under that
+   * handle until it is destroyed, which unregisters it; with no artboard to
+   * delete, nothing else releases it.
+   *
+   * @param name The artboard's name, or empty for the default artboard.
+   * @param listener The listener for the artboard's own messages.
+   * @param requestId The request identifier.
+   * @return The artboard's handle, valid once onArtboardInstantiated
+   * confirms it.
+   */
   ArtboardHandle instantiateArtboardNamed(
       FileHandle,
       std::string name,
       ArtboardListener* listener = nullptr,
       uint64_t requestId = 0);
+  /**
+   * Instantiates the file's default artboard. Reports failure as
+   * instantiateArtboardNamed does.
+   */
   ArtboardHandle instantiateDefaultArtboard(
       FileHandle fileHandle,
       ArtboardListener* listener = nullptr,
