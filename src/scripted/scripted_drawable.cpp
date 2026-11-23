@@ -428,6 +428,14 @@ bool ScriptedDrawable::advanceComponent(
   return advanced || redraw || m_scrollLatched;
 }
 
+AdvancingComponent::QuietState ScriptedDrawable::quietState()
+{
+  return m_isAdvanceActive || m_forceAdvance || m_redrawAfterAdvance ||
+                 m_scrollLatched
+             ? QuietState::busy
+             : QuietState::quiet;
+}
+
 bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)
 {
   return Drawable::addDirt(value, recurse);

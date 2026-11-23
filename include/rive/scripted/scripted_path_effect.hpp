@@ -35,6 +35,12 @@ public:
       float elapsedSeconds,
       AdvanceFlags flags = AdvanceFlags::Animate |
                            AdvanceFlags::NewFrame) override;
+  // Quiet once its script's advance returned false: whatever runs it again
+  // (an update, an input) dirties it, which wakes the row.
+  QuietState quietState() override
+  {
+    return m_isAdvanceActive ? QuietState::busy : QuietState::quiet;
+  }
   bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
   void buildDependencies() override;
   void update(ComponentDirt value) override;

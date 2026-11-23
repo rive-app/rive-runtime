@@ -2032,10 +2032,10 @@ void Artboard::wakeQuietRow()
 AdvancingComponent::QuietState Artboard::rowQuietState()
 {
   using QuietState = AdvancingComponent::QuietState;
-  // Work this check can't see into: joysticks and scripts. Hosted
-  // artboards and lists answer for themselves below, as advancing
-  // components.
-  if (!m_Joysticks.empty() || !m_ScriptedObjects.empty())
+  // Work this check can't see into: joysticks. Hosted artboards, lists and
+  // scripted drawables and path effects answer for themselves below, as
+  // advancing components.
+  if (!m_Joysticks.empty())
   {
     return QuietState::never;
   }

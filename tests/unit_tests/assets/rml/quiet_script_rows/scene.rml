@@ -1,0 +1,112 @@
+<Rive version="1" kind="fragment">
+    <!-- Main lists the items in rows; see README.md. -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="300" height="300" styleId="0:11" name="List" id="0:10">
+            <LayoutComponentStyle flexDirectionValue="column" name="List Style" id="0:11"/>
+            <ArtboardComponentList name="Rows" id="0:12">
+                <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+            </ArtboardComponentList>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:20"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:20"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <!-- A row: Box, whose x follows the item's box, Probe, and Line, whose
+         stroke Shift moves by the item's offset. Its machine does nothing but
+         pass pointers on to Probe. -->
+    <Artboard isComponent="true" defaultStateMachineId="0:60" viewModelId="0:50" x="400" width="300" height="60" styleId="0:35" name="Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="0:35"/>
+        <Shape x="10" y="10" name="Box" id="0:31">
+            <DataBindContext sourcePathIds="0:50-0:55" propertyKey="13"/>
+            <Rectangle width="20" height="20" name="Rect" id="0:32"/>
+            <Fill>
+                <SolidColor colorValue="FF888888"/>
+            </Fill>
+        </Shape>
+        <ScriptedDrawable scriptAssetId="0:80" name="Probe" id="0:33">
+            <ScriptInputNumber name="level" id="0:34">
+                <DataBindContext sourcePathIds="0:50-0:51" propertyKey="243"/>
+            </ScriptInputNumber>
+        </ScriptedDrawable>
+        <Shape x="200" y="10" name="Line" id="0:36">
+            <Rectangle width="40" height="20" name="Line Rect" id="0:37"/>
+            <Stroke thickness="2" name="Line Stroke" id="0:38">
+                <SolidColor colorValue="FF444444"/>
+                <ScriptedPathEffect scriptAssetId="0:81" name="Shift" id="0:39">
+                    <ScriptInputNumber name="offset" id="0:90">
+                        <DataBindContext sourcePathIds="0:50-0:56" propertyKey="243"/>
+                    </ScriptInputNumber>
+                </ScriptedPathEffect>
+            </Stroke>
+        </Shape>
+        <StateMachine name="Row Machine" id="0:60">
+            <StateMachineLayer name="Layer" id="0:61">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:62"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:65" id="0:62"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:65"/>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Row"/>
+
+    <ScriptAsset file="probe.luau" name="probe" id="0:80"/>
+    <ScriptAsset file="shift.luau" name="shift" id="0:81"/>
+
+    <ViewModel defaultInstanceId="0:70" name="Item" id="0:50">
+        <ViewModelPropertyNumber name="level" id="0:51"/>
+        <ViewModelPropertyNumber name="doubled" id="0:52"/>
+        <ViewModelPropertyNumber name="presses" id="0:53"/>
+        <ViewModelPropertyNumber name="advances" id="0:54"/>
+        <ViewModelPropertyNumber name="box" id="0:55"/>
+        <ViewModelPropertyNumber name="seen" id="0:57"/>
+        <ViewModelPropertyNumber name="poke" id="0:58"/>
+        <ViewModelPropertyBoolean name="busy" id="0:59"/>
+        <ViewModelPropertyNumber name="offset" id="0:56"/>
+        <ViewModelInstance exports="true" name="A" id="0:70">
+            <ViewModelInstanceNumber viewModelPropertyId="0:51"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:52"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:53"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:54"/>
+            <ViewModelInstanceNumber propertyValue="10" viewModelPropertyId="0:55"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:57"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:58"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:59"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+        <ViewModelInstance exports="true" name="B" id="0:71">
+            <ViewModelInstanceNumber viewModelPropertyId="0:51"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:52"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:53"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:54"/>
+            <ViewModelInstanceNumber propertyValue="10" viewModelPropertyId="0:55"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:57"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:58"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:59"/>
+            <ViewModelInstanceNumber viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:43" name="Root" id="0:40">
+        <ViewModelPropertyList name="items" id="0:42"/>
+        <ViewModelInstance exports="true" name="Default" id="0:43">
+            <ViewModelInstanceList viewModelPropertyId="0:42">
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:70"/>
+                <ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:71"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

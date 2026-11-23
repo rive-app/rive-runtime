@@ -4,9 +4,13 @@
 #include <rive/artboard_component_list.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/nested_artboard.hpp>
+#include <rive/scripted/scripted_drawable.hpp>
+#include <rive/scripted/scripted_path_effect.hpp>
 #include <rive/shapes/paint/paint_image.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
+#include <rive/shapes/paint/stroke.hpp>
 #include <rive/shapes/shape.hpp>
+#include <rive/shapes/shape_paint_path.hpp>
 #include <rive/solo.hpp>
 #include <rive/text/text.hpp>
 #include <rive/text/text_style_global.hpp>
@@ -23,6 +27,7 @@
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
+#include <functional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -1038,3 +1043,284 @@ TEST_CASE(
                         0xFFFF0000,
                         0xFFAA00AA});
 }
+
+// quiet_script_rows.riv carries Luau bytecode; without the Luau backend its
+// scripts cannot run.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+namespace
+{
+// quiet_script_rows.riv's Main (see its README), bound and played for 1.5 s:
+// long enough for each row's scripts to have stopped advancing.
+struct ScriptRows
+{
+  rcp<File> file;
+  std::unique_ptr<ArtboardInstance> artboard;
+  std::unique_ptr<StateMachineInstance> machine;
+  rcp<ViewModelInstance> viewModelInstance;
+  ArtboardComponentList* list = nullptr;
+
+  explicit ScriptRows(bool quietRows)
+  {
+    ArtboardComponentList::sm_quietRowsEnabled = quietRows;
+    file = ReadRiveFile("assets/quiet_script_rows.riv");
+    artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+    machine = artboard->stateMachineAt(0);
+    machine->bindViewModelInstance(viewModelInstance);
+    list = artboard->find<ArtboardComponentList>("Rows");
+    REQUIRE(list != nullptr);
+    advance(90);
+    REQUIRE(list->artboardCount() == 2);
+  }
+
+  ~ScriptRows() { ArtboardComponentList::sm_quietRowsEnabled = true; }
+
+  void advance(int frames)
+  {
+    for (int i = 0; i < frames; i++)
+    {
+      machine->advanceAndApply(1.0f / 60.0f);
+    }
+  }
+
+  ArtboardInstance* row(int index) { return list->artboardInstance(index); }
+
+  ViewModelInstance* item(int index)
+  {
+    return list->listItem(index)->viewModelInstance().get();
+  }
+
+  ScriptedDrawable* probe(int index)
+  {
+    auto probe = row(index)->find<ScriptedDrawable>("Probe");
+    REQUIRE(probe != nullptr);
+    return probe;
+  }
+
+  ScriptedPathEffect* shift(int index)
+  {
+    auto shift = row(index)->find<ScriptedPathEffect>("Shift");
+    REQUIRE(shift != nullptr);
+    return shift;
+  }
+
+  // The first point of the path Shift gave the row's Line stroke: x moves
+  // with the item's offset and Shift's steps, y with each update.
+  Vec2D shifted(int index)
+  {
+    auto stroke = row(index)->find<Stroke>("Line Stroke");
+    REQUIRE(stroke != nullptr);
+    auto path = shift(index)->effectPath(stroke);
+    REQUIRE(path != nullptr);
+    REQUIRE(!path->rawPath()->points().empty());
+    return path->rawPath()->points()[0];
+  }
+
+  double number(int index, const char* name)
+  {
+    return item(index)
+        ->propertyValue(name)
+        ->as<ViewModelInstanceNumber>()
+        ->propertyValue();
+  }
+
+  void number(int index, const char* name, float value)
+  {
+    item(index)
+        ->propertyValue(name)
+        ->as<ViewModelInstanceNumber>()
+        ->propertyValue(value);
+  }
+
+  void boolean(int index, const char* name, bool value)
+  {
+    item(index)
+        ->propertyValue(name)
+        ->as<ViewModelInstanceBoolean>()
+        ->propertyValue(value);
+  }
+
+  // What each row's script reported, row by row.
+  std::vector<double> reported()
+  {
+    std::vector<double> values;
+    for (int i = 0; i < 2; i++)
+    {
+      for (auto name : {"doubled", "presses", "advances", "seen"})
+      {
+        values.push_back(number(i, name));
+      }
+    }
+    return values;
+  }
+
+  bool quiet(int index)
+  {
+    return row(index)->quietHostRow() == (uint32_t)index;
+  }
+  bool allQuiet() { return quiet(0) && quiet(1); }
+};
+} // namespace
+
+// A row hosting a script goes quiet once the script's advance has returned
+// false: until something wakes the script, the row has no work. A script
+// that keeps advancing keeps its row awake.
+TEST_CASE(
+    "List rows that host a script go quiet once it stops advancing",
+    "[component_list]")
+{
+  ScriptRows scene(true);
+  auto skips = ArtboardComponentList::sm_quietRowSkips;
+  scene.advance(10);
+  CHECK(ArtboardComponentList::sm_quietRowSkips > skips);
+  CHECK(scene.allQuiet());
+  CHECK(scene.probe(0)->quietState() == AdvancingComponent::QuietState::quiet);
+  CHECK(scene.shift(0)->quietState() == AdvancingComponent::QuietState::quiet);
+  // Each script advanced its first frame and two more, then slept.
+  CHECK(scene.number(0, "advances") == 3);
+  CHECK(scene.number(1, "advances") == 3);
+
+  // Busy, the first item's script keeps advancing once a poke wakes it, and
+  // its row stays awake. Freed, it sleeps again.
+  scene.boolean(0, "busy", true);
+  scene.number(0, "poke", 1);
+  scene.advance(30);
+  CHECK_FALSE(scene.quiet(0));
+  CHECK(scene.quiet(1));
+  CHECK(scene.number(0, "advances") > 30);
+  scene.boolean(0, "busy", false);
+  scene.advance(10);
+  CHECK(scene.allQuiet());
+}
+
+// A quiet row wakes for whatever wakes its script: a view model listener
+// that asks for an update, a change to an input, a press, a change to a node
+// its advance read, and async work the host delivers. Each shows on the
+// frame it would without quiet rows, and the rows go quiet again after.
+TEST_CASE("Quiet rows wake for what wakes their script", "[component_list]")
+{
+  auto play = [](bool quietRows) {
+    ScriptRows scene(quietRows);
+    std::vector<std::vector<double>> frames;
+    std::vector<bool> quietBefore;
+    auto step = [&](int count) {
+      scene.advance(count);
+      frames.push_back(scene.reported());
+    };
+    auto wake = [&](std::function<void()> change) {
+      quietBefore.push_back(scene.allQuiet());
+      change();
+      step(1);
+      step(1);
+      step(30);
+    };
+    // The first item's poke runs its script's listener, which asks for an
+    // update; nothing else in the row reads poke.
+    wake([&]() { scene.number(0, "poke", 1); });
+    // The second item's level reaches its script's input.
+    wake([&]() { scene.number(1, "level", 4); });
+    // A press on the second row reaches its script.
+    wake([&]() {
+      scene.machine->pointerDown(Vec2D(150.0f, 90.0f));
+      scene.machine->pointerUp(Vec2D(150.0f, 90.0f));
+    });
+    // The first item's box moves its row's Box, which its script's last
+    // advance read.
+    wake([&]() { scene.number(0, "box", 40); });
+    // The host delivers async work, as a finished image decode or fetch
+    // does.
+    wake([&]() { scene.probe(1)->asyncWorkDelivered(); });
+    return std::make_tuple(frames, quietBefore, scene.allQuiet());
+  };
+  auto quiet = play(true);
+  auto awake = play(false);
+  CHECK(std::get<0>(quiet) == std::get<0>(awake));
+  // Each change reached rows that were asleep, and they went back to sleep.
+  CHECK(std::get<1>(quiet) == std::vector<bool>{true, true, true, true, true});
+  CHECK(std::get<2>(quiet));
+  // The changes have to show, or matching proves nothing. Per row: doubled,
+  // presses, advances, seen.
+  auto& frames = std::get<0>(quiet);
+  REQUIRE(frames.size() == 15);
+  // The poke woke the first script: an update, then three advances.
+  CHECK(frames[2] == std::vector<double>{0, 0, 6, 10, 0, 0, 3, 10});
+  // The input reached the second: doubled, and three advances.
+  CHECK(frames[5] == std::vector<double>{0, 0, 6, 10, 8, 0, 6, 10});
+  // The press: counted, and an advance.
+  CHECK(frames[8] == std::vector<double>{0, 0, 6, 10, 8, 1, 7, 10});
+  // The moved Box: read again on the next frame.
+  CHECK(frames[11][3] == 40);
+  CHECK(frames[11][2] > 6);
+  // The async work: the second script advanced again.
+  CHECK(frames[14][6] > frames[11][6]);
+}
+
+// A path effect sleeps the same way, but whatever wakes it (a change to an
+// input, an update it asked for, async work the host delivers) asks for an
+// update, which recomputes its path and re-arms its advance. A quiet row
+// wakes for each, and its path changes on the frame it would without quiet
+// rows.
+TEST_CASE(
+    "Quiet rows wake for what wakes their path effect",
+    "[component_list]")
+{
+  auto play = [](bool quietRows) {
+    ScriptRows scene(quietRows);
+    std::vector<std::vector<float>> frames;
+    std::vector<bool> quietBefore;
+    auto step = [&](int count) {
+      scene.advance(count);
+      std::vector<float> points;
+      for (int i = 0; i < 2; i++)
+      {
+        auto point = scene.shifted(i);
+        points.push_back(point.x);
+        points.push_back(point.y);
+      }
+      frames.push_back(points);
+    };
+    step(0);
+    auto wake = [&](std::function<void()> change) {
+      quietBefore.push_back(scene.allQuiet());
+      change();
+      step(1);
+      step(1);
+      step(1);
+      step(30);
+    };
+    // The first item's offset reaches its effect's input, which steps twice
+    // after it.
+    wake([&]() { scene.number(0, "offset", 5); });
+    // The host delivers async work to the second row's effect.
+    wake([&]() { scene.shift(1)->asyncWorkDelivered(); });
+    return std::make_tuple(frames, quietBefore, scene.allQuiet());
+  };
+  auto quiet = play(true);
+  auto awake = play(false);
+  CHECK(std::get<0>(quiet) == std::get<0>(awake));
+  CHECK(std::get<1>(quiet) == std::vector<bool>{true, true});
+  CHECK(std::get<2>(quiet));
+  // The changes have to show, or matching proves nothing. Per row: the
+  // first point's x and y, from before the changes.
+  auto& frames = std::get<0>(quiet);
+  REQUIRE(frames.size() == 9);
+  auto moved = [&](int frame, int index) {
+    return Vec2D(
+        frames[frame][index * 2] - frames[0][index * 2],
+        frames[frame][index * 2 + 1] - frames[0][index * 2 + 1]);
+  };
+  // The offset: 5 on the frame it changed (an update), then a step on each
+  // of the next two (an update each), then nothing more.
+  CHECK(moved(1, 0) == Vec2D(5, 1));
+  CHECK(moved(2, 0) == Vec2D(6, 2));
+  CHECK(moved(3, 0) == Vec2D(7, 3));
+  CHECK(moved(4, 0) == Vec2D(7, 3));
+  CHECK(moved(4, 1) == Vec2D(0, 0));
+  // The async work: one more update on the frame it was delivered, and no
+  // step, since the offset is unchanged.
+  CHECK(moved(5, 1) == Vec2D(0, 1));
+  CHECK(moved(8, 1) == Vec2D(0, 1));
+  CHECK(moved(8, 0) == Vec2D(7, 3));
+}
+#endif

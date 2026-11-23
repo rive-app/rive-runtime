@@ -501,8 +501,9 @@ public:
   /// Whether this artboard's own per-frame work as a row (advanceInternal,
   /// updateDataBinds, reset and updatePass) would currently do nothing,
   /// what it hosts included. `never` for artboards whose content can't say
-  /// (scripts, joysticks, resettables, advancing converters, advancing
-  /// components that can't report, such as an artboard paint).
+  /// (joysticks, resettables, advancing converters, advancing components
+  /// that can't report, such as an artboard paint). A scripted drawable or
+  /// path effect says, from whether its script's advance is still running.
   AdvancingComponent::QuietState rowQuietState();
   /// Marks the artboards this one hosts in nested artboards, and theirs, as
   /// quiet with it, so whatever wakes one of them wakes this row: a list row

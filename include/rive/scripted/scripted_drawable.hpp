@@ -35,6 +35,10 @@ public:
       float elapsedSeconds,
       AdvanceFlags flags = AdvanceFlags::Animate |
                            AdvanceFlags::NewFrame) override;
+  // Quiet once its script's advance returned false: whatever runs it again
+  // (an update, an input, a read that changed, async work) dirties it, which
+  // wakes the row.
+  QuietState quietState() override;
   StatusCode import(ImportStack& importStack) override;
   Core* clone() const override;
   const std::vector<Component*>& containerChildren() const override
