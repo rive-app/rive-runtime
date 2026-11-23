@@ -3,7 +3,9 @@
 #include "catch.hpp"
 #include "rive/scriptnet/net.hpp"
 
+#include <chrono>
 #include <functional>
+#include <thread>
 #include <string>
 #include <utility>
 #include <vector>
@@ -119,15 +121,11 @@ struct Host
     endpoint.baseUrl = "http://127.0.0.1:8700/";
     endpoint.namespaceId = "ns_test";
     endpoint.installId = "install-1";
-    endpoint.signHello = [this](
-                             const std::string& message,
-                             std::string* jwk,
-                             std::string* signature) {
-      signedMessages.push_back(message);
-      *jwk = "{\"kty\":\"EC\"}";
-      *signature = "SIG";
-      return true;
-    };
+    endpoint.signHello =
+        [this](const std::string& message, CloudEndpoint::HelloSigned done) {
+          signedMessages.push_back(message);
+          done(true, "{\"kty\":\"EC\"}", "SIG");
+        };
     setCloudEndpoint(std::move(endpoint));
   }
   ~Host()
@@ -144,14 +142,40 @@ struct Host
       const char* body = "",
       HttpHeaders headers = {})
   {
+    return sendTo(0, method, path, body, std::move(headers));
+  }
+
+  // As send(), for a file that added its own endpoint. Another file is
+  // another VM, so another owner, whose queue no other file's waits in.
+  rcp<Result> sendTo(
+      CloudEndpointId cloud,
+      const char* method,
+      const char* path,
+      const char* body = "",
+      HttpHeaders headers = {})
+  {
     auto result = make_rcp<Result>();
     HttpRequest request;
     request.method = method;
     request.url = std::string("rive-cloud:") + path;
     request.headers = std::move(headers);
     request.body.assign(body, body + strlen(body));
-    result->id = fetch(kOwner, std::move(request), result);
+    result->id = fetch(kOwner + cloud, std::move(request), result, cloud);
     return result;
+  }
+
+  // The start sent to exactly `url`, which must exist.
+  size_t indexOf(const std::string& url)
+  {
+    for (size_t i = 0; i < transport->starts.size(); i++)
+    {
+      if (transport->starts[i].request.url == url)
+      {
+        return i;
+      }
+    }
+    FAIL("nothing was sent to " << url);
+    return 0;
   }
 
   // The next request the transport was handed, which must exist.
@@ -195,15 +219,11 @@ struct Host
     CloudEndpoint endpoint;
     endpoint.baseUrl = baseUrl;
     endpoint.namespaceId = namespaceId;
-    endpoint.signHello = [this](
-                             const std::string& message,
-                             std::string* jwk,
-                             std::string* signature) {
-      signedMessages.push_back(message);
-      *jwk = "{}";
-      *signature = "S";
-      return true;
-    };
+    endpoint.signHello =
+        [this](const std::string& message, CloudEndpoint::HelloSigned done) {
+          signedMessages.push_back(message);
+          done(true, "{}", "S");
+        };
     setCloudEndpoint(std::move(endpoint));
   }
 
@@ -245,6 +265,11 @@ TEST_CASE(
   REQUIRE(host.transport->starts.size() == 3);
   CHECK(host.sent().url == std::string(kBase) + "/players/me/data/save");
   CHECK(header(host.sent(), "authorization") == "Bearer tok.A_1");
+  // The transport sends all three as the host's own, not a script's fetch.
+  for (const auto& start : host.transport->starts)
+  {
+    CHECK(start.request.hostChosen);
+  }
   CHECK_FALSE(result->settled);
   host.answer(200, "{\"value\":1}");
   CHECK(result->status == 200);
@@ -668,12 +693,9 @@ TEST_CASE(
   CloudEndpoint endpoint;
   endpoint.baseUrl = "http://127.0.0.1:8700";
   endpoint.namespaceId = "ns_test";
-  endpoint.signHello =
-      [](const std::string&, std::string* jwk, std::string* signature) {
-        *jwk = "{}";
-        *signature = "S";
-        return true;
-      };
+  endpoint.signHello = [](const std::string&, CloudEndpoint::HelloSigned done) {
+    done(true, "{}", "S");
+  };
   setCloudEndpoint(std::move(endpoint));
   auto later = host.send(
       "PUT",
@@ -703,6 +725,250 @@ TEST_CASE(
   host.answer(200, "{\"challenge\":\"v1.abc\"}");
   poll();
   CHECK(result->error.rfind("policy: this host has no device key", 0) == 0);
+}
+
+TEST_CASE(
+    "a signature that comes later sends the hello, unless the endpoint changed",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  std::vector<CloudEndpoint::HelloSigned> pending;
+  auto signLater =
+      [&pending](const std::string&, CloudEndpoint::HelloSigned done) {
+        pending.push_back(std::move(done));
+      };
+  CloudEndpoint endpoint;
+  endpoint.baseUrl = "http://127.0.0.1:8700";
+  endpoint.namespaceId = "ns_test";
+  endpoint.signHello = signLater;
+  setCloudEndpoint(endpoint);
+  auto result = host.send("GET", "/v1/app/data/a");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  poll();
+  // Waiting on the key: nothing more is sent, however often it polls.
+  REQUIRE(pending.size() == 1);
+  CHECK(host.transport->starts.size() == 1);
+  pending[0](true, "{}", "S");
+  REQUIRE(host.transport->starts.size() == 2);
+  CHECK(host.sent().url == std::string(kBase) + "/hello");
+  host.answer(200, "{\"token\":\"tok.A\"}");
+  host.answer(200, "{}");
+  CHECK(result->status == 200);
+
+  // A signature for an endpoint since replaced is dropped.
+  setCloudEndpoint(endpoint);
+  auto later = host.send("GET", "/v1/app/data/b");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.def\"}");
+  poll();
+  REQUIRE(pending.size() == 2);
+  setCloudEndpoint(endpoint);
+  pending[1](true, "{}", "S");
+  CHECK(host.transport->starts.size() == host.next);
+  poll();
+  CHECK(later->error.rfind("aborted", 0) == 0);
+}
+
+TEST_CASE(
+    "a device key that never signs fails the hello after the timeout",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  NetLimits quick;
+  quick.defaultTimeoutMs = 1;
+  setLimits(quick);
+  CloudEndpoint::HelloSigned kept;
+  CloudEndpoint endpoint;
+  endpoint.baseUrl = "http://127.0.0.1:8700";
+  endpoint.namespaceId = "ns_test";
+  endpoint.signHello =
+      [&kept](const std::string&, CloudEndpoint::HelloSigned done) {
+        kept = std::move(done);
+      };
+  setCloudEndpoint(std::move(endpoint));
+  auto result = host.send("GET", "/v1/app/data/a");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  poll();
+  REQUIRE(kept);
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  poll();
+  poll();
+  CHECK(result->error.rfind("timeout: the device key did not sign", 0) == 0);
+  // Its signature, when it comes at last, sends nothing.
+  size_t sent = host.transport->starts.size();
+  kept(true, "{}", "S");
+  CHECK(host.transport->starts.size() == sent);
+}
+
+TEST_CASE(
+    "a device key that cannot sign fails the hello, and the next request "
+    "says hello again",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  int signs = 0;
+  CloudEndpoint endpoint;
+  endpoint.baseUrl = "http://127.0.0.1:8700";
+  endpoint.namespaceId = "ns_test";
+  endpoint.signHello =
+      [&signs](const std::string&, CloudEndpoint::HelloSigned done) {
+        done(++signs > 1, "{}", "S");
+      };
+  setCloudEndpoint(std::move(endpoint));
+  auto first = host.send("GET", "/v1/app/data/a");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  poll();
+  CHECK(first->error == "policy: the device key could not sign the hello");
+
+  auto second = host.send("GET", "/v1/app/data/b");
+  poll();
+  host.sayHello();
+  host.answer(200, "{}");
+  CHECK(second->status == 200);
+  CHECK(signs == 2);
+}
+
+TEST_CASE(
+    "an endpoint that would change a request's path is refused",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  for (auto [baseUrl, namespaceId] :
+       std::vector<std::pair<const char*, const char*>>{
+           {"ftp://cloud.example.com", "ns_test"},
+           {"https://cloud.example.com?x=1", "ns_test"},
+           {"https://user@cloud.example.com", "ns_test"},
+           {"https://", "ns_test"},
+           {"https://cloud.example.com", "ns/../other"},
+           {"https://cloud.example.com", ""}})
+  {
+    CloudEndpoint endpoint;
+    endpoint.baseUrl = baseUrl;
+    endpoint.namespaceId = namespaceId;
+    std::string error;
+    CHECK_FALSE(setCloudEndpoint(endpoint, &error));
+    CHECK_FALSE(error.empty());
+  }
+  // Refused means off, not left on the endpoint before it.
+  auto result = host.send("GET", "/v1/app/data/a");
+  poll();
+  CHECK(result->error.rfind("disabled:", 0) == 0);
+
+  CloudEndpoint fine;
+  fine.baseUrl = "https://cloud.example.com/";
+  fine.namespaceId = "ns_Test-1";
+  CHECK(setCloudEndpoint(fine));
+}
+
+TEST_CASE(
+    "files on two endpoints keep their own sessions and tokens",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  const std::string kTwo = "http://127.0.0.1:8701/v1/ns/ns_two";
+  CloudEndpoint other;
+  other.baseUrl = "http://127.0.0.1:8701";
+  other.namespaceId = "ns_two";
+  other.signHello = [](const std::string&, CloudEndpoint::HelloSigned done) {
+    done(true, "{}", "S2");
+  };
+  CloudEndpointId two = addCloudEndpoint(std::move(other));
+  REQUIRE(two != 0);
+
+  auto mine = host.send("GET", "/v1/app/data/a");
+  auto theirs = host.sendTo(two, "GET", "/v1/app/data/b");
+  poll();
+  host.answerAt(
+      host.indexOf(std::string(kBase) + "/hello/challenge"),
+      200,
+      "{\"challenge\":\"v1.one\"}");
+  host.answerAt(
+      host.indexOf(kTwo + "/hello/challenge"),
+      200,
+      "{\"challenge\":\"v1.two\"}");
+  size_t helloTwo = host.indexOf(kTwo + "/hello");
+  CHECK(
+      text(host.transport->starts[helloTwo].request)
+          .find("\"challenge\":\"v1.two\"") != std::string::npos);
+  CHECK(
+      text(host.transport->starts[helloTwo].request).find("\"sig\":\"S2\"") !=
+      std::string::npos);
+  host.answerAt(
+      host.indexOf(std::string(kBase) + "/hello"),
+      200,
+      "{\"token\":\"tok.ONE\"}");
+  host.answerAt(helloTwo, 200, "{\"token\":\"tok.TWO\"}");
+
+  size_t a = host.indexOf(std::string(kBase) + "/app/data/a");
+  size_t b = host.indexOf(kTwo + "/app/data/b");
+  CHECK(
+      header(host.transport->starts[a].request, "authorization") ==
+      "Bearer tok.ONE");
+  CHECK(
+      header(host.transport->starts[b].request, "authorization") ==
+      "Bearer tok.TWO");
+  host.answerAt(a, 200, "{}");
+  host.answerAt(b, 200, "{}");
+  CHECK(mine->status == 200);
+  CHECK(theirs->status == 200);
+
+  // Releasing the file's endpoint leaves the host's session alone, and the
+  // file's later requests reach no endpoint at all.
+  removeCloudEndpoint(two);
+  auto gone = host.sendTo(two, "GET", "/v1/app/data/c");
+  poll();
+  CHECK(gone->error.rfind("disabled:", 0) == 0);
+  auto still = host.send("GET", "/v1/app/data/d");
+  size_t d = host.indexOf(std::string(kBase) + "/app/data/d");
+  CHECK(
+      header(host.transport->starts[d].request, "authorization") ==
+      "Bearer tok.ONE");
+  host.answerAt(d, 200, "{}");
+  CHECK(still->status == 200);
+}
+
+TEST_CASE(
+    "releasing an endpoint fails the requests waiting on its hello",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  CloudEndpoint other;
+  other.baseUrl = "http://127.0.0.1:8701";
+  other.namespaceId = "ns_two";
+  other.signHello = [](const std::string&, CloudEndpoint::HelloSigned done) {
+    done(true, "{}", "S2");
+  };
+  CloudEndpointId two = addCloudEndpoint(std::move(other));
+  auto waiting = host.sendTo(two, "GET", "/v1/app/data/a");
+  poll();
+  size_t challenge = host.indexOf(
+      "http://127.0.0.1:8701/v1/ns/ns_two/hello/challenge");
+  removeCloudEndpoint(two);
+  poll();
+  CHECK(waiting->error.rfind("aborted: the file", 0) == 0);
+  // Its challenge's late answer starts nothing.
+  size_t sent = host.transport->starts.size();
+  host.answerAt(challenge, 200, "{\"challenge\":\"v1.two\"}");
+  CHECK(host.transport->starts.size() == sent);
+}
+
+TEST_CASE("a refused file endpoint is added turned off", "[scriptnet][cloud]")
+{
+  Host host;
+  CloudEndpoint bad;
+  bad.baseUrl = "https://cloud.example.com";
+  bad.namespaceId = "ns/../other";
+  std::string error;
+  CloudEndpointId id = addCloudEndpoint(std::move(bad), &error);
+  CHECK(id != 0);
+  CHECK_FALSE(error.empty());
+  auto result = host.sendTo(id, "GET", "/v1/app/data/a");
+  poll();
+  CHECK(result->error.rfind("disabled:", 0) == 0);
+  removeCloudEndpoint(id);
 }
 
 TEST_CASE(

@@ -699,7 +699,11 @@ int scriptnetFetch(lua_State* L)
     scriptnet::HttpRequest request;
     readRequest(L, hasOptions, request);
     auto body = make_rcp<ScriptedFetchBody>(mainThread, promiseRef, ownerId);
-    id = scriptnet::fetch(ownerId, std::move(request), body);
+    id = scriptnet::fetch(
+        ownerId,
+        std::move(request),
+        body,
+        context->cloudEndpoint());
     body->id = id;
   }
   ScriptedFetchBody::collectUnread(L, ownerId);

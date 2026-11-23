@@ -2199,6 +2199,11 @@ public:
   // use.
   uint64_t acquireOwnerId();
 
+  // The Rive Cloud endpoint this context's scripts reach: its file's, or 0
+  // for the host's.
+  void cloudEndpoint(uint64_t value) { m_cloudEndpoint = value; }
+  uint64_t cloudEndpoint() const { return m_cloudEndpoint; }
+
   // Cancel all pending async tasks for this context. Must be called
   // BEFORE lua_close() to prevent callbacks on a dead Lua state.
   void shutdownAsync();
@@ -2315,6 +2320,7 @@ private:
   Factory* m_renderContext = nullptr;
   ScriptBackend* m_scriptBackend = nullptr;
   uint64_t m_ownerId = 0;
+  uint64_t m_cloudEndpoint = 0;
   bool m_oreFrameOpen = false;
   bool m_gpuCanvasDeferOnly = false;
   std::vector<OpenCanvasFrame> m_openCanvasFrames;

@@ -108,6 +108,12 @@ struct FileImportOptions
   /// test artboard deferral.
   bool testing_deferDefaultArtboard = false;
 #endif
+  /// The Rive Cloud endpoint this file's scripts reach, from
+  /// scriptnet::addCloudEndpoint; the file releases it when it goes. 0 sends
+  /// them to the host's endpoint (scriptnet::setCloudEndpoint). After the
+  /// flags, which pack together, so the options stay within the 16 bytes the
+  /// command queue copies.
+  uint64_t cloudEndpoint = 0;
 };
 
 #ifdef WITH_RIVE_TOOLS
@@ -475,6 +481,8 @@ public:
   bool hasVM() { return m_scriptingVM != nullptr; }
 #endif
 #endif
+  /// The Rive Cloud endpoint this file's scripts reach; 0 is the host's.
+  uint64_t cloudEndpoint() const { return m_cloudEndpoint; }
 
   DataResolver* dataResolver()
   {
@@ -664,6 +672,8 @@ private:
   /// FileImportOptions::deferDecoding, for file level view model instances,
   /// as this file was imported.
   bool m_deferViewModelInstances = false;
+  // FileImportOptions::cloudEndpoint, owned by this file.
+  uint64_t m_cloudEndpoint = 0;
   DeferredViewModelInstanceStats m_deferredViewModelInstanceStats;
   /// Skims the values of the file level [instance] just read and defers
   /// them when it can. Returns whether it did.

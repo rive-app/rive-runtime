@@ -261,6 +261,14 @@ int context_decodeFile_impl(lua_State* L)
       &result);
   if (riveFile->file != nullptr)
   {
+    // A file a script decoded reaches the cloud as the decoding file does.
+    // Borrowed: the decoded file does not own it, so releasing that file
+    // leaves the endpoint to its owner.
+    ScriptingVM* decodedVM = riveFile->file->scriptingVM();
+    if (decodedVM != nullptr && decodedVM->context() != nullptr)
+    {
+      decodedVM->context()->cloudEndpoint(context->cloudEndpoint());
+    }
     promise->resolve(L, fileIdx);
   }
   else

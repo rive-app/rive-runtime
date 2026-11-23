@@ -104,16 +104,39 @@ struct CloudEndpoint
   std::string namespaceId;
   /// A label sent with the hello. The player comes from the device key.
   std::string installId;
-  /// Signs `message` with this device's P-256 key: the public key as a JWK and
-  /// the raw r||s signature in base64url. The key never leaves the host.
-  std::function<bool(
-      const std::string& message,
-      std::string* publicJwk,
-      std::string* signature)>
-      signHello;
+  /// What signHello calls once it has signed: the public key as a JWK and the
+  /// raw r||s signature in base64url, or ok false. Call it once, from any
+  /// thread, inside signHello or later.
+  using HelloSigned = std::function<
+      void(bool ok, std::string publicJwk, std::string signature)>;
+  /// Signs `message` with this device's P-256 key, which never leaves the
+  /// host. A web page signs with a Promise, so the answer may come later; a
+  /// hello whose signature takes longer than the request timeout fails.
+  std::function<void(const std::string& message, HelloSigned done)> signHello;
 };
 /// Requests made for the last endpoint and not yet sent fail as Aborted.
-void setCloudEndpoint(CloudEndpoint endpoint);
+/// False, with why in `error`, for an endpoint no request may go to: an
+/// address that is not a plain http: or https: URL (no query, fragment or
+/// credentials), or a namespace ID other than letters, digits, '_' and '-',
+/// which every request path carries. A refused endpoint turns rive-cloud: off.
+/// An empty baseUrl turns it off too, and is not refused.
+bool setCloudEndpoint(CloudEndpoint endpoint, std::string* error = nullptr);
+
+/// Names an endpoint. 0 is the host's, which setCloudEndpoint sets.
+using CloudEndpointId = uint64_t;
+
+/// An endpoint of one file's own, so files on one page can reach different
+/// namespaces: each endpoint keeps its own session and token, and a request
+/// goes to the endpoint fetch() names. Checked as setCloudEndpoint checks; a
+/// refused one is still added, turned off, so its file's rive-cloud: requests
+/// fail rather than reach another endpoint. Never 0.
+CloudEndpointId addCloudEndpoint(
+    CloudEndpoint endpoint,
+    std::string* error = nullptr);
+
+/// Forgets an endpoint addCloudEndpoint added. Requests for it not yet sent
+/// fail as Aborted. Does nothing for 0.
+void removeCloudEndpoint(CloudEndpointId id);
 
 /// Whether plain fetch() is allowed. A host can turn on rive-cloud alone, so a
 /// file that talks to its own backend gets no general access to the network.
@@ -128,10 +151,13 @@ NetLimits limits();
 /// once they allow. Always returns a nonzero id: refusals settle through
 /// poll() like every other outcome, so a script never sees its promise
 /// settle during the fetch() call.
+/// A rive-cloud: request goes to `cloud`, the host's endpoint unless its
+/// file added its own.
 RequestId fetch(
     uint64_t ownerId,
     HttpRequest request,
-    rcp<FetchListener> listener);
+    rcp<FetchListener> listener,
+    CloudEndpointId cloud = 0);
 
 /// Forgets the request and aborts it at the provider. Returns true when the
 /// listener got onCancel(), false when it was or is being delivered instead;

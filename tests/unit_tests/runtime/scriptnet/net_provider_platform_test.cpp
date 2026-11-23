@@ -808,11 +808,11 @@ CannedResponse answer(const std::string& body, bool keepAlive = false)
   return canned;
 }
 
-bool signAnything(const std::string&, std::string* jwk, std::string* signature)
+void signAnything(
+    const std::string&,
+    scriptnet::CloudEndpoint::HelloSigned done)
 {
-  *jwk = "{}";
-  *signature = "SIG";
-  return true;
+  done(true, "{}", "SIG");
 }
 
 // The host's rive-cloud endpoint on loopback, with the address check on, for

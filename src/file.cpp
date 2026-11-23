@@ -1,4 +1,8 @@
 #include "rive/file.hpp"
+#include <utility>
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/net.hpp"
+#endif
 #include "rive/artboard_clusters.hpp"
 #include "rive/deferred_decode_lock.hpp"
 
@@ -292,6 +296,9 @@ File::~File()
 #if defined(DEBUG)
   debugTotalFileCount--;
 #endif
+#ifdef WITH_RIVE_SCRIPTNET
+  scriptnet::removeCloudEndpoint(m_cloudEndpoint);
+#endif
 #ifdef WITH_RIVE_SCRIPTING_LUAU
   cleanupScriptingVM();
 #endif
@@ -362,6 +369,15 @@ rcp<File> File::import(
     bool requireSignedScripts,
     const FileImportOptions& options)
 {
+#ifdef WITH_RIVE_SCRIPTNET
+  // The file owns the endpoint once it exists; an import that fails before
+  // then releases it here.
+  struct EndpointGuard
+  {
+    uint64_t id;
+    ~EndpointGuard() { scriptnet::removeCloudEndpoint(id); }
+  } endpointGuard{options.cloudEndpoint};
+#endif
   if (factory == nullptr)
   {
     // Every artboard stores this factory and the first ShapePaint to
@@ -404,6 +420,9 @@ rcp<File> File::import(
     return nullptr;
   }
   auto file = make_rcp<File>(factory, std::move(assetLoader));
+#ifdef WITH_RIVE_SCRIPTNET
+  file->m_cloudEndpoint = std::exchange(endpointGuard.id, 0);
+#endif
 #ifdef TESTING
   file->m_deferAnimations = options.deferDecoding &&
                             options.testing_deferAnimations;
@@ -1973,6 +1992,13 @@ void File::registerScripts()
     if (vm != nullptr)
     {
       routeScriptingToImportFactory(vm->context());
+      // A VM the caller handed in reaches this file's endpoint, or the
+      // host's when the file has none, rather than one a file before it set.
+      // A VM shared by files that each name one keeps the last.
+      if (vm->context() != nullptr)
+      {
+        vm->context()->cloudEndpoint(m_cloudEndpoint);
+      }
       // Set up the Data global (view model constructors) on the active
       // VM, whether it was created here or supplied externally (e.g. by
       // the CommandServer). Skip it when the VM's owner builds Data
@@ -2049,6 +2075,7 @@ void File::makeScriptingVM()
 {
   cleanupScriptingVM();
   auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+  context->cloudEndpoint(m_cloudEndpoint);
   m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
 }
 

@@ -13238,10 +13238,19 @@ bool WasmScriptingVM::startFetch(Span<const uint8_t> wire, uint32_t token)
   {
     m_netOwnerId = WorkPool::nextOwnerId();
   }
+  // A file a script decoded reaches the cloud as the file that decoded it
+  // does, not the host's endpoint.
+  scriptnet::CloudEndpointId cloud = 0;
+  for (const WasmScriptingVM* vm = this; vm != nullptr && cloud == 0;
+       vm = vm->m_decodedBy)
+  {
+    cloud = vm->m_file != nullptr ? vm->m_file->cloudEndpoint() : 0;
+  }
   m_pendingFetches[token] = scriptnet::fetch(
       m_netOwnerId,
       std::move(request),
-      make_rcp<WasmFetchListener>(this, token, m_fetchStreamBody));
+      make_rcp<WasmFetchListener>(this, token, m_fetchStreamBody),
+      cloud);
   return true;
 #else
   (void)wire;
