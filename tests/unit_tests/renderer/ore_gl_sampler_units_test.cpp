@@ -17,6 +17,7 @@
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
+#include <cstdlib>
 #include <iterator>
 #include <set>
 #include <vector>
@@ -360,6 +361,135 @@ void runCompareAndFetchScenario(TestingWindow* window)
   ore_gm::invalidateGLStateAfterOre(renderContext);
   window->endFrame();
 }
+struct Multisampled
+{
+  rcp<Texture> texture;
+  rcp<TextureView> view;
+};
+
+Multisampled makeMultisampled(Context& ctx, TextureFormat format)
+{
+  Multisampled made;
+  TextureDesc desc{};
+  desc.width = 4;
+  desc.height = 4;
+  desc.format = format;
+  desc.renderTarget = true;
+  desc.sampleCount = 4;
+  made.texture = ctx.makeTexture(desc);
+  REQUIRE(made.texture != nullptr);
+  TextureViewDesc viewDesc{};
+  viewDesc.texture = made.texture.get();
+  made.view = ctx.makeTextureView(viewDesc);
+  REQUIRE(made.view != nullptr);
+  return made;
+}
+
+// A multisampled colour and depth target, and the group a shader reads them
+// through, when it has one yet.
+struct MultisampledPair
+{
+  Multisampled colour;
+  Multisampled depth;
+  rcp<BindGroup> group;
+
+  void bind(Context& ctx, BindGroupLayout* layout)
+  {
+    BindGroupDesc::TexEntry textures[2] = {};
+    textures[0].slot = 0;
+    textures[0].view = colour.view.get();
+    textures[1].slot = 1;
+    textures[1].view = depth.view.get();
+    BindGroupDesc desc{};
+    desc.layout = layout;
+    desc.textures = textures;
+    desc.textureCount = 2;
+    group = ctx.makeBindGroup(desc);
+    REQUIRE(group != nullptr);
+  }
+
+  void clear(Context& ctx, float red, float green, float depthValue)
+  {
+    RenderPassDesc desc{};
+    desc.colorAttachments[0].view = colour.view.get();
+    desc.colorAttachments[0].clearColor = {red, green, 0.0f, 1.0f};
+    desc.colorCount = 1;
+    desc.depthStencil.view = depth.view.get();
+    desc.depthStencil.depthClearValue = depthValue;
+    auto pass = ctx.beginRenderPass(desc);
+    REQUIRE(pass != nullptr);
+    pass->finish();
+  }
+};
+
+// What the shader reads from `pair`: its red, its green and its depth.
+void checkReads(
+    Context& ctx,
+    Pipeline* pipeline,
+    TextureView* target,
+    const MultisampledPair& pair,
+    int red,
+    int green,
+    int depth)
+{
+  RenderPassDesc desc{};
+  desc.colorAttachments[0].view = target;
+  desc.colorCount = 1;
+  auto pass = ctx.beginRenderPass(desc);
+  REQUIRE(pass != nullptr);
+  pass->setPipeline(pipeline);
+  pass->setBindGroup(0, pair.group.get());
+  pass->draw(3);
+  uint8_t pixel[4] = {};
+  glReadPixels(1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+  pass->finish();
+  CHECK(std::abs(pixel[0] - red) <= 1);
+  CHECK(std::abs(pixel[1] - green) <= 1);
+  CHECK(std::abs(pixel[2] - depth) <= 1);
+}
+
+void runMultisampledReadScenario(TestingWindow* window)
+{
+  auto* renderContext = window->renderContext();
+  ore_gm::OreGMContext oreGM;
+  REQUIRE(oreGM.ensureContext(renderContext));
+  auto& ctx = *renderContext->getOreContext();
+
+  auto shader = ore_gm::loadShader(ctx, ore_gm::kMultisampledRead);
+  REQUIRE(shader.vsModule);
+  auto layout = ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 0);
+  auto pipeline = makeFullscreenPipeline(ctx, shader, layout.get());
+  auto canvas = renderContext->makeRenderCanvas(4, 4);
+  REQUIRE(canvas != nullptr);
+  auto target = ctx.wrapCanvasTexture(canvas.get());
+  REQUIRE(target != nullptr);
+
+  auto renderer = window->beginFrame(
+      {.name = "ore_gl_multisampled_read", .doClear = true});
+  oreGM.beginFrame(renderContext);
+
+  // Bound before anything is drawn: each pass that draws resolves again.
+  MultisampledPair early{
+      makeMultisampled(ctx, TextureFormat::rgba8unorm),
+      makeMultisampled(ctx, TextureFormat::depth32float)};
+  early.bind(ctx, layout.get());
+  early.clear(ctx, 0.25f, 0.5f, 0.75f);
+  checkReads(ctx, pipeline.get(), target.get(), early, 64, 128, 191);
+  early.clear(ctx, 0.5f, 0.25f, 0.25f);
+  checkReads(ctx, pipeline.get(), target.get(), early, 128, 64, 64);
+
+  // Bound only after it was drawn to, so its copy starts from what is there.
+  MultisampledPair late{
+      makeMultisampled(ctx, TextureFormat::rgba8unorm),
+      makeMultisampled(ctx, TextureFormat::depth32float)};
+  late.clear(ctx, 1.0f, 0.0f, 0.5f);
+  late.bind(ctx, layout.get());
+  checkReads(ctx, pipeline.get(), target.get(), late, 255, 0, 128);
+
+  oreGM.endFrame(renderContext);
+  ore_gm::invalidateGLStateAfterOre(renderContext);
+  window->endFrame();
+}
 } // namespace
 
 TEST_CASE(
@@ -383,6 +513,18 @@ TEST_CASE(
   if (ore_test::runOnBackends(
           ore_test::kGLBackends,
           &runFetchAfterCompareScenario) == 0)
+    WARN("no Ore GL backend available headless; skipping");
+}
+
+// GL ES 3.0 cannot bind a multisampled texture, so the shader reads a copy
+// resolved from it.
+TEST_CASE(
+    "ore GL reads a multisampled texture through its resolved copy",
+    "[ore][gl]")
+{
+  if (ore_test::runOnBackends(
+          ore_test::kGLBackends,
+          &runMultisampledReadScenario) == 0)
     WARN("no Ore GL backend available headless; skipping");
 }
 #endif // ORE_BACKEND_GL

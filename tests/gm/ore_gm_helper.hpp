@@ -316,6 +316,7 @@ enum OreGMShader : uint32_t
   kUnitTwinPair = 20,
   kUnitDeadCompare = 21,
   kUnitDeadPlain = 22,
+  kMultisampledRead = 23,
 };
 
 struct OreGMShaderResult

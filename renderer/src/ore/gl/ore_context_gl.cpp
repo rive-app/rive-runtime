@@ -317,6 +317,110 @@ GLuint ContextGL::scratchResolveFBO()
   return m_scratchResolveFBO;
 }
 
+void ContextGL::resolveAttachment(
+    unsigned int point,
+    unsigned int texture,
+    uint32_t width,
+    uint32_t height)
+{
+  const bool color = point != GL_DEPTH_ATTACHMENT &&
+                     point != GL_DEPTH_STENCIL_ATTACHMENT;
+  const GLenum to = color ? GL_COLOR_ATTACHMENT0 : point;
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, scratchResolveFBO());
+  glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, to, GL_TEXTURE_2D, texture, 0);
+  GLbitfield mask = GL_COLOR_BUFFER_BIT;
+  const GLenum none = GL_NONE;
+  if (color)
+  {
+    glReadBuffer(point);
+  }
+  else
+  {
+    // Draw buffers are FBO state and default to color attachment zero,
+    // which a framebuffer of depth alone does not have.
+    glDrawBuffers(1, &none);
+    mask = point == GL_DEPTH_ATTACHMENT
+               ? GL_DEPTH_BUFFER_BIT
+               : GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
+  }
+  glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, mask, GL_NEAREST);
+  // A kept resolve FBO would otherwise name this texture until the next
+  // resolve overwrites it.
+  glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, to, GL_TEXTURE_2D, 0, 0);
+  if (!color)
+  {
+    const GLenum first = GL_COLOR_ATTACHMENT0;
+    glDrawBuffers(1, &first);
+  }
+}
+
+static GLenum attachmentPoint(TextureFormat format)
+{
+  switch (format)
+  {
+    case TextureFormat::depth16unorm:
+    case TextureFormat::depth32float:
+      return GL_DEPTH_ATTACHMENT;
+    case TextureFormat::depth24plusStencil8:
+    case TextureFormat::depth32floatStencil8:
+      return GL_DEPTH_STENCIL_ATTACHMENT;
+    default:
+      return GL_COLOR_ATTACHMENT0;
+  }
+}
+
+TextureGL* ContextGL::resolvedCopy(TextureGL* texture)
+{
+  if (texture->m_resolved != nullptr)
+  {
+    return texture->m_resolved.get();
+  }
+  // A bind group can be made inside a pass, which keeps the texture unit,
+  // framebuffers and scissor it had.
+  GLint unit = 0, bound = 0, read = 0, draw = 0;
+  glGetIntegerv(GL_ACTIVE_TEXTURE, &unit);
+  glActiveTexture(GL_TEXTURE0);
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &bound);
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+  const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+  glDisable(GL_SCISSOR_TEST);
+
+  TextureDesc desc;
+  desc.width = texture->width();
+  desc.height = texture->height();
+  desc.format = texture->format();
+  desc.renderTarget = true;
+  texture->m_resolved = static_rcp_cast<TextureGL>(makeTexture(desc));
+
+  // What passes drew before a shader asked to read it.
+  GLuint source = 0;
+  glGenFramebuffers(1, &source);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, source);
+  const GLenum point = attachmentPoint(texture->format());
+  glFramebufferRenderbuffer(
+      GL_READ_FRAMEBUFFER,
+      point,
+      GL_RENDERBUFFER,
+      texture->m_glRenderbuffer);
+  resolveAttachment(
+      point,
+      texture->m_resolved->m_glTexture,
+      desc.width,
+      desc.height);
+  glDeleteFramebuffers(1, &source);
+
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+  if (scissor)
+  {
+    glEnable(GL_SCISSOR_TEST);
+  }
+  glBindTexture(GL_TEXTURE_2D, bound);
+  glActiveTexture(unit);
+  return texture->m_resolved.get();
+}
+
 std::unique_ptr<ContextGL> ContextGL::Make()
 {
   auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
@@ -335,7 +439,8 @@ std::unique_ptr<ContextGL> ContextGL::Make()
   f.textureArrays = true;
   f.computeShaders = false;
   f.storageBuffers = false;
-  // Our GLSL bakes as ES 3.00, where sampler2DMS is reserved on every driver.
+  // GL ES 3.0 binds no multisampled texture, so a shader reads its resolved
+  // copy, where every sample is the same.
   f.multisampledTextureRead = false;
   f.bc = false;
   f.etc2 = true; // GLES3 mandates ETC2.
@@ -1111,6 +1216,10 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     BindGroupGL::GLTexBinding binding{};
     auto* texGL = lite_rtti_cast<TextureGL*>(entry.view->texture());
     assert(texGL);
+    if (texGL->m_glRenderbuffer != 0)
+    {
+      texGL = resolvedCopy(texGL);
+    }
     binding.texture = texGL->m_glTexture;
     binding.target = texGL->m_glTarget;
     binding.binding = entry.slot;
@@ -1233,6 +1342,7 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
             attachment,
             GL_RENDERBUFFER,
             texGL->m_glRenderbuffer);
+        pass->m_glMultisampled.push_back({ref_rcp(texGL), attachment});
       }
       else if (texGL->type() == TextureType::cube)
       {
@@ -1319,6 +1429,7 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
           depthAttachment,
           GL_RENDERBUFFER,
           depthTexGL->m_glRenderbuffer);
+      pass->m_glMultisampled.push_back({ref_rcp(depthTexGL), depthAttachment});
     }
     else
     {

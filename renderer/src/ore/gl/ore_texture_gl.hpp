@@ -5,6 +5,7 @@
 namespace rive::ore
 {
 class ContextGL;
+class RenderPassGL;
 
 class TextureGL : public LITE_RTTI_OVERRIDE(Texture, TextureGL)
 {
@@ -18,6 +19,7 @@ public:
 
 private:
   friend class ContextGL;
+  friend class RenderPassGL;
   unsigned int m_glTexture = 0;
   unsigned int m_glRenderbuffer = 0;
   unsigned int m_glTarget = 0; // GLenum
@@ -26,6 +28,9 @@ private:
   bool m_glOwnsTexture = true;
   uint32_t m_glBaseLevel = 0;
   uint32_t m_glMaxLevel = 0;
+  // GL ES 3.0 cannot bind a multisampled texture, so a shader that reads
+  // this one reads this single sample copy, resolved as each pass finishes.
+  rcp<TextureGL> m_resolved;
 };
 
 class TextureViewGL : public LITE_RTTI_OVERRIDE(TextureView, TextureViewGL)

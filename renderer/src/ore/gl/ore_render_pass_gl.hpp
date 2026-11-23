@@ -2,6 +2,7 @@
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "ore_sampler_gl.hpp"
+#include "ore_texture_gl.hpp"
 #include "rive/refcnt.hpp"
 #include <cstdint>
 #include <vector>
@@ -137,5 +138,13 @@ private:
   uint32_t m_glStencilRef = 0;
   uint32_t m_glResolveCount = 0;
   GLResolveEntry m_glResolves[4];
+  // Each multisampled attachment, to resolve at finish() into the copy a
+  // shader reads, once it has one.
+  struct GLMultisampled
+  {
+    rcp<TextureGL> texture;
+    unsigned int point = 0; // GLenum
+  };
+  std::vector<GLMultisampled> m_glMultisampled;
 };
 } // namespace rive::ore

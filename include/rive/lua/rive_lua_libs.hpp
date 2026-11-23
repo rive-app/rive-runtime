@@ -2289,8 +2289,6 @@ public:
   // device / RenderContext. Default false: normal runtimes allocate.
   void setGpuCanvasDeferOnly(bool value) { m_gpuCanvasDeferOnly = value; }
   bool gpuCanvasDeferOnly() const { return m_gpuCanvasDeferOnly; }
-  // Shaders this VM already told its author about.
-  std::unordered_set<std::string>& noticedShaders() { return m_noticedShaders; }
 
   // WebGL/WASM only: GL context handle saved at riveGPUBeginFrame so
   // riveGPUEndFrame can restore the caller's context afterwards.
@@ -2318,7 +2316,6 @@ private:
   uint64_t m_ownerId = 0;
   bool m_oreFrameOpen = false;
   bool m_gpuCanvasDeferOnly = false;
-  std::unordered_set<std::string> m_noticedShaders;
   std::vector<OpenCanvasFrame> m_openCanvasFrames;
   uint64_t m_nextOpenCanvasFrameToken = 1;
   intptr_t m_prevGLContext = 0;

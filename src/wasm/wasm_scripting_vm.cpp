@@ -4741,7 +4741,6 @@ static uint32_t mintAssetEntryModule(
     WasmScriptingVM* vm,
     ore::Context* oreContext,
     const ShaderAsset& asset,
-    const std::string& name,
     uint32_t entry)
 {
   uint32_t handle = 0;
@@ -4755,25 +4754,6 @@ static uint32_t mintAssetEntryModule(
         if (entry < first || entry - first >= count)
         {
           return true;
-        }
-        // Judged per entry where each has its own module, so a fallback entry
-        // still builds beside one that reads a multisampled texture.
-        std::string notice;
-        if (!ore::admitMultisampledReads(
-                *oreContext,
-                asset,
-                name,
-                vm->noticedShaders(),
-                &notice,
-                count == 1 ? &views[entry] : nullptr))
-        {
-          handle = gpuRejected(vm, oreContext, "Shader");
-          return false;
-        }
-        if (!notice.empty())
-        {
-          notice += '\n';
-          WasmScriptingVMNatives::print(vm, notice.data(), notice.size());
         }
         handle = mintShaderModule(vm, oreContext, desc);
         return false;
@@ -4789,7 +4769,6 @@ static uint32_t mintRstbEntryModule(
     const uint8_t* rstb,
     uint32_t rstbCount,
     uint32_t assetId,
-    const std::string& name,
     uint32_t entry)
 {
   ShaderAsset asset;
@@ -4798,7 +4777,7 @@ static uint32_t mintRstbEntryModule(
     return 0;
   }
   asset.assetId(assetId);
-  return mintAssetEntryModule(vm, oreContext, asset, name, entry);
+  return mintAssetEntryModule(vm, oreContext, asset, entry);
 }
 #endif
 
@@ -4819,9 +4798,6 @@ uint32_t gpuShaderModuleFromAssetImpl(
       objectHandle,
       name,
       nameLength);
-  // Messages name the shader as the script wrote it, as Luau's do.
-  std::string_view scoped(name, nameLength);
-  std::string written(scoped.substr(leadingScope(scoped).size()));
 #ifdef WITH_RIVE_TOOLS
   // Editor path first, matching shader_asset_bytes.
   if (const std::vector<uint8_t>* rstb = vm->findShaderRstb(
@@ -4833,7 +4809,6 @@ uint32_t gpuShaderModuleFromAssetImpl(
         rstb->data(),
         (uint32_t)rstb->size(),
         fileAsset != nullptr ? fileAsset->assetId() : 0,
-        written,
         entry);
   }
 #endif
@@ -4841,7 +4816,7 @@ uint32_t gpuShaderModuleFromAssetImpl(
   {
     return 0;
   }
-  return mintAssetEntryModule(vm, oreContext, *fileAsset, written, entry);
+  return mintAssetEntryModule(vm, oreContext, *fileAsset, entry);
 }
 
 #ifdef WITH_RIVE_TOOLS
@@ -4857,14 +4832,7 @@ uint32_t gpuShaderModuleFromRstbImpl(
   {
     return 0;
   }
-  return mintRstbEntryModule(
-      vm,
-      oreContext,
-      rstb,
-      rstbCount,
-      assetId,
-      std::string(),
-      entry);
+  return mintRstbEntryModule(vm, oreContext, rstb, rstbCount, assetId, entry);
 }
 #endif
 

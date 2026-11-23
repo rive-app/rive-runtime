@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-// RSTB section 3: each bound global's WGSL name, for refusals to name.
+// RSTB section 3: each bound global's WGSL name.
 // Wire: u8 n, n*{u8 group, u8 binding, u16 len + name}.
 
 namespace rive

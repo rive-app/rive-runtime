@@ -127,6 +127,16 @@ private:
   unsigned int acquireScratchFBO();
   unsigned int acquireScratchVAO();
   unsigned int scratchResolveFBO();
+  // The copy a shader reads in place of multisampled `texture`, made on its
+  // first use holding what has been drawn so far.
+  TextureGL* resolvedCopy(TextureGL* texture);
+  // Blits the bound read framebuffer's attachment at `point` into `texture`,
+  // a sample a pixel.
+  void resolveAttachment(
+      unsigned int point,
+      unsigned int texture,
+      uint32_t width,
+      uint32_t height);
   void releaseScratchFBO(uint32_t colorCount, unsigned int depthAttachment);
   void releaseScratchVAO();
 

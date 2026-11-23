@@ -858,6 +858,20 @@ void RenderPassGL::finish()
     }
   }
 
+  for (const GLMultisampled& drawn : m_glMultisampled)
+  {
+    const TextureGL* copy = drawn.texture->m_resolved.get();
+    if (copy == nullptr || ctx == nullptr)
+      continue;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, m_glFBO);
+    ctx->resolveAttachment(
+        drawn.point,
+        copy->m_glTexture,
+        copy->width(),
+        copy->height());
+  }
+  m_glMultisampled.clear();
+
   if (m_ownsFBO && m_glFBO != 0)
   {
     glDeleteFramebuffers(1, &m_glFBO);

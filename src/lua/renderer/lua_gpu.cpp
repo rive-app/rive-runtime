@@ -590,37 +590,6 @@ static bool buildShaderEntries(
   return parsed && !failed && !out->entries.empty();
 }
 
-// A device that cannot run the shader refuses it on the script's console, and
-// one that can tells the author once what WebGL2 will need.
-static bool admitShader(
-    lua_State* L,
-    ScriptingContext* context,
-    Context* oreCtx,
-    const ShaderAsset& asset,
-    const std::string& name)
-{
-  std::string notice;
-  if (!admitMultisampledReads(
-          *oreCtx,
-          asset,
-          name,
-          context->noticedShaders(),
-          &notice))
-  {
-    lua_pushstring(L, oreCtx->lastError().c_str());
-    context->printError(L);
-    lua_pop(L, 1);
-    return false;
-  }
-  if (!notice.empty())
-  {
-    context->printBeginLine(L);
-    context->print(Span<const char>(notice.data(), notice.size()));
-    context->printEndLine();
-  }
-  return true;
-}
-
 /// Look up a shader by name: first check the per-VM RSTB blobs on the
 /// ScriptingContext (editor path, compiled during requestVM), then try the
 /// ShaderAsset from file->assets() (runtime .riv path).
@@ -658,9 +627,7 @@ bool lua_gpu_load_shader_by_name(
 #endif
   // Same container parsing on both paths so entry-point resolution is
   // identical on all backends.
-  return asset != nullptr &&
-         admitShader(L, context, oreCtx, *asset, reference.name()) &&
-         buildShaderEntries(oreCtx, *asset, out);
+  return asset != nullptr && buildShaderEntries(oreCtx, *asset, out);
 }
 
 ShaderAsset* lua_gpu_find_shader_asset(

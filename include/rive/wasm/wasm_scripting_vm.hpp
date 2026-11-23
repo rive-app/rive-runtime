@@ -22,7 +22,6 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace rive
@@ -623,9 +622,6 @@ public:
   bool isPlaying() const { return m_isPlaying; }
 #endif
 
-  /// Shaders this VM already told its author about.
-  std::unordered_set<std::string>& noticedShaders() { return m_noticedShaders; }
-
   const std::string& lastError() const { return m_lastError; }
 
   /// The representation the module booted on; it runs there for life.
@@ -879,7 +875,6 @@ protected:
   // Out of line so subclass TUs need no complete member types.
   WasmScriptingVM();
   std::string m_lastError;
-  std::unordered_set<std::string> m_noticedShaders;
   // Full text of the last raiseModuleError; see fullTrapMessage().
   std::string m_moduleErrorDetail;
   Factory* m_factory = nullptr;
