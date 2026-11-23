@@ -832,8 +832,8 @@ public:
   bool isRoot() const;
 
   void onComponentDirty(Component* component);
-  /// A component in this artboard collapsed or uncollapsed.
-  void collapseChanged() { m_collapsedRunsDirty = true; }
+  /// `component`, in this artboard, collapsed or uncollapsed.
+  void collapseChanged(Component* component);
   void rotationChanged() override;
   void scaleXChanged() override;
   void scaleYChanged() override;

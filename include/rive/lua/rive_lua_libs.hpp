@@ -239,6 +239,7 @@ enum class LuaAtoms : int16_t
   paint,
   asPaint,
   asPath,
+  worldBounds,
 
   // PathMeasure/ContourMeasure
   positionAndTangent,
@@ -2657,11 +2658,13 @@ public:
   bool takesWrite() const { return m_lease == nullptr || m_lease->alive(); }
   /// Notes a read of the node for the update or advance running. A node of
   /// an owned artboard has no lease and is not tracked.
-  void trackRead(ComponentDirt dirt)
+  void trackRead(ComponentDirt dirt) { trackRead(m_component, dirt); }
+  /// Notes a read of `component`, one a read of the node depends on.
+  void trackRead(Component* component, ComponentDirt dirt)
   {
     if (m_lease != nullptr)
     {
-      m_lease->trackRead(m_component, dirt);
+      m_lease->trackRead(component, dirt);
     }
   }
 

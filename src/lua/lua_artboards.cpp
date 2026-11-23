@@ -19,6 +19,7 @@
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/scripted/decoded_file.hpp"
+#include "rive/scripted/scripted_node_bounds.hpp"
 #include "rive/scripted/scripted_read_tracker.hpp"
 
 #include <math.h>
@@ -1412,6 +1413,27 @@ static int node_namecall(lua_State* L)
         component->scaleY(components.scaleY());
         component->rotation(components.rotation());
         return 0;
+      }
+
+      case (int)LuaAtoms::bounds:
+      case (int)LuaAtoms::worldBounds:
+      {
+        // The node's own box, a zero box for one with no size of its own,
+        // such as a group, a bone or an empty shape.
+        auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+        auto component = scriptedNode->component();
+        bool world = atom == (int)LuaAtoms::worldBounds;
+        scriptedNode->trackRead(ScriptedReadTracker::boundsDirt());
+        if (auto composer = ScriptedReadTracker::boundsComposer(component))
+        {
+          scriptedNode->trackRead(composer, ComponentDirt::Path);
+        }
+        AABB bounds = scriptedNodeBounds(
+            component->localBounds(),
+            world ? &component->worldTransform() : nullptr);
+        lua_pushvec2d(L, bounds.min());
+        lua_pushvec2d(L, bounds.max());
+        return 2;
       }
 
       case (int)LuaAtoms::asPath:

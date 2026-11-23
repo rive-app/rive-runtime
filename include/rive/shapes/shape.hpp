@@ -28,7 +28,8 @@ private:
   // (markPathDirty) and path transform (onDirty) -- and by
   // pathCollapseChanged(), which changes which paths are measured at all. Our
   // own world transform moving dirties our paths' world transforms, so that
-  // routes here too.
+  // routes here too. A box measured from a pending build is never cached
+  // (see localBounds()).
   mutable AABB m_LocalBounds;
   mutable bool m_LocalBoundsClean = false;
   float m_WorldLength = -1;
@@ -87,8 +88,14 @@ public:
   {
     if (!m_LocalBoundsClean)
     {
-      m_LocalBoundsClean = true;
-      m_LocalBounds = computeLocalBounds();
+      // Measured from a pending build, the box is provisional: a parametric
+      // path places its points in its own update, which tells nobody, and a
+      // hidden shape never runs the composer update that would drop the
+      // cache. So return it without keeping it, as computeIntrinsicBounds
+      // does.
+      bool provisional = false;
+      m_LocalBounds = computeLocalBounds(&provisional);
+      m_LocalBoundsClean = !provisional;
     }
     return m_LocalBounds;
   }
@@ -139,7 +146,8 @@ public:
   // after each path's world transform -- pass an inverse world transform to
   // measure in this shape's space (what computeLocalBounds does).
   AABB computeWorldBounds(const Mat2D* xform = nullptr) const;
-  AABB computeLocalBounds() const;
+  // Sets *provisional when a path it measured has a pending build.
+  AABB computeLocalBounds(bool* provisional = nullptr) const;
   // Combined path bounds in this shape's local space, computed from each
   // path's local transform (fold-independent, valid even at scale 0).
   AABB computeIntrinsicBounds() const;

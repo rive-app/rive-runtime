@@ -184,6 +184,9 @@ public:
     return m_Instance.get();
   }
   BoundsFidelity paintedWorldBounds(AABB* out) override;
+  /// The box of the artboard it shows, in its own space, where it draws
+  /// it; empty with nothing mounted.
+  AABB localBounds() const override;
 
   /// The artboard this one nests, decoded if the import deferred its body
   /// (Artboard::decoded; it may not have been instanced yet).

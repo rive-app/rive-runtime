@@ -143,6 +143,7 @@ constexpr LuaAtomName atoms[] = {
     {"node", (int16_t)LuaAtoms::node},
     {"paint", (int16_t)LuaAtoms::paint},
     {"asPath", (int16_t)LuaAtoms::asPath},
+    {"worldBounds", (int16_t)LuaAtoms::worldBounds},
     {"asPaint", (int16_t)LuaAtoms::asPaint},
     {"addToPath", (int16_t)LuaAtoms::addToPath},
     {"positionAndTangent", (int16_t)LuaAtoms::positionAndTangent},

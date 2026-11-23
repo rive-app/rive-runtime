@@ -335,6 +335,7 @@ uint32_t artboardHostNodeImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t artboardNodeNameImpl(WasmScriptingVM* vm, uint32_t node, char* out, uint32_t outCount);
 uint32_t artboardNodeFindImpl(WasmScriptingVM* vm, uint32_t node, const char* name, uint32_t length);
 void artboardNodeArtboardMetricsImpl(WasmScriptingVM* vm, uint32_t node, float* out, uint32_t outCount);
+void artboardNodeBoundsImpl(WasmScriptingVM* vm, uint32_t node, uint32_t world, float* out, uint32_t outCount);
 uint32_t audioSourceImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
 void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t source);
 float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t source);
@@ -1418,6 +1419,15 @@ void artboardNodeArtboardMetrics(wasm_exec_env_t env, uint32_t node, float* out,
         return;
     }
     artboardNodeArtboardMetricsImpl(vm, node, out, outCount);
+}
+void artboardNodeBounds(wasm_exec_env_t env, uint32_t node, uint32_t world, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
+    artboardNodeBoundsImpl(vm, node, world, out, outCount);
 }
 uint32_t audioSource(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
@@ -3010,6 +3020,7 @@ NativeSymbol kArtboardNatives[] = {
     {"node_name", (void*)artboardNodeName, "(i*~)i", nullptr},
     {"node_find", (void*)artboardNodeFind, "(i*~)i", nullptr},
     {"node_artboard_metrics", (void*)artboardNodeArtboardMetrics, "(i*~)", nullptr},
+    {"node_bounds", (void*)artboardNodeBounds, "(ii*~)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kAudioNatives[] = {

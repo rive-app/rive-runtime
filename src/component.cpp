@@ -174,7 +174,7 @@ bool Component::collapse(bool value)
   onComponentDirty(this);
   if (m_Artboard != nullptr)
   {
-    m_Artboard->collapseChanged();
+    m_Artboard->collapseChanged(this);
   }
   updateCollapsables();
   return true;
@@ -188,7 +188,7 @@ void Component::clearDirtForEditor()
   m_Dirt = ComponentDirt::None;
   if (wasCollapsed && m_Artboard != nullptr)
   {
-    m_Artboard->collapseChanged();
+    m_Artboard->collapseChanged(this);
   }
 }
 

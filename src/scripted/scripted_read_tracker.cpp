@@ -24,6 +24,17 @@ ComponentDirt ScriptedReadTracker::pathDirt(const Path* path)
   return dirt;
 }
 
+ComponentDirt ScriptedReadTracker::boundsDirt()
+{
+  return ComponentDirt::Path | ComponentDirt::NSlicer |
+         ComponentDirt::WorldTransform | ComponentDirt::Collapsed;
+}
+
+Component* ScriptedReadTracker::boundsComposer(Component* node)
+{
+  return node->is<Shape>() ? node->as<Shape>()->pathComposer() : nullptr;
+}
+
 ScriptedReadTracker::Reader* ScriptedReadTracker::find(ScriptedObject* object)
 {
   for (auto& reader : m_readers)

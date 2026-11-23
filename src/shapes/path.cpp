@@ -148,7 +148,43 @@ bool Path::canDeferPathUpdate()
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
-AABB Path::localBounds() const { return m_rawPath.preciseBounds(); }
+AABB Path::measure(const Mat2D& xform, bool hull, RawPath& scratch) const
+{
+  const RawPath* geometry = &m_rawPath;
+  if (needsPathBuild())
+  {
+    // Not the property bounds computeIntrinsicBounds sizes layout by: a
+    // polygon's or star's frame is not its geometry. A deferred build has
+    // placed its vertices already; a change still queued has not, and
+    // measures as the path last drew, as its built path would.
+    scratch.rewind();
+    buildPath(scratch);
+    geometry = &scratch;
+  }
+  if (!hull)
+  {
+    return geometry->preciseBounds(xform);
+  }
+  // mapBoundingBox reads no points as a zero box, which would add the origin
+  // to a shape's union. The expansion box, as preciseBounds gives, adds
+  // nothing.
+  return geometry->points().empty() ? AABB::forExpansion()
+                                    : xform.mapBoundingBox(geometry->points());
+}
+
+// In its own space. A skinned path's points are already in the artboard's
+// (its pathTransform is the identity), so they come back through its inverse
+// world transform.
+AABB Path::localBounds() const
+{
+  RawPath scratch;
+  const Mat2D& space = pathTransform();
+  if (space == worldTransform())
+  {
+    return measure(Mat2D(), false, scratch);
+  }
+  return measure(worldTransform().invertOrIdentity() * space, false, scratch);
+}
 
 void Path::addRoundedRect(
     RawPath& rawPath,

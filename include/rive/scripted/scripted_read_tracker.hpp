@@ -42,6 +42,21 @@ public:
   /// Path::update rebuild it.
   static ComponentDirt pathDirt(const Path* path);
 
+  /// The dirt on a node that makes a read of its own box (its localBounds),
+  /// in its own space or the world's, stale: a layout's new size and a
+  /// path's or text's new geometry mark Path; an N-slicer's new axes mark
+  /// NSlicer; a text's new origin, an image's new asset and a move mark
+  /// WorldTransform. Collapsed, which the update pass never reports, comes
+  /// from Artboard::collapseChanged: a collapsed shape measures without its
+  /// paths. A shape's box goes stale elsewhere too (see boundsComposer).
+  static ComponentDirt boundsDirt();
+
+  /// The component besides `node` whose Path dirt makes a read of `node`'s
+  /// box stale: a shape's path composer, which a change to any of its paths'
+  /// geometry or placement marks, where the shape itself is not. Null for
+  /// every other node.
+  static Component* boundsComposer(Component* node);
+
   /// Replaces what `object` read in `phase` with `reads`, read when the last
   /// component update was the one numbered `serial` (see
   /// Artboard::updateSerial). Reads of components outside the dependency

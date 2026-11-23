@@ -650,6 +650,11 @@ NAMESPACES = [
         # width, height, minX, minY, maxX, maxY of the node's artboard.
         op('node_artboard_metrics', [handle('node'),
                                      mutbuf('float', 'out', 'outCount')]),
+        # minX, minY, maxX, maxY of the node's own box (localBounds), mapped
+        # through its world transform when world is 1; a zero box at the
+        # origin for a node with no size of its own, or a stale one.
+        op('node_bounds', [handle('node'), u32('world'),
+                           mutbuf('float', 'out', 'outCount')]),
     ]),
     # The Luau Audio surface: sources resolve from the object's file by
     # asset name, sounds come back from the play ops. Frame clocks cross as
@@ -1535,7 +1540,7 @@ LEAF_OPS = {
     },
     'rive_artboard_v1': {
         'width', 'height', 'bounds', 'node_transform', 'node_world_transform',
-        'node_live',
+        'node_live', 'node_bounds',
     },
     'rive_gpu_v1': {
         'pass_set_pipeline', 'pass_set_vertex_buffer', 'pass_set_index_buffer',

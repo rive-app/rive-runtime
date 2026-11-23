@@ -1481,6 +1481,11 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
   tryScheduleBindStateful();
 }
 
+AABB NestedArtboard::localBounds() const
+{
+  return m_Instance != nullptr ? m_Instance->bounds() : AABB();
+}
+
 BoundsFidelity NestedArtboard::paintedWorldBounds(AABB* out)
 {
   if (hostedMesh() != nullptr)

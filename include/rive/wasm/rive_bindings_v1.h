@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "6c35b161f9733076"
+#define RIVE_BINDINGS_V1_CONTRACT "2e2029d930426db9"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -502,6 +502,8 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "node_find")
 uint32_t rive_artboard_node_find(uint32_t node, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_artboard_metrics")
 void rive_artboard_node_artboard_metrics(uint32_t node, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_bounds")
+void rive_artboard_node_bounds(uint32_t node, uint32_t world, float* out, uint32_t outCount);
 
 // rive_audio_v1
 RIVE_BINDING_IMPORT("rive_audio_v1", "source")

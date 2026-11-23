@@ -731,6 +731,11 @@ void rive_web_artboard_node_artboard_metrics(uint32_t vmHandle, uint32_t node, f
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     artboardNodeArtboardMetricsImpl(vm, node, out, outCount);
 }
+void rive_web_artboard_node_bounds(uint32_t vmHandle, uint32_t node, uint32_t world, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    artboardNodeBoundsImpl(vm, node, world, out, outCount);
+}
 uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2177,6 +2182,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_artboard_node_name,
     (void*)rive_web_artboard_node_find,
     (void*)rive_web_artboard_node_artboard_metrics,
+    (void*)rive_web_artboard_node_bounds,
     (void*)rive_web_audio_source,
     (void*)rive_web_audio_source_release,
     (void*)rive_web_audio_source_duration,

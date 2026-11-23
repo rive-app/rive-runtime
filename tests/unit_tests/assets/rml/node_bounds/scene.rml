@@ -1,0 +1,129 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/node_bounds.riv. Rebuild the .riv from this
+      file with the CLI, from a directory holding this scene.rml, a rive.yaml
+      naming it and Inter.ttf (a copy of assets/fonts/Inter_18pt-Regular.ttf),
+      then copy build/node_bounds.riv into assets/.
+
+          rive . --unsigned-riv
+
+      What it is for: a script reading the box of each kind of node that has
+      one, and of one that doesn't (see scripting_node_bounds_test.cpp):
+      - Panel, a 200 by 100 layout, padded 10 left and 8 top, holding Button,
+        a nested artboard layout showing the 80 by 24 Chip.
+      - Badge, a nested artboard (no layout) showing Chip at 250, 200.
+      - Box, a shape at 300, 50 holding Rect, a 40 by 30 rectangle drawn
+        about its center.
+      - Label, a 120 by 30 text at 20, 250.
+      - Group, a node with no size of its own at 10, 200, with Child.
+      - Curve, a shape at 100, 150 holding Arc, an open path from 0, 0 to
+        100, 0 whose handle at 100, 90 reaches past the curve, which peaks
+        at 40: a shape's box holds its paths' control points.
+      - Empty, a shape with no paths at 50, 50.
+      - Limb, a shape at 200, 100 holding Skinned, a 40 by 20 path whose
+        points are all bound to Bone, a root bone at 200, 100, bound where
+        both are, so it draws as authored until the bone moves.
+      - Tri, a shape at 300, 200 holding Poly, a 100 by 100 three point
+        polygon about its center, whose frame is not its geometry.
+      - Pair, a shape at 150, 250 whose geometry is away from its origin:
+        Holder, a node at 15, 0 scaled 2 wide, holds Offset, a 10 by 10
+        rectangle at 5, 10, so Pair's box is 15, 5 to 35, 15. Beside it,
+        Blank is a path with no points.
+    -->
+    <Artboard defaultStateMachineId="0:7" width="400" height="300" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="200" height="100" styleId="0:11" name="Panel" id="0:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="row"
+                                  paddingLeft="10" paddingTop="8" name="Panel Style" id="0:11"/>
+            <NestedArtboardLayout artboardId="1:2" instanceWidth="80" instanceHeight="24" name="Button" id="0:12"/>
+        </LayoutComponent>
+        <NestedArtboard artboardId="1:2" x="250" y="200" name="Badge" id="0:40"/>
+        <Shape x="300" y="50" name="Box" id="0:20">
+            <Rectangle width="40" height="30" name="Rect" id="0:21"/>
+            <Fill>
+                <SolidColor colorValue="FFFF0000"/>
+            </Fill>
+        </Shape>
+        <Text sizingValue="2" width="120" height="30" x="20" y="250" name="Label" id="0:50">
+            <TextStylePaint fontSize="16" fontAssetId="0:16" name="Label Style" id="0:51">
+                <Fill>
+                    <SolidColor colorValue="FFFFFFFF"/>
+                </Fill>
+            </TextStylePaint>
+            <TextValueRun styleId="0:51" text="label" name="Run"/>
+        </Text>
+        <Node x="10" y="200" name="Group" id="0:30">
+            <Node x="5" y="5" name="Child" id="0:31"/>
+        </Node>
+        <Shape x="100" y="150" name="Curve" id="0:70">
+            <PointsPath isClosed="false" name="Arc" id="0:71">
+                <StraightVertex x="0" y="0"/>
+                <CubicDetachedVertex x="100" y="0" inRotation="1.5707963" inDistance="90" outRotation="0"
+                                     outDistance="0"/>
+            </PointsPath>
+            <Stroke thickness="1">
+                <SolidColor colorValue="FFFFFFFF"/>
+            </Stroke>
+        </Shape>
+        <Shape x="50" y="50" name="Empty" id="0:80"/>
+        <RootBone x="200" y="100" length="50" name="Bone" id="0:90"/>
+        <Shape x="200" y="100" name="Limb" id="0:91">
+            <PointsPath isClosed="true" name="Skinned" id="0:92">
+                <StraightVertex x="0" y="0">
+                    <Weight values="255" indices="1"/>
+                </StraightVertex>
+                <StraightVertex x="40" y="0">
+                    <Weight values="255" indices="1"/>
+                </StraightVertex>
+                <StraightVertex x="40" y="20">
+                    <Weight values="255" indices="1"/>
+                </StraightVertex>
+                <StraightVertex x="0" y="20">
+                    <Weight values="255" indices="1"/>
+                </StraightVertex>
+                <Skin xx="1" yx="0" xy="0" yy="1" tx="200" ty="100">
+                    <Tendon boneId="0:90" xx="1" yx="0" xy="0" yy="1" tx="200" ty="100"/>
+                </Skin>
+            </PointsPath>
+            <Fill>
+                <SolidColor colorValue="FF00FF00"/>
+            </Fill>
+        </Shape>
+        <Shape x="300" y="200" name="Tri" id="0:110">
+            <Polygon width="100" height="100" points="3" name="Poly" id="0:111"/>
+            <Fill>
+                <SolidColor colorValue="FFFFFF00"/>
+            </Fill>
+        </Shape>
+        <Shape x="150" y="250" name="Pair" id="0:120">
+            <Node x="15" y="0" scaleX="2" name="Holder" id="0:121">
+                <Rectangle x="5" y="10" width="10" height="10" name="Offset" id="0:122"/>
+            </Node>
+            <PointsPath isClosed="false" name="Blank" id="0:123"/>
+            <Fill>
+                <SolidColor colorValue="FF00FFFF"/>
+            </Fill>
+        </Shape>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState>
+                    <StateTransition stateToId="0:60"/>
+                </EntryState>
+                <AnimationState x="100" animationId="0:15" id="0:60"/>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="idle" id="0:15"/>
+    </Artboard>
+
+    <Artboard isComponent="true" width="80" height="24" x="500" styleId="1:5" name="Chip" id="1:2">
+        <LayoutComponentStyle name="Chip Style" id="1:5"/>
+        <Fill>
+            <SolidColor colorValue="FF3366FF"/>
+        </Fill>
+    </Artboard>
+    <ComponentAsset artboardId="1:2" name="Chip"/>
+
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="0:16"/>
+</Rive>

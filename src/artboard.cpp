@@ -1861,6 +1861,29 @@ void Artboard::onComponentDirty(Component* component)
   }
 }
 
+void Artboard::collapseChanged(Component* component)
+{
+  m_collapsedRunsDirty = true;
+#ifdef WITH_RIVE_SCRIPTING
+  // The update pass skips a collapsed component, so it never reports what
+  // collapsing one changed: a collapsed shape measures without its paths,
+  // and its path composer, where a read of its box is tracked too,
+  // collapses with it and doesn't update either.
+  if (m_readTracker != nullptr &&
+      m_readTracker->isRead(component->graphOrder()))
+  {
+    m_readTracker->updated(
+        component,
+        ComponentDirt::Collapsed,
+        ++m_updateSerial);
+    if (m_readTracker->hasDue())
+    {
+      m_Dirt |= ComponentDirt::Components;
+    }
+  }
+#endif
+}
+
 // Not in the dependency graph: draw and hit test read selfTransform(). Redraw
 // without content dirt (a cascade hides children's same-frame dirt behind
 // addDirt's dedupe); semantics re-read their bounds through the boundary.

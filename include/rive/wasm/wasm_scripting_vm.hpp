@@ -114,6 +114,13 @@ public:
   virtual uint32_t find(uint32_t node, const std::string& name) = 0;
   /// width, height, minX, minY, maxX, maxY of the node's artboard.
   virtual void artboardMetrics(uint32_t node, float out[6]) = 0;
+  /// minX, minY, maxX, maxY of the node's own box in its local space (a
+  /// runtime's localBounds), zero for a node with no size of its own. A
+  /// source that can't measure its nodes answers zero for all of them.
+  virtual void bounds(uint32_t node, float out[4])
+  {
+    out[0] = out[1] = out[2] = out[3] = 0.0f;
+  }
 };
 #endif
 

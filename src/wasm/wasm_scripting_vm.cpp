@@ -80,6 +80,7 @@
 #include "rive/math/path_measure.hpp"
 #include "rive/renderer.hpp"
 #include "rive/scripted/decoded_file.hpp"
+#include "rive/scripted/scripted_node_bounds.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/transition_child_ref.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -9121,6 +9122,58 @@ void artboardNodeArtboardMetricsImpl(
   out[3] = bounds.minY;
   out[4] = bounds.maxX;
   out[5] = bounds.maxY;
+}
+
+void artboardNodeBoundsImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t world,
+    float* out,
+    uint32_t outCount)
+{
+  if (outCount < 4)
+  {
+    return;
+  }
+  auto host = resolveNode(vm, handle);
+  // A stale node reads as a zero box, as the Luau lane's empty node does.
+  AABB bounds;
+  if (host != nullptr)
+  {
+#ifdef WITH_RIVE_TOOLS
+    if (host->source != nullptr)
+    {
+      float local[4];
+      host->source->bounds(sourceNodeId(host), local);
+      Mat2D transform;
+      if (world != 0)
+      {
+        float m[6];
+        host->source->worldTransform(sourceNodeId(host), m);
+        transform = Mat2D(m[0], m[1], m[2], m[3], m[4], m[5]);
+      }
+      bounds = scriptedNodeBounds(
+          AABB(local[0], local[1], local[2], local[3]),
+          world != 0 ? &transform : nullptr);
+    }
+    else
+#endif
+    {
+      TransformComponent* component = host->component;
+      trackNodeRead(host, component, ScriptedReadTracker::boundsDirt());
+      if (auto composer = ScriptedReadTracker::boundsComposer(component))
+      {
+        trackNodeRead(host, composer, ComponentDirt::Path);
+      }
+      bounds = scriptedNodeBounds(
+          component->localBounds(),
+          world != 0 ? &component->worldTransform() : nullptr);
+    }
+  }
+  out[0] = bounds.minX;
+  out[1] = bounds.minY;
+  out[2] = bounds.maxX;
+  out[3] = bounds.maxY;
 }
 
 // --- rive_data_v1 asset properties (image/font/blob) ------------------------

@@ -492,11 +492,52 @@ AABB Shape::computeWorldBounds(const Mat2D* xform) const
   return computedBounds;
 }
 
-AABB Shape::computeLocalBounds() const
+// A path's transform in its shape's space, from the local transforms between
+// them, for a shape whose world transform has no inverse.
+static Mat2D transformInShape(const Path* path, const Shape* shape)
 {
-  const Mat2D& world = worldTransform();
-  Mat2D inverseWorld = world.invertOrIdentity();
-  return computeWorldBounds(&inverseWorld);
+  Mat2D result = path->transform();
+  for (auto ancestor = path->parent(); ancestor != nullptr && ancestor != shape;
+       ancestor = ancestor->parent())
+  {
+    if (ancestor->is<TransformComponent>())
+    {
+      result = ancestor->as<TransformComponent>()->transform() * result;
+    }
+  }
+  return result;
+}
+
+// The hull computeWorldBounds measures, in this shape's space, of what its
+// paths will draw: a hidden shape defers building them (see Path::measure).
+AABB Shape::computeLocalBounds(bool* provisional) const
+{
+  // Through the inverse world transform, which honors what constraints did
+  // to the paths. A shape scaled to zero on an axis has none; its unskinned
+  // paths are then placed by their local transforms. A skinned path's points
+  // are in the artboard's space, which only the inverse leads back from, so
+  // it measures through the identity.
+  Mat2D inverseWorld;
+  bool invertible = worldTransform().invert(&inverseWorld);
+  AABB bounds = AABB::forExpansion();
+  RawPath scratch;
+  for (auto path : m_Paths)
+  {
+    if (path->isCollapsed())
+    {
+      continue;
+    }
+    if (provisional != nullptr && path->needsPathBuild())
+    {
+      *provisional = true;
+    }
+    const Mat2D& space = path->pathTransform();
+    Mat2D toShape = invertible || space != path->worldTransform()
+                        ? inverseWorld * space
+                        : transformInShape(path, this);
+    bounds.expand(path->measure(toShape, true, scratch));
+  }
+  return bounds;
 }
 
 AABB Shape::computeIntrinsicBounds() const

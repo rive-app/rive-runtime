@@ -85,6 +85,12 @@ public:
   // vertices. A ParametricPath knows its box up front; anything vertex-driven
   // returns false and must be measured from geometry.
   virtual bool tryPropertyBounds(AABB& result) const { return false; }
+  // The box of its geometry through xform: its built path, or while that
+  // build is pending (needsPathBuild(), as when a hidden shape defers it), a
+  // throwaway build into scratch. hull measures the points, control points
+  // included, as a shape measures its paths; otherwise the curve's precise
+  // bounds.
+  AABB measure(const Mat2D& xform, bool hull, RawPath& scratch) const;
   void update(ComponentDirt value) override;
 
   void addFlags(PathFlags flags);
