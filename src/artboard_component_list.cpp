@@ -371,9 +371,14 @@ void ArtboardComponentList::updateLayoutBounds(bool animate)
   // report their size.
   const bool hasVirtualWindow = virtualizationEnabled() &&
                                 m_windowVisibleCount > 0;
+  // Collapsed (under a layout whose display is none), every row measures
+  // at no size. Those aren't the rows' sizes: written into the table, they
+  // would lay the virtualizer's window out with no height when the list
+  // shows again.
+  const bool reportsSizes = !isCollapsed();
   forEachRealized([&](int i, ArtboardInstance* artboard) {
     artboard->updateLayoutBounds(animate);
-    if (!hasVirtualWindow || isWithinVisibleWindow(i))
+    if (reportsSizes && (!hasVirtualWindow || isWithinVisibleWindow(i)))
     {
       auto bounds = artboard->layoutBounds();
       setItemSize(Vec2D(bounds.width(), bounds.height()), i);

@@ -1,0 +1,75 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/virtualized_list_display_none.riv. README.md,
+      next to this file, says how to rebuild it.
+
+      What it is for: a virtualized list whose panel is hidden with
+      displayValue none and shown again (see
+      virtualized_list_display_none_test.cpp). Main shows Rows, eight 200 by
+      40 rows in a 200 tall viewport whose scroll virtualizes, inside Panel.
+      Main's machine keys Panel Style's displayValue to none while the view
+      model's shown is false, and back to flex while it is true. Each row is
+      a swatch in its item's color.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" width="300" height="400" styleId="0:5" name="Main" id="0:2">
+        <LayoutComponentStyle flexDirectionValue="column" name="Artboard Style" id="0:5"/>
+        <LayoutComponent width="200" height="400" styleId="0:11" name="Panel" id="0:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" name="Panel Style" id="0:11"/>
+            <LayoutComponent clip="true" width="200" height="200" styleId="0:13" name="Viewport" id="0:12">
+                <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" flexDirectionValue="column" name="Viewport Style" id="0:13"/>
+                <LayoutComponent clip="false" width="200" height="0" styleId="0:15" name="Content" id="0:14">
+                    <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="hug" flexDirectionValue="column" name="Content Style" id="0:15"/>
+                    <ArtboardComponentList name="Rows" id="0:16">
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="800"/>
+                    </ArtboardComponentList>
+                    <ScrollConstraint directionValue="vertical" physicsId="0:90" virtualize="true" name="Scroll" id="0:17"/>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="Main Machine" id="0:7">
+            <StateMachineLayer name="Show" id="0:8">
+                <AnyState x="0" y="-100"/>
+                <ExitState x="200" y="-100"/>
+                <EntryState><StateTransition stateToId="0:20"/></EntryState>
+                <AnimationState x="100" animationId="0:19" id="0:20">
+                    <StateTransition stateToId="0:21"><TransitionViewModelCondition><TransitionPropertyViewModelComparator><BindablePropertyBoolean><DataBindContext sourcePathIds="0:40-0:41" propertyKey="634"/></BindablePropertyBoolean></TransitionPropertyViewModelComparator><TransitionValueBooleanComparator value="false"/></TransitionViewModelCondition></StateTransition>
+                </AnimationState>
+                <AnimationState x="200" animationId="0:18" id="0:21">
+                    <StateTransition stateToId="0:20"><TransitionViewModelCondition><TransitionPropertyViewModelComparator><BindablePropertyBoolean><DataBindContext sourcePathIds="0:40-0:41" propertyKey="634"/></BindablePropertyBoolean></TransitionPropertyViewModelComparator><TransitionValueBooleanComparator value="true"/></TransitionViewModelCondition></StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation duration="1" name="Shown" id="0:19"><KeyedObject objectId="0:11"><KeyedProperty propertyKey="596"><KeyFrameUint value="0" frame="0"/></KeyedProperty></KeyedObject></LinearAnimation>
+        <LinearAnimation duration="1" name="Hidden" id="0:18"><KeyedObject objectId="0:11"><KeyedProperty propertyKey="596"><KeyFrameUint value="1" frame="0"/></KeyedProperty></KeyedObject></LinearAnimation>
+    </Artboard>
+    <ElasticScrollPhysics name="Physics" id="0:90"/>
+
+    <Artboard isComponent="true" viewModelId="0:50" x="400" width="200" height="40" styleId="0:35" name="Row" id="0:30">
+        <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Row Style" id="0:35"/>
+        <Shape x="100" y="20" name="Swatch" id="0:31">
+            <Rectangle width="196" height="36" name="Path"/>
+            <Fill name="Fill"><SolidColor colorValue="FF000000" name="Color"><DataBindContext sourcePathIds="0:50-0:51" propertyKey="37"/></SolidColor></Fill>
+        </Shape>
+    </Artboard>
+    <ComponentAsset artboardId="0:30" name="Row"/>
+
+    <ViewModel defaultInstanceId="0:1000" name="Item" id="0:50">
+        <ViewModelPropertyColor name="color" id="0:51"/>
+        <ViewModelInstance exports="true" name="R0" id="0:1000"><ViewModelInstanceColor propertyValue="FFE53935" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R1" id="0:1001"><ViewModelInstanceColor propertyValue="FFFB8C00" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R2" id="0:1002"><ViewModelInstanceColor propertyValue="FFFDD835" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R3" id="0:1003"><ViewModelInstanceColor propertyValue="FF43A047" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R4" id="0:1004"><ViewModelInstanceColor propertyValue="FF1E88E5" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R5" id="0:1005"><ViewModelInstanceColor propertyValue="FF8E24AA" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R6" id="0:1006"><ViewModelInstanceColor propertyValue="FF6D4C41" viewModelPropertyId="0:51"/></ViewModelInstance>
+        <ViewModelInstance exports="true" name="R7" id="0:1007"><ViewModelInstanceColor propertyValue="FF546E7A" viewModelPropertyId="0:51"/></ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="0:2000" name="MainVM" id="0:40">
+        <ViewModelPropertyBoolean name="shown" id="0:41"/>
+        <ViewModelPropertyList name="rows" id="0:42"/>
+        <ViewModelInstance exports="true" name="Main" id="0:2000">
+            <ViewModelInstanceBoolean propertyValue="true" viewModelPropertyId="0:41"/>
+            <ViewModelInstanceList viewModelPropertyId="0:42"><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1000"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1001"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1002"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1003"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1004"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1005"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1006"/><ViewModelInstanceListItem viewModelId="0:50" viewModelInstanceId="0:1007"/></ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>
