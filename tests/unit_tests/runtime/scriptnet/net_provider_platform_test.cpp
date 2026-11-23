@@ -1,4 +1,5 @@
-#if defined(WITH_RIVE_SCRIPTNET) && (defined(__APPLE__) || defined(_WIN32))
+#if defined(WITH_RIVE_SCRIPTNET) && (defined(__APPLE__) || defined(_WIN32) ||  \
+                                     defined(WITH_RIVE_SCRIPTNET_CURL))
 
 #include "catch.hpp"
 #include "rive/scriptnet/net.hpp"
@@ -32,10 +33,10 @@
 #include <vector>
 
 // Drives the real platform provider (NSURLSession on Apple, WinHTTP on
-// Windows) against a server on 127.0.0.1. The policy refuses http: and IP
-// hosts, so requests go through fetch() with a policy-valid https URL and a
-// wrapper provider rewrites them to the loopback server before handing them
-// to the platform provider.
+// Windows, curl where a host links ours) against a server on 127.0.0.1. The
+// policy refuses http: and IP hosts, so requests go through fetch() with a
+// policy-valid https URL and a wrapper provider rewrites them to the loopback
+// server before handing them to the platform provider.
 
 using namespace rive;
 
@@ -96,6 +97,14 @@ void setReceiveTimeout(Socket socket, int seconds)
 void startSockets() {}
 #endif
 
+// The client may already have given up; don't die of SIGPIPE, on systems
+// with the socket option or with the send flag.
+#ifdef MSG_NOSIGNAL
+constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+constexpr int kSendFlags = 0;
+#endif
+
 struct CannedResponse
 {
   std::string text;
@@ -106,10 +115,13 @@ struct CannedResponse
   // When set, text goes out this many bytes at a time with a pause between,
   // as a network would bring it, not all at once.
   size_t paceBytes = 0;
+  // The connection stays open for the next response, unless the client
+  // closes it first.
+  bool keepAlive = false;
 };
 
-// Serves one canned response per connection, in order, and records each raw
-// request.
+// Serves the canned responses in order, one per connection unless one keeps
+// it open, and records each raw request.
 class LoopbackServer
 {
 public:
@@ -155,19 +167,33 @@ public:
 private:
   void serve()
   {
+    Socket connection = kInvalidSocket;
     for (const CannedResponse& canned : m_responses)
     {
-      Socket connection = acceptWithTimeout();
+      std::string request;
+      if (connection != kInvalidSocket)
+      {
+        request = readRequest(connection);
+        if (request.empty())
+        {
+          // The client let the kept connection go.
+          closeSocket(connection);
+          connection = kInvalidSocket;
+        }
+      }
       if (connection == kInvalidSocket)
       {
-        return;
-      }
+        connection = acceptWithTimeout();
+        if (connection == kInvalidSocket)
+        {
+          return;
+        }
 #ifdef SO_NOSIGPIPE
-      int yes = 1;
-      // The client may already have given up; don't die of SIGPIPE.
-      setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));
+        int yes = 1;
+        setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));
 #endif
-      std::string request = readRequest(connection);
+        request = readRequest(connection);
+      }
       {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_requests.push_back(request);
@@ -180,8 +206,20 @@ private:
         {
           wait(10);
         }
-        send(connection, canned.tail.data(), (int)canned.tail.size(), 0);
+        send(
+            connection,
+            canned.tail.data(),
+            (int)canned.tail.size(),
+            kSendFlags);
       }
+      if (!canned.keepAlive)
+      {
+        closeSocket(connection);
+        connection = kInvalidSocket;
+      }
+    }
+    if (connection != kInvalidSocket)
+    {
       closeSocket(connection);
     }
   }
@@ -195,7 +233,7 @@ private:
     {
       size_t count = std::min(step, text.size() - at);
       // A send can take less than it was given.
-      auto sent = send(connection, text.data() + at, (int)count, 0);
+      auto sent = send(connection, text.data() + at, (int)count, kSendFlags);
       if (sent <= 0)
       {
         return;
@@ -278,7 +316,7 @@ private:
   std::thread m_thread;
 };
 
-// Rewrites https://<any host>/<path> to the loopback server and forwards to
+// Rewrites <any scheme and host>/<path> to the loopback server and forwards to
 // the real platform provider.
 class LoopbackProvider : public scriptnet::Provider
 {
@@ -652,11 +690,14 @@ TEST_CASE(
   CHECK(listener->response.status == 304);
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(WITH_RIVE_SCRIPTNET_CURL)
+// The transports that read header bytes, follow redirects and check addresses
+// themselves.
+
 // WinHTTP decodes header bytes with the system's ANSI code page; the
 // transport turns them back into the bytes the server sent.
 TEST_CASE(
-    "the Windows provider hands header bytes through untouched",
+    "the platform provider hands header bytes through untouched",
     "[scriptnet][platform]")
 {
   LoopbackServer server({{std::string("HTTP/1.1 200 OK\r\n"
@@ -679,7 +720,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "the Windows provider percent-encodes a raw UTF-8 Location before the "
+    "the platform provider percent-encodes a raw UTF-8 Location before the "
     "policy sees it",
     "[scriptnet][platform]")
 {
@@ -700,11 +741,9 @@ TEST_CASE(
       "a redirect was refused: Rive's own hosts are not reachable from "
       "scripts");
 }
-#endif
 
-#ifdef _WIN32
 TEST_CASE(
-    "the Windows provider refuses a host that resolves to a local address "
+    "the platform provider refuses a host that resolves to a local address "
     "before sending",
     "[scriptnet][platform]")
 {
@@ -728,6 +767,105 @@ TEST_CASE(
   {
     CHECK(request.empty());
   }
+}
+
+namespace
+{
+// A 200 with `body`, on a connection kept open for the next when asked.
+CannedResponse answer(const std::string& body, bool keepAlive = false)
+{
+  CannedResponse canned;
+  canned.text = "HTTP/1.1 200 OK\r\nContent-Length: " +
+                std::to_string(body.size()) +
+                (keepAlive ? "" : "\r\nConnection: close") + "\r\n\r\n" + body;
+  canned.keepAlive = keepAlive;
+  return canned;
+}
+
+bool signAnything(const std::string&, std::string* jwk, std::string* signature)
+{
+  *jwk = "{}";
+  *signature = "SIG";
+  return true;
+}
+
+// The host's rive-cloud endpoint on loopback, with the address check on, for
+// one test. The server answers its challenge, its hello and then the request.
+struct LocalEngine
+{
+  LocalEngine()
+  {
+    // As outside tests, where the endpoint's is the one local address.
+    scriptnet::setLimits(scriptnet::NetLimits());
+    scriptnet::CloudEndpoint endpoint;
+    endpoint.baseUrl = "http://127.0.0.1";
+    endpoint.namespaceId = "ns_test";
+    endpoint.signHello = signAnything;
+    scriptnet::setCloudEndpoint(std::move(endpoint));
+  }
+  ~LocalEngine() { scriptnet::setCloudEndpoint(scriptnet::CloudEndpoint()); }
+
+  static std::vector<CannedResponse> answers(bool keepAlive)
+  {
+    return {
+        answer("{\"challenge\":\"v1.abc\",\"expires_in\":60}", keepAlive),
+        answer("{\"token\":\"tok.A_1\",\"player_id\":\"p_one\"}", keepAlive),
+        answer("{\"value\":1}", keepAlive)};
+  }
+
+  rcp<RecordingListener> fetch()
+  {
+    scriptnet::HttpRequest request;
+    request.url = "rive-cloud:/v1/app/data/a";
+    return fetchAndWait(std::move(request));
+  }
+};
+} // namespace
+
+TEST_CASE(
+    "the platform provider lets the host's rive-cloud endpoint be local",
+    "[scriptnet][platform]")
+{
+  LoopbackServer server(LocalEngine::answers(false));
+  LoopbackNetwork network(server.port());
+  LocalEngine engine;
+
+  auto listener = engine.fetch();
+  REQUIRE(listener->done);
+  REQUIRE(listener->ok);
+  CHECK(
+      std::string(
+          listener->response.body.begin(),
+          listener->response.body.end()) == "{\"value\":1}");
+  CHECK(server.requests().size() == 3);
+}
+
+TEST_CASE(
+    "the platform provider checks a script's request on a connection the "
+    "host's endpoint left open",
+    "[scriptnet][platform]")
+{
+  // All kept alive, so a transport that pools connections could carry the
+  // script's request over the endpoint's.
+  std::vector<CannedResponse> answers = LocalEngine::answers(true);
+  answers.push_back(answer("{}", true));
+  LoopbackServer server(answers);
+  LoopbackNetwork network(server.port());
+  LocalEngine engine;
+  REQUIRE(engine.fetch()->ok);
+
+  auto listener = fetchAndWait(get("/intranet"));
+  REQUIRE(listener->done);
+  CHECK_FALSE(listener->ok);
+  CHECK(listener->error.code == scriptnet::NetErrorCode::Policy);
+  CHECK(listener->error.message == "the host resolves to a loopback address");
+  // A connection refused before any request on it may record an empty one.
+  size_t sent = 0;
+  for (const std::string& request : server.requests())
+  {
+    sent += request.empty() ? 0 : 1;
+  }
+  CHECK(sent == 3);
 }
 #endif
 
@@ -913,4 +1051,4 @@ TEST_CASE(
   CHECK((read == body));
 }
 
-#endif // WITH_RIVE_SCRIPTNET && (__APPLE__ || _WIN32)
+#endif // WITH_RIVE_SCRIPTNET && (__APPLE__ || _WIN32 || curl)

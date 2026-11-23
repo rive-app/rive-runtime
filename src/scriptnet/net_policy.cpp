@@ -382,6 +382,7 @@ bool NetPolicy::check(
     const NetLimits& limits,
     NetError* error)
 {
+  request.hostChosen = false;
   // URL. Only a conservative subset parses here, since the transport
   // parses the URL again with its own parser.
   const std::string& url = request.url;

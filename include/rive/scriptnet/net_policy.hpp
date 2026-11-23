@@ -51,8 +51,8 @@ struct NetLimits
   /// request, as a browser allows.
   uint32_t maxRedirects = 20;
   /// Lets a host resolve to a local or private address, which a transport
-  /// that checks addresses (Windows) refuses otherwise. For tests against a
-  /// server on loopback; off everywhere else.
+  /// that checks addresses (Windows, curl) refuses otherwise. For tests against
+  /// a server on loopback; off everywhere else.
   bool allowLocalAddresses = false;
 };
 
@@ -68,6 +68,9 @@ struct NetLimits
 /// address (localtest.me, 10.0.0.1.nip.io, an intranet name) is refused
 /// before the request is sent, as a browser's private network access check
 /// refuses it, and a connection through a proxy is the proxy's to judge.
+/// The curl transport checks each address but a proxy's before it opens a
+/// socket to it, and again before each request on it. Neither checks the
+/// host's own rive-cloud endpoint (HttpRequest::hostChosen).
 /// Known gap, to be closed later: the Apple transport does not check yet.
 /// There, since only https: is allowed, the server must still hold a valid
 /// certificate for that name, which rules out routers and most local

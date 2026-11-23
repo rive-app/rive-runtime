@@ -140,6 +140,16 @@ if _OPTIONS['with_microprofile'] then
     dofile(path.join(dependencies, 'premake5_microprofile.lua'))
 end
 
+-- Linux has no HTTP stack of its own, so a host that links our curl
+-- (rive_curl_links()) can ask for script requests to go through it. Other
+-- Linux hosts get no transport.
+local scriptnetCurl = _OPTIONS['with_rive_scriptnet_curl'] ~= nil
+    and _OPTIONS['with_rive_scriptnet'] ~= nil
+    and rive_target_os == 'linux'
+if scriptnetCurl then
+    dofile(path.getabsolute('../rive_net/premake5_curl.lua'))
+end
+
 if _OPTIONS['with_rive_scripting'] then
     local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
     luau = scripting.luau
@@ -273,6 +283,11 @@ do
             -- Gated inside on WITH_RIVE_SCRIPTNET.
             'src/scriptnet/net_provider_apple.mm',
         })
+    end
+    filter({})
+    if scriptnetCurl then
+        includedirs({ curl .. '/include' })
+        defines({ 'WITH_RIVE_SCRIPTNET_CURL' })
     end
 
     if TESTING == true then
@@ -488,6 +503,12 @@ newoption({
 newoption({
     trigger = 'with_rive_scriptnet',
     description = 'Compiles in script networking (fetch). Requires scripting.',
+})
+
+newoption({
+    trigger = 'with_rive_scriptnet_curl',
+    description = 'Sends script requests over our curl on Linux, for a host '
+        .. 'in the monorepo that links rive_curl_links().',
 })
 
 newoption({

@@ -55,7 +55,9 @@
 // check connects before it blocks; no request bytes follow. Through a
 // proxy the address is the proxy's, which WinHTTP announces by resolving
 // the proxy's name instead of the host's; what the proxy then reaches is
-// the proxy's to judge.
+// the proxy's to judge. The host's own rive-cloud endpoint is not checked,
+// so its requests keep no connection open, since WinHTTP pools connections
+// across sessions and reuses them unchecked.
 //
 // WinHTTP's status callback runs on its own threads and, for the request
 // whose call is in progress, may re-enter on the calling thread. Headers and
@@ -381,29 +383,38 @@ class Request;
 
 // What the provider and its requests share. Each side holds it, since a
 // request's last callback can arrive after the provider is gone. The
-// session lives here because closing it invalidates every request under
+// sessions live here because closing one invalidates every request under
 // it, pending ones included: whichever of the provider and the last request
-// finishes second closes it.
+// finishes second closes them.
 struct Registry : public RefCnt<Registry>
 {
   std::mutex mutex;
   HINTERNET session = nullptr;
+  // The host's own requests go out unchecked here, over HTTP/1.1 without
+  // keep-alive, so they leave no connection a script's request could reuse.
+  HINTERNET hostSession = nullptr;
   std::unordered_map<RequestId, rcp<Request>> requests;
   // Wakes the watchdog for a new deadline, and to stop.
   std::condition_variable wake;
-  // The provider is gone; the last request out closes the session.
+  // The provider is gone; the last request out closes the sessions.
   bool stopping = false;
 
-  // With the mutex held: the session, once the provider is gone and no
+  // With the mutex held: the sessions, once the provider is gone and no
   // request remains, for the caller to close with the mutex released.
-  HINTERNET takeSessionIfDone()
+  std::vector<HINTERNET> takeSessionsIfDone()
   {
-    if (!stopping || !requests.empty() || session == nullptr)
+    std::vector<HINTERNET> done;
+    if (stopping && requests.empty())
     {
-      return nullptr;
+      for (HINTERNET* each : {&session, &hostSession})
+      {
+        if (*each != nullptr)
+        {
+          done.push_back(*each);
+          *each = nullptr;
+        }
+      }
     }
-    HINTERNET done = session;
-    session = nullptr;
     return done;
   }
 };
@@ -712,6 +723,10 @@ private:
     }
 
     DWORD disabled = WINHTTP_DISABLE_COOKIES | WINHTTP_DISABLE_AUTHENTICATION;
+    if (m_hop.hostChosen)
+    {
+      disabled |= WINHTTP_DISABLE_KEEP_ALIVE;
+    }
     DWORD autologon = WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH;
     // Redirects are this file's to follow; see the top.
     DWORD redirects = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
@@ -817,13 +832,13 @@ private:
   // Leaves the registry: the exchange is over.
   void forget()
   {
-    HINTERNET session = nullptr;
+    std::vector<HINTERNET> sessions;
     {
       std::lock_guard<std::mutex> lock(m_registry->mutex);
       m_registry->requests.erase(m_id);
-      session = m_registry->takeSessionIfDone();
+      sessions = m_registry->takeSessionsIfDone();
     }
-    if (session != nullptr)
+    for (HINTERNET session : sessions)
     {
       WinHttpCloseHandle(session);
     }
@@ -841,7 +856,7 @@ private:
   // before the request goes out.
   void onConnecting(const wchar_t* address)
   {
-    if (m_proxied || m_allowLocalAddresses)
+    if (m_proxied || m_allowLocalAddresses || m_hop.hostChosen)
     {
       return;
     }
@@ -1114,56 +1129,8 @@ class WindowsProvider : public Provider
 public:
   WindowsProvider() : m_registry(make_rcp<Registry>())
   {
-    // The system's proxy settings, as the other transports use, found the
-    // way Windows 8.1 and later recommend; older WinHTTP falls back to its
-    // own machine-wide setting.
-    HINTERNET session = WinHttpOpen(
-        L"Rive",
-        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-        nullptr,
-        nullptr,
-        WINHTTP_FLAG_ASYNC);
-    if (session == nullptr)
-    {
-      session = WinHttpOpen(
-          L"Rive",
-          WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-          nullptr,
-          nullptr,
-          WINHTTP_FLAG_ASYNC);
-    }
-    if (session != nullptr)
-    {
-      // Browsers and NSURLSession hand scripts decoded bodies too.
-      DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_ALL;
-      WinHttpSetOption(
-          session,
-          WINHTTP_OPTION_DECOMPRESSION,
-          &decompression,
-          sizeof(decompression));
-      // HTTP/2 where the server offers it, as NSURLSession; older WinHTTP
-      // declines the option and stays on HTTP/1.1.
-      DWORD protocols = WINHTTP_PROTOCOL_FLAG_HTTP2;
-      WinHttpSetOption(
-          session,
-          WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
-          &protocols,
-          sizeof(protocols));
-
-      if (WinHttpSetStatusCallback(
-              session,
-              &Request::onStatus,
-              WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS |
-                  WINHTTP_CALLBACK_FLAG_HANDLES |
-                  WINHTTP_CALLBACK_STATUS_RESOLVING_NAME |
-                  WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER,
-              0) == WINHTTP_INVALID_STATUS_CALLBACK)
-      {
-        WinHttpCloseHandle(session);
-        session = nullptr;
-      }
-    }
-    m_registry->session = session;
+    m_registry->session = openSession(true);
+    m_registry->hostSession = openSession(false);
     m_watchdog = std::thread([registry = m_registry] { watch(registry); });
   }
 
@@ -1171,9 +1138,9 @@ public:
   {
     // Requests still out answer with a cancellation, which no one is
     // listening for. Their closing callbacks keep the registry alive, and
-    // the last of them closes the session; with none out, it goes now.
+    // the last of them closes the sessions; with none out, they go now.
     std::vector<rcp<Request>> requests;
-    HINTERNET session = nullptr;
+    std::vector<HINTERNET> sessions;
     {
       std::lock_guard<std::mutex> lock(m_registry->mutex);
       m_registry->stopping = true;
@@ -1181,9 +1148,9 @@ public:
       {
         requests.push_back(entry.second);
       }
-      session = m_registry->takeSessionIfDone();
+      sessions = m_registry->takeSessionsIfDone();
     }
-    if (session != nullptr)
+    for (HINTERNET session : sessions)
     {
       WinHttpCloseHandle(session);
     }
@@ -1198,9 +1165,10 @@ public:
 
   void start(RequestId id, const HttpRequest& request) override
   {
-    // The session is fixed from the constructor until the registry closes
-    // it, which only happens once this provider is gone.
-    HINTERNET session = m_registry->session;
+    // The sessions are fixed from the constructor until the registry closes
+    // them, which only happens once this provider is gone.
+    HINTERNET session = request.hostChosen ? m_registry->hostSession
+                                           : m_registry->session;
     if (session == nullptr)
     {
       fail(id, {NetErrorCode::Network, "WinHTTP is unavailable"});
@@ -1254,6 +1222,60 @@ public:
   }
 
 private:
+  static HINTERNET openSession(bool http2)
+  {
+    // The system's proxy settings, as the other transports use, found the
+    // way Windows 8.1 and later recommend; older WinHTTP falls back to its
+    // own machine-wide setting.
+    HINTERNET session = WinHttpOpen(
+        L"Rive",
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        nullptr,
+        nullptr,
+        WINHTTP_FLAG_ASYNC);
+    if (session == nullptr)
+    {
+      session = WinHttpOpen(
+          L"Rive",
+          WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+          nullptr,
+          nullptr,
+          WINHTTP_FLAG_ASYNC);
+    }
+    if (session != nullptr)
+    {
+      // Browsers and NSURLSession hand scripts decoded bodies too.
+      DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_ALL;
+      WinHttpSetOption(
+          session,
+          WINHTTP_OPTION_DECOMPRESSION,
+          &decompression,
+          sizeof(decompression));
+      // HTTP/2 where the server offers it, as NSURLSession, or set off, since
+      // services default to it. Older WinHTTP declines and stays on HTTP/1.1.
+      DWORD protocols = http2 ? WINHTTP_PROTOCOL_FLAG_HTTP2 : 0;
+      WinHttpSetOption(
+          session,
+          WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
+          &protocols,
+          sizeof(protocols));
+
+      if (WinHttpSetStatusCallback(
+              session,
+              &Request::onStatus,
+              WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS |
+                  WINHTTP_CALLBACK_FLAG_HANDLES |
+                  WINHTTP_CALLBACK_STATUS_RESOLVING_NAME |
+                  WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER,
+              0) == WINHTTP_INVALID_STATUS_CALLBACK)
+      {
+        WinHttpCloseHandle(session);
+        session = nullptr;
+      }
+    }
+    return session;
+  }
+
   // WinHTTP's timeouts are per phase; the script's covers the whole
   // exchange, or only the wait for the response when its body is read as it
   // arrives, so a thread stops whatever outlives its deadline.

@@ -387,6 +387,7 @@ TEST_CASE(
   host.answer(200, "{\"token\":\"tok.B\",\"player_id\":\"p_one\"}");
   CHECK(header(host.sent(), "authorization") == "Bearer tok.B");
   CHECK(text(host.sent()) == "{\"value\":2}");
+  CHECK(host.sent().hostChosen);
   // A second 401 is the script's to see.
   host.answer(401, "{\"error\":\"unauthorized\"}");
   CHECK(result->status == 401);
@@ -729,6 +730,35 @@ TEST_CASE(
   host.sayHello();
   host.answer(200, "{}");
   CHECK(next->status == 200);
+}
+
+TEST_CASE(
+    "only requests to the host's endpoint are marked as its choice",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  setGeneralFetchEnabled(true);
+  auto data = host.send("GET", "/v1/app/data/a");
+  poll();
+  host.sayHello();
+  // The challenge, the hello and the request itself.
+  REQUIRE(host.transport->starts.size() == 3);
+  for (const Transport::Start& start : host.transport->starts)
+  {
+    CHECK(start.request.hostChosen);
+  }
+  host.answer(200, "{}");
+  CHECK(data->status == 200);
+
+  // A script's own request never carries the mark, whatever it set.
+  auto result = make_rcp<Result>();
+  HttpRequest request;
+  request.url = "https://example.com/";
+  request.hostChosen = true;
+  result->id = fetch(kOwner, std::move(request), result);
+  poll();
+  REQUIRE(host.transport->starts.size() == 4);
+  CHECK_FALSE(host.sent().hostChosen);
 }
 
 #endif // WITH_RIVE_SCRIPTNET

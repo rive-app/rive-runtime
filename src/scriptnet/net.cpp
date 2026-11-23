@@ -125,9 +125,10 @@ const char* standardReasonPhrase(uint16_t status)
   return "";
 }
 
-#if !defined(__APPLE__) && !defined(_WIN32)
-// Apple (net_provider_apple.mm) and Windows (net_provider_windows.cpp) have
-// transports. Hosts elsewhere keep denying until theirs lands.
+#if !defined(__APPLE__) && !defined(_WIN32) &&                                 \
+    !defined(WITH_RIVE_SCRIPTNET_CURL)
+// Apple, Windows and builds with our curl have transports. Hosts elsewhere
+// keep denying until theirs lands.
 rcp<Provider> makePlatformProvider() { return nullptr; }
 #endif
 
@@ -502,7 +503,8 @@ class Net
 public:
   static Net& instance()
   {
-    static Net net;
+    // Never destroyed: transport threads may still report during exit.
+    static Net& net = *new Net();
     return net;
   }
 
@@ -906,6 +908,7 @@ public:
     // The namespace goes in the path, where a CORS preflight can see it.
     request.url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId +
                   path.substr(3);
+    request.hostChosen = true;
     // The host's values win over anything the script set, and the token is
     // the host's to add.
     for (size_t i = request.headers.size(); i-- > 0;)
@@ -1311,6 +1314,7 @@ static bool driveHello(Net& net)
   HttpRequest request;
   request.method = "POST";
   request.url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId + "/hello";
+  request.hostChosen = true;
   HelloStep step = HelloStep::Hello;
   NetError refusal;
   refusal.code = NetErrorCode::Policy;

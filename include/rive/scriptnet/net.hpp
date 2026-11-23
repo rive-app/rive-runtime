@@ -72,7 +72,8 @@ public:
 
 /// This platform's transport, or null where there is none yet. Apple builds
 /// get a cookie-less, credential-less NSURLSession; Windows builds the same
-/// over WinHTTP. Nothing is installed by default: a host opts in with
+/// over WinHTTP, and Linux hosts that link our curl over it. Nothing is
+/// installed by default: a host opts in with
 /// setProvider(makePlatformProvider()).
 rcp<Provider> makePlatformProvider();
 

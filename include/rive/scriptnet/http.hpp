@@ -30,6 +30,9 @@ struct HttpRequest
   std::vector<uint8_t> body;
   /// Zero means the policy default.
   uint32_t timeoutMs = 0;
+  /// The host chose this address (its rive-cloud endpoint), so it may be
+  /// local. NetPolicy::check clears it for scripts' requests and redirects.
+  bool hostChosen = false;
 };
 
 struct HttpResponse

@@ -44,6 +44,15 @@ for _, language in ipairs({ 'thai', 'lao', 'khmer', 'burmese', 'compressed' }) d
     -- Empty, like a bare command line flag, so 'options:' filters match.
     _OPTIONS['with_rive_text_dict_' .. language] = ''
 end
+-- So the runtime builds its script transport here too. Linux's is over our
+-- curl, which only the monorepo carries, so only it tests that one.
+_OPTIONS['with_rive_scriptnet'] = ''
+local scriptnetCurl = rive_target_os == 'linux'
+    and os.isfile(path.getabsolute('../../../rive_net/premake5_curl.lua'))
+if scriptnetCurl then
+    _OPTIONS['with_rive_scriptnet_curl'] = ''
+    defines({ 'WITH_RIVE_SCRIPTNET_CURL' })
+end
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
 
@@ -127,6 +136,10 @@ do
     filter('system:linux')
     do
         links({ 'dl', 'pthread' })
+    end
+    filter({})
+    if scriptnetCurl then
+        rive_curl_links()
     end
     -- Catch2 puts its own SIGSEGV handler over WAMR's for every test without
     -- chaining, and Linux raises guard page traps as SIGSEGV. On Windows its
