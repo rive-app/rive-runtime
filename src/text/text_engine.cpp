@@ -204,6 +204,13 @@ OrderedLine::OrderedLine(
       case TextAlign::center:
         m_startX += (fullWidth - ellipsizedWidth) / 2.0f;
         break;
+      case TextAlign::justify:
+        // Never stretched: it sits where its paragraph starts.
+        if (paragraph.baseDirection() == TextDirection::rtl)
+        {
+          m_startX += fullWidth - ellipsizedWidth;
+        }
+        break;
       case TextAlign::left:
         break;
     }
@@ -518,6 +525,30 @@ float OrderedLine::buildEllipsisRuns(
                        ? nullptr
                        : logicalRuns.front();
   return x + ellipsisWidth;
+}
+
+void OrderedLine::justify(Span<const Unichar> text, float width)
+{
+  uint32_t gaps = 0;
+  float lineWidth = 0.0f;
+  for (auto glyph : *this)
+  {
+    const GlyphRun* run = std::get<0>(glyph);
+    uint32_t glyphIndex = std::get<1>(glyph);
+    lineWidth += run->advances[glyphIndex];
+    uint32_t textIndex = run->textIndices[glyphIndex];
+    if (textIndex < text.size() && isWhiteSpace(text[textIndex]))
+    {
+      gaps++;
+    }
+  }
+  if (gaps == 0 || width <= lineWidth)
+  {
+    return;
+  }
+  m_text = text;
+  m_justifyGap = (width - lineWidth) / (float)gaps;
+  m_startX = 0.0f;
 }
 
 float OrderedLine::top() const

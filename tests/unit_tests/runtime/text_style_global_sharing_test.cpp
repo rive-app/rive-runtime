@@ -6,6 +6,7 @@
 #include "rive/text/text.hpp"
 #include "rive/text/text_style_global.hpp"
 #include "rive/text/text_style_paint.hpp"
+#include "rive/text/text_style_background.hpp"
 #include "rive/text/text_style_share_cache.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -332,4 +333,28 @@ TEST_CASE(
   file = nullptr;
   artboard = nullptr;
   viewModelInstance = nullptr;
+}
+
+// An opacity-only change takes Text's RenderOpacity fast path, which has to
+// reach a global style's background as well as the Text's own styles.
+TEST_CASE(
+    "A Text's opacity reaches its global style's background",
+    "[textStyleGlobal]")
+{
+  auto file = ReadRiveFile("assets/text_style_global_sharing.riv");
+  MainScene scene(file.get());
+  auto text = scene.artboard->find<Text>("Text F");
+  REQUIRE(text != nullptr);
+  REQUIRE(!text->runs().empty());
+  TextStylePaint* paint = text->runs().front()->style();
+  REQUIRE(paint != nullptr);
+  REQUIRE(paint->parent() != text);
+  TextStyleBackground* background = paint->background();
+  REQUIRE(background != nullptr);
+  REQUIRE(!background->shapePaints().empty());
+  CHECK(background->shapePaints().front()->renderOpacity() == Approx(1.0f));
+
+  text->opacity(0.25f);
+  frame(scene.artboard.get());
+  CHECK(background->shapePaints().front()->renderOpacity() == Approx(0.25f));
 }

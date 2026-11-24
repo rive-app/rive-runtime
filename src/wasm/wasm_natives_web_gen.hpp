@@ -1547,6 +1547,13 @@ void rive_web_text_append(uint32_t vmHandle, uint32_t text, const char* chars, u
 }
 #endif
 #ifdef WITH_RIVE_TEXT
+void rive_web_text_set_marks(uint32_t vmHandle, uint32_t text, uint32_t highlight, uint32_t underline, uint32_t strikethrough)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    textSetMarksImpl(vm, text, highlight, underline, strikethrough);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
 void rive_web_text_clear(uint32_t vmHandle, uint32_t text)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1565,6 +1572,13 @@ void rive_web_text_draw(uint32_t vmHandle, uint32_t text, uint32_t renderer, uin
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     textDrawImpl(vm, text, renderer, paint);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void rive_web_text_draw_lines(uint32_t vmHandle, uint32_t text, uint32_t renderer, uint32_t first, uint32_t last, uint32_t paint)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    textDrawLinesImpl(vm, text, renderer, first, last, paint);
 }
 #endif
 #ifdef WITH_RIVE_TEXT
@@ -2369,6 +2383,11 @@ static void* const kRiveWebCalls[] = {
     nullptr,
 #endif
 #ifdef WITH_RIVE_TEXT
+    (void*)rive_web_text_set_marks,
+#else
+    nullptr,
+#endif
+#ifdef WITH_RIVE_TEXT
     (void*)rive_web_text_clear,
 #else
     nullptr,
@@ -2380,6 +2399,11 @@ static void* const kRiveWebCalls[] = {
 #endif
 #ifdef WITH_RIVE_TEXT
     (void*)rive_web_text_draw,
+#else
+    nullptr,
+#endif
+#ifdef WITH_RIVE_TEXT
+    (void*)rive_web_text_draw_lines,
 #else
     nullptr,
 #endif

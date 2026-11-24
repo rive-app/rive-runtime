@@ -26,13 +26,15 @@ constexpr AtomName overflowNames[] = {
     {LuaAtoms::clipped, "clipped"},
     {LuaAtoms::ellipsis, "ellipsis"}};
 // left, right, center map to TextAlign; start and end resolve against the
-// paragraph direction.
+// paragraph direction; justify stretches every line but a paragraph's last.
+// The order is RawText::alignIndex's.
 constexpr AtomName alignNames[] = {
     {LuaAtoms::left, "left"},
     {LuaAtoms::right, "right"},
     {LuaAtoms::center, "center"},
     {LuaAtoms::start, "start"},
-    {LuaAtoms::end, "end"}};
+    {LuaAtoms::end, "end"},
+    {LuaAtoms::justify, "justify"}};
 constexpr AtomName wrapNames[] = {
     {LuaAtoms::wrap, "wrap"},
     {LuaAtoms::noWrap, "noWrap"}};
@@ -125,6 +127,10 @@ void pushGlyph(
   glyph->run = &run;
   glyph->glyphIndex = glyphIndex;
   glyph->position = position;
+  glyph->advance = line->layout->text.glyphAdvance(
+      line->index,
+      run,
+      glyphIndex);
 }
 
 Mat2D glyphTransform(const ScriptedGlyph* glyph)
@@ -181,6 +187,16 @@ int text_append(lua_State* L)
   withField(L, 3, "foregroundColor", [&](int i) {
     foreground = luaL_checkunsigned(L, i);
   });
+  RawText::RunMarks marks;
+  withField(L, 3, "highlight", [&](int i) {
+    marks.highlight = lua_torive<ScriptedPaint>(L, i)->renderPaint;
+  });
+  withField(L, 3, "underline", [&](int i) {
+    marks.underline = lua_torive<ScriptedPaint>(L, i)->renderPaint;
+  });
+  withField(L, 3, "strikethrough", [&](int i) {
+    marks.strikethrough = lua_torive<ScriptedPaint>(L, i)->renderPaint;
+  });
   if (font == nullptr)
   {
     luaL_error(L, "Text:append needs a font.");
@@ -192,7 +208,8 @@ int text_append(lua_State* L)
       size,
       lineHeight,
       letterSpacing,
-      foreground);
+      foreground,
+      marks);
   return 0;
 }
 
@@ -214,6 +231,23 @@ int text_namecall(lua_State* L)
       auto renderer = lua_torive<ScriptedRenderer>(L, 2)->validate(L);
       auto paint = lua_torive<ScriptedPaint>(L, 3, true);
       text.render(renderer, paint ? paint->renderPaint : nullptr);
+      return 0;
+    }
+    case (int)LuaAtoms::drawLines:
+    {
+      auto renderer = lua_torive<ScriptedRenderer>(L, 2)->validate(L);
+      // 1 based and inclusive like line(); a range past either end clamps.
+      int first = luaL_checkinteger(L, 3);
+      int last = luaL_checkinteger(L, 4);
+      auto paint = lua_torive<ScriptedPaint>(L, 5, true);
+      if (last >= 1 && last >= first)
+      {
+        text.renderLines(
+            renderer,
+            first < 1 ? 0 : (uint32_t)first - 1,
+            (uint32_t)last - 1,
+            paint ? paint->renderPaint : nullptr);
+      }
       return 0;
     }
     case (int)LuaAtoms::bounds:
@@ -426,7 +460,10 @@ int line_index(lua_State* L)
       line->layout->text.forEachGlyph(
           line->index,
           [&](const GlyphRun& run, uint32_t glyphIndex, Vec2D) {
-            width += run.advances[glyphIndex];
+            width += line->layout->text.glyphAdvance(
+                line->index,
+                run,
+                glyphIndex);
             return true;
           });
       lua_pushnumber(L, width);
@@ -480,7 +517,11 @@ int line_iter_next(lua_State* L)
   glyph->run = run;
   glyph->glyphIndex = glyphIndex;
   glyph->position = Vec2D(cursor->x + offset.x, y + offset.y);
-  cursor->x += run->advances[glyphIndex];
+  glyph->advance = cursor->layout->text.glyphAdvance(
+      cursor->line,
+      *run,
+      glyphIndex);
+  cursor->x += glyph->advance;
   ++cursor->itr;
   return 2;
 }
@@ -594,7 +635,7 @@ int glyph_index(lua_State* L)
       lua_pushnumber(L, glyph->position.y);
       return 1;
     case (int)LuaAtoms::advance:
-      lua_pushnumber(L, run->advances[glyph->glyphIndex]);
+      lua_pushnumber(L, glyph->advance);
       return 1;
     case (int)LuaAtoms::textIndex:
       lua_pushinteger(L, run->textIndices[glyph->glyphIndex] + 1);

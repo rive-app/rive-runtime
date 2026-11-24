@@ -1169,14 +1169,26 @@ NAMESPACES = [
                       handle('font'), handle('paint'), f32('size'),
                       f32('lineHeight'), f32('letterSpacing'),
                       u32('foreground')], guard='WITH_RIVE_TEXT'),
+        # The marks the next append's run carries, then forgotten: each
+        # paint 0 for none.
+        op('set_marks', [handle('text'), handle('highlight'),
+                         handle('underline'), handle('strikethrough')],
+           guard='WITH_RIVE_TEXT'),
         op('clear', [handle('text')], guard='WITH_RIVE_TEXT'),
         op('layout', [handle('text'), podref('text_layout_desc', 'desc')], guard='WITH_RIVE_TEXT'),
         op('draw', [handle('text'), handle('renderer'), handle('paint')], guard='WITH_RIVE_TEXT'),
+        # Lines first to last, zero based and inclusive, where they sit in the
+        # full layout; a range past either end clamps.
+        op('draw_lines', [handle('text'), handle('renderer'), u32('first'),
+                          u32('last'), handle('paint')], guard='WITH_RIVE_TEXT'),
         # minX, minY, maxX, maxY
         op('bounds', [handle('text'), mutbuf('float', 'out', 'outCount')], guard='WITH_RIVE_TEXT'),
         op('length', [handle('text')], ret='u32', guard='WITH_RIVE_TEXT'),
         # Flat four byte word records, size then fill; text.as names the
-        # words. Glyphs come line by line in visual order.
+        # words. Glyphs come line by line in visual order. Reading lines
+        # builds no run or glyph records; the font handles runs name are
+        # minted, and the ones no run uses given back, when runs or glyphs
+        # are read.
         op('lines', [handle('text'), mutbuf('uint32_t', 'out', 'outCount')],
            ret='u32', guard='WITH_RIVE_TEXT'),
         op('runs', [handle('text'), mutbuf('uint32_t', 'out', 'outCount')],

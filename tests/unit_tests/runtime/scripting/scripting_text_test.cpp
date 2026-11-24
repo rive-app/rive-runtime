@@ -2,6 +2,8 @@
 #include "scripting_test_utilities.hpp"
 #include "rive/lua/scripted_text.hpp"
 #include "rive/text/font_hb.hpp"
+#include "utils/no_op_renderer.hpp"
+#include <set>
 
 using namespace rive;
 
@@ -85,6 +87,147 @@ TEST_CASE("text lays out and draws", "[scripting]")
     )");
   drawWith(vm, "render");
   CHECK(vm.serializer()->matches("scripted_text_wrapped"));
+}
+
+TEST_CASE("text draws every line of a range like draw", "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        local paint = Paint.with({ color = 0xFF202020 })
+        text:append('Hello ', { font = latin, size = 24, paint = paint })
+        text:append('world', { font = latin, size = 24, paint = paint })
+        text.sizing = 'autoHeight'
+        text.maxWidth = 60
+        assert(text.lineCount > 1, 'lines ' .. text.lineCount)
+        function render(renderer: Renderer)
+            text:drawLines(renderer, 1, text.lineCount)
+            -- Empty and out of range ranges draw nothing.
+            text:drawLines(renderer, 0, 0)
+            text:drawLines(renderer, 2, 1)
+            text:drawLines(renderer, text.lineCount + 1, text.lineCount + 3)
+        end
+    )");
+  drawWith(vm, "render");
+  CHECK(vm.serializer()->matches("scripted_text_wrapped"));
+}
+
+namespace
+{
+class PathRecorder : public NoOpRenderer
+{
+public:
+  std::set<RenderPath*> paths;
+  void drawPath(RenderPath* path, RenderPaint*) override { paths.insert(path); }
+};
+} // namespace
+
+TEST_CASE("text counts the lines it draws from 1", "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        text:append('one two three four five six seven eight nine ten',
+            { font = latin, size = 20, paint = Paint.new() })
+        text.sizing = 'autoHeight'
+        text.maxWidth = 80
+        assert(text.lineCount >= 4, 'lines ' .. text.lineCount)
+        function textObject(): Text
+            return text
+        end
+        function render(renderer: Renderer, first: number, last: number)
+            text:drawLines(renderer, first, last)
+        end
+    )");
+  lua_State* L = vm.state();
+  lua_getglobal(L, "textObject");
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  RawText& text = lua_torive<ScriptedText>(L, -1)->layout->text;
+  lua_pop(L, 1);
+
+  PathRecorder fromScript;
+  lua_getglobal(L, "render");
+  auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, &fromScript);
+  lua_pushinteger(L, 2);
+  lua_pushinteger(L, 3);
+  REQUIRE(lua_pcall(L, 3, 0, 0) == LUA_OK);
+  CHECK(scriptedRenderer->end());
+  REQUIRE(!fromScript.paths.empty());
+
+  // Lines 2 and 3 are the runtime's 1 and 2: drawing those finds the range
+  // the script drew, and draws the same paths.
+  PathRecorder direct;
+  text.renderLines(&direct, 1, 2);
+  CHECK(direct.paths == fromScript.paths);
+  PathRecorder shifted;
+  text.renderLines(&shifted, 2, 3);
+  CHECK(shifted.paths != fromScript.paths);
+}
+
+TEST_CASE("text justifies its lines", "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        text:append('one two three four five six seven eight nine ten eleven',
+            { font = latin, size = 20, paint = Paint.new() })
+        text.sizing = 'autoHeight'
+        text.maxWidth = 150
+        text.align = 'justify'
+        assert(text.align == 'justify', text.align)
+        assert(text.lineCount >= 3, 'lines ' .. text.lineCount)
+        for i = 1, text.lineCount - 1 do
+            local line = text:line(i)
+            assert(line.x == 0, 'x ' .. line.x)
+            assert(math.abs(line.width - 150) < 0.01, 'width ' .. line.width)
+            local glyphs = line:glyphs()
+            local last = glyphs[#glyphs]
+            local right = last.x + last.advance
+            assert(math.abs(right - 150) < 0.01, 'right ' .. right)
+            local x = line.x
+            for _, glyph in line do
+                assert(math.abs(glyph.x - x) < 0.01, 'glyph at ' .. glyph.x)
+                x += glyph.advance
+            end
+        end
+        assert(text:line(text.lineCount).width < 149)
+    )");
+}
+
+TEST_CASE(
+    "text runs carry highlights, underlines and strikethroughs",
+    "[scripting]")
+{
+  TextTest vm(R"(
+        local text = Text.new()
+        local ink = Paint.with({ color = 0xFF202020 })
+        text:append('plain ', { font = latin, size = 20, paint = ink })
+        text:append('marked', {
+            font = latin,
+            size = 20,
+            paint = ink,
+            highlight = Paint.with({ color = 0xFFFFE066 }),
+            underline = ink,
+            strikethrough = Paint.with({ color = 0xFFCC0000 }),
+        })
+        local shadow = Paint.with({ color = 0x40000000 })
+        function render(renderer: Renderer)
+            text:draw(renderer)
+        end
+        function renderShadow(renderer: Renderer)
+            text:draw(renderer, shadow)
+        end
+    )");
+  lua_State* L = vm.state();
+  for (const char* function : {"render", "renderShadow"})
+  {
+    INFO(function);
+    PathRecorder recorder;
+    lua_getglobal(L, function);
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, &recorder);
+    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(scriptedRenderer->end());
+    // Highlight, underline, both runs' glyphs (their marks make them two
+    // styles) and the strikethrough.
+    CHECK(recorder.paths.size() == 5);
+  }
 }
 
 TEST_CASE("text orders bidi runs visually", "[scripting]")

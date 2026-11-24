@@ -20,6 +20,7 @@
 #include "rive/viewmodel/property_symbol_dependent.hpp"
 #include "rive/dirtyable.hpp"
 #include "rive/enums.hpp"
+#include "rive/lazy_vector.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -37,6 +38,7 @@ class Renderer;
 class StateMachineInstance;
 class TextModifierGroup;
 class TextStyleBackground;
+class TextStyleDecoration;
 class TextStylePaint;
 class TextStyleReference;
 class DataContext;
@@ -521,8 +523,15 @@ private:
   std::vector<std::pair<TextStylePaint*, std::unique_ptr<TextStyleGeometry>>>
       m_sharedGeometry;
   TextStyleGeometry& sharedGeometry(TextStylePaint* paint);
-  // Backgrounds of global styles' paints this Text used in its last build.
-  std::vector<TextStyleBackground*> m_globalBackgrounds;
+  // Global styles' paints this Text drew with in its last build that have a
+  // background or decorations. Those aren't this Text's children, so it
+  // resets, updates and draws them itself. Most Texts have none: 8 bytes
+  // until the first one.
+  LazyVector<TextStylePaint*> m_adornedGlobalStyles;
+  void drawDecorations(
+      Renderer* renderer,
+      const Mat2D& worldTransform,
+      bool overGlyphs);
   SimpleArray<Paragraph> m_shape;
   SimpleArray<Paragraph> m_modifierShape;
   SimpleArray<SimpleArray<GlyphLine>> m_lines;

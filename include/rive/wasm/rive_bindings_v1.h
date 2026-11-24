@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "2e2029d930426db9"
+#define RIVE_BINDINGS_V1_CONTRACT "0077ed357bf97c34"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -844,12 +844,16 @@ RIVE_BINDING_IMPORT("rive_text_v1", "release")
 void rive_text_release(uint32_t text);
 RIVE_BINDING_IMPORT("rive_text_v1", "append")
 void rive_text_append(uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground);
+RIVE_BINDING_IMPORT("rive_text_v1", "set_marks")
+void rive_text_set_marks(uint32_t text, uint32_t highlight, uint32_t underline, uint32_t strikethrough);
 RIVE_BINDING_IMPORT("rive_text_v1", "clear")
 void rive_text_clear(uint32_t text);
 RIVE_BINDING_IMPORT("rive_text_v1", "layout")
 void rive_text_layout(uint32_t text, const rive_text_layout_desc_v1* desc, uint32_t descByteCount);
 RIVE_BINDING_IMPORT("rive_text_v1", "draw")
 void rive_text_draw(uint32_t text, uint32_t renderer, uint32_t paint);
+RIVE_BINDING_IMPORT("rive_text_v1", "draw_lines")
+void rive_text_draw_lines(uint32_t text, uint32_t renderer, uint32_t first, uint32_t last, uint32_t paint);
 RIVE_BINDING_IMPORT("rive_text_v1", "bounds")
 void rive_text_bounds(uint32_t text, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_text_v1", "length")

@@ -428,6 +428,8 @@ enum class LuaAtoms : int16_t
   hitTest,
   caret,
   selectionRects,
+  drawLines,
+  justify,
   glyph,
   glyphs,
   path,

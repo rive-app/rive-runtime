@@ -1,0 +1,54 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/text_style_global_decoration.riv. Not an editor
+      export: rebuild the .riv from this file with the CLI, from a directory
+      holding this scene.rml, a rive.yaml naming it (main: "Main") and
+      Inter.ttf (a copy of assets/fonts/Inter_18pt-Regular.ttf), then copy
+      build/text_style_global_decoration.riv into assets/.
+
+          rive . --unsigned-riv
+    -->
+    <Artboard width="500" height="200" styleId="1:5" name="Main" id="1:2">
+        <Text sizingValue="2" width="400" height="60" x="20" y="20" name="Line" exportName="true" id="1:17">
+            <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" name="Local" id="1:18">
+                <Fill fillRule="2" id="1:19">
+                    <SolidColor colorValue="FFFFFFFF" id="1:20"/>
+                </Fill>
+            </TextStylePaint>
+            <TextStyleGlobal artboardId="2:4" name="Underlined" id="1:21">
+                <ViewModelInstance viewModelId="2:2" exports="true" name="Underlined Instance" id="1:22"/>
+            </TextStyleGlobal>
+            <TextValueRun styleId="1:21" text="underlined" name="Run" id="1:40"/>
+        </Text>
+        <Fill fillRule="2" id="1:3">
+            <SolidColor colorValue="FF282828" id="1:4"/>
+        </Fill>
+        <LayoutComponentStyle id="1:5"/>
+    </Artboard>
+    <!-- A global style with an underline (2 thick). Decorations keep their
+         Text's glyph rects, so each Text draws its own copy of it. -->
+    <Artboard viewModelId="2:2" viewModelInstanceId="2:3" isComponent="true" includeInExport="false" artboardKind="2" width="200" height="60" styleId="2:5" x="600" name="Underlined" id="2:4">
+        <TextStylePaint fontSize="20" fontAssetId="1:16" familyName="Inter" styleName="Regular" id="2:6">
+            <Fill fillRule="2" id="2:7">
+                <SolidColor colorValue="FF00B400" id="2:8"/>
+            </Fill>
+            <TextStyleDecoration thickness="2" name="Underline" id="2:9">
+                <Fill fillRule="2" id="2:10">
+                    <SolidColor colorValue="FF00B400" id="2:11"/>
+                </Fill>
+                <!-- Dashed, so edits have to reach its cached dash path. -->
+                <Stroke thickness="1" id="2:12">
+                    <SolidColor colorValue="FF0000B4" id="2:13"/>
+                    <DashPath id="2:14">
+                        <Dash length="3" id="2:15"/>
+                    </DashPath>
+                </Stroke>
+            </TextStyleDecoration>
+        </TextStylePaint>
+        <LayoutComponentStyle id="2:5"/>
+    </Artboard>
+    <FontAsset file="Inter.ttf" isCustom="false" assetId="102112" name="Inter" id="1:16"/>
+    <ViewModel defaultInstanceId="2:3" viewModelType="3" name="Underlined" id="2:2">
+        <ViewModelInstance exports="true" id="2:3"/>
+    </ViewModel>
+</Rive>

@@ -116,13 +116,51 @@ void FullyShapedText::ParagraphExtent::moveDown(
   y += paragraphSpacing;
 }
 
+namespace
+{
+// Whether OrderedLine::justify widens a line of the given width to fill
+// width: it needs a whitespace glyph and room to grow.
+bool stretches(
+    const Paragraph& paragraph,
+    const GlyphLine& line,
+    Span<const Unichar> text,
+    float lineWidth,
+    float width)
+{
+  if (width <= lineWidth)
+  {
+    return false;
+  }
+  for (uint32_t r = line.startRunIndex; r <= line.endRunIndex; r++)
+  {
+    const GlyphRun& run = paragraph.runs[r];
+    uint32_t begin = r == line.startRunIndex ? line.startGlyphIndex : 0;
+    uint32_t end = r == line.endRunIndex ? line.endGlyphIndex
+                                         : (uint32_t)run.glyphs.size();
+    for (uint32_t g = begin; g < end; g++)
+    {
+      uint32_t textIndex = run.textIndices[g];
+      if (textIndex < text.size() && isWhiteSpace(text[textIndex]))
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+} // namespace
+
 void FullyShapedText::measureParagraphs(
     const SimpleArray<Paragraph>& paragraphs,
     const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines,
     size_t first,
     size_t end,
+    const Layout& layout,
+    Span<const Unichar> text,
     std::vector<ParagraphExtent>& extents)
 {
+  bool justifies = layout.justifies();
+  float justifyWidth = layout.justifyWidth();
   for (size_t i = first; i < end; i++)
   {
     const Paragraph& paragraph = paragraphs[i];
@@ -141,8 +179,18 @@ void FullyShapedText::measureParagraphs(
       const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
       float width = endRun.xpos[line.endGlyphIndex] -
                     startRun.xpos[line.startGlyphIndex];
-      extent.minX = std::min(extent.minX, line.startX);
-      extent.maxX = std::max(extent.maxX, line.startX + width);
+      float startX = line.startX;
+      // A justified line spans the width from 0 (see orderLines). The
+      // ellipsis line, which isn't justified, is only known once the lines
+      // are measured; a field cut short by one is as wide as this anyway.
+      if (justifies && &line != &lines.back() &&
+          stretches(paragraph, line, text, width, justifyWidth))
+      {
+        startX = 0.0f;
+        width = justifyWidth;
+      }
+      extent.minX = std::min(extent.minX, startX);
+      extent.maxX = std::max(extent.maxX, startX + width);
     }
     extents[i] = extent;
   }
@@ -273,6 +321,7 @@ void FullyShapedText::dropLines()
 
 void FullyShapedText::shapeParagraphs(Span<Unichar> text, Span<TextRun> runs)
 {
+  m_text = text;
   m_paragraphs = runs[0].font->shapeText(text, runs);
   m_glyphLookup.compute(text, m_paragraphs);
   dropLines();
@@ -297,6 +346,7 @@ bool FullyShapedText::reshapeParagraphs(
     uint32_t oldEnd,
     uint32_t newEnd)
 {
+  m_text = text;
   size_t count = m_paragraphs.size();
   if (runs.size() != 1 || count == 0 || m_paragraphStarts.size() != count + 1 ||
       editStart > oldEnd || editStart > newEnd)
@@ -484,6 +534,8 @@ AABB FullyShapedText::measure(
       paragraphLines,
       0,
       m_paragraphs.size(),
+      layout,
+      m_text,
       extents);
   return measureLines(extents, paragraphLines, layout).bounds;
 }
@@ -549,7 +601,14 @@ void FullyShapedText::layout(
     end = count;
     m_extents.resize(count);
   }
-  measureParagraphs(m_paragraphs, m_paragraphLines, first, end, m_extents);
+  measureParagraphs(
+      m_paragraphs,
+      m_paragraphLines,
+      first,
+      end,
+      layout,
+      m_text,
+      m_extents);
   // Ordered lines patch only when all of them show, which fixed sizing can
   // prevent, and no new first line moved the baseline they hang from.
   bool patch = sameBreaks && layout == m_layout &&
@@ -640,6 +699,12 @@ void FullyShapedText::orderLines(
           isEllipsisLineLast,
           &m_ellipsisRun,
           y + line.baseline + m_verticalOffset));
+      // A justified paragraph's lines fill the width, all but its last.
+      if (m_layout.justifies() && &line != &m_paragraphLines[i].back() &&
+          ellipsisLine != lineIndex)
+      {
+        lines.back().justify(m_text, m_layout.justifyWidth());
+      }
 
       if (lineIndex == ellipsisLine)
       {
@@ -690,6 +755,12 @@ void FullyShapedText::patchOrderedLines(
   }
   m_lineChange =
       {(uint32_t)firstLine, (uint32_t)removed, (uint32_t)added, false};
+  // The lines kept read whitespace from the text they were justified in,
+  // which the edit may have moved.
+  for (OrderedLine& line : m_orderedLines)
+  {
+    line.justifiedText(m_text);
+  }
 
   // The lines after only move when the stale ones changed height.
   if (y == oldY)

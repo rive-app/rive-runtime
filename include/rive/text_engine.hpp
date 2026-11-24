@@ -97,12 +97,16 @@ enum class TextDirection : uint8_t
   rtl = 1
 };
 
-// The alignment of each word wrapped line in a paragraph.
+// The alignment of each word wrapped line in a paragraph. A justified line
+// widens its whitespace to fill the width (see OrderedLine::justify); a line
+// that doesn't (a paragraph's last, or one with no whitespace) starts where
+// its paragraph's direction starts.
 enum class TextAlign : uint8_t
 {
   left = 0,
   right = 1,
-  center = 2
+  center = 2,
+  justify = 3
 };
 
 // The wrap mode.
@@ -179,13 +183,15 @@ struct GlyphLine
       float width,
       TextWordBreak wordBreak = TextWordBreak::breakWord);
 
-  // Compute values for top/baseline/bottom per line
+  // Compute values for top/baseline/bottom per line. direction is the
+  // paragraph's, where a justified paragraph's lines start.
   static void ComputeLineSpacing(
       bool isFirstLine,
       Span<GlyphLine>,
       Span<const GlyphRun>,
       float width,
-      TextAlign align);
+      TextAlign align,
+      TextDirection direction = TextDirection::ltr);
 
   static float ComputeMaxWidth(
       Span<GlyphLine> lines,
@@ -225,6 +231,14 @@ public:
     // ascent when the font does not provide the metric.
     float capHeight = 0.0f;
     float xHeight = 0.0f;
+    // Underline and strikeout strokes. Positions are the distance from the
+    // baseline to the TOP of the stroke (y down, so an underline is
+    // positive), as the post and OS/2 tables define them. Fonts without the
+    // tables get fallbacks, so the thicknesses are always positive.
+    float underlinePosition = 0.0f;
+    float underlineThickness = 0.0f;
+    float strikeoutPosition = 0.0f;
+    float strikeoutThickness = 0.0f;
   };
 
   const LineMetrics& lineMetrics() const { return m_lineMetrics; }
@@ -236,6 +250,26 @@ public:
   float capHeight(float size) const { return m_lineMetrics.capHeight * size; }
 
   float xHeight(float size) const { return m_lineMetrics.xHeight * size; }
+
+  float underlinePosition(float size) const
+  {
+    return m_lineMetrics.underlinePosition * size;
+  }
+
+  float underlineThickness(float size) const
+  {
+    return m_lineMetrics.underlineThickness * size;
+  }
+
+  float strikeoutPosition(float size) const
+  {
+    return m_lineMetrics.strikeoutPosition * size;
+  }
+
+  float strikeoutThickness(float size) const
+  {
+    return m_lineMetrics.strikeoutThickness * size;
+  }
 
   // Variable axis available for the font.
   struct Axis
@@ -760,8 +794,42 @@ public:
 
   const GlyphLine& glyphLine() const { return *m_glyphLine; }
   // Where the line's first visual glyph starts. Matches glyphLine().startX
-  // unless an ellipsis changed the line's width.
+  // unless an ellipsis changed the line's width or justify stretched it.
   float startX() const { return m_startX; }
+
+  // Stretches the line to width by widening each of its whitespace glyphs
+  // (read from text, which the glyphs' textIndices index) by the same gap,
+  // and starts it at 0. A line with no whitespace, or no room to grow,
+  // stays as it is.
+  void justify(Span<const Unichar> text, float width);
+  // What justify adds to each whitespace glyph, 0 when it didn't.
+  float justifyGap() const { return m_justifyGap; }
+  // Points a justified line at its text again, after an edit moved or
+  // reallocated it. The line's runs are its own, and their text indices
+  // already follow the edit.
+  void justifiedText(Span<const Unichar> text)
+  {
+    if (m_justifyGap != 0.0f)
+    {
+      m_text = text;
+    }
+  }
+  // A glyph's advance as this line places it: the shaped advance, plus the
+  // justify gap for whitespace. Everything walking a line's glyphs to place
+  // them adds these, not the run's advances.
+  float advance(const GlyphRun& run, uint32_t glyphIndex) const
+  {
+    float value = run.advances[glyphIndex];
+    if (m_justifyGap != 0.0f)
+    {
+      uint32_t textIndex = run.textIndices[glyphIndex];
+      if (textIndex < m_text.size() && isWhiteSpace(m_text[textIndex]))
+      {
+        value += m_justifyGap;
+      }
+    }
+    return value;
+  }
   float y() const { return m_y; }
   void y(float value) { m_y = value; }
   float top() const;
@@ -793,6 +861,9 @@ private:
   const GlyphLine* m_glyphLine;
   float m_startX;
   float m_y;
+  float m_justifyGap = 0.0f;
+  // The text justify read whitespace from; empty unless it stretched.
+  Span<const Unichar> m_text;
 
 public:
   const GlyphRun* lastRun() const { return m_runs.back(); }

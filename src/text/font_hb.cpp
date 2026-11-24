@@ -744,6 +744,77 @@ static hb_bool_t paint_image(
 
 // ────────────────────────────────────────────────────────────────────────
 
+// Reads a big-endian int16 at [offset] of [tag]'s table, if the table is long
+// enough to hold it.
+static bool read_table_int16(
+    hb_face_t* face,
+    hb_tag_t tag,
+    unsigned int offset,
+    int16_t* value)
+{
+  hb_blob_t* blob = hb_face_reference_table(face, tag);
+  unsigned int length = 0;
+  const char* data = hb_blob_get_data(blob, &length);
+  bool found = data != nullptr && length >= offset + 2;
+  if (found)
+  {
+    auto bytes = reinterpret_cast<const uint8_t*>(data) + offset;
+    *value = static_cast<int16_t>((bytes[0] << 8) | bytes[1]);
+  }
+  hb_blob_destroy(blob);
+  return found;
+}
+
+// Fills the underline and strikeout metrics from the post and OS/2 tables.
+// HB_NO_METRICS compiles out hb_ot_metrics_get_position, so the fields are
+// read straight from the tables (no MVAR variation deltas). [metrics] already
+// holds the x-height the strikeout falls back on.
+static void read_decoration_metrics(
+    hb_face_t* face,
+    rive::Font::LineMetrics& metrics)
+{
+  // HarfBuzz's own fallback for both thicknesses and the underline offset.
+  constexpr float kFallbackThickness = 1.0f / 18.0f;
+  unsigned int upem = hb_face_get_upem(face);
+  float invUpem = upem == 0 ? 0.0f : 1.0f / upem;
+
+  // post: underlinePosition at 8, underlineThickness at 10 (y up, top of
+  // the stroke).
+  int16_t position = 0, thickness = 0;
+  if (invUpem != 0.0f &&
+      read_table_int16(face, HB_TAG('p', 'o', 's', 't'), 8, &position) &&
+      read_table_int16(face, HB_TAG('p', 'o', 's', 't'), 10, &thickness) &&
+      thickness > 0)
+  {
+    metrics.underlinePosition = -position * invUpem;
+    metrics.underlineThickness = thickness * invUpem;
+  }
+  else
+  {
+    metrics.underlinePosition = kFallbackThickness;
+    metrics.underlineThickness = kFallbackThickness;
+  }
+
+  // OS/2: yStrikeoutSize at 26, yStrikeoutPosition at 28 (y up, top of the
+  // stroke).
+  if (invUpem != 0.0f &&
+      read_table_int16(face, HB_TAG('O', 'S', '/', '2'), 26, &thickness) &&
+      read_table_int16(face, HB_TAG('O', 'S', '/', '2'), 28, &position) &&
+      thickness > 0)
+  {
+    metrics.strikeoutPosition = -position * invUpem;
+    metrics.strikeoutThickness = thickness * invUpem;
+  }
+  else
+  {
+    // HarfBuzz's fallback thickness, whatever the underline's, centered on
+    // half the x-height (which itself falls back to ascent).
+    metrics.strikeoutThickness = kFallbackThickness;
+    metrics.strikeoutPosition = metrics.xHeight * 0.5f -
+                                metrics.strikeoutThickness * 0.5f;
+  }
+}
+
 static rive::Font::LineMetrics make_lmx(hb_font_t* font)
 {
   // premable on font...
@@ -772,7 +843,10 @@ static rive::Font::LineMetrics make_lmx(hb_font_t* font)
   };
   float capHeight = measureGlyphTop('H');
   float xHeight = measureGlyphTop('x');
-  return {ascent, -extents.descender * gInvScale, capHeight, xHeight};
+  rive::Font::LineMetrics metrics =
+      {ascent, -extents.descender * gInvScale, capHeight, xHeight};
+  read_decoration_metrics(hb_font_get_face(font), metrics);
+  return metrics;
 }
 
 HBFont::HBFont(hb_font_t* font) : HBFont(font, {}, {}, {}) {}

@@ -8,6 +8,7 @@ using namespace rive;
 #include "rive/math/rectangles_to_contour.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/text/text_style_background.hpp"
+#include "rive/text/text_style_decoration.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
@@ -269,20 +270,31 @@ void Text::clearRenderStyles()
   {
     entry.second->rewind();
   }
-  for (TextStyleBackground* background : m_globalBackgrounds)
+  for (TextStylePaint* style : m_adornedGlobalStyles)
   {
-    background->resetPath();
+    if (style->background() != nullptr)
+    {
+      style->background()->resetPath();
+    }
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      decoration->resetPath();
+    }
   }
-  m_globalBackgrounds.clear();
+  m_adornedGlobalStyles.clear();
 
-  // Backgrounds reset off the child list; a style whose glyphs are all
-  // emoji never enters m_renderStyles.
+  // Backgrounds and decorations reset off the child list; a style whose
+  // glyphs are all emoji never enters m_renderStyles.
   buildTextStylePaints();
   for (TextStylePaint* style : m_textStylePaints)
   {
     if (style->background() != nullptr)
     {
       style->background()->resetPath();
+    }
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      decoration->resetPath();
     }
   }
 
@@ -966,6 +978,13 @@ void Text::buildRenderStyles()
   int lineIndex = 0;
   int paragraphIndex = 0;
   float minX = std::numeric_limits<float>::max();
+  // Decorations measure from their style's font, not the glyph's, so a
+  // fallback (emoji) glyph doesn't step the line. Resolved once per style.
+  const TextStylePaint* decorationStyle = nullptr;
+  // The global style last remembered in m_adornedGlobalStyles, so a run of
+  // glyphs in one style doesn't search the list for each.
+  const TextStylePaint* lastAdornedGlobalStyle = nullptr;
+  rcp<Font> decorationFont;
 
   for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
   {
@@ -996,10 +1015,19 @@ void Text::buildRenderStyles()
           isEllipsisLineLast,
           &m_ellipsisRun,
           renderY));
+      // A justified paragraph's lines fill the width, all but its last.
+      if (align() == TextAlign::justify && &line != &paragraphLines.back() &&
+          ellipsisLine != lineIndex)
+      {
+        m_orderedLines.back().justify(
+            m_styledText.unichars(),
+            effectiveWidth());
+      }
+      const OrderedLine& orderedLine = m_orderedLines.back();
 
-      float curX = m_orderedLines.back().startX();
+      float curX = orderedLine.startX();
       minX = std::min(curX, minX);
-      for (auto glyphItr : m_orderedLines.back())
+      for (auto glyphItr : orderedLine)
       {
         const GlyphRun* run = std::get<0>(glyphItr);
         size_t glyphIndex = std::get<1>(glyphItr);
@@ -1008,7 +1036,7 @@ void Text::buildRenderStyles()
         const Vec2D& offset = run->offsets[glyphIndex];
 
         GlyphID glyphId = run->glyphs[glyphIndex];
-        float advance = run->advances[glyphIndex];
+        float advance = orderedLine.advance(*run, (uint32_t)glyphIndex);
 
         // Step 6.1: translate to the glyph's origin and scale.
         Vec2D curPos(curX, renderY);
@@ -1103,6 +1131,15 @@ void Text::buildRenderStyles()
           }
         }
 
+        // A global style's background and decorations aren't this Text's
+        // children: remember the style to reset, update and draw them.
+        if (style != lastAdornedGlobalStyle && style->parent() != this &&
+            (style->background() != nullptr || !style->decorations().empty()))
+        {
+          m_adornedGlobalStyles.pushUnique(style);
+          lastAdornedGlobalStyle = style;
+        }
+
         // Bounds of the glyph
         if (textValueRun->isHitTarget() || style->background() != nullptr)
         {
@@ -1117,19 +1154,27 @@ void Text::buildRenderStyles()
           }
           if (style->background() != nullptr)
           {
-            TextStyleBackground* background = style->background();
-            // A global style's background isn't one of this
-            // Text's children: remember it to reset, update and
-            // draw it.
-            if (style->parent() != this &&
-                std::find(
-                    m_globalBackgrounds.begin(),
-                    m_globalBackgrounds.end(),
-                    background) == m_globalBackgrounds.end())
-            {
-              m_globalBackgrounds.push_back(background);
-            }
-            background->addRect(glyphBounds);
+            style->background()->addRect(glyphBounds);
+          }
+        }
+        if (!style->decorations().empty())
+        {
+          if (style != decorationStyle)
+          {
+            decorationStyle = style;
+            decorationFont = style->font();
+          }
+          const Font* metricsFont = decorationFont != nullptr
+                                        ? decorationFont.get()
+                                        : font;
+          for (TextStyleDecoration* decoration : style->decorations())
+          {
+            decoration->addGlyph(
+                curX,
+                curX + advance,
+                renderY,
+                metricsFont,
+                run->size);
           }
         }
         curX += advance;
@@ -1234,10 +1279,30 @@ skipLines:
       background->propagateOpacity(renderOpacity());
     }
   }
-  for (TextStyleBackground* background : m_globalBackgrounds)
+  for (TextStylePaint* style : m_adornedGlobalStyles)
   {
-    background->updatePath();
-    background->propagateOpacity(renderOpacity());
+    TextStyleBackground* background = style->background();
+    if (background != nullptr)
+    {
+      background->updatePath();
+      background->propagateOpacity(renderOpacity());
+    }
+  }
+  for (TextStylePaint* style : m_textStylePaints)
+  {
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      decoration->updatePath();
+      decoration->propagateOpacity(renderOpacity());
+    }
+  }
+  for (TextStylePaint* style : m_adornedGlobalStyles)
+  {
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      decoration->updatePath();
+      decoration->propagateOpacity(renderOpacity());
+    }
   }
   // Drop the geometry of shared paints this build no longer drew.
   m_sharedGeometry.erase(
@@ -1299,14 +1364,21 @@ void Text::draw(Renderer* renderer)
       background->draw(renderer, worldTransform);
     }
   }
-  for (TextStyleBackground* background : m_globalBackgrounds)
+  for (TextStylePaint* style : m_adornedGlobalStyles)
   {
-    background->draw(renderer, worldTransform);
+    TextStyleBackground* background = style->background();
+    if (background != nullptr)
+    {
+      background->draw(renderer, worldTransform);
+    }
   }
   if (m_selectionController != nullptr)
   {
     m_selectionController->draw(this, renderer);
   }
+  // Underlines sit behind the glyphs (their descenders cross them), as CSS
+  // paints them; strikethroughs draw over the glyphs below.
+  drawDecorations(renderer, worldTransform, false);
   for (auto& cmd : m_drawCommands)
   {
     if (cmd.type == TextDrawCommand::kStylePath)
@@ -1330,9 +1402,37 @@ void Text::draw(Renderer* renderer)
       drawColorGlyph(renderer, cmd.colorGlyph, worldTransform);
     }
   }
+  drawDecorations(renderer, worldTransform, true);
   if (needsSaveOperation())
   {
     renderer->restore();
+  }
+}
+
+void Text::drawDecorations(
+    Renderer* renderer,
+    const Mat2D& worldTransform,
+    bool overGlyphs)
+{
+  for (TextStylePaint* style : m_textStylePaints)
+  {
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      if (decoration->drawsOverGlyphs() == overGlyphs)
+      {
+        decoration->draw(renderer, worldTransform);
+      }
+    }
+  }
+  for (TextStylePaint* style : m_adornedGlobalStyles)
+  {
+    for (TextStyleDecoration* decoration : style->decorations())
+    {
+      if (decoration->drawsOverGlyphs() == overGlyphs)
+      {
+        decoration->draw(renderer, worldTransform);
+      }
+    }
   }
 }
 
@@ -2274,7 +2374,8 @@ void Text::BreakLines(
         lines[i],
         paragraphs[i].runs,
         paragraphWidth,
-        align);
+        align,
+        paragraphs[i].baseDirection());
   }
 }
 
@@ -2470,6 +2571,22 @@ void Text::update(ComponentDirt value)
       if (style->background() != nullptr)
       {
         style->background()->propagateOpacity(renderOpacity());
+      }
+      for (TextStyleDecoration* decoration : style->decorations())
+      {
+        decoration->propagateOpacity(renderOpacity());
+      }
+    }
+    // Global styles' backgrounds and decorations too.
+    for (TextStylePaint* style : m_adornedGlobalStyles)
+    {
+      if (style->background() != nullptr)
+      {
+        style->background()->propagateOpacity(renderOpacity());
+      }
+      for (TextStyleDecoration* decoration : style->decorations())
+      {
+        decoration->propagateOpacity(renderOpacity());
       }
     }
   }
@@ -3043,7 +3160,9 @@ bool Text::layoutOwnsWidth() const
 TextAlign Text::align() const
 {
   auto val = (TextAlign)alignValue();
-  if (m_layoutDirection == LayoutDirection::inherit || val == TextAlign::center)
+  // A layout's direction doesn't move centered or justified text.
+  if (m_layoutDirection == LayoutDirection::inherit ||
+      val == TextAlign::center || val == TextAlign::justify)
   {
     return val;
   }

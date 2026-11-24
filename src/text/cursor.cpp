@@ -38,7 +38,7 @@ CursorVisualPosition CursorPosition::visualPosition(
   {
     const GlyphRun* run = std::get<0>(glyphItr);
     size_t glyphIndex = std::get<1>(glyphItr);
-    float advance = run->advances[glyphIndex];
+    float advance = orderedLine.advance(*run, (uint32_t)glyphIndex);
 
     if (advance != 0 &&
         targetIndex == glyphLookup[run->textIndices[glyphIndex]])
@@ -131,7 +131,7 @@ CursorPosition CursorPosition::fromOrderedLine(
     lastGlyphItr = itr;
     const GlyphRun* run = itr.run();
     uint32_t glyphIndex = itr.glyphIndex();
-    float advance = run->advances[glyphIndex];
+    float advance = orderedLine.advance(*run, glyphIndex);
     if (translationX <= x + advance)
     {
       float ratio = advance == 0.0f
@@ -311,7 +311,7 @@ void Cursor::selectionRects(
     {
       const GlyphRun* run = std::get<0>(glyphItr);
       size_t glyphIndex = std::get<1>(glyphItr);
-      float advance = run->advances[glyphIndex];
+      float advance = orderedLine.advance(*run, (uint32_t)glyphIndex);
       uint32_t codePointIndex = run->textIndices[glyphIndex];
       uint32_t count = glyphLookup.count(codePointIndex);
       uint32_t endCodePointIndex = codePointIndex + count;

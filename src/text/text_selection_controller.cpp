@@ -64,7 +64,7 @@ static AABB lineBounds(const OrderedLine& line)
     auto* run = std::get<0>(glyph);
     auto index = std::get<1>(glyph);
     AABB::expandTo(bounds, Vec2D(x, line.y() + run->font->ascent(run->size)));
-    x += run->advances[index];
+    x += line.advance(*run, index);
     AABB::expandTo(bounds, Vec2D(x, line.y() + run->font->descent(run->size)));
   }
   return bounds;

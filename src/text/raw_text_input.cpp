@@ -718,7 +718,7 @@ void RawTextInput::addLine(
         run->size,
         x + offset.x,
         line.y() + offset.y));
-    x += run->advances[glyphIndex];
+    x += line.advance(*run, (uint32_t)glyphIndex);
 
     // m_path contains everything, so inner feather bounds can work.
     if (selectedTextPath != nullptr &&

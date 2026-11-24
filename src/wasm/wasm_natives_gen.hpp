@@ -508,6 +508,9 @@ void textReleaseImpl(WasmScriptingVM* vm, uint32_t text);
 void textAppendImpl(WasmScriptingVM* vm, uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground);
 #endif
 #ifdef WITH_RIVE_TEXT
+void textSetMarksImpl(WasmScriptingVM* vm, uint32_t text, uint32_t highlight, uint32_t underline, uint32_t strikethrough);
+#endif
+#ifdef WITH_RIVE_TEXT
 void textClearImpl(WasmScriptingVM* vm, uint32_t text);
 #endif
 #ifdef WITH_RIVE_TEXT
@@ -515,6 +518,9 @@ void textLayoutImpl(WasmScriptingVM* vm, uint32_t text, const rive_text_layout_d
 #endif
 #ifdef WITH_RIVE_TEXT
 void textDrawImpl(WasmScriptingVM* vm, uint32_t text, uint32_t renderer, uint32_t paint);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textDrawLinesImpl(WasmScriptingVM* vm, uint32_t text, uint32_t renderer, uint32_t first, uint32_t last, uint32_t paint);
 #endif
 #ifdef WITH_RIVE_TEXT
 void textBoundsImpl(WasmScriptingVM* vm, uint32_t text, float* out, uint32_t outCount);
@@ -2324,6 +2330,13 @@ void textAppend(wasm_exec_env_t env, uint32_t text, const char* chars, uint32_t 
 }
 #endif
 #ifdef WITH_RIVE_TEXT
+void textSetMarks(wasm_exec_env_t env, uint32_t text, uint32_t highlight, uint32_t underline, uint32_t strikethrough)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textSetMarksImpl(vm, text, highlight, underline, strikethrough);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
 void textClear(wasm_exec_env_t env, uint32_t text)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2342,6 +2355,13 @@ void textDraw(wasm_exec_env_t env, uint32_t text, uint32_t renderer, uint32_t pa
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     textDrawImpl(vm, text, renderer, paint);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textDrawLines(wasm_exec_env_t env, uint32_t text, uint32_t renderer, uint32_t first, uint32_t last, uint32_t paint)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textDrawLinesImpl(vm, text, renderer, first, last, paint);
 }
 #endif
 #ifdef WITH_RIVE_TEXT
@@ -3232,6 +3252,9 @@ NativeSymbol kTextNatives[] = {
     {"append", (void*)textAppend, "(i*~iifffi)", nullptr},
 #endif
 #ifdef WITH_RIVE_TEXT
+    {"set_marks", (void*)textSetMarks, "(iiii)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
     {"clear", (void*)textClear, "(i)", nullptr},
 #endif
 #ifdef WITH_RIVE_TEXT
@@ -3239,6 +3262,9 @@ NativeSymbol kTextNatives[] = {
 #endif
 #ifdef WITH_RIVE_TEXT
     {"draw", (void*)textDraw, "(iii)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"draw_lines", (void*)textDrawLines, "(iiiii)", nullptr},
 #endif
 #ifdef WITH_RIVE_TEXT
     {"bounds", (void*)textBounds, "(i*~)", nullptr},

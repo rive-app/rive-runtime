@@ -47,7 +47,8 @@ void GlyphLine::ComputeLineSpacing(
     Span<GlyphLine> lines,
     Span<const GlyphRun> runs,
     float width,
-    TextAlign align)
+    TextAlign align,
+    TextDirection direction)
 {
   bool first = isFirstLine;
   float Y = 0; // top of our frame
@@ -99,11 +100,16 @@ void GlyphLine::ComputeLineSpacing(
       case TextAlign::right:
         line.startX = width - lineWidth;
         break;
-      case TextAlign::left:
-        line.startX = 0;
-        break;
       case TextAlign::center:
         line.startX = width / 2.0f - lineWidth / 2.0f;
+        break;
+      case TextAlign::justify:
+        // Where the paragraph starts; OrderedLine::justify stretches the
+        // lines that can fill the width.
+        line.startX = direction == TextDirection::rtl ? width - lineWidth : 0;
+        break;
+      default:
+        line.startX = 0;
         break;
     }
   }

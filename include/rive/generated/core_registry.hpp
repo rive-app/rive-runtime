@@ -314,6 +314,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_background.hpp"
+#include "rive/text/text_style_decoration.hpp"
 #include "rive/text/text_style_feature.hpp"
 #include "rive/text/text_style_global.hpp"
 #include "rive/text/text_style_paint.hpp"
@@ -910,6 +911,8 @@ public:
         return new TextInputCursor();
       case TextInputTextBase::typeKey:
         return new TextInputText();
+      case TextStyleDecorationBase::typeKey:
+        return new TextStyleDecoration();
       case TextStyleFeatureBase::typeKey:
         return new TextStyleFeature();
       case TextStyleBackgroundBase::typeKey:
@@ -1898,6 +1901,9 @@ public:
         break;
       case TextModifierRangeBase::modeValuePropertyKey:
         object->as<TextModifierRangeBase>()->modeValue(value);
+        break;
+      case TextStyleDecorationBase::decorationTypeValuePropertyKey:
+        object->as<TextStyleDecorationBase>()->decorationTypeValue(value);
         break;
       case TextStyleFeatureBase::tagPropertyKey:
         object->as<TextStyleFeatureBase>()->tag(value);
@@ -3247,6 +3253,12 @@ public:
       case TextFollowPathModifierBase::offsetPropertyKey:
         object->as<TextFollowPathModifierBase>()->offset(value);
         break;
+      case TextStyleDecorationBase::thicknessPropertyKey:
+        object->as<TextStyleDecorationBase>()->thickness(value);
+        break;
+      case TextStyleDecorationBase::offsetPropertyKey:
+        object->as<TextStyleDecorationBase>()->offset(value);
+        break;
       case TextStyleBackgroundBase::cornerRadiusPropertyKey:
         object->as<TextStyleBackgroundBase>()->cornerRadius(value);
         break;
@@ -3993,6 +4005,8 @@ public:
         return object->as<TextModifierRangeBase>()->typeValue();
       case TextModifierRangeBase::modeValuePropertyKey:
         return object->as<TextModifierRangeBase>()->modeValue();
+      case TextStyleDecorationBase::decorationTypeValuePropertyKey:
+        return object->as<TextStyleDecorationBase>()->decorationTypeValue();
       case TextStyleFeatureBase::tagPropertyKey:
         return object->as<TextStyleFeatureBase>()->tag();
       case TextStyleFeatureBase::featureValuePropertyKey:
@@ -4905,6 +4919,10 @@ public:
         return object->as<TextFollowPathModifierBase>()->strength();
       case TextFollowPathModifierBase::offsetPropertyKey:
         return object->as<TextFollowPathModifierBase>()->offset();
+      case TextStyleDecorationBase::thicknessPropertyKey:
+        return object->as<TextStyleDecorationBase>()->thickness();
+      case TextStyleDecorationBase::offsetPropertyKey:
+        return object->as<TextStyleDecorationBase>()->offset();
       case TextStyleBackgroundBase::cornerRadiusPropertyKey:
         return object->as<TextStyleBackgroundBase>()->cornerRadius();
       case TextVariationModifierBase::axisValuePropertyKey:
@@ -5269,6 +5287,7 @@ public:
       case TextModifierRangeBase::unitsValuePropertyKey:
       case TextModifierRangeBase::typeValuePropertyKey:
       case TextModifierRangeBase::modeValuePropertyKey:
+      case TextStyleDecorationBase::decorationTypeValuePropertyKey:
       case TextStyleFeatureBase::tagPropertyKey:
       case TextStyleFeatureBase::featureValuePropertyKey:
       case TextVariationModifierBase::axisTagPropertyKey:
@@ -5626,6 +5645,8 @@ public:
       case TextFollowPathModifierBase::endPropertyKey:
       case TextFollowPathModifierBase::strengthPropertyKey:
       case TextFollowPathModifierBase::offsetPropertyKey:
+      case TextStyleDecorationBase::thicknessPropertyKey:
+      case TextStyleDecorationBase::offsetPropertyKey:
       case TextStyleBackgroundBase::cornerRadiusPropertyKey:
       case TextVariationModifierBase::axisValuePropertyKey:
       case TextModifierGroupBase::originXPropertyKey:
@@ -6293,6 +6314,8 @@ public:
         return TextModifierRangeBase::typeKey;
       case TextModifierRangeBase::modeValuePropertyKey:
         return TextModifierRangeBase::typeKey;
+      case TextStyleDecorationBase::decorationTypeValuePropertyKey:
+        return TextStyleDecorationBase::typeKey;
       case TextStyleFeatureBase::tagPropertyKey:
         return TextStyleFeatureBase::typeKey;
       case TextStyleFeatureBase::featureValuePropertyKey:
@@ -6999,6 +7022,10 @@ public:
         return TextFollowPathModifierBase::typeKey;
       case TextFollowPathModifierBase::offsetPropertyKey:
         return TextFollowPathModifierBase::typeKey;
+      case TextStyleDecorationBase::thicknessPropertyKey:
+        return TextStyleDecorationBase::typeKey;
+      case TextStyleDecorationBase::offsetPropertyKey:
+        return TextStyleDecorationBase::typeKey;
       case TextStyleBackgroundBase::cornerRadiusPropertyKey:
         return TextStyleBackgroundBase::typeKey;
       case TextVariationModifierBase::axisValuePropertyKey:

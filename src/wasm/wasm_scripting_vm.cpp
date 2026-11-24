@@ -9558,8 +9558,12 @@ struct HostText
   // Fonts the layout produced, fallbacks included, handed to the module as
   // handles this text owns.
   std::unordered_map<const Font*, uint32_t> fontHandles;
-  // RawText revision the records were built from; ~0u before the first.
-  uint32_t snapshotRevision = ~0u;
+  // RawText revisions the line records, and the run and glyph records, were
+  // built from; ~0u before the first. Reading lines builds no glyph records.
+  uint32_t lineRevision = ~0u;
+  uint32_t glyphRevision = ~0u;
+  // set_marks' paints, for the next append only.
+  RawText::RunMarks pendingMarks;
 };
 
 HostText* resolveText(WasmScriptingVM* vm, uint32_t handle)
@@ -9585,26 +9589,52 @@ void deleteHostText(WasmScriptingVM* vm, HostText* host)
   delete host;
 }
 
-void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
+void buildLineRecords(HostText* host)
 {
-  if (host->snapshotRevision == host->text.revision())
+  RawText& text = host->text;
+  if (host->lineRevision == text.revision())
   {
     return;
   }
-  host->snapshotRevision = host->text.revision();
-  host->runs.clear();
+  host->lineRevision = text.revision();
   host->lineWords.clear();
-  host->runWords.clear();
-  host->glyphWords.clear();
-
-  RawText& text = host->text;
   const GlyphLookup& lookup = text.layoutView().glyphLookup();
-  std::unordered_map<const GlyphRun*, uint32_t> runIndices;
-  uint32_t glyphCount = 0;
+  uint32_t glyphStart = 0;
   for (uint32_t line = 0; line < text.lineCount(); line++)
   {
     const OrderedLine& orderedLine = text.orderedLines()[line];
-    uint32_t glyphStart = glyphCount;
+    uint32_t glyphCount = text.lineGlyphCount(line);
+    host->lineWords.insert(
+        host->lineWords.end(),
+        {glyphStart,
+         glyphCount,
+         (uint32_t)text.lineDirection(line),
+         orderedLine.firstCodePointIndex(lookup),
+         orderedLine.lastCodePointIndex(lookup),
+         floatBits(orderedLine.startX()),
+         floatBits(text.lineTop(line)),
+         floatBits(orderedLine.y()),
+         floatBits(orderedLine.bottom())});
+    glyphStart += glyphCount;
+  }
+}
+
+void buildGlyphRecords(WasmScriptingVM* vm, HostText* host)
+{
+  RawText& text = host->text;
+  if (host->glyphRevision == text.revision())
+  {
+    return;
+  }
+  host->glyphRevision = text.revision();
+  host->runs.clear();
+  host->runWords.clear();
+  host->glyphWords.clear();
+
+  std::unordered_map<const GlyphRun*, uint32_t> runIndices;
+  for (uint32_t line = 0; line < text.lineCount(); line++)
+  {
+    const OrderedLine& orderedLine = text.orderedLines()[line];
     text.forEachGlyph(
         line,
         [&](const GlyphRun& run, uint32_t glyphIndex, Vec2D position) {
@@ -9613,7 +9643,6 @@ void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
           {
             host->runs.push_back(&run);
           }
-          glyphCount++;
           GlyphID glyphId = run.glyphs[glyphIndex];
           uint32_t flags = (run.level & 1) |
                            (run.font->isColorGlyph(glyphId) ? 2 : 0);
@@ -9625,20 +9654,9 @@ void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
                flags,
                floatBits(position.x),
                floatBits(position.y),
-               floatBits(run.advances[glyphIndex])});
+               floatBits(orderedLine.advance(run, glyphIndex))});
           return true;
         });
-    host->lineWords.insert(
-        host->lineWords.end(),
-        {glyphStart,
-         glyphCount - glyphStart,
-         (uint32_t)text.lineDirection(line),
-         orderedLine.firstCodePointIndex(lookup),
-         orderedLine.lastCodePointIndex(lookup),
-         floatBits(orderedLine.startX()),
-         floatBits(text.lineTop(line)),
-         floatBits(orderedLine.y()),
-         floatBits(orderedLine.bottom())});
   }
   // A font no run uses any more gives its handle back, or a text relaid
   // out with a fresh font variant every frame would keep one per frame.
@@ -9718,7 +9736,30 @@ void textAppendImpl(
       size,
       lineHeight,
       letterSpacing,
-      foreground);
+      foreground,
+      host->pendingMarks);
+  host->pendingMarks = RawText::RunMarks();
+}
+
+void textSetMarksImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t highlightHandle,
+    uint32_t underlineHandle,
+    uint32_t strikethroughHandle)
+{
+  auto host = resolveText(vm, handle);
+  if (host == nullptr)
+  {
+    return;
+  }
+  auto paint = [&](uint32_t paintHandle) -> rcp<RenderPaint> {
+    RenderPaint* resolved = resolvePaint(vm, paintHandle);
+    return resolved != nullptr ? ref_rcp(resolved) : nullptr;
+  };
+  host->pendingMarks.highlight = paint(highlightHandle);
+  host->pendingMarks.underline = paint(underlineHandle);
+  host->pendingMarks.strikethrough = paint(strikethroughHandle);
 }
 
 void textClearImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -9770,6 +9811,28 @@ void textDrawImpl(
   host->text.render(renderer, paint != nullptr ? ref_rcp(paint) : nullptr);
 }
 
+void textDrawLinesImpl(
+    WasmScriptingVM* vm,
+    uint32_t handle,
+    uint32_t rendererHandle,
+    uint32_t first,
+    uint32_t last,
+    uint32_t paintHandle)
+{
+  auto host = resolveText(vm, handle);
+  auto renderer = resolveRenderer(vm, rendererHandle);
+  if (host == nullptr || renderer == nullptr)
+  {
+    return;
+  }
+  RenderPaint* paint = resolvePaint(vm, paintHandle);
+  host->text.renderLines(
+      renderer,
+      first,
+      last,
+      paint != nullptr ? ref_rcp(paint) : nullptr);
+}
+
 void textBoundsImpl(
     WasmScriptingVM* vm,
     uint32_t handle,
@@ -9805,7 +9868,7 @@ uint32_t textLinesImpl(
   {
     return 0;
   }
-  buildTextSnapshot(vm, host);
+  buildLineRecords(host);
   return fillOut(host->lineWords, out, outCount);
 }
 
@@ -9820,7 +9883,7 @@ uint32_t textRunsImpl(
   {
     return 0;
   }
-  buildTextSnapshot(vm, host);
+  buildGlyphRecords(vm, host);
   return fillOut(host->runWords, out, outCount);
 }
 
@@ -9835,7 +9898,7 @@ uint32_t textGlyphsImpl(
   {
     return 0;
   }
-  buildTextSnapshot(vm, host);
+  buildGlyphRecords(vm, host);
   return fillOut(host->glyphWords, out, outCount);
 }
 

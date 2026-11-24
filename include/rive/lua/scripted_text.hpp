@@ -61,6 +61,8 @@ public:
   uint32_t glyphIndex;
   // Pen position on the baseline, the shaper's offset included.
   Vec2D position;
+  // As the line places it: a justified line's whitespace gap included.
+  float advance;
   static constexpr uint8_t luaTag = LUA_T_COUNT + 37;
   static constexpr const char* luaName = "Glyph";
   static constexpr bool hasMetatable = true;

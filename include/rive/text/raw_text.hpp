@@ -6,6 +6,9 @@
 #include "rive/text/text.hpp"
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/text_layout_view.hpp"
+#include "rive/text/text_selection_path.hpp"
+#include <memory>
+#include <vector>
 
 namespace rive
 {
@@ -19,6 +22,24 @@ public:
   /// Returns true if the text object contains no text.
   bool empty() const;
 
+  /// Lines a run can carry, each drawn with its own paint (none when null):
+  /// a highlight behind the line box, and an underline and a strikethrough
+  /// placed and sized by the run's font. A mark joins neighbouring runs'
+  /// marks of the same kind and paint into one bar per line, whatever their
+  /// glyph paints.
+  struct RunMarks
+  {
+    rcp<RenderPaint> highlight;
+    rcp<RenderPaint> underline;
+    rcp<RenderPaint> strikethrough;
+
+    bool any() const
+    {
+      return highlight != nullptr || underline != nullptr ||
+             strikethrough != nullptr;
+    }
+  };
+
   /// Appends a run to the text object. The foregroundColor is used for
   /// color glyphs (emoji) that reference the text's foreground color.
   void append(
@@ -28,14 +49,27 @@ public:
       float size = 16.0f,
       float lineHeight = -1.0f,
       float letterSpacing = 0.0f,
-      ColorInt foregroundColor = 0xFF000000);
+      ColorInt foregroundColor = 0xFF000000,
+      const RunMarks& marks = RunMarks());
 
   /// Resets the text object to empty state (no text).
   void clear();
 
   /// Draw the text using renderer. Second argument is optional to override
-  /// all paints provided with run styles
+  /// all paints provided with run styles, underlines and strikethroughs
+  /// included; highlights keep their own. Highlights draw first, then
+  /// underlines, the glyphs, and strikethroughs.
   void render(Renderer* renderer, rcp<RenderPaint> paint = nullptr);
+
+  /// Draws only lines first to last (zero based and inclusive, clamped to
+  /// the lines there are) where they sit in the full layout, so a paragraph
+  /// can be split across pages. The last few ranges drawn keep their paths
+  /// until the text changes.
+  void renderLines(
+      Renderer* renderer,
+      uint32_t first,
+      uint32_t last,
+      rcp<RenderPaint> paint = nullptr);
 
   // Resolved against the first paragraph's direction after shaping, so right
   // to left text starts on the right without the caller knowing the language.
@@ -84,9 +118,9 @@ public:
   void origin(TextOrigin value);
   void directionFlag(int value);
 
-  // The ordinals the script bindings speak: align 0..2 is TextAlign and 3
-  // and 4 are start and end; direction 0 detects, 1 and 2 force. Out of
-  // range values leave the setting alone.
+  // The ordinals the script bindings speak: align 0..2 is left, right and
+  // center, 3 and 4 are start and end, and 5 is justify; direction 0
+  // detects, 1 and 2 force. Out of range values leave the setting alone.
   int alignIndex() const;
   void alignIndex(int value);
   int directionIndex() const { return m_directionFlag + 1; }
@@ -125,8 +159,15 @@ public:
       {
         return;
       }
-      x += run->advances[glyphIndex];
+      x += orderedLine.advance(*run, glyphIndex);
     }
+  }
+
+  /// A glyph's advance as its line places it, a justified line's whitespace
+  /// gap included.
+  float glyphAdvance(uint32_t line, const GlyphRun& run, uint32_t glyphIndex)
+  {
+    return orderedLines()[line].advance(run, glyphIndex);
   }
 
   /// Borrowed layout for cursor math. Valid until the next change.
@@ -151,6 +192,9 @@ public:
 
 private:
   void update();
+  // Shapes, breaks and orders the lines and builds the glyph paths; update
+  // then joins the marks.
+  void layoutLines();
   void drawColorGlyph(
       Renderer* renderer,
       const Font& font,
@@ -158,20 +202,47 @@ private:
       const Mat2D& transform,
       ColorInt foregroundColor);
   void markDirty();
+  // RunMarks' order.
+  enum MarkKind
+  {
+    kHighlight = 0,
+    kUnderline = 1,
+    kStrikethrough = 2,
+    kMarkKindCount = 3
+  };
+  // A mark kind with its paint, and the bars its glyphs' rects join into.
+  // Every style whose runs have it adds to the same group, whatever their
+  // glyph paints, so neighbouring runs join into one bar per line.
+  struct MarkGroup
+  {
+    MarkKind kind = kHighlight;
+    rcp<RenderPaint> paint;
+    std::vector<AABB> rects;
+    TextSelectionPath path;
+  };
+  static constexpr uint32_t kNoMarkGroup = 0xFFFFFFFF;
   struct RenderStyle
   {
     rcp<RenderPaint> paint;
     bool isEmpty;
     ShapePaintPath path;
     ColorInt foregroundColor = 0xFF000000;
+    // Its runs' MarkGroup per MarkKind, kNoMarkGroup for none.
+    uint32_t markGroups[kMarkKindCount] = {
+        kNoMarkGroup,
+        kNoMarkGroup,
+        kNoMarkGroup};
   };
+  // The MarkGroup drawing kind in paint, added if it's new; kNoMarkGroup
+  // without a paint.
+  uint32_t markGroup(MarkKind kind, const rcp<RenderPaint>& paint);
   SimpleArray<Paragraph> m_shape;
   SimpleArray<SimpleArray<GlyphLine>> m_lines;
 
   StyledText m_styled;
   Factory* m_factory;
   std::vector<RenderStyle> m_styles;
-  std::vector<RenderStyle*> m_renderStyles;
+  std::vector<MarkGroup> m_markGroups;
   bool m_dirty = false;
   bool m_lookupDirty = false;
   uint32_t m_revision = 0;
@@ -216,6 +287,43 @@ private:
     ColorGlyphInfo colorGlyph;
   };
   std::vector<RawTextDrawCommand> m_drawCommands;
+
+  // Adds a line's glyphs to the styles' paths and their marks to
+  // markGroups, recording a command in draw order the first time a style
+  // gets a glyph and for every color glyph. Returns the line's glyph count.
+  uint32_t appendLineGlyphs(
+      const OrderedLine& line,
+      std::vector<RenderStyle>& styles,
+      std::vector<MarkGroup>& markGroups,
+      std::vector<RawTextDrawCommand>& commands);
+  // Joins each group's mark rects into its bars.
+  void updateMarks(std::vector<MarkGroup>& markGroups);
+  void drawMarks(
+      Renderer* renderer,
+      std::vector<MarkGroup>& markGroups,
+      MarkKind kind,
+      RenderPaint* paint);
+  void drawCommands(
+      Renderer* renderer,
+      const std::vector<RawTextDrawCommand>& commands,
+      std::vector<MarkGroup>& markGroups,
+      RenderPaint* paint);
+
+  // The paths and commands of a range of lines drawn on its own.
+  struct LineRange
+  {
+    uint32_t first;
+    uint32_t last;
+    std::vector<RenderStyle> styles;
+    // m_markGroups' kinds and paints, with this range's bars.
+    std::vector<MarkGroup> markGroups;
+    std::vector<RawTextDrawCommand> commands;
+  };
+  LineRange& lineRange(uint32_t first, uint32_t last);
+  // Enough for a paragraph split across a few pages, drawn every frame.
+  static constexpr size_t kMaxLineRanges = 4;
+  // Most recently drawn last; emptied whenever the layout is rebuilt.
+  std::vector<std::unique_ptr<LineRange>> m_lineRanges;
 };
 } // namespace rive
 

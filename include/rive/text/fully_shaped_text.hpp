@@ -7,6 +7,8 @@
 #include "rive/text/glyph_lookup.hpp"
 #include "rive/text/text_layout_view.hpp"
 
+#include <algorithm>
+
 namespace rive
 {
 // Structure containing all the necessary data to interact with (draw/edit)
@@ -139,6 +141,14 @@ private:
     {
       return sizing == TextSizing::autoWidth ? -1.0f : maxWidth;
     }
+    // The width justified lines fill, the one lines align in (see
+    // Text::BreakLines): the field's when it's wider than the wrap width.
+    float justifyWidth() const { return std::max(maxWidth, alignWidth); }
+    // Whether lines of paragraphs other than their last may be justified.
+    bool justifies() const
+    {
+      return alignment == TextAlign::justify && sizing != TextSizing::autoWidth;
+    }
     bool breaksLike(const Layout& other) const;
     bool operator==(const Layout& other) const;
   };
@@ -164,11 +174,15 @@ private:
     bool isEllipsisLineLast = false;
   };
 
+  // Measures paragraphs [first, end) as they'll draw, justified lines at
+  // the width they fill; text is what their glyphs' text indices index.
   static void measureParagraphs(
       const SimpleArray<Paragraph>& paragraphs,
       const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines,
       size_t first,
       size_t end,
+      const Layout& layout,
+      Span<const Unichar> text,
       std::vector<ParagraphExtent>& extents);
   static LineMetrics measureLines(
       const std::vector<ParagraphExtent>& extents,
@@ -193,6 +207,9 @@ private:
   void dropLines();
 
   SimpleArray<Paragraph> m_paragraphs;
+  // The text m_paragraphs were shaped from, which justify reads whitespace
+  // from. Its owner reshapes whenever it changes.
+  Span<const Unichar> m_text;
   // Each paragraph's start, then the text's length. Empty when they didn't
   // match the shaper's paragraphs, which turns reshapeParagraphs() off.
   std::vector<uint32_t> m_paragraphStarts;

@@ -7,6 +7,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style_background.hpp"
+#include "rive/text/text_style_decoration.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_input_selected_text.hpp"
 #include "rive/text/text_input_cursor.hpp"
@@ -32,6 +33,8 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
       return component->as<TextStylePaint>();
     case TextStyleBackground::typeKey:
       return component->as<TextStyleBackground>();
+    case TextStyleDecoration::typeKey:
+      return component->as<TextStyleDecoration>();
     case ForegroundLayoutDrawable::typeKey:
       return component->as<ForegroundLayoutDrawable>();
     case TextInputCursor::typeKey:

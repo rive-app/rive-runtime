@@ -333,6 +333,8 @@ constexpr LuaAtomName atoms[] = {
     {"hitTest", (int16_t)LuaAtoms::hitTest},
     {"caret", (int16_t)LuaAtoms::caret},
     {"selectionRects", (int16_t)LuaAtoms::selectionRects},
+    {"drawLines", (int16_t)LuaAtoms::drawLines},
+    {"justify", (int16_t)LuaAtoms::justify},
     {"glyph", (int16_t)LuaAtoms::glyph},
     {"glyphs", (int16_t)LuaAtoms::glyphs},
     {"path", (int16_t)LuaAtoms::path},

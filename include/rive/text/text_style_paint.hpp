@@ -4,10 +4,13 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/text/text_style_geometry.hpp"
+#include "rive/lazy_vector.hpp"
+#include <vector>
 
 namespace rive
 {
 class TextStyleBackground;
+class TextStyleDecoration;
 
 class TextStylePaint : public TextStylePaintBase, public ShapePaintContainer
 {
@@ -50,6 +53,23 @@ public:
   void background(TextStyleBackground* value) { m_background = value; }
   TextStyleBackground* background() const { return m_background; }
 
+  void addDecoration(TextStyleDecoration* value)
+  {
+    // onAddedDirty can run again for the same object (the editor re-adding
+    // it), and a duplicate would draw twice.
+    m_decorations.pushUnique(value);
+  }
+#ifdef WITH_RIVE_EDITOR
+  /// TextStyleDecoration::editorParentChanged calls this when a decoration
+  /// leaves this style, or is deleted.
+  void removeDecorationForEditor(TextStyleDecoration* value);
+#endif
+  /// Underlines and strikethroughs, in child order.
+  const std::vector<TextStyleDecoration*>& decorations() const
+  {
+    return m_decorations.view();
+  }
+
   /// A local paint resolves to itself.
   TextStylePaint* resolvedPaint() override { return this; }
 
@@ -69,6 +89,8 @@ private:
   // The glyphs of the Text this paint belongs to.
   TextStyleGeometry m_geometry;
   TextStyleBackground* m_background = nullptr;
+  // Most styles have none: 8 bytes until the first one.
+  LazyVector<TextStyleDecoration*> m_decorations;
   bool m_isShared = false;
 };
 } // namespace rive

@@ -3,6 +3,7 @@
 #include "rive/text_engine.hpp"
 #include "rive/factory.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -16,12 +17,19 @@ void RawText::append(
     float size,
     float lineHeight,
     float letterSpacing,
-    ColorInt foregroundColor)
+    ColorInt foregroundColor,
+    const RunMarks& marks)
 {
+  const uint32_t markGroups[kMarkKindCount] = {
+      markGroup(kHighlight, marks.highlight),
+      markGroup(kUnderline, marks.underline),
+      markGroup(kStrikethrough, marks.strikethrough),
+  };
   int styleIndex = 0;
   for (RenderStyle& style : m_styles)
   {
-    if (style.paint == paint && style.foregroundColor == foregroundColor)
+    if (style.paint == paint && style.foregroundColor == foregroundColor &&
+        std::equal(markGroups, markGroups + kMarkKindCount, style.markGroups))
     {
       break;
     }
@@ -34,15 +42,38 @@ void RawText::append(
     style.paint = paint;
     style.isEmpty = true;
     style.foregroundColor = foregroundColor;
+    std::copy(markGroups, markGroups + kMarkKindCount, style.markGroups);
   }
   m_styled.append(font, size, lineHeight, letterSpacing, text, styleIndex);
   markDirty();
+}
+
+uint32_t RawText::markGroup(MarkKind kind, const rcp<RenderPaint>& paint)
+{
+  if (paint == nullptr)
+  {
+    return kNoMarkGroup;
+  }
+  for (size_t i = 0; i < m_markGroups.size(); i++)
+  {
+    if (m_markGroups[i].kind == kind && m_markGroups[i].paint == paint)
+    {
+      return (uint32_t)i;
+    }
+  }
+  // Each group is a distinct paint a script appended a run with.
+  assert(m_markGroups.size() < kNoMarkGroup);
+  m_markGroups.emplace_back();
+  m_markGroups.back().kind = kind;
+  m_markGroups.back().paint = paint;
+  return (uint32_t)(m_markGroups.size() - 1);
 }
 
 void RawText::clear()
 {
   m_styled.clear();
   m_styles.clear();
+  m_markGroups.clear();
   markDirty();
 }
 
@@ -149,8 +180,11 @@ void RawText::directionFlag(int value)
 
 int RawText::alignIndex() const
 {
-  return m_logicalAlign == LogicalAlign::none ? (int)m_align
-                                              : 2 + (int)m_logicalAlign;
+  if (m_logicalAlign != LogicalAlign::none)
+  {
+    return 2 + (int)m_logicalAlign;
+  }
+  return m_align == TextAlign::justify ? 5 : (int)m_align;
 }
 
 void RawText::alignIndex(int value)
@@ -163,6 +197,11 @@ void RawText::alignIndex(int value)
   else if (value == 3 || value == 4)
   {
     logicalAlign((LogicalAlign)(value - 2));
+  }
+  else if (value == 5)
+  {
+    align(TextAlign::justify);
+    logicalAlign(LogicalAlign::none);
   }
 }
 
@@ -244,13 +283,23 @@ void RawText::maxHeight(float value)
 
 void RawText::update()
 {
+  layoutLines();
+  updateMarks(m_markGroups);
+}
+
+void RawText::layoutLines()
+{
   for (RenderStyle& style : m_styles)
   {
     style.path.rewind();
     style.isEmpty = true;
   }
-  m_renderStyles.clear();
+  for (MarkGroup& group : m_markGroups)
+  {
+    group.rects.clear();
+  }
   m_drawCommands.clear();
+  m_lineRanges.clear();
   m_orderedLines.clear();
   m_lineDirections.clear();
   m_lineGlyphCounts.clear();
@@ -430,65 +479,21 @@ void RawText::update()
             isEllipsisLineLast,
             &m_ellipsisRun,
             renderY));
+        // A justified paragraph's lines fill the width, all but its last.
+        if (align == TextAlign::justify && m_sizing != TextSizing::autoWidth &&
+            &line != &paragraphLines.back() && ellipsisLine != lineIndex)
+        {
+          m_orderedLines.back().justify(m_styled.unichars(), m_maxWidth);
+        }
       }
 
       const OrderedLine& orderedLine = m_orderedLines[lineIndex];
       m_lineDirections.push_back((uint8_t)paragraph.baseDirection());
-      uint32_t lineGlyphs = 0;
-      float x = orderedLine.startX();
-
-      for (auto glyphItr : orderedLine)
-      {
-        lineGlyphs++;
-        const GlyphRun* run = std::get<0>(glyphItr);
-        size_t glyphIndex = std::get<1>(glyphItr);
-
-        const Font* font = run->font.get();
-        const Vec2D& offset = run->offsets[glyphIndex];
-
-        GlyphID glyphId = run->glyphs[glyphIndex];
-        float advance = run->advances[glyphIndex];
-
-        assert(run->styleId < m_styles.size());
-        RenderStyle* style = &m_styles[run->styleId];
-        assert(style != nullptr);
-
-        Mat2D transform(
-            run->size,
-            0.0f,
-            0.0f,
-            run->size,
-            x + offset.x,
-            renderY + offset.y);
-
-        x += advance;
-
-        if (font->isColorGlyph(glyphId))
-        {
-          RawTextDrawCommand cmd;
-          cmd.type = RawTextDrawCommand::kColorGlyph;
-          cmd.colorGlyph =
-              {run->font, glyphId, transform, style->foregroundColor};
-          m_drawCommands.push_back(std::move(cmd));
-        }
-        else
-        {
-          RawPath path = font->getPath(glyphId);
-          style->path.addPathClockwise(path, &transform);
-
-          if (style->isEmpty)
-          {
-            style->isEmpty = false;
-            m_renderStyles.push_back(style);
-
-            RawTextDrawCommand cmd;
-            cmd.type = RawTextDrawCommand::kStylePath;
-            cmd.style = style;
-            m_drawCommands.push_back(std::move(cmd));
-          }
-        }
-      }
-      m_lineGlyphCounts.push_back(lineGlyphs);
+      m_lineGlyphCounts.push_back(appendLineGlyphs(
+          orderedLine,
+          m_styles,
+          m_markGroups,
+          m_drawCommands));
       if (lineIndex == ellipsisLine)
       {
         return;
@@ -513,24 +518,136 @@ AABB RawText::bounds()
   return m_bounds;
 }
 
-void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
+uint32_t RawText::appendLineGlyphs(
+    const OrderedLine& line,
+    std::vector<RenderStyle>& styles,
+    std::vector<MarkGroup>& markGroups,
+    std::vector<RawTextDrawCommand>& commands)
 {
-  if (m_dirty)
+  uint32_t glyphCount = 0;
+  float x = line.startX();
+  float y = line.y();
+  for (auto glyphItr : line)
   {
-    update();
-    m_dirty = false;
-  }
+    glyphCount++;
+    const GlyphRun* run = std::get<0>(glyphItr);
+    size_t glyphIndex = std::get<1>(glyphItr);
 
+    const Font* font = run->font.get();
+    const Vec2D& offset = run->offsets[glyphIndex];
+
+    GlyphID glyphId = run->glyphs[glyphIndex];
+    float advance = line.advance(*run, (uint32_t)glyphIndex);
+
+    assert(run->styleId < styles.size());
+    RenderStyle* style = &styles[run->styleId];
+
+    Mat2D
+        transform(run->size, 0.0f, 0.0f, run->size, x + offset.x, y + offset.y);
+
+    if (advance > 0.0f)
+    {
+      const uint32_t* groups = style->markGroups;
+      if (groups[kHighlight] != kNoMarkGroup)
+      {
+        markGroups[groups[kHighlight]].rects.push_back(
+            AABB(x, line.top(), x + advance, line.bottom()));
+      }
+      if (groups[kUnderline] != kNoMarkGroup)
+      {
+        float top = y + font->underlinePosition(run->size);
+        markGroups[groups[kUnderline]].rects.push_back(AABB(
+            x,
+            top,
+            x + advance,
+            top + font->underlineThickness(run->size)));
+      }
+      if (groups[kStrikethrough] != kNoMarkGroup)
+      {
+        float top = y + font->strikeoutPosition(run->size);
+        markGroups[groups[kStrikethrough]].rects.push_back(AABB(
+            x,
+            top,
+            x + advance,
+            top + font->strikeoutThickness(run->size)));
+      }
+    }
+
+    x += advance;
+
+    if (font->isColorGlyph(glyphId))
+    {
+      RawTextDrawCommand cmd;
+      cmd.type = RawTextDrawCommand::kColorGlyph;
+      cmd.colorGlyph = {run->font, glyphId, transform, style->foregroundColor};
+      commands.push_back(std::move(cmd));
+    }
+    else
+    {
+      RawPath path = font->getPath(glyphId);
+      style->path.addPathClockwise(path, &transform);
+
+      if (style->isEmpty)
+      {
+        style->isEmpty = false;
+
+        RawTextDrawCommand cmd;
+        cmd.type = RawTextDrawCommand::kStylePath;
+        cmd.style = style;
+        commands.push_back(std::move(cmd));
+      }
+    }
+  }
+  return glyphCount;
+}
+
+void RawText::updateMarks(std::vector<MarkGroup>& markGroups)
+{
+  for (MarkGroup& group : markGroups)
+  {
+    // A glyph's mark abuts its neighbour's: they join into one bar.
+    group.path.update(group.rects, 0.0f);
+  }
+}
+
+void RawText::drawMarks(
+    Renderer* renderer,
+    std::vector<MarkGroup>& markGroups,
+    MarkKind kind,
+    RenderPaint* paint)
+{
+  for (MarkGroup& group : markGroups)
+  {
+    if (group.kind != kind || group.rects.empty())
+    {
+      continue;
+    }
+    RenderPaint* renderPaint = paint != nullptr ? paint : group.paint.get();
+    renderer->drawPath(group.path.renderPath(m_factory), renderPaint);
+  }
+}
+
+void RawText::drawCommands(
+    Renderer* renderer,
+    const std::vector<RawTextDrawCommand>& commands,
+    std::vector<MarkGroup>& markGroups,
+    RenderPaint* paint)
+{
   if (m_overflow == TextOverflow::clipped && m_clipRenderPath)
   {
     renderer->save();
     renderer->clipPath(m_clipRenderPath.get());
   }
-  for (auto& cmd : m_drawCommands)
+  // Highlights behind everything, in their own paint even when one replaces
+  // the others (it would hide the glyphs); underlines behind the glyphs,
+  // whose descenders cross them; strikethroughs over them.
+  drawMarks(renderer, markGroups, kHighlight, nullptr);
+  drawMarks(renderer, markGroups, kUnderline, paint);
+  for (auto& cmd : commands)
   {
     if (cmd.type == RawTextDrawCommand::kStylePath)
     {
-      auto renderPaint = paint ? paint.get() : cmd.style->paint.get();
+      auto renderPaint = paint ? paint : cmd.style->paint.get();
       if (renderPaint != nullptr)
       {
         renderer->drawPath(cmd.style->path.renderPath(m_factory), renderPaint);
@@ -547,10 +664,96 @@ void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
           info.foregroundColor);
     }
   }
+  drawMarks(renderer, markGroups, kStrikethrough, paint);
   if (m_overflow == TextOverflow::clipped && m_clipRenderPath)
   {
     renderer->restore();
   }
+}
+
+void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
+{
+  if (m_dirty)
+  {
+    update();
+    m_dirty = false;
+  }
+  drawCommands(renderer, m_drawCommands, m_markGroups, paint.get());
+}
+
+void RawText::renderLines(
+    Renderer* renderer,
+    uint32_t first,
+    uint32_t last,
+    rcp<RenderPaint> paint)
+{
+  const std::vector<OrderedLine>& lines = orderedLines();
+  if (lines.empty())
+  {
+    return;
+  }
+  last = std::min(last, (uint32_t)lines.size() - 1);
+  if (first > last)
+  {
+    return;
+  }
+  if (first == 0 && last == lines.size() - 1)
+  {
+    // Every line: the whole text's paths already hold them.
+    drawCommands(renderer, m_drawCommands, m_markGroups, paint.get());
+    return;
+  }
+  LineRange& range = lineRange(first, last);
+  drawCommands(renderer, range.commands, range.markGroups, paint.get());
+}
+
+RawText::LineRange& RawText::lineRange(uint32_t first, uint32_t last)
+{
+  for (auto itr = m_lineRanges.begin(); itr != m_lineRanges.end(); ++itr)
+  {
+    if ((*itr)->first == first && (*itr)->last == last)
+    {
+      // Move it to the back, the most recently drawn.
+      std::rotate(itr, itr + 1, m_lineRanges.end());
+      return *m_lineRanges.back();
+    }
+  }
+  if (m_lineRanges.size() == kMaxLineRanges)
+  {
+    m_lineRanges.erase(m_lineRanges.begin());
+  }
+  auto range = std::make_unique<LineRange>();
+  range->first = first;
+  range->last = last;
+  // Sized once, before commands point into it.
+  range->styles.resize(m_styles.size());
+  for (size_t i = 0; i < m_styles.size(); i++)
+  {
+    range->styles[i].paint = m_styles[i].paint;
+    range->styles[i].isEmpty = true;
+    range->styles[i].foregroundColor = m_styles[i].foregroundColor;
+    std::copy(
+        m_styles[i].markGroups,
+        m_styles[i].markGroups + kMarkKindCount,
+        range->styles[i].markGroups);
+  }
+  range->markGroups.resize(m_markGroups.size());
+  for (size_t i = 0; i < m_markGroups.size(); i++)
+  {
+    range->markGroups[i].kind = m_markGroups[i].kind;
+    range->markGroups[i].paint = m_markGroups[i].paint;
+  }
+  for (uint32_t i = first; i <= last; i++)
+  {
+    appendLineGlyphs(
+        m_orderedLines[i],
+        range->styles,
+        range->markGroups,
+        range->commands);
+  }
+  updateMarks(range->markGroups);
+  m_lineRanges.push_back(std::move(range));
+  return *m_lineRanges.back();
 }
 
 void RawText::drawColorGlyph(
