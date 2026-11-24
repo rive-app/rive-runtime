@@ -972,6 +972,34 @@ TEST_CASE("a refused file endpoint is added turned off", "[scriptnet][cloud]")
 }
 
 TEST_CASE(
+    "allowedHosts governs plain fetches but not the host's endpoint",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  setGeneralFetchEnabled(true);
+  NetLimits limits;
+  limits.allowedHosts = {"api.example.com"};
+  setLimits(limits);
+
+  auto cloud = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.sayHello();
+  REQUIRE(host.transport->starts.size() == 3);
+  CHECK(host.sent().url == std::string(kBase) + "/players/me/data/save");
+  host.answer(200, "{}");
+  CHECK(cloud->status == 200);
+
+  auto other = make_rcp<Result>();
+  HttpRequest request;
+  request.url = "https://other.example.com/";
+  other->id = fetch(kOwner, std::move(request), other);
+  poll();
+  REQUIRE(other->settled);
+  CHECK(other->error.rfind("policy: ", 0) == 0);
+  CHECK(host.transport->starts.size() == 3);
+}
+
+TEST_CASE(
     "a hello answer past the size limit fails the requests that wait on it",
     "[scriptnet][cloud]")
 {

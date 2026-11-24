@@ -41,6 +41,7 @@ std::string normalizedUrl(const std::string& url)
 const char* kIpHost = "IP address hosts are not allowed";
 const char* kLocalHost = "local network hosts are not allowed";
 const char* kRiveHost = "Rive's own hosts are not reachable from scripts";
+const char* kNotAllowedHost = "the host is not one scripts may fetch from";
 } // namespace
 
 TEST_CASE(
@@ -285,6 +286,73 @@ TEST_CASE("NetPolicy refuses Rive's own hosts", "[scriptnet]")
   CHECK(urlRefusal("https://editor.rive.app./file") == kRiveHost);
   CHECK(urlRefusal("https://2dimensions.com/") == kRiveHost);
   CHECK(urlRefusal("https://net.riveusercontent.com/v1/") == kRiveHost);
+}
+
+TEST_CASE("NetPolicy allows only the hosts allowedHosts names", "[scriptnet]")
+{
+  auto allowed = [](const std::string& url,
+                    std::vector<std::string> allowedHosts) {
+    NetLimits limits;
+    limits.allowedHosts = std::move(allowedHosts);
+    HttpRequest request;
+    request.url = url;
+    std::string message = refusal(request, limits);
+    if (!message.empty())
+    {
+      CHECK(message == kNotAllowedHost);
+    }
+    return message.empty();
+  };
+  // Any host by default.
+  CHECK(urlRefusal("https://example.com/").empty());
+  CHECK(allowed("https://example.com/", {"*"}));
+  CHECK_FALSE(allowed("https://example.com/", {}));
+
+  CHECK(allowed("https://api.example.com/", {"api.example.com"}));
+  CHECK_FALSE(allowed("https://example.com/", {"api.example.com"}));
+  CHECK_FALSE(allowed("https://other.api.example.com/", {"api.example.com"}));
+
+  // A wildcard covers subdomains, not the name itself.
+  CHECK(allowed("https://api.example.com/", {"*.example.com"}));
+  CHECK(allowed("https://a.b.example.com/", {"*.example.com"}));
+  CHECK_FALSE(allowed("https://example.com/", {"*.example.com"}));
+  CHECK_FALSE(allowed("https://notexample.com/", {"*.example.com"}));
+
+  // Case and a trailing dot don't matter, on either side.
+  CHECK(allowed("https://API.Example.com./", {"api.example.com"}));
+  CHECK(allowed("https://api.example.com/", {"API.EXAMPLE.COM."}));
+  CHECK(allowed("https://api.example.com/", {"*.Example.com."}));
+
+  // Only "*" itself allows any host: "*." and "*.." name none.
+  CHECK_FALSE(allowed("https://example.com/", {"*."}));
+  CHECK_FALSE(allowed("https://example.com/", {"*.."}));
+
+  // The other rules still apply to a host allowedHosts names.
+  NetLimits localLimits;
+  localLimits.allowedHosts = {"printer.local"};
+  HttpRequest local;
+  local.url = "https://printer.local/";
+  CHECK(refusal(local, localLimits) == kLocalHost);
+}
+
+TEST_CASE("NetPolicy checks a redirect against allowedHosts", "[scriptnet]")
+{
+  NetLimits limits;
+  limits.allowedHosts = {"api.example.com"};
+  HttpRequest request;
+  request.url = "https://api.example.com/a";
+  REQUIRE(NetPolicy::check(request, limits, nullptr));
+  NetError error;
+  CHECK(NetPolicy::redirect(request, 302, "/b", 0, limits, &error));
+  CHECK_FALSE(NetPolicy::redirect(
+      request,
+      302,
+      "https://other.example.com/",
+      0,
+      limits,
+      &error));
+  CHECK(error.code == NetErrorCode::Policy);
+  CHECK(request.url == "https://api.example.com/b");
 }
 
 TEST_CASE("NetPolicy upper-cases and limits methods", "[scriptnet]")

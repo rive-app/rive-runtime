@@ -934,7 +934,11 @@ public:
     }
     HttpRequest probe = request;
     probe.url = "https://cloud.example.com" + path;
-    if (!NetPolicy::check(probe, limits, error))
+    // The host chose the endpoint, so the scripts' allowedHosts don't govern
+    // it.
+    NetLimits probeLimits = limits;
+    probeLimits.allowedHosts = {"*"};
+    if (!NetPolicy::check(probe, probeLimits, error))
     {
       return false;
     }
@@ -1578,6 +1582,18 @@ static void startQueued(Net& net, std::thread::id thread)
           {
             net.deliverWhole(it->first, entry, net.sessionAnswer(entry));
             continue;
+          }
+          // The host may have narrowed what scripts may fetch, such as
+          // allowedHosts or general fetch, since this request was queued. The
+          // host's own endpoint keeps its rules.
+          if (!entry.cloud)
+          {
+            NetError refusal;
+            if (!net.allow(entry.request, entry, &refusal))
+            {
+              net.settle(it->first, entry, std::move(refusal));
+              continue;
+            }
           }
           net.begin(owner, entry, entry.request.timeoutMs);
           if (entry.cloud)

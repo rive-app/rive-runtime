@@ -7,6 +7,7 @@
 #include "rive/scriptnet/http.hpp"
 
 #include <string>
+#include <vector>
 
 namespace rive::scriptnet
 {
@@ -54,6 +55,12 @@ struct NetLimits
   /// that checks addresses (Windows, curl) refuses otherwise. For tests against
   /// a server on loopback; off everywhere else.
   bool allowLocalAddresses = false;
+  /// Hosts scripts may fetch from, checked on every request and on every
+  /// redirect a transport follows: "*" for any host the other rules allow,
+  /// an exact name, or "*.example.com" for its subdomains, not
+  /// example.com itself. Case and a trailing dot don't matter. Empty
+  /// allows none.
+  std::vector<std::string> allowedHosts = {"*"};
 };
 
 /// The rules every script request passes before a transport sees it, and

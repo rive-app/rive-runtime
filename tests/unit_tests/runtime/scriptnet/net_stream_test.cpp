@@ -17,12 +17,14 @@ class StreamProvider : public Provider
 {
 public:
   std::vector<RequestId> starts;
+  std::vector<uint32_t> timeouts;
   std::vector<RequestId> aborts;
   std::vector<RequestId> resumes;
 
-  void start(RequestId id, const HttpRequest&) override
+  void start(RequestId id, const HttpRequest& request) override
   {
     starts.push_back(id);
+    timeouts.push_back(request.timeoutMs);
   }
   void abort(RequestId id) override { aborts.push_back(id); }
   void resume(RequestId id) override { resumes.push_back(id); }
@@ -507,6 +509,60 @@ TEST_CASE(
   poll();
   CHECK(listener->bodies == 0);
   CHECK(read(id).text == "x");
+}
+
+TEST_CASE(
+    "a queued request is checked against the policy when it starts",
+    "[scriptnet]")
+{
+  NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  StreamNetwork network(limits);
+  auto first = make_rcp<Listener>(false);
+  RequestId firstId = fetch(1, getRequest(), first);
+  auto second = make_rcp<Listener>(false);
+  fetch(1, getRequest(), second);
+  poll();
+  REQUIRE(network.provider->starts == std::vector<RequestId>{firstId});
+
+  // The host narrows allowedHosts while the second waits for a slot.
+  NetLimits narrowed = limits;
+  narrowed.allowedHosts = {};
+  setLimits(narrowed);
+  complete(firstId, head());
+  poll();
+  // Delivering the first frees its slot; the refusal arrives on the next poll.
+  poll();
+  CHECK(first->responses == 1);
+  CHECK(network.provider->starts.size() == 1);
+  REQUIRE(second->errors.size() == 1);
+  CHECK(second->errors[0].code == NetErrorCode::Policy);
+}
+
+TEST_CASE(
+    "a queued request starts under the policy of when it starts",
+    "[scriptnet]")
+{
+  NetLimits limits;
+  limits.maxInFlightPerOwner = 1;
+  StreamNetwork network(limits);
+  auto first = make_rcp<Listener>(false);
+  RequestId firstId = fetch(1, getRequest(), first);
+  auto second = make_rcp<Listener>(false);
+  fetch(1, getRequest(), second);
+  poll();
+  REQUIRE(network.provider->starts.size() == 1);
+  CHECK(network.provider->timeouts[0] == limits.defaultTimeoutMs);
+
+  // The host lowers the longest timeout while the second waits for a slot.
+  NetLimits shorter = limits;
+  shorter.maxTimeoutMs = 5000;
+  setLimits(shorter);
+  complete(firstId, head());
+  poll();
+  poll();
+  REQUIRE(network.provider->starts.size() == 2);
+  CHECK(network.provider->timeouts[1] == 5000);
 }
 
 #endif

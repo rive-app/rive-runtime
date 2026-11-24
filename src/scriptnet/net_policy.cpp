@@ -135,6 +135,42 @@ bool refuse(NetError* error, std::string message)
   }
   return false;
 }
+
+// True when `allowedHosts` names `host`, a lower-cased host without a
+// trailing dot.
+bool isAllowedHost(
+    const std::string& host,
+    const std::vector<std::string>& allowedHosts)
+{
+  for (const std::string& entry : allowedHosts)
+  {
+    std::string pattern = lowerAscii(entry);
+    // Only "*" itself allows any host, so "*." doesn't become it below.
+    if (pattern == "*")
+    {
+      return true;
+    }
+    if (!pattern.empty() && pattern.back() == '.')
+    {
+      pattern.pop_back();
+    }
+    if (pattern == host)
+    {
+      return true;
+    }
+    // "*.example.com" matches below ".example.com" only.
+    if (pattern.size() > 2 && pattern.compare(0, 2, "*.") == 0)
+    {
+      size_t length = pattern.size() - 1;
+      if (host.size() > length &&
+          host.compare(host.size() - length, length, pattern, 1, length) == 0)
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 } // namespace
 
 std::string lowerAscii(std::string value)
@@ -469,6 +505,10 @@ bool NetPolicy::check(
   if (!checkHost(host, &reason))
   {
     return refuse(error, reason);
+  }
+  if (!isAllowedHost(host, limits.allowedHosts))
+  {
+    return refuse(error, "the host is not one scripts may fetch from");
   }
   // The fragment never reaches a server.
   size_t fragment = url.find('#', authorityEnd);
