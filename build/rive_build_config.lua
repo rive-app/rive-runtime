@@ -559,49 +559,48 @@ if _OPTIONS['for_android'] then
 
     pic('on') -- Position-independent code is required for NDK libraries.
 
-    -- Detect the NDK.
-    local EXPECTED_NDK_VERSION = 'r27c'
-    local NDK_LONG_VERSION_STRING = "27.2.12479018"
+    -- Android builds use r27d. Other integrations still build the runtime with r27c.
+    -- Once those integrations move to r27d, the guard can require r27d alone.
+    local supported_ndks = {
+        r27c = '27.2.12479018',
+        r27d = '27.3.13750724',
+    }
     ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK') or '<undefined>'
-    local ndk_version = '<undetected>'
-    local ndk_long_version = '<undetected>'
+    local release_name, revision
     local f = io.open(ndk .. '/source.properties', 'r')
     if f then
         for line in f:lines() do
-            local match = line:match('^Pkg.ReleaseName = (.+)$')
-            if match then
-                ndk_version = match
-                break
-            end
-            match = line:match('^Pkg.Revision = (.+)$')
-            if match then
-                ndk_long_version = match
-                break
-            end
+            release_name = release_name or line:match('^Pkg%.ReleaseName%s*=%s*(%S+)')
+            revision = revision or line:match('^Pkg%.Revision%s*=%s*(%S+)')
         end
         f:close()
     end
-    if ndk_version ~= EXPECTED_NDK_VERSION and ndk_long_version ~= NDK_LONG_VERSION_STRING then
+
+    -- Some distributions only provide one of the two identifiers.
+    local supported = false
+    for name, number in pairs(supported_ndks) do
+        if (release_name == name or revision == number)
+            and (not release_name or release_name == name)
+            and (not revision or revision == number) then
+            supported = true
+            break
+        end
+    end
+    if not supported then
         print()
-        print('** Rive requires Android NDK version ' .. EXPECTED_NDK_VERSION .. ' **')
+        print('** Rive requires Android NDK r27c or r27d **')
         print()
         print('To install via Android Studio:')
         print('  - Settings > SDK Manager > SDK Tools')
         print('  - Check "Show Package Details" at the bottom')
-        print('  - Select '..NDK_LONG_VERSION_STRING..' under "NDK (Side by side)"')
+        print('  - Select '..supported_ndks.r27d..' under "NDK (Side by side)"')
         print('  - Note the value of "Android SDK Location"')
         print()
-        print('Then set the ANDROID_NDK environment variable:')
-        print('  - export ANDROID_NDK="<Android SDK Location>/ndk/'..NDK_LONG_VERSION_STRING..'"')
+        print('Then set the NDK_PATH environment variable:')
+        print('  - export NDK_PATH="<Android SDK Location>/ndk/'..supported_ndks.r27d..'"')
         print()
-        error(
-            'Unsupported Android NDK\n  ndk: '
-                .. ndk
-                .. '\n  version: '
-                .. ndk_version
-                .. '\n  expected: '
-                .. EXPECTED_NDK_VERSION
-        )
+        error(string.format('Unsupported Android NDK at %s (name: %s, revision: %s); expected r27c or r27d',
+            ndk, release_name or '<undetected>', revision or '<undetected>'))
     end
 
     local ndk_toolchain = ndk .. '/toolchains/llvm/prebuilt'
