@@ -1532,6 +1532,37 @@ TEST_CASE("View model runtime properties", "[data binding]")
   REQUIRE(numData->enumName.empty());
 }
 
+TEST_CASE("A file returns one runtime per view model", "[data binding]")
+{
+  // The file keeps every runtime it returns until it is destroyed, so a new
+  // runtime per lookup would grow with the number of lookups.
+  auto file = ReadRiveFile("assets/data_bind_test_cmdq.riv");
+
+  auto testAll = file->viewModelByName("Test All");
+  REQUIRE(testAll != nullptr);
+  CHECK(testAll->name() == "Test All");
+  CHECK(file->viewModelByName("Test All") == testAll);
+  CHECK(file->viewModelByIndex(2) == testAll);
+
+  // Two artboards share Test All as their default view model.
+  auto testArtboard = file->artboardNamed("Test Artboard");
+  auto testObservation = file->artboardNamed("Test Observation");
+  REQUIRE(testArtboard != nullptr);
+  REQUIRE(testObservation != nullptr);
+  CHECK(file->defaultArtboardViewModel(testArtboard.get()) == testAll);
+  CHECK(file->defaultArtboardViewModel(testObservation.get()) == testAll);
+
+  // Another view model gets its own runtime.
+  auto stateTransition = file->viewModelByName("State Transition");
+  REQUIRE(stateTransition != nullptr);
+  CHECK(stateTransition != testAll);
+  CHECK(stateTransition->name() == "State Transition");
+  auto testTransitions = file->artboardNamed("Test Transitions");
+  REQUIRE(testTransitions != nullptr);
+  CHECK(
+      file->defaultArtboardViewModel(testTransitions.get()) == stateTransition);
+}
+
 TEST_CASE(
     "A list runtime removes every row showing an instance",
     "[data binding]")

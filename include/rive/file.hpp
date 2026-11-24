@@ -711,7 +711,10 @@ private:
   /// reference to instances created by users.
   std::vector<rcp<ViewModelInstance>> m_ViewModelInstances;
 
-  mutable std::vector<rcp<ViewModelRuntime>> m_viewModelRuntimes;
+  /// One runtime per view model, made on its first lookup. Lookups return raw
+  /// pointers, so the file keeps the runtimes until it is destroyed.
+  mutable std::unordered_map<const ViewModel*, rcp<ViewModelRuntime>>
+      m_viewModelRuntimes;
   std::vector<DataEnum*> m_Enums;
 
   Factory* m_factory;
@@ -808,7 +811,7 @@ private:
       std::vector<const ViewModel*>& creating,
       size_t& budget) const;
 
-  rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
+  ViewModelRuntime* viewModelRuntime(ViewModel* viewModel) const;
 
   uint32_t findViewModelId(ViewModel* search) const;
 #ifdef WITH_RIVE_TOOLS

@@ -2858,7 +2858,7 @@ ViewModelRuntime* File::viewModelByIndex(size_t index) const
 {
   if (index < m_ViewModels.size())
   {
-    return createViewModelRuntime(m_ViewModels[index]).get();
+    return viewModelRuntime(m_ViewModels[index]);
   }
   fprintf(
       stderr,
@@ -2873,7 +2873,7 @@ ViewModelRuntime* File::viewModelByName(std::string name) const
   {
     if (viewModel->name() == name)
     {
-      return createViewModelRuntime(viewModel).get();
+      return viewModelRuntime(viewModel);
     }
   }
   fprintf(stderr, "Could not find View Model named %s.\n", name.c_str());
@@ -2889,7 +2889,7 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
   if ((size_t)artboard->viewModelId() < m_ViewModels.size())
   {
     auto viewModel = m_ViewModels[artboard->viewModelId()];
-    return createViewModelRuntime(viewModel).get();
+    return viewModelRuntime(viewModel);
   }
   fprintf(
       stderr,
@@ -2898,11 +2898,14 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
   return nullptr;
 }
 
-rcp<ViewModelRuntime> File::createViewModelRuntime(ViewModel* viewModel) const
+ViewModelRuntime* File::viewModelRuntime(ViewModel* viewModel) const
 {
-  auto viewModelRuntime = make_rcp<ViewModelRuntime>(viewModel, this);
-  m_viewModelRuntimes.push_back(viewModelRuntime);
-  return viewModelRuntime;
+  auto& runtime = m_viewModelRuntimes[viewModel];
+  if (runtime == nullptr)
+  {
+    runtime = make_rcp<ViewModelRuntime>(viewModel, this);
+  }
+  return runtime.get();
 }
 
 Span<const rcp<FileAsset>> File::assets() const { return m_fileAssets; }
