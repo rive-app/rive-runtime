@@ -940,7 +940,6 @@ void CommandServer::serveUntilDisconnect()
 bool CommandServer::waitCommands()
 {
   PODStream& commandStream = m_commandQueue->m_commandStream;
-  if (commandStream.empty())
   {
     std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
     while (commandStream.empty())
