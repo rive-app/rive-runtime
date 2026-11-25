@@ -152,7 +152,7 @@ constexpr std::chrono::minutes kBlindHelloInterval{1};
 // What a request not yet sent fails with once the host names another endpoint.
 NetError endpointReplaced()
 {
-  return {NetErrorCode::Aborted, "the host named another Rive Cloud endpoint"};
+  return {NetErrorCode::Aborted, "the host named another Rive Relay endpoint"};
 }
 
 // The top-level members of a JSON object, each as the raw text of its name
@@ -364,8 +364,8 @@ bool hasDotSegment(const std::string& path)
   return false;
 }
 
-// The player this host is, to the Rive Cloud engine. The host says hello,
-// keeps the token and adds it to each rive-cloud: request, so a script never
+// The player this host is, to the Rive Relay engine. The host says hello,
+// keeps the token and adds it to each rive-relay: request, so a script never
 // holds it.
 struct CloudSession
 {
@@ -442,7 +442,7 @@ struct Outstanding
   // fetch() aborts once start() has returned.
   bool starting = false;
   bool cancelled = false;
-  // A rive-cloud: request. It waits for the host's player token, is sent
+  // A rive-relay: request. It waits for the host's player token, is sent
   // with it, and is kept here so it can be sent again.
   bool cloud = false;
   // A script's POST /v1/hello. The host answers it from what the engine's
@@ -456,17 +456,17 @@ struct Outstanding
   // One of the host's own two hello calls. It has no listener and no owner,
   // and its answer changes the session instead of reaching a script.
   HelloStep helloStep = HelloStep::None;
-  // The endpoint a hello call or a rive-cloud: request was made for, and its
+  // The endpoint a hello call or a rive-relay: request was made for, and its
   // session then: a session is replaced, or its endpoint removed, under it.
   CloudEndpointId cloudId = 0;
   uint64_t epoch = 0;
-  // The rive-cloud: URL the script asked for, which is the URL its response
+  // The rive-relay: URL the script asked for, which is the URL its response
   // names: the engine's address and the namespace are the host's to know.
   std::string scriptUrl;
   // Its listener reads the body with readBody().
   bool listenerStreams = false;
   // The body goes to that listener as the transport reports it; a
-  // rive-cloud: answer only once the host has read it whole.
+  // rive-relay: answer only once the host has read it whole.
   bool streams = false;
   // respond() gave the status and headers. Unless the body streams,
   // `response` holds them and what has arrived of it.
@@ -876,7 +876,7 @@ public:
       error->message = "network access is not enabled for scripts in this host";
       return false;
     }
-    static const std::string kCloudScheme = "rive-cloud:";
+    static const std::string kCloudScheme = "rive-relay:";
     if (request.url.compare(0, kCloudScheme.size(), kCloudScheme) == 0)
     {
       return allowCloud(request, entry, kCloudScheme.size(), error);
@@ -890,7 +890,7 @@ public:
     return NetPolicy::check(request, limits, error);
   }
 
-  // A rive-cloud: request passes every rule a fetch does (method, headers,
+  // A rive-relay: request passes every rule a fetch does (method, headers,
   // sizes, URL characters), judged against a stand-in public address. Then the
   // host's own address replaces it, so http: and loopback are reachable here
   // and only here, and only at the one address the host named.
@@ -904,7 +904,7 @@ public:
     if (state == nullptr || state->endpoint.baseUrl.empty())
     {
       error->code = NetErrorCode::Disabled;
-      error->message = "this host has no Rive Cloud endpoint";
+      error->message = "this host has no Rive Relay endpoint";
       return false;
     }
     const CloudEndpoint& cloud = state->endpoint;
@@ -916,7 +916,7 @@ public:
         path.find('#') != std::string::npos)
     {
       error->code = NetErrorCode::Policy;
-      error->message = "a rive-cloud: URL is a path under /v1/ with no . or "
+      error->message = "a rive-relay: URL is a path under /v1/ with no . or "
                        ".. segment and no fragment";
       return false;
     }
@@ -929,7 +929,7 @@ public:
             .find('%') != std::string::npos)
     {
       error->code = NetErrorCode::Policy;
-      error->message = "a rive-cloud: route is not percent-encoded";
+      error->message = "a rive-relay: route is not percent-encoded";
       return false;
     }
     HttpRequest probe = request;
@@ -975,7 +975,7 @@ public:
     }
     entry.cloud = true;
     entry.epoch = session.epoch;
-    entry.scriptUrl = "rive-cloud:" + path;
+    entry.scriptUrl = "rive-relay:" + path;
     std::string route = path.substr(0, path.find('?'));
     if (route.compare(0, 9, "/v1/hello") != 0 ||
         (route.size() > 9 && route[9] != '/'))
@@ -1051,7 +1051,7 @@ public:
 
   // The hello came to nothing: every request waiting for its token hears so,
   // as an answer or an error, and the script decides whether to try again.
-  // The next rive-cloud: request starts a new hello.
+  // The next rive-relay: request starts a new hello.
   void failHello(
       CloudEndpointId cloudId,
       const HttpResponse* response,
@@ -1181,7 +1181,7 @@ public:
     session.answer += "}";
   }
 
-  // A rive-cloud: request came back 401: its token has expired. It goes back
+  // A rive-relay: request came back 401: its token has expired. It goes back
   // to the front of its owner's queue to be sent with the next token, once.
   // False when it cannot, and the 401 is the script's.
   bool retryWithNewToken(
@@ -1556,7 +1556,7 @@ static void startQueued(Net& net, std::thread::id thread)
           {
             break;
           }
-          // A rive-cloud: request waits for the host's hello, and holds its
+          // A rive-relay: request waits for the host's hello, and holds its
           // owner's later requests behind it, as any queued request does.
           CloudState* state = entry.cloud ? net.cloudOf(entry.cloudId)
                                           : nullptr;
@@ -1643,18 +1643,18 @@ static std::string endpointProblem(const CloudEndpoint& endpoint)
                                                     : 0;
   if (host == 0)
   {
-    return "the Rive Cloud address must be an http: or https: URL";
+    return "the Rive Relay address must be an http: or https: URL";
   }
   if (url.size() == host || url[host] == '/')
   {
-    return "the Rive Cloud address names no host";
+    return "the Rive Relay address names no host";
   }
   for (size_t i = host; i < url.size(); i++)
   {
     unsigned char c = (unsigned char)url[i];
     if (c <= 0x20 || c >= 0x7f || c == '?' || c == '#' || c == '@' || c == '\\')
     {
-      return "the Rive Cloud address may not have a query, a fragment, "
+      return "the Rive Relay address may not have a query, a fragment, "
              "credentials or spaces";
     }
   }
@@ -1667,7 +1667,7 @@ static std::string endpointProblem(const CloudEndpoint& endpoint)
   }
   if (!plain)
   {
-    return "a Rive Cloud namespace ID is 1 to 128 letters, digits, '_' or '-'";
+    return "a Rive Relay namespace ID is 1 to 128 letters, digits, '_' or '-'";
   }
   return "";
 }
@@ -1753,7 +1753,7 @@ void removeCloudEndpoint(CloudEndpointId cloudId)
   std::lock_guard<std::mutex> lock(net.mutex);
   NetError gone{
       NetErrorCode::Aborted,
-      "the file that named this Rive Cloud endpoint was released"};
+      "the file that named this Rive Relay endpoint was released"};
   net.failHello(cloudId, nullptr, &gone);
   // Requests already out settle as they come back: their session is gone,
   // so none is sent again.
@@ -1827,10 +1827,10 @@ RequestId fetch(
     entry.listenerStreams = streams;
     entry.streams = streams && !entry.cloud;
     // Past the limits a request waits its turn, as a browser holds those
-    // past its connection limit. A rive-cloud: request also waits for the
+    // past its connection limit. A rive-relay: request also waits for the
     // host's token, and a script's hello is answered from the queue.
     Owner& owner = net.owners[ownerId];
-    // allow() let a rive-cloud: request through, so its endpoint is here.
+    // allow() let a rive-relay: request through, so its endpoint is here.
     waitsForToken = entry.cloud &&
                     (entry.session ||
                      net.cloudOf(cloudId)->session.token.empty());

@@ -44,7 +44,7 @@ public:
   virtual void onCancel() {}
   /// True to get the response once its headers arrive, without its body,
   /// which readBody() then takes as it arrives. A body read this way is held
-  /// to no size limit or timeout here, but for a rive-cloud: answer, which
+  /// to no size limit or timeout here, but for a rive-relay: answer, which
   /// the host reads whole first; a transport that only reports whole
   /// responses still holds it to its own.
   virtual bool streams() const { return false; }
@@ -88,13 +88,13 @@ void setJavaVM(void* javaVM);
 /// Replaces the transport. Null (the default) denies every request.
 void setProvider(rcp<Provider> provider);
 
-/// Where a script's rive/cloud calls go. The host supplies this at startup and
+/// Where a script's rive/relay calls go. The host supplies this at startup and
 /// nothing in a file can set it. A script names only a path, as
-/// `rive-cloud:/v1/...`: the host fills in the address and the namespace, says
+/// `rive-relay:/v1/...`: the host fills in the address and the namespace, says
 /// hello with the device key, keeps the player token and adds it to each
 /// request, saying hello again when the engine answers 401. So a script can
 /// neither choose the address nor touch the key or the token. A script's own
-/// `POST rive-cloud:/v1/hello`, with an optional `{"display_name": ...}`, is
+/// `POST rive-relay:/v1/hello`, with an optional `{"display_name": ...}`, is
 /// answered by the host with the engine's hello answer less its token. Each
 /// `Idempotency-Key` a script sends gains a prefix that differs every run.
 struct CloudEndpoint
@@ -118,7 +118,7 @@ struct CloudEndpoint
 /// False, with why in `error`, for an endpoint no request may go to: an
 /// address that is not a plain http: or https: URL (no query, fragment or
 /// credentials), or a namespace ID other than letters, digits, '_' and '-',
-/// which every request path carries. A refused endpoint turns rive-cloud: off.
+/// which every request path carries. A refused endpoint turns rive-relay: off.
 /// An empty baseUrl turns it off too, and is not refused.
 bool setCloudEndpoint(CloudEndpoint endpoint, std::string* error = nullptr);
 
@@ -128,7 +128,7 @@ using CloudEndpointId = uint64_t;
 /// An endpoint of one file's own, so files on one page can reach different
 /// namespaces: each endpoint keeps its own session and token, and a request
 /// goes to the endpoint fetch() names. Checked as setCloudEndpoint checks; a
-/// refused one is still added, turned off, so its file's rive-cloud: requests
+/// refused one is still added, turned off, so its file's rive-relay: requests
 /// fail rather than reach another endpoint. Never 0.
 CloudEndpointId addCloudEndpoint(
     CloudEndpoint endpoint,
@@ -151,7 +151,7 @@ NetLimits limits();
 /// once they allow. Always returns a nonzero id: refusals settle through
 /// poll() like every other outcome, so a script never sees its promise
 /// settle during the fetch() call.
-/// A rive-cloud: request goes to `cloud`, the host's endpoint unless its
+/// A rive-relay: request goes to `cloud`, the host's endpoint unless its
 /// file added its own.
 RequestId fetch(
     uint64_t ownerId,

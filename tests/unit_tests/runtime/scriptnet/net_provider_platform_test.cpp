@@ -842,7 +842,7 @@ struct LocalEngine
   rcp<RecordingListener> fetch()
   {
     scriptnet::HttpRequest request;
-    request.url = "rive-cloud:/v1/app/data/a";
+    request.url = "rive-relay:/v1/app/data/a";
     return fetchAndWait(std::move(request));
   }
 };

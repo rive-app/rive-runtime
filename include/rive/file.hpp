@@ -112,7 +112,7 @@ struct FileImportOptions
   /// test artboard deferral.
   bool testing_deferDefaultArtboard = false;
 #endif
-  /// The Rive Cloud endpoint this file's scripts reach, from
+  /// The Rive Relay endpoint this file's scripts reach, from
   /// scriptnet::addCloudEndpoint; the file releases it when it goes. 0 sends
   /// them to the host's endpoint (scriptnet::setCloudEndpoint). After the
   /// flags, which pack together, so the options stay within the 16 bytes the
@@ -495,7 +495,7 @@ public:
   bool hasVM() { return m_scriptingVM != nullptr; }
 #endif
 #endif
-  /// The Rive Cloud endpoint this file's scripts reach; 0 is the host's.
+  /// The Rive Relay endpoint this file's scripts reach; 0 is the host's.
   uint64_t cloudEndpoint() const { return m_cloudEndpoint; }
 
   DataResolver* dataResolver()

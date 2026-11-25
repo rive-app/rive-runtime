@@ -157,7 +157,7 @@ struct Host
     auto result = make_rcp<Result>();
     HttpRequest request;
     request.method = method;
-    request.url = std::string("rive-cloud:") + path;
+    request.url = std::string("rive-relay:") + path;
     request.headers = std::move(headers);
     request.body.assign(body, body + strlen(body));
     result->id = fetch(kOwner + cloud, std::move(request), result, cloud);
@@ -359,8 +359,8 @@ TEST_CASE(
   host.sayHello();
   host.answer(200, "{}");
   poll();
-  CHECK(who->url == "rive-cloud:/v1/hello");
-  CHECK(data->url == "rive-cloud:/v1/app/data/a");
+  CHECK(who->url == "rive-relay:/v1/hello");
+  CHECK(data->url == "rive-relay:/v1/app/data/a");
 
   // A refused hello's answer reaches the script under its own URL too.
   setCloudEndpoint(CloudEndpoint());
@@ -369,7 +369,7 @@ TEST_CASE(
   poll();
   again.answer(503, "{}");
   CHECK(refused->status == 503);
-  CHECK(refused->url == "rive-cloud:/v1/app/data/b");
+  CHECK(refused->url == "rive-relay:/v1/app/data/b");
 }
 
 TEST_CASE(
@@ -462,7 +462,7 @@ TEST_CASE(
   CHECK(who->status == 404);
   CHECK(data->status == 401);
   CHECK(data->body == "{\"error\":\"not_found\"}");
-  CHECK(data->url == "rive-cloud:/v1/app/data/a");
+  CHECK(data->url == "rive-relay:/v1/app/data/a");
 
   // Too many hellos is too many requests, for either.
   auto limited = host.send("GET", "/v1/app/data/b");

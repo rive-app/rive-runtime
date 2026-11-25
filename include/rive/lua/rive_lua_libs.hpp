@@ -2201,7 +2201,7 @@ public:
   // use.
   uint64_t acquireOwnerId();
 
-  // The Rive Cloud endpoint this context's scripts reach: its file's, or 0
+  // The Rive Relay endpoint this context's scripts reach: its file's, or 0
   // for the host's.
   void cloudEndpoint(uint64_t value) { m_cloudEndpoint = value; }
   uint64_t cloudEndpoint() const { return m_cloudEndpoint; }
