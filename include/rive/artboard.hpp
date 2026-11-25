@@ -34,6 +34,7 @@
 #include <queue>
 #include <thread>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace rive
@@ -290,8 +291,19 @@ private:
   // manifest carries a watermark. Released as soon as the watermark finishes.
   std::unique_ptr<Watermark> m_watermark;
   bool sharesLayoutWithHost() const;
-  void cloneObjectDataBinds(const Core* object, Core* clone, Artboard* artboard)
-      const;
+  // This source's data binds as (target, index in dataBinds()), sorted by
+  // target then index, so instance() finds an object's binds without scanning
+  // all of them for every object. Left empty for a handful of binds, which
+  // are just scanned.
+  using DataBindsByTarget = std::vector<std::pair<const Core*, uint32_t>>;
+  void sortDataBindsByTarget(DataBindsByTarget& sorted) const;
+  // Clones the binds targeting [object] onto [artboard], retargeted to
+  // [clone], in the order they appear in dataBinds().
+  void cloneObjectDataBinds(
+      const DataBindsByTarget& sorted,
+      const Core* object,
+      Core* clone,
+      Artboard* artboard) const;
   // Sizes [clone]'s children and dependents for the ones [source] has, which
   // the clone ends up with once initialized, so they don't grow an entry at
   // a time.
@@ -1288,7 +1300,13 @@ public:
 #endif
     artboardClone->m_artboardSource = isInstance() ? m_artboardSource : this;
     artboardClone->reserveListsLike(*this);
-    cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
+    DataBindsByTarget dataBindsByTarget;
+    sortDataBindsByTarget(dataBindsByTarget);
+    cloneObjectDataBinds(
+        dataBindsByTarget,
+        this,
+        artboardClone.get(),
+        artboardClone.get());
 
     std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
     // The clone ends up with exactly as many objects as the source, so size it
@@ -1312,7 +1330,11 @@ public:
         }
         // For each object, clone its data bind objects and target their
         // clones
-        cloneObjectDataBinds(object, cloneObjects.back(), artboardClone.get());
+        cloneObjectDataBinds(
+            dataBindsByTarget,
+            object,
+            cloneObjects.back(),
+            artboardClone.get());
       }
     }
 

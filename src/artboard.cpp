@@ -97,6 +97,8 @@
 #include <cmath>
 #endif
 
+#include <algorithm>
+#include <functional>
 #include <mutex>
 #include <set>
 #include <unordered_map>
@@ -1977,18 +1979,63 @@ void Artboard::reserveListsLike(const Artboard& source)
   m_Joysticks.reserve(source.m_Joysticks.size());
 }
 
+// Up to this many binds, instance() keeps scanning them for each object: the
+// scan is cheap at that size, and the common case allocates nothing.
+static constexpr size_t kScannedDataBinds = 8;
+
+static bool dataBindTargetLess(
+    const std::pair<const Core*, uint32_t>& a,
+    const std::pair<const Core*, uint32_t>& b)
+{
+  if (a.first != b.first)
+  {
+    return std::less<const Core*>()(a.first, b.first);
+  }
+  return a.second < b.second;
+}
+
+void Artboard::sortDataBindsByTarget(DataBindsByTarget& sorted) const
+{
+  const auto& binds = dataBinds();
+  if (binds.size() <= kScannedDataBinds)
+  {
+    return;
+  }
+  sorted.reserve(binds.size());
+  for (uint32_t i = 0; i < (uint32_t)binds.size(); i++)
+  {
+    sorted.emplace_back(binds[i]->target(), i);
+  }
+  std::sort(sorted.begin(), sorted.end(), dataBindTargetLess);
+}
+
 void Artboard::cloneObjectDataBinds(
+    const DataBindsByTarget& sorted,
     const Core* object,
     Core* clone,
     Artboard* artboard) const
 {
-
-  for (auto dataBind : dataBinds())
+  const auto& binds = dataBinds();
+  if (sorted.empty())
   {
-    if (dataBind->target() == object)
+    for (auto dataBind : binds)
     {
-      artboard->addDataBind(dataBind->cloneWithTarget(clone));
+      if (dataBind->target() == object)
+      {
+        artboard->addDataBind(dataBind->cloneWithTarget(clone));
+      }
     }
+    return;
+  }
+  for (auto itr = std::lower_bound(
+           sorted.begin(),
+           sorted.end(),
+           std::make_pair(object, (uint32_t)0),
+           dataBindTargetLess);
+       itr != sorted.end() && itr->first == object;
+       ++itr)
+  {
+    artboard->addDataBind(binds[itr->second]->cloneWithTarget(clone));
   }
 }
 
