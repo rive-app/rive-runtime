@@ -970,6 +970,25 @@ bool validateStageLimits(
     return false;
   };
 
+  // Nothing can bind a storage texture, so the pipeline could never draw.
+  for (uint32_t g = 0; g < layoutCount && layouts != nullptr; ++g)
+  {
+    if (layouts[g] == nullptr)
+      continue;
+    for (const BindGroupLayoutEntry& e : layouts[g]->entries())
+    {
+      if (e.kind != BindingKind::storageTexture)
+        continue;
+      snprintf(
+          message,
+          sizeof(message),
+          "@group(%u) @binding(%u): storage textures are not supported",
+          g,
+          e.binding);
+      return fail();
+    }
+  }
+
   uint32_t dynamicUniformBuffers = 0;
   for (uint32_t g = 0; g < layoutCount && layouts != nullptr; ++g)
   {

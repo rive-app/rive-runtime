@@ -231,8 +231,8 @@ bool validateColorRequiresFragment(
     bool hasFragmentModule,
     std::string* outError);
 
-// WebGPU's per stage binding limits, counted from the layouts the way Dawn
-// counts them, so a pipeline the web refuses fails on every backend.
+// WebGPU's per stage binding limits, counted as Dawn counts them, so a pipeline
+// the web refuses fails everywhere. Also refuses a storage texture.
 bool validateStageLimits(
     BindGroupLayout* const* layouts,
     uint32_t layoutCount,

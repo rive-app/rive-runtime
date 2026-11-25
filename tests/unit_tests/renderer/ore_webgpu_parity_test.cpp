@@ -281,6 +281,23 @@ TEST_CASE(
       "binds a multisampled view"));
 }
 
+TEST_CASE("a pipeline layout cannot hold a storage texture", "[ore][webgpu]")
+{
+  DeferredOreContext ctx(nullptr);
+  auto sampled = layoutOf(ctx, {entry(0, BindingKind::sampledTexture)});
+  auto stored = layoutOf(
+      ctx,
+      {entry(0, BindingKind::sampledTexture),
+       entry(2, BindingKind::storageTexture)});
+  BindGroupLayout* layouts[] = {sampled.get(), stored.get()};
+  std::string error;
+  CHECK(validateStageLimits(layouts, 1, &error));
+  CHECK_FALSE(validateStageLimits(layouts, 2, &error));
+  CHECK(contains(
+      error,
+      "@group(1) @binding(2): storage textures are not supported"));
+}
+
 TEST_CASE(
     "pipeline layouts stay within WebGPU's per stage limits",
     "[ore][webgpu]")
