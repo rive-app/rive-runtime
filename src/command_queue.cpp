@@ -91,7 +91,7 @@ void CommandQueue::addGlobalImageAsset(
   m_commandStream << Command::addImageFileAsset;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::addGlobalFontAsset(
@@ -103,7 +103,7 @@ void CommandQueue::addGlobalFontAsset(
   m_commandStream << Command::addFontFileAsset;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::addGlobalAudioAsset(
@@ -115,7 +115,7 @@ void CommandQueue::addGlobalAudioAsset(
   m_commandStream << Command::addAudioFileAsset;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::removeGlobalImageAsset(std::string name, uint64_t requestId)
@@ -123,7 +123,7 @@ void CommandQueue::removeGlobalImageAsset(std::string name, uint64_t requestId)
   AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
   m_commandStream << Command::removeImageFileAsset;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::removeGlobalFontAsset(std::string name, uint64_t requestId)
@@ -131,7 +131,7 @@ void CommandQueue::removeGlobalFontAsset(std::string name, uint64_t requestId)
   AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
   m_commandStream << Command::removeFontFileAsset;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::removeGlobalAudioAsset(std::string name, uint64_t requestId)
@@ -139,7 +139,7 @@ void CommandQueue::removeGlobalAudioAsset(std::string name, uint64_t requestId)
   AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
   m_commandStream << Command::removeAudioFileAsset;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 ArtboardHandle CommandQueue::instantiateArtboardNamed(
@@ -270,7 +270,7 @@ ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
   m_commandStream << fileHandle;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << viewModelName;
+  m_names << std::move(viewModelName);
 
   return viewHandle;
 }
@@ -297,7 +297,7 @@ ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
   m_commandStream << artboardHandle;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << viewModelInstanceName;
+  m_names << std::move(viewModelInstanceName);
 
   return viewHandle;
 }
@@ -323,8 +323,8 @@ ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
   m_commandStream << fileHandle;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << viewModelName;
-  m_names << viewModelInstanceName;
+  m_names << std::move(viewModelName);
+  m_names << std::move(viewModelInstanceName);
 
   return viewHandle;
 }
@@ -349,7 +349,7 @@ ViewModelInstanceHandle CommandQueue::referenceNestedViewModelInstance(
   m_commandStream << handle;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 
   return viewHandle;
 }
@@ -376,7 +376,7 @@ ViewModelInstanceHandle CommandQueue::referenceListViewModelInstance(
   m_commandStream << index;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 
   return viewHandle;
 }
@@ -391,7 +391,7 @@ void CommandQueue::fireViewModelTrigger(
   m_commandStream << handle;
   m_commandStream << DataType::trigger;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceBool(
@@ -406,7 +406,7 @@ void CommandQueue::setViewModelInstanceBool(
   m_commandStream << DataType::boolean;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceNumber(
@@ -421,7 +421,7 @@ void CommandQueue::setViewModelInstanceNumber(
   m_commandStream << DataType::number;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceColor(
@@ -436,7 +436,7 @@ void CommandQueue::setViewModelInstanceColor(
   m_commandStream << DataType::color;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceEnum(
@@ -450,8 +450,8 @@ void CommandQueue::setViewModelInstanceEnum(
   m_commandStream << handle;
   m_commandStream << DataType::enumType;
   m_commandStream << requestId;
-  m_names << path;
-  m_names << value;
+  m_names << std::move(path);
+  m_names << std::move(value);
 }
 
 void CommandQueue::setViewModelInstanceString(
@@ -465,8 +465,8 @@ void CommandQueue::setViewModelInstanceString(
   m_commandStream << handle;
   m_commandStream << DataType::string;
   m_commandStream << requestId;
-  m_names << path;
-  m_names << value;
+  m_names << std::move(path);
+  m_names << std::move(value);
 }
 
 void CommandQueue::setViewModelInstanceImage(
@@ -481,7 +481,7 @@ void CommandQueue::setViewModelInstanceImage(
   m_commandStream << DataType::assetImage;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceFont(
@@ -496,7 +496,7 @@ void CommandQueue::setViewModelInstanceFont(
   m_commandStream << DataType::assetFont;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceBlob(
@@ -511,7 +511,7 @@ void CommandQueue::setViewModelInstanceBlob(
   m_commandStream << DataType::assetBlob;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceArtboard(
@@ -526,7 +526,7 @@ void CommandQueue::setViewModelInstanceArtboard(
   m_commandStream << DataType::artboard;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::setViewModelInstanceNestedViewModel(
@@ -541,7 +541,7 @@ void CommandQueue::setViewModelInstanceNestedViewModel(
   m_commandStream << DataType::viewModel;
   m_commandStream << requestId;
   m_commandStream << value;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::insertViewModelInstanceListViewModel(
@@ -557,7 +557,7 @@ void CommandQueue::insertViewModelInstanceListViewModel(
   m_commandStream << value;
   m_commandStream << index;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::removeViewModelInstanceListViewModel(
@@ -573,7 +573,7 @@ void CommandQueue::removeViewModelInstanceListViewModel(
   m_commandStream << value;
   m_commandStream << index;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::swapViewModelInstanceListValues(
@@ -589,7 +589,7 @@ void CommandQueue::swapViewModelInstanceListValues(
   m_commandStream << indexa;
   m_commandStream << indexb;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::subscribeToViewModelProperty(
@@ -603,7 +603,7 @@ void CommandQueue::subscribeToViewModelProperty(
   m_commandStream << handle;
   m_commandStream << type;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::unsubscribeToViewModelProperty(
@@ -617,7 +617,7 @@ void CommandQueue::unsubscribeToViewModelProperty(
   m_commandStream << handle;
   m_commandStream << type;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::deleteViewModelInstance(
@@ -803,7 +803,7 @@ void CommandQueue::setGlobalViewModelInstance(
   m_commandStream << handle;
   m_commandStream << viewModel;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 void CommandQueue::clearGlobalViewModelInstance(
@@ -815,7 +815,7 @@ void CommandQueue::clearGlobalViewModelInstance(
   m_commandStream << Command::clearGlobalViewModelInstance;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 }
 
 ViewModelInstanceHandle CommandQueue::globalViewModelInstance(
@@ -838,7 +838,7 @@ ViewModelInstanceHandle CommandQueue::globalViewModelInstance(
   m_commandStream << handle;
   m_commandStream << viewHandle;
   m_commandStream << requestId;
-  m_names << name;
+  m_names << std::move(name);
 
   return viewHandle;
 }
@@ -1288,7 +1288,7 @@ void CommandQueue::requestViewModelPropertyDefinitions(
   m_commandStream << Command::listViewModelProperties;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << viewModelName;
+  m_names << std::move(viewModelName);
 }
 
 void CommandQueue::requestViewModelInstanceNames(
@@ -1300,7 +1300,7 @@ void CommandQueue::requestViewModelInstanceNames(
   m_commandStream << Command::listViewModelInstanceNames;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << viewModelName;
+  m_names << std::move(viewModelName);
 }
 
 void CommandQueue::requestViewModelInstanceViewModelName(
@@ -1333,7 +1333,7 @@ void CommandQueue::requestViewModelInstanceBool(
   m_commandStream << DataType::boolean;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceNumber(
@@ -1346,7 +1346,7 @@ void CommandQueue::requestViewModelInstanceNumber(
   m_commandStream << DataType::number;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceColor(
@@ -1359,7 +1359,7 @@ void CommandQueue::requestViewModelInstanceColor(
   m_commandStream << DataType::color;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceEnum(
@@ -1372,7 +1372,7 @@ void CommandQueue::requestViewModelInstanceEnum(
   m_commandStream << DataType::enumType;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceString(
@@ -1385,7 +1385,7 @@ void CommandQueue::requestViewModelInstanceString(
   m_commandStream << DataType::string;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceListSize(
@@ -1397,7 +1397,7 @@ void CommandQueue::requestViewModelInstanceListSize(
   m_commandStream << Command::getViewModelListSize;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestViewModelInstanceListClear(
@@ -1409,7 +1409,7 @@ void CommandQueue::requestViewModelInstanceListClear(
   m_commandStream << Command::clearViewModelList;
   m_commandStream << handle;
   m_commandStream << requestId;
-  m_names << path;
+  m_names << std::move(path);
 }
 
 void CommandQueue::requestArtboardSize(

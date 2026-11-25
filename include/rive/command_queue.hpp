@@ -762,7 +762,7 @@ public:
   {
     return instantiateViewModelInstanceNamed(
         fileHandle,
-        viewModelName,
+        std::move(viewModelName),
         "",
         listener,
         requestId);
