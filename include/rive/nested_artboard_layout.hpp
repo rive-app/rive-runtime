@@ -39,6 +39,7 @@ public:
       ViewModelInstanceArtboard* viewModelInstanceArtboard,
       bool mount) override;
   void remount() override;
+  void mountDeferred() override;
 
   TransformComponent* transformComponent() override
   {

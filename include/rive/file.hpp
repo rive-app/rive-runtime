@@ -99,6 +99,10 @@ struct FileImportOptions
   /// and adds to the referencer lists of the file's assets.
   bool deferDecoding = false;
 #ifdef TESTING
+  /// When 0 or more, the BackboardRuntimeFlags the file loads with, in place
+  /// of what its Backboard and version decide: for tests that run one mode
+  /// over every asset.
+  int16_t testing_runtimeFlags = -1;
   /// Which parts deferDecoding defers, for tests that hold one part at a
   /// time to an eager import.
   bool testing_deferAnimations = true;
@@ -157,7 +161,12 @@ public:
   /// targeted group. Older files never hit tested images, so honoring them
   /// would grow the hit area of listeners on groups holding one. See
   /// Image::import.
-  static const int minorVersion = 5;
+  /// 7.6: a nested artboard that starts collapsed is instanced the first time
+  /// it is shown, unless the Backboard clears
+  /// BackboardRuntimeFlags::deferCollapsedNestedArtboards. Older files were
+  /// authored against every nested artboard existing from the start, so they
+  /// keep that. See defersCollapsedNestedArtboards.
+  static const int minorVersion = 6;
   /// deterministicMode sets a static seed for randomization and uses
   /// timestamps for scrolling.
   static bool deterministicMode;
@@ -282,6 +291,11 @@ public:
   {
     return m_deferredViewModelInstanceStats;
   }
+  /// Whether a nested artboard that starts collapsed waits to be shown before
+  /// it is instanced: files from 7.6 on, unless their Backboard clears
+  /// BackboardRuntimeFlags::deferCollapsedNestedArtboards (it is on by
+  /// default). Hosts read it when they are cloned, at instancing.
+  bool defersCollapsedNestedArtboards() const;
 
   // File resources; the first is currently the default selection style.
   size_t selectionStyleCount() const { return m_selectionStyles.size(); }
@@ -672,6 +686,12 @@ private:
   /// FileImportOptions::deferDecoding, for file level view model instances,
   /// as this file was imported.
   bool m_deferViewModelInstances = false;
+  /// FileImportOptions::testing_runtimeFlags, set only in TESTING builds. It
+  /// is declared in every build: test code compiled with TESTING links
+  /// runtime libraries built without it (rive-cli's tests), and a member
+  /// only one of them has would shift every member after it. It sits in the
+  /// padding before m_cloudEndpoint, so File doesn't grow.
+  int16_t m_testingRuntimeFlags = -1;
   // FileImportOptions::cloudEndpoint, owned by this file.
   uint64_t m_cloudEndpoint = 0;
   DeferredViewModelInstanceStats m_deferredViewModelInstanceStats;

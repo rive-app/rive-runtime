@@ -5041,6 +5041,13 @@ StateMachineInstance::StateMachineInstance(
         nestedArtboard->as<Component>(),
         this);
     m_hitComponents.push_back(std::move(hn));
+    if (nestedArtboard->isInstanceDeferred())
+    {
+      // Its nested animations have no instances to report from yet; they
+      // take this listener when the host mounts.
+      nestedArtboard->deferNestedEventListener(this);
+      continue;
+    }
     for (auto animation : nestedArtboard->nestedAnimations())
     {
       if (animation->is<NestedStateMachine>())

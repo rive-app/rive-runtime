@@ -19,4 +19,25 @@ void NestedTrigger::applyValue()
       numInput->fire();
     }
   }
+  else
+  {
+    // No machine yet: a collapsed one would hold the trigger until it next
+    // advances, so this holds it until the machine is created.
+    m_pendingFire = true;
+  }
+}
+
+void NestedTrigger::resetHeld(const NestedInput* source)
+{
+  m_pendingFire = false;
+}
+
+void NestedTrigger::firePending()
+{
+  if (!m_pendingFire)
+  {
+    return;
+  }
+  m_pendingFire = false;
+  applyValue();
 }

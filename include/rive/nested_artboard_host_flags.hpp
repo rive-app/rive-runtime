@@ -21,6 +21,17 @@ enum class NestedArtboardHostFlags : uint8_t
   /// since: skipping its advance would note nothing the state machines
   /// inside read.
   inactiveMarked = 1 << 2,
+  /// Cloned collapsed from a file that defers them
+  /// (File::defersCollapsedNestedArtboards): nothing is mounted
+  /// until the host is first shown or looked up by path (see
+  /// NestedArtboard::mountDeferred).
+  deferredInstance = 1 << 3,
+  /// Set with deferredInstance and kept after the host mounts, until a
+  /// remount puts its nested inputs back to their source's values: only a
+  /// host that had no machine can hold a value its next item would take (see
+  /// NestedArtboard::remount). The others skip that reset, which looks up
+  /// every input's source.
+  heldInputs = 1 << 4,
 };
 
 } // namespace rive

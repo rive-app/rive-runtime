@@ -437,6 +437,9 @@ rcp<File> File::import(
   file->m_deferArtboards = options.deferDecoding;
   file->m_deferViewModelInstances = options.deferDecoding;
 #endif
+#ifdef TESTING
+  file->m_testingRuntimeFlags = options.testing_runtimeFlags;
+#endif
 #ifdef WITH_RIVE_SCRIPTING
   file->m_requireSignedScripts = requireSignedScripts;
 #else
@@ -461,6 +464,22 @@ rcp<File> File::import(
     file.reset(nullptr);
   }
   return file;
+}
+
+bool File::defersCollapsedNestedArtboards() const
+{
+  auto flag = BackboardRuntimeFlags::deferCollapsedNestedArtboards;
+#ifdef TESTING
+  if (m_testingRuntimeFlags >= 0)
+  {
+    return (m_testingRuntimeFlags & static_cast<uint8_t>(flag)) != 0;
+  }
+#endif
+  bool versioned = m_header.majorVersion() > 7 ||
+                   (m_header.majorVersion() == 7 &&
+                    m_header.minorVersion() >= 6);
+  return versioned && m_backboard != nullptr &&
+         m_backboard->hasRuntimeFlag(flag);
 }
 
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)

@@ -27,6 +27,8 @@ class ArtboardInstance;
 class FocusManager;
 class NestedAnimation;
 class ComponentOrigin;
+class NestedEventListener;
+class NestedEventNotifier;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
@@ -73,6 +75,17 @@ private:
   friend class NestedArtboardMeshHost;
   // Null until a mesh or N-Slice attaches, so other instances pay a pointer.
   std::unique_ptr<NestedArtboardMeshHost> m_meshHost;
+  // Null until a state machine registers for the events of a deferred
+  // host's nested animations (deferNestedEventListener).
+  std::unique_ptr<NestedEventNotifier> m_deferredEventListeners;
+  // The artboard a deferred host mounts: what its source host references.
+  Artboard* deferredSource() const;
+  // The nested inputs back to their source's values, with no trigger held:
+  // what a value set while the host was deferred left behind (remount).
+  void resetHeldInputs();
+  // A deferred host lets go of the data context it would bind on mounting
+  // (clearDataContext, unbind).
+  void forgetDeferredDataContext();
   MeshDrawable* hostedMesh() const;
   void clearNestedAnimations();
   float m_cumulatedSeconds = 0;
@@ -109,6 +122,11 @@ private:
 public:
 #ifdef WITH_RIVE_EDITOR
   void editorPrepareForDestruction() override;
+#endif
+#ifdef TESTING
+  /// How many times any host has put its nested inputs back to their
+  /// source's values (remount), each a lookup per input.
+  static int testing_heldInputResets;
 #endif
   /// True when this host can receive runtime artboard swaps and therefore
   /// owns (or will own) a persistent focus scope.
@@ -175,6 +193,22 @@ public:
   /// had just been instanced. A list does this for the rows it hands to
   /// another item, before binding them to it.
   virtual void remount();
+  /// Whether this host was cloned collapsed and has not mounted its artboard
+  /// yet (File::defersCollapsedNestedArtboards).
+  bool isInstanceDeferred() const
+  {
+    return enums::is_flag_set(
+        m_hostFlags,
+        NestedArtboardHostFlags::deferredInstance);
+  }
+  /// Mounts the artboard a deferred host was cloned without, as instancing
+  /// would have: its nested animations' instances, the data context it was
+  /// handed, its focus and semantic trees. No-op when nothing is deferred.
+  virtual void mountDeferred();
+  /// Holds [listener] for the instances of the nested animations a deferred
+  /// host creates when it mounts. A state machine on the artboard this host
+  /// sits in registers here while there is nothing to register with.
+  void deferNestedEventListener(NestedEventListener* listener);
   int referencedArtboardId() override;
   void referencedArtboard(Artboard* artboard) override;
   size_t artboardCount() override { return 1; }

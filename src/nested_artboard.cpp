@@ -14,6 +14,9 @@
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/nested_animation.hpp"
+#include "rive/animation/nested_input.hpp"
+#include "rive/animation/nested_linear_animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -109,6 +112,21 @@ Core* NestedArtboard::clone() const
 void NestedArtboard::cloneReferencesInto(NestedArtboard* clone) const
 {
   clone->file(file());
+  // A collapsed host's clone mounts the first time it is shown, when its
+  // file defers them. One bound to an artboard property mounts whatever the
+  // binding names, so the binding is left to decide. One that has mounted
+  // (cloning an instance) clones what it mounted, which may have changed
+  // since: mounting from the source later would lose that.
+  if (m_file != nullptr && m_file->defersCollapsedNestedArtboards() &&
+      !isArtboardDataBound() && m_mountedBindable == nullptr &&
+      (isInstanceDeferred() ||
+       (m_referencedArtboard != nullptr &&
+        !m_referencedArtboard->isInstance() && isCollapsed())))
+  {
+    clone->m_hostFlags |= NestedArtboardHostFlags::deferredInstance |
+                          NestedArtboardHostFlags::heldInputs;
+    return;
+  }
   if (m_referencedArtboard == nullptr)
   {
     return;
@@ -857,6 +875,10 @@ bool NestedArtboard::collapse(bool value)
   {
     return false;
   }
+  if (!value)
+  {
+    mountDeferred();
+  }
 
   auto* nestedInstance = artboardInstance();
   if (nestedInstance == nullptr)
@@ -888,6 +910,9 @@ Span<NestedAnimation*> NestedArtboard::nestedAnimations()
 
 NestedArtboard* NestedArtboard::nestedArtboard(std::string name) const
 {
+  // Looked up by name, as by path (Artboard::nestedArtboardAtPath): a
+  // deferred host mounts what the caller reaches into.
+  const_cast<NestedArtboard*>(this)->mountDeferred();
   if (m_Instance != nullptr)
   {
     return m_Instance->nestedArtboard(name);
@@ -916,6 +941,9 @@ NestedInput* NestedArtboard::input(
     std::string name,
     std::string stateMachineName) const
 {
+  // A nested input's name is its machine's input's (NestedInput::name), so
+  // a deferred host mounts for the lookup.
+  const_cast<NestedArtboard*>(this)->mountDeferred();
   if (!stateMachineName.empty())
   {
     auto nestedSM = stateMachine(stateMachineName);
@@ -1103,6 +1131,10 @@ void NestedArtboard::clearDataContext()
       }
     }
   }
+  else
+  {
+    forgetDeferredDataContext();
+  }
 }
 
 void NestedArtboard::unbind()
@@ -1111,6 +1143,23 @@ void NestedArtboard::unbind()
   {
     artboardInstance()->unbind();
   }
+  else
+  {
+    forgetDeferredDataContext();
+  }
+}
+
+void NestedArtboard::forgetDeferredDataContext()
+{
+  if (!isInstanceDeferred())
+  {
+    return;
+  }
+  // Nothing is bound yet, but mounting binds the context this host was
+  // handed: let it go, or mounting rebinds what the caller cleared. A bind
+  // that follows hands it a new one.
+  m_dataContext = nullptr;
+  m_viewModelInstance = nullptr;
 }
 
 void NestedArtboard::updateDataBinds()
@@ -1215,7 +1264,17 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
   if (m_referencedArtboard == nullptr)
   {
-    return false;
+    // Shown without collapse(false) reaching it (nothing collapsed this
+    // instance's host though its source host was): it mounts now.
+    if (!isInstanceDeferred() || isCollapsed())
+    {
+      return false;
+    }
+    mountDeferred();
+    if (m_referencedArtboard == nullptr)
+    {
+      return false;
+    }
   }
   if (isCollapsed() || isPaused())
   {
@@ -1319,7 +1378,9 @@ AdvancingComponent::QuietState NestedArtboard::quietState()
   using QuietState = AdvancingComponent::QuietState;
   if (m_referencedArtboard == nullptr)
   {
-    return QuietState::quiet;
+    // A deferred host that is shown mounts on its next advance.
+    return isInstanceDeferred() && !isCollapsed() ? QuietState::busy
+                                                  : QuietState::quiet;
   }
   // An instance this host doesn't own may be advanced elsewhere too.
   if (m_Instance == nullptr)
@@ -1441,6 +1502,13 @@ void NestedArtboard::remount()
 {
   if (m_Instance == nullptr)
   {
+    // Deferred, there is nothing to replace, but what its nested inputs
+    // hold was set for the item it hosted: a fresh instance's machines start
+    // from the source's values, so these do too.
+    if (isInstanceDeferred())
+    {
+      resetHeldInputs();
+    }
     return;
   }
   // The outgoing instance leaves the trees it joined while it is whole, as
@@ -1452,6 +1520,16 @@ void NestedArtboard::remount()
   for (auto* animation : m_NestedAnimations)
   {
     animation->releaseDependencies();
+  }
+  // The new machines take their nested inputs' values. A value set while
+  // this host was deferred is still held there, so it goes back to the
+  // source's before they start, as on the deferred path. With machines from
+  // here on, nothing more can be held, so later remounts, and those of a
+  // host that never deferred, skip it: a list remounts rows as it scrolls.
+  if (enums::is_flag_set(m_hostFlags, NestedArtboardHostFlags::heldInputs))
+  {
+    resetHeldInputs();
+    m_hostFlags &= ~NestedArtboardHostFlags::heldInputs;
   }
   auto source = m_Instance->artboardSource();
   m_cumulatedSeconds = 0.0f;
@@ -1465,6 +1543,154 @@ void NestedArtboard::remount()
     animation->initializeAnimation(m_Instance.get());
   }
   addDirt(ComponentDirt::Filthy);
+}
+
+// An instance's objects are its source's clones, in the same order, so an
+// object's source sits at its index in the source artboard. Null when
+// [object] isn't on an instance, or the source there isn't of its type.
+static const Core* sourceObjectOf(const Artboard* host, const Core* object)
+{
+  const Artboard* source = host != nullptr ? host->artboardSource() : nullptr;
+  if (source == nullptr || source == host)
+  {
+    return nullptr;
+  }
+  uint32_t id = host->idOf(const_cast<Core*>(object));
+  const auto& objects = source->objects();
+  if (id == 0 || id >= objects.size() || objects[id] == nullptr ||
+      objects[id]->coreType() != object->coreType())
+  {
+    return nullptr;
+  }
+  return objects[id];
+}
+
+Artboard* NestedArtboard::deferredSource() const
+{
+  auto* sourceHost = sourceObjectOf(artboard(), this);
+  if (sourceHost == nullptr ||
+      sourceHost->as<NestedArtboard>()->artboardId() != artboardId())
+  {
+    return nullptr;
+  }
+  return sourceHost->as<NestedArtboard>()->m_referencedArtboard;
+}
+
+#ifdef TESTING
+int NestedArtboard::testing_heldInputResets = 0;
+#endif
+
+void NestedArtboard::resetHeldInputs()
+{
+#ifdef TESTING
+  testing_heldInputResets++;
+#endif
+  for (auto* animation : m_NestedAnimations)
+  {
+    if (!animation->is<NestedStateMachine>())
+    {
+      continue;
+    }
+    auto* machine = animation->as<NestedStateMachine>();
+    for (size_t i = 0; machine->input(i) != nullptr; i++)
+    {
+      auto* input = machine->input(i);
+      auto* source = sourceObjectOf(artboard(), input);
+      input->resetHeld(source != nullptr ? source->as<NestedInput>() : nullptr);
+    }
+  }
+}
+
+void NestedArtboard::mountDeferred()
+{
+  if (!isInstanceDeferred())
+  {
+    return;
+  }
+  m_hostFlags &= ~NestedArtboardHostFlags::deferredInstance;
+  Artboard* source = deferredSource();
+  Artboard* host = artboard();
+  if (source == nullptr || host == nullptr)
+  {
+    // Left empty, as a clone of a host with nothing to reference is.
+    m_deferredEventListeners = nullptr;
+    return;
+  }
+  // On the hosting instance's factory, as Artboard::reinstanceNestedArtboards
+  // leaves the hosts that were instanced with it.
+  referencedArtboard(
+      source->instance<ArtboardInstance>(host->factory()).release());
+  // Artboard::volume reaches only the instances that exist when it is set,
+  // so this one takes the hosting artboard's now.
+  m_Instance->volume(host->volume());
+  // Wires each machine to the host's focus manager, when it has one, and
+  // applies the nested inputs' values (held while there was no machine).
+  for (auto* animation : m_NestedAnimations)
+  {
+    animation->initializeAnimation(m_Instance.get());
+  }
+  // A machine's initializeAnimation built the focus tree under the host's
+  // closest focus node; without one, build it here, as the load-time walk
+  // (Artboard::buildFocusTree) does for every host.
+  if (!hasNestedStateMachines())
+  {
+    syncNestedFocusTree(FocusData::findClosestFocusNode(this));
+  }
+  if (m_deferredEventListeners != nullptr)
+  {
+    auto listeners = m_deferredEventListeners->nestedEventListeners();
+    m_deferredEventListeners = nullptr;
+    for (auto* animation : m_NestedAnimations)
+    {
+      NestedEventNotifier* notifier = nullptr;
+      if (animation->is<NestedStateMachine>())
+      {
+        notifier = animation->as<NestedStateMachine>()->stateMachineInstance();
+      }
+      else if (animation->is<NestedLinearAnimation>())
+      {
+        notifier = animation->as<NestedLinearAnimation>()->animationInstance();
+      }
+      if (notifier == nullptr)
+      {
+        continue;
+      }
+      notifier->setNestedArtboard(this);
+      for (auto* listener : listeners)
+      {
+        notifier->addNestedEventListener(listener);
+      }
+    }
+  }
+  // The data context this host was handed while it had nothing to pass it
+  // to. A stateful host binds on its next advance (referencedArtboard
+  // scheduled it).
+  if (m_viewModelInstance != nullptr)
+  {
+    bindViewModelInstance(m_viewModelInstance, m_dataContext);
+  }
+  else if (m_dataContext != nullptr)
+  {
+    internalDataContext(m_dataContext);
+  }
+  auto* semanticManager = host->semanticManager();
+  if (semanticManager != nullptr)
+  {
+    auto parentNode = SemanticData::findClosestSemanticNode(this);
+    m_Instance->buildSemanticTree(
+        semanticManager,
+        parentNode != nullptr ? parentNode : host->semanticBoundaryNode());
+  }
+  addDirt(ComponentDirt::Filthy);
+}
+
+void NestedArtboard::deferNestedEventListener(NestedEventListener* listener)
+{
+  if (m_deferredEventListeners == nullptr)
+  {
+    m_deferredEventListeners = std::make_unique<NestedEventNotifier>();
+  }
+  m_deferredEventListeners->addNestedEventListener(listener);
 }
 
 Artboard* NestedArtboard::sourceArtboard()

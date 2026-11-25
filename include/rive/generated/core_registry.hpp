@@ -1806,6 +1806,9 @@ public:
       case JoystickBase::joystickFlagsPropertyKey:
         object->as<JoystickBase>()->joystickFlags(value);
         break;
+      case BackboardBase::runtimeFlagsPropertyKey:
+        object->as<BackboardBase>()->runtimeFlags(value);
+        break;
       case OpenUrlEventBase::targetValuePropertyKey:
         object->as<OpenUrlEventBase>()->targetValue(value);
         break;
@@ -3941,6 +3944,8 @@ public:
         return object->as<FocusDataBase>()->edgeBehaviorValue();
       case JoystickBase::joystickFlagsPropertyKey:
         return object->as<JoystickBase>()->joystickFlags();
+      case BackboardBase::runtimeFlagsPropertyKey:
+        return object->as<BackboardBase>()->runtimeFlags();
       case OpenUrlEventBase::targetValuePropertyKey:
         return object->as<OpenUrlEventBase>()->targetValue();
       case SemanticDataBase::rolePropertyKey:
@@ -5255,6 +5260,7 @@ public:
       case FocusDataBase::focusFlagsPropertyKey:
       case FocusDataBase::edgeBehaviorValuePropertyKey:
       case JoystickBase::joystickFlagsPropertyKey:
+      case BackboardBase::runtimeFlagsPropertyKey:
       case OpenUrlEventBase::targetValuePropertyKey:
       case SemanticDataBase::rolePropertyKey:
       case SemanticDataBase::headingLevelPropertyKey:
@@ -6250,6 +6256,8 @@ public:
         return FocusDataBase::typeKey;
       case JoystickBase::joystickFlagsPropertyKey:
         return JoystickBase::typeKey;
+      case BackboardBase::runtimeFlagsPropertyKey:
+        return BackboardBase::typeKey;
       case OpenUrlEventBase::targetValuePropertyKey:
         return OpenUrlEventBase::typeKey;
       case SemanticDataBase::rolePropertyKey:

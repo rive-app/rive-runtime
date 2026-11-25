@@ -21,6 +21,10 @@ public:
   }
 
   virtual void applyValue() {}
+  /// Back to how a fresh clone of [source] starts, with nothing held for a
+  /// machine its host hasn't made (NestedArtboard::remount on a deferred
+  /// host). [source] is null when it can't be found, which keeps the value.
+  virtual void resetHeld(const NestedInput* source) {}
 
   SMIInput* input() const
   {

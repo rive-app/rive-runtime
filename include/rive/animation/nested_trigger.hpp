@@ -9,6 +9,13 @@ class NestedTrigger : public NestedTriggerBase
 public:
   void applyValue() override;
   void fire(const CallbackData& value) override;
+  /// Fires a trigger fired while there was no machine (its host deferred
+  /// instancing). NestedStateMachine::initializeAnimation calls it.
+  void firePending();
+  void resetHeld(const NestedInput* source) override;
+
+private:
+  bool m_pendingFire = false;
 };
 } // namespace rive
 

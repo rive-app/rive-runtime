@@ -2,6 +2,7 @@
 #include "rive/animation/nested_input.hpp"
 #include "rive/animation/nested_number.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/animation/nested_trigger.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/hit_result.hpp"
@@ -71,6 +72,10 @@ void NestedStateMachine::initializeAnimation(
     if (nestedInput->is<NestedBool>() || nestedInput->is<NestedNumber>())
     {
       nestedInput->applyValue();
+    }
+    else if (nestedInput->is<NestedTrigger>())
+    {
+      nestedInput->as<NestedTrigger>()->firePending();
     }
   }
 }

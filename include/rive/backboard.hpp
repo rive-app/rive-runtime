@@ -1,10 +1,17 @@
 #ifndef _RIVE_BACKBOARD_HPP_
 #define _RIVE_BACKBOARD_HPP_
 #include "rive/generated/backboard_base.hpp"
+#include "rive/backboard_runtime_flags.hpp"
 namespace rive
 {
 class Backboard : public BackboardBase
 {
+public:
+  bool hasRuntimeFlag(BackboardRuntimeFlags flag) const
+  {
+    return (runtimeFlags() & static_cast<uint8_t>(flag)) != 0;
+  }
+
 #ifdef WITH_RIVE_EDITOR
 public:
   // Editor-only. `hydrogenPanes` is `"runtime": false` + `"coop":

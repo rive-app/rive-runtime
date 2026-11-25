@@ -5297,6 +5297,9 @@ NestedArtboard* Artboard::nestedArtboard(const std::string& name) const
   {
     if (nested->name() == name)
     {
+      // Asked for by name, so the caller reaches into what it mounts: a
+      // deferred host mounts now, collapsed or not.
+      nested->mountDeferred();
       return nested;
     }
   }

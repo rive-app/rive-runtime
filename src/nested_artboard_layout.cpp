@@ -275,6 +275,44 @@ void NestedArtboardLayout::remount()
 #endif
 }
 
+void NestedArtboardLayout::mountDeferred()
+{
+  if (!isInstanceDeferred())
+  {
+    return;
+  }
+#ifdef WITH_RIVE_LAYOUT
+  // As remount: the owning layout collects the mounted instance's node.
+  auto* layout = owningLayout(parent());
+  if (layout != nullptr)
+  {
+    layout->clearLayoutChildren();
+  }
+#endif
+  NestedArtboard::mountDeferred();
+  updateWidthOverride();
+  updateHeightOverride();
+#ifdef WITH_RIVE_LAYOUT
+  if (layout != nullptr)
+  {
+    layout->syncLayoutChildren();
+  }
+  // The owner cascades its direction and interpolation only when its own
+  // style changes, so an instance mounted after that would inherit neither
+  // until the next change. Hand it the owner's now, as a list does a row it
+  // adds (ArtboardComponentList).
+  LayoutComponent* from = layout != nullptr ? layout : artboard();
+  if (from != nullptr && artboardInstance() != nullptr)
+  {
+    cascadeLayoutStyle(
+        from->interpolation(),
+        from->interpolator(),
+        from->interpolationTime(),
+        from->actualDirection());
+  }
+#endif
+}
+
 void NestedArtboardLayout::swapArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard,
     bool mount)

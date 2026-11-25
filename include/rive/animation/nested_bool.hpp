@@ -11,6 +11,7 @@ public:
   bool nestedValue() const override;
 
   void applyValue() override;
+  void resetHeld(const NestedInput* source) override;
 
 protected:
 };

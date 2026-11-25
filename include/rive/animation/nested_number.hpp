@@ -10,6 +10,7 @@ public:
   void nestedValue(float value) override;
   float nestedValue() const override;
   void applyValue() override;
+  void resetHeld(const NestedInput* source) override;
 
 protected:
 };
