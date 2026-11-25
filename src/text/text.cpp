@@ -577,11 +577,33 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
   StyledText bestStyled;
   SimpleArray<Paragraph> bestShape;
 
+  // Coverage is stale until update computes it; line ranges move with size.
+  bool probeCoverage = false;
+  bool coveragePerScale = false;
+  for (TextModifierGroup* group : m_modifierGroups)
+  {
+    if (group->hasShapeModifiers())
+    {
+      probeCoverage = probeCoverage || group->coverageDirty();
+      coveragePerScale = coveragePerScale || group->rangesNeedShape();
+    }
+  }
+  coveragePerScale = probeCoverage && coveragePerScale;
+  if (probeCoverage && !coveragePerScale)
+  {
+    computeProbeCoverage(1.0f, boxWidth);
+  }
+
   // Shapes and lays out the text at the given integer top size and reports
   // whether it fits the bounds. Text dimensions grow monotonically with size,
-  // so this predicate is monotonic and binary-searchable.
+  // so this predicate is binary-searchable. A line range on a shape modifier
+  // can break that, so the result may not be the largest fit.
   auto fits = [&](int topSize) -> bool {
     float scale = (float)topSize / maxSize;
+    if (coveragePerScale)
+    {
+      computeProbeCoverage(scale, boxWidth);
+    }
     if (!makeStyled(styledText, true, scale))
     {
       // Nothing to lay out: trivially fits.
@@ -643,11 +665,24 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
     }
     return false;
   };
-  auto spareBest = [&]() {
+  auto settle = [&](int size) -> float {
     if (!bestShape.empty())
     {
       spareShape(bestStyled, std::move(bestShape), fallbacks);
     }
+    if (probeCoverage)
+    {
+      // measure styles at the fitted scale; update rebuilds the maps.
+      if (coveragePerScale)
+      {
+        computeProbeCoverage((float)size / maxSize, boxWidth);
+      }
+      for (TextModifierGroup* group : m_modifierGroups)
+      {
+        group->clearRangeMaps();
+      }
+    }
+    return (float)size / maxSize;
   };
 
   // Above 2^24 floats skip integers, and hi + 1 must not overflow int.
@@ -656,13 +691,10 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
   // that fits. If nothing fits we fall back to the minimum size (1).
   int lo = 1;
   int hi = (int)std::min(maxSize, kMaxSearchSize);
-  // Most texts fit at their authored size, which the search below only
-  // reaches after shaping every halving on the way up. The predicate is
-  // monotonic, so checking the top first returns the same size.
+  // Most texts fit at their authored size; the editor also tries it first.
   if (fits(hi))
   {
-    spareBest();
-    return (float)hi / maxSize;
+    return settle(hi);
   }
   hi--;
   int best = 1;
@@ -679,8 +711,27 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
       hi = mid - 1;
     }
   }
-  spareBest();
-  return (float)best / maxSize;
+  return settle(best);
+}
+
+void Text::computeProbeCoverage(float fontScale, float width)
+{
+  StyledText styled;
+  if (!makeStyled(styled, false, fontScale))
+  {
+    return;
+  }
+  SimpleArray<Paragraph> shape = shapeStyled(styled, ShapeSource::modifier);
+  auto lines = BreakLines(shape, width, align(), wrap(), wordBreak());
+  GlyphLookup glyphLookup;
+  glyphLookup.compute(styled.unichars(), shape);
+  uint32_t textSize = (uint32_t)styled.unichars().size();
+  for (TextModifierGroup* group : m_modifierGroups)
+  {
+    group->clearRangeMaps();
+    group->computeRangeMap(styled.unichars(), shape, lines, glyphLookup);
+    group->computeCoverage(textSize);
+  }
 }
 
 LineIter Text::shouldDrawLine(

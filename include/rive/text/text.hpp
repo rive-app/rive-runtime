@@ -581,6 +581,7 @@ private:
   // Same search, against an explicit box. Used by measure(), where the box
   // Yoga is offering is not yet reflected in m_layoutWidth/Height.
   float fitFontScale(float boxWidth, float boxHeight);
+  void computeProbeCoverage(float fontScale, float width);
   LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
   void buildTextStylePaints();
   std::vector<TextValueRunListener*> m_valueRunListeners;

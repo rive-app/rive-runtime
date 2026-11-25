@@ -423,10 +423,11 @@ void TextModifierGroup::applyShapeModifiers(
 
 bool TextModifierGroup::needsShape() const
 {
-  if (!m_shapeModifiers.empty())
-  {
-    return true;
-  }
+  return !m_shapeModifiers.empty() || rangesNeedShape();
+}
+
+bool TextModifierGroup::rangesNeedShape() const
+{
   for (const TextModifierRange* range : m_ranges)
   {
     if (range->needsShape())

@@ -111,11 +111,15 @@ public:
 
   float computeOpacity(float current, float t) const;
   bool needsShape() const;
+  bool hasShapeModifiers() const { return !m_shapeModifiers.empty(); }
+  bool rangesNeedShape() const;
+  bool coverageDirty() const { return hasDirt(ComponentDirt::TextCoverage); }
   void onTextWorldTransformDirty();
 
 #ifdef TESTING
   const std::vector<TextModifierRange*>& ranges() const { return m_ranges; }
   const std::vector<TextModifier*>& modifiers() const { return m_modifiers; }
+  const std::vector<float>& coverageValues() const { return m_coverage; }
 #endif
 
 protected:
