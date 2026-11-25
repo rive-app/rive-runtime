@@ -678,11 +678,15 @@ TEST_CASE(
       "PUT",
       "/v1/players/me/data/save",
       "{}",
-      {{"Authorization", "Bearer mine"}, {"Idempotency-Key", "7"}});
+      {{"Authorization", "Bearer mine"},
+       {"Idempotency-Key", "7"},
+       {"Content-Type", "text/plain"}});
   poll();
   host.sayHello();
   const HttpRequest& sent = host.sent();
   CHECK(header(sent, "authorization") == "Bearer tok.A_1");
+  // The engine would read a text/plain body as a browser's wrapped request.
+  CHECK(header(sent, "content-type") == "application/json");
   std::string key = header(sent, "idempotency-key");
   // A prefix for the run, then the owner, then the script's own key.
   REQUIRE(key.size() > 32);

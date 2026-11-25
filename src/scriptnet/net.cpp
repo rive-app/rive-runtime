@@ -949,12 +949,14 @@ public:
                   path.substr(3);
     request.hostChosen = true;
     // The host's values win over anything the script set, and the token is
-    // the host's to add.
+    // the host's to add. A body is JSON: the engine reads one sent as
+    // text/plain as a browser's wrapped request.
     for (size_t i = request.headers.size(); i-- > 0;)
     {
       std::string lower = lowerAscii(request.headers[i].name);
       if (lower == "x-rive-namespace" || lower == "x-rive-install-id" ||
-          lower == "x-rive-challenge" || lower == "authorization")
+          lower == "x-rive-challenge" || lower == "authorization" ||
+          lower == "content-type")
       {
         request.headers.erase(request.headers.begin() + i);
       }
@@ -966,6 +968,10 @@ public:
                                    std::to_string(entry.ownerId) + "." +
                                    request.headers[i].value;
       }
+    }
+    if (!request.body.empty())
+    {
+      request.headers.push_back({"Content-Type", "application/json"});
     }
     entry.cloud = true;
     entry.epoch = session.epoch;
