@@ -183,6 +183,12 @@ private:
   [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
   bool m_JoysticksApplyBeforeUpdate = true;
+  // This artboard, or one it hosts, may have bind work (see
+  // hasBindWorkBelow). Sits in padding.
+  bool m_bindWorkBelow = true;
+  // Marks this artboard and the ones hosting it as having bind work below,
+  // up to the first that already is.
+  void markBindWork();
   static constexpr size_t kInlineDirtyOrder = 64;
   // The words holding m_dirtyOrder's bits. Null only while the order is
   // being rebuilt (between releaseDirtyOrder and resetDirtyOrder).
@@ -481,6 +487,17 @@ public:
   static void incFrameId() { sm_frameId++; }
 #endif
   void updateDataBinds(bool applyTargetToSource = true) override;
+  /// Whether this artboard or one it hosts may have bind work: a bind waiting
+  /// in a queue, one it polls, a host that can't tell, or a hosted artboard
+  /// skipped while collapsed or paused. Never false while any does. Set when
+  /// work is queued (bindWorkQueued) and when the artboard is hosted, and
+  /// recomputed by updateDataBinds. A nested artboard skips an instance that
+  /// has none.
+  bool hasBindWorkBelow() const { return m_bindWorkBelow; }
+#ifdef TESTING
+  // Aborts if this artboard, or one it hosts, has bind work.
+  void verifyNoBindWorkBelow() const;
+#endif
   // True if any of this artboard's animations has a bind on a keyframe
   // (LinearAnimation::keyFrameBinds). A cheap gate, which decodes nothing.
   bool hasKeyFrameSourceBinds() const;
@@ -672,6 +689,7 @@ public:
   bool hasDirtyLayout() const { return !m_dirtyLayout.empty(); }
   StatusCode onAddedClean(CoreContext* context) override;
   void addDirtyDataBind(DataBind*) override;
+  void bindWorkQueued() override { markBindWork(); }
 
 private:
 #ifdef TESTING

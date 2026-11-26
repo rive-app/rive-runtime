@@ -126,6 +126,10 @@ public:
   virtual void rebuildDataBind(DataBind*) {};
 
 protected:
+  // Work was queued on this container: a dirty bind, a polled one, or an add
+  // or remove deferred while it updates. Artboard marks its host chain, so a
+  // host that skips artboards with no bind work below them doesn't skip it.
+  virtual void bindWorkQueued() {}
   // The one data context this container is bound to. Owning: Artboard and
   // StateMachineInstance create the context with make_rcp and hand it here,
   // and nothing else keeps it alive. Held by the base rather than by each

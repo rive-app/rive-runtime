@@ -127,6 +127,9 @@ public:
   /// How many times any host has put its nested inputs back to their
   /// source's values (remount), each a lookup per input.
   static int testing_heldInputResets;
+  /// Bind walks skipped for having no bind work below (updateDataBinds).
+  /// Atomic: separate artboards can update on several threads at once.
+  static std::atomic<uint64_t> sm_bindWalkSkips;
 #endif
   /// True when this host can receive runtime artboard swaps and therefore
   /// owns (or will own) a persistent focus scope.
@@ -276,6 +279,7 @@ public:
   void clearDataContext() override;
   void unbind() override;
   void updateDataBinds() override;
+  bool hasBindWork() override;
 
   float calculateLocalElapsedSeconds(float elapsedSeconds);
   bool advanceComponent(

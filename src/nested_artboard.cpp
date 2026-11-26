@@ -1169,7 +1169,23 @@ void NestedArtboard::updateDataBinds()
   {
     return;
   }
+  // Nothing queued in the instance or anything it hosts: walking it would
+  // only find empty queues.
+  if (!artboardInstance()->hasBindWorkBelow())
+  {
+#ifdef TESTING
+    artboardInstance()->verifyNoBindWorkBelow();
+    sm_bindWalkSkips++;
+#endif
+    return;
+  }
   artboardInstance()->updateDataBinds();
+}
+
+bool NestedArtboard::hasBindWork()
+{
+  auto instance = artboardInstance();
+  return instance != nullptr && instance->hasBindWorkBelow();
 }
 
 void NestedArtboard::bindViewModelInstance(
@@ -1638,6 +1654,7 @@ Artboard* NestedArtboard::deferredSource() const
 
 #ifdef TESTING
 int NestedArtboard::testing_heldInputResets = 0;
+std::atomic<uint64_t> NestedArtboard::sm_bindWalkSkips{0};
 #endif
 
 void NestedArtboard::resetHeldInputs()

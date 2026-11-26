@@ -2433,6 +2433,12 @@ void Artboard::host(ArtboardHost* artboardHost)
     }
   }
   m_host = artboardHost;
+  // The artboards up the new host chain may have stopped visiting what they
+  // host for having no bind work below: they have some if this one does.
+  if (m_bindWorkBelow)
+  {
+    markBindWork();
+  }
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
   // audioEngine(engine) only reaches artboards hosted at the time, so list
   // items and swapped nested artboards pick up their host's engine here.
@@ -2592,11 +2598,29 @@ void Artboard::addDirtyDataBind(DataBind* dataBind)
   DataBindContainer::addDirtyDataBind(dataBind);
 }
 
+void Artboard::markBindWork()
+{
+  m_bindWorkBelow = true;
+  for (Artboard* artboard = parentArtboard();
+       artboard != nullptr && !artboard->m_bindWorkBelow;
+       artboard = artboard->parentArtboard())
+  {
+    artboard->m_bindWorkBelow = true;
+  }
+}
+
 void Artboard::updateDataBinds(bool applyTargetToSource)
 {
+  // Cleared first: work queued here or below while this runs marks it again
+  // (bindWorkQueued).
+  m_bindWorkBelow = false;
+  bool hostsKeepWork = false;
   for (auto artboardHost : m_ArtboardHosts)
   {
     artboardHost->updateDataBinds();
+    // Work a host left (a collapsed or paused nested artboard skips its
+    // binds), or can't rule out, keeps this artboard marked.
+    hostsKeepWork = hostsKeepWork || artboardHost->hasBindWork();
   }
   DataBindContainer::updateDataBinds(applyTargetToSource);
   // After this artboard's own binds: values they just wrote (a text style's
@@ -2605,7 +2629,38 @@ void Artboard::updateDataBinds(bool applyTargetToSource)
   {
     consumer->updateHostedDataBinds();
   }
+  // Consumers' artboards are reached only through this one, whose flag can't
+  // see their queues, so an artboard with consumers stays marked.
+  if (hostsKeepWork || !m_hostDataContextConsumers.empty() ||
+      hasDataBindWork(true))
+  {
+    markBindWork();
+  }
 }
+
+#ifdef TESTING
+void Artboard::verifyNoBindWorkBelow() const
+{
+  if (hasDataBindWork(true) || !m_hostDataContextConsumers.empty())
+  {
+    fprintf(
+        stderr,
+        "Artboard '%s' was skipped with bind work queued\n",
+        name().c_str());
+    abort();
+  }
+  for (auto artboardHost : m_ArtboardHosts)
+  {
+    for (size_t i = 0, count = artboardHost->artboardCount(); i < count; i++)
+    {
+      if (auto hosted = artboardHost->artboardInstance((int)i))
+      {
+        hosted->verifyNoBindWorkBelow();
+      }
+    }
+  }
+}
+#endif
 
 void Artboard::releaseDirtyOrder()
 {

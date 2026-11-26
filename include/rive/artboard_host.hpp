@@ -41,6 +41,11 @@ public:
   virtual void clearDataContext() = 0;
   virtual void unbind() = 0;
   virtual void updateDataBinds() = 0;
+  // Whether updateDataBinds may have work in the artboards this host shows,
+  // or did and left it (a collapsed or paused nested artboard skips it).
+  // While it doesn't, the host artboard can skip it (see
+  // Artboard::hasBindWorkBelow). Hosts that can't tell say true.
+  virtual bool hasBindWork() { return true; }
   virtual void markHostingLayoutDirty(ArtboardInstance* artboardInstance) {}
   // A hosted artboard the host had marked quiet at `row` (see
   // Artboard::quietHostRow) saw something that may change it.

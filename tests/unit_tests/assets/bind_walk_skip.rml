@@ -1,0 +1,32 @@
+<Rive version="1" kind="fragment">
+    <Artboard defaultStateMachineId="0:10" viewModelId="0:900" viewModelInstanceId="0:901" width="100" height="100" name="root" id="0:1">
+        <NestedArtboard artboardId="0:100" name="child" id="0:2"/>
+        <StateMachine name="sm" id="0:10">
+            <StateMachineLayer name="layer" id="0:11">
+                <EntryState id="0:12"/>
+                <AnyState x="200" id="0:13"/>
+                <ExitState x="400" id="0:14"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" viewModelId="0:900" width="100" height="100" x="200" name="child" id="0:100">
+        <Node name="dot" id="0:101">
+            <DataBindContext sourcePathIds="0:900-0:902" propertyKey="13" id="0:102"/>
+        </Node>
+        <NestedArtboard artboardId="0:200" name="grandchild" id="0:103"/>
+    </Artboard>
+    <Artboard isComponent="true" viewModelId="0:900" width="100" height="100" x="400" name="grandchild" id="0:200">
+        <Node name="dot" id="0:201">
+            <DataBindContext sourcePathIds="0:900-0:902" propertyKey="13" id="0:202"/>
+            <DataBindContext sourcePathIds="0:900-0:904" propertyKey="14" id="0:203"/>
+        </Node>
+    </Artboard>
+    <ViewModel defaultInstanceId="0:901" name="RootVM" id="0:900">
+        <ViewModelPropertyNumber name="a" id="0:902"/>
+        <ViewModelPropertyNumber name="b" id="0:904"/>
+        <ViewModelInstance exports="true" name="Default" id="0:901">
+            <ViewModelInstanceNumber propertyValue="3" viewModelPropertyId="0:902" id="0:903"/>
+            <ViewModelInstanceNumber propertyValue="5" viewModelPropertyId="0:904" id="0:905"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

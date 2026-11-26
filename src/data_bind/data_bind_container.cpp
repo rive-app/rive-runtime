@@ -104,6 +104,7 @@ void DataBindContainer::removeDataBind(DataBind* dataBind)
   if (m_isProcessing)
   {
     m_queues.ensureAllocated()->pendingRemovals.push_back(dataBind);
+    bindWorkQueued();
     return;
   }
   auto eraseOne = [dataBind](std::vector<DataBind*>& v) {
@@ -147,6 +148,7 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
   if (m_isProcessing)
   {
     m_queues.ensureAllocated()->pendingAdditions.push_back(dataBind);
+    bindWorkQueued();
     return;
   }
   m_dataBinds.push_back(dataBind);
@@ -159,6 +161,7 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
   {
     m_queues.ensureAllocated()->persisting.push_back(dataBind);
     dataBind->inPersistingList(true);
+    bindWorkQueued();
   }
   dataBind->container(this);
   if (m_dataContext != nullptr && dataBind->is<DataBindContext>())
@@ -432,6 +435,7 @@ void DataBindContainer::removeAndDeleteDataBind(DataBind* dataBind)
     {
       deletes.push_back(dataBind);
     }
+    bindWorkQueued();
     return;
   }
   delete dataBind;
@@ -488,6 +492,7 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
   {
     m_dirtyDataBinds.push_back(dataBind);
     dataBind->inDirtyList(true);
+    bindWorkQueued();
     return;
   }
   // Push-driven toSource binds go into a dedicated list that
@@ -502,4 +507,5 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
                             : queues->pendingDirty;
   insertingList.push_back(dataBind);
   dataBind->inDirtyList(true);
+  bindWorkQueued();
 }
