@@ -9,6 +9,9 @@ do
     optimize('Speed') -- Always optimize image encoding/decoding, even in debug builds.
 
     includedirs({ libwebp })
+    -- The headers mark the API visibility("default") unless WEBP_EXTERN is
+    -- set, which defeats -fvisibility=hidden in builds that use it.
+    defines({ 'WEBP_EXTERN=extern' })
 
     -- Leaving some notes here for future perf improvements. Define these when
     -- we can determine we're on a compatible platform/perf gain is worth it.
@@ -177,6 +180,7 @@ if LIBWEBP_BUILD_ENCODER then
         dependson('libwebp')
 
         includedirs({ libwebp })
+        defines({ 'WEBP_EXTERN=extern' }) -- see the libwebp project
 
         files({
             libwebp .. '/sharpyuv/sharpyuv.c',
