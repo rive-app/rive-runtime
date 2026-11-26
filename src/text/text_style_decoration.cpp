@@ -1,6 +1,7 @@
 #include "rive/text/text_style_decoration.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text.hpp"
+#include "rive/artboard.hpp"
 #include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/text_engine.hpp"
@@ -42,18 +43,16 @@ void TextStyleDecoration::buildDependencies()
   }
 }
 
-void TextStyleDecoration::resetPath()
-{
-  m_rects.clear();
-  m_path.rewind();
-}
+void TextStyleDecoration::resetPath() { m_adornment.reset(); }
 
 void TextStyleDecoration::addGlyph(
     float left,
     float right,
     float baseline,
     const Font* font,
-    float fontSize)
+    float fontSize,
+    const Mat2D* transform,
+    float opacity)
 {
   if (font == nullptr)
   {
@@ -73,12 +72,20 @@ void TextStyleDecoration::addGlyph(
     return;
   }
   float top = baseline + position + offset();
-  m_rects.push_back(AABB(left, top, right, top + height));
+  AABB rect(left, top, right, top + height);
+  if (transform == nullptr && opacity == 1.0f)
+  {
+    m_adornment.addRect(rect);
+  }
+  else
+  {
+    m_adornment.addModifiedRect(rect, transform, opacity);
+  }
 }
 
 void TextStyleDecoration::updatePath()
 {
-  m_path.update(m_rects, 0.0f);
+  m_adornment.update(0.0f);
   // Dashes and trims cache what they made of the old path.
   invalidateStrokeEffects();
   // Text rebuilds this path from its own update pass; feathers derive their
@@ -93,26 +100,37 @@ void TextStyleDecoration::updatePath()
   }
 }
 
-void TextStyleDecoration::draw(Renderer* renderer, const Mat2D& worldTransform)
+void TextStyleDecoration::draw(
+    Renderer* renderer,
+    const Mat2D& worldTransform,
+    const AABB* imageBounds)
 {
-  if (m_rects.empty())
+  if (m_adornment.empty())
   {
     return;
   }
+  // A global text style's decoration lives under the style artboard, not a
+  // Text; keep its paint's own blend mode then.
+  Text* text = style()->parent()->is<Text>() ? style()->parent()->as<Text>()
+                                             : nullptr;
   for (auto shapePaint : m_ShapePaints)
   {
     if (!shapePaint->shouldDraw())
     {
       continue;
     }
-    // A global text style's decoration lives under the style artboard, not
-    // a Text; keep its paint's own blend mode then.
-    if (style()->parent()->is<Text>())
+    if (text != nullptr)
     {
-      auto text = style()->parent()->as<Text>();
       shapePaint->blendMode(text->blendMode(), text->additiveAmount());
     }
-    shapePaint->draw(renderer, &m_path, worldTransform, true);
+    m_adornment.draw(
+        renderer,
+        shapePaint,
+        worldTransform,
+        artboard()->factory(),
+        text != nullptr ? text->blendMode() : BlendMode::srcOver,
+        text != nullptr ? text->additiveAmount() : 0,
+        imageBounds);
   }
 }
 

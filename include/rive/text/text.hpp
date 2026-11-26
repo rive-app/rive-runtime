@@ -531,7 +531,8 @@ private:
   void drawDecorations(
       Renderer* renderer,
       const Mat2D& worldTransform,
-      bool overGlyphs);
+      bool overGlyphs,
+      const AABB& imageBounds);
   SimpleArray<Paragraph> m_shape;
   SimpleArray<Paragraph> m_modifierShape;
   SimpleArray<SimpleArray<GlyphLine>> m_lines;

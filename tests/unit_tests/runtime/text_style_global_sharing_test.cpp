@@ -24,12 +24,13 @@ using namespace rive;
 //   only Entry/Any/Exit): shareable.
 //   Exposed (20, "size" exposed), ReadsHost (font size bound to the host's
 //   "Main VM".size), Animated (24, an animation state), WithBackground (26),
-//   WithDash (28): per text.
+//   WithDash (28), WithDecoration (32, a plain underline): per text.
 // "Main" (Main VM: size 25, exposedSize 50) has Text A ("A") and Text B ("BB")
 // on Static, Text C on ReadsHost, Text D on Exposed (its exposed size bound to
 // exposedSize), Text E on Plain, Text F on WithBackground, Text G on Inert,
-// Text H on Animated, Text I on WithDash, and a nested "Card" with Card Static
-// and Card ReadsHost. "Quiet" has a single Text on Static.
+// Text H on Animated, Text I on WithDash, Text J on WithDecoration, and a
+// nested "Card" with Card Static and Card ReadsHost. "Quiet" has a single Text
+// on Static.
 namespace
 {
 TextStyleGlobal* handleOf(Text* text)
@@ -112,6 +113,7 @@ TEST_CASE(
       {"Animated", false},
       {"WithBackground", false},
       {"WithDash", false},
+      {"WithDecoration", false},
   };
   for (auto [name, shareable] : expected)
   {
@@ -154,7 +156,8 @@ TEST_CASE(
     // Static, Plain and Inert, however many hosts use them.
     CHECK(file->textStyleShares().liveCount() == 3);
 
-    for (auto name : {"Text C", "Text D", "Text F", "Text H", "Text I"})
+    for (auto name :
+         {"Text C", "Text D", "Text F", "Text H", "Text I", "Text J"})
     {
       INFO(name);
       auto own = handle(first.artboard.get(), name);
@@ -170,6 +173,7 @@ TEST_CASE(
     CHECK(fontSize(first.artboard.get(), "Text H") == 24.0f);
     CHECK(fontSize(first.artboard.get(), "Text F") == 26.0f);
     CHECK(fontSize(first.artboard.get(), "Text I") == 28.0f);
+    CHECK(fontSize(first.artboard.get(), "Text J") == 32.0f);
   }
   CHECK(file->textStyleShares().liveCount() == 0);
 }

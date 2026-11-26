@@ -304,6 +304,18 @@ void Text::clearRenderStyles()
   }
 }
 
+// Whether a glyph's modifier transform [m] leaves it where it was, give or
+// take float error: a modifier at its defaults (no offset, turn or scale)
+// still recomputes the glyph's transform.
+static bool isNearlyIdentity(const Mat2D& m)
+{
+  constexpr float kLinear = 1e-5f;
+  constexpr float kTranslation = 1e-3f;
+  return std::abs(m.xx() - 1.0f) < kLinear && std::abs(m.xy()) < kLinear &&
+         std::abs(m.yx()) < kLinear && std::abs(m.yy() - 1.0f) < kLinear &&
+         std::abs(m.tx()) < kTranslation && std::abs(m.ty()) < kTranslation;
+}
+
 // Vertical extent of the glyph outlines on [line] (y-down, relative to its
 // baseline). Empty when nothing on the line draws, like a line of spaces.
 static Font::InkExtents lineInkExtents(
@@ -1098,10 +1110,25 @@ void Text::buildRenderStyles()
         tc.x(-centerX);
         Mat2D pathTransform = Mat2D::compose(tc);
 
+        assert(run->styleId < m_allRuns.size());
+        TextValueRun* textValueRun = m_allRuns[run->styleId];
+        TextStylePaint* style = textValueRun->style();
+        assert(style != nullptr);
+        // Only a style with a background or decorations needs to know what
+        // a modifier did to the glyph's transform (see Step 6.3).
+        const bool adornedByModifiers = hasModifiers &&
+                                        (style->background() != nullptr ||
+                                         !style->decorations().empty());
+
         // Step 6.2: apply modifiers on a font-sized glyph
         float opacity = 1.0f;
+        Mat2D unmodifiedTransform;
         if (hasModifiers)
         {
+          if (adornedByModifiers)
+          {
+            unmodifiedTransform = pathTransform;
+          }
           uint32_t textIndex = run->textIndices[glyphIndex];
           uint32_t glyphCount = m_glyphLookup.count(textIndex);
 
@@ -1125,15 +1152,27 @@ void Text::buildRenderStyles()
         }
 
         // Step 6.3: translate back to center with offset
-        pathTransform = Mat2D::fromTranslate(
-                            curPos.x + centerX + offset.x,
-                            curPos.y + offset.y) *
-                        pathTransform;
-
-        assert(run->styleId < m_allRuns.size());
-        TextValueRun* textValueRun = m_allRuns[run->styleId];
-        TextStylePaint* style = textValueRun->style();
-        assert(style != nullptr);
+        const Mat2D toGlyph = Mat2D::fromTranslate(
+            curPos.x + centerX + offset.x,
+            curPos.y + offset.y);
+        // A modifier that moved, turned or scaled this glyph takes its
+        // background and decorations along, mapped in the Text's glyph space
+        // as the glyph is. Without one they join as they always have.
+        const Mat2D* adornmentTransform = nullptr;
+        Mat2D glyphModifier;
+        if (adornedByModifiers && !(pathTransform == unmodifiedTransform))
+        {
+          Mat2D toUnmodified;
+          if ((toGlyph * unmodifiedTransform).invert(&toUnmodified))
+          {
+            glyphModifier = toGlyph * pathTransform * toUnmodified;
+            if (!isNearlyIdentity(glyphModifier))
+            {
+              adornmentTransform = &glyphModifier;
+            }
+          }
+        }
+        pathTransform = toGlyph * pathTransform;
 
         // Check for color glyph (emoji) -- draw individually
         // with per-layer colors instead of accumulating.
@@ -1205,7 +1244,17 @@ void Text::buildRenderStyles()
           }
           if (style->background() != nullptr)
           {
-            style->background()->addRect(glyphBounds);
+            if (adornmentTransform == nullptr && opacity == 1.0f)
+            {
+              style->background()->addRect(glyphBounds);
+            }
+            else
+            {
+              style->background()->addModifiedRect(
+                  glyphBounds,
+                  adornmentTransform,
+                  opacity);
+            }
           }
         }
         if (!style->decorations().empty())
@@ -1225,7 +1274,9 @@ void Text::buildRenderStyles()
                 curX + advance,
                 renderY,
                 metricsFont,
-                run->size);
+                run->size,
+                adornmentTransform,
+                opacity);
           }
         }
         curX += advance;
@@ -1403,8 +1454,9 @@ void Text::draw(Renderer* renderer)
     renderer->clipPath(m_clipPath.renderPath(this));
   }
   auto worldTransform = shapeWorldTransform();
-  // A paint image on the styles fits the layout box, as the editor draws it,
-  // wherever the glyphs fall in it.
+  // A paint image on the styles, and on their backgrounds and decorations,
+  // fits the layout box, as the editor draws it, wherever the glyphs fall in
+  // it.
   const AABB imageBounds = glyphSpaceBounds();
   // Backgrounds first so they sit behind every glyph, in style child order.
   for (TextStylePaint* style : m_textStylePaints)
@@ -1412,7 +1464,7 @@ void Text::draw(Renderer* renderer)
     TextStyleBackground* background = style->background();
     if (background != nullptr)
     {
-      background->draw(renderer, worldTransform);
+      background->draw(renderer, worldTransform, &imageBounds);
     }
   }
   for (TextStylePaint* style : m_adornedGlobalStyles)
@@ -1420,7 +1472,7 @@ void Text::draw(Renderer* renderer)
     TextStyleBackground* background = style->background();
     if (background != nullptr)
     {
-      background->draw(renderer, worldTransform);
+      background->draw(renderer, worldTransform, &imageBounds);
     }
   }
   if (m_selectionController != nullptr)
@@ -1429,7 +1481,7 @@ void Text::draw(Renderer* renderer)
   }
   // Underlines sit behind the glyphs (their descenders cross them), as CSS
   // paints them; strikethroughs draw over the glyphs below.
-  drawDecorations(renderer, worldTransform, false);
+  drawDecorations(renderer, worldTransform, false, imageBounds);
   for (auto& cmd : m_drawCommands)
   {
     if (cmd.type == TextDrawCommand::kStylePath)
@@ -1453,7 +1505,7 @@ void Text::draw(Renderer* renderer)
       drawColorGlyph(renderer, cmd.colorGlyph, worldTransform);
     }
   }
-  drawDecorations(renderer, worldTransform, true);
+  drawDecorations(renderer, worldTransform, true, imageBounds);
   if (needsSaveOperation())
   {
     renderer->restore();
@@ -1463,7 +1515,8 @@ void Text::draw(Renderer* renderer)
 void Text::drawDecorations(
     Renderer* renderer,
     const Mat2D& worldTransform,
-    bool overGlyphs)
+    bool overGlyphs,
+    const AABB& imageBounds)
 {
   for (TextStylePaint* style : m_textStylePaints)
   {
@@ -1471,7 +1524,7 @@ void Text::drawDecorations(
     {
       if (decoration->drawsOverGlyphs() == overGlyphs)
       {
-        decoration->draw(renderer, worldTransform);
+        decoration->draw(renderer, worldTransform, &imageBounds);
       }
     }
   }
@@ -1481,7 +1534,7 @@ void Text::drawDecorations(
     {
       if (decoration->drawsOverGlyphs() == overGlyphs)
       {
-        decoration->draw(renderer, worldTransform);
+        decoration->draw(renderer, worldTransform, &imageBounds);
       }
     }
   }

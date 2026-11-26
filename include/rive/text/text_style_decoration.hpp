@@ -2,7 +2,7 @@
 #define _RIVE_TEXT_STYLE_DECORATION_HPP_
 #include "rive/generated/text/text_style_decoration_base.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
-#include "rive/text/text_selection_path.hpp"
+#include "rive/text/text_adornment_path.hpp"
 #include <vector>
 
 namespace rive
@@ -42,21 +42,31 @@ public:
 
   void resetPath();
   /// Adds the line under/through one glyph spanning [left, right], placed
-  /// from [font]'s metrics at [fontSize] relative to [baseline].
+  /// from [font]'s metrics at [fontSize] relative to [baseline]. A glyph a
+  /// text modifier changed passes the [transform] (null for none) and
+  /// [opacity] the modifier gave it (see TextAdornmentPath::addModifiedRect).
   void addGlyph(
       float left,
       float right,
       float baseline,
       const Font* font,
-      float fontSize);
+      float fontSize,
+      const Mat2D* transform = nullptr,
+      float opacity = 1.0f);
   void updatePath();
-  void draw(Renderer* renderer, const Mat2D& worldTransform);
+  /// Draws the rects of the last layout. A PaintImage on its paints fits
+  /// [imageBounds], the drawing Text's layout box in the glyphs' space (see
+  /// Text::glyphSpaceBounds), as the editor fits it.
+  void draw(
+      Renderer* renderer,
+      const Mat2D& worldTransform,
+      const AABB* imageBounds = nullptr);
 
   // Implemented for ShapePaintContainer.
   const Mat2D& shapeWorldTransform() const override;
   Component* pathBuilder() override;
-  ShapePaintPath* localPath() override { return &m_path; }
-  ShapePaintPath* localClockwisePath() override { return &m_path; }
+  ShapePaintPath* localPath() override { return m_adornment.path(); }
+  ShapePaintPath* localClockwisePath() override { return m_adornment.path(); }
 
 protected:
   void decorationTypeValueChanged() override;
@@ -71,11 +81,9 @@ private:
   /// style (parented to its style artboard) the Texts its owner feeds.
   static void markStyleDirty(TextStylePaint* style);
 
-  std::vector<AABB> m_rects;
-  // Each glyph adds its own segment; TextSelectionPath joins the abutting
-  // ones into a single contour per line, wound clockwise (see
-  // TextStyleBackground).
-  TextSelectionPath m_path{true, FillRule::clockwise};
+  // Each glyph adds its own segment; they join into a single contour per
+  // line (see TextAdornmentPath).
+  TextAdornmentPath m_adornment;
 };
 } // namespace rive
 

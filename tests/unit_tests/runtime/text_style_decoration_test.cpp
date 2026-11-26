@@ -5,8 +5,11 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/text.hpp"
+#include "rive/text/text_style_background.hpp"
 #include "rive/text/text_style_decoration.hpp"
+#include "rive/text/text_style_global.hpp"
 #include "rive/text/text_style_paint.hpp"
+#include "rive/text/text_style_share_cache.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
@@ -400,4 +403,144 @@ TEST_CASE("a global style's decoration follows its edits", "[text]")
   text->opacity(0.5f);
   frame();
   CHECK(underline->shapePaints().front()->renderOpacity() == Approx(0.5f));
+}
+
+TEST_CASE("Texts on one global style each draw their own decorations", "[text]")
+{
+  auto file = ReadRiveFile("assets/text_style_global_decoration.riv");
+  auto first = file->artboard("Main")->instance();
+  auto second = file->artboard("Main")->instance();
+  Text* a = first->find<Text>("Line");
+  Text* b = second->find<Text>("Line");
+  REQUIRE(a != nullptr);
+  REQUIRE(b != nullptr);
+  REQUIRE(b->runs().size() == 1);
+  b->runs().front()->text(b->runs().front()->text() + " and then some more");
+  NoOpRenderer renderer;
+  auto frame = [&]() {
+    first->advance(0.0f);
+    second->advance(0.0f);
+    first->draw(&renderer);
+    second->draw(&renderer);
+  };
+  frame();
+
+  // A style with a decoration is never the one instance every Text shares:
+  // a decoration keeps its Text's glyph rects.
+  Component* handle = nullptr;
+  for (Component* child : a->children())
+  {
+    if (child->is<TextStyleGlobal>())
+    {
+      handle = child;
+    }
+  }
+  REQUIRE(handle != nullptr);
+  auto global = handle->as<TextStyleGlobal>();
+  CHECK(!global->isShared());
+  REQUIRE(global->instanceSource() != nullptr);
+  CHECK(!TextStyleShareCache::analyze(global->instanceSource(), file.get())
+             .shareable);
+
+  TextStylePaint* paintA = a->runs().front()->style();
+  TextStylePaint* paintB = b->runs().front()->style();
+  REQUIRE(paintA->decorations().size() == 1);
+  REQUIRE(paintB->decorations().size() == 1);
+  TextStyleDecoration* underlineA = paintA->decorations().front();
+  TextStyleDecoration* underlineB = paintB->decorations().front();
+  CHECK(underlineA != underlineB);
+  auto width = [](TextStyleDecoration* decoration) {
+    return decoration->localPath()->rawPath()->bounds().width();
+  };
+  // Each underline spans its own Text, whichever built last.
+  CHECK(width(underlineB) > width(underlineA) * 2.0f);
+  const float widthA = width(underlineA);
+
+  // Each takes its own Text's opacity.
+  a->opacity(0.5f);
+  frame();
+  REQUIRE(!underlineA->shapePaints().empty());
+  REQUIRE(!underlineB->shapePaints().empty());
+  CHECK(underlineA->shapePaints().front()->renderOpacity() == Approx(0.5f));
+  CHECK(underlineB->shapePaints().front()->renderOpacity() == Approx(1.0f));
+  CHECK(width(underlineA) == Approx(widthA));
+}
+
+// text_adornment_modifiers.riv (written by rive_core's
+// text_adornment_modifier_test.dart): "Main" has Texts showing "hello" in a
+// style with an underline and a background (corner radius 2). Plain has no
+// modifier; the others have one group over the whole text: Moved offsets y by
+// 10, Turned rotates by 0.5, Faded sets opacity 0.5, and HalfMoved offsets y
+// by 10 over the first half only.
+TEST_CASE("decorations and backgrounds follow text modifiers", "[text]")
+{
+  auto file = ReadRiveFile("assets/text_adornment_modifiers.riv");
+  auto artboard = file->artboard("Main")->instance();
+  NoOpRenderer renderer;
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
+
+  struct Adorned
+  {
+    TextStyleDecoration* underline;
+    TextStyleBackground* background;
+  };
+  auto adorned = [&](const char* name) {
+    Text* text = artboard->find<Text>(name);
+    REQUIRE(text != nullptr);
+    REQUIRE(text->runs().size() == 1);
+    TextStylePaint* style = text->runs().front()->style();
+    REQUIRE(style->decorations().size() == 1);
+    REQUIRE(style->background() != nullptr);
+    return Adorned{style->decorations().front(), style->background()};
+  };
+  auto bounds = [](ShapePaintContainer* container) {
+    return container->localPath()->rawPath()->bounds();
+  };
+  auto contours = [](ShapePaintContainer* container) {
+    int count = 0;
+    for (PathVerb verb : container->localPath()->rawPath()->verbs())
+    {
+      if (verb == PathVerb::move)
+      {
+        count++;
+      }
+    }
+    return count;
+  };
+  auto checkBounds = [](AABB actual, AABB expected, float dy) {
+    CHECK(actual.minX == Approx(expected.minX).margin(1e-3f));
+    CHECK(actual.maxX == Approx(expected.maxX).margin(1e-3f));
+    CHECK(actual.minY == Approx(expected.minY + dy).margin(1e-3f));
+    CHECK(actual.maxY == Approx(expected.maxY + dy).margin(1e-3f));
+  };
+
+  Adorned plain = adorned("Plain");
+  // Without modifiers the glyphs' rects join into one bar.
+  CHECK(contours(plain.underline) == 1);
+  CHECK(contours(plain.background) == 1);
+  const AABB plainUnderline = bounds(plain.underline);
+  const AABB plainBackground = bounds(plain.background);
+
+  // Each moved glyph takes its rects along, as shapes of their own.
+  Adorned moved = adorned("Moved");
+  CHECK(contours(moved.underline) == 5);
+  checkBounds(bounds(moved.underline), plainUnderline, 10.0f);
+  checkBounds(bounds(moved.background), plainBackground, 10.0f);
+
+  // Each turned glyph turns its segment about its own center.
+  Adorned turned = adorned("Turned");
+  CHECK(bounds(turned.underline).height() > plainUnderline.height() * 2.0f);
+  CHECK(bounds(turned.background).width() > plainBackground.width());
+
+  // A faded glyph's rects stay put; they only draw fainter.
+  Adorned faded = adorned("Faded");
+  checkBounds(bounds(faded.underline), plainUnderline, 0.0f);
+  checkBounds(bounds(faded.background), plainBackground, 0.0f);
+
+  // The glyphs past the range keep joining.
+  Adorned halfMoved = adorned("HalfMoved");
+  const AABB half = bounds(halfMoved.underline);
+  CHECK(half.minY == Approx(plainUnderline.minY).margin(1e-3f));
+  CHECK(half.maxY == Approx(plainUnderline.maxY + 10.0f).margin(1e-3f));
 }
