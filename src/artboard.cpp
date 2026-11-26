@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/math/bitwise.hpp"
 #include "rive/artboard_clusters.hpp"
 #include "rive/deferred_artboard_body.hpp"
 #include "rive/data_bind/host_data_context_consumer.hpp"
@@ -123,7 +124,7 @@ uint64_t Artboard::sm_frameId = 0;
 #ifdef TESTING
 uint64_t Artboard::sm_layoutPassCount = 0;
 std::atomic<uint64_t> Artboard::sm_dirtNotifications{0};
-uint64_t Artboard::sm_collapsedRunSkips = 0;
+std::atomic<uint64_t> Artboard::sm_updateComponentVisits{0};
 std::atomic<uint64_t> Artboard::sm_focusTreeBuilds{0};
 #endif
 
@@ -142,6 +143,7 @@ Artboard::Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
 
 Artboard::~Artboard()
 {
+  releaseDirtyOrder();
   // A body the import deferred and nothing decoded: none of it was imported,
   // so only its bytes go. What stood in for a body that failed goes too.
   if (ArtboardSourceState* state = m_sourceState.get())
@@ -1538,6 +1540,7 @@ bool Artboard::replaySourceDependencyOrder(const Artboard* source)
 
 void Artboard::sortDependencies()
 {
+  releaseDirtyOrder();
   // An instance replays its source's order instead of re-walking the graph;
   // see DependencyOrderEntry. Falls back to sorting whenever anything about
   // the instance doesn't line up.
@@ -1553,11 +1556,11 @@ void Artboard::sortDependencies()
   {
     component->m_GraphOrder = graphOrder++;
   }
+  resetDirtyOrder();
   // This artboard isn't shared yet while it sorts (a source sorts as it
   // decodes, before anything instances it), so no lock is needed here.
   m_DependencyOrderRecipe.reset();
   m_RecipeState.store(RecipeState::unbuilt, std::memory_order_relaxed);
-  m_collapsedRunsDirty = true;
   m_Dirt |= ComponentDirt::Components;
 #ifdef WITH_RIVE_SCRIPTING
   if (m_readTracker != nullptr)
@@ -1854,18 +1857,28 @@ void Artboard::onComponentDirty(Component* component)
   m_changeSerial++;
   m_Dirt |= ComponentDirt::Components;
 
+  auto order = component->graphOrder();
+  // Components outside the graph keep the unsorted order and are never
+  // visited by updateComponents.
+  if (order < m_DependencyOrder.size())
+  {
+    if (uint64_t* words = dirtyOrderWords())
+    {
+      words[order >> 6] |= uint64_t(1) << (order & 63);
+    }
+  }
+
   /// If the order of the component is less than the current dirt
   /// depth, update the dirt depth so that the update loop can break
   /// out early and re-run (something up the tree is dirty).
-  if (component->graphOrder() < m_DirtDepth)
+  if (order < m_DirtDepth)
   {
-    m_DirtDepth = component->graphOrder();
+    m_DirtDepth = order;
   }
 }
 
 void Artboard::collapseChanged(Component* component)
 {
-  m_collapsedRunsDirty = true;
 #ifdef WITH_RIVE_SCRIPTING
   // The update pass skips a collapsed component, so it never reports what
   // collapsing one changed: a collapsed shape measures without its paths,
@@ -2594,66 +2607,55 @@ void Artboard::updateDataBinds(bool applyTargetToSource)
   }
 }
 
-// How far the collapsed component at `index` jumps for a run ending at
-// `runEnd` (see Component::m_collapsedRunSkip).
-static uint16_t collapsedRunSkip(unsigned int runEnd, unsigned int index)
+void Artboard::releaseDirtyOrder()
 {
-  return (uint16_t)std::min<unsigned int>(runEnd - index, UINT16_MAX);
+  if (m_DependencyOrder.size() > kInlineDirtyOrder)
+  {
+    delete[] dirtyOrderWords();
+  }
+  m_dirtyOrder = 0;
 }
 
-void Artboard::markCollapsedRuns()
+void Artboard::resetDirtyOrder()
 {
-  m_collapsedRunsDirty = false;
-  auto runEnd = (unsigned int)m_DependencyOrder.size();
-  for (auto i = runEnd; i-- > 0;)
+  // Every slot starts marked: the order may be new, and components start
+  // filthy (or keep whatever dirt they had before the sort).
+  const size_t count = m_DependencyOrder.size();
+  if (count <= kInlineDirtyOrder)
   {
-    Component* component = m_DependencyOrder[i];
-    // The dirt bit, as updateComponents reads it: isCollapsed() also
-    // reports a display-hidden layout, which still updates.
-    if ((component->m_Dirt & ComponentDirt::Collapsed) !=
-        ComponentDirt::Collapsed)
-    {
-      runEnd = i;
-      continue;
-    }
-    // Only stored when it moved, so an unchanged run leaves its
-    // components' cache lines clean.
-    uint16_t skip = collapsedRunSkip(runEnd, i);
-    if (component->m_collapsedRunSkip != skip)
-    {
-      component->m_collapsedRunSkip = skip;
-    }
+    m_dirtyOrder = ~uint64_t(0);
+    return;
   }
+  const size_t words = (count + 63) / 64;
+  auto* bits = new uint64_t[words];
+  std::fill(bits, bits + words, ~uint64_t(0));
+  m_dirtyOrder = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(bits));
 }
 
-#ifdef TESTING
-void Artboard::verifyCollapsedRuns() const
+unsigned int Artboard::nextDirtyOrder(unsigned int from, unsigned int count)
+    const
 {
-  auto runEnd = (unsigned int)m_DependencyOrder.size();
-  for (auto i = runEnd; i-- > 0;)
+  const uint64_t* dirtyWords = dirtyOrderWords();
+  size_t word = from >> 6;
+  const size_t words = (count + 63) / 64;
+  if (dirtyWords == nullptr || word >= words)
   {
-    Component* component = m_DependencyOrder[i];
-    if ((component->m_Dirt & ComponentDirt::Collapsed) !=
-        ComponentDirt::Collapsed)
-    {
-      runEnd = i;
-    }
-    else if (component->m_collapsedRunSkip != collapsedRunSkip(runEnd, i))
-    {
-      fprintf(
-          stderr,
-          "Collapsed '%s' at %u in artboard '%s' skips %u, not %u: "
-          "a collapse change didn't reach collapseChanged()\n",
-          component->name().c_str(),
-          i,
-          name().c_str(),
-          (unsigned int)component->m_collapsedRunSkip,
-          (unsigned int)collapsedRunSkip(runEnd, i));
-      abort();
-    }
+    return count;
   }
+  uint64_t bits = dirtyWords[word] & (~uint64_t(0) << (from & 63));
+  while (bits == 0)
+  {
+    if (++word >= words)
+    {
+      return count;
+    }
+    bits = dirtyWords[word];
+  }
+  // The lowest set bit's index.
+  auto index = (unsigned int)(word << 6) +
+               (unsigned int)(63 - math::clz64(bits & (~bits + 1)));
+  return index < count ? index : count;
 }
-#endif
 
 bool Artboard::updateComponents()
 {
@@ -2674,38 +2676,25 @@ bool Artboard::updateComponents()
   while (hasDirt(ComponentDirt::Components) && step < maxSteps)
   {
     m_Dirt = m_Dirt & ~ComponentDirt::Components;
-    if (m_collapsedRunsDirty)
-    {
-      markCollapsedRuns();
-    }
-#ifdef TESTING
-    else
-    {
-      verifyCollapsedRuns();
-    }
-#endif
 
     // Track dirt depth here so that if something else marks
-    // dirty, we restart.
-    for (unsigned int i = 0; i < count; i++)
+    // dirty, we restart. Only the slots onComponentDirty marked are
+    // visited, in order; one dirtied during the pass after the current
+    // one is still reached, as its bit is read when the walk gets there.
+    for (unsigned int i = nextDirtyOrder(0, (unsigned int)count); i < count;
+         i = nextDirtyOrder(i + 1, (unsigned int)count))
     {
+      dirtyOrderWords()[i >> 6] &= ~(uint64_t(1) << (i & 63));
+#ifdef TESTING
+      sm_updateComponentVisits++;
+#endif
       auto component = m_DependencyOrder[i];
       m_DirtDepth = i;
       auto d = component->m_Dirt;
       if ((d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
       {
-        // Collapsed components aren't updated, and they sit in long
-        // runs (a Solo's inactive options): skip the whole run. If
-        // anything collapsed or uncollapsed during this pass, the
-        // skips are stale, so step one by one until the next pass
-        // marks them again.
-        if (!m_collapsedRunsDirty && component->m_collapsedRunSkip > 1)
-        {
-#ifdef TESTING
-          sm_collapsedRunSkips++;
-#endif
-          i += component->m_collapsedRunSkip - 1;
-        }
+        // Collapsed components aren't updated. The dirt stays, and
+        // uncollapsing marks the slot again (Component::collapse).
         continue;
       }
       if (d == ComponentDirt::None)
@@ -2751,6 +2740,29 @@ bool Artboard::updateComponents()
   if (m_readTracker != nullptr && m_readTracker->hasDue())
   {
     m_Dirt |= ComponentDirt::Components;
+  }
+#endif
+#ifdef TESTING
+  // Settled: whatever still has dirt is collapsed, or its slot is marked
+  // for the next pass. A dirty component with neither was dirtied around
+  // onComponentDirty, and the bit walk above would never update it.
+  if (!hasDirt(ComponentDirt::Components))
+  {
+    for (unsigned int i = 0; i < count; i++)
+    {
+      auto d = m_DependencyOrder[i]->m_Dirt;
+      if (d != ComponentDirt::None &&
+          (d & ComponentDirt::Collapsed) != ComponentDirt::Collapsed &&
+          (dirtyOrderWords()[i >> 6] & (uint64_t(1) << (i & 63))) == 0)
+      {
+        fprintf(
+            stderr,
+            "updateComponents missed dirty component %u (type %u)\n",
+            i,
+            (unsigned)m_DependencyOrder[i]->coreType());
+        abort();
+      }
+    }
   }
 #endif
   if (didUpdate)
@@ -5955,6 +5967,7 @@ void Artboard::editorPrepareForDestruction()
   m_advancingComponents.clear();
   leaveDirtyLayouts();
   m_host = nullptr;
+  releaseDirtyOrder();
   m_DependencyOrder.clear();
   m_editorResolver = nullptr;
   Component::editorPrepareForDestruction();

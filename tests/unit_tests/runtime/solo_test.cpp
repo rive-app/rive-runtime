@@ -125,16 +125,23 @@ TEST_CASE(
   reference.green->x(reference.green->x() + 100.0f);
   reference.artboard->advance(0.0f);
 
-  // Green moved while hidden, alongside a move of the shown blue: the
-  // update skips green's run and reaches blue.
+  // Green moved while hidden, alongside a move of the shown blue: blue
+  // updates, green keeps its dirt until it is shown, and the update visits
+  // only what was dirtied, not the whole order.
   auto scene = load();
   float blueX = scene.blue->worldTransform()[4];
-  auto skips = rive::Artboard::sm_collapsedRunSkips;
+  float greenX = scene.green->worldTransform()[4];
+  auto visits = rive::Artboard::sm_updateComponentVisits.load();
+  auto notifications = rive::Artboard::sm_dirtNotifications.load();
   scene.blue->x(scene.blue->x() + 10.0f);
   scene.green->x(scene.green->x() + 100.0f);
   scene.artboard->advance(0.0f);
-  CHECK(rive::Artboard::sm_collapsedRunSkips > skips);
+  auto visited = rive::Artboard::sm_updateComponentVisits.load() - visits;
+  CHECK(visited > 0);
+  CHECK(visited <= rive::Artboard::sm_dirtNotifications.load() - notifications);
+  CHECK(visited < scene.artboard->dependencyOrder().size());
   CHECK(scene.blue->worldTransform()[4] == Approx(blueX + 10.0f));
+  CHECK(scene.green->worldTransform()[4] == Approx(greenX));
 
   show(scene, scene.green);
   CHECK(scene.blue->isCollapsed());

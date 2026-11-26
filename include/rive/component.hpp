@@ -74,14 +74,6 @@ private:
 
 protected:
   ComponentDirt m_Dirt = ComponentDirt::Filthy;
-  /// While this component is collapsed: how many places on in the
-  /// dependency order its run of collapsed components ends, so the update
-  /// loop skips the run in one step. Capped at UINT16_MAX: a longer run
-  /// lands on another of its components, which skips on. Written by
-  /// Artboard::markCollapsedRuns; current only while the artboard's
-  /// m_collapsedRunsDirty is clear. 0 never jumps. Fills the padding after
-  /// m_Dirt, so Component doesn't grow on any ABI.
-  uint16_t m_collapsedRunSkip = 0;
   void updateCollapsables();
 
 public:

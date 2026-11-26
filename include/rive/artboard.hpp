@@ -145,6 +145,12 @@ private:
   // lists aren't here at all -- they are source-only, so they live in
   // m_sourceState.
   std::vector<Component*> m_DependencyOrder;
+  // One bit per m_DependencyOrder slot, set when that component is dirtied
+  // (onComponentDirty), so updateComponents visits only the dirty ones
+  // instead of reading every component's dirt. For an order of up to
+  // kInlineDirtyOrder components this word holds the bits; for a longer one
+  // it holds the address of (size + 63) / 64 words. See dirtyOrderWords.
+  uint64_t m_dirtyOrder = 0;
   std::vector<Drawable*> m_Drawables;
   LazyVector<ClippingShape*> m_clippingShapes;
   LazyVector<LayerMask*> m_layerMasks;
@@ -177,16 +183,25 @@ private:
   [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
   bool m_JoysticksApplyBeforeUpdate = true;
-  // Something collapsed or uncollapsed, or the dependency order changed,
-  // since markCollapsedRuns: the run ends on collapsed components are
-  // stale. Sits in padding.
-  bool m_collapsedRunsDirty = true;
-  // Writes each collapsed component's run end; clears m_collapsedRunsDirty.
-  void markCollapsedRuns();
-#ifdef TESTING
-  // Aborts if a run end updateComponents would jump by is wrong.
-  void verifyCollapsedRuns() const;
-#endif
+  static constexpr size_t kInlineDirtyOrder = 64;
+  // The words holding m_dirtyOrder's bits. Null only while the order is
+  // being rebuilt (between releaseDirtyOrder and resetDirtyOrder).
+  uint64_t* dirtyOrderWords() const
+  {
+    if (m_DependencyOrder.size() <= kInlineDirtyOrder)
+    {
+      return const_cast<uint64_t*>(&m_dirtyOrder);
+    }
+    return reinterpret_cast<uint64_t*>(static_cast<uintptr_t>(m_dirtyOrder));
+  }
+  // Frees the words of a long order. Call before m_DependencyOrder changes,
+  // as which kind m_dirtyOrder holds follows the order's size. Leaves it 0,
+  // which reads as no bits and as no words.
+  void releaseDirtyOrder();
+  // Sizes the bits for the current order, with every slot marked.
+  void resetDirtyOrder();
+  // The first slot at or after `from` that is marked, else count.
+  unsigned int nextDirtyOrder(unsigned int from, unsigned int count) const;
 
   unsigned int m_DirtDepth = 0;
 #ifdef WITH_RIVE_SCRIPTING
@@ -454,8 +469,10 @@ public:
   // Atomic like sm_focusTreeBuilds: instances of one file can be made on
   // several threads at once, and initializing one reports dirt.
   static std::atomic<uint64_t> sm_dirtNotifications;
-  // Runs of collapsed components updateComponents skipped in one step.
-  static uint64_t sm_collapsedRunSkips;
+  // Components updateComponents visited (marked slots, dirty or not).
+  // Atomic for the same reason as sm_dirtNotifications: separate artboards
+  // can update on several threads at once.
+  static std::atomic<uint64_t> sm_updateComponentVisits;
   // Focus trees built (buildFocusTree calls that had a manager) across every
   // artboard.
   static std::atomic<uint64_t> sm_focusTreeBuilds;
