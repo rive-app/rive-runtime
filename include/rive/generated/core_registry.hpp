@@ -947,14 +947,14 @@ public:
         return new BlobAsset();
       case ScriptAssetBase::typeKey:
         return new ScriptAsset();
+      case FontAssetBase::typeKey:
+        return new FontAsset();
       case ManifestAssetBase::typeKey:
         return new ManifestAsset();
       case ImageAssetBase::typeKey:
         return new ImageAsset();
       case ShaderAssetBase::typeKey:
         return new ShaderAsset();
-      case FontAssetBase::typeKey:
-        return new FontAsset();
       case AudioAssetBase::typeKey:
         return new AudioAsset();
       case FileAssetContentsBase::typeKey:
