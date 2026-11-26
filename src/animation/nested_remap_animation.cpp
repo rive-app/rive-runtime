@@ -5,6 +5,7 @@ using namespace rive;
 
 void NestedRemapAnimation::timeChanged()
 {
+  m_needsApply = true;
   if (m_AnimationInstance != nullptr)
   {
     m_AnimationInstance->time(
@@ -21,9 +22,7 @@ void NestedRemapAnimation::initializeAnimation(ArtboardInstance* artboard)
 
 bool NestedRemapAnimation::advance(float elapsedSeconds, bool newFrame)
 {
-  if (m_AnimationInstance != nullptr && mix() != 0.0f)
-  {
-    m_AnimationInstance->apply(mix());
-  }
+  m_needsApply = false;
+  applyPose();
   return false;
 }

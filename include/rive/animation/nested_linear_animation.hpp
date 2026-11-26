@@ -26,6 +26,8 @@ public:
   {
     return m_AnimationInstance.get();
   }
+  // Applies the animation where its clock stands, without moving it.
+  void applyPose();
 };
 } // namespace rive
 

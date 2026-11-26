@@ -17,6 +17,7 @@
 #include "rive/animation/nested_input.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/nested_remap_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -1260,6 +1261,45 @@ float NestedArtboard::calculateLocalElapsedSeconds(float elapsedSeconds)
   return localElapsedSeconds;
 }
 
+namespace
+{
+// Where a settle pass (an advance that is not a new frame) applies a host's
+// animations again: from the first remap whose time changed since it last
+// applied (a data bind, a joystick or a host's animation wrote it after this
+// frame's advance) to the last animation, in order, so a later one still wins
+// where they key the same properties. Applying one again has to give what this
+// frame's advance gave, so each of those must be a remap or simple animation
+// at mix 0 or 1: at another mix it would blend in a second time, and a state
+// machine can't apply without advancing. A remap before one that can't waits
+// for the next frame's advance. animations.size() when none applies.
+size_t remapReapplyStart(const std::vector<NestedAnimation*>& animations)
+{
+  size_t count = animations.size();
+  size_t start = count;
+  for (size_t i = 0; i < count; i++)
+  {
+    NestedAnimation* animation = animations[i];
+    bool reappliesAsIs = false;
+    if (animation->is<NestedLinearAnimation>())
+    {
+      float mix = animation->as<NestedLinearAnimation>()->mix();
+      reappliesAsIs = mix == 0.0f || mix == 1.0f;
+    }
+    if (!reappliesAsIs)
+    {
+      start = count;
+    }
+    else if (
+        start == count && animation->is<NestedRemapAnimation>() &&
+        animation->as<NestedRemapAnimation>()->needsApply())
+    {
+      start = i;
+    }
+  }
+  return start;
+}
+} // namespace
+
 bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
   if (m_referencedArtboard == nullptr)
@@ -1323,8 +1363,12 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
   }
   if (advanceNested)
   {
-    for (auto animation : m_NestedAnimations)
+    size_t animationCount = m_NestedAnimations.size();
+    size_t reapplyFrom = newFrame ? animationCount
+                                  : remapReapplyStart(m_NestedAnimations);
+    for (size_t i = 0; i < animationCount; i++)
     {
+      NestedAnimation* animation = m_NestedAnimations[i];
       // If it is not a new frame, we only advance state machines. And we
       // first validate whether their state has changed. Then and only
       // then we advance the state machine. This avoids triggering dirt
@@ -1332,7 +1376,23 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
       // settle in the same value
       if (!newFrame)
       {
-        if (animation->is<NestedStateMachine>())
+        // A remap time written after this frame's advance shows this frame:
+        // it and the animations after it apply again, in order, without
+        // moving a clock (see remapReapplyStart). Their applies dirty the
+        // instance, which the check below carries to this host.
+        if (i >= reapplyFrom)
+        {
+          if (animation->is<NestedRemapAnimation>())
+          {
+            // Clears needsApply.
+            animation->advance(localElapsedSeconds, newFrame);
+          }
+          else
+          {
+            animation->as<NestedLinearAnimation>()->applyPose();
+          }
+        }
+        else if (animation->is<NestedStateMachine>())
         {
           if (animation->as<NestedStateMachine>()->tryChangeState())
           {

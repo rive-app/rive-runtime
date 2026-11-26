@@ -1,0 +1,177 @@
+<Rive version="1" kind="fragment">
+    <Artboard defaultStateMachineId="0:10" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" name="bound_remap" id="0:1">
+        <NestedArtboard artboardId="0:100" isStateful="true" name="leaf" id="0:2">
+            <NestedRemapAnimation animationId="0:103" name="remap" id="0:3">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:4"/>
+            </NestedRemapAnimation>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:10">
+            <StateMachineLayer name="layer" id="0:11">
+                <EntryState id="0:12"/>
+                <AnyState x="200" id="0:13"/>
+                <ExitState x="400" id="0:14"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:210" viewModelId="0:910" viewModelInstanceId="0:911" width="200" height="200" y="300" name="joystick_chain" id="0:200">
+        <NestedArtboard artboardId="0:300" isStateful="true" name="middle" id="0:202">
+            <NestedRemapAnimation animationId="0:310" name="remap" id="0:203"/>
+        </NestedArtboard>
+        <Joystick xId="0:220" name="phase" id="0:206">
+            <DataBindContext sourcePathIds="0:910-0:912" propertyKey="299" id="0:207"/>
+        </Joystick>
+        <LinearAnimation fps="60" duration="60" name="drive" id="0:220">
+            <KeyedObject objectId="0:203" id="0:221">
+                <KeyedProperty property="time" id="0:222">
+                    <KeyFrameDouble interpolationType="linear" id="0:223"/>
+                    <KeyFrameDouble value="1" frame="60" id="0:224"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="sm" id="0:210">
+            <StateMachineLayer name="layer" id="0:211">
+                <EntryState id="0:212"/>
+                <AnyState x="200" id="0:213"/>
+                <ExitState x="400" id="0:214"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard isComponent="true" width="200" height="200" x="300" y="300" name="middle" id="0:300">
+        <NestedArtboard artboardId="0:100" name="leaf" id="0:302">
+            <NestedRemapAnimation animationId="0:103" name="remap" id="0:303"/>
+        </NestedArtboard>
+        <LinearAnimation fps="60" duration="60" name="mid" id="0:310">
+            <KeyedObject objectId="0:303" id="0:311">
+                <KeyedProperty property="time" id="0:312">
+                    <KeyFrameDouble interpolationType="linear" id="0:313"/>
+                    <KeyFrameDouble value="1" frame="60" id="0:314"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <Artboard isComponent="true" width="200" height="200" x="300" name="leaf" id="0:100">
+        <Node name="dot" id="0:101"/>
+        <LinearAnimation fps="60" duration="60" name="move" id="0:103">
+            <KeyedObject objectId="0:101" id="0:104">
+                <KeyedProperty property="x" id="0:105">
+                    <KeyFrameDouble interpolationType="linear" id="0:106"/>
+                    <KeyFrameDouble value="100" frame="60" id="0:107"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <Artboard isComponent="true" defaultStateMachineId="0:620" width="200" height="200" x="300" y="900" name="leaf2" id="0:600">
+        <Node name="dot" id="0:601"/>
+        <LinearAnimation fps="60" duration="60" name="move" id="0:603">
+            <KeyedObject objectId="0:601" id="0:604">
+                <KeyedProperty property="x" id="0:605">
+                    <KeyFrameDouble interpolationType="linear" id="0:606"/>
+                    <KeyFrameDouble value="100" frame="60" id="0:607"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation fps="60" duration="60" name="hold" id="0:610">
+            <KeyedObject objectId="0:601" id="0:611">
+                <KeyedProperty property="x" id="0:612">
+                    <KeyFrameDouble value="75" id="0:613"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <StateMachine name="hold_sm" id="0:620">
+            <StateMachineLayer name="layer" id="0:621">
+                <AnyState y="-150" id="0:622"/>
+                <ExitState x="400" y="-150" id="0:623"/>
+                <EntryState id="0:624">
+                    <StateTransition stateToId="0:625" id="0:626"/>
+                </EntryState>
+                <AnimationState animationId="0:610" x="200" id="0:625"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:710" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" y="900" name="overlapping_remaps" id="0:700">
+        <NestedArtboard artboardId="0:600" name="leaf" id="0:702">
+            <NestedRemapAnimation animationId="0:603" name="bound" id="0:703">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:704"/>
+            </NestedRemapAnimation>
+            <NestedRemapAnimation animationId="0:603" time="0.5" name="fixed" id="0:705"/>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:710">
+            <StateMachineLayer name="layer" id="0:711">
+                <EntryState id="0:712"/>
+                <AnyState x="200" id="0:713"/>
+                <ExitState x="400" id="0:714"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:730" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" y="900" name="remap_then_state_machine" id="0:720">
+        <NestedArtboard artboardId="0:600" name="leaf" id="0:722">
+            <NestedRemapAnimation animationId="0:603" name="bound" id="0:723">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:724"/>
+            </NestedRemapAnimation>
+            <NestedStateMachine animationId="0:620" name="hold_sm" id="0:725"/>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:730">
+            <StateMachineLayer name="layer" id="0:731">
+                <EntryState id="0:732"/>
+                <AnyState x="200" id="0:733"/>
+                <ExitState x="400" id="0:734"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:750" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" y="900" name="state_machine_then_remap" id="0:740">
+        <NestedArtboard artboardId="0:600" name="leaf" id="0:742">
+            <NestedStateMachine animationId="0:620" name="hold_sm" id="0:743"/>
+            <NestedRemapAnimation animationId="0:603" name="bound" id="0:744">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:745"/>
+            </NestedRemapAnimation>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:750">
+            <StateMachineLayer name="layer" id="0:751">
+                <EntryState id="0:752"/>
+                <AnyState x="200" id="0:753"/>
+                <ExitState x="400" id="0:754"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:770" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" y="900" name="remap_then_simple" id="0:760">
+        <NestedArtboard artboardId="0:600" name="leaf" id="0:762">
+            <NestedRemapAnimation animationId="0:603" name="bound" id="0:763">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:764"/>
+            </NestedRemapAnimation>
+            <NestedSimpleAnimation animationId="0:610" isPlaying="true" name="hold" id="0:765"/>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:770">
+            <StateMachineLayer name="layer" id="0:771">
+                <EntryState id="0:772"/>
+                <AnyState x="200" id="0:773"/>
+                <ExitState x="400" id="0:774"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <Artboard defaultStateMachineId="0:790" viewModelId="0:900" viewModelInstanceId="0:901" width="200" height="200" y="900" name="half_mix_remap" id="0:780">
+        <NestedArtboard artboardId="0:600" name="leaf" id="0:782">
+            <NestedRemapAnimation animationId="0:603" mix="0.5" name="bound" id="0:783">
+                <DataBindContext sourcePathIds="0:900-0:902" propertyKey="202" id="0:784"/>
+            </NestedRemapAnimation>
+        </NestedArtboard>
+        <StateMachine name="sm" id="0:790">
+            <StateMachineLayer name="layer" id="0:791">
+                <EntryState id="0:792"/>
+                <AnyState x="200" id="0:793"/>
+                <ExitState x="400" id="0:794"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+    <ViewModel defaultInstanceId="0:901" name="BoundRemapVM" id="0:900">
+        <ViewModelPropertyNumber name="t" id="0:902"/>
+        <ViewModelInstance exports="true" name="Default" id="0:901">
+            <ViewModelInstanceNumber viewModelPropertyId="0:902" id="0:903"/>
+        </ViewModelInstance>
+    </ViewModel>
+    <ViewModel defaultInstanceId="0:911" name="JoystickVM" id="0:910">
+        <ViewModelPropertyNumber name="x" id="0:912"/>
+        <ViewModelInstance exports="true" name="Default" id="0:911">
+            <ViewModelInstanceNumber propertyValue="-1" viewModelPropertyId="0:912" id="0:913"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

@@ -21,6 +21,14 @@ void NestedLinearAnimation::initializeAnimation(
                                   : nullptr;
 }
 
+void NestedLinearAnimation::applyPose()
+{
+  if (m_AnimationInstance != nullptr && mix() != 0.0f)
+  {
+    m_AnimationInstance->apply(mix());
+  }
+}
+
 void NestedLinearAnimation::releaseDependencies()
 {
   // m_AnimationInstance holds m_artboardInstance = the NestedArtboard's
