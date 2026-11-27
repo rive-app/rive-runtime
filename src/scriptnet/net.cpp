@@ -323,6 +323,17 @@ std::string plainString(const std::string& raw)
   return raw.substr(1, raw.size() - 2);
 }
 
+// What a raw JSON string holds when it has no escapes, or "".
+std::string unescapedString(const std::string& raw)
+{
+  if (raw.size() < 2 || raw.front() != '"' || raw.back() != '"' ||
+      raw.find('\\') != std::string::npos)
+  {
+    return "";
+  }
+  return raw.substr(1, raw.size() - 2);
+}
+
 std::string bodyText(const std::vector<uint8_t>& body)
 {
   return std::string(body.begin(), body.end());
@@ -400,6 +411,9 @@ struct CloudSession
   // Put before each Idempotency-Key a script sends, so its keys, which count
   // from 1 in every run, never match another run's.
   std::string keyPrefix;
+  // Where calls go: the player's home region once the host or a hello named
+  // one that relayAddressAllowed() takes, else the endpoint's own address.
+  std::string address;
 };
 
 // An endpoint and the session the host keeps with it. Endpoint 0 is the one
@@ -542,6 +556,17 @@ public:
   std::unordered_map<uint64_t, Owner> owners;
   // outstanding.size(), readable without the lock so idle polls stay cheap.
   std::atomic<size_t> outstandingCount{0};
+  // Homes hellos named, for poll() to tell their hosts: the endpoint and
+  // its session's epoch, so a notice outlived by its endpoint is dropped, and
+  // the address. Whether there are any is readable without the lock.
+  struct HomeNotice
+  {
+    CloudEndpointId cloudId;
+    uint64_t epoch;
+    std::string url;
+  };
+  std::vector<HomeNotice> homeNotices;
+  std::atomic<bool> homeNoticesPending{false};
 
   CloudState* cloudOf(CloudEndpointId id)
   {
@@ -945,7 +970,7 @@ public:
     // Keep what the check normalized, such as the default timeout.
     request = std::move(probe);
     // The namespace goes in the path, where a CORS preflight can see it.
-    request.url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId +
+    request.url = session.address + "/v1/ns/" + cloud.namespaceId +
                   path.substr(3);
     request.hostChosen = true;
     // The host's values win over anything the script set, and the token is
@@ -1067,6 +1092,10 @@ public:
     session.signTicket = 0;
     session.signedAgain = false;
     session.challenge.clear();
+    // The next hello goes to the endpoint's own address, which names the home
+    // again: a home that stopped answering (a renamed host, a stale saved one)
+    // costs one failed hello, not every call from then on.
+    session.address = state->endpoint.baseUrl;
     // Only a refusal is a script's to read: any other answer may hold a token.
     NetError unusable;
     if (response != nullptr && response->status < 400)
@@ -1163,6 +1192,7 @@ public:
     }
     session.token = std::move(token);
     session.tokenGeneration++;
+    followHome(cloudId, clouds.at(cloudId), members);
     session.displayName = jsonMember(members, "display_name");
     session.wantedName.clear();
     session.answer = "{";
@@ -1179,6 +1209,36 @@ public:
       session.answer += member.first + ":" + member.second;
     }
     session.answer += "}";
+  }
+
+  // A hello names the player's home region and every region's address
+  // (`home`, and `regions` by code). Calls follow the home when
+  // relayAddressAllowed() takes it, and the host hears of it, to start there
+  // next time. Any other address is never used: the token goes with every
+  // call. An engine that names no addresses leaves calls where they are.
+  void followHome(
+      CloudEndpointId cloudId,
+      CloudState& state,
+      const std::vector<std::pair<std::string, std::string>>& members)
+  {
+    std::string home = plainString(jsonMember(members, "home"));
+    std::vector<std::pair<std::string, std::string>> regions;
+    if (home.empty() || !jsonMembers(jsonMember(members, "regions"), &regions))
+    {
+      return;
+    }
+    std::string url = unescapedString(jsonMember(regions, home.c_str()));
+    if (url == state.session.address ||
+        !relayAddressAllowed(state.endpoint.baseUrl, url))
+    {
+      return;
+    }
+    state.session.address = url;
+    if (state.endpoint.homeChanged)
+    {
+      homeNotices.push_back({cloudId, state.session.epoch, std::move(url)});
+      homeNoticesPending.store(true, std::memory_order_release);
+    }
   }
 
   // A rive-relay: request came back 401: its token has expired. It goes back
@@ -1420,6 +1480,7 @@ static bool driveHello(Net& net, CloudEndpointId cloudId)
 {
   std::string challenge;
   CloudEndpoint cloud;
+  std::string address;
   std::string wantedName;
   uint64_t epoch;
   uint64_t ticket = 0;
@@ -1441,6 +1502,7 @@ static bool driveHello(Net& net, CloudEndpointId cloudId)
     wantedName = session.wantedName;
     session.helloName = wantedName;
     cloud = state->endpoint;
+    address = session.address;
     epoch = session.epoch;
     if (!challenge.empty() && cloud.signHello)
     {
@@ -1449,7 +1511,7 @@ static bool driveHello(Net& net, CloudEndpointId cloudId)
                                                 net.limits.defaultTimeoutMs);
     }
   }
-  std::string url = cloud.baseUrl + "/v1/ns/" + cloud.namespaceId + "/hello";
+  std::string url = address + "/v1/ns/" + cloud.namespaceId + "/hello";
   if (challenge.empty())
   {
     sendHello(
@@ -1632,6 +1694,137 @@ static void startQueued(Net& net, std::thread::id thread)
   }
 }
 
+namespace
+{
+
+// An http: or https: URL's scheme, lower-cased host and port (the scheme's
+// default when it names none), and whether anything follows them.
+struct Origin
+{
+  std::string scheme, host, port;
+  bool hasPath = false;
+};
+
+// Dot-separated labels of letters, digits and inner hyphens, as DNS takes
+// them, so a host a browser would refuse never passes here.
+bool isHostName(const std::string& host)
+{
+  size_t label = 0;
+  for (size_t i = 0; i <= host.size(); i++)
+  {
+    char c = i < host.size() ? host[i] : '.';
+    if (c == '.')
+    {
+      if (label == 0 || host[i - 1] == '-')
+      {
+        return false;
+      }
+      label = 0;
+      continue;
+    }
+    bool alnum = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+    if (!alnum && !(c == '-' && label > 0))
+    {
+      return false;
+    }
+    label++;
+  }
+  return true;
+}
+
+// An IPv6 literal, as [::1].
+bool isBracketedAddress(const std::string& host)
+{
+  return host.size() > 2 && host.front() == '[' && host.back() == ']' &&
+         host.find_first_not_of("0123456789abcdef:.", 1) == host.size() - 1;
+}
+
+bool parseOrigin(const std::string& url, Origin* out)
+{
+  size_t at = url.compare(0, 8, "https://") == 0  ? 8
+              : url.compare(0, 7, "http://") == 0 ? 7
+                                                  : 0;
+  if (at == 0)
+  {
+    return false;
+  }
+  out->scheme = url.substr(0, at - 3);
+  size_t end = url.find('/', at);
+  out->hasPath = end != std::string::npos;
+  std::string authority = url.substr(
+      at,
+      end == std::string::npos ? end : end - at);
+  for (char c : authority)
+  {
+    unsigned char u = (unsigned char)c;
+    // No escapes either: a transport that decoded one would connect to
+    // another host than the one judged here.
+    if (u <= 0x20 || u >= 0x7f || c == '?' || c == '#' || c == '@' ||
+        c == '\\' || c == '%')
+    {
+      return false;
+    }
+  }
+  size_t colon = authority.rfind(':');
+  if (colon != std::string::npos &&
+      authority.find(']', colon) == std::string::npos)
+  {
+    out->port = authority.substr(colon + 1);
+    authority.resize(colon);
+    if (out->port.empty() ||
+        out->port.find_first_not_of("0123456789") != std::string::npos)
+    {
+      return false;
+    }
+  }
+  if (out->port.empty())
+  {
+    out->port = out->scheme == "https" ? "443" : "80";
+  }
+  out->host = lowerAscii(authority);
+  return isHostName(out->host) || isBracketedAddress(out->host);
+}
+
+bool isThisMachine(const std::string& host)
+{
+  return host == "localhost" || host == "127.0.0.1" || host == "[::1]";
+}
+
+bool isIpLiteral(const std::string& host)
+{
+  return host.front() == '[' ||
+         host.find_first_not_of("0123456789.") == std::string::npos;
+}
+
+} // namespace
+
+bool relayAddressAllowed(const std::string& baseUrl, const std::string& url)
+{
+  Origin base, to;
+  if (!parseOrigin(baseUrl, &base) || !parseOrigin(url, &to) || to.hasPath)
+  {
+    return false;
+  }
+  if (isThisMachine(base.host))
+  {
+    return isThisMachine(to.host);
+  }
+  if (to.scheme != base.scheme || to.port != base.port)
+  {
+    return false;
+  }
+  if (to.host == base.host)
+  {
+    return true;
+  }
+  // One whole label under the base, as a certificate's or an allow list's
+  // wildcard matches: usw1.relay.rive.app, never a.b.relay.rive.app.
+  size_t label = to.host.size() - base.host.size();
+  return !isIpLiteral(base.host) && to.host.size() > base.host.size() + 1 &&
+         to.host.compare(label, base.host.size(), base.host) == 0 &&
+         to.host[label - 1] == '.' && to.host.find('.') == label - 1;
+}
+
 // Why no request may go to `endpoint`, or "" when one may. The namespace and
 // the address are spliced into every request URL, so neither may change its
 // shape; anything subtler is the host's choice, as http: and loopback are.
@@ -1712,6 +1905,10 @@ static void replaceCloud(
   uint64_t epoch = state.session.epoch + 1;
   state.session = CloudSession();
   state.session.epoch = epoch;
+  const CloudEndpoint& named = state.endpoint;
+  state.session.address = relayAddressAllowed(named.baseUrl, named.homeUrl)
+                              ? named.homeUrl
+                              : named.baseUrl;
   std::random_device random;
   static const char kHex[] = "0123456789abcdef";
   for (int i = 0; i < 4; i++)
@@ -1950,9 +2147,41 @@ void cancelAllForOwner(uint64_t ownerId)
   }
 }
 
+// Tells hosts of the homes hellos named, outside the lock, since a host may
+// name another endpoint from inside the call. A notice whose endpoint was
+// removed or replaced since, by then or by an earlier call here, is dropped.
+static void deliverHomeNotices(Net& net)
+{
+  if (!net.homeNoticesPending.load(std::memory_order_acquire))
+  {
+    return;
+  }
+  std::vector<Net::HomeNotice> notices;
+  {
+    std::lock_guard<std::mutex> lock(net.mutex);
+    notices.swap(net.homeNotices);
+    net.homeNoticesPending.store(false, std::memory_order_relaxed);
+  }
+  for (const Net::HomeNotice& notice : notices)
+  {
+    std::function<void(const std::string&)> notify;
+    {
+      std::lock_guard<std::mutex> lock(net.mutex);
+      CloudState* state = net.cloudOf(notice.cloudId);
+      if (state == nullptr || state->session.epoch != notice.epoch)
+      {
+        continue;
+      }
+      notify = state->endpoint.homeChanged;
+    }
+    notify(notice.url);
+  }
+}
+
 uint32_t poll(uint32_t maxDeliveries)
 {
   Net& net = Net::instance();
+  deliverHomeNotices(net);
   if (net.outstandingCount.load(std::memory_order_relaxed) == 0)
   {
     return 0;
@@ -2054,6 +2283,11 @@ uint32_t poll(uint32_t maxDeliveries)
 bool hasPendingWork()
 {
   Net& net = Net::instance();
+  // A home a hello named is pending until poll() tells the host of it.
+  if (net.homeNoticesPending.load(std::memory_order_acquire))
+  {
+    return true;
+  }
   if (net.outstandingCount.load(std::memory_order_relaxed) == 0)
   {
     return false;

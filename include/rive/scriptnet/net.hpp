@@ -113,7 +113,30 @@ struct CloudEndpoint
   /// host. A web page signs with a Promise, so the answer may come later; a
   /// hello whose signature takes longer than the request timeout fails.
   std::function<void(const std::string& message, HelloSigned done)> signHello;
+  /// The address of the player's home region, as homeChanged gave it in an
+  /// earlier run and the host kept for this namespace and player, or empty.
+  /// Every call goes there from the start, the hello included, when
+  /// relayAddressAllowed() takes it; otherwise it is ignored. A hello that
+  /// fails there sends the next one to baseUrl, which names the home again.
+  std::string homeUrl;
+  /// Called when a hello's answer names a home region other than the one
+  /// calls go to, with its address, once the host's calls go there: for the
+  /// host to keep and give back as homeUrl. From poll(), on the thread that
+  /// calls it, with no lock held; never once the endpoint has been removed
+  /// or replaced.
+  std::function<void(const std::string& homeUrl)> homeChanged;
 };
+
+/// Whether this host's token may go to `url`, an address the engine named,
+/// such as a hello's home region: an origin (no path) in the zone of
+/// `baseUrl`, the address the host chose. In the zone are the base's own host
+/// and the hosts one label under it, with its scheme and port, so
+/// https://relay.rive.app admits https://usw1.relay.rive.app and nothing
+/// outside relay.rive.app. A base on an IP literal admits only itself, and
+/// a base on this machine (localhost, 127.0.0.1, [::1]) any address on this
+/// machine, for local development. A hostile or mistaken answer can
+/// otherwise send the player's token anywhere.
+bool relayAddressAllowed(const std::string& baseUrl, const std::string& url);
 /// Requests made for the last endpoint and not yet sent fail as Aborted.
 /// False, with why in `error`, for an endpoint no request may go to: an
 /// address that is not a plain http: or https: URL (no query, fragment or
@@ -174,7 +197,8 @@ void cancelAllForOwner(uint64_t ownerId);
 uint32_t poll(uint32_t maxDeliveries = 16);
 
 /// True while a request this thread started is outstanding or awaiting
-/// delivery. A delivered response whose body nothing waits to read is
+/// delivery, or a home a hello named awaits poll() (CloudEndpoint::
+/// homeChanged). A delivered response whose body nothing waits to read is
 /// neither.
 bool hasPendingWork();
 

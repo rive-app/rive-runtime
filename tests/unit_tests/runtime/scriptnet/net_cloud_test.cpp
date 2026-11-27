@@ -227,6 +227,38 @@ struct Host
     setCloudEndpoint(std::move(endpoint));
   }
 
+  // Names an endpoint at `baseUrl` that starts at `homeUrl`, a home kept from
+  // an earlier run, and keeps each home a hello names in `homes`.
+  std::vector<std::string> homes;
+  void relayAt(const char* baseUrl, const char* homeUrl = "")
+  {
+    CloudEndpoint endpoint;
+    endpoint.baseUrl = baseUrl;
+    endpoint.namespaceId = "ns_test";
+    endpoint.homeUrl = homeUrl;
+    endpoint.signHello =
+        [this](const std::string& message, CloudEndpoint::HelloSigned done) {
+          signedMessages.push_back(message);
+          done(true, "{}", "S");
+        };
+    endpoint.homeChanged = [this](const std::string& url) {
+      homes.push_back(url);
+    };
+    setCloudEndpoint(std::move(endpoint));
+  }
+
+  // Fails every call the transport still holds, the host's own hellos
+  // included, so none is still pending in the next test. Calls already
+  // answered ignore it.
+  void failUnanswered()
+  {
+    for (const Transport::Start& start : transport->starts)
+    {
+      fail(start.id, NetError{NetErrorCode::Network, "the test is over"});
+    }
+    poll();
+  }
+
   // Answers the challenge and the hello a first request sets off.
   void sayHello(const char* token = "tok.A_1")
   {
@@ -1057,6 +1089,259 @@ TEST_CASE(
   poll();
   REQUIRE(host.transport->starts.size() == 4);
   CHECK_FALSE(host.sent().hostChosen);
+}
+
+TEST_CASE(
+    "a Rive Relay address is taken only in the zone of the host's own",
+    "[scriptnet][cloud]")
+{
+  const std::string base = "https://relay.uat.rive.app";
+  for (const char* url : {
+           "https://usw1.relay.uat.rive.app",
+           "https://euc1.relay.uat.rive.app",
+           "https://relay.uat.rive.app",
+           "https://USW1.Relay.UAT.rive.app",
+       })
+  {
+    CAPTURE(url);
+    CHECK(relayAddressAllowed(base, url));
+  }
+  for (const char* url : {
+           "",
+           "usw1.relay.uat.rive.app",
+           "http://usw1.relay.uat.rive.app",
+           "https://usw1.relay.uat.rive.app:8443",
+           "https://usw1.relay.uat.rive.app/",
+           "https://usw1.relay.uat.rive.app/v1",
+           "https://usw1.relay.uat.rive.app?x",
+           "https://user@usw1.relay.uat.rive.app",
+           "https://a.b.relay.uat.rive.app",
+           "https://.relay.uat.rive.app",
+           "https://xrelay.uat.rive.app",
+           "https://uat.rive.app",
+           "https://api.uat.rive.app",
+           "https://usw1.relay.uat.rive.app.evil.example",
+           "https://a%2eb.relay.uat.rive.app",
+           "https://usw1|other.relay.uat.rive.app",
+           "https://usw1_x.relay.uat.rive.app",
+           "https://-usw1.relay.uat.rive.app",
+           "https://usw1-.relay.uat.rive.app",
+           "https://evil.example",
+           "https://relay.rive.app",
+           "http://127.0.0.1:8700",
+       })
+  {
+    CAPTURE(url);
+    CHECK_FALSE(relayAddressAllowed(base, url));
+  }
+  // A default port named or left out is the same port.
+  CHECK(relayAddressAllowed(
+      "https://relay.uat.rive.app:443",
+      "https://usw1.relay.uat.rive.app"));
+  CHECK(relayAddressAllowed(
+      "https://relay.uat.rive.app",
+      "https://usw1.relay.uat.rive.app:443"));
+  // Ports must match, as the scheme must.
+  CHECK(relayAddressAllowed(
+      "https://relay.example.test:8443",
+      "https://usw1.relay.example.test:8443"));
+  CHECK_FALSE(relayAddressAllowed(
+      "https://relay.example.test:8443",
+      "https://usw1.relay.example.test"));
+
+  // On this machine, for local development, any address on this machine.
+  for (const char* local : {"http://127.0.0.1:8700", "http://localhost:8700/"})
+  {
+    CAPTURE(local);
+    CHECK(relayAddressAllowed(local, "http://127.0.0.1:8701"));
+    CHECK(relayAddressAllowed(local, "http://localhost:9000"));
+    CHECK(relayAddressAllowed(local, "http://[::1]:8700"));
+    CHECK_FALSE(relayAddressAllowed(local, "http://10.0.0.1:8700"));
+    CHECK_FALSE(relayAddressAllowed(local, "https://usw1.relay.rive.app"));
+  }
+  // An address by number has no zone under it.
+  CHECK(relayAddressAllowed("http://10.0.0.5:8700", "http://10.0.0.5:8700"));
+  CHECK_FALSE(
+      relayAddressAllowed("http://10.0.0.5:8700", "http://a.10.0.0.5:8700"));
+}
+
+TEST_CASE(
+    "calls follow the home region a hello names, and the host hears of it",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  host.relayAt("https://relay.uat.rive.app");
+  const std::string first = "https://relay.uat.rive.app/v1/ns/ns_test";
+  const std::string home = "https://usw1.relay.uat.rive.app/v1/ns/ns_test";
+  auto save = host.send("PUT", "/v1/players/me/data/save", "{\"value\":1}");
+  poll();
+  CHECK(host.sent().url == first + "/hello/challenge");
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  CHECK(host.sent().url == first + "/hello");
+  host.answer(
+      200,
+      "{\"token\":\"tok.A\",\"player_id\":\"p_one\",\"home\":\"usw1\","
+      "\"regions\":{\"euc1\":\"https://euc1.relay.uat.rive.app\","
+      "\"usw1\":\"https://usw1.relay.uat.rive.app\"}}");
+  // The host hears of it from poll(), to start there next time.
+  CHECK(
+      host.homes ==
+      std::vector<std::string>{"https://usw1.relay.uat.rive.app"});
+  // The call made before the hello keeps the address it was made for.
+  CHECK(host.sent().url == first + "/players/me/data/save");
+  host.answer(200, "{}");
+  CHECK(save->status == 200);
+
+  auto next = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  CHECK(host.sent().url == home + "/players/me/data/save");
+  CHECK(header(host.sent(), "authorization") == "Bearer tok.A");
+  host.answer(200, "{}");
+  CHECK(next->status == 200);
+
+  // A later hello there that names the same home changes nothing.
+  auto expired = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.answer(401, "{\"error\":\"unauthorized\",\"challenge\":\"v1.def\"}");
+  CHECK(host.sent().url == home + "/hello");
+  host.answer(
+      200,
+      "{\"token\":\"tok.B\",\"player_id\":\"p_one\",\"home\":\"usw1\","
+      "\"regions\":{\"usw1\":\"https://usw1.relay.uat.rive.app\"}}");
+  CHECK(host.homes.size() == 1);
+  CHECK(host.sent().url == home + "/players/me/data/save");
+  CHECK(header(host.sent(), "authorization") == "Bearer tok.B");
+  host.failUnanswered();
+}
+
+TEST_CASE(
+    "a home named for an endpoint replaced before poll() reaches no host",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  host.relayAt("https://relay.uat.rive.app");
+  auto call = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  // Answered without a poll, then the endpoint is replaced before one.
+  HttpResponse hello;
+  hello.status = 200;
+  const std::string
+      body = "{\"token\":\"tok.A\",\"player_id\":\"p_one\",\"home\":\"usw1\","
+             "\"regions\":{\"usw1\":\"https://usw1.relay.uat.rive.app\"}}";
+  hello.body.assign(body.begin(), body.end());
+  hello.url = host.sent().url;
+  complete(host.transport->starts[host.next++].id, std::move(hello));
+  host.relayAt("https://relay.rive.app");
+  poll();
+  CHECK(host.homes.empty());
+  host.failUnanswered();
+}
+
+TEST_CASE(
+    "a home not yet told to the host is pending work, so the host polls "
+    "for it",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  host.relayAt("https://relay.uat.rive.app");
+  auto call = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  host.answer(200, "{\"challenge\":\"v1.abc\"}");
+  // The script gives up while the hello is out, so nothing else is pending.
+  cancel(call->id);
+  HttpResponse hello;
+  hello.status = 200;
+  const std::string
+      body = "{\"token\":\"tok.A\",\"player_id\":\"p_one\",\"home\":\"usw1\","
+             "\"regions\":{\"usw1\":\"https://usw1.relay.uat.rive.app\"}}";
+  hello.body.assign(body.begin(), body.end());
+  hello.url = host.sent().url;
+  complete(host.transport->starts[host.next++].id, std::move(hello));
+  CHECK(hasPendingWork());
+  poll();
+  CHECK(
+      host.homes ==
+      std::vector<std::string>{"https://usw1.relay.uat.rive.app"});
+  CHECK_FALSE(hasPendingWork());
+}
+
+TEST_CASE(
+    "a home outside the host's zone is never followed, so the token stays",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  const std::string first = "https://relay.uat.rive.app/v1/ns/ns_test";
+  for (const char* hostile : {
+           "https://evil.example",
+           "http://usw1.relay.uat.rive.app",
+           "https://usw1.relay.uat.rive.app.evil.example",
+           "https://a.b.relay.uat.rive.app",
+           "https://usw1.relay.uat.rive.app/steal",
+       })
+  {
+    CAPTURE(hostile);
+    host.relayAt("https://relay.uat.rive.app");
+    host.next = host.transport->starts.size();
+    auto call = host.send("GET", "/v1/players/me/data/save");
+    poll();
+    host.answer(200, "{\"challenge\":\"v1.abc\"}");
+    host.answer(
+        200,
+        std::string("{\"token\":\"tok.A\",\"player_id\":\"p_one\","
+                    "\"home\":\"usw1\",\"regions\":{\"usw1\":\"") +
+            hostile + "\"}}");
+    host.answer(200, "{}");
+    auto after = host.send("GET", "/v1/players/me/data/save");
+    poll();
+    CHECK(host.sent().url == first + "/players/me/data/save");
+    host.answer(200, "{}");
+    CHECK(after->status == 200);
+  }
+  CHECK(host.homes.empty());
+  for (const auto& start : host.transport->starts)
+  {
+    CHECK(start.request.url.rfind("https://relay.uat.rive.app/", 0) == 0);
+  }
+}
+
+TEST_CASE(
+    "a home kept from an earlier run is where calls start, when it is in "
+    "the zone",
+    "[scriptnet][cloud]")
+{
+  Host host;
+  host.relayAt("https://relay.uat.rive.app", "https://usw1.relay.uat.rive.app");
+  auto call = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  CHECK(
+      host.sent().url ==
+      "https://usw1.relay.uat.rive.app/v1/ns/ns_test/hello/challenge");
+
+  // A home that no longer answers costs one failed hello: the next goes to
+  // the host's own address, which names the home again.
+  fail(
+      host.transport->starts[host.next++].id,
+      NetError{NetErrorCode::Network, "could not connect"});
+  poll();
+  poll();
+  CHECK(call->settled);
+  CHECK_FALSE(call->error.empty());
+  auto retry = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  CHECK(
+      host.sent().url ==
+      "https://relay.uat.rive.app/v1/ns/ns_test/hello/challenge");
+
+  // One outside the zone, as a tampered store might hold, is ignored.
+  host.relayAt("https://relay.uat.rive.app", "https://evil.example");
+  host.next = host.transport->starts.size();
+  auto again = host.send("GET", "/v1/players/me/data/save");
+  poll();
+  CHECK(
+      host.sent().url ==
+      "https://relay.uat.rive.app/v1/ns/ns_test/hello/challenge");
+  host.failUnanswered();
 }
 
 #endif // WITH_RIVE_SCRIPTNET
