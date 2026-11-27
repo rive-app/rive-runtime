@@ -17,6 +17,58 @@
 namespace rive::ore::cmd
 {
 
+// A deferred object self reports its creation id; a real resource falls back
+// to the buffer's keep alive capture.
+template <typename DeferredT, typename T>
+ResourceHandle recordedHandle(OreCommandBuffer& cmd, T* r)
+{
+  if (auto* d = lite_rtti_cast<DeferredT*>(r))
+  {
+    return d->clientHandle();
+  }
+  return cmd.capture(r);
+}
+
+// A pass takes commands only as the innermost on its stream, so the ones
+// begun inside it there finish first and run ahead of it.
+inline void settlePass(Context* context, Pass* pass, OreCommandBuffer& cmd)
+{
+  if (context != nullptr)
+  {
+    context->finishNestedPasses(pass, &cmd);
+  }
+}
+
+inline void noteBoundStorage(
+    Context* context,
+    const Pass* pass,
+    const BindGroup* group)
+{
+  if (context != nullptr && group != nullptr)
+  {
+    context->noteBoundStorage(pass, group);
+  }
+}
+
+inline void recordSetBindGroup(
+    OreCommandBuffer& cmd,
+    uint32_t groupIndex,
+    BindGroup* bg,
+    const uint32_t* dynamicOffsets,
+    uint32_t dynamicOffsetCount)
+{
+  SetBindGroupCmd c{};
+  c.groupIndex = groupIndex;
+  c.bindGroup = recordedHandle<DeferredBindGroup>(cmd, bg);
+  c.dynamicOffsetCount = dynamicOffsetCount;
+  c.dynamicOffsetStart = dynamicOffsetCount > 0
+                             ? cmd.appendBlob(
+                                   dynamicOffsets,
+                                   dynamicOffsetCount * sizeof(uint32_t))
+                             : 0;
+  cmd.append(CommandType::setBindGroup, c);
+}
+
 class RenderPassRecording : public RenderPass
 {
 public:
@@ -56,7 +108,7 @@ public:
     begin.depthStencil.stencilClearValue = ds.stencilClearValue;
     if (m_context != nullptr)
     {
-      m_context->beginOpenRenderPass(this, *m_cmd);
+      m_context->beginOpenPass(this, *m_cmd);
     }
     m_cmd->append(CommandType::beginRenderPass, begin);
   }
@@ -72,7 +124,7 @@ public:
 
   void setPipeline(Pipeline* pipeline) override
   {
-    if (!checkPipelineCompat(pipeline))
+    if (!settle() || !checkPipelineCompat(pipeline))
     {
       return;
     }
@@ -82,14 +134,21 @@ public:
   void setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset = 0)
       override
   {
-    m_cmd->append(
-        CommandType::setVertexBuffer,
-        SetVertexBufferCmd{slot, idOf(buffer), offset});
+    if (settle())
+    {
+      m_cmd->append(
+          CommandType::setVertexBuffer,
+          SetVertexBufferCmd{slot, idOf(buffer), offset});
+    }
   }
 
   void setIndexBuffer(Buffer* buffer, IndexFormat format, uint32_t offset = 0)
       override
   {
+    if (!settle())
+    {
+      return;
+    }
     SetIndexBufferCmd c{};
     c.buffer = idOf(buffer);
     c.format = format;
@@ -103,22 +162,22 @@ public:
       const uint32_t* dynamicOffsets = nullptr,
       uint32_t dynamicOffsetCount = 0) override
   {
+    if (!settle())
+    {
+      return;
+    }
     // Hold a strong reference so GC cannot free the group before replay.
     if (groupIndex < kMaxBindGroups)
     {
       m_boundGroups[groupIndex] = ref_rcp(bg);
     }
-
-    SetBindGroupCmd c{};
-    c.groupIndex = groupIndex;
-    c.bindGroup = idOf(bg);
-    c.dynamicOffsetCount = dynamicOffsetCount;
-    c.dynamicOffsetStart = dynamicOffsetCount > 0
-                               ? m_cmd->appendBlob(
-                                     dynamicOffsets,
-                                     dynamicOffsetCount * sizeof(uint32_t))
-                               : 0;
-    m_cmd->append(CommandType::setBindGroup, c);
+    noteBoundStorage(m_context, this, bg);
+    recordSetBindGroup(
+        *m_cmd,
+        groupIndex,
+        bg,
+        dynamicOffsets,
+        dynamicOffsetCount);
   }
 
   void setViewport(
@@ -129,7 +188,7 @@ public:
       float minDepth = 0.0f,
       float maxDepth = 1.0f) override
   {
-    m_cmd->append(
+    record(
         CommandType::setViewport,
         SetViewportCmd{x, y, width, height, minDepth, maxDepth});
   }
@@ -137,21 +196,17 @@ public:
   void setScissorRect(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
       override
   {
-    m_cmd->append(
-        CommandType::setScissorRect,
-        SetScissorRectCmd{x, y, width, height});
+    record(CommandType::setScissorRect, SetScissorRectCmd{x, y, width, height});
   }
 
   void setStencilReference(uint32_t ref) override
   {
-    m_cmd->append(
-        CommandType::setStencilReference,
-        SetStencilReferenceCmd{ref});
+    record(CommandType::setStencilReference, SetStencilReferenceCmd{ref});
   }
 
   void setBlendColor(float r, float g, float b, float a) override
   {
-    m_cmd->append(CommandType::setBlendColor, SetBlendColorCmd{r, g, b, a});
+    record(CommandType::setBlendColor, SetBlendColorCmd{r, g, b, a});
   }
 
   void draw(
@@ -160,7 +215,7 @@ public:
       uint32_t firstVertex = 0,
       uint32_t firstInstance = 0) override
   {
-    m_cmd->append(
+    record(
         CommandType::draw,
         DrawCmd{vertexCount, instanceCount, firstVertex, firstInstance});
   }
@@ -172,7 +227,7 @@ public:
       int32_t baseVertex = 0,
       uint32_t firstInstance = 0) override
   {
-    m_cmd->append(
+    record(
         CommandType::drawIndexed,
         DrawIndexedCmd{
             indexCount,
@@ -190,7 +245,7 @@ public:
     }
     if (m_context != nullptr)
     {
-      m_context->finishNestedRenderPasses(this);
+      m_context->finishNestedPasses(this);
     }
     m_cmd->appendOpcode(CommandType::finish);
     m_finished = true;
@@ -200,25 +255,42 @@ public:
     }
     if (m_context != nullptr)
     {
-      m_context->finishOpenRenderPass(this);
+      m_context->finishOpenPass(this);
     }
   }
 
 private:
-  // A deferred object self reports its creation id; a real resource falls
-  // back to the buffer's keep alive capture.
-  template <typename DeferredT, typename T> ResourceHandle idOfAs(T* r)
+  // False for a finished pass, which records and retains nothing more.
+  bool settle()
   {
-    if (auto* d = lite_rtti_cast<DeferredT*>(r))
+    if (m_finished)
     {
-      return d->clientHandle();
+      return false;
     }
-    return m_cmd->capture(r);
+    settlePass(m_context, this, *m_cmd);
+    return true;
   }
-  ResourceHandle idOf(Buffer* b) { return idOfAs<DeferredBuffer>(b); }
-  ResourceHandle idOf(Pipeline* p) { return idOfAs<DeferredPipeline>(p); }
-  ResourceHandle idOf(TextureView* v) { return idOfAs<DeferredTextureView>(v); }
-  ResourceHandle idOf(BindGroup* g) { return idOfAs<DeferredBindGroup>(g); }
+
+  template <typename POD> void record(CommandType type, const POD& pod)
+  {
+    if (settle())
+    {
+      m_cmd->append(type, pod);
+    }
+  }
+
+  ResourceHandle idOf(Buffer* b)
+  {
+    return recordedHandle<DeferredBuffer>(*m_cmd, b);
+  }
+  ResourceHandle idOf(Pipeline* p)
+  {
+    return recordedHandle<DeferredPipeline>(*m_cmd, p);
+  }
+  ResourceHandle idOf(TextureView* v)
+  {
+    return recordedHandle<DeferredTextureView>(*m_cmd, v);
+  }
 
   OreCommandBuffer* m_cmd;
 };

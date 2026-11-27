@@ -24,6 +24,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 namespace rive::ore
@@ -35,22 +36,18 @@ namespace rive::ore
 // Ore reserves a small number of native slots in each backend's slot
 // namespace for its own internal machinery (push-constant emulation,
 // dynamic-sized storage-buffer length arrays). The binding-map
-// allocator must never hand out a user binding at one of these slots, even
-// though no current Ore feature consumes them — they are forward-compat
-// scaffolding so that adding push constants or compute storage buffers
-// later cannot collide with a slot a user shader has already allocated.
+// allocator must never hand out a user binding at one of these slots, so
+// that machinery cannot collide with a slot a user shader has already
+// allocated.
 //
 // Values must agree with the RSTB-emit path in scripting_workspace.
 // ----------------------------------------------------------------------------
 
 // Metal `[[buffer(30)]]` reservation. Metal's hardware buffer table is 31
 // slots (`MTLBufferTableSize`); reserving the topmost matches Dawn's MSL
-// backend convention (`kImmediateBlockBufferSlot`). Targets:
-//   1. Push-constant emulation (Vulkan native, D3D12 root constants — Metal
-//      has no equivalent, must be emulated as a buffer bind).
-//   2. Sizes buffer for dynamic-sized storage-buffer `arrayLength()`
-//      lookups (compute path, currently disabled — see
-//      `Features::storageBuffers`).
+// backend convention (`kImmediateBlockBufferSlot`). It holds the sizes of
+// runtime sized arrays, see `BindingMap::sizedBindings`, so push constants
+// emulated as a buffer would need a slot of their own.
 constexpr uint32_t kMetalReservedBufferSlot = 30;
 
 // Maximum buffer slot the binding-map allocator may assign to a user
@@ -175,7 +172,7 @@ public:
     TextureViewDim textureViewDim = TextureViewDim::Undefined;
     TextureSampleType textureSampleType = TextureSampleType::Undefined;
     bool textureMultisampled = false;
-    // UBO only: WGSL size of the block, the smallest range a bind
+    // Buffers only: WGSL size of the block, the smallest range a bind
     // group may bind here. 0 = no minimum.
     uint32_t minBindingSize = 0;
   };
@@ -190,6 +187,13 @@ public:
 
   // No baked identity, so the caller derives at runtime.
   static constexpr uint64_t kNoLayoutId = 0;
+
+  // A buffer holding a runtime sized array.
+  struct SizedBinding
+  {
+    uint8_t group;
+    uint8_t binding;
+  };
 
   BindingMap() = default;
 
@@ -334,6 +338,10 @@ public:
     m_groupLayouts = std::move(groups);
   }
 
+  // Keeps what `stage` reads, at that stage's slot alone. Group layout ids
+  // change, so the clamped map never interns as the layout it came from.
+  void clampToStage(Stage stage);
+
   // First entry in `group` whose kind or texture shape differs from another
   // entry on its binding, or null.
   const Entry* sharedBindingConflict(uint32_t group) const;
@@ -341,6 +349,13 @@ public:
   // Merges entries on one binding that differ only in block size, keeping the
   // largest.
   void foldSharedBindings();
+
+  // Metal: buffers whose bound sizes this module's shaders read at
+  // kMetalReservedBufferSlot, in order. Take each stage's from its own module.
+  const std::vector<SizedBinding>& sizedBindings() const
+  {
+    return m_sizedBindings;
+  }
 
   size_t groupLayoutCount() const { return m_groupLayouts.size(); }
   const GroupLayout& groupLayoutAt(size_t i) const { return m_groupLayouts[i]; }
@@ -366,6 +381,11 @@ public:
   }
 
   void finalize();
+
+  void setSizedBindings(std::vector<SizedBinding> sized)
+  {
+    m_sizedBindings = std::move(sized);
+  }
 
   // Requires `finalize()` first, since the id hashes entries in sorted
   // order. Excludes hasDynamicOffset, which the toolchain cannot see.
@@ -412,6 +432,7 @@ private:
 
   std::vector<Entry> m_entries;
   std::vector<GroupLayout> m_groupLayouts;
+  std::vector<SizedBinding> m_sizedBindings;
 #ifdef WITH_RIVE_TOOLS
   bool m_finalized = false;
 #endif

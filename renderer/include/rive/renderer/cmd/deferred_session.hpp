@@ -61,7 +61,7 @@ public:
   uint32_t drawnTargetSize() const { return 0; }
   void setTarget(const ore::Context::TargetDesc&) {}
   void drainPendingDestroys() {}
-  void finishOpenRenderPassesFrom(uint64_t) {}
+  void finishOpenPassesFrom(uint64_t) {}
   void resetFrame() {}
 
 private:
@@ -430,7 +430,7 @@ public:
   {
     closeActiveRange();
     reopenUnroutedRange();
-    m_ore.finishOpenRenderPassesFrom(0);
+    m_ore.finishOpenPassesFrom(0);
   }
 
   // ---- DeferredCanvasHost ----

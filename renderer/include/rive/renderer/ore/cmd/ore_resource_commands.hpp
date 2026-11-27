@@ -85,13 +85,14 @@ struct ShaderModuleDescPOD
   BlobRef texSamplerPairBytes;
   BlobRef glFixupBytes;
   BlobRef entryBindingBytes;
+  BlobRef workgroupBytes;
   uint32_t shaderAssetId;
   ShaderLanguage language;
   ShaderStage stage;
   uint8_t pad[2];
 };
 static_assert(
-    sizeof(ShaderModuleDescPOD) == 136,
+    sizeof(ShaderModuleDescPOD) == 152,
     "wire POD must be padding-free");
 
 struct BindGroupLayoutDescPOD
@@ -164,6 +165,19 @@ struct PipelineDescPOD
 };
 static_assert(sizeof(PipelineDescPOD) == 176, "wire POD must be padding-free");
 
+// Module and layout references are client handles.
+struct ComputePipelineDescPOD
+{
+  BlobRef entryPoint;       // null-terminated string
+  BlobRef bindGroupLayouts; // bindGroupLayoutCount * sizeof(ResourceHandle)
+  BlobRef label;
+  ResourceHandle module;
+  uint32_t bindGroupLayoutCount;
+};
+static_assert(
+    sizeof(ComputePipelineDescPOD) == 56,
+    "wire POD must be padding-free");
+
 // BindGroupDesc entries with resource pointers replaced by client handles.
 struct UBOEntryPOD
 {
@@ -189,11 +203,14 @@ struct BindGroupDescPOD
   BlobRef textures; // textureCount * sizeof(TexEntryPOD)
   BlobRef samplers; // samplerCount * sizeof(SampEntryPOD)
   BlobRef label;
+  BlobRef storageBuffers; // storageBufferCount * sizeof(UBOEntryPOD)
   ResourceHandle layout;
   uint32_t uboCount;
   uint32_t textureCount;
   uint32_t samplerCount;
+  uint32_t storageBufferCount;
+  uint32_t pad;
 };
-static_assert(sizeof(BindGroupDescPOD) == 80, "wire POD must be padding-free");
+static_assert(sizeof(BindGroupDescPOD) == 104, "wire POD must be padding-free");
 
 } // namespace rive::ore::cmd

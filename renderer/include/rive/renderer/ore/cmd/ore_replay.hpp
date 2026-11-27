@@ -37,6 +37,7 @@ using OreHandleDescribe = std::function<const char*(ResourceHandle)>;
 inline bool replayPassCommand(
     Context& ctx,
     std::unique_ptr<RenderPass>& pass,
+    std::unique_ptr<ComputePass>& computePass,
     bool& dropDraws,
     CommandType type,
     OreCommandReader& reader,
@@ -176,6 +177,14 @@ inline bool replayPassCommand(
       {
         churned("bind group", c.bindGroup);
       }
+      else if (computePass && !dropDraws)
+      {
+        computePass->setBindGroup(
+            c.groupIndex,
+            bindGroup,
+            dynamicOffsets,
+            c.dynamicOffsetCount);
+      }
       else if (pass && !dropDraws)
       {
         pass->setBindGroup(
@@ -256,6 +265,44 @@ inline bool replayPassCommand(
         pass->finish();
         pass.reset();
       }
+      if (computePass)
+      {
+        computePass->finish();
+        computePass.reset();
+      }
+      break;
+    }
+    case CommandType::beginComputePass:
+    {
+      auto c = reader.read<BeginComputePassCmd>();
+      ComputePassDesc desc{};
+      desc.label = blobCString(reader, c.label);
+      dropDraws = false;
+      computePass = ctx.beginComputePass(desc);
+      break;
+    }
+    case CommandType::setComputePipeline:
+    {
+      auto c = reader.read<SetPipelineCmd>();
+      auto* pipeline = static_cast<ComputePipeline*>(
+          resolve(c.pipeline, OreKind::computePipeline));
+      if (pipeline == nullptr && c.pipeline != kInvalidHandle)
+      {
+        churned("compute pipeline", c.pipeline);
+      }
+      else if (computePass && !dropDraws)
+      {
+        computePass->setPipeline(pipeline);
+      }
+      break;
+    }
+    case CommandType::dispatchWorkgroups:
+    {
+      auto c = reader.read<DispatchWorkgroupsCmd>();
+      if (computePass && !dropDraws)
+      {
+        computePass->dispatchWorkgroups(c.x, c.y, c.z);
+      }
       break;
     }
     default:
@@ -277,11 +324,19 @@ inline void replayCommandBufferResolved(
   };
   OreCommandReader reader(cmd.commandBytes(), cmd.blobBytes());
   std::unique_ptr<RenderPass> pass;
+  std::unique_ptr<ComputePass> computePass;
   bool dropDraws = false;
   CommandType type;
   while (reader.next(type))
   {
-    if (!replayPassCommand(ctx, pass, dropDraws, type, reader, resolve))
+    if (!replayPassCommand(
+            ctx,
+            pass,
+            computePass,
+            dropDraws,
+            type,
+            reader,
+            resolve))
     {
       // The payload was not consumed, so later reads would desync.
       assert(false);
@@ -311,6 +366,7 @@ inline void replayOreStream(
   pollPendingPipelines(ctx, table);
   OreCommandReader reader(commands, blobs);
   std::unique_ptr<RenderPass> pass;
+  std::unique_ptr<ComputePass> computePass;
   bool dropDraws = false;
   CommandType type;
   while (reader.next(type))
@@ -326,6 +382,7 @@ inline void replayOreStream(
         !replayPassCommand(
             ctx,
             pass,
+            computePass,
             dropDraws,
             type,
             reader,

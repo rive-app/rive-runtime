@@ -105,6 +105,10 @@ inline void recordMakeShaderModule(
       desc.entryBindingBytes,
       desc.entryBindingSize,
       !desc.entryBindingBytes);
+  pod.workgroupBytes = cb.appendBlobRef(
+      desc.workgroupBytes,
+      desc.workgroupBytesSize,
+      !desc.workgroupBytes);
   pod.shaderAssetId = desc.shaderAssetId;
   cb.append(CommandType::makeShaderModule, MakeResourcePOD{id, generation});
   cb.appendPayload(pod);
@@ -208,6 +212,44 @@ inline void recordMakePipeline(
   cb.appendPayload(pod);
 }
 
+inline void recordMakeComputePipeline(
+    OreCommandBuffer& cb,
+    ResourceHandle id,
+    uint32_t generation,
+    const ComputePipelineDesc& desc,
+    ResourceHandle module,
+    Span<const ResourceHandle> bindGroupLayouts)
+{
+  ComputePipelineDescPOD pod{};
+  pod.module = module;
+  pod.entryPoint = cb.appendStringRef(desc.entryPoint);
+  pod.bindGroupLayoutCount = static_cast<uint32_t>(bindGroupLayouts.size());
+  pod.bindGroupLayouts = cb.appendBlobRef(
+      bindGroupLayouts.data(),
+      static_cast<uint32_t>(bindGroupLayouts.size() * sizeof(ResourceHandle)),
+      bindGroupLayouts.empty());
+  pod.label = cb.appendStringRef(desc.label);
+  cb.append(CommandType::makeComputePipeline, MakeResourcePOD{id, generation});
+  cb.appendPayload(pod);
+}
+
+// Uniform or storage entries with each buffer replaced by its handle.
+inline std::vector<UBOEntryPOD> bufferEntryPods(
+    const BindGroupDesc::UBOEntry* entries,
+    uint32_t count,
+    Span<const ResourceHandle> buffers)
+{
+  std::vector<UBOEntryPOD> pods(count);
+  for (uint32_t i = 0; i < count; ++i)
+  {
+    pods[i].slot = entries[i].slot;
+    pods[i].buffer = i < buffers.size() ? buffers[i] : kInvalidHandle;
+    pods[i].offset = entries[i].offset;
+    pods[i].size = entries[i].size;
+  }
+  return pods;
+}
+
 inline void recordMakeBindGroup(
     OreCommandBuffer& cb,
     ResourceHandle id,
@@ -216,16 +258,17 @@ inline void recordMakeBindGroup(
     ResourceHandle layout,
     Span<const ResourceHandle> uboBuffers,
     Span<const ResourceHandle> texViews,
-    Span<const ResourceHandle> sampSamplers)
+    Span<const ResourceHandle> sampSamplers,
+    Span<const ResourceHandle> storageBuffers)
 {
-  std::vector<UBOEntryPOD> ubos(desc.uboCount);
-  for (uint32_t i = 0; i < desc.uboCount; ++i)
-  {
-    ubos[i].slot = desc.ubos[i].slot;
-    ubos[i].buffer = i < uboBuffers.size() ? uboBuffers[i] : kInvalidHandle;
-    ubos[i].offset = desc.ubos[i].offset;
-    ubos[i].size = desc.ubos[i].size;
-  }
+  const std::vector<UBOEntryPOD> ubos = bufferEntryPods(
+      desc.ubos,
+      desc.uboCount,
+      uboBuffers);
+  const std::vector<UBOEntryPOD> storage = bufferEntryPods(
+      desc.storageBuffers,
+      desc.storageBufferCount,
+      storageBuffers);
   std::vector<TexEntryPOD> texs(desc.textureCount);
   for (uint32_t i = 0; i < desc.textureCount; ++i)
   {
@@ -258,6 +301,11 @@ inline void recordMakeBindGroup(
       static_cast<uint32_t>(samps.size() * sizeof(SampEntryPOD)),
       samps.empty());
   pod.label = cb.appendStringRef(desc.label);
+  pod.storageBufferCount = desc.storageBufferCount;
+  pod.storageBuffers = cb.appendBlobRef(
+      storage.data(),
+      static_cast<uint32_t>(storage.size() * sizeof(UBOEntryPOD)),
+      storage.empty());
   cb.append(CommandType::makeBindGroup, MakeResourcePOD{id, generation});
   cb.appendPayload(pod);
 }

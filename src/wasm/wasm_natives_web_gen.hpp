@@ -1349,6 +1349,40 @@ void rive_web_gpu_pipeline_release(uint32_t vmHandle, uint32_t pipeline)
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     gpuPipelineReleaseImpl(vm, pipeline);
 }
+uint32_t rive_web_gpu_bind_group_layout_from_compute_entry(uint32_t vmHandle, uint32_t shaderModule, const char* entry, uint32_t entryLength, uint32_t groupIndex)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg entryUtf8(vm, entry, entryLength);
+    return gpuBindGroupLayoutFromComputeEntryImpl(vm, shaderModule, entryUtf8.data(), entryUtf8.size(), groupIndex);
+}
+uint32_t rive_web_gpu_bind_group_new_v2(uint32_t vmHandle, const rive_gpu_bind_group_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    return gpuBindGroupNewV2Impl(vm, desc, descByteCount, blob, blobCount);
+}
+uint32_t rive_web_gpu_compute_pipeline_new(uint32_t vmHandle, uint32_t shaderModule, const char* entry, uint32_t entryLength, const uint32_t* layouts, uint32_t layoutCount, const char* label, uint32_t labelLength)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg entryUtf8(vm, entry, entryLength);
+    WasmStringArg labelUtf8(vm, label, labelLength);
+    return gpuComputePipelineNewImpl(vm, shaderModule, entryUtf8.data(), entryUtf8.size(), layouts, layoutCount, labelUtf8.data(), labelUtf8.size());
+}
+uint32_t rive_web_gpu_compute_pass_begin(uint32_t vmHandle, const char* label, uint32_t labelLength)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg labelUtf8(vm, label, labelLength);
+    return gpuComputePassBeginImpl(vm, labelUtf8.data(), labelUtf8.size());
+}
+void rive_web_gpu_compute_pass_set_pipeline(uint32_t vmHandle, uint32_t pass, uint32_t pipeline)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    gpuComputePassSetPipelineImpl(vm, pass, pipeline);
+}
+void rive_web_gpu_compute_pass_dispatch(uint32_t vmHandle, uint32_t pass, uint32_t x, uint32_t y, uint32_t z)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    gpuComputePassDispatchImpl(vm, pass, x, y, z);
+}
 void rive_web_mat4_multiply(uint32_t vmHandle, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -2322,6 +2356,12 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_gpu_bind_group_release,
     (void*)rive_web_gpu_pipeline_new,
     (void*)rive_web_gpu_pipeline_release,
+    (void*)rive_web_gpu_bind_group_layout_from_compute_entry,
+    (void*)rive_web_gpu_bind_group_new_v2,
+    (void*)rive_web_gpu_compute_pipeline_new,
+    (void*)rive_web_gpu_compute_pass_begin,
+    (void*)rive_web_gpu_compute_pass_set_pipeline,
+    (void*)rive_web_gpu_compute_pass_dispatch,
     (void*)rive_web_mat4_multiply,
     (void*)rive_web_mat4_invert,
     (void*)rive_web_buffer_new,

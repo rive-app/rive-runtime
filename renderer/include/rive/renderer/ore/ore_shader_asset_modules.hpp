@@ -80,6 +80,33 @@ inline std::vector<uint8_t> moduleEntryBindingBytes(
   return encodeEntryBindings(module);
 }
 
+// The workgroups of the compute entries among [first, first + count), under
+// the physical names backends look up.
+inline std::vector<uint8_t> moduleWorkgroupBytes(
+    const std::vector<RstbWorkgroup>& assetWorkgroups,
+    const std::vector<RstbEntryView>& entries,
+    uint32_t first,
+    uint32_t count)
+{
+  std::vector<RstbWorkgroup> module;
+  for (uint32_t i = first; i < first + count && i < entries.size(); i++)
+  {
+    const RstbEntryView& entry = entries[i];
+    if (entry.stage != 2)
+      continue;
+    for (const RstbWorkgroup& workgroup : assetWorkgroups)
+    {
+      if (workgroup.name != entry.logical)
+        continue;
+      RstbWorkgroup named = workgroup;
+      named.name = entry.physical;
+      module.push_back(std::move(named));
+      break;
+    }
+  }
+  return encodeWorkgroups(module);
+}
+
 // Calls visit(desc, first, count, entries) once per module the asset's variant
 // for target builds: one per vertex or fragment entry on per entry targets
 // (GLSL, HLSL), else one shared by entries [first, first + count). visit
@@ -188,6 +215,18 @@ bool visitShaderAssetModules(
   desc.entryBindingBytes = entryBindingBytes.empty() ? nullptr
                                                      : entryBindingBytes.data();
   desc.entryBindingSize = static_cast<uint32_t>(entryBindingBytes.size());
+  // Compute entries only reach the targets that share one module.
+  std::vector<RstbWorkgroup> assetWorkgroups;
+  auto workgroups = asset.workgroups();
+  decodeWorkgroups(workgroups.data(), workgroups.size(), assetWorkgroups);
+  std::vector<uint8_t> workgroupBytes = moduleWorkgroupBytes(
+      assetWorkgroups,
+      entries,
+      0u,
+      count);
+  desc.workgroupBytes = workgroupBytes.empty() ? nullptr
+                                               : workgroupBytes.data();
+  desc.workgroupBytesSize = static_cast<uint32_t>(workgroupBytes.size());
   visit(desc, 0u, count, entries);
   return true;
 }

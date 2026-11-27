@@ -685,6 +685,68 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "an ore compute pass names the canvases it samples",
+    "[cmd][canvas-dag][ore]")
+{
+  DeferredSession session(ore::ReplayCaps{});
+  auto& ore = session.oreContext();
+  rcp<gpu::RenderCanvas> sampled = session.makeUnboundContentCanvas(4, 4);
+  REQUIRE(sampled != nullptr);
+  rcp<ore::TextureView> sampledView = ore.wrapCanvasTexture(sampled.get());
+  rcp<ore::BindGroup> group = sampleGroup(ore, sampledView.get());
+  REQUIRE(group != nullptr);
+
+  auto pass = ore.beginComputePass({});
+  REQUIRE(pass != nullptr);
+  pass->setBindGroup(0, group.get());
+  CHECK(session.oreSegments().empty());
+  pass->finish();
+
+  REQUIRE(session.oreSegments().size() == 1);
+  const DeferredOreSegment& seg = session.oreSegments()[0];
+  CHECK(
+      seg.reads == std::vector<uint64_t>{
+                       session.canvases().imageDrawId(sampled->renderImage()) &
+                       kCanvasHandleMask});
+  CHECK(seg.writes.empty());
+}
+
+TEST_CASE(
+    "a finished ore pass names no canvas it is handed",
+    "[cmd][canvas-dag][ore]")
+{
+  DeferredSession session(ore::ReplayCaps{});
+  auto& ore = session.oreContext();
+  rcp<gpu::RenderCanvas> sampled = session.makeUnboundContentCanvas(4, 4);
+  REQUIRE(sampled != nullptr);
+  rcp<ore::TextureView> sampledView = ore.wrapCanvasTexture(sampled.get());
+  rcp<ore::BindGroup> group = sampleGroup(ore, sampledView.get());
+  REQUIRE(group != nullptr);
+
+  auto outer = ore.beginRenderPass(ore::RenderPassDesc{});
+  // The outer pass's command finishes the inner one.
+  SECTION("a render pass")
+  {
+    auto inner = ore.beginRenderPass(ore::RenderPassDesc{});
+    outer->draw(3);
+    REQUIRE(inner->isFinished());
+    inner->setBindGroup(0, group.get());
+  }
+  SECTION("a compute pass")
+  {
+    auto inner = ore.beginComputePass({});
+    REQUIRE(inner != nullptr);
+    outer->draw(3);
+    REQUIRE(inner->isFinished());
+    inner->setBindGroup(0, group.get());
+  }
+  outer->finish();
+
+  REQUIRE(session.oreSegments().size() == 1);
+  CHECK(session.oreSegments()[0].reads.empty());
+}
+
+TEST_CASE(
     "a nested ore pass shares its outer pass's run",
     "[cmd][canvas-dag][ore]")
 {

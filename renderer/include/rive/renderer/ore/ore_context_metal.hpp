@@ -18,6 +18,8 @@ class RenderPassMetal;
 class BindGroupMetal;
 class TextureMetal;
 
+class BufferMetal;
+
 class ContextMetal : public Context
 {
 public:
@@ -41,6 +43,13 @@ public:
 
   std::unique_ptr<RenderPass> beginRenderPass(
       const RenderPassDesc& desc,
+      std::string* outError = nullptr) override;
+
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* outError) override;
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
       std::string* outError = nullptr) override;
 
   void beginFrame(const FrameDescriptor&) override;
@@ -74,6 +83,8 @@ public:
 
 private:
   friend class RenderPassMetal;
+  friend class ComputePassMetal;
+  friend class BufferMetal;
   friend class BindGroupMetal;
   friend class TextureMetal;
 
@@ -99,6 +110,24 @@ private:
   id<MTLDevice> m_mtlDevice = nil;
   id<MTLCommandQueue> m_mtlQueue = nil;
   id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
+
+  // A write into a storage buffer's memory would land ahead of passes
+  // encoded but not yet run, so its bytes are copied in command order.
+  void writeStorageBuffer(
+      BufferMetal* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
+
+  void replayPendingFrame();
+
+  // Metal allows one encoder at a time on a command buffer.
+  uint32_t m_openEncoders = 0;
+  void encoderEnded()
+  {
+    if (m_openEncoders > 0)
+      m_openEncoders--;
+  }
 
   std::vector<rcp<BindGroup>> m_deferredBindGroups;
 

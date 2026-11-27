@@ -642,7 +642,7 @@ public:
     auto oreContext = renderContext()->getOreContext();
     if (oreContext == nullptr)
       return;
-    oreContext->finishOpenRenderPassesFrom(0);
+    oreContext->finishOpenPassesFrom(0);
     m_fiddleContext->endOreFrame(oreContext);
   }
 #endif

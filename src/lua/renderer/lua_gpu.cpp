@@ -2087,7 +2087,8 @@ static int gpupipeline_namecall(lua_State* L)
 static bool validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
 {
   // The pass finishes without the wrapper when the pass it was begun
-  // inside finishes first, or when the script call that began it returns.
+  // inside finishes or records a command into the same stream, or when the
+  // script call that began it returns.
   if (self->m_finished || (self->pass && self->pass->isFinished()))
   {
     luaL_error(L, "render pass expired: it was already finished");
@@ -3893,7 +3894,7 @@ ScriptCallGpuScope rive_lua_enterScriptCallGpuScope(lua_State* L)
   scope.openCanvasFrameToken = context->nextOpenCanvasFrameToken();
   if (auto* oreCtx = static_cast<ore::Context*>(context->oreContext()))
   {
-    scope.openRenderPassToken = oreCtx->nextRenderPassToken();
+    scope.openRenderPassToken = oreCtx->nextPassToken();
   }
   return scope;
 }
@@ -3904,7 +3905,7 @@ static void closeOrphanRenderPasses(lua_State* L, uint64_t token)
   if (context == nullptr)
     return;
   auto* oreCtx = static_cast<ore::Context*>(context->oreContext());
-  if (oreCtx == nullptr || oreCtx->finishOpenRenderPassesFrom(token) == 0)
+  if (oreCtx == nullptr || oreCtx->finishOpenPassesFrom(token) == 0)
     return;
   lua_pushstring(
       L,

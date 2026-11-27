@@ -49,6 +49,12 @@ enum class CommandType : uint32_t
   // Reserve a canvas view; the consumer wraps at replay. No device touch on
   // record.
   wrapCanvasView,
+
+  // A compute pass shares setBindGroup and finish with a render pass.
+  beginComputePass,
+  setComputePipeline,
+  dispatchWorkgroups,
+  makeComputePipeline,
 };
 
 // Precedes each make descriptor; the consumer stores the real resource at
@@ -248,6 +254,18 @@ struct DrawIndexedCmd
   uint32_t firstInstance;
 };
 
+struct BeginComputePassCmd
+{
+  BlobRef label; // absent when the pass carries none
+};
+
+struct DispatchWorkgroupsCmd
+{
+  uint32_t x;
+  uint32_t y;
+  uint32_t z;
+};
+
 // Intentionally no union node type; readers switch on CommandType and memcpy
 // the POD, avoiding the union's worst case padding.
 
@@ -279,7 +297,11 @@ struct DrawIndexedCmd
   X(bufferUpdate, BufferUpdatePOD, void)                                       \
   X(textureUpload, TextureUploadPOD, void)                                     \
   X(destroyResource, DestroyResourcePOD, void)                                 \
-  X(wrapCanvasView, WrapCanvasViewPOD, void)
+  X(wrapCanvasView, WrapCanvasViewPOD, void)                                   \
+  X(beginComputePass, BeginComputePassCmd, void)                               \
+  X(setComputePipeline, SetPipelineCmd, void)                                  \
+  X(dispatchWorkgroups, DispatchWorkgroupsCmd, void)                           \
+  X(makeComputePipeline, MakeResourcePOD, ComputePipelineDescPOD)
 
 namespace detail
 {
@@ -305,7 +327,7 @@ constexpr size_t orePayloadSizeOf(CommandType c)
 }
 
 // Pass level, as opposed to the resource lifecycle interleaved with them.
-constexpr bool isRenderPassCommand(CommandType c)
+constexpr bool isPassCommand(CommandType c)
 {
   switch (c)
   {
@@ -321,6 +343,9 @@ constexpr bool isRenderPassCommand(CommandType c)
     case CommandType::draw:
     case CommandType::drawIndexed:
     case CommandType::finish:
+    case CommandType::beginComputePass:
+    case CommandType::setComputePipeline:
+    case CommandType::dispatchWorkgroups:
       return true;
     default:
       return false;

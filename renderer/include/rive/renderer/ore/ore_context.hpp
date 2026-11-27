@@ -24,6 +24,7 @@
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
+#include "rive/renderer/ore/ore_compute_pass.hpp"
 #include "rive/renderer/ore/cmd/ore_command_buffer.hpp"
 
 namespace rive
@@ -85,7 +86,7 @@ public:
   // finished and its finish and destructor stay quiet.
   virtual ~Context()
   {
-    for (const OpenRenderPass& open : m_openRenderPasses)
+    for (const OpenPass& open : m_openPasses)
     {
       open.pass->m_finished = true;
       open.pass->m_context = nullptr;
@@ -164,8 +165,40 @@ public:
       const RenderPassDesc& desc,
       std::string* outError = nullptr) = 0;
 
+  // Compute, where features().computeShaders. `desc` is checked here, so a
+  // backend only builds.
+  rcp<ComputePipeline> makeComputePipeline(
+      const ComputePipelineDesc& desc,
+      std::string* outError = nullptr)
+  {
+    std::string error;
+    if (!validateComputePipelineDesc(this, desc, &error))
+    {
+      refuse("makeComputePipeline", error.c_str(), outError);
+      return nullptr;
+    }
+    return makeComputePipelineImpl(desc, outError);
+  }
+
+  virtual std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& /*desc*/,
+      std::string* outError = nullptr)
+  {
+    refuse("beginComputePass", kNoCompute, outError);
+    return nullptr;
+  }
+
   // Receives a desc whose ranges are already checked and non-zero.
   virtual rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) = 0;
+
+  // Receives a desc validateComputePipelineDesc accepted.
+  virtual rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& /*desc*/,
+      std::string* outError)
+  {
+    refuse("makeComputePipeline", kNoCompute, outError);
+    return nullptr;
+  }
 
   struct FrameDescriptor
   {
@@ -359,68 +392,162 @@ public:
   cmd::OreCommandBuffer& pendingFrame() { return m_pendingFrame; }
 
   // Recorded passes begun and not finished, outermost first. A nested pass
-  // finishes on its own and moves ahead of the pass it was begun inside.
-  struct OpenRenderPass
+  // finishes on its own and moves ahead of the pass around it on its stream.
+  struct OpenPass
   {
     uint64_t token; // lets a script call reclaim only what it began
-    RenderPass* pass;
+    Pass* pass;
     cmd::OreCommandBuffer* stream;
     size_t beginOffset;
+    // Storage buffers its groups bound, held from an update until it finishes.
+    std::vector<rcp<Buffer>> storage;
+
+    bool binds(const Buffer* buffer) const
+    {
+      for (const rcp<Buffer>& bound : storage)
+      {
+        if (bound.get() == buffer)
+        {
+          return true;
+        }
+      }
+      return false;
+    }
   };
   // Tokens start at 1, so 0 reclaims every pass.
-  uint64_t nextRenderPassToken() const { return m_nextRenderPassToken; }
-  bool hasOpenRenderPasses() const { return !m_openRenderPasses.empty(); }
+  uint64_t nextPassToken() const { return m_nextPassToken; }
+  bool hasOpenPasses() const { return !m_openPasses.empty(); }
 
   // Call before the pass appends its begin.
-  void beginOpenRenderPass(RenderPass* pass, cmd::OreCommandBuffer& stream)
+  void beginOpenPass(Pass* pass, cmd::OreCommandBuffer& stream)
   {
-    m_openRenderPasses.push_back(
-        {m_nextRenderPassToken++, pass, &stream, stream.commandBytes().size()});
+    m_openPasses.push_back(
+        {m_nextPassToken++, pass, &stream, stream.commandBytes().size(), {}});
   }
 
-  // Innermost first, before the caller records its own finish.
-  void finishNestedRenderPasses(RenderPass* pass)
+  // Call when open `pass` binds `group`.
+  void noteBoundStorage(const Pass* pass, const BindGroup* group)
   {
-    while (!m_openRenderPasses.empty() &&
-           m_openRenderPasses.back().pass != pass)
+    for (size_t i = m_openPasses.size(); i-- > 0;)
     {
-      finishInnermostRenderPass();
+      OpenPass& open = m_openPasses[i];
+      if (open.pass != pass)
+      {
+        continue;
+      }
+      for (const rcp<Buffer>& buffer : group->m_retainedBuffers)
+      {
+        if (buffer->usage() == BufferUsage::storage &&
+            !open.binds(buffer.get()))
+        {
+          open.storage.push_back(buffer);
+        }
+      }
+      return;
+    }
+  }
+
+  // No pass can take a storage copy inside: moves the one `stream` recorded
+  // at `offset`, of buffer `handle`, ahead of the innermost pass open there.
+  void hoistAheadOfOpenPass(
+      cmd::OreCommandBuffer& stream,
+      size_t offset,
+      cmd::ResourceHandle handle)
+  {
+    for (size_t i = m_openPasses.size(); i-- > 0;)
+    {
+      OpenPass& open = m_openPasses[i];
+      if (open.stream != &stream)
+      {
+        continue;
+      }
+      // With its buffer made inside the pass, the copy takes what a nested
+      // pass would: every command there but the pass's own, in order. The
+      // passes around take the copy ahead as this one finishes.
+      open.beginOffset = stream.makesBuffer(open.beginOffset, offset, handle)
+                             ? stream.hoistNestedPass(open.beginOffset, offset)
+                             : open.beginOffset + stream.moveTailAhead(
+                                                      open.beginOffset,
+                                                      offset);
+      return;
+    }
+  }
+
+  // Innermost first, before the caller records its own finish. With
+  // `stream`, from the first one inside `pass` that records there, since a
+  // command would land in its range.
+  void finishNestedPasses(
+      Pass* pass,
+      const cmd::OreCommandBuffer* stream = nullptr)
+  {
+    size_t first = m_openPasses.size();
+    for (size_t i = m_openPasses.size();
+         i-- > 0 && m_openPasses[i].pass != pass;)
+    {
+      if (stream == nullptr || m_openPasses[i].stream == stream)
+      {
+        first = i;
+      }
+    }
+    while (m_openPasses.size() > first)
+    {
+      finishInnermostPass();
     }
   }
 
   // Call after the pass appended its finish.
-  void finishOpenRenderPass(RenderPass* pass)
+  void finishOpenPass(Pass* pass)
   {
-    for (size_t i = m_openRenderPasses.size(); i-- > 0;)
+    for (size_t i = m_openPasses.size(); i-- > 0;)
     {
-      if (m_openRenderPasses[i].pass != pass)
+      if (m_openPasses[i].pass != pass)
       {
         continue;
       }
-      OpenRenderPass entry = m_openRenderPasses[i];
-      m_openRenderPasses.erase(m_openRenderPasses.begin() + i);
-      if (i > 0 && m_openRenderPasses[i - 1].stream == entry.stream)
+      OpenPass entry = m_openPasses[i];
+      m_openPasses.erase(m_openPasses.begin() + i);
+      // The pass around it on its stream, past any on other streams.
+      for (size_t j = i; j-- > 0;)
       {
-        OpenRenderPass& outer = m_openRenderPasses[i - 1];
-        outer.beginOffset = entry.stream->hoistNestedRenderPass(
-            outer.beginOffset,
-            entry.beginOffset);
+        OpenPass& outer = m_openPasses[j];
+        if (outer.stream == entry.stream)
+        {
+          outer.beginOffset = entry.stream->hoistNestedPass(
+              outer.beginOffset,
+              entry.beginOffset);
+          break;
+        }
       }
       return;
     }
   }
 
   // Innermost first. Returns how many were finished.
-  size_t finishOpenRenderPassesFrom(uint64_t token)
+  size_t finishOpenPassesFrom(uint64_t token)
   {
     size_t count = 0;
-    while (!m_openRenderPasses.empty() &&
-           m_openRenderPasses.back().token >= token)
+    while (!m_openPasses.empty() && m_openPasses.back().token >= token)
     {
-      finishInnermostRenderPass();
+      finishInnermostPass();
       count++;
     }
     return count;
+  }
+
+  // True, with the last error set, while an open pass binds `buffer`: its
+  // update runs ahead of the open passes, out of order for one that uses it.
+  bool refusesStorageUpdate(const Buffer* buffer)
+  {
+    for (const OpenPass& open : m_openPasses)
+    {
+      if (open.binds(buffer))
+      {
+        setLastError("Buffer.update: a storage buffer cannot be updated "
+                     "while a pass that binds it is open");
+        return true;
+      }
+    }
+    return false;
   }
 
   // Last validation error — set by setPipeline() / setBindGroup() when
@@ -490,6 +617,28 @@ protected:
 
   Features m_features;
 
+  static constexpr const char*
+      kNoCompute = "this backend does not run compute shaders";
+
+  // True, with the last error set, for a buffer this backend has yet to
+  // implement.
+  bool refusesBuffer(const BufferDesc& desc)
+  {
+    if (desc.usage != BufferUsage::storage)
+      return false;
+    setLastError("makeBuffer: this backend has no storage buffers");
+    return true;
+  }
+
+  // To the caller when it asked for the text, else the last error.
+  void refuse(const char* call, const char* why, std::string* outError)
+  {
+    if (outError != nullptr)
+      *outError = why;
+    else
+      setLastError("%s: %s", call, why);
+  }
+
   struct GpuPassTiming
   {
     std::string label;
@@ -506,18 +655,18 @@ protected:
   void publishGpuPassTimings(const std::vector<GpuPassTiming>& rows);
 
   // A finish that fails to unregister would loop forever, so pop it.
-  void finishInnermostRenderPass()
+  void finishInnermostPass()
   {
-    RenderPass* pass = m_openRenderPasses.back().pass;
+    Pass* pass = m_openPasses.back().pass;
     pass->finish();
-    if (!m_openRenderPasses.empty() && m_openRenderPasses.back().pass == pass)
+    if (!m_openPasses.empty() && m_openPasses.back().pass == pass)
     {
-      m_openRenderPasses.pop_back();
+      m_openPasses.pop_back();
     }
   }
 
-  std::vector<OpenRenderPass> m_openRenderPasses;
-  uint64_t m_nextRenderPassToken = 1;
+  std::vector<OpenPass> m_openPasses;
+  uint64_t m_nextPassToken = 1;
 
   // Last validation error from setPipeline() / setBindGroup().
   std::string m_lastError;
@@ -697,6 +846,42 @@ inline bool RenderPass::checkPipelineCompat(const Pipeline* pipeline) const
     return false;
   }
   return true;
+}
+
+inline void ComputePass::setPipeline(ComputePipeline* pipeline)
+{
+  if (m_finished || pipeline == nullptr)
+    return;
+  m_pipeline = ref_rcp(pipeline);
+  applyPipeline(pipeline);
+}
+
+inline void ComputePass::dispatchWorkgroups(uint32_t x, uint32_t y, uint32_t z)
+{
+  if (m_finished || m_context == nullptr)
+    return;
+  std::string error;
+  if (m_pipeline == nullptr)
+    error = "no pipeline is set";
+  else
+    validateDispatch(m_context, x, y, z, &error);
+  if (!error.empty())
+  {
+    m_context->setLastError("dispatchWorkgroups: %s", error.c_str());
+    return;
+  }
+  // A zero count runs nothing on WebGPU, and Metal refuses it.
+  if (x != 0 && y != 0 && z != 0)
+    dispatch(x, y, z);
+}
+
+inline void ComputePass::finish()
+{
+  if (m_finished)
+    return;
+  m_finished = true;
+  end();
+  m_pipeline.reset();
 }
 
 } // namespace rive::ore

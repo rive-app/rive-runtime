@@ -239,6 +239,26 @@ TEST_CASE("ShaderAsset-decode-entry-bindings", "[ShaderAsset]")
   CHECK(old.entryBindings().size() == 0);
 }
 
+TEST_CASE("ShaderAsset-decode-workgroups", "[ShaderAsset]")
+{
+  // Kept raw for ore to decode.
+  std::vector<uint8_t> workgroups =
+      {1, 2, 0, 'c', 's', 8, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0};
+  auto data = envelope(makeRSTB(4, {{2, {0xAA}}}, {{4, workgroups}}));
+  ShaderAsset asset;
+  REQUIRE(asset.decode(data, nullptr) == true);
+
+  auto out = asset.workgroups();
+  REQUIRE(out.size() == workgroups.size());
+  CHECK(std::memcmp(out.data(), workgroups.data(), out.size()) == 0);
+
+  // A shader without compute carries none.
+  auto plainData = envelope(makeRSTB(4, {{2, {0x42}}}));
+  ShaderAsset plain;
+  REQUIRE(plain.decode(plainData, nullptr));
+  CHECK(plain.workgroups().size() == 0);
+}
+
 TEST_CASE("ShaderAsset-decode-no-sections-empty-pairs", "[ShaderAsset]")
 {
   auto data = envelope(makeRSTB(4, {{2, {0x42}}}));

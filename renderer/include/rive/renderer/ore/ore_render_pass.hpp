@@ -6,6 +6,7 @@
 
 #include "rive/refcnt.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
+#include "rive/renderer/ore/ore_pass.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
 namespace rive::ore
@@ -19,7 +20,7 @@ class Pipeline;
 class BindGroup;
 class Context;
 
-class RenderPass
+class RenderPass : public Pass
 {
 public:
   virtual void setPipeline(Pipeline* pipeline) = 0;
@@ -69,14 +70,6 @@ public:
       int32_t baseVertex = 0,
       uint32_t firstInstance = 0) = 0;
 
-  virtual void finish() = 0;
-  bool isFinished() const { return m_finished; }
-
-  virtual ~RenderPass() = default;
-
-  RenderPass(const RenderPass&) = delete;
-  RenderPass& operator=(const RenderPass&) = delete;
-
   // Populate attachment metadata from the descriptor. Called by every
   // backend's beginRenderPass() immediately after constructing the
   // RenderPass; defined inline because it only reads cross-backend
@@ -85,12 +78,8 @@ public:
   virtual void validate() const {};
 
 protected:
-  friend class Context;
-
   RenderPass() = default;
-  RenderPass(Context* context) : m_context(context) {}
-
-  bool m_finished = false;
+  RenderPass(Context* context) : Pass(context) {}
 
   // Attachment metadata — populated by beginRenderPass() from the
   // RenderPassDesc via populateAttachmentMetadata(). Used by setPipeline()
@@ -100,10 +89,6 @@ protected:
   TextureFormat m_depthFormat = {};
   bool m_hasDepth = false;
   uint32_t m_sampleCount = 1;
-
-  // Cross-backend back-pointer used by the pipeline-compat validator to
-  // route errors through Context::setLastError(). Weak ref.
-  Context* m_context = nullptr;
 
   // Lifecycle: strong refs to bound BindGroups prevent GC from freeing
   // them between setBindGroup() and finish(). Released in finish().

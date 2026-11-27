@@ -16,7 +16,7 @@
 // one contract and run against another links its imports to
 // nothing, so a build that carries this can be told apart from one
 // that predates a change to it.
-#define RIVE_BINDINGS_V1_CONTRACT "0077ed357bf97c34"
+#define RIVE_BINDINGS_V1_CONTRACT "54e3499d29ffdc2e"
 
 // The bits rive_rt_features answers.
 #define RIVE_HOST_FEATURE_PARALLEL_CALLS (1u << 0)
@@ -181,6 +181,15 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t stencilClearValue;
     uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
+
+typedef struct rive_gpu_bind_group_desc_v1
+{
+    uint32_t layout;
+    uint32_t uboCount;
+    uint32_t textureCount;
+    uint32_t samplerCount;
+    uint32_t storageCount;
+} rive_gpu_bind_group_desc_v1;
 
 typedef struct rive_gpu_pipeline_desc_v1
 {
@@ -758,6 +767,18 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "pipeline_new")
 uint32_t rive_gpu_pipeline_new(const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pipeline_release")
 void rive_gpu_pipeline_release(uint32_t pipeline);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_compute_entry")
+uint32_t rive_gpu_bind_group_layout_from_compute_entry(uint32_t shaderModule, const char* entry, uint32_t entryLength, uint32_t groupIndex);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_new_v2")
+uint32_t rive_gpu_bind_group_new_v2(const rive_gpu_bind_group_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "compute_pipeline_new")
+uint32_t rive_gpu_compute_pipeline_new(uint32_t shaderModule, const char* entry, uint32_t entryLength, const uint32_t* layouts, uint32_t layoutCount, const char* label, uint32_t labelLength);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "compute_pass_begin")
+uint32_t rive_gpu_compute_pass_begin(const char* label, uint32_t labelLength);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "compute_pass_set_pipeline")
+void rive_gpu_compute_pass_set_pipeline(uint32_t pass, uint32_t pipeline);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "compute_pass_dispatch")
+void rive_gpu_compute_pass_dispatch(uint32_t pass, uint32_t x, uint32_t y, uint32_t z);
 
 // rive_mat4_v1
 RIVE_BINDING_IMPORT("rive_mat4_v1", "multiply")

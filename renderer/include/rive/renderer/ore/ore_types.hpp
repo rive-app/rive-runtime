@@ -36,6 +36,7 @@ enum class BufferUsage : uint8_t
   index,
   uniform,
   upload,
+  storage,
 };
 
 enum class ShaderLanguage : uint8_t
@@ -438,6 +439,11 @@ struct ShaderModuleDesc
   const uint8_t* entryBindingBytes = nullptr;
   uint32_t entryBindingSize = 0;
 
+  // The workgroup of each compute entry point it serves, by physical name,
+  // as RSTB section 4 encodes them.
+  const uint8_t* workgroupBytes = nullptr;
+  uint32_t workgroupBytesSize = 0;
+
   // GL program-link fixup blob from the RSTB (target IDs 14/15, one per
   // GLSL stage). Consumed by `oreGLFixupProgramBindings` at
   // `glLinkProgram` time to call `glUniformBlockBinding` / `glUniform1i`
@@ -678,6 +684,24 @@ struct PipelineDesc
   bool deferBuildCheck = false;
 };
 
+struct ComputePipelineDesc
+{
+  ShaderModule* module = nullptr;
+  // The name the module's source gave the entry point.
+  const char* entryPoint = nullptr;
+
+  // One per `@group(N)` the entry point binds, as PipelineDesc's.
+  BindGroupLayout* const* bindGroupLayouts = nullptr;
+  uint32_t bindGroupLayoutCount = 0;
+
+  const char* label = nullptr;
+};
+
+struct ComputePassDesc
+{
+  const char* label = nullptr;
+};
+
 enum class BuildStatus : uint8_t
 {
   ready,
@@ -755,6 +779,11 @@ struct BindGroupDesc
   const SampEntry* samplers = nullptr;
   uint32_t samplerCount = 0;
   const char* label = nullptr;
+
+  // Storage buffers bind a range as uniform buffers do.
+  using StorageEntry = UBOEntry;
+  const StorageEntry* storageBuffers = nullptr;
+  uint32_t storageBufferCount = 0;
 };
 
 // ============================================================================
@@ -798,6 +827,15 @@ struct Features
   // Scripts should query this before creating MSAA textures; values are
   // always a power-of-two (1, 2, 4, 8). Conservative default: 4.
   uint32_t maxSamples = 4;
+
+  // Zero unless computeShaders.
+  uint32_t maxComputeWorkgroupSizeX = 0;
+  uint32_t maxComputeWorkgroupSizeY = 0;
+  uint32_t maxComputeWorkgroupSizeZ = 0;
+  uint32_t maxComputeInvocationsPerWorkgroup = 0;
+  // Bytes of var<workgroup> one entry point may use.
+  uint32_t maxComputeWorkgroupStorageSize = 0;
+  uint32_t maxComputeWorkgroupsPerDimension = 0;
 };
 
 } // namespace rive::ore

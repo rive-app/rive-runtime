@@ -8,6 +8,7 @@
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
+#include "rive/renderer/ore/ore_rstb_workgroups.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
 #include <cassert>
@@ -45,6 +46,22 @@ public:
     {
       if (e.name == name)
         return &e;
+    }
+    return nullptr;
+  }
+
+  std::vector<RstbWorkgroup> m_workgroups;
+
+  // The named compute entry point's workgroup, null when the bake carried
+  // none for it.
+  const RstbWorkgroup* workgroup(const char* name) const
+  {
+    if (name == nullptr)
+      return nullptr;
+    for (const RstbWorkgroup& w : m_workgroups)
+    {
+      if (w.name == name)
+        return &w;
     }
     return nullptr;
   }
@@ -104,6 +121,10 @@ public:
         desc.entryBindingBytes,
         desc.entryBindingSize,
         m_entryBindings);
+    decodeWorkgroups(
+        desc.workgroupBytes,
+        desc.workgroupBytesSize,
+        m_workgroups);
 #ifdef TRACK_RIVE_SHADER_ID
     m_shaderAssetId = desc.shaderAssetId;
 #endif

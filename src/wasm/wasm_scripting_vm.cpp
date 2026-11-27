@@ -139,6 +139,7 @@
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
+#include "rive/renderer/ore/cmd/ore_deferred_compute_pass.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_render_pass.hpp"
 #include "rive/renderer/cmd/deferred_render_resource.hpp"
 
@@ -954,7 +955,7 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(
   }
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
   ore::Context* oreContext = gpuOreContext(vm);
-  m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
+  m_passToken = oreContext != nullptr ? oreContext->nextPassToken() : 0;
 #endif
 #ifdef RIVE_CANVAS
   m_frameToken = vm->m_nextCanvasFrameToken;
@@ -985,12 +986,12 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(m_vm);
     if (oreContext != nullptr &&
-        oreContext->finishOpenRenderPassesFrom(m_passToken) != 0)
+        oreContext->finishOpenPassesFrom(m_passToken) != 0)
     {
       fprintf(
           stderr,
-          "GPU render pass left open at script return. Call finish() "
-          "on render passes before returning.\n");
+          "GPU pass left open at script return. Call finish() on render "
+          "and compute passes before returning.\n");
     }
 #endif
 #ifdef RIVE_CANVAS
@@ -3499,6 +3500,8 @@ struct HostGpuCanvas
 struct HostGpuPass
 {
   std::unique_ptr<ore::RenderPass> pass;
+  // A compute pass holds this instead, behind the same handle ops.
+  std::unique_ptr<ore::ComputePass> compute;
   // setBindGroup calls made before the first setPipeline.
   ore::DeferredBindGroups deferredBindGroups;
   ore::DrawBindings drawBindings;
@@ -3545,6 +3548,8 @@ struct HostGpuBindGroup
 struct HostGpuPipeline
 {
   rcp<ore::Pipeline> pipeline;
+  // A compute pipeline holds this instead.
+  rcp<ore::ComputePipeline> compute;
 };
 
 ore::Context* gpuOreContext(WasmScriptingVM* vm)
@@ -3807,7 +3812,20 @@ uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount)
     return 20;
   }
   out[20] = f.multisampledTextureRead ? 1 : 0;
-  return 21;
+  // Guests built before compute ask for 21.
+  if (outCount < 29)
+  {
+    return 21;
+  }
+  out[21] = f.computeShaders ? 1 : 0;
+  out[22] = f.storageBuffers ? 1 : 0;
+  out[23] = f.maxComputeWorkgroupSizeX;
+  out[24] = f.maxComputeWorkgroupSizeY;
+  out[25] = f.maxComputeWorkgroupSizeZ;
+  out[26] = f.maxComputeInvocationsPerWorkgroup;
+  out[27] = f.maxComputeWorkgroupStorageSize;
+  out[28] = f.maxComputeWorkgroupsPerDimension;
+  return 29;
 }
 
 uint32_t gpuPassBeginImpl(
@@ -3989,9 +4007,41 @@ HostGpuPass* resolveHostPass(WasmScriptingVM* vm, uint32_t handle)
       WasmScriptingVM::HandleTable::Tag::gpuPass));
 }
 
+ore::ShaderModule* resolveShaderModule(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
+      handle,
+      WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
+  return host != nullptr ? host->shaderModule.get() : nullptr;
+}
+
+// The pass a command goes to. In an AnimaScript module, one finished for the
+// script raises, where a silent drop would hide the cause, and returns null.
+HostGpuPass* resolveLivePass(WasmScriptingVM* vm, uint32_t handle)
+{
+  auto* host = resolveHostPass(vm, handle);
+  // The Luau module does not report misuse by trapping, so it and a module
+  // baked before the std's export have the finished pass drop the command.
+  if (host == nullptr || !vm->utf16Strings())
+  {
+    return host;
+  }
+  if (host->compute != nullptr && host->compute->isFinished())
+  {
+    vm->raiseModuleError("compute pass expired: it was already finished");
+    return nullptr;
+  }
+  if (host->pass != nullptr && host->pass->isFinished())
+  {
+    vm->raiseModuleError("render pass expired: it was already finished");
+    return nullptr;
+  }
+  return host;
+}
+
 ore::RenderPass* resolvePass(WasmScriptingVM* vm, uint32_t handle)
 {
-  auto host = resolveHostPass(vm, handle);
+  auto host = resolveLivePass(vm, handle);
   return host != nullptr ? host->pass.get() : nullptr;
 }
 
@@ -4051,7 +4101,7 @@ void gpuPassSetPipelineImpl(
     uint32_t pipelineHandle)
 {
   // The pass resolves first: it is null with no VM, as during module start.
-  auto* host = resolveHostPass(vm, passHandle);
+  auto* host = resolveLivePass(vm, passHandle);
   if (host == nullptr)
   {
     return;
@@ -4059,7 +4109,8 @@ void gpuPassSetPipelineImpl(
   auto pipeline = static_cast<HostGpuPipeline*>(vm->handles().resolve(
       pipelineHandle,
       WasmScriptingVM::HandleTable::Tag::gpuPipeline));
-  if (pipeline == nullptr)
+  if (host->pass == nullptr || pipeline == nullptr ||
+      pipeline->pipeline == nullptr)
   {
     return;
   }
@@ -4081,6 +4132,27 @@ void gpuPassSetPipelineImpl(
   host->pipelineSet = true;
 }
 
+// Storage usage alone makes no vertex or index buffer where usages are
+// checked, so one binds through a bind group only. Returns true after raising.
+bool refusesStorageGeometry(
+    WasmScriptingVM* vm,
+    const HostGpuBuffer* buffer,
+    const char* call)
+{
+  if (buffer->buffer->usage() != ore::BufferUsage::storage)
+  {
+    return false;
+  }
+  char message[96];
+  snprintf(
+      message,
+      sizeof(message),
+      "%s: a storage buffer binds through a bind group only",
+      call);
+  vm->raiseModuleError(message);
+  return true;
+}
+
 void gpuPassSetVertexBufferImpl(
     WasmScriptingVM* vm,
     uint32_t passHandle,
@@ -4096,7 +4168,8 @@ void gpuPassSetVertexBufferImpl(
   auto buffer = static_cast<HostGpuBuffer*>(vm->handles().resolve(
       bufferHandle,
       WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-  if (buffer == nullptr)
+  if (buffer == nullptr ||
+      refusesStorageGeometry(vm, buffer, "setVertexBuffer"))
   {
     return;
   }
@@ -4131,6 +4204,7 @@ void gpuPassSetIndexBufferImpl(
       bufferHandle,
       WasmScriptingVM::HandleTable::Tag::gpuBuffer));
   if (buffer == nullptr ||
+      refusesStorageGeometry(vm, buffer, "setIndexBuffer") ||
       !validOrdinal(
           vm,
           indexFormat,
@@ -4154,8 +4228,8 @@ void gpuPassSetBindGroupImpl(
     const uint32_t* dynamicOffsets,
     uint32_t dynamicOffsetByteCount)
 {
-  auto* host = resolveHostPass(vm, passHandle);
-  if (host == nullptr || host->pass == nullptr)
+  auto* host = resolveLivePass(vm, passHandle);
+  if (host == nullptr || (host->pass == nullptr && host->compute == nullptr))
   {
     return;
   }
@@ -4181,11 +4255,35 @@ void gpuPassSetBindGroupImpl(
     vm->raiseModuleError(err.c_str());
     return;
   }
+  if (host->compute != nullptr)
+  {
+    // A compute pass applies its groups at dispatch, in any order.
+    host->compute->setBindGroup(
+        groupIndex,
+        bindGroup->bindGroup.get(),
+        count != 0 ? dynamicOffsets : nullptr,
+        count);
+    host->drawBindings.setBindGroup(groupIndex, bindGroup->bindGroup.get());
+    return;
+  }
+  if (std::string err;
+      !host->drawBindings.joinRenderPass(bindGroup->bindGroup.get(), &err))
+  {
+    vm->raiseModuleError(("setBindGroup: " + err).c_str());
+    return;
+  }
   if (!host->pipelineSet)
   {
     host->deferredBindGroups
         .defer(groupIndex, bindGroup->bindGroup.get(), dynamicOffsets, count);
     host->drawBindings.setBindGroup(groupIndex, bindGroup->bindGroup.get());
+    // Held until setPipeline, yet its storage buffers are bound from here.
+    if (oreContext != nullptr)
+    {
+      oreContext->noteBoundStorage(
+          host->pass.get(),
+          bindGroup->bindGroup.get());
+    }
     return;
   }
   if (oreContext != nullptr)
@@ -4268,8 +4366,8 @@ void gpuPassDrawImpl(
     uint32_t firstVertex,
     uint32_t firstInstance)
 {
-  auto* host = resolveHostPass(vm, passHandle);
-  if (host == nullptr ||
+  auto* host = resolveLivePass(vm, passHandle);
+  if (host == nullptr || host->pass == nullptr ||
       !gpuPassDrawAllowed(vm, host, "draw", 0, firstInstance))
   {
     return;
@@ -4286,8 +4384,8 @@ void gpuPassDrawIndexedImpl(
     int32_t baseVertex,
     uint32_t firstInstance)
 {
-  auto* host = resolveHostPass(vm, passHandle);
-  if (host == nullptr ||
+  auto* host = resolveLivePass(vm, passHandle);
+  if (host == nullptr || host->pass == nullptr ||
       !gpuPassDrawAllowed(vm, host, "drawIndexed", baseVertex, firstInstance))
   {
     return;
@@ -4309,13 +4407,17 @@ void gpuPassFinishImpl(WasmScriptingVM* vm, uint32_t handle)
   auto host = static_cast<HostGpuPass*>(vm->handles().resolve(
       handle,
       WasmScriptingVM::HandleTable::Tag::gpuPass));
-  if (host == nullptr || host->pass == nullptr)
+  if (host == nullptr)
   {
     return;
   }
-  if (!host->pass->isFinished())
+  if (host->pass != nullptr && !host->pass->isFinished())
   {
     host->pass->finish();
+  }
+  if (host->compute != nullptr)
+  {
+    host->compute->finish();
   }
   host->drawBindings = {};
 }
@@ -4334,10 +4436,23 @@ uint32_t gpuBufferNewImpl(
     uint32_t dataCount)
 {
   ore::Context* oreContext = gpuOreContext(vm);
+  // upload is the host's own, between the usages a script may name.
   if (oreContext == nullptr || sizeInBytes == 0 ||
       (dataCount != 0 && dataCount != sizeInBytes) ||
-      !validOre(vm, usage, ore::BufferUsage::uniform, "BufferUsage"))
+      !validOrdinal(
+          vm,
+          usage,
+          usage <= (uint32_t)ore::BufferUsage::uniform ||
+              usage == (uint32_t)ore::BufferUsage::storage,
+          "BufferUsage"))
   {
+    return 0;
+  }
+  // WGSL sizes every storage type in whole words, and so does each update.
+  if (usage == (uint32_t)ore::BufferUsage::storage && (sizeInBytes & 3) != 0)
+  {
+    vm->raiseModuleError(
+        "GPUBuffer: a storage buffer's size must be a multiple of 4 bytes");
     return 0;
   }
   ore::BufferDesc desc;
@@ -4375,7 +4490,26 @@ void gpuBufferUpdateImpl(
   {
     return;
   }
+  const bool storage = host->buffer->usage() == ore::BufferUsage::storage;
+  // WebGPU copies whole words, so every backend holds a script to them.
+  if (storage && ((dstOffset | dataCount) & 3) != 0)
+  {
+    vm->raiseModuleError(
+        "Buffer.update: a storage buffer is updated in whole 4 byte words");
+    return;
+  }
+  // Only a storage buffer's update can be refused. The others keep their old
+  // contents on a failure and carry on.
+  ore::Context* oreContext = storage ? gpuOreContext(vm) : nullptr;
+  if (oreContext != nullptr)
+  {
+    oreContext->clearLastError();
+  }
   host->buffer->update(data, dataCount, dstOffset);
+  if (oreContext != nullptr && !oreContext->lastError().empty())
+  {
+    vm->raiseModuleError(oreContext->lastError().c_str());
+  }
 }
 
 void gpuBufferUpdateBlobImpl(
@@ -4953,14 +5087,8 @@ uint32_t gpuBindGroupLayoutFromShadersImpl(
   {
     return 0;
   }
-  auto resolveModule = [vm](uint32_t handle) -> ore::ShaderModule* {
-    auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
-        handle,
-        WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
-    return host != nullptr ? host->shaderModule.get() : nullptr;
-  };
-  ore::ShaderModule* vertex = resolveModule(vertexModule);
-  ore::ShaderModule* fragment = resolveModule(fragmentModule);
+  ore::ShaderModule* vertex = resolveShaderModule(vm, vertexModule);
+  ore::ShaderModule* fragment = resolveShaderModule(vm, fragmentModule);
   if (vertex == nullptr || (fragmentModule != 0 && fragment == nullptr))
   {
     return 0;
@@ -4984,6 +5112,46 @@ uint32_t gpuBindGroupLayoutFromShadersImpl(
       new HostGpuBindGroupLayout{std::move(layout)});
 }
 
+// The layout of what `map`'s entry points bind in one group, 0 when they
+// bind nothing there. The modules and entries are the map's own.
+uint32_t mintEntryLayout(
+    WasmScriptingVM* vm,
+    ore::Context& oreContext,
+    const ore::BindingMap& map,
+    uint32_t groupIndex,
+    const ore::ShaderModule* firstModule,
+    const ore::ShaderModule* secondModule,
+    const char* firstEntry,
+    const char* secondEntry)
+{
+  bool bound = false;
+  for (size_t i = 0; i < map.size() && !bound; ++i)
+  {
+    bound = map.at(i).group == groupIndex;
+  }
+  if (!bound)
+  {
+    return 0;
+  }
+  auto layout = ore::makeBindGroupLayoutFromBindingMap(
+      oreContext,
+      map,
+      groupIndex,
+      nullptr,
+      0,
+      firstModule,
+      secondModule,
+      firstEntry,
+      secondEntry);
+  if (layout == nullptr)
+  {
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
+      new HostGpuBindGroupLayout{std::move(layout)});
+}
+
 uint32_t gpuBindGroupLayoutFromEntriesImpl(
     WasmScriptingVM* vm,
     uint32_t vertexModule,
@@ -4999,67 +5167,70 @@ uint32_t gpuBindGroupLayoutFromEntriesImpl(
   {
     return 0;
   }
-  auto resolveModule = [vm](uint32_t handle) -> ore::ShaderModule* {
-    auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
-        handle,
-        WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
-    return host != nullptr ? host->shaderModule.get() : nullptr;
-  };
-  ore::ShaderModule* vertex = resolveModule(vertexModule);
-  ore::ShaderModule* fragment = resolveModule(fragmentModule);
+  ore::ShaderModule* vertex = resolveShaderModule(vm, vertexModule);
+  ore::ShaderModule* fragment = resolveShaderModule(vm, fragmentModule);
   if (vertex == nullptr || (fragmentModule != 0 && fragment == nullptr))
   {
     return 0;
   }
   const std::string vertexName(vertexEntry, vertexEntryLength);
   const std::string fragmentName(fragmentEntry, fragmentEntryLength);
-  const ore::BindingMap map = ore::bindingMapForEntries(
-      vertex,
-      vertexName.c_str(),
-      fragment,
-      fragmentName.c_str());
-  bool bound = false;
-  for (size_t i = 0; i < map.size() && !bound; ++i)
-  {
-    bound = map.at(i).group == groupIndex;
-  }
-  if (!bound)
-  {
-    return 0;
-  }
-  auto layout = ore::makeBindGroupLayoutFromBindingMap(
+  return mintEntryLayout(
+      vm,
       *oreContext,
-      map,
+      ore::bindingMapForEntries(
+          vertex,
+          vertexName.c_str(),
+          fragment,
+          fragmentName.c_str()),
       groupIndex,
-      nullptr,
-      0,
       vertex,
       fragment,
       vertexName.c_str(),
       fragmentName.c_str());
-  if (layout == nullptr)
-  {
-    return 0;
-  }
-  return vm->handles().mint(
-      WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
-      new HostGpuBindGroupLayout{std::move(layout)});
 }
 
-uint32_t gpuBindGroupNewImpl(
+// False when an entry names no buffer of this VM.
+bool hostBufferEntries(
+    WasmScriptingVM* vm,
+    const rive_gpu_bind_group_ubo_v1* pods,
+    uint32_t count,
+    std::vector<ore::BindGroupDesc::UBOEntry>& entries)
+{
+  entries.resize(count);
+  for (uint32_t i = 0; i < count; i++)
+  {
+    auto buffer = static_cast<HostGpuBuffer*>(vm->handles().resolve(
+        pods[i].buffer,
+        WasmScriptingVM::HandleTable::Tag::gpuBuffer));
+    if (buffer == nullptr)
+    {
+      return false;
+    }
+    entries[i].slot = pods[i].slot;
+    entries[i].buffer = buffer->buffer.get();
+    entries[i].offset = pods[i].offset;
+    entries[i].size = pods[i].size;
+  }
+  return true;
+}
+
+// The group either op builds. Storage buffers take the uniform buffer's
+// struct.
+uint32_t makeHostBindGroup(
     WasmScriptingVM* vm,
     uint32_t layoutHandle,
     const rive_gpu_bind_group_ubo_v1* ubos,
-    uint32_t uboByteCount,
+    uint32_t uboCount,
     const rive_gpu_bind_group_texture_v1* textures,
-    uint32_t textureByteCount,
+    uint32_t texCount,
     const rive_gpu_bind_group_sampler_v1* samplers,
-    uint32_t samplerByteCount)
+    uint32_t sampCount,
+    const rive_gpu_bind_group_ubo_v1* storage,
+    uint32_t storageCount)
 {
   ore::Context* oreContext = gpuOreContext(vm);
-  if (oreContext == nullptr || uboByteCount % sizeof(*ubos) != 0 ||
-      textureByteCount % sizeof(*textures) != 0 ||
-      samplerByteCount % sizeof(*samplers) != 0)
+  if (oreContext == nullptr)
   {
     return 0;
   }
@@ -5073,26 +5244,17 @@ uint32_t gpuBindGroupNewImpl(
   ore::BindGroupDesc desc;
   desc.layout = layout->layout.get();
 
-  uint32_t uboCount = uboByteCount / (uint32_t)sizeof(*ubos);
-  std::vector<ore::BindGroupDesc::UBOEntry> uboEntries(uboCount);
-  for (uint32_t i = 0; i < uboCount; i++)
+  std::vector<ore::BindGroupDesc::UBOEntry> uboEntries, storageEntries;
+  if (!hostBufferEntries(vm, ubos, uboCount, uboEntries) ||
+      !hostBufferEntries(vm, storage, storageCount, storageEntries))
   {
-    auto buffer = static_cast<HostGpuBuffer*>(vm->handles().resolve(
-        ubos[i].buffer,
-        WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-    if (buffer == nullptr)
-    {
-      return 0;
-    }
-    uboEntries[i].slot = ubos[i].slot;
-    uboEntries[i].buffer = buffer->buffer.get();
-    uboEntries[i].offset = ubos[i].offset;
-    uboEntries[i].size = ubos[i].size;
+    return 0;
   }
   desc.ubos = uboEntries.data();
   desc.uboCount = uboCount;
+  desc.storageBuffers = storageEntries.data();
+  desc.storageBufferCount = storageCount;
 
-  uint32_t texCount = textureByteCount / (uint32_t)sizeof(*textures);
   std::vector<ore::BindGroupDesc::TexEntry> texEntries(texCount);
   for (uint32_t i = 0; i < texCount; i++)
   {
@@ -5109,7 +5271,6 @@ uint32_t gpuBindGroupNewImpl(
   desc.textures = texEntries.data();
   desc.textureCount = texCount;
 
-  uint32_t sampCount = samplerByteCount / (uint32_t)sizeof(*samplers);
   std::vector<ore::BindGroupDesc::SampEntry> sampEntries(sampCount);
   for (uint32_t i = 0; i < sampCount; i++)
   {
@@ -5135,6 +5296,97 @@ uint32_t gpuBindGroupNewImpl(
   return vm->handles().mint(
       WasmScriptingVM::HandleTable::Tag::gpuBindGroup,
       new HostGpuBindGroup{std::move(bindGroup)});
+}
+
+uint32_t gpuBindGroupNewImpl(
+    WasmScriptingVM* vm,
+    uint32_t layoutHandle,
+    const rive_gpu_bind_group_ubo_v1* ubos,
+    uint32_t uboByteCount,
+    const rive_gpu_bind_group_texture_v1* textures,
+    uint32_t textureByteCount,
+    const rive_gpu_bind_group_sampler_v1* samplers,
+    uint32_t samplerByteCount)
+{
+  if (uboByteCount % sizeof(*ubos) != 0 ||
+      textureByteCount % sizeof(*textures) != 0 ||
+      samplerByteCount % sizeof(*samplers) != 0)
+  {
+    return 0;
+  }
+  return makeHostBindGroup(
+      vm,
+      layoutHandle,
+      ubos,
+      uboByteCount / (uint32_t)sizeof(*ubos),
+      textures,
+      textureByteCount / (uint32_t)sizeof(*textures),
+      samplers,
+      samplerByteCount / (uint32_t)sizeof(*samplers),
+      nullptr,
+      0);
+}
+
+// Fills `entries` from the blob and returns where the next array starts.
+template <typename T>
+const uint8_t* takeEntries(std::vector<T>& entries, const uint8_t* blob)
+{
+  const size_t bytes = entries.size() * sizeof(T);
+  if (bytes != 0)
+  {
+    memcpy(entries.data(), blob, bytes);
+  }
+  return blob + bytes;
+}
+
+uint32_t gpuBindGroupNewV2Impl(
+    WasmScriptingVM* vm,
+    const rive_gpu_bind_group_desc_v1* desc,
+    uint32_t descByteCount,
+    const uint8_t* blob,
+    uint32_t blobCount)
+{
+  if (vm == nullptr || descByteCount < sizeof(*desc))
+  {
+    return 0;
+  }
+  // Read once: the module's memory can change under a second look.
+  rive_gpu_bind_group_desc_v1 header;
+  memcpy(&header, desc, sizeof(header));
+  const uint64_t uboBytes = uint64_t(header.uboCount) *
+                            sizeof(rive_gpu_bind_group_ubo_v1);
+  const uint64_t textureBytes = uint64_t(header.textureCount) *
+                                sizeof(rive_gpu_bind_group_texture_v1);
+  const uint64_t samplerBytes = uint64_t(header.samplerCount) *
+                                sizeof(rive_gpu_bind_group_sampler_v1);
+  const uint64_t storageBytes = uint64_t(header.storageCount) *
+                                sizeof(rive_gpu_bind_group_ubo_v1);
+  // Held to the blob before anything is sized by the counts.
+  if (uboBytes + textureBytes + samplerBytes + storageBytes != blobCount)
+  {
+    return 0;
+  }
+  // The blob sits wherever the module put it, so its entries are copied to
+  // aligned storage.
+  std::vector<rive_gpu_bind_group_ubo_v1> ubos(header.uboCount);
+  std::vector<rive_gpu_bind_group_texture_v1> textures(header.textureCount);
+  std::vector<rive_gpu_bind_group_sampler_v1> samplers(header.samplerCount);
+  std::vector<rive_gpu_bind_group_ubo_v1> storage(header.storageCount);
+  blob = takeEntries(ubos, blob);
+  blob = takeEntries(textures, blob);
+  blob = takeEntries(samplers, blob);
+  takeEntries(storage, blob);
+  return makeHostBindGroup(
+      vm,
+      header.layout,
+      ubos.data(),
+      header.uboCount,
+      textures.data(),
+      header.textureCount,
+      samplers.data(),
+      header.samplerCount,
+      storage.data(),
+      header.storageCount);
 }
 
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -5439,6 +5691,169 @@ void gpuPipelineReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
   releaseHostHandle(vm, handle, WasmScriptingVM::HandleTable::Tag::gpuPipeline);
 }
+
+uint32_t gpuBindGroupLayoutFromComputeEntryImpl(
+    WasmScriptingVM* vm,
+    uint32_t shaderModule,
+    const char* entry,
+    uint32_t entryLength,
+    uint32_t groupIndex)
+{
+  ore::Context* oreContext = gpuOreContext(vm);
+  if (oreContext == nullptr || groupIndex >= ore::kMaxBindGroups)
+  {
+    return 0;
+  }
+  ore::ShaderModule* module = resolveShaderModule(vm, shaderModule);
+  if (module == nullptr)
+  {
+    return 0;
+  }
+  const std::string entryName(entry, entryLength);
+  return mintEntryLayout(
+      vm,
+      *oreContext,
+      ore::bindingMapForComputeEntry(module, entryName.c_str()),
+      groupIndex,
+      module,
+      nullptr,
+      entryName.c_str(),
+      nullptr);
+}
+
+uint32_t gpuComputePipelineNewImpl(
+    WasmScriptingVM* vm,
+    uint32_t shaderModule,
+    const char* entry,
+    uint32_t entryLength,
+    const uint32_t* layouts,
+    uint32_t layoutCount,
+    const char* label,
+    uint32_t labelLength)
+{
+  ore::Context* oreContext = gpuOreContext(vm);
+  if (oreContext == nullptr || layoutCount > ore::kMaxBindGroups)
+  {
+    return 0;
+  }
+  ore::ShaderModule* module = resolveShaderModule(vm, shaderModule);
+  if (module == nullptr)
+  {
+    return 0;
+  }
+  ore::BindGroupLayout* groupLayouts[ore::kMaxBindGroups] = {};
+  for (uint32_t i = 0; i < layoutCount; i++)
+  {
+    if (layouts[i] == 0)
+    {
+      continue;
+    }
+    auto host = static_cast<HostGpuBindGroupLayout*>(vm->handles().resolve(
+        layouts[i],
+        WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout));
+    if (host == nullptr)
+    {
+      return 0;
+    }
+    groupLayouts[i] = host->layout.get();
+  }
+  const std::string entryName(entry, entryLength);
+  const std::string labelText(label, labelLength);
+  ore::ComputePipelineDesc desc;
+  desc.module = module;
+  desc.entryPoint = entryName.c_str();
+  desc.bindGroupLayouts = groupLayouts;
+  desc.bindGroupLayoutCount = layoutCount;
+  desc.label = labelText.empty() ? nullptr : labelText.c_str();
+  std::string error;
+  auto pipeline = oreContext->makeComputePipeline(desc, &error);
+  if (pipeline == nullptr)
+  {
+    vm->raiseModuleError(("GPUComputePipeline: " + error).c_str());
+    return 0;
+  }
+  return vm->handles().mint(
+      WasmScriptingVM::HandleTable::Tag::gpuPipeline,
+      new HostGpuPipeline{nullptr, std::move(pipeline)});
+}
+
+uint32_t gpuComputePassBeginImpl(
+    WasmScriptingVM* vm,
+    const char* label,
+    uint32_t labelLength)
+{
+  ore::Context* oreContext = gpuOreContext(vm);
+  if (oreContext == nullptr)
+  {
+    return 0;
+  }
+  const std::string labelText(label, labelLength);
+  ore::ComputePassDesc desc;
+  desc.label = labelText.empty() ? nullptr : labelText.c_str();
+  std::string error;
+  auto pass = ore::cmd::beginRecordedComputePass(*oreContext, desc, &error);
+  if (pass == nullptr)
+  {
+    vm->raiseModuleError(("beginComputePass: " + error).c_str());
+    return 0;
+  }
+  auto* host = new HostGpuPass{};
+  host->compute = std::move(pass);
+  return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuPass, host);
+}
+
+void gpuComputePassSetPipelineImpl(
+    WasmScriptingVM* vm,
+    uint32_t passHandle,
+    uint32_t pipelineHandle)
+{
+  auto* host = resolveLivePass(vm, passHandle);
+  if (host == nullptr || host->compute == nullptr)
+  {
+    return;
+  }
+  auto pipeline = static_cast<HostGpuPipeline*>(vm->handles().resolve(
+      pipelineHandle,
+      WasmScriptingVM::HandleTable::Tag::gpuPipeline));
+  if (pipeline == nullptr || pipeline->compute == nullptr)
+  {
+    return;
+  }
+  host->compute->setPipeline(pipeline->compute.get());
+  host->drawBindings.setPipeline(pipeline->compute.get());
+}
+
+void gpuComputePassDispatchImpl(
+    WasmScriptingVM* vm,
+    uint32_t passHandle,
+    uint32_t x,
+    uint32_t y,
+    uint32_t z)
+{
+  auto* host = resolveLivePass(vm, passHandle);
+  if (host == nullptr || host->compute == nullptr)
+  {
+    return;
+  }
+  // A group the pipeline binds and the pass lacks aborts some devices.
+  std::string error;
+  if (!host->drawBindings.validate(&error))
+  {
+    vm->raiseModuleError(("dispatchWorkgroups: " + error).c_str());
+    return;
+  }
+  ore::Context* oreContext = gpuOreContext(vm);
+  if (oreContext == nullptr)
+  {
+    return;
+  }
+  oreContext->clearLastError();
+  host->compute->dispatchWorkgroups(x, y, z);
+  if (!oreContext->lastError().empty())
+  {
+    vm->raiseModuleError(oreContext->lastError().c_str());
+  }
+}
 #else
 // Builds without the canvas renderer keep the namespace linkable; scripts
 // see the same nil/no-op surface the Luau backend presents there.
@@ -5714,6 +6129,48 @@ uint32_t gpuPipelineNewImpl(
   return 0;
 }
 void gpuPipelineReleaseImpl(WasmScriptingVM*, uint32_t) {}
+uint32_t gpuBindGroupLayoutFromComputeEntryImpl(
+    WasmScriptingVM*,
+    uint32_t,
+    const char*,
+    uint32_t,
+    uint32_t)
+{
+  return 0;
+}
+uint32_t gpuBindGroupNewV2Impl(
+    WasmScriptingVM*,
+    const rive_gpu_bind_group_desc_v1*,
+    uint32_t,
+    const uint8_t*,
+    uint32_t)
+{
+  return 0;
+}
+uint32_t gpuComputePipelineNewImpl(
+    WasmScriptingVM*,
+    uint32_t,
+    const char*,
+    uint32_t,
+    const uint32_t*,
+    uint32_t,
+    const char*,
+    uint32_t)
+{
+  return 0;
+}
+uint32_t gpuComputePassBeginImpl(WasmScriptingVM*, const char*, uint32_t)
+{
+  return 0;
+}
+void gpuComputePassSetPipelineImpl(WasmScriptingVM*, uint32_t, uint32_t) {}
+void gpuComputePassDispatchImpl(
+    WasmScriptingVM*,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t)
+{}
 #endif
 
 // A renderer the module draws through, with the saves it opened in the scope

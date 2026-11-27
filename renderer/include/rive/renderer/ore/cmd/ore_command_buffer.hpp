@@ -10,6 +10,7 @@
 #include "rive/renderer/gpu_resource.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -170,9 +171,44 @@ public:
     }
   }
 
+  // True when the commands from `from` up to `to` make the buffer `handle`.
+  bool makesBuffer(size_t from, size_t to, ResourceHandle handle) const
+  {
+    assert(from <= to && to <= m_commands.size());
+    for (size_t pos = from; pos < to;)
+    {
+      CommandType type;
+      memcpy(&type, m_commands.data() + pos, sizeof(type));
+      pos += sizeof(type);
+      if (type == CommandType::makeBuffer)
+      {
+        MakeResourcePOD make;
+        memcpy(&make, m_commands.data() + pos, sizeof(make));
+        if (make.id == handle)
+        {
+          return true;
+        }
+      }
+      pos += orePayloadSizeOf(type);
+    }
+    return false;
+  }
+
+  // Moves the commands from `from` on ahead of `to`. Returns their size.
+  size_t moveTailAhead(size_t to, size_t from)
+  {
+    m_recordingThread.check();
+    assert(to <= from && from <= m_commands.size());
+    std::rotate(
+        m_commands.begin() + to,
+        m_commands.begin() + from,
+        m_commands.end());
+    return m_commands.size() - from;
+  }
+
   // A pass that finished inside another moves ahead of it, lifecycle
   // commands between their begins stay put. Returns the enclosing begin.
-  size_t hoistNestedRenderPass(size_t outerBegin, size_t innerBegin)
+  size_t hoistNestedPass(size_t outerBegin, size_t innerBegin)
   {
     m_recordingThread.check();
     assert(outerBegin < innerBegin && innerBegin <= m_commands.size());
@@ -187,9 +223,10 @@ public:
       memcpy(&type, m_commands.data() + pos, sizeof(type));
       size_t size = sizeof(type) + orePayloadSizeOf(type);
       bool own = false;
-      if (isRenderPassCommand(type))
+      if (isPassCommand(type))
       {
-        if (type == CommandType::beginRenderPass)
+        if (type == CommandType::beginRenderPass ||
+            type == CommandType::beginComputePass)
         {
           depth++;
         }

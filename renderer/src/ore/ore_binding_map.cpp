@@ -27,6 +27,11 @@ namespace
 //         10  [u16] group_count (LE)
 //         12  [entry_count * entry_size] entries
 //            [group_count * group_size] group layout ids
+//            [u8]  sized_count, then sized_count * {u8 group, u8 binding}
+//
+// The sized table is written only by a Metal bake that sizes an array, and
+// readers from before it stop at the group table. A section added after it
+// makes it written always, as a zero count when empty.
 //
 // Each group row (group_size = 9 bytes):
 //
@@ -49,7 +54,7 @@ namespace
 //         11  [u8]  textureViewDim (TextureViewDim)
 //         12  [u8]  textureSampleType (TextureSampleType)
 //         13  [u8]  textureMultisampled (0 or 1)
-//         14  [u32] minBindingSize (LE, UBO only, 0 = no minimum)
+//         14  [u32] minBindingSize (LE, buffers only, 0 = no minimum)
 //
 // Forward compat: a newer writer may emit entries larger than the current
 // reader knows about by bumping entry_size. The reader skips the trailing
@@ -66,6 +71,7 @@ constexpr uint16_t kEntryWireSize = 18;
 // Oldest entry layout the reader still accepts.
 constexpr uint16_t kLegacyEntryWireSize = 14;
 constexpr uint16_t kGroupWireSize = 9;
+constexpr size_t kSizedWireSize = 2;
 
 inline uint16_t readU16LE(const uint8_t* p)
 {
@@ -119,6 +125,7 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     return false;
   out->m_entries.clear();
   out->m_groupLayouts.clear();
+  out->m_sizedBindings.clear();
 #ifdef WITH_RIVE_TOOLS
   out->m_finalized = false;
 #endif
@@ -149,6 +156,9 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
   const size_t groupBytes = static_cast<size_t>(groupCount) * groupSize;
   const size_t needed = kBlobHeaderSize + entryBytes + groupBytes;
   if (size < needed)
+    return false;
+  const size_t sizedCount = size > needed ? data[needed] : 0;
+  if (size > needed && size - needed < 1 + sizedCount * kSizedWireSize)
     return false;
 
   out->m_entries.reserve(entryCount);
@@ -182,6 +192,13 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     g.layoutId = readU64LE(&p[1]);
     out->m_groupLayouts.push_back(g);
     p += groupSize;
+  }
+
+  out->m_sizedBindings.reserve(sizedCount);
+  for (size_t i = 0; i < sizedCount; ++i)
+  {
+    const uint8_t* sized = p + 1 + i * kSizedWireSize;
+    out->m_sizedBindings.push_back({sized[0], sized[1]});
   }
 #ifdef WITH_RIVE_TOOLS
   // Flip the finalized flag so tooling-build lookups satisfy their assert.
@@ -253,6 +270,31 @@ void BindingMap::replaceStage(const BindingMap& other, Stage stage)
   // Insertion held the sort, so lookups stay legal without a finalize.
   m_finalized = true;
 #endif
+}
+
+void BindingMap::clampToStage(Stage stage)
+{
+  const size_t slotIndex = static_cast<size_t>(stage);
+  const uint8_t stageBit = static_cast<uint8_t>(1u << slotIndex);
+  narrow(
+      [&](const Entry& e, uint32_t) { return (e.stageMask & stageBit) != 0; });
+  for (Entry& e : m_entries)
+  {
+    e.stageMask = stageBit;
+    for (size_t s = 0; s < 3; ++s)
+    {
+      if (s != slotIndex)
+        e.backendSlot[s] = kAbsent;
+    }
+  }
+  for (GroupLayout& g : m_groupLayouts)
+  {
+    if (g.layoutId == kNoLayoutId)
+      continue;
+    g.layoutId = (g.layoutId ^ (0x10000u | stageBit)) * 0x100000001b3ull;
+    if (g.layoutId == kNoLayoutId)
+      g.layoutId = 1;
+  }
 }
 
 static bool sameBinding(const BindingMap::Entry& a, const BindingMap::Entry& b)
@@ -357,6 +399,17 @@ std::vector<uint8_t> BindingMap::toBlob() const
     p[0] = g.group;
     writeU64LE(&p[1], g.layoutId);
     p += kGroupWireSize;
+  }
+
+  if (!m_sizedBindings.empty())
+  {
+    assert(m_sizedBindings.size() <= UINT8_MAX);
+    blob.push_back(static_cast<uint8_t>(m_sizedBindings.size()));
+    for (const SizedBinding& sized : m_sizedBindings)
+    {
+      blob.push_back(sized.group);
+      blob.push_back(sized.binding);
+    }
   }
   return blob;
 }

@@ -515,6 +515,8 @@ void ContextWGPU::endFrame()
 
 rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
 {
+  if (refusesBuffer(desc))
+    return nullptr;
   auto buffer = rcp<BufferWGPU>(new BufferWGPU(desc.size, desc.usage));
   buffer->m_wgpuQueue = m_wgpuQueue; // addref'd copy for WriteBuffer
   buffer->m_wgpuDevice = m_wgpuDevice;
@@ -534,6 +536,9 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
       break;
     case BufferUsage::upload:
       usage |= wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
+      break;
+    case BufferUsage::storage:
+      RIVE_UNREACHABLE();
       break;
   }
   buffer->m_wgpuUsage = usage;
@@ -1010,7 +1015,7 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
   auto bg = rcp<BindGroupWGPU>(new BindGroupWGPU());
   bg->m_context = this;
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   // Count dynamic-offset UBOs declared by the layout. Authoritative —
   // dynamic-ness is a layout property (WebGPU/Vulkan model).

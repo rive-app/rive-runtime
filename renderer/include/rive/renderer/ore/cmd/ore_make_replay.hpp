@@ -39,6 +39,7 @@ enum class OreKind : uint8_t
   bindGroupLayout,
   pipeline,
   bindGroup,
+  computePipeline,
 };
 
 struct OreResident
@@ -292,6 +293,17 @@ inline bool replayOreLifecycle(
     }
     return r;
   };
+  auto layoutsAt = [&](const BlobRef& ref, uint32_t count) {
+    const ResourceHandle* handles = reinterpret_cast<const ResourceHandle*>(
+        blob(ref).data());
+    std::vector<BindGroupLayout*> layouts(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+      layouts[i] = static_cast<BindGroupLayout*>(
+          req(handles[i], OreKind::bindGroupLayout));
+    }
+    return layouts;
+  };
   auto describeMake = [](const char* what, const char* label) {
     return std::string(what) + " '" + (label != nullptr ? label : "") + "'";
   };
@@ -423,6 +435,10 @@ inline bool replayOreLifecycle(
           bytesOf(pod.entryBindingBytes));
       d.entryBindingSize = static_cast<uint32_t>(
           blob(pod.entryBindingBytes).size());
+      d.workgroupBytes = static_cast<const uint8_t*>(
+          bytesOf(pod.workgroupBytes));
+      d.workgroupBytesSize = static_cast<uint32_t>(
+          blob(pod.workgroupBytes).size());
       d.shaderAssetId = pod.shaderAssetId;
       d.deferBuildCheck = true;
       // The note carries full compiler output; deferred recording
@@ -506,15 +522,9 @@ inline bool replayOreLifecycle(
         vbs[i].attributes = reinterpret_cast<const VertexAttribute*>(
             blob(vbPods[i].attributes).data());
       }
-      Span<const uint8_t> bglBlob = blob(pod.bindGroupLayouts);
-      const ResourceHandle*
-          bglHandles = reinterpret_cast<const ResourceHandle*>(bglBlob.data());
-      std::vector<BindGroupLayout*> bgls(pod.bindGroupLayoutCount);
-      for (uint32_t i = 0; i < pod.bindGroupLayoutCount; ++i)
-      {
-        bgls[i] = static_cast<BindGroupLayout*>(
-            req(bglHandles[i], OreKind::bindGroupLayout));
-      }
+      std::vector<BindGroupLayout*> bgls = layoutsAt(
+          pod.bindGroupLayouts,
+          pod.bindGroupLayoutCount);
 
       PipelineDesc d{};
       d.vertexModule = static_cast<ShaderModule*>(
@@ -566,6 +576,39 @@ inline bool replayOreLifecycle(
       }
       return true;
     }
+    case CommandType::makeComputePipeline:
+    {
+      auto m = reader.read<MakeResourcePOD>();
+      auto pod = reader.read<ComputePipelineDescPOD>();
+      if (table.alive(m.id, m.generation))
+      {
+        return true;
+      }
+      std::vector<BindGroupLayout*> bgls = layoutsAt(
+          pod.bindGroupLayouts,
+          pod.bindGroupLayoutCount);
+      ComputePipelineDesc d{};
+      d.module = static_cast<ShaderModule*>(
+          req(pod.module, OreKind::shaderModule));
+      d.entryPoint = cstr(pod.entryPoint);
+      d.bindGroupLayouts = bgls.empty() ? nullptr : bgls.data();
+      d.bindGroupLayoutCount = pod.bindGroupLayoutCount;
+      d.label = cstr(pod.label);
+      const char* name = d.label != nullptr ? d.label : d.entryPoint;
+      if (unresolvedDep)
+        return skipUnresolvedMake(m.id, m.generation, "compute pipeline", name);
+      std::string pipelineError;
+      auto pipeline = ctx.makeComputePipeline(d, &pipelineError);
+      setMade(
+          m.id,
+          m.generation,
+          OreKind::computePipeline,
+          std::move(pipeline),
+          "compute pipeline",
+          name,
+          pipelineError);
+      return true;
+    }
     case CommandType::makeBindGroup:
     {
       auto m = reader.read<MakeResourcePOD>();
@@ -574,17 +617,26 @@ inline bool replayOreLifecycle(
       {
         return true;
       }
-      const UBOEntryPOD* uboPods = reinterpret_cast<const UBOEntryPOD*>(
-          blob(pod.ubos).data());
-      std::vector<BindGroupDesc::UBOEntry> ubos(pod.uboCount);
-      for (uint32_t i = 0; i < pod.uboCount; ++i)
-      {
-        ubos[i].slot = uboPods[i].slot;
-        ubos[i].buffer = static_cast<Buffer*>(
-            req(uboPods[i].buffer, OreKind::buffer));
-        ubos[i].offset = uboPods[i].offset;
-        ubos[i].size = uboPods[i].size;
-      }
+      auto bufferEntries = [&](const BlobRef& ref, uint32_t count) {
+        const UBOEntryPOD* pods = reinterpret_cast<const UBOEntryPOD*>(
+            blob(ref).data());
+        std::vector<BindGroupDesc::UBOEntry> entries(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+          entries[i].slot = pods[i].slot;
+          entries[i].buffer = static_cast<Buffer*>(
+              req(pods[i].buffer, OreKind::buffer));
+          entries[i].offset = pods[i].offset;
+          entries[i].size = pods[i].size;
+        }
+        return entries;
+      };
+      std::vector<BindGroupDesc::UBOEntry> ubos = bufferEntries(
+          pod.ubos,
+          pod.uboCount);
+      std::vector<BindGroupDesc::UBOEntry> storage = bufferEntries(
+          pod.storageBuffers,
+          pod.storageBufferCount);
       const TexEntryPOD* texPods = reinterpret_cast<const TexEntryPOD*>(
           blob(pod.textures).data());
       std::vector<BindGroupDesc::TexEntry> texs(pod.textureCount);
@@ -614,6 +666,8 @@ inline bool replayOreLifecycle(
       d.samplers = samps.empty() ? nullptr : samps.data();
       d.samplerCount = pod.samplerCount;
       d.label = cstr(pod.label);
+      d.storageBuffers = storage.empty() ? nullptr : storage.data();
+      d.storageBufferCount = pod.storageBufferCount;
       if (unresolvedDep)
         return skipUnresolvedMake(m.id, m.generation, "bindGroup", d.label);
       ctx.clearLastError();

@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
 #include <catch.hpp>
+#include <algorithm>
 #include <cstring>
 
 namespace rive::ore
@@ -480,6 +481,48 @@ TEST_CASE(
   REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
   CHECK(restored.layoutIdForGroup(0) == a.layoutIdForGroup(0));
   CHECK(restored.layoutIdForGroup(1) == a.layoutIdForGroup(1));
+}
+
+TEST_CASE("BindingMap carries the sized bindings in order", "[ore_binding_map]")
+{
+  BindingMap source;
+  source.push(makeEntry(0, 2, ResourceKind::StorageBufferRO, 0, 0));
+  source.push(makeEntry(1, 3, ResourceKind::StorageBufferRW, 1, 1));
+  source.finalize();
+  source.computeLayoutIds();
+  // What a bake wrote before the table, which is also what one sizing no
+  // array writes now.
+  const std::vector<uint8_t> plain = source.toBlob();
+  BindingMap restored;
+  REQUIRE(BindingMap::fromBlob(plain.data(), plain.size(), &restored));
+  CHECK(restored.sizedBindings().empty());
+
+  source.setSizedBindings({{1, 3}, {0, 2}, {1, 3}});
+  const std::vector<uint8_t> blob = source.toBlob();
+  REQUIRE(blob.size() == plain.size() + 7);
+  CHECK(std::equal(plain.begin(), plain.end(), blob.begin()));
+  REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
+  REQUIRE(restored.sizedBindings().size() == 3);
+  CHECK(restored.sizedBindings()[0].group == 1);
+  CHECK(restored.sizedBindings()[0].binding == 3);
+  CHECK(restored.sizedBindings()[1].group == 0);
+  CHECK(restored.sizedBindings()[1].binding == 2);
+  CHECK(restored.sizedBindings()[2].binding == 3);
+  CHECK(restored.size() == 2);
+  CHECK(restored.layoutIdForGroup(1) == source.layoutIdForGroup(1));
+
+  // A cut table fails whole, never as a shorter one.
+  for (size_t cut = 1; cut < 7; ++cut)
+  {
+    BindingMap out;
+    CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size() - cut, &out));
+    CHECK(out.empty());
+    CHECK(out.sizedBindings().empty());
+  }
+
+  // A map parsed over one that had a table keeps none of it.
+  REQUIRE(BindingMap::fromBlob(plain.data(), plain.size(), &restored));
+  CHECK(restored.sizedBindings().empty());
 }
 
 TEST_CASE(

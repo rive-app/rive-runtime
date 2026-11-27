@@ -4,6 +4,7 @@
 
 #include "rive/renderer/ore/ore_context_metal.hpp"
 #include "ore_bind_group_metal.hpp"
+#include "ore_compute_metal.hpp"
 #include "ore_buffer_metal.hpp"
 #include "ore_pipeline_metal.hpp"
 #include "ore_render_pass_metal.hpp"
@@ -401,6 +402,12 @@ static TextureFormat mtlFormatToOre(MTLPixelFormat fmt)
 // Shared between metal-only and metal+gl builds.
 // ============================================================================
 
+// WebGPU's default, or what an older device allows where that is less.
+static uint32_t atMost(uint32_t webgpu, NSUInteger device)
+{
+  return static_cast<uint32_t>(std::min<NSUInteger>(webgpu, device));
+}
+
 inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 {
   Features& f = m_features;
@@ -415,8 +422,16 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = false;
-  f.storageBuffers = false;
+  f.computeShaders = true;
+  f.storageBuffers = true;
+  const MTLSize threads = device.maxThreadsPerThreadgroup;
+  f.maxComputeWorkgroupSizeX = atMost(256, threads.width);
+  f.maxComputeWorkgroupSizeY = atMost(256, threads.height);
+  f.maxComputeWorkgroupSizeZ = atMost(64, threads.depth);
+  f.maxComputeInvocationsPerWorkgroup = 256;
+  f.maxComputeWorkgroupStorageSize = atMost(
+      16384, device.maxThreadgroupMemoryLength);
+  f.maxComputeWorkgroupsPerDimension = 65535;
 
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
   f.bc = false;
@@ -927,7 +942,8 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     setLastError("makeBindGroup: BindGroupDesc::layout is null");
     return nullptr;
   }
-  if (std::string err; !validateBindGroupDesc(desc, &err))
+  if (std::string err;
+      !validateBindGroupDesc(desc, &err, StorageBinding::bound))
   {
     setLastError("makeBindGroup: %s", err.c_str());
     return nullptr;
@@ -944,7 +960,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
   auto bg = rcp<BindGroupMetal>(new BindGroupMetal());
   bg->m_context = this;
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   uint32_t nBufs = std::min(desc.uboCount, 8u);
   bg->m_mtlBuffers.reserve(nBufs);
@@ -972,6 +988,21 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
          const BindGroupMetal::MTLBufferBinding& b) {
         return a.binding < b.binding;
       });
+
+  bg->m_mtlStorageBuffers.reserve(desc.storageBufferCount);
+  for (uint32_t i = 0; i < desc.storageBufferCount; i++)
+  {
+    const BindGroupDesc::StorageEntry& entry = desc.storageBuffers[i];
+    BindGroupMetal::MTLBufferBinding binding;
+    binding.src = lite_rtti_cast<BufferMetal*>(entry.buffer);
+    assert(binding.src);
+    binding.offset = entry.offset;
+    binding.size = entry.size != 0 ? entry.size
+                                   : entry.buffer->size() - entry.offset;
+    binding.binding = entry.slot;
+    bg->m_mtlStorageBuffers.push_back(binding);
+    bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
+  }
 
   uint32_t nTexs = std::min(desc.textureCount, 8u);
   bg->m_mtlTextures.reserve(nTexs);
@@ -1008,6 +1039,12 @@ inline std::unique_ptr<RenderPass> ContextMetal::mtlBeginRenderPass(
     const RenderPassDesc& desc, std::string* outError)
 {
   assert(m_mtlCommandBuffer != nil);
+  // Metal aborts on a second encoder.
+  if (m_openEncoders != 0)
+  {
+    refuse("beginRenderPass", "another pass is still open", outError);
+    return nullptr;
+  }
 
   MTLRenderPassDescriptor* rpd = [MTLRenderPassDescriptor renderPassDescriptor];
 
@@ -1104,6 +1141,8 @@ inline std::unique_ptr<RenderPass> ContextMetal::mtlBeginRenderPass(
     encoder.label = @(desc.label);
   }
 
+  if (encoder != nil)
+    m_openEncoders++;
   auto pass = std::make_unique<RenderPassMetal>(this);
   pass->m_mtlEncoder = encoder;
   pass->m_mtlCommandBuffer = m_mtlCommandBuffer;
@@ -1175,6 +1214,7 @@ std::unique_ptr<ContextMetal> ContextMetal::Make(
 void ContextMetal::beginFrame(const FrameDescriptor&)
 {
   m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
+  m_openEncoders = 0;
   // Serial of the command buffer about to be recorded.
   ++m_currentSerial;
   m_pendingFrame.reset();
@@ -1188,17 +1228,21 @@ void ContextMetal::waitForGPU()
 #endif
 }
 
+void ContextMetal::replayPendingFrame()
+{
+  if (m_pendingFrame.empty())
+    return;
+  cmd::replayCommandBuffer(*this, m_pendingFrame);
+  m_pendingFrame.reset();
+}
+
 void ContextMetal::endFrame()
 {
   if (m_mtlCommandBuffer)
   {
     // Drain the recorded frame before commit. Keyed on a non empty
     // recording rather than the flag so a mid frame toggle still drains.
-    if (!m_pendingFrame.empty())
-    {
-      cmd::replayCommandBuffer(*this, m_pendingFrame);
-      m_pendingFrame.reset();
-    }
+    replayPendingFrame();
 
     // Capture deferred BindGroups in a `__block` vector that the
     // completion handler clears once the GPU is done with the
@@ -1236,6 +1280,114 @@ void ContextMetal::endFrame()
 rcp<Buffer> ContextMetal::makeBuffer(const BufferDesc& desc)
 {
   return mtlMakeBuffer(desc);
+}
+
+void ContextMetal::writeStorageBuffer(
+    BufferMetal* buffer, const void* data, uint32_t size, uint32_t offset)
+{
+  if (size == 0)
+    return;
+  // A copy here would land beside an open encoder, or ahead of a pass still
+  // recording.
+  if (m_openEncoders != 0 || hasOpenPasses())
+  {
+    setLastError("Buffer.update: a storage buffer cannot be updated while a "
+                 "pass is open");
+    return;
+  }
+  // The passes recorded for the frame's end run ahead of a later copy.
+  if (m_mtlCommandBuffer != nil)
+    replayPendingFrame();
+  id<MTLBuffer> staging = [m_mtlDevice
+      newBufferWithBytes:data
+                  length:size
+                 options:MTLResourceStorageModeShared];
+  if (staging == nil)
+  {
+    setLastError("Buffer.update: Metal could not allocate %u bytes", size);
+    return;
+  }
+  // Between frames the copy still queues behind the passes already committed.
+  id<MTLCommandBuffer> commands = m_mtlCommandBuffer != nil
+                                      ? m_mtlCommandBuffer
+                                      : [m_mtlQueue commandBuffer];
+  id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
+  [blit copyFromBuffer:staging
+           sourceOffset:0
+               toBuffer:buffer->current()
+      destinationOffset:offset
+                   size:size];
+  [blit endEncoding];
+  if (commands != m_mtlCommandBuffer)
+    [commands commit];
+}
+
+// ============================================================================
+// Compute
+// ============================================================================
+
+rcp<ComputePipeline> ContextMetal::makeComputePipelineImpl(
+    const ComputePipelineDesc& desc, std::string* outError)
+{
+  auto* module = lite_rtti_cast<ShaderModuleMetal*>(desc.module);
+  id<MTLFunction> function = module != nullptr
+                                 ? [module->m_mtlLibrary
+                                       newFunctionWithName:@(desc.entryPoint)]
+                                 : nil;
+  if (function == nil)
+  {
+    const std::string why = std::string("compute entry point '") +
+                            desc.entryPoint + "' not found in shader library";
+    refuse("makeComputePipeline", why.c_str(), outError);
+    return nullptr;
+  }
+  NSError* error = nil;
+  id<MTLComputePipelineState> state = [m_mtlDevice
+      newComputePipelineStateWithFunction:function
+                                    error:&error];
+  if (state == nil)
+  {
+    refuse(
+        "makeComputePipeline",
+        error != nil ? error.localizedDescription.UTF8String
+                     : "Metal built no pipeline",
+        outError);
+    return nullptr;
+  }
+  auto pipeline = rcp<ComputePipelineMetal>(new ComputePipelineMetal(desc));
+  // Register pressure in the kernel can leave this below the device's limit.
+  const uint32_t* size = pipeline->workgroup().size;
+  const uint64_t threads = uint64_t(size[0]) * size[1] * size[2];
+  if (threads > state.maxTotalThreadsPerThreadgroup)
+  {
+    const std::string why = "the workgroup runs " + std::to_string(threads) +
+                            " threads and Metal allows this shader " +
+                            std::to_string(state.maxTotalThreadsPerThreadgroup);
+    refuse("makeComputePipeline", why.c_str(), outError);
+    return nullptr;
+  }
+  pipeline->m_mtlState = state;
+  return pipeline;
+}
+
+std::unique_ptr<ComputePass> ContextMetal::beginComputePass(
+    const ComputePassDesc& desc, std::string* outError)
+{
+  if (m_mtlCommandBuffer == nil || m_openEncoders != 0)
+  {
+    refuse(
+        "beginComputePass",
+        m_mtlCommandBuffer == nil ? "no frame is open"
+                                  : "another pass is still open",
+        outError);
+    return nullptr;
+  }
+  id<MTLComputeCommandEncoder>
+      encoder = [m_mtlCommandBuffer computeCommandEncoder];
+  if (desc.label != nullptr)
+    encoder.label = @(desc.label);
+  m_openEncoders++;
+  return std::make_unique<ComputePassMetal>(this, encoder);
 }
 
 // ============================================================================

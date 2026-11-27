@@ -116,6 +116,11 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
     const uint32_t* dynamicUBOBindings = nullptr,
     uint32_t dynamicUBOCount = 0);
 
+// What a compute entry point binds, at its compute slots.
+BindingMap bindingMapForComputeEntry(
+    const ShaderModule* module,
+    const char* entry);
+
 // Derive the group's entries from a binding map and build the layout via
 // `Context::makeBindGroupLayout`. Pass the map from `bindingMapForStages`
 // for a pipeline whose stages live in different modules. The pair-source
@@ -231,11 +236,26 @@ bool validateColorRequiresFragment(
     bool hasFragmentModule,
     std::string* outError);
 
-// WebGPU's per stage binding limits, counted as Dawn counts them, so a pipeline
-// the web refuses fails everywhere. Also refuses a storage texture.
+// WebGPU's per stage limits, counted as Dawn counts them, and its ban on a
+// writable storage buffer in the vertex stage. Also refuses a storage texture.
 bool validateStageLimits(
     BindGroupLayout* const* layouts,
     uint32_t layoutCount,
+    std::string* outError);
+
+// The device runs compute, the module has the entry point with a workgroup
+// inside the device's limits, and the layouts cover what it binds.
+bool validateComputePipelineDesc(
+    const Context* context,
+    const ComputePipelineDesc& desc,
+    std::string* outError);
+
+// Workgroup counts within the device's limit.
+bool validateDispatch(
+    const Context* context,
+    uint32_t x,
+    uint32_t y,
+    uint32_t z,
     std::string* outError);
 
 // Every backend's `makePipeline` runs the same checks on the pipeline's
@@ -247,8 +267,19 @@ bool validatePipelineDesc(
     LayoutSlots layoutSlots,
     std::string* outError);
 
+// Whether the caller binds a group's storage buffers. A backend that does
+// not must refuse them, or the shader reads a buffer nobody bound.
+enum class StorageBinding : uint8_t
+{
+  refused,
+  bound,
+};
+
 // Every backend's `makeBindGroup` runs this before touching native objects,
 // so a group Dawn refuses, or a UBO shorter than its block, fails everywhere.
-bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError);
+bool validateBindGroupDesc(
+    const BindGroupDesc& desc,
+    std::string* outError,
+    StorageBinding storageBinding = StorageBinding::refused);
 
 } // namespace rive::ore

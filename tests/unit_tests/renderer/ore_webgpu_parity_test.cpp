@@ -327,6 +327,33 @@ TEST_CASE(
   layouts[0] = offsets.get();
   CHECK_FALSE(validateStageLimits(layouts, 1, &error));
   CHECK(contains(error, "9 dynamic uniform buffers"));
+
+  std::vector<BindGroupLayoutEntry> written = {
+      entry(3, BindingKind::storageBufferRW)};
+  written[0].visibility.mask = StageVisibility::kFragment |
+                               StageVisibility::kCompute;
+  auto fragment = layoutOf(ctx, written);
+  layouts[0] = fragment.get();
+  CHECK(validateStageLimits(layouts, 1, &error));
+  written[0].visibility.mask |= StageVisibility::kVertex;
+  auto vertex = layoutOf(ctx, written);
+  layouts[0] = vertex.get();
+  CHECK_FALSE(validateStageLimits(layouts, 1, &error));
+  CHECK(contains(
+      error,
+      "@group(0) @binding(3): a read_write storage buffer cannot be visible "
+      "to the vertex stage"));
+
+  std::vector<BindGroupLayoutEntry> computed;
+  for (uint32_t i = 0; i < 9; ++i)
+  {
+    computed.push_back(entry(i, BindingKind::storageBufferRW));
+    computed.back().visibility.mask = StageVisibility::kCompute;
+  }
+  auto crowded = layoutOf(ctx, computed);
+  layouts[0] = crowded.get();
+  CHECK_FALSE(validateStageLimits(layouts, 1, &error));
+  CHECK(contains(error, "compute stage 9 storage buffers"));
 }
 
 // Following WebGPU's auto layout, so a 32 bit float texture read only with

@@ -159,6 +159,15 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
 
+typedef struct rive_gpu_bind_group_desc_v1
+{
+    uint32_t layout;
+    uint32_t uboCount;
+    uint32_t textureCount;
+    uint32_t samplerCount;
+    uint32_t storageCount;
+} rive_gpu_bind_group_desc_v1;
+
 typedef struct rive_gpu_pipeline_desc_v1
 {
     uint32_t vertexModule;
@@ -459,6 +468,12 @@ uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm, uint32_t layout, const rive_gp
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t bindGroup);
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 void gpuPipelineReleaseImpl(WasmScriptingVM* vm, uint32_t pipeline);
+uint32_t gpuBindGroupLayoutFromComputeEntryImpl(WasmScriptingVM* vm, uint32_t shaderModule, const char* entry, uint32_t entryLength, uint32_t groupIndex);
+uint32_t gpuBindGroupNewV2Impl(WasmScriptingVM* vm, const rive_gpu_bind_group_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
+uint32_t gpuComputePipelineNewImpl(WasmScriptingVM* vm, uint32_t shaderModule, const char* entry, uint32_t entryLength, const uint32_t* layouts, uint32_t layoutCount, const char* label, uint32_t labelLength);
+uint32_t gpuComputePassBeginImpl(WasmScriptingVM* vm, const char* label, uint32_t labelLength);
+void gpuComputePassSetPipelineImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t pipeline);
+void gpuComputePassDispatchImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t x, uint32_t y, uint32_t z);
 void mat4MultiplyImpl(WasmScriptingVM* vm, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes);
 uint32_t mat4InvertImpl(WasmScriptingVM* vm, uint8_t* out, uint32_t outBytes, const uint8_t* src, uint32_t srcBytes);
 uint32_t bufferNewImpl(WasmScriptingVM* vm, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes);
@@ -2108,6 +2123,44 @@ void gpuPipelineRelease(wasm_exec_env_t env, uint32_t pipeline)
     WasmScriptingVM* vm = vmFromEnv(env);
     gpuPipelineReleaseImpl(vm, pipeline);
 }
+uint32_t gpuBindGroupLayoutFromComputeEntry(wasm_exec_env_t env, uint32_t shaderModule, const char* entry, uint32_t entryLength, uint32_t groupIndex)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg entryUtf8(vm, entry, entryLength);
+    return gpuBindGroupLayoutFromComputeEntryImpl(vm, shaderModule, entryUtf8.data(), entryUtf8.size(), groupIndex);
+}
+uint32_t gpuBindGroupNewV2(wasm_exec_env_t env, const rive_gpu_bind_group_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBindGroupNewV2Impl(vm, desc, descByteCount, blob, blobCount);
+}
+uint32_t gpuComputePipelineNew(wasm_exec_env_t env, uint32_t shaderModule, const char* entry, uint32_t entryLength, const uint32_t* layouts, uint32_t layoutCount, const char* label, uint32_t labelLength)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (layoutCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)layouts, (uint64_t)layoutCount * 4))
+    {
+        return {};
+    }
+    WasmStringArg entryUtf8(vm, entry, entryLength);
+    WasmStringArg labelUtf8(vm, label, labelLength);
+    return gpuComputePipelineNewImpl(vm, shaderModule, entryUtf8.data(), entryUtf8.size(), layouts, layoutCount, labelUtf8.data(), labelUtf8.size());
+}
+uint32_t gpuComputePassBegin(wasm_exec_env_t env, const char* label, uint32_t labelLength)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg labelUtf8(vm, label, labelLength);
+    return gpuComputePassBeginImpl(vm, labelUtf8.data(), labelUtf8.size());
+}
+void gpuComputePassSetPipeline(wasm_exec_env_t env, uint32_t pass, uint32_t pipeline)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuComputePassSetPipelineImpl(vm, pass, pipeline);
+}
+void gpuComputePassDispatch(wasm_exec_env_t env, uint32_t pass, uint32_t x, uint32_t y, uint32_t z)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuComputePassDispatchImpl(vm, pass, x, y, z);
+}
 void mat4Multiply(wasm_exec_env_t env, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -3182,6 +3235,12 @@ NativeSymbol kGpuNatives[] = {
     {"bind_group_release", (void*)gpuBindGroupRelease, "(i)", nullptr},
     {"pipeline_new", (void*)gpuPipelineNew, "(*~*~)i", nullptr},
     {"pipeline_release", (void*)gpuPipelineRelease, "(i)", nullptr},
+    {"bind_group_layout_from_compute_entry", (void*)gpuBindGroupLayoutFromComputeEntry, "(i*~i)i", nullptr},
+    {"bind_group_new_v2", (void*)gpuBindGroupNewV2, "(*~*~)i", nullptr},
+    {"compute_pipeline_new", (void*)gpuComputePipelineNew, "(i*~*~*~)i", nullptr},
+    {"compute_pass_begin", (void*)gpuComputePassBegin, "(*~)i", nullptr},
+    {"compute_pass_set_pipeline", (void*)gpuComputePassSetPipeline, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"compute_pass_dispatch", (void*)gpuComputePassDispatch, "(iiii)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kMat4Natives[] = {

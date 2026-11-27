@@ -1703,7 +1703,7 @@ TEST_CASE(
   rive_lua_exitScriptCallGpuScope(L, scope);
 
   CHECK_FALSE(outer.isFinished());
-  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(factory.oreContext.hasOpenPasses());
   CHECK(vm.errors.empty());
 }
 
@@ -1723,7 +1723,7 @@ TEST_CASE(
   rive_lua_exitScriptCallGpuScope(L, scope);
 
   CHECK(own.isFinished());
-  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  CHECK_FALSE(factory.oreContext.hasOpenPasses());
   REQUIRE(vm.errors.size() == 1);
   CHECK(vm.errors[0] == kPassLeftOpen);
 }
@@ -1751,12 +1751,12 @@ TEST_CASE(
 
   CHECK(inner.isFinished());
   CHECK_FALSE(outer.isFinished());
-  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(factory.oreContext.hasOpenPasses());
   REQUIRE(vm.errors.size() == 1);
 
   outer.draw(9);
   outer.finish();
-  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  CHECK_FALSE(factory.oreContext.hasOpenPasses());
   CHECK(
       opcodesOf(stream) == std::vector<CommandType>{
                                CommandType::beginRenderPass,
@@ -1806,7 +1806,7 @@ TEST_CASE(
 
   outer.finish();
   CHECK(rp->pass->isFinished());
-  CHECK_FALSE(factory.oreContext.hasOpenRenderPasses());
+  CHECK_FALSE(factory.oreContext.hasOpenPasses());
 
   REQUIRE(lua_pcall(L, 0, 0, 0) != LUA_OK);
   std::string message = lua_tostring(L, -1);
@@ -1845,7 +1845,7 @@ TEST_CASE("rive_lua_pcall leaves the caller's GPU work alone", "[scripting]")
   gNestedStream = nullptr;
 
   CHECK_FALSE(outer.isFinished());
-  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(factory.oreContext.hasOpenPasses());
   CHECK(context->openCanvasFrameCount() == 1);
   CHECK(vm.errors.empty());
 }
@@ -1887,7 +1887,7 @@ TEST_CASE(
 
   // Untouched: the enclosing draw's, which it is still using.
   CHECK_FALSE(outer.isFinished());
-  CHECK(factory.oreContext.hasOpenRenderPasses());
+  CHECK(factory.oreContext.hasOpenPasses());
   CHECK(context->openCanvasFrameCount() == 1);
 
   outer.finish();

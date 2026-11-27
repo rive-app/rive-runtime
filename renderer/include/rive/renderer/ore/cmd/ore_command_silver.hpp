@@ -175,6 +175,7 @@ inline void serializeSilver(
       case CommandType::makeTextureView:
       case CommandType::makePipeline:
       case CommandType::makeBindGroup:
+      case CommandType::makeComputePipeline:
       {
         auto m = reader.read<MakeResourcePOD>();
         reader.skip(orePayloadSizeOf(type) - sizeof(MakeResourcePOD));
@@ -210,6 +211,23 @@ inline void serializeSilver(
         writer.writeVarUint(cmd.id);
         writer.writeVarUint(cmd.generation);
         writer.writeVarUint(cmd.canvasId);
+        break;
+      }
+      case CommandType::beginComputePass:
+        reader.read<BeginComputePassCmd>();
+        break;
+      case CommandType::setComputePipeline:
+      {
+        auto cmd = reader.read<SetPipelineCmd>();
+        writer.writeVarUint(cmd.pipeline);
+        break;
+      }
+      case CommandType::dispatchWorkgroups:
+      {
+        auto cmd = reader.read<DispatchWorkgroupsCmd>();
+        writer.writeVarUint(cmd.x);
+        writer.writeVarUint(cmd.y);
+        writer.writeVarUint(cmd.z);
         break;
       }
     }
@@ -411,6 +429,20 @@ inline bool silverMatch(
         }
         break;
       case CommandType::finish:
+      case CommandType::beginComputePass:
+        break;
+      case CommandType::setComputePipeline:
+        if (!varMatch("computePipeline", a, b))
+        {
+          return false;
+        }
+        break;
+      case CommandType::dispatchWorkgroups:
+        if (!varMatch("dispatch.x", a, b) || !varMatch("dispatch.y", a, b) ||
+            !varMatch("dispatch.z", a, b))
+        {
+          return false;
+        }
         break;
       default:
         fprintf(

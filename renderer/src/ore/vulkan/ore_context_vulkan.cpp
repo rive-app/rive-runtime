@@ -1065,6 +1065,8 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
 
 rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 {
+  if (refusesBuffer(desc))
+    return nullptr;
   auto buffer = rcp<BufferVulkan>(
       new BufferVulkan(m_manager, desc.size, desc.usage));
   buffer->m_vkDevice = m_vk->device;
@@ -1084,6 +1086,9 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
       break;
     case BufferUsage::upload:
       usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+      break;
+    case BufferUsage::storage:
+      RIVE_UNREACHABLE();
       break;
   }
 
@@ -1477,7 +1482,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
   auto bg = rcp<BindGroupVulkan>(new BindGroupVulkan(m_manager));
   bg->m_context = this;
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   // Count dynamic-offset UBOs declared by the layout — authoritative.
   uint32_t dynamicCount = 0;

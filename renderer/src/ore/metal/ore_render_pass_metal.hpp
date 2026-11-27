@@ -61,6 +61,10 @@ private:
   // At the slot the pipeline placed it.
   void applyVertexBuffer(uint32_t slot);
 
+  // The bound sizes the pipeline's shaders read, once a group or the pipeline
+  // changed them.
+  void applyBufferSizes();
+
   id<MTLRenderCommandEncoder> m_mtlEncoder = nil;
   id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
   // The backing each vertex buffer had when it was set, as the index buffer's.
@@ -75,5 +79,7 @@ private:
   NSUInteger m_mtlIndexBufferOffset = 0;
   MTLPrimitiveType m_mtlPrimitiveType = MTLPrimitiveTypeTriangle;
   rcp<Pipeline> m_currentPipeline;
+  bool m_sizesStale = false;
+  std::vector<uint32_t> m_sizes;
 };
 } // namespace rive::ore

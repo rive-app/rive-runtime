@@ -52,6 +52,15 @@ public:
     return m_dynamicRanges;
   }
 
+  // A storage buffer the group binds, and whether a shader may write it.
+  struct StorageUse
+  {
+    uint32_t slot = 0;
+    const Buffer* buffer = nullptr;
+    bool writable = false;
+  };
+  const std::vector<StorageUse>& storageUses() const { return m_storageUses; }
+
   virtual ~BindGroup() = default;
 
 protected:
@@ -65,9 +74,10 @@ protected:
 
   uint32_t m_dynamicOffsetCount = 0;
   std::vector<DynamicUBORange> m_dynamicRanges;
+  std::vector<StorageUse> m_storageUses;
 
   // Each backend's makeBindGroup calls this once the group exists.
-  void recordDynamicRanges(const BindGroupDesc& desc);
+  void recordBindings(const BindGroupDesc& desc);
 
   // The layout this BindGroup conforms to. Holds the per-backend native
   // layout handle alive for the BindGroup's lifetime — Vulkan's

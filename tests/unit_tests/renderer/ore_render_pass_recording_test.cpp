@@ -305,7 +305,7 @@ TEST_CASE(
       opsOf(ctx.stream()) ==
       std::vector<
           Op>{begin(), draw(2), finish(), begin(), draw(1), draw(3), finish()});
-  CHECK_FALSE(ctx.hasOpenRenderPasses());
+  CHECK_FALSE(ctx.hasOpenPasses());
 }
 
 // Only the enclosing pass's own commands move past the nested pass. A
@@ -422,7 +422,7 @@ TEST_CASE(
   outer->finish();
 
   CHECK(inner->isFinished());
-  CHECK_FALSE(ctx.hasOpenRenderPasses());
+  CHECK_FALSE(ctx.hasOpenPasses());
   CHECK(
       opsOf(ctx.stream()) ==
       std::vector<Op>{begin(), draw(2), finish(), begin(), draw(1), finish()});
@@ -522,20 +522,20 @@ TEST_CASE(
 {
   DeferredOreContext ctx(nullptr);
   auto outer = ctx.beginRenderPass({});
-  uint64_t token = ctx.nextRenderPassToken();
+  uint64_t token = ctx.nextPassToken();
   auto first = ctx.beginRenderPass({});
   auto second = ctx.beginRenderPass({});
 
-  CHECK(ctx.finishOpenRenderPassesFrom(token) == 2);
+  CHECK(ctx.finishOpenPassesFrom(token) == 2);
   CHECK(first->isFinished());
   CHECK(second->isFinished());
   CHECK_FALSE(outer->isFinished());
-  CHECK(ctx.hasOpenRenderPasses());
+  CHECK(ctx.hasOpenPasses());
 
-  CHECK(ctx.finishOpenRenderPassesFrom(token) == 0);
-  CHECK(ctx.finishOpenRenderPassesFrom(0) == 1);
+  CHECK(ctx.finishOpenPassesFrom(token) == 0);
+  CHECK(ctx.finishOpenPassesFrom(0) == 1);
   CHECK(outer->isFinished());
-  CHECK_FALSE(ctx.hasOpenRenderPasses());
+  CHECK_FALSE(ctx.hasOpenPasses());
 }
 
 // A frame reset with a pass still open would otherwise leave its finish to
@@ -576,7 +576,7 @@ TEST_CASE(
       std::vector<
           Op>{begin(), draw(2), finish(), begin(), draw(1), draw(3), finish()});
   CHECK(ctx.maxOpen == 1);
-  CHECK_FALSE(ctx.hasOpenRenderPasses());
+  CHECK_FALSE(ctx.hasOpenPasses());
 }
 
 TEST_CASE(

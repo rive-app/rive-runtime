@@ -616,6 +616,8 @@ void ContextGL::endFrame()
 
 rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 {
+  if (refusesBuffer(desc))
+    return nullptr;
   auto buffer = rcp<BufferGL>(new BufferGL(desc.size, desc.usage));
 
   glGenBuffers(1, &buffer->m_glBuffer);
@@ -632,6 +634,7 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
       buffer->m_glTarget = GL_UNIFORM_BUFFER;
       break;
     case BufferUsage::upload:
+    case BufferUsage::storage:
       RIVE_UNREACHABLE();
       break;
   }
@@ -1176,7 +1179,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
   auto bg = rcp<BindGroupGL>(new BindGroupGL());
   bg->m_context = this;
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   // UBO bindings.
   uint32_t nBufs = std::min(desc.uboCount, 8u);

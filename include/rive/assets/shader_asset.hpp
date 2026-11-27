@@ -105,6 +105,19 @@ public:
         m_bindingNamesSize);
   }
 
+  /// The RSTB workgroups section: each compute entry point's workgroup,
+  /// decoded by ore. Empty for a shader without compute.
+  Span<const uint8_t> workgroups() const
+  {
+    if (!m_indexed || m_workgroupsSize == 0)
+    {
+      return {};
+    }
+    return Span<const uint8_t>(
+        m_bytes.data() + m_workgroupsOffset,
+        m_workgroupsSize);
+  }
+
   /// The decoded RSTB container, for hosts that forward it across a
   /// process or module boundary.
   Span<const uint8_t> rstb() const
@@ -145,6 +158,8 @@ private:
   size_t m_entryBindingsSize = 0;
   size_t m_bindingNamesOffset = 0;
   size_t m_bindingNamesSize = 0;
+  size_t m_workgroupsOffset = 0;
+  size_t m_workgroupsSize = 0;
 };
 } // namespace rive
 

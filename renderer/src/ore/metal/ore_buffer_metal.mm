@@ -61,6 +61,12 @@ bool BufferMetal::acquireFreshBacking(uint32_t writeOffset, uint32_t writeSize)
 void BufferMetal::update(const void* data, uint32_t size, uint32_t offset)
 {
   assert(offset + size <= m_size);
+  // A fresh backing would drop what the GPU wrote to this one.
+  if (m_usage == BufferUsage::storage)
+  {
+    m_ctx->writeStorageBuffer(this, data, size, offset);
+    return;
+  }
   if (m_boundSinceUpdate)
   {
     // On allocation failure keep the current backing and retry next update.

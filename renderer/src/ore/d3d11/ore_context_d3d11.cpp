@@ -486,6 +486,9 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
       bd.ByteWidth = (desc.size + 15u) & ~15u;
       bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
       break;
+    case BufferUsage::storage:
+      RIVE_UNREACHABLE();
+      break;
   }
 
   D3D11_SUBRESOURCE_DATA initData{};
@@ -1112,7 +1115,7 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
   auto bg = rcp<BindGroupD3D11>(new BindGroupD3D11());
   bg->m_context = this;
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   // UBO bindings.
   uint32_t nBufs = std::min(desc.uboCount, 8u);
@@ -1555,6 +1558,8 @@ void ContextD3D11::endFrame() {}
 
 rcp<Buffer> ContextD3D11::makeBuffer(const BufferDesc& desc)
 {
+  if (refusesBuffer(desc))
+    return nullptr;
   return d3d11MakeBuffer(desc);
 }
 

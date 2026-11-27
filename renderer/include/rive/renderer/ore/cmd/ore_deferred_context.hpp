@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/ore/cmd/ore_command_buffer.hpp"
+#include "rive/renderer/ore/cmd/ore_compute_pass_recording.hpp"
 #include "rive/renderer/ore/cmd/ore_creation_observer.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_resource.hpp"
 #include "rive/renderer/ore/cmd/ore_make_recording.hpp"
@@ -69,6 +70,13 @@ public:
 
   rcp<Buffer> makeBuffer(const BufferDesc& desc) override
   {
+    // Replay cannot reach the script with the device's refusal.
+    if (desc.usage == BufferUsage::storage && m_caps.featuresKnown &&
+        !features().storageBuffers)
+    {
+      setLastError("makeBuffer: this device has no storage buffers");
+      return nullptr;
+    }
     auto a = m_ids.alloc();
     recordMakeBuffer(m_render, a.id, a.generation, desc);
     return make_rcp<DeferredBuffer>(
@@ -76,6 +84,7 @@ public:
         a.generation,
         &m_render,
         &m_ids,
+        this,
         desc.size,
         desc.usage);
   }
@@ -209,14 +218,19 @@ public:
         return nullptr;
       }
     }
-    // Replay cannot reach the script, so the range check runs here.
-    if (std::string err; !validateBindGroupDesc(desc, &err))
+    // Replay cannot reach the script, so the range check runs here, and so
+    // does the refusal of a device known to bind no storage buffers.
+    const StorageBinding storageBinding = m_caps.featuresKnown &&
+                                                  !features().storageBuffers
+                                              ? StorageBinding::refused
+                                              : StorageBinding::bound;
+    if (std::string err; !validateBindGroupDesc(desc, &err, storageBinding))
     {
       setLastError("makeBindGroup: %s", err.c_str());
       return nullptr;
     }
     std::vector<ResourceHandle> ubos(desc.uboCount), texs(desc.textureCount),
-        samps(desc.samplerCount);
+        samps(desc.samplerCount), storage(desc.storageBufferCount);
     for (uint32_t i = 0; i < desc.uboCount; ++i)
     {
       ubos[i] = handleFor(desc.ubos[i].buffer);
@@ -229,6 +243,10 @@ public:
     {
       samps[i] = handleFor(desc.samplers[i].sampler);
     }
+    for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+    {
+      storage[i] = handleFor(desc.storageBuffers[i].buffer);
+    }
     auto a = m_ids.alloc();
     recordMakeBindGroup(
         m_render,
@@ -238,7 +256,8 @@ public:
         handleFor(desc.layout),
         Span<const ResourceHandle>(ubos.data(), ubos.size()),
         Span<const ResourceHandle>(texs.data(), texs.size()),
-        Span<const ResourceHandle>(samps.data(), samps.size()));
+        Span<const ResourceHandle>(samps.data(), samps.size()),
+        Span<const ResourceHandle>(storage.data(), storage.size()));
     auto group = make_rcp<DeferredBindGroup>(
         a.id,
         a.generation,
@@ -296,6 +315,44 @@ public:
         writes.begin(),
         writes.end());
     return std::make_unique<TrackedRenderPass>(this, desc);
+  }
+
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* /*outError*/) override
+  {
+    std::vector<ResourceHandle> bgls(desc.bindGroupLayoutCount);
+    for (uint32_t i = 0; i < desc.bindGroupLayoutCount; ++i)
+    {
+      bgls[i] = handleFor(desc.bindGroupLayouts[i]);
+    }
+    auto a = m_ids.alloc();
+    recordMakeComputePipeline(
+        m_render,
+        a.id,
+        a.generation,
+        desc,
+        handleFor(desc.module),
+        Span<const ResourceHandle>(bgls.data(), bgls.size()));
+    return make_rcp<DeferredComputePipeline>(
+        a.id,
+        a.generation,
+        &m_render,
+        &m_ids,
+        desc);
+  }
+
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
+      std::string* outError = nullptr) override
+  {
+    // Replay cannot reach the script with the device's refusal.
+    if (m_caps.featuresKnown && !features().computeShaders)
+    {
+      refuse("beginComputePass", kNoCompute, outError);
+      return nullptr;
+    }
+    return std::make_unique<TrackedComputePass>(this, desc);
   }
 
   // The canvases one Ore run reads and writes. A run ends when no pass is left
@@ -662,7 +719,7 @@ public:
   void resetFrame()
   {
     // A pass still open would append its finish into the next frame.
-    finishOpenRenderPassesFrom(0);
+    finishOpenPassesFrom(0);
     m_segmentDeps = {};
     m_render.reset();
     m_targetWrapped = false;
@@ -688,7 +745,7 @@ public:
       std::vector<uint8_t>& commands,
       std::vector<uint8_t>& blobs)
   {
-    finishOpenRenderPassesFrom(0);
+    finishOpenPassesFrom(0);
     m_render.takeBytes(commands, blobs);
   }
 
@@ -710,22 +767,16 @@ private:
         const uint32_t* dynamicOffsets = nullptr,
         uint32_t dynamicOffsetCount = 0) override
     {
+      if (isFinished())
+      {
+        return;
+      }
       RenderPassRecording::setBindGroup(
           groupIndex,
           bg,
           dynamicOffsets,
           dynamicOffsetCount);
-      auto* group = rive::lite_rtti_cast<DeferredBindGroup*>(bg);
-      // Passes often rebind one group per draw.
-      if (group != nullptr && group != m_lastGroup.get())
-      {
-        m_lastGroup = ref_rcp(group);
-        auto& reads = m_owner->m_segmentDeps.reads;
-        reads.insert(
-            reads.end(),
-            group->canvasImages.begin(),
-            group->canvasImages.end());
-      }
+      m_owner->noteGroupReads(bg, m_lastGroup);
     }
 
     void finish() override
@@ -743,9 +794,64 @@ private:
     rcp<DeferredBindGroup> m_lastGroup;
   };
 
+  class TrackedComputePass final : public ComputePassRecording
+  {
+  public:
+    TrackedComputePass(DeferredOreContext* owner, const ComputePassDesc& desc)
+        : ComputePassRecording(owner, &owner->m_render, desc)
+        , m_owner(owner)
+    {}
+    // The base destructor would only reach its own end.
+    ~TrackedComputePass() override { finish(); }
+
+    void setBindGroup(
+        uint32_t groupIndex,
+        BindGroup* bg,
+        const uint32_t* dynamicOffsets = nullptr,
+        uint32_t dynamicOffsetCount = 0) override
+    {
+      if (isFinished())
+      {
+        return;
+      }
+      ComputePassRecording::setBindGroup(
+          groupIndex,
+          bg,
+          dynamicOffsets,
+          dynamicOffsetCount);
+      m_owner->noteGroupReads(bg, m_lastGroup);
+    }
+
+  protected:
+    void end() override
+    {
+      ComputePassRecording::end();
+      m_owner->closeSegmentIfIdle();
+    }
+
+  private:
+    DeferredOreContext* m_owner;
+    rcp<DeferredBindGroup> m_lastGroup;
+  };
+
+  // Passes often rebind one group per draw, so `last` skips the repeat.
+  void noteGroupReads(BindGroup* bg, rcp<DeferredBindGroup>& last)
+  {
+    auto* group = rive::lite_rtti_cast<DeferredBindGroup*>(bg);
+    if (group == nullptr || group == last.get())
+    {
+      return;
+    }
+    last = ref_rcp(group);
+    m_segmentDeps.reads.insert(
+        m_segmentDeps.reads.end(),
+        group->canvasImages.begin(),
+        group->canvasImages.end());
+  }
+
   void closeSegmentIfIdle()
   {
-    if (hasOpenRenderPasses())
+    if (hasOpenPasses())
     {
       return;
     }

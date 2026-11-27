@@ -152,7 +152,7 @@ TEST_CASE(
 TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
 {
   ShaderModuleDesc desc{};
-  auto& [code, codeSize, language, stage, label, hlslSource, hlslSourceSize, hlslEntryPoint, bindingMapBytes, bindingMapSize, texSamplerPairBytes, texSamplerPairSize, entryBindingBytes, entryBindingSize, glFixupBytes, glFixupSize, shaderAssetId, deferBuildCheck] =
+  auto& [code, codeSize, language, stage, label, hlslSource, hlslSourceSize, hlslEntryPoint, bindingMapBytes, bindingMapSize, texSamplerPairBytes, texSamplerPairSize, entryBindingBytes, entryBindingSize, workgroupBytes, workgroupBytesSize, glFixupBytes, glFixupSize, shaderAssetId, deferBuildCheck] =
       desc;
   (void)code;
   (void)codeSize;
@@ -168,6 +168,8 @@ TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
   (void)texSamplerPairSize;
   (void)entryBindingBytes;
   (void)entryBindingSize;
+  (void)workgroupBytes;
+  (void)workgroupBytesSize;
   (void)glFixupBytes;
   (void)glFixupSize;
   (void)shaderAssetId;
@@ -188,6 +190,7 @@ public:
   bool captured = false;
   ShaderModuleDesc desc{};
   std::vector<uint8_t> code, bindingMap, texSamplerPair, entryBindings, glFixup;
+  std::vector<uint8_t> workgroups;
   std::string label, hlslSource, hlslEntryPoint;
 
   rive::rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& d) override
@@ -203,6 +206,7 @@ public:
     copy(d.bindingMapBytes, d.bindingMapSize, bindingMap);
     copy(d.texSamplerPairBytes, d.texSamplerPairSize, texSamplerPair);
     copy(d.entryBindingBytes, d.entryBindingSize, entryBindings);
+    copy(d.workgroupBytes, d.workgroupBytesSize, workgroups);
     copy(d.glFixupBytes, d.glFixupSize, glFixup);
     label = d.label != nullptr ? d.label : "";
     hlslSource = d.hlslSource != nullptr ? d.hlslSource : "";
@@ -269,6 +273,7 @@ TEST_CASE(
   const uint8_t pairs[8] = {1, 1, 0, 0, 1, 2, 0, 0};
   const uint8_t fixup[2] = {4, 5};
   const uint8_t uses[4] = {1, 1, 0, 0};
+  const uint8_t groups[5] = {1, 0, 0, 6, 6};
 
   ShaderModuleDesc sent{};
   sent.code = code;
@@ -285,6 +290,8 @@ TEST_CASE(
   sent.texSamplerPairSize = sizeof(pairs);
   sent.entryBindingBytes = uses;
   sent.entryBindingSize = sizeof(uses);
+  sent.workgroupBytes = groups;
+  sent.workgroupBytesSize = sizeof(groups);
   sent.glFixupBytes = fixup;
   sent.glFixupSize = sizeof(fixup);
   sent.shaderAssetId = 4242;
@@ -324,6 +331,9 @@ TEST_CASE(
       ctx.texSamplerPair == std::vector<uint8_t>(pairs, pairs + sizeof(pairs)));
   CHECK(got.entryBindingSize == sent.entryBindingSize);
   CHECK(ctx.entryBindings == std::vector<uint8_t>(uses, uses + sizeof(uses)));
+  CHECK(got.workgroupBytesSize == sent.workgroupBytesSize);
+  CHECK(
+      ctx.workgroups == std::vector<uint8_t>(groups, groups + sizeof(groups)));
   CHECK(got.glFixupSize == sent.glFixupSize);
   CHECK(ctx.glFixup == std::vector<uint8_t>(fixup, fixup + sizeof(fixup)));
   CHECK(got.shaderAssetId == sent.shaderAssetId);
@@ -541,7 +551,8 @@ TEST_CASE("make stream records a bind group with entry refs", "[ore][cmd]")
       layout,
       Span<const ResourceHandle>(uboH, 1),
       Span<const ResourceHandle>(texH, 1),
-      Span<const ResourceHandle>(sampH, 1));
+      Span<const ResourceHandle>(sampH, 1),
+      Span<const ResourceHandle>(nullptr, 0));
 
   OreCommandReader r(cb.commandBytes(), cb.blobBytes());
   CommandType t;
@@ -712,6 +723,8 @@ void recordOneOfEach(uint8_t fill, OreCommandBuffer& cb)
     d.ubos = &ubo;
     d.uboCount = 1;
     d.label = "bg";
+    d.storageBuffers = &ubo;
+    d.storageBufferCount = 1;
     const ResourceHandle ubos[1] = {0};
     recordMakeBindGroup(
         cb,
@@ -721,7 +734,8 @@ void recordOneOfEach(uint8_t fill, OreCommandBuffer& cb)
         4,
         Span<const ResourceHandle>(ubos, 1),
         Span<const ResourceHandle>(nullptr, 0),
-        Span<const ResourceHandle>(nullptr, 0));
+        Span<const ResourceHandle>(nullptr, 0),
+        Span<const ResourceHandle>(ubos, 1));
   });
 }
 } // namespace

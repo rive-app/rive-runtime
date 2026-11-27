@@ -89,6 +89,8 @@ bool ShaderAsset::index()
   m_entryBindingsSize = 0;
   m_bindingNamesOffset = 0;
   m_bindingNamesSize = 0;
+  m_workgroupsOffset = 0;
+  m_workgroupsSize = 0;
 
   const uint8_t* p = m_bytes.data();
   const uint8_t* end = p + m_bytes.size();
@@ -170,6 +172,11 @@ bool ShaderAsset::index()
     {
       m_bindingNamesOffset = (size_t)(p - m_bytes.data());
       m_bindingNamesSize = length;
+    }
+    else if (tag == 4 && length >= 1)
+    {
+      m_workgroupsOffset = (size_t)(p - m_bytes.data());
+      m_workgroupsSize = length;
     }
     // Unknown tags: skip.
     p += length;

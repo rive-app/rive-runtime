@@ -16,6 +16,7 @@
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
+#include "rive/renderer/ore/ore_compute_pipeline.hpp"
 #include "rive/renderer.hpp"
 #include <cassert>
 #include <functional>
@@ -106,20 +107,37 @@ public:
       uint32_t generation,
       OreCommandBuffer* stream,
       rive::IdAllocator<ResourceHandle>* allocator,
+      Context* context,
       uint32_t size,
       BufferUsage usage)
       : LITE_RTTI_OVERRIDE(Buffer, DeferredBuffer)(size, usage)
       , DeferredResource(handle, generation, stream, allocator)
+      , m_context(context)
   {}
 
   // Recorded, replayed on the real buffer before the passes.
   void update(const void* data, uint32_t size, uint32_t offset) override
   {
-    if (stream() != nullptr)
+    if (stream() == nullptr)
     {
-      recordBufferUpdate(*stream(), clientHandle(), data, size, offset);
+      return;
+    }
+    const bool storage = usage() == BufferUsage::storage;
+    if (storage && m_context->refusesStorageUpdate(this))
+    {
+      return;
+    }
+    const size_t begin = stream()->commandBytes().size();
+    recordBufferUpdate(*stream(), clientHandle(), data, size, offset);
+    if (storage)
+    {
+      m_context->hoistAheadOfOpenPass(*stream(), begin, clientHandle());
     }
   }
+
+private:
+  // The recorder, valid for as long as the stream is.
+  Context* m_context;
 };
 
 // The remaining types carry the descriptor so record time validation works
@@ -236,6 +254,24 @@ public:
   {}
 };
 
+class DeferredComputePipeline
+    : public LITE_RTTI_OVERRIDE(ComputePipeline, DeferredComputePipeline),
+      public DeferredResource
+{
+public:
+  DeferredComputePipeline(
+      ResourceHandle handle,
+      uint32_t generation,
+      OreCommandBuffer* stream,
+      rive::IdAllocator<ResourceHandle>* allocator,
+      const ComputePipelineDesc& desc)
+      : LITE_RTTI_OVERRIDE(ComputePipeline, DeferredComputePipeline)(
+            nullptr,
+            desc)
+      , DeferredResource(handle, generation, stream, allocator)
+  {}
+};
+
 class DeferredBindGroup
     : public LITE_RTTI_OVERRIDE(BindGroup, DeferredBindGroup),
       public DeferredResource
@@ -260,7 +296,16 @@ public:
         m_dynamicOffsetCount++;
       }
     }
-    recordDynamicRanges(desc);
+    recordBindings(desc);
+    // An open pass that binds the group holds these from an update. A group
+    // made without a layout was never checked, so an entry can be empty.
+    for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+    {
+      if (Buffer* buffer = desc.storageBuffers[i].buffer)
+      {
+        m_retainedBuffers.push_back(ref_rcp(buffer));
+      }
+    }
     for (uint32_t i = 0; i < desc.textureCount; ++i)
     {
       auto* view = lite_rtti_cast<DeferredTextureView*>(desc.textures[i].view);

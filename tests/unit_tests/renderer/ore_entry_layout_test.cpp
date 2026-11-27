@@ -903,3 +903,95 @@ TEST_CASE(
       validate("fs_sample"),
       "the layout declares this texture unfilterable"));
 }
+
+namespace
+{
+void putU32(std::vector<uint8_t>& out, uint32_t v)
+{
+  for (int shift = 0; shift < 32; shift += 8)
+    out.push_back(static_cast<uint8_t>(v >> shift));
+}
+
+// A bare RSTB holding one MSL variant and a workgroups section.
+std::vector<uint8_t> rstbWithWorkgroups(
+    const std::vector<RstbEntry>& entries,
+    const std::vector<RstbWorkgroup>& workgroups)
+{
+  const uint8_t source[] = {'m', 's', 'l'};
+  const std::vector<uint8_t> blob = buildWholeModuleContainer(
+      entries,
+      source,
+      sizeof(source));
+  const std::vector<uint8_t> section = encodeWorkgroups(workgroups);
+
+  std::vector<uint8_t> rstb;
+  putU32(rstb, 0x52535442u);
+  rstb.insert(rstb.end(), {4, 0, 1, 1});
+  rstb.push_back(static_cast<uint8_t>(ShaderTarget::msl));
+  putU32(rstb, 0);
+  putU32(rstb, static_cast<uint32_t>(blob.size()));
+  rstb.push_back(kRstbWorkgroupsTag);
+  rstb.push_back(static_cast<uint8_t>(section.size()));
+  rstb.push_back(static_cast<uint8_t>(section.size() >> 8));
+  rstb.insert(rstb.end(), section.begin(), section.end());
+  rstb.insert(rstb.end(), blob.begin(), blob.end());
+  return rstb;
+}
+} // namespace
+
+// A backend looks an entry point up by the name its source gave it, which is
+// not always the one the script wrote.
+TEST_CASE(
+    "a compute entry point's workgroup reaches its module",
+    "[ore][entry_layout]")
+{
+  RstbEntry vertex;
+  vertex.logical = vertex.physical = "vs_main";
+  RstbEntry compute;
+  compute.stage = 2;
+  compute.logical = "main";
+  compute.physical = "main_";
+  RstbWorkgroup main;
+  main.name = "main";
+  main.size[0] = 8;
+  main.size[1] = 4;
+  main.size[2] = 2;
+  main.memory = {256, 4};
+  RstbWorkgroup elsewhere;
+  elsewhere.name = "elsewhere";
+
+  const std::vector<uint8_t> rstb = rstbWithWorkgroups(
+      {vertex, compute},
+      {elsewhere, main});
+  ShaderAsset asset;
+  REQUIRE(decodeBareRstb(asset, rstb.data(), (uint32_t)rstb.size()));
+
+  struct Module : ShaderModule
+  {
+    using ShaderModule::m_workgroups;
+  } module;
+  bool visited = visitShaderAssetModules(
+      ShaderTarget::msl,
+      asset,
+      [&](const ShaderModuleDesc& desc,
+          uint32_t,
+          uint32_t,
+          const std::vector<RstbEntryView>&) {
+        decodeWorkgroups(
+            desc.workgroupBytes,
+            desc.workgroupBytesSize,
+            module.m_workgroups);
+        return true;
+      });
+  REQUIRE(visited);
+
+  REQUIRE(module.m_workgroups.size() == 1);
+  const RstbWorkgroup* found = module.workgroup("main_");
+  REQUIRE(found != nullptr);
+  CHECK(found->size[0] == 8);
+  CHECK(found->size[1] == 4);
+  CHECK(found->size[2] == 2);
+  CHECK(found->memory == std::vector<uint32_t>{256, 4});
+  CHECK(module.workgroup("main") == nullptr);
+  CHECK(module.workgroup("vs_main_") == nullptr);
+}

@@ -225,6 +225,24 @@ BindingMap bindingMapForEntries(
   return merged;
 }
 
+static uint32_t nativeSlot(const BindingMap::Entry& e, BindingMap::Stage stage)
+{
+  const uint16_t slot = e.backendSlot[static_cast<size_t>(stage)];
+  return slot == BindingMap::kAbsent ? BindGroupLayoutEntry::kNativeSlotAbsent
+                                     : slot;
+}
+
+BindingMap bindingMapForComputeEntry(
+    const ShaderModule* module,
+    const char* entry)
+{
+  if (module == nullptr)
+    return BindingMap();
+  BindingMap map = narrowedToEntry(module, entry);
+  map.clampToStage(BindingMap::Stage::CS);
+  return map;
+}
+
 uint32_t populateBindGroupLayoutEntries(
     BindGroupLayoutEntry* entries,
     uint32_t maxEntries,
@@ -272,16 +290,13 @@ uint32_t populateBindGroupLayoutEntries(
     out.textureMultisampled = e.textureMultisampled;
     out.minBindingSize = e.minBindingSize;
     // Pre-resolve native slots from the shader's binding map.
-    const uint16_t
-        vs = e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
-    const uint16_t
-        fs = e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
-    out.nativeSlotVS = (vs == BindingMap::kAbsent)
-                           ? BindGroupLayoutEntry::kNativeSlotAbsent
-                           : static_cast<uint32_t>(vs);
-    out.nativeSlotFS = (fs == BindingMap::kAbsent)
-                           ? BindGroupLayoutEntry::kNativeSlotAbsent
-                           : static_cast<uint32_t>(fs);
+    out.nativeSlotVS = nativeSlot(e, BindingMap::Stage::VS);
+    out.nativeSlotFS = nativeSlot(e, BindingMap::Stage::FS);
+    // Only for a row no draw stage reads, so every row a draw pipeline
+    // binds keeps the bytes scripts already compare.
+    out.nativeSlotCS = e.stageMask == BindingMap::kStageCompute
+                           ? nativeSlot(e, BindingMap::Stage::CS)
+                           : BindGroupLayoutEntry::kNativeSlotAbsent;
   }
   return n;
 }
@@ -461,6 +476,12 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
       fragment);
 }
 
+static bool isStorageBufferKind(BindingKind kind)
+{
+  return kind == BindingKind::storageBufferRO ||
+         kind == BindingKind::storageBufferRW;
+}
+
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map
 // internal). Kept private to this TU.
 static bool kindsMatch(BindingKind layoutKind, ResourceKind shaderKind)
@@ -621,6 +642,18 @@ bool validateLayoutsAgainstBindingMap(
           hexString(layoutVisibility) +
           " missing stages required by shader (stageMask=0x" +
           hexString(shaderStageMask) + ")");
+    }
+
+    // A bind is held to the layout's minimum, so one under the shader's
+    // would let a storage buffer through that the shader reads past.
+    if (isStorageBufferKind(layoutEntry->kind) &&
+        layoutEntry->minBindingSize < shaderEntry.minBindingSize)
+    {
+      return fail(
+          bindingTag(group, binding) + ": layout's minBindingSize " +
+          std::to_string(layoutEntry->minBindingSize) + " is under the " +
+          std::to_string(shaderEntry.minBindingSize) +
+          " bytes the shader's storage buffer needs");
     }
 
     // Texture dimension/sampleType compatibility (texture kinds only).
@@ -995,7 +1028,22 @@ bool validateStageLimits(
     if (layouts[g] == nullptr)
       continue;
     for (const BindGroupLayoutEntry& e : layouts[g]->entries())
+    {
       dynamicUniformBuffers += e.hasDynamicOffset ? 1 : 0;
+      // Vulkan and D3D11 have no such write on every device either.
+      if (e.kind == BindingKind::storageBufferRW &&
+          (e.visibility.mask & StageVisibility::kVertex) != 0)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): a read_write storage buffer cannot be "
+            "visible to the vertex stage",
+            g,
+            e.binding);
+        return fail();
+      }
+    }
   }
   if (dynamicUniformBuffers > kMaxDynamicUniformBuffers)
   {
@@ -1009,7 +1057,11 @@ bool validateStageLimits(
     return fail();
   }
 
-  for (uint8_t stage : {StageVisibility::kVertex, StageVisibility::kFragment})
+  static constexpr std::pair<uint8_t, const char*> kStages[] = {
+      {StageVisibility::kVertex, "vertex"},
+      {StageVisibility::kFragment, "fragment"},
+      {StageVisibility::kCompute, "compute"}};
+  for (const auto& [stage, stageName] : kStages)
   {
     uint32_t counts[std::size(kLimits)] = {};
     for (uint32_t g = 0; g < layoutCount && layouts != nullptr; ++g)
@@ -1031,7 +1083,7 @@ bool validateStageLimits(
           sizeof(message),
           "the layouts give the %s stage %u %s, and WebGPU allows "
           "%u per stage",
-          stage == StageVisibility::kVertex ? "vertex" : "fragment",
+          stageName,
           counts[i],
           kLimits[i].what,
           kLimits[i].max);
@@ -1273,13 +1325,25 @@ uint32_t countSlot(const Entry* entries, uint32_t count, uint32_t slot)
   return n;
 }
 
-constexpr uint32_t kWebGpuUniformOffsetAlignment = 256;
+// WebGPU's default for uniform and for storage bindings.
+constexpr uint32_t kWebGpuBufferOffsetAlignment = 256;
+// WebGPU's default, which a device may raise and a script cannot count on.
+constexpr uint64_t kWebGpuMaxStorageBindingSize = 128 * 1024 * 1024;
 } // namespace
 
 // snprintf, not a stream: the wasm module lane links this too, and libc++
 // stream formatting drags locale imports the host does not provide.
-bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
+bool validateBindGroupDesc(
+    const BindGroupDesc& desc,
+    std::string* outError,
+    StorageBinding storageBinding)
 {
+  if (desc.storageBufferCount > 0 && storageBinding == StorageBinding::refused)
+  {
+    if (outError != nullptr)
+      *outError = "binding storage buffers is not supported here";
+    return false;
+  }
   // A null layout is the backend's own error to name.
   if (desc.layout == nullptr)
     return true;
@@ -1303,9 +1367,17 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
 
   for (const BindGroupLayoutEntry& e : desc.layout->entries())
   {
+    // A uniform entry on a storage binding counts too, so it is named as the
+    // wrong kind below rather than as a binding left empty.
     const uint32_t
         n = isBufferKind(e.kind)
-                ? countSlot(desc.ubos, desc.uboCount, e.binding)
+                ? countSlot(desc.ubos, desc.uboCount, e.binding) +
+                      (isStorageBufferKind(e.kind)
+                           ? countSlot(
+                                 desc.storageBuffers,
+                                 desc.storageBufferCount,
+                                 e.binding)
+                           : 0)
             : isTextureKind(e.kind)
                 ? countSlot(desc.textures, desc.textureCount, e.binding)
                 : countSlot(desc.samplers, desc.samplerCount, e.binding);
@@ -1326,75 +1398,126 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
     }
   }
 
-  for (uint32_t i = 0; i < desc.uboCount; ++i)
+  // Uniform and storage buffers bind a range under the same rules.
+  struct BufferEntries
   {
-    const BindGroupDesc::UBOEntry& ubo = desc.ubos[i];
-    const BindGroupLayoutEntry* entry = desc.layout->findEntry(ubo.slot);
-    if (entry == nullptr || entry->kind != BindingKind::uniformBuffer)
+    const BindGroupDesc::UBOEntry* entries;
+    uint32_t count;
+    bool storage;
+  };
+  const BufferEntries bufferEntries[] = {
+      {desc.ubos, desc.uboCount, false},
+      {desc.storageBuffers, desc.storageBufferCount, true}};
+  for (const BufferEntries& buffers : bufferEntries)
+  {
+    const char* noun = buffers.storage ? "storage" : "uniform";
+    for (uint32_t i = 0; i < buffers.count; ++i)
     {
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): the layout has no uniform "
-          "buffer here",
-          group,
-          ubo.slot);
-      return fail();
-    }
-    if (ubo.buffer == nullptr)
-      return failEmpty(ubo.slot, "buffer");
-    if (ubo.buffer->usage() != BufferUsage::uniform)
-    {
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): binds a buffer made without "
-          "uniform usage",
-          group,
-          ubo.slot);
-      return fail();
-    }
-    if (ubo.offset % kWebGpuUniformOffsetAlignment != 0)
-    {
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): offset %u is not a multiple of "
-          "%u, which WebGPU requires of uniform buffers",
-          group,
-          ubo.slot,
-          ubo.offset,
-          kWebGpuUniformOffsetAlignment);
-      return fail();
-    }
-    const uint64_t bufferSize = ubo.buffer->size();
-    if (ubo.offset > bufferSize || uint64_t(ubo.offset) + ubo.size > bufferSize)
-    {
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): offset %u + size %u exceeds "
-          "the %llu byte buffer",
-          group,
-          ubo.slot,
-          ubo.offset,
-          ubo.size,
-          static_cast<unsigned long long>(bufferSize));
-      return fail();
-    }
-    const uint64_t bound = ubo.size != 0 ? ubo.size : bufferSize - ubo.offset;
-    if (bound < entry->minBindingSize)
-    {
-      snprintf(
-          message,
-          sizeof(message),
-          "@group(%u) @binding(%u): binds %llu bytes but the "
-          "shader's uniform block needs %u",
-          group,
-          ubo.slot,
-          static_cast<unsigned long long>(bound),
-          entry->minBindingSize);
-      return fail();
+      const BindGroupDesc::UBOEntry& binding = buffers.entries[i];
+      const BindGroupLayoutEntry* entry = desc.layout->findEntry(binding.slot);
+      const bool kindMatches = entry != nullptr &&
+                               (buffers.storage
+                                    ? isStorageBufferKind(entry->kind)
+                                    : entry->kind ==
+                                          BindingKind::uniformBuffer);
+      if (!kindMatches)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): the layout has no %s "
+            "buffer here",
+            group,
+            binding.slot,
+            noun);
+        return fail();
+      }
+      if (binding.buffer == nullptr)
+        return failEmpty(binding.slot, "buffer");
+      if (binding.buffer->usage() !=
+          (buffers.storage ? BufferUsage::storage : BufferUsage::uniform))
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): binds a buffer made without "
+            "%s usage",
+            group,
+            binding.slot,
+            noun);
+        return fail();
+      }
+      if (binding.offset % kWebGpuBufferOffsetAlignment != 0)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): offset %u is not a multiple of "
+            "%u, which WebGPU requires of %s buffers",
+            group,
+            binding.slot,
+            binding.offset,
+            kWebGpuBufferOffsetAlignment,
+            noun);
+        return fail();
+      }
+      const uint64_t bufferSize = binding.buffer->size();
+      if (binding.offset > bufferSize ||
+          uint64_t(binding.offset) + binding.size > bufferSize)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): offset %u + size %u exceeds "
+            "the %llu byte buffer",
+            group,
+            binding.slot,
+            binding.offset,
+            binding.size,
+            static_cast<unsigned long long>(bufferSize));
+        return fail();
+      }
+      const uint64_t range = binding.size != 0 ? binding.size
+                                               : bufferSize - binding.offset;
+      if (range < entry->minBindingSize)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): binds %llu bytes but the "
+            "shader's %s needs %u",
+            group,
+            binding.slot,
+            static_cast<unsigned long long>(range),
+            buffers.storage ? "storage buffer" : "uniform block",
+            entry->minBindingSize);
+        return fail();
+      }
+      if (buffers.storage && (range == 0 || range % 4 != 0))
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): binds %llu bytes, and WebGPU "
+            "requires a multiple of 4 of storage buffers, above 0",
+            group,
+            binding.slot,
+            static_cast<unsigned long long>(range));
+        return fail();
+      }
+      if (buffers.storage && range > kWebGpuMaxStorageBindingSize)
+      {
+        snprintf(
+            message,
+            sizeof(message),
+            "@group(%u) @binding(%u): binds %llu bytes, over the %llu "
+            "WebGPU allows a storage buffer binding",
+            group,
+            binding.slot,
+            static_cast<unsigned long long>(range),
+            static_cast<unsigned long long>(kWebGpuMaxStorageBindingSize));
+        return fail();
+      }
     }
   }
 
@@ -1525,11 +1648,24 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
   return true;
 }
 
-void BindGroup::recordDynamicRanges(const BindGroupDesc& desc)
+void BindGroup::recordBindings(const BindGroupDesc& desc)
 {
   m_dynamicRanges.clear();
+  m_storageUses.clear();
   if (desc.layout == nullptr)
     return;
+  for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+  {
+    const BindGroupDesc::StorageEntry& storage = desc.storageBuffers[i];
+    const BindGroupLayoutEntry* entry = desc.layout->findEntry(storage.slot);
+    if (storage.buffer != nullptr && entry != nullptr)
+    {
+      m_storageUses.push_back(
+          {storage.slot,
+           storage.buffer,
+           entry->kind == BindingKind::storageBufferRW});
+    }
+  }
   for (uint32_t i = 0; i < desc.uboCount; ++i)
   {
     const BindGroupDesc::UBOEntry& ubo = desc.ubos[i];
@@ -1809,6 +1945,133 @@ bool validateVertexLayout(
     }
   }
 #endif
+  return true;
+}
+
+bool validateComputePipelineDesc(
+    const Context* context,
+    const ComputePipelineDesc& desc,
+    std::string* outError)
+{
+  // A recording context learns its device later, which checks again.
+  const bool known = context->featuresKnown();
+  const Features& features = context->features();
+  if (known && !features.computeShaders)
+  {
+    return scriptGuardFailed(
+        "compute shaders are not supported on this device",
+        outError);
+  }
+  if (desc.module == nullptr || desc.entryPoint == nullptr)
+  {
+    return scriptGuardFailed(
+        "a compute pipeline needs a shader module and an entry point",
+        outError);
+  }
+  if (desc.bindGroupLayoutCount > 0 && desc.bindGroupLayouts == nullptr)
+  {
+    return scriptGuardFailed(
+        "a compute pipeline's layout count names layouts it was not given",
+        outError);
+  }
+  char message[192];
+  const RstbWorkgroup* workgroup = desc.module->workgroup(desc.entryPoint);
+  if (workgroup == nullptr)
+  {
+    snprintf(
+        message,
+        sizeof(message),
+        "the shader has no compute entry point '%s' with a workgroup",
+        desc.entryPoint);
+    return scriptGuardFailed(message, outError);
+  }
+  const uint32_t maxSize[3] = {
+      features.maxComputeWorkgroupSizeX,
+      features.maxComputeWorkgroupSizeY,
+      features.maxComputeWorkgroupSizeZ};
+  uint64_t invocations = 1;
+  for (int i = 0; i < 3; ++i)
+  {
+    invocations *= workgroup->size[i];
+    if (workgroup->size[i] == 0)
+    {
+      snprintf(message, sizeof(message), "@workgroup_size %c is 0", 'x' + i);
+      return scriptGuardFailed(message, outError);
+    }
+    if (known && workgroup->size[i] > maxSize[i])
+    {
+      snprintf(
+          message,
+          sizeof(message),
+          "@workgroup_size %c=%u exceeds the device's %u",
+          'x' + i,
+          workgroup->size[i],
+          maxSize[i]);
+      return scriptGuardFailed(message, outError);
+    }
+  }
+  if (known && invocations > features.maxComputeInvocationsPerWorkgroup)
+  {
+    snprintf(
+        message,
+        sizeof(message),
+        "@workgroup_size makes %llu invocations, past the device's %u",
+        static_cast<unsigned long long>(invocations),
+        features.maxComputeInvocationsPerWorkgroup);
+    return scriptGuardFailed(message, outError);
+  }
+  // WebGPU counts each variable rounded up to 16, as Metal allocates it.
+  uint64_t memory = 0;
+  for (uint32_t bytes : workgroup->memory)
+    memory += (static_cast<uint64_t>(bytes) + 15u) & ~uint64_t(15);
+  if (known && memory > features.maxComputeWorkgroupStorageSize)
+  {
+    snprintf(
+        message,
+        sizeof(message),
+        "'%s' uses %llu bytes of workgroup variables, past the device's %u",
+        desc.entryPoint,
+        static_cast<unsigned long long>(memory),
+        features.maxComputeWorkgroupStorageSize);
+    return scriptGuardFailed(message, outError);
+  }
+  return validateStageLimits(
+             desc.bindGroupLayouts,
+             desc.bindGroupLayoutCount,
+             outError) &&
+         validateLayoutsAgainstBindingMap(
+             bindingMapForComputeEntry(desc.module, desc.entryPoint),
+             desc.bindGroupLayouts,
+             desc.bindGroupLayoutCount,
+             outError);
+}
+
+bool validateDispatch(
+    const Context* context,
+    uint32_t x,
+    uint32_t y,
+    uint32_t z,
+    std::string* outError)
+{
+  if (!context->featuresKnown())
+    return true;
+  const uint32_t limit = context->features().maxComputeWorkgroupsPerDimension;
+  const uint32_t counts[3] = {x, y, z};
+  for (int i = 0; i < 3; ++i)
+  {
+    if (counts[i] > limit)
+    {
+      char message[96];
+      snprintf(
+          message,
+          sizeof(message),
+          "workgroup count %c=%u exceeds the device's %u",
+          'x' + i,
+          counts[i],
+          limit);
+      return scriptGuardFailed(message, outError);
+    }
+  }
   return true;
 }
 

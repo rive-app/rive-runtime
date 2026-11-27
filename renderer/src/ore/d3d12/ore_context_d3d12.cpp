@@ -1552,7 +1552,7 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
 
   auto bg = rcp<BindGroupD3D12>(new BindGroupD3D12(m_manager));
   bg->m_layoutRef = ref_rcp(layout);
-  bg->recordDynamicRanges(desc);
+  bg->recordBindings(desc);
 
   // Count dynamic-offset UBOs declared by the layout — authoritative.
   uint32_t dynamicCount = 0;
@@ -2155,6 +2155,8 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(
 
 rcp<Buffer> ContextD3D12::makeBuffer(const BufferDesc& desc)
 {
+  if (refusesBuffer(desc))
+    return nullptr;
   return d3d12MakeBuffer(desc);
 }
 

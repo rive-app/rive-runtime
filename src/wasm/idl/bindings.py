@@ -197,6 +197,15 @@ PODS = [
         u32('stencilClearValue'),
         u32('labelSize'),
     ]),
+    # Counts slice the op's blob in field order: uniform buffers, textures,
+    # samplers, then storage buffers, which take the uniform buffer's struct.
+    pod('gpu_bind_group_desc', [
+        u32('layout'),
+        u32('uboCount'),
+        u32('textureCount'),
+        u32('samplerCount'),
+        u32('storageCount'),
+    ]),
     # Sizes and counts slice the op's blob in field order: vertex entry
     # string, fragment entry string, color targets, vertex buffer layouts,
     # their attributes (concatenated in layout order), then bind group layout
@@ -816,7 +825,8 @@ NAMESPACES = [
     # with descriptor PODs from ore_resource_commands.hpp.
     ns('rive_gpu_v1', 'gpu', [
         # Host GPU capability snapshot in context:features() declaration
-        # order, bools as 0/1. Returns values written; 0 means no ore
+        # order, bools as 0/1, compute's from slot 21. Returns values written,
+        # which is fewer than asked on an older host; 0 means no ore
         # context so the module answers conservative defaults, ~0u means
         # the recording carries no ReplayCaps yet so the module raises
         # like the Luau backend.
@@ -1044,6 +1054,37 @@ NAMESPACES = [
             buf('uint8_t', 'blob', 'blobCount'),
         ], ret='u32'),
         op('pipeline_release', [handle('pipeline')]),
+        # A compute entry point's layout for one group, as
+        # bind_group_layout_from_entries derives a draw's.
+        op('bind_group_layout_from_compute_entry', [
+            handle('shaderModule'),
+            string('entry', 'entryLength'),
+            u32('groupIndex'),
+        ], ret='u32'),
+        # bind_group_new with storage buffers, which it has no argument left
+        # for.
+        op('bind_group_new_v2', [
+            podref('gpu_bind_group_desc', 'desc'),
+            buf('uint8_t', 'blob', 'blobCount'),
+        ], ret='u32'),
+        # layouts holds one bind group layout handle per group, 0 for none.
+        # The handle is a pipeline's, released by pipeline_release.
+        op('compute_pipeline_new', [
+            handle('shaderModule'),
+            string('entry', 'entryLength'),
+            buf('uint32_t', 'layouts', 'layoutCount'),
+            string('label', 'labelLength'),
+        ], ret='u32'),
+        # The handle is a pass's: pass_set_bind_group, pass_finish and
+        # pass_release take it.
+        op('compute_pass_begin', [string('label', 'labelLength')], ret='u32'),
+        op('compute_pass_set_pipeline', [handle('pass'), handle('pipeline')]),
+        op('compute_pass_dispatch', [
+            handle('pass'),
+            u32('x'),
+            u32('y'),
+            u32('z'),
+        ]),
     ]),
     # Column major 4x4 products the interpreter lanes would otherwise run
     # op by op; out may alias an input.
@@ -1559,6 +1600,7 @@ LEAF_OPS = {
         'pass_set_bind_group', 'pass_set_viewport', 'pass_set_scissor',
         'pass_set_stencil_reference', 'pass_set_blend_color', 'pass_draw',
         'pass_draw_indexed', 'buffer_update', 'buffer_update_blob',
+        'compute_pass_set_pipeline', 'compute_pass_dispatch',
     },
     'rive_mat4_v1': ALL_OPS,
     'rive_path_v1': ALL_OPS,

@@ -106,6 +106,7 @@ void RenderPassMetal::setPipeline(Pipeline* pipeline)
   m_currentPipeline = ref_rcp(pipeline);
   // Each pipeline places vertex buffers at its own slots.
   m_dirtyVertexSlots = kAllVertexSlotsDirty;
+  m_sizesStale = true;
 
   if (desc.depthStencil.depthBias != 0 ||
       desc.depthStencil.depthBiasSlopeScale != 0.0f)
@@ -164,6 +165,7 @@ void RenderPassMetal::applyBindGroup(uint32_t groupIndex)
 {
   auto* bgMetal = static_cast<BindGroupMetal*>(m_boundGroups[groupIndex].get());
   const Pipeline* pipeline = m_currentPipeline.get();
+  m_sizesStale = true;
   const uint32_t* dynamicOffsets = m_groupOffsets[groupIndex];
   const uint32_t dynamicOffsetCount = m_groupOffsetCounts[groupIndex];
   uint32_t dynIdx = 0;
@@ -184,6 +186,22 @@ void RenderPassMetal::applyBindGroup(uint32_t groupIndex)
     if (slots.fs != BindingMap::kAbsent)
       [m_mtlEncoder setFragmentBuffer:mtlBuffer offset:offset atIndex:slots.fs];
   }
+  for (auto& b : bgMetal->m_mtlStorageBuffers)
+  {
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex, b.binding, SlotSpace::buffer);
+    id<MTLBuffer> mtlBuffer = b.src->current();
+    if (slots.vs != BindingMap::kAbsent)
+    {
+      [m_mtlEncoder setVertexBuffer:mtlBuffer offset:b.offset atIndex:slots.vs];
+    }
+    if (slots.fs != BindingMap::kAbsent)
+    {
+      [m_mtlEncoder setFragmentBuffer:mtlBuffer
+                               offset:b.offset
+                              atIndex:slots.fs];
+    }
+  }
   for (auto& t : bgMetal->m_mtlTextures)
   {
     const Pipeline::StageSlots slots = pipeline->slots(
@@ -201,6 +219,29 @@ void RenderPassMetal::applyBindGroup(uint32_t groupIndex)
       [m_mtlEncoder setVertexSamplerState:s.sampler atIndex:slots.vs];
     if (slots.fs != BindingMap::kAbsent)
       [m_mtlEncoder setFragmentSamplerState:s.sampler atIndex:slots.fs];
+  }
+}
+
+void RenderPassMetal::applyBufferSizes()
+{
+  if (!m_sizesStale)
+    return;
+  m_sizesStale = false;
+  auto* pipeline = static_cast<PipelineMetal*>(m_currentPipeline.get());
+  const NSUInteger slot = kMetalReservedBufferSlot;
+  if (BindGroupMetal::boundSizes(
+          pipeline->m_vertexSized, m_boundGroups, m_sizes))
+  {
+    [m_mtlEncoder setVertexBytes:m_sizes.data()
+                          length:m_sizes.size() * sizeof(uint32_t)
+                         atIndex:slot];
+  }
+  if (BindGroupMetal::boundSizes(
+          pipeline->m_fragmentSized, m_boundGroups, m_sizes))
+  {
+    [m_mtlEncoder setFragmentBytes:m_sizes.data()
+                            length:m_sizes.size() * sizeof(uint32_t)
+                           atIndex:slot];
   }
 }
 
@@ -251,6 +292,7 @@ void RenderPassMetal::draw(
     return; // setPipeline was rejected (see lastError), drawing would crash
   }
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applyBufferSizes();
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   [m_mtlEncoder drawPrimitives:m_mtlPrimitiveType
                    vertexStart:firstVertex
@@ -272,6 +314,7 @@ void RenderPassMetal::drawIndexed(
     return; // rejected pipeline or missing index buffer, see lastError
   }
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applyBufferSizes();
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   assert(
       m_mtlIndexBuffer != nil && "Must call setIndexBuffer before drawIndexed");
@@ -301,6 +344,8 @@ void RenderPassMetal::finish()
   {
     [m_mtlEncoder endEncoding];
     m_mtlEncoder = nil;
+    if (m_context != nullptr)
+      static_cast<ContextMetal*>(m_context)->encoderEnded();
   }
   releaseBoundResources();
   for (VertexBufferBacking& bound : m_mtlVertexBuffers)
