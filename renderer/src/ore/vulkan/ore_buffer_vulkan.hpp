@@ -10,8 +10,7 @@ namespace rive::ore
 class ContextVulkan;
 
 // An update after a bind orphans onto a fresh backing instead of racing the GPU
-// still reading the bound one. Never rebound buffers stay at one backing.
-// Reclamation uses the manager frame numbers.
+// reading the bound one. A storage buffer never does: its updates are copies.
 class BufferVulkan : public LITE_RTTI_OVERRIDE(Buffer, BufferVulkan)
 {
 public:
@@ -63,6 +62,8 @@ private:
   void* m_vkMappedPtr = nullptr;
   VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
   rcp<rive::gpu::VulkanContext> m_vk;
+  // Copies a storage buffer's updates in command order. Weak ref.
+  ContextVulkan* m_context = nullptr;
 
   // Backing pool for orphan on bound. Empty for staging buffers, which are
   // never bound. Bounded across frames by frames in flight, one extra per

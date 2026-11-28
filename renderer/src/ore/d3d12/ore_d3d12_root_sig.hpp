@@ -28,10 +28,12 @@
 #pragma once
 
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
+#include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp" // D3D12GroupRootParams
 
 #include <d3d12.h>
 #include <wrl/client.h>
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 
@@ -41,25 +43,39 @@ namespace rive::ore
 // D3D12-side alias for Ore's central `kMaxBindGroups`.
 constexpr uint32_t kD3D12MaxGroups = kMaxBindGroups;
 
+// The registers one kind takes in a group. An entry point may use only some
+// of a group's bindings, so the table covers the ones between them too.
+struct D3D12SlotSpan
+{
+  uint8_t min = 0xFF;
+  uint8_t max = 0;
+  void add(uint8_t slot)
+  {
+    min = std::min(min, slot);
+    max = std::max(max, slot);
+  }
+  uint8_t base() const { return min == 0xFF ? 0 : min; }
+  uint8_t count() const
+  {
+    return min == 0xFF ? 0 : static_cast<uint8_t>(max - min + 1);
+  }
+};
+
 // Walk a `BindGroupLayoutDesc`'s entries and populate the layout's
-// `D3D12GroupRootParams` shape (counts + min global slot per kind).
-// HLSL SM5 has a merged VS/PS register namespace, so the global slot
-// can come from either stage's nativeSlot field.
+// `D3D12GroupRootParams` shape (count + lowest register per kind).
+// HLSL SM5 numbers its registers alike in every stage, so the register
+// can come from whichever stage's nativeSlot field is set.
 inline void tallyGroupFromLayoutDesc(
     const BindGroupLayoutDesc& desc,
     D3D12GroupRootParams* out)
 {
   *out = D3D12GroupRootParams{};
-  uint8_t cbvMin = 0xFF, srvMin = 0xFF, uavMin = 0xFF, sampMin = 0xFF;
+  D3D12SlotSpan cbv, srv, uav, sampler;
 
   for (uint32_t i = 0; i < desc.entryCount; ++i)
   {
     const BindGroupLayoutEntry& e = desc.entries[i];
-    // Pick a non-absent native slot (VS preferred).
-    uint32_t slot32 = (e.nativeSlotVS !=
-                       BindGroupLayoutEntry::kNativeSlotAbsent)
-                          ? e.nativeSlotVS
-                          : e.nativeSlotFS;
+    const uint32_t slot32 = stageSharedSlot(e);
     if (slot32 == BindGroupLayoutEntry::kNativeSlotAbsent)
       continue;
     uint8_t slot = static_cast<uint8_t>(slot32);
@@ -67,34 +83,30 @@ inline void tallyGroupFromLayoutDesc(
     switch (e.kind)
     {
       case BindingKind::uniformBuffer:
-        out->cbvCount++;
-        if (slot < cbvMin)
-          cbvMin = slot;
+        cbv.add(slot);
         break;
       case BindingKind::sampledTexture:
       case BindingKind::storageBufferRO:
-        out->srvCount++;
-        if (slot < srvMin)
-          srvMin = slot;
+        srv.add(slot);
         break;
       case BindingKind::storageBufferRW:
       case BindingKind::storageTexture:
-        out->uavCount++;
-        if (slot < uavMin)
-          uavMin = slot;
+        uav.add(slot);
         break;
       case BindingKind::sampler:
       case BindingKind::comparisonSampler:
-        out->samplerCount++;
-        if (slot < sampMin)
-          sampMin = slot;
+        sampler.add(slot);
         break;
     }
   }
-  out->cbvBaseGlobalSlot = (cbvMin == 0xFF) ? 0 : cbvMin;
-  out->srvBaseGlobalSlot = (srvMin == 0xFF) ? 0 : srvMin;
-  out->uavBaseGlobalSlot = (uavMin == 0xFF) ? 0 : uavMin;
-  out->samplerBaseGlobalSlot = (sampMin == 0xFF) ? 0 : sampMin;
+  out->cbvCount = cbv.count();
+  out->srvCount = srv.count();
+  out->uavCount = uav.count();
+  out->samplerCount = sampler.count();
+  out->cbvBaseGlobalSlot = cbv.base();
+  out->srvBaseGlobalSlot = srv.base();
+  out->uavBaseGlobalSlot = uav.base();
+  out->samplerBaseGlobalSlot = sampler.base();
   out->cbvSrvUavRootParamIdx = -1;
   out->samplerRootParamIdx = -1;
 }
@@ -103,16 +115,19 @@ inline void tallyGroupFromLayoutDesc(
 // BindGroupLayouts, and populate `groupOut[kD3D12MaxGroups]` with the
 // composed root-parameter indices + per-kind ranges (mirrored from each
 // layout's pre-computed shape). Returns `nullptr` on failure.
+// A compute pipeline passes `outWorkgroupCountParam` and gets the root
+// parameter its dispatches write their workgroup counts to.
 inline Microsoft::WRL::ComPtr<ID3D12RootSignature> buildPerPipelineRootSig(
     ID3D12Device* device,
     BindGroupLayout* const* layouts,
     uint32_t layoutCount,
     D3D12GroupRootParams groupOut[kD3D12MaxGroups],
     HRESULT* outHr = nullptr,
-    const char** outErrMsg = nullptr)
+    const char** outErrMsg = nullptr,
+    int8_t* outWorkgroupCountParam = nullptr)
 {
   // ── Step 1: build root parameters + ranges from layouts ──
-  constexpr uint32_t kMaxParams = 2 * kD3D12MaxGroups;
+  constexpr uint32_t kMaxParams = 2 * kD3D12MaxGroups + 1;
   D3D12_ROOT_PARAMETER rootParams[kMaxParams]{};
   D3D12_DESCRIPTOR_RANGE ranges[kMaxParams * 3]{};
   uint32_t paramCount = 0;
@@ -211,11 +226,25 @@ inline Microsoft::WRL::ComPtr<ID3D12RootSignature> buildPerPipelineRootSig(
     }
   }
 
+  const bool compute = outWorkgroupCountParam != nullptr;
+  if (compute)
+  {
+    *outWorkgroupCountParam = static_cast<int8_t>(paramCount);
+    D3D12_ROOT_PARAMETER& p = rootParams[paramCount++];
+    p.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    p.Constants.ShaderRegister = kHlslWorkgroupCountRegister;
+    p.Constants.RegisterSpace = 0;
+    p.Constants.Num32BitValues = 3;
+    p.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+  }
+
   // ── Step 3: serialize + create ──
   D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
   rsDesc.NumParameters = paramCount;
   rsDesc.pParameters = paramCount > 0 ? rootParams : nullptr;
-  rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+  rsDesc.Flags =
+      compute ? D3D12_ROOT_SIGNATURE_FLAG_NONE
+              : D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
   Microsoft::WRL::ComPtr<ID3DBlob> sigBlob, errBlob;
   HRESULT hr = D3D12SerializeRootSignature(

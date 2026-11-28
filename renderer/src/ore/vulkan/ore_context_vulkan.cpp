@@ -9,6 +9,7 @@
 #include "ore_shader_module_vulkan.hpp"
 #include "ore_spirv_entry_split.hpp"
 #include "ore_pipeline_vulkan.hpp"
+#include "ore_compute_vulkan.hpp"
 #include "ore_render_pass_vulkan.hpp"
 #include "ore_bind_group_vulkan.hpp"
 #include "ore_bind_group_layout_vulkan.hpp"
@@ -362,8 +363,30 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = false;
-  f.storageBuffers = false;
+  // Both or neither: where they are on, a fragment shader may write a storage
+  // buffer and a stage may bind WebGPU's eight.
+  bool storage = enabled.fragmentStoresAndAtomics &&
+                 props.limits.maxPerStageDescriptorStorageBuffers >= 8;
+#ifdef RIVE_ANDROID
+  // Drivers below 1.3 are unproven: an Adreno 640 on 1.1 crashed compiling a
+  // vertex shader's arrayLength and drew a buffer a dispatch had half written.
+  storage = storage && props.apiVersion >= VK_API_VERSION_1_3;
+#endif
+  if (storage)
+  {
+    f.computeShaders = true;
+    f.storageBuffers = true;
+    f.maxComputeWorkgroupSizeX = props.limits.maxComputeWorkGroupSize[0];
+    f.maxComputeWorkgroupSizeY = props.limits.maxComputeWorkGroupSize[1];
+    f.maxComputeWorkgroupSizeZ = props.limits.maxComputeWorkGroupSize[2];
+    f.maxComputeInvocationsPerWorkgroup = props.limits
+                                              .maxComputeWorkGroupInvocations;
+    f.maxComputeWorkgroupStorageSize = props.limits.maxComputeSharedMemorySize;
+    f.maxComputeWorkgroupsPerDimension = std::min(
+        {props.limits.maxComputeWorkGroupCount[0],
+         props.limits.maxComputeWorkGroupCount[1],
+         props.limits.maxComputeWorkGroupCount[2]});
+  }
   // Compressed format support via format properties.
   f.bc = enabled.textureCompressionBC;
   f.etc2 = enabled.textureCompressionETC2;
@@ -714,6 +737,7 @@ void ContextVulkan::beginFrame(const FrameDescriptor& desc)
 
   m_vkCommandBuffer = static_cast<VkCommandBuffer>(desc.externalCommandBuffer);
   m_vkCmdBufRecording = true;
+  m_vkPassOpen = false;
 
   m_vkProfileSlot = kVkProfileSlots;
   if (gpuProfiling())
@@ -735,6 +759,7 @@ void ContextVulkan::beginFrame(const FrameDescriptor& desc)
   // Drain pre-frame deferred work onto the host's CB.
   vkFlushPendingTextureUploads();
   vkFlushPendingInitialTransitions();
+  vkFlushPendingStorageCopies();
   vkSyncRiveTextures();
 }
 
@@ -895,7 +920,9 @@ void ContextVulkan::vkSyncRiveTextures()
 
 void ContextVulkan::waitForGPU() {}
 
-void ContextVulkan::endFrame() {}
+// The host ends its command buffer after this, so what comes before the next
+// frame waits for that one.
+void ContextVulkan::endFrame() { m_vkCmdBufRecording = false; }
 
 // ============================================================================
 // getOrCreateRenderPass
@@ -1065,12 +1092,16 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
 
 rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 {
-  if (refusesBuffer(desc))
+  if (desc.usage == BufferUsage::storage && !m_features.storageBuffers)
+  {
+    setLastError("makeBuffer: %s", kVkNoStorage);
     return nullptr;
+  }
   auto buffer = rcp<BufferVulkan>(
       new BufferVulkan(m_manager, desc.size, desc.usage));
   buffer->m_vkDevice = m_vk->device;
   buffer->m_vk = m_vk;
+  buffer->m_context = this;
 
   VkBufferUsageFlags usage = 0;
   switch (desc.usage)
@@ -1088,7 +1119,8 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
       usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
       break;
     case BufferUsage::storage:
-      RIVE_UNREACHABLE();
+      usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+              VK_BUFFER_USAGE_TRANSFER_DST_BIT;
       break;
   }
 
@@ -1121,6 +1153,11 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
   {
     memcpy(buffer->m_vkMappedPtr, desc.data, desc.size);
   }
+  else
+  {
+    // A shader may read it before anything writes it, and Metal's is zeroed.
+    memset(buffer->m_vkMappedPtr, 0, desc.size);
+  }
 
   // Seed the backing pool with this first allocation, mirrored above. The
   // pool stays at one backing unless the buffer is updated after being bound.
@@ -1128,6 +1165,88 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
       {buffer->m_vkBuffer, buffer->m_vmaAllocation, buffer->m_vkMappedPtr, 0});
 
   return buffer;
+}
+
+void ContextVulkan::writeStorageBuffer(
+    BufferVulkan* buffer,
+    const void* data,
+    uint32_t size,
+    uint32_t offset)
+{
+  if (size == 0)
+    return;
+  // A copy here would land inside the open pass, or ahead of one still
+  // recording.
+  if (m_vkPassOpen || hasOpenPasses())
+  {
+    setLastError("Buffer.update: a storage buffer cannot be updated while a "
+                 "pass is open");
+    return;
+  }
+  BufferDesc stagingDesc;
+  stagingDesc.usage = BufferUsage::upload;
+  stagingDesc.size = size;
+  stagingDesc.data = data;
+  rcp<Buffer> staging = makeBuffer(stagingDesc);
+  if (staging == nullptr)
+  {
+    setLastError("Buffer.update: Vulkan could not allocate %u bytes", size);
+    return;
+  }
+  m_vkPendingStorageCopies.push_back(
+      {std::move(staging), ref_rcp(buffer), offset, size});
+  if (m_vkCmdBufRecording)
+    vkFlushPendingStorageCopies();
+}
+
+void ContextVulkan::vkFlushPendingStorageCopies()
+{
+  if (m_vkPendingStorageCopies.empty())
+    return;
+  for (const VkPendingStorageCopy& copy : m_vkPendingStorageCopies)
+  {
+    VkBufferCopy region{};
+    region.dstOffset = copy.offset;
+    region.size = copy.size;
+    m_vk->CmdCopyBuffer(
+        m_vkCommandBuffer,
+        static_cast<BufferVulkan*>(copy.staging.get())->current(),
+        static_cast<BufferVulkan*>(copy.buffer.get())->current(),
+        1,
+        &region);
+    // After each, since two may write the same bytes.
+    vkBarrierAfter(
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_ACCESS_TRANSFER_WRITE_BIT);
+  }
+  // Dropping the staging buffers leaves them to the purgatory, which keeps
+  // them until the frame that copies from them is done.
+  m_vkPendingStorageCopies.clear();
+}
+
+void ContextVulkan::vkBarrierAfter(
+    VkPipelineStageFlags stages,
+    VkAccessFlags access)
+{
+  VkMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+  barrier.srcAccessMask = access;
+  barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT |
+                          VK_ACCESS_SHADER_WRITE_BIT |
+                          VK_ACCESS_TRANSFER_WRITE_BIT;
+  m_vk->CmdPipelineBarrier(
+      m_vkCommandBuffer,
+      stages,
+      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+      0,
+      1,
+      &barrier,
+      0,
+      nullptr,
+      0,
+      nullptr);
 }
 
 // ============================================================================
@@ -1461,7 +1580,11 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
     setLastError("makeBindGroup: BindGroupDesc::layout is null");
     return nullptr;
   }
-  if (std::string err; !validateBindGroupDesc(desc, &err))
+  if (std::string err; !validateBindGroupDesc(
+          desc,
+          &err,
+          m_features.storageBuffers ? StorageBinding::bound
+                                    : StorageBinding::refused))
   {
     setLastError("makeBindGroup: %s", err.c_str());
     return nullptr;
@@ -1534,10 +1657,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
           binding);
       return false;
     }
-    const uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
-    *outNativeBinding = (le->nativeSlotVS != kAbsent)   ? le->nativeSlotVS
-                        : (le->nativeSlotFS != kAbsent) ? le->nativeSlotFS
-                                                        : binding;
+    *outNativeBinding = nativeBindingOf(*le);
     return true;
   };
 
@@ -1561,6 +1681,22 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
     bg->m_uboWrites.push_back(w);
 
     bg->m_retainedBuffers.push_back(ref_rcp(ubo.buffer));
+  }
+
+  // Storage entries, which validateBindGroupDesc matched to the layout.
+  bg->m_hasStorage = desc.storageBufferCount > 0;
+  for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+  {
+    const auto& entry = desc.storageBuffers[i];
+    auto buffer = lite_rtti_cast<BufferVulkan*>(entry.buffer);
+    BindGroupVulkan::UBOWrite w;
+    w.buffer = buffer;
+    w.dstBinding = nativeBindingOf(*layout->findEntry(entry.slot));
+    w.offset = entry.offset;
+    w.range = (entry.size > 0) ? entry.size : buffer->size() - entry.offset;
+    w.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bg->m_uboWrites.push_back(w);
+    bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
   }
 
   // Texture entries (combined image sampler — imageView only, sampler set
@@ -1629,6 +1765,113 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 }
 
 // ============================================================================
+// Compute
+// ============================================================================
+
+VkPipelineLayout ContextVulkan::vkCreatePipelineLayout(
+    BindGroupLayout* const* layouts,
+    uint32_t count)
+{
+  // Every pSetLayouts entry has to be a valid handle
+  // (VUID-VkPipelineLayoutCreateInfo-graphicsPipelineLibrary-06753).
+  VkDescriptorSetLayout dsls[kVkMaxGroups] = {};
+  count = std::min(count, kVkMaxGroups);
+  for (uint32_t g = 0; g < count; ++g)
+  {
+    auto* layout = lite_rtti_cast<BindGroupLayoutVulkan*>(layouts[g]);
+    dsls[g] = layout != nullptr ? layout->m_vkDSL : vkGetOrCreateEmptyDSL();
+  }
+  VkPipelineLayoutCreateInfo layoutCI{};
+  layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutCI.setLayoutCount = count;
+  layoutCI.pSetLayouts = count > 0 ? dsls : nullptr;
+  VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+  const VkResult result = m_vk->CreatePipelineLayout(
+      m_vk->device,
+      &layoutCI,
+      nullptr,
+      &pipelineLayout);
+  return result == VK_SUCCESS ? pipelineLayout : VK_NULL_HANDLE;
+}
+
+rcp<ComputePipeline> ContextVulkan::makeComputePipelineImpl(
+    const ComputePipelineDesc& desc,
+    std::string* outError)
+{
+  auto pipeline = rcp<ComputePipelineVulkan>(
+      new ComputePipelineVulkan(m_manager, desc));
+  pipeline->m_vkDevice = m_vk->device;
+  pipeline->m_vkDestroyPipeline = m_vk->DestroyPipeline;
+  pipeline->m_vkDestroyPipelineLayout = m_vk->DestroyPipelineLayout;
+  pipeline->m_vkPipelineLayout = vkCreatePipelineLayout(
+      desc.bindGroupLayouts,
+      desc.bindGroupLayoutCount);
+  if (pipeline->m_vkPipelineLayout == VK_NULL_HANDLE)
+  {
+    refuse("makeComputePipeline", "vkCreatePipelineLayout failed", outError);
+    return nullptr;
+  }
+
+  auto* module = lite_rtti_cast<ShaderModuleVulkan*>(desc.module);
+  assert(module != nullptr);
+  VkShaderModule entryModule = VK_NULL_HANDLE;
+  VkComputePipelineCreateInfo pipelineCI{};
+  pipelineCI.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipelineCI.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  pipelineCI.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  pipelineCI.stage.module = module->stageModule(
+      *m_vk,
+      kSpirvComputeModel,
+      desc.entryPoint,
+      *m_spirvScratch,
+      &entryModule);
+  pipelineCI.stage.pName = desc.entryPoint;
+  pipelineCI.layout = pipeline->m_vkPipelineLayout;
+  const VkResult result = m_vk->CreateComputePipelines(
+      m_vk->device,
+      VK_NULL_HANDLE,
+      1,
+      &pipelineCI,
+      nullptr,
+      &pipeline->m_vkPipeline);
+  if (entryModule != VK_NULL_HANDLE)
+    m_vk->DestroyShaderModule(m_vk->device, entryModule, nullptr);
+  if (result != VK_SUCCESS)
+  {
+    const std::string why = "vkCreateComputePipelines failed (VkResult=" +
+                            std::to_string(result) + ")";
+    refuse("makeComputePipeline", why.c_str(), outError);
+    return nullptr;
+  }
+  return pipeline;
+}
+
+std::unique_ptr<ComputePass> ContextVulkan::beginComputePass(
+    const ComputePassDesc& desc,
+    std::string* outError)
+{
+  if (!m_features.computeShaders)
+    return Context::beginComputePass(desc, outError);
+  if (refusesPass(
+          "beginComputePass",
+          m_vkCmdBufRecording,
+          m_vkPassOpen,
+          outError))
+    return nullptr;
+  // Uploads and layout changes queued so far run ahead of the dispatches.
+  vkFlushPendingTextureUploads();
+  vkFlushPendingInitialTransitions();
+  // Its shaders may sample what any earlier command drew or uploaded.
+  vkBarrierAfter(
+      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+          VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+          VK_ACCESS_TRANSFER_WRITE_BIT);
+  m_vkPassOpen = true;
+  return std::make_unique<ComputePassVulkan>(this, m_vkCommandBuffer);
+}
+
+// ============================================================================
 // beginRenderPass
 // ============================================================================
 
@@ -1636,6 +1879,12 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
+  if (refusesPass(
+          "beginRenderPass",
+          m_vkCmdBufRecording,
+          m_vkPassOpen,
+          outError))
+    return nullptr;
   // Rive may have drawn into a wrapped target since Ore last saw it, so
   // Rive's tracker, not Ore's, knows what the barrier into the pass waits on.
   auto acquireRiveTarget = [this](
@@ -1865,6 +2114,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
       m_vkCommandBuffer,
       &rpBI,
       VK_SUBPASS_CONTENTS_INLINE);
+  m_vkPassOpen = true;
 
   // CmdBeginRenderPass auto-transitions each attachment from its
   // initialLayout to the subpass-ref layout. Mirror that in our own

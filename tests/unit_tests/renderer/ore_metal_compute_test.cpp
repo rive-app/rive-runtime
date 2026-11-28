@@ -9,7 +9,8 @@
 
 #include "ore_test_backends.hpp"
 
-#if defined(ORE_BACKEND_METAL)
+#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_VK) ||                   \
+    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_compute_pass.hpp"
@@ -35,8 +36,20 @@ using namespace rive::ore;
 
 namespace
 {
+#if defined(ORE_BACKEND_METAL)
 constexpr TestingWindow::Backend kMetal[] = {TestingWindow::Backend::metal};
+#endif
+#if defined(ORE_BACKEND_VK)
+constexpr TestingWindow::Backend kVulkan[] = {TestingWindow::Backend::vk};
+#endif
+#if defined(ORE_BACKEND_D3D11)
+constexpr TestingWindow::Backend kD3D11[] = {TestingWindow::Backend::d3d};
+#endif
+#if defined(ORE_BACKEND_D3D12)
+constexpr TestingWindow::Backend kD3D12[] = {TestingWindow::Backend::d3d12};
+#endif
 
+#if defined(ORE_BACKEND_METAL)
 // cs_main scales 64 values into `output` by way of a workgroup variable, which
 // reads back zero unless Metal was given its size; fs_show paints three.
 const char kMSL[] = R"(
@@ -75,10 +88,12 @@ fragment float4 fs_show(VertexOut in [[stage_in]],
                   1.0);
 }
 )";
+#endif
 
 constexpr int kSize = 32;
 constexpr uint32_t kCount = 64;
 constexpr uint32_t kBytes = kCount * sizeof(uint32_t);
+#if defined(ORE_BACKEND_METAL)
 constexpr uint8_t kCompute = BindingMap::kStageCompute;
 constexpr uint8_t kFragment = BindingMap::kStageFragment;
 
@@ -113,11 +128,14 @@ RstbEntryBindings uses(
   e.bindings = std::move(bindings);
   return e;
 }
+#endif
 
 // A module and the names its source gave the three entry points.
 struct Shader
 {
-  rcp<ShaderModule> module;
+  // One module per entry point of `entries`, the same one for all of them on
+  // a target whose entry points share a module.
+  std::vector<rcp<ShaderModule>> modules;
   std::string compute = "cs_main";
   std::string vertex = "vs_cover";
   std::string fragment = "fs_show";
@@ -134,8 +152,34 @@ struct Shader
     FAIL("the shader has no entry point " << logical);
     return {};
   }
+
+  // The module that holds the entry point written as `logical`. HLSL names
+  // every entry point main, so the bake's names cannot tell them apart.
+  ShaderModule* moduleFor(const char* logical) const
+  {
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+      if (entries[i].first == logical)
+        return modules[i].get();
+    }
+    return modules.empty() ? nullptr : modules[0].get();
+  }
+
+  // Where `compute`, `vertex` and `fragment` sit among the entry points.
+  size_t computeIndex = 0;
+  size_t vertexIndex = 0;
+  size_t fragmentIndex = 0;
+  ShaderModule* moduleAt(size_t index) const
+  {
+    return modules.empty() ? nullptr
+                           : modules[index < modules.size() ? index : 0].get();
+  }
+  ShaderModule* computeModule() const { return moduleAt(computeIndex); }
+  ShaderModule* vertexModule() const { return moduleAt(vertexIndex); }
+  ShaderModule* fragmentModule() const { return moduleAt(fragmentIndex); }
 };
 
+#if defined(ORE_BACKEND_METAL)
 Shader handWrittenShader(Context& ctx)
 {
   BindingMap bindings;
@@ -165,9 +209,10 @@ Shader handWrittenShader(Context& ctx)
   desc.workgroupBytes = workgroups.data();
   desc.workgroupBytesSize = static_cast<uint32_t>(workgroups.size());
   Shader shader;
-  shader.module = ctx.makeShaderModule(desc);
+  shader.modules = {ctx.makeShaderModule(desc)};
   return shader;
 }
+#endif
 
 // Shader `index` of ore_compute_shaders.rstb.hpp, baked from WGSL.
 Shader bakedShaderAt(Context& ctx, size_t index)
@@ -180,21 +225,33 @@ Shader bakedShaderAt(Context& ctx, size_t index)
       offsets[index + 1] - offsets[index]));
   Shader shader;
   const bool visited = visitShaderAssetModules(
-      ShaderTarget::msl,
+      ctx.shaderTarget(),
       asset,
       [&](const ShaderModuleDesc& desc,
-          uint32_t,
-          uint32_t,
+          uint32_t first,
+          uint32_t count,
           const std::vector<RstbEntryView>& entries) {
-        shader.module = ctx.makeShaderModule(desc);
-        for (const RstbEntryView& entry : entries)
+        if (shader.entries.empty())
         {
-          std::string& name = entry.stage == 2   ? shader.compute
-                              : entry.stage == 0 ? shader.vertex
-                                                 : shader.fragment;
-          name = entry.physical;
-          shader.entries.emplace_back(entry.logical, entry.physical);
+          for (size_t i = 0; i < entries.size(); ++i)
+          {
+            const RstbEntryView& entry = entries[i];
+            const bool compute = entry.stage == 2;
+            const bool vertex = entry.stage == 0;
+            (compute  ? shader.compute
+             : vertex ? shader.vertex
+                      : shader.fragment) = entry.physical;
+            (compute  ? shader.computeIndex
+             : vertex ? shader.vertexIndex
+                      : shader.fragmentIndex) = i;
+            shader.entries.emplace_back(entry.logical, entry.physical);
+          }
+          shader.modules.resize(entries.size());
         }
+        // Direct3D compiles each entry point as a module of its own.
+        rcp<ShaderModule> module = ctx.makeShaderModule(desc);
+        for (uint32_t i = first; i < first + count; ++i)
+          shader.modules[i] = module;
         return true;
       });
   REQUIRE(visited);
@@ -229,26 +286,32 @@ rcp<ComputePipeline> computePipelineFor(
   return pipeline;
 }
 
-// A draw of one triangle list into rgba8, and the layout of what its entry
-// points bind.
+// A draw of one triangle list into rgba8, and the layouts of what its entry
+// points bind in the first `layoutCount` groups.
 rcp<Pipeline> drawPipelineFor(
     Context& make,
     ShaderModule* vertexModule,
     const std::string& vertex,
     ShaderModule* fragmentModule,
     const std::string& fragment,
-    rcp<BindGroupLayout>& layout)
+    rcp<BindGroupLayout>* outLayouts,
+    uint32_t layoutCount)
 {
-  layout = makeBindGroupLayoutFromBindingMap(
-      make,
-      bindingMapForEntries(
-          vertexModule,
-          vertex.c_str(),
-          fragmentModule,
-          fragment.c_str()),
-      0);
-  REQUIRE(layout != nullptr);
-  BindGroupLayout* layouts[] = {layout.get()};
+  BindGroupLayout* layouts[kMaxBindGroups] = {};
+  REQUIRE(layoutCount <= kMaxBindGroups);
+  for (uint32_t g = 0; g < layoutCount; ++g)
+  {
+    outLayouts[g] = makeBindGroupLayoutFromBindingMap(
+        make,
+        bindingMapForEntries(
+            vertexModule,
+            vertex.c_str(),
+            fragmentModule,
+            fragment.c_str()),
+        g);
+    REQUIRE(outLayouts[g] != nullptr);
+    layouts[g] = outLayouts[g].get();
+  }
   PipelineDesc desc{};
   desc.vertexModule = vertexModule;
   desc.fragmentModule = fragmentModule;
@@ -258,12 +321,30 @@ rcp<Pipeline> drawPipelineFor(
   desc.colorTargets[0].format = TextureFormat::rgba8unorm;
   desc.colorCount = 1;
   desc.bindGroupLayouts = layouts;
-  desc.bindGroupLayoutCount = 1;
+  desc.bindGroupLayoutCount = layoutCount;
   std::string error;
   rcp<Pipeline> pipeline = make.makePipeline(desc, &error);
   INFO("makePipeline: " << error);
   REQUIRE(pipeline != nullptr);
   return pipeline;
+}
+
+rcp<Pipeline> drawPipelineFor(
+    Context& make,
+    ShaderModule* vertexModule,
+    const std::string& vertex,
+    ShaderModule* fragmentModule,
+    const std::string& fragment,
+    rcp<BindGroupLayout>& layout)
+{
+  return drawPipelineFor(
+      make,
+      vertexModule,
+      vertex,
+      fragmentModule,
+      fragment,
+      &layout,
+      1);
 }
 
 RenderPassDesc clearInto(TextureView* target)
@@ -332,6 +413,22 @@ rcp<Buffer> makeBuffer(
   return buffer;
 }
 
+// Only an old Android driver may keep compute off, and the tests skip there.
+bool lacksCompute(Context& ctx)
+{
+  const Features& features = ctx.features();
+  REQUIRE(features.computeShaders == features.storageBuffers);
+#ifdef __ANDROID__
+  if (!features.computeShaders)
+  {
+    WARN("this driver keeps compute and storage off; skipping");
+    return true;
+  }
+#endif
+  REQUIRE(features.computeShaders);
+  return false;
+}
+
 // How the passes reach the device.
 enum class Path
 {
@@ -354,8 +451,8 @@ void computeIntoStorage(
   ore_gm::OreGMContext oreGM;
   REQUIRE(oreGM.ensureContext(renderContext));
   Context& ctx = *renderContext->getOreContext();
-  REQUIRE(ctx.features().computeShaders);
-  REQUIRE(ctx.features().storageBuffers);
+  if (lacksCompute(ctx))
+    return;
   rcp<RenderCanvas> canvas = renderContext->makeRenderCanvas(kSize, kSize);
   REQUIRE(canvas != nullptr);
   rcp<TextureView> target = ctx.wrapCanvasTexture(canvas.get());
@@ -368,21 +465,20 @@ void computeIntoStorage(
   ctx.setDeferredRecording(path == Path::frameReplay);
 
   const Shader shader = makeShader(make);
-  ShaderModule* module = shader.module.get();
-  REQUIRE(module != nullptr);
+  REQUIRE(shader.computeModule() != nullptr);
 
   rcp<BindGroupLayout> computeLayout;
   rcp<ComputePipeline> computePipeline = computePipelineFor(
       make,
-      module,
+      shader.computeModule(),
       shader.compute,
       computeLayout);
   rcp<BindGroupLayout> drawLayout;
   rcp<Pipeline> drawPipeline = drawPipelineFor(
       make,
-      module,
+      shader.vertexModule(),
       shader.vertex,
-      module,
+      shader.fragmentModule(),
       shader.fragment,
       drawLayout);
   std::string error;
@@ -428,6 +524,13 @@ void computeIntoStorage(
   error.clear();
 
   const RenderPassDesc passDesc = clearInto(target.get());
+  // Direct3D 11 has no command buffer for a frame to open, so it draws.
+  if (TestingWindow::backend() != TestingWindow::Backend::d3d)
+  {
+    CHECK(ctx.beginRenderPass(passDesc, &error) == nullptr);
+    CHECK(error.find("no frame is open") != std::string::npos);
+    error.clear();
+  }
 
   // What an update of the fifth value writes.
   auto setFifth = [&](uint32_t value) {
@@ -488,6 +591,8 @@ void computeIntoStorage(
         }
         compute->setPipeline(computePipeline.get());
         compute->setBindGroup(0, computeGroup.get());
+        // A group at an index the pipeline has no layout for is left out.
+        compute->setBindGroup(3, computeGroup.get());
         if (update == Update::insidePass)
         {
           // A device cannot encode a copy beside the pass, and a recorder
@@ -519,6 +624,11 @@ void computeIntoStorage(
         pass->setViewport(0, 0, kSize, kSize);
         pass->setPipeline(drawPipeline.get());
         pass->setBindGroup(0, drawGroup.get());
+        if (path == Path::immediate)
+        {
+          CHECK(ctx.beginComputePass({}, &error) == nullptr);
+          CHECK(error.find("another pass is still open") != std::string::npos);
+        }
         pass->draw(3);
         pass->finish();
         if (recorded)
@@ -584,6 +694,86 @@ void computeIntoStorage(
   ctx.setDeferredRecording(false);
 }
 
+// A storage buffer made without data is drawn before anything writes it.
+void freshStorageReadsZero(TestingWindow* window)
+{
+  window->resize(kSize, kSize);
+  RenderContext* renderContext = window->renderContext();
+  ore_gm::OreGMContext oreGM;
+  REQUIRE(oreGM.ensureContext(renderContext));
+  Context& ctx = *renderContext->getOreContext();
+  if (lacksCompute(ctx))
+    return;
+  rcp<RenderCanvas> canvas = renderContext->makeRenderCanvas(kSize, kSize);
+  REQUIRE(canvas != nullptr);
+  rcp<TextureView> target = ctx.wrapCanvasTexture(canvas.get());
+  REQUIRE(target != nullptr);
+
+  const Shader shader = bakedShader(ctx);
+  rcp<BindGroupLayout> layout;
+  rcp<Pipeline> pipeline = drawPipelineFor(
+      ctx,
+      shader.vertexModule(),
+      shader.vertex,
+      shader.fragmentModule(),
+      shader.fragment,
+      layout);
+
+  // Freed over the next frames, their memory comes back still holding these.
+  uint32_t used[kCount];
+  for (uint32_t& value : used)
+    value = 100;
+  for (int i = 0; i < 64; ++i)
+    makeBuffer(ctx, BufferUsage::storage, used, kBytes);
+  for (int frame = 0; frame < 8; ++frame)
+  {
+    beginOreFrame(window, oreGM, renderContext);
+    oreGM.endFrame(renderContext);
+    window->endFrame();
+  }
+  rcp<Buffer> fresh = makeBuffer(ctx, BufferUsage::storage, nullptr, kBytes);
+
+  const BindGroupDesc::StorageEntry storage[] = {{2, fresh.get(), 0, 0}};
+  BindGroupDesc groupDesc;
+  groupDesc.layout = layout.get();
+  groupDesc.storageBuffers = storage;
+  groupDesc.storageBufferCount = 1;
+  rcp<BindGroup> group = ctx.makeBindGroup(groupDesc);
+  REQUIRE(group != nullptr);
+
+  // Cleared white, so black is the draw's own.
+  RenderPassDesc passDesc = clearInto(target.get());
+  passDesc.colorAttachments[0].clearColor = {1.f, 1.f, 1.f, 1.f};
+  beginOreFrame(window, oreGM, renderContext);
+  auto pass = ctx.beginRenderPass(passDesc);
+  REQUIRE(pass != nullptr);
+  pass->setViewport(0, 0, kSize, kSize);
+  pass->setPipeline(pipeline.get());
+  pass->setBindGroup(0, group.get());
+  pass->draw(3);
+  pass->finish();
+  oreGM.endFrame(renderContext);
+  window->endFrame();
+  const uint8_t kBlack[3] = {0, 0, 0};
+  expectCenterPixel(window, canvas.get(), kBlack);
+}
+
+rcp<BindGroup> storageGroup(
+    Context& ctx,
+    const rcp<BindGroupLayout>& layout,
+    const BindGroupDesc::StorageEntry* storage,
+    uint32_t count)
+{
+  BindGroupDesc desc;
+  desc.layout = layout.get();
+  desc.storageBuffers = storage;
+  desc.storageBufferCount = count;
+  rcp<BindGroup> group = ctx.makeBindGroup(desc);
+  INFO("makeBindGroup: " << ctx.lastError());
+  REQUIRE(group != nullptr);
+  return group;
+}
+
 // Binds `inputBytes` of `input` from `inputOffset`, the rest of it for 0,
 // beside all of `output`.
 rcp<BindGroup> sizedGroup(
@@ -597,14 +787,7 @@ rcp<BindGroup> sizedGroup(
   const BindGroupDesc::StorageEntry storage[] = {
       {0, input, inputOffset, inputBytes},
       {1, output, 0, 0}};
-  BindGroupDesc desc;
-  desc.layout = layout.get();
-  desc.storageBuffers = storage;
-  desc.storageBufferCount = 2;
-  rcp<BindGroup> group = ctx.makeBindGroup(desc);
-  INFO("makeBindGroup: " << ctx.lastError());
-  REQUIRE(group != nullptr);
-  return group;
+  return storageGroup(ctx, layout, storage, 2);
 }
 
 // Each stage reads an array's length and clamps an index past its end, both
@@ -616,6 +799,8 @@ void sizeArraysFromWhatIsBound(TestingWindow* window)
   ore_gm::OreGMContext oreGM;
   REQUIRE(oreGM.ensureContext(renderContext));
   Context& ctx = *renderContext->getOreContext();
+  if (lacksCompute(ctx))
+    return;
   rcp<RenderCanvas> canvas = renderContext->makeRenderCanvas(kSize, kSize);
   REQUIRE(canvas != nullptr);
   rcp<TextureView> target = ctx.wrapCanvasTexture(canvas.get());
@@ -625,48 +810,51 @@ void sizeArraysFromWhatIsBound(TestingWindow* window)
   // stage reads its sizes where `shader` reads others.
   const Shader shader = bakedShaderAt(ctx, 1);
   const Shader crossed = bakedShaderAt(ctx, 2);
-  ShaderModule* module = shader.module.get();
-  ShaderModule* crossedModule = crossed.module.get();
-  REQUIRE(module != nullptr);
-  REQUIRE(crossedModule != nullptr);
   const std::string vertex = shader.physical("vs_sized");
+  ShaderModule* vertexModule = shader.moduleFor("vs_sized");
+  REQUIRE(vertexModule != nullptr);
+  const std::string sizes = shader.physical("cs_sizes");
   rcp<BindGroupLayout> computeLayout;
   rcp<ComputePipeline> compute = computePipelineFor(
       ctx,
-      module,
-      shader.physical("cs_sizes"),
+      shader.moduleFor("cs_sizes"),
+      sizes,
       computeLayout);
+  const std::string computed = shader.physical("fs_computed");
   rcp<BindGroupLayout> computedLayout;
   rcp<Pipeline> showComputed = drawPipelineFor(
       ctx,
-      module,
+      vertexModule,
       vertex,
-      module,
-      shader.physical("fs_computed"),
+      shader.moduleFor("fs_computed"),
+      computed,
       computedLayout);
+  const std::string sized = shader.physical("fs_sized");
   rcp<BindGroupLayout> sizedLayout;
   rcp<Pipeline> showSized = drawPipelineFor(
       ctx,
-      module,
+      vertexModule,
       vertex,
-      module,
-      shader.physical("fs_sized"),
+      shader.moduleFor("fs_sized"),
+      sized,
       sizedLayout);
+  const std::string crossedName = crossed.physical("fs_crossed");
   rcp<BindGroupLayout> crossedLayout;
   rcp<Pipeline> showCrossed = drawPipelineFor(
       ctx,
-      module,
+      vertexModule,
       vertex,
-      crossedModule,
-      crossed.physical("fs_crossed"),
+      crossed.moduleFor("fs_crossed"),
+      crossedName,
       crossedLayout);
+  const std::string bothName = crossed.physical("fs_both");
   rcp<BindGroupLayout> bothLayout;
   rcp<Pipeline> showBoth = drawPipelineFor(
       ctx,
-      module,
+      vertexModule,
       vertex,
-      crossedModule,
-      crossed.physical("fs_both"),
+      crossed.moduleFor("fs_both"),
+      bothName,
       bothLayout);
 
   // 96 values counting up from 100, and 64 results ending in 190.
@@ -782,10 +970,104 @@ void sizeArraysFromWhatIsBound(TestingWindow* window)
   endFrame(kBoth);
 }
 
+// One pass writes a buffer through group 1, then through group 0 with a
+// pipeline that has no group 1. Direct3D writes neither while both stay set.
+void writeAcrossPipelines(TestingWindow* window)
+{
+  window->resize(kSize, kSize);
+  RenderContext* renderContext = window->renderContext();
+  ore_gm::OreGMContext oreGM;
+  REQUIRE(oreGM.ensureContext(renderContext));
+  Context& ctx = *renderContext->getOreContext();
+  if (lacksCompute(ctx))
+    return;
+  rcp<RenderCanvas> canvas = renderContext->makeRenderCanvas(kSize, kSize);
+  REQUIRE(canvas != nullptr);
+  rcp<TextureView> target = ctx.wrapCanvasTexture(canvas.get());
+  REQUIRE(target != nullptr);
+
+  const Shader shader = bakedShaderAt(ctx, 4);
+  const std::string vertex = shader.physical("vs_cover");
+  ShaderModule* vertexModule = shader.moduleFor("vs_cover");
+  rcp<BindGroupLayout> bothLayouts[2];
+  rcp<Pipeline> writeBoth = drawPipelineFor(
+      ctx,
+      vertexModule,
+      vertex,
+      shader.moduleFor("fs_both"),
+      shader.physical("fs_both"),
+      bothLayouts,
+      2);
+  rcp<BindGroupLayout> firstLayout;
+  rcp<Pipeline> writeFirst = drawPipelineFor(
+      ctx,
+      vertexModule,
+      vertex,
+      shader.moduleFor("fs_first"),
+      shader.physical("fs_first"),
+      firstLayout);
+  rcp<BindGroupLayout> shownLayout;
+  rcp<Pipeline> show = drawPipelineFor(
+      ctx,
+      vertexModule,
+      vertex,
+      shader.moduleFor("fs_shown"),
+      shader.physical("fs_shown"),
+      shownLayout);
+
+  uint32_t values[kCount] = {};
+  values[2] = 200;
+  rcp<Buffer> other = makeBuffer(ctx, BufferUsage::storage, nullptr, kBytes);
+  rcp<Buffer> buffer = makeBuffer(ctx, BufferUsage::storage, values, kBytes);
+  const BindGroupDesc::StorageEntry otherAtZero[] = {{0, other.get(), 0, 0}};
+  const BindGroupDesc::StorageEntry atZero[] = {{0, buffer.get(), 0, 0}};
+  const BindGroupDesc::StorageEntry atOne[] = {{1, buffer.get(), 0, 0}};
+  rcp<BindGroup> otherFirst = storageGroup(ctx, bothLayouts[0], otherAtZero, 1);
+  rcp<BindGroup> second = storageGroup(ctx, bothLayouts[1], atZero, 1);
+  rcp<BindGroup> first = storageGroup(ctx, firstLayout, atZero, 1);
+  rcp<BindGroup> shown = storageGroup(ctx, shownLayout, atOne, 1);
+
+  const RenderPassDesc passDesc = clearInto(target.get());
+  beginOreFrame(window, oreGM, renderContext);
+  ctx.clearLastError();
+  auto pass = ctx.beginRenderPass(passDesc);
+  REQUIRE(pass != nullptr);
+  pass->setViewport(0, 0, kSize, kSize);
+  pass->setPipeline(writeBoth.get());
+  pass->setBindGroup(0, otherFirst.get());
+  pass->setBindGroup(1, second.get());
+  pass->draw(3);
+  pass->setPipeline(writeFirst.get());
+  pass->setBindGroup(0, first.get());
+  pass->draw(3);
+  pass->finish();
+  pass = ctx.beginRenderPass(passDesc);
+  REQUIRE(pass != nullptr);
+  pass->setViewport(0, 0, kSize, kSize);
+  pass->setPipeline(show.get());
+  pass->setBindGroup(0, shown.get());
+  pass->draw(3);
+  pass->finish();
+  INFO("frame: " << ctx.lastError());
+  CHECK(ctx.lastError().empty());
+  oreGM.endFrame(renderContext);
+  window->endFrame();
+  const uint8_t kWritten[3] = {100, 150, 200};
+  expectCenterPixel(window, canvas.get(), kWritten);
+}
+
+#if defined(ORE_BACKEND_METAL)
 void computeFromMetalSource(TestingWindow* window)
 {
   computeIntoStorage(window, handWrittenShader);
 }
+
+// Only Metal replays a frame's recorded passes when the frame ends.
+void computeReplayedWithFrame(TestingWindow* window)
+{
+  computeIntoStorage(window, bakedShader, Path::frameReplay);
+}
+#endif
 
 void computeFromBakedWGSL(TestingWindow* window)
 {
@@ -801,12 +1083,9 @@ void computeReplayedInline(TestingWindow* window)
 {
   computeIntoStorage(window, bakedShader, Path::inlineReplay);
 }
-
-void computeReplayedWithFrame(TestingWindow* window)
-{
-  computeIntoStorage(window, bakedShader, Path::frameReplay);
-}
 } // namespace
+
+#if defined(ORE_BACKEND_METAL)
 
 TEST_CASE("ore metal sizes runtime arrays from the bound buffers", "[ore]")
 {
@@ -823,6 +1102,12 @@ TEST_CASE("ore metal computes into a storage buffer a draw reads", "[ore]")
 TEST_CASE("ore metal computes from a shader baked from WGSL", "[ore]")
 {
   if (ore_test::runOnBackends(kMetal, computeFromBakedWGSL) == 0)
+    WARN("Metal is not available headless; skipping");
+}
+
+TEST_CASE("ore metal draws zeros from a fresh storage buffer", "[ore]")
+{
+  if (ore_test::runOnBackends(kMetal, freshStorageReadsZero) == 0)
     WARN("Metal is not available headless; skipping");
 }
 
@@ -844,4 +1129,132 @@ TEST_CASE("ore metal replays recorded compute in order", "[ore]")
       WARN("Metal is not available headless; skipping");
   }
 }
+
+TEST_CASE("ore metal writes one buffer from two pipelines of a pass", "[ore]")
+{
+  if (ore_test::runOnBackends(kMetal, writeAcrossPipelines) == 0)
+    WARN("Metal is not available headless; skipping");
+}
 #endif // ORE_BACKEND_METAL
+
+#if defined(ORE_BACKEND_VK)
+TEST_CASE("ore vulkan sizes runtime arrays from the bound buffers", "[ore]")
+{
+  if (ore_test::runOnBackends(kVulkan, sizeArraysFromWhatIsBound) == 0)
+    WARN("Vulkan is not available headless; skipping");
+}
+
+TEST_CASE("ore vulkan computes from a shader baked from WGSL", "[ore]")
+{
+  if (ore_test::runOnBackends(kVulkan, computeFromBakedWGSL) == 0)
+    WARN("Vulkan is not available headless; skipping");
+}
+
+TEST_CASE("ore vulkan draws zeros from a fresh storage buffer", "[ore]")
+{
+  if (ore_test::runOnBackends(kVulkan, freshStorageReadsZero) == 0)
+    WARN("Vulkan is not available headless; skipping");
+}
+
+TEST_CASE("ore vulkan replays recorded compute in order", "[ore]")
+{
+  SECTION("from a recording context")
+  {
+    if (ore_test::runOnBackends(kVulkan, computeThroughRecorder) == 0)
+      WARN("Vulkan is not available headless; skipping");
+  }
+  SECTION("as each pass finishes")
+  {
+    if (ore_test::runOnBackends(kVulkan, computeReplayedInline) == 0)
+      WARN("Vulkan is not available headless; skipping");
+  }
+}
+
+TEST_CASE("ore vulkan writes one buffer from two pipelines of a pass", "[ore]")
+{
+  if (ore_test::runOnBackends(kVulkan, writeAcrossPipelines) == 0)
+    WARN("Vulkan is not available headless; skipping");
+}
+#endif // ORE_BACKEND_VK
+
+#if defined(ORE_BACKEND_D3D11)
+TEST_CASE("ore d3d11 sizes runtime arrays from the bound buffers", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D11, sizeArraysFromWhatIsBound) == 0)
+    WARN("Direct3D 11 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d11 computes from a shader baked from WGSL", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D11, computeFromBakedWGSL) == 0)
+    WARN("Direct3D 11 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d11 draws zeros from a fresh storage buffer", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D11, freshStorageReadsZero) == 0)
+    WARN("Direct3D 11 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d11 replays recorded compute in order", "[ore]")
+{
+  SECTION("from a recording context")
+  {
+    if (ore_test::runOnBackends(kD3D11, computeThroughRecorder) == 0)
+      WARN("Direct3D 11 is not available headless; skipping");
+  }
+  SECTION("as each pass finishes")
+  {
+    if (ore_test::runOnBackends(kD3D11, computeReplayedInline) == 0)
+      WARN("Direct3D 11 is not available headless; skipping");
+  }
+}
+
+TEST_CASE("ore d3d11 writes one buffer from two pipelines of a pass", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D11, writeAcrossPipelines) == 0)
+    WARN("Direct3D 11 is not available headless; skipping");
+}
+#endif // ORE_BACKEND_D3D11
+
+#if defined(ORE_BACKEND_D3D12)
+TEST_CASE("ore d3d12 sizes runtime arrays from the bound buffers", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D12, sizeArraysFromWhatIsBound) == 0)
+    WARN("Direct3D 12 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d12 computes from a shader baked from WGSL", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D12, computeFromBakedWGSL) == 0)
+    WARN("Direct3D 12 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d12 draws zeros from a fresh storage buffer", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D12, freshStorageReadsZero) == 0)
+    WARN("Direct3D 12 is not available headless; skipping");
+}
+
+TEST_CASE("ore d3d12 replays recorded compute in order", "[ore]")
+{
+  SECTION("from a recording context")
+  {
+    if (ore_test::runOnBackends(kD3D12, computeThroughRecorder) == 0)
+      WARN("Direct3D 12 is not available headless; skipping");
+  }
+  SECTION("as each pass finishes")
+  {
+    if (ore_test::runOnBackends(kD3D12, computeReplayedInline) == 0)
+      WARN("Direct3D 12 is not available headless; skipping");
+  }
+}
+
+TEST_CASE("ore d3d12 writes one buffer from two pipelines of a pass", "[ore]")
+{
+  if (ore_test::runOnBackends(kD3D12, writeAcrossPipelines) == 0)
+    WARN("Direct3D 12 is not available headless; skipping");
+}
+#endif // ORE_BACKEND_D3D12
+
+#endif // ORE_BACKEND_METAL || ORE_BACKEND_VK || ORE_BACKEND_D3D11 || D3D12

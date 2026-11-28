@@ -4892,7 +4892,8 @@ static uint32_t mintAssetEntryModule(
         }
         handle = mintShaderModule(vm, oreContext, desc);
         return false;
-      });
+      },
+      !oreContext->featuresKnown() || oreContext->features().computeShaders);
   return handle;
 }
 

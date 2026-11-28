@@ -5,6 +5,7 @@
 #include "rive/renderer/ore/ore_context_d3d11.hpp"
 #include "ore_bind_group_d3d11.hpp"
 #include "ore_buffer_d3d11.hpp"
+#include "ore_compute_d3d11.hpp"
 #include "ore_texture_d3d11.hpp"
 #include "ore_sampler_d3d11.hpp"
 #include "ore_shader_module_d3d11.hpp"
@@ -450,8 +451,11 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
 
   auto buffer = rcp<BufferD3D11>(new BufferD3D11(desc.size, desc.usage));
   buffer->m_d3d11Context = m_d3d11Context.Get();
-  // A later partial update rewrites the whole buffer, so it needs these.
-  if (!desc.immutable && desc.data != nullptr)
+  buffer->m_ctx = this;
+  const bool storage = desc.usage == BufferUsage::storage;
+  // A later partial update rewrites the whole buffer, so it needs these. The
+  // GPU writes a storage buffer, so no mirror of it stays true.
+  if (!desc.immutable && desc.data != nullptr && !storage)
   {
     auto bytes = static_cast<const uint8_t*>(desc.data);
     buffer->m_shadow.assign(bytes, bytes + desc.size);
@@ -487,7 +491,13 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
       bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
       break;
     case BufferUsage::storage:
-      RIVE_UNREACHABLE();
+      // Shaders reach it through raw views, in whole 4 byte words, and
+      // UpdateSubresource writes it where the GPU does.
+      bd.ByteWidth = (desc.size + 3u) & ~3u;
+      bd.Usage = D3D11_USAGE_DEFAULT;
+      bd.CPUAccessFlags = 0;
+      bd.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+      bd.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
       break;
   }
 
@@ -502,10 +512,16 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
     padded.resize(bd.ByteWidth);
     initData.pSysMem = padded.data();
   }
+  else if (desc.data == nullptr && storage)
+  {
+    // A shader may read it before anything writes it, and Metal's is zeroed.
+    padded.resize(bd.ByteWidth);
+    initData.pSysMem = padded.data();
+  }
 
   HRESULT hr = m_d3d11Device->CreateBuffer(
       &bd,
-      desc.data ? &initData : nullptr,
+      initData.pSysMem != nullptr ? &initData : nullptr,
       buffer->m_d3d11Buffer.ReleaseAndGetAddressOf());
   if (FAILED(hr))
   {
@@ -1097,7 +1113,11 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     setLastError("makeBindGroup: BindGroupDesc::layout is null");
     return nullptr;
   }
-  if (std::string err; !validateBindGroupDesc(desc, &err))
+  if (std::string err; !validateBindGroupDesc(
+          desc,
+          &err,
+          m_features.storageBuffers ? StorageBinding::bound
+                                    : StorageBinding::refused))
   {
     setLastError("makeBindGroup: %s", err.c_str());
     return nullptr;
@@ -1178,7 +1198,161 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
   }
 
+  // Storage entries, which validateBindGroupDesc matched to the layout. The
+  // shaders read them as ByteAddressBuffers, so the views are raw words.
+  for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+  {
+    const auto& entry = desc.storageBuffers[i];
+    auto buffer = lite_rtti_cast<BufferD3D11*>(entry.buffer);
+    assert(buffer);
+    const BindGroupLayoutEntry* layoutEntry = layout->findEntry(entry.slot);
+    const uint32_t size = entry.size != 0 ? entry.size
+                                          : buffer->size() - entry.offset;
+    BindGroupD3D11::D3D11StorageBinding binding;
+    binding.binding = entry.slot;
+    HRESULT hr;
+    if (layoutEntry->kind == BindingKind::storageBufferRW)
+    {
+      D3D11_UNORDERED_ACCESS_VIEW_DESC view{};
+      view.Format = DXGI_FORMAT_R32_TYPELESS;
+      view.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+      view.Buffer.FirstElement = entry.offset / 4;
+      view.Buffer.NumElements = size / 4;
+      view.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_RAW;
+      hr = m_d3d11Device->CreateUnorderedAccessView(
+          buffer->m_d3d11Buffer.Get(),
+          &view,
+          binding.uav.GetAddressOf());
+    }
+    else
+    {
+      D3D11_SHADER_RESOURCE_VIEW_DESC view{};
+      view.Format = DXGI_FORMAT_R32_TYPELESS;
+      view.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+      view.BufferEx.FirstElement = entry.offset / 4;
+      view.BufferEx.NumElements = size / 4;
+      view.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+      hr = m_d3d11Device->CreateShaderResourceView(
+          buffer->m_d3d11Buffer.Get(),
+          &view,
+          binding.srv.GetAddressOf());
+    }
+    if (FAILED(hr))
+    {
+      setLastError(
+          "makeBindGroup: a view of the storage buffer at @binding(%u) "
+          "failed (hr=0x%08x)",
+          entry.slot,
+          static_cast<unsigned>(hr));
+      return nullptr;
+    }
+    bg->m_d3d11Storage.push_back(std::move(binding));
+    bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
+  }
+
   return bg;
+}
+
+// ============================================================================
+// Compute
+// ============================================================================
+
+rcp<ComputePipeline> ContextD3D11::makeComputePipelineImpl(
+    const ComputePipelineDesc& desc,
+    std::string* outError)
+{
+  auto pipeline = rcp<ComputePipelineD3D11>(new ComputePipelineD3D11(desc));
+  auto module = lite_rtti_cast<ShaderModuleD3D11*>(desc.module);
+  assert(module != nullptr);
+  std::string compileError;
+  module->ensureD3DShaders(m_d3d11Device.Get(), *m_shaderCache, &compileError);
+  if (module->m_d3dComputeShader == nullptr)
+  {
+    refuse(
+        "makeComputePipeline",
+        compileError.empty() ? "the compute shader did not compile"
+                             : compileError.c_str(),
+        outError);
+    return nullptr;
+  }
+  pipeline->m_d3dCS = module->m_d3dComputeShader.Get();
+  pipeline->m_module = ref_rcp(module);
+  return pipeline;
+}
+
+std::unique_ptr<ComputePass> ContextD3D11::beginComputePass(
+    const ComputePassDesc& desc,
+    std::string* outError)
+{
+  if (!m_features.computeShaders)
+    return Context::beginComputePass(desc, outError);
+  if (refusesPass(
+          "beginComputePass",
+          m_d3d11FrameOpen,
+          m_d3d11PassOpen,
+          outError))
+  {
+    return nullptr;
+  }
+  m_d3d11PassOpen = true;
+  m_d3d11ComputeOpen = true;
+  // A texture still bound for output, as a target or as the writable view
+  // our renderer draws through, would reach a compute shader as null.
+  m_d3d11Context->OMSetRenderTargetsAndUnorderedAccessViews(
+      0,
+      nullptr,
+      nullptr,
+      0,
+      D3D11_1_UAV_SLOT_COUNT,
+      kD3D11NoUAVs,
+      nullptr);
+  return std::make_unique<ComputePassD3D11>(this);
+}
+
+void ContextD3D11::d3d11WriteStorageBuffer(
+    ID3D11Buffer* buffer,
+    const void* data,
+    uint32_t size,
+    uint32_t offset)
+{
+  // As on the other backends, where a copy cannot sit beside an open pass,
+  // and one here would run ahead of a pass still recording.
+  if (m_d3d11PassOpen || hasOpenPasses())
+  {
+    setLastError("Buffer.update: a storage buffer cannot be updated while a "
+                 "pass is open");
+    return;
+  }
+  const D3D11_BOX box = {offset, 0, 0, offset + size, 1, 1};
+  m_d3d11Context->UpdateSubresource(buffer, 0, &box, data, 0, 0);
+}
+
+void ContextD3D11::d3d11BindWorkgroupCounts(uint32_t x, uint32_t y, uint32_t z)
+{
+  const uint32_t counts[4] = {x, y, z, 0};
+  if (m_d3d11WorkgroupCounts == nullptr)
+  {
+    D3D11_BUFFER_DESC desc{};
+    desc.ByteWidth = sizeof(counts);
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    if (FAILED(m_d3d11Device->CreateBuffer(
+            &desc,
+            nullptr,
+            m_d3d11WorkgroupCounts.GetAddressOf())))
+    {
+      return;
+    }
+  }
+  m_d3d11Context->UpdateSubresource(
+      m_d3d11WorkgroupCounts.Get(),
+      0,
+      nullptr,
+      counts,
+      0,
+      0);
+  ID3D11Buffer* buffer = m_d3d11WorkgroupCounts.Get();
+  m_d3d11Context->CSSetConstantBuffers(kHlslWorkgroupCountRegister, 1, &buffer);
 }
 
 // ============================================================================
@@ -1214,6 +1388,11 @@ std::unique_ptr<RenderPass> ContextD3D11::d3d11BeginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
+  if (m_d3d11ComputeOpen)
+  {
+    refuse("beginRenderPass", "another pass is still open", outError);
+    return nullptr;
+  }
   // Collect RTVs and DSV.
   ID3D11RenderTargetView* rtvs[4] = {};
   for (uint32_t i = 0; i < desc.colorCount; ++i)
@@ -1333,6 +1512,7 @@ std::unique_ptr<RenderPass> ContextD3D11::d3d11BeginRenderPass(
     }
   }
 
+  m_d3d11PassOpen = true;
   return pass;
 }
 
@@ -1532,8 +1712,21 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = false;
-  f.storageBuffers = false;
+  // Both or neither. A pixel shader's writable buffers take slots past the
+  // render targets, which only Direct3D 11.1 has.
+  if (device->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_1)
+  {
+    f.computeShaders = true;
+    f.storageBuffers = true;
+    f.maxComputeWorkgroupSizeX = D3D11_CS_THREAD_GROUP_MAX_X;
+    f.maxComputeWorkgroupSizeY = D3D11_CS_THREAD_GROUP_MAX_Y;
+    f.maxComputeWorkgroupSizeZ = D3D11_CS_THREAD_GROUP_MAX_Z;
+    f.maxComputeInvocationsPerWorkgroup =
+        D3D11_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+    f.maxComputeWorkgroupStorageSize = D3D11_CS_TGSM_REGISTER_COUNT * 4;
+    f.maxComputeWorkgroupsPerDimension =
+        D3D11_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
+  }
   f.bc = true;
   f.etc2 = false;
   f.astc = false;
@@ -1549,17 +1742,25 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(
   return ctx;
 }
 
-void ContextD3D11::beginFrame(const FrameDescriptor&) {
-} // D3D11 immediate context has no command buffer.
+// With no command buffer to open, a frame here only bounds compute passes.
+void ContextD3D11::beginFrame(const FrameDescriptor&)
+{
+  m_d3d11FrameOpen = true;
+  m_d3d11PassOpen = false;
+  m_d3d11ComputeOpen = false;
+}
 
 void ContextD3D11::waitForGPU() {} // D3D11 immediate context is synchronous.
 
-void ContextD3D11::endFrame() {}
+void ContextD3D11::endFrame() { m_d3d11FrameOpen = false; }
 
 rcp<Buffer> ContextD3D11::makeBuffer(const BufferDesc& desc)
 {
-  if (refusesBuffer(desc))
+  if (desc.usage == BufferUsage::storage && !m_features.storageBuffers)
+  {
+    setLastError("makeBuffer: this device has no storage buffers");
     return nullptr;
+  }
   return d3d11MakeBuffer(desc);
 }
 

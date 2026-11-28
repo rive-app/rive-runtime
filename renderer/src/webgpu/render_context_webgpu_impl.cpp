@@ -2447,7 +2447,8 @@ std::unique_ptr<rive::ore::Context> RenderContextWebGPUImpl::makeOreContext()
   return rive::ore::ContextWGPU::Make(
       m_device,
       m_queue,
-      m_capabilities.backendType);
+      m_capabilities.backendType,
+      m_contextOptions.compatibilityMode);
 }
 #endif
 

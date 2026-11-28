@@ -10,12 +10,14 @@
 #include "ore_sampler_wgpu.hpp"
 #include "ore_shader_module_wgpu.hpp"
 #include "ore_pipeline_wgpu.hpp"
+#include "ore_compute_wgpu.hpp"
 #include "ore_render_pass_wgpu.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_wgpu_layout.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <string>
@@ -446,7 +448,8 @@ ContextWGPU::~ContextWGPU() {}
 std::unique_ptr<ContextWGPU> ContextWGPU::Make(
     wgpu::Device device,
     wgpu::Queue queue,
-    wgpu::BackendType backendType)
+    wgpu::BackendType backendType,
+    bool compatibilityMode)
 {
   auto ctx = std::unique_ptr<ContextWGPU>(new ContextWGPU());
   ctx->m_wgpuDevice = std::move(device);
@@ -455,8 +458,9 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
                            ? WGPUBackend::OpenGLES
                            : WGPUBackend::Vulkan;
   wgpu::Limits limits = {};
-  if (ctx->m_wgpuDevice.GetLimits(&limits) &&
-      limits.maxBufferSize != wgpu::kLimitU64Undefined)
+  const bool hasLimits = static_cast<bool>(
+      ctx->m_wgpuDevice.GetLimits(&limits));
+  if (hasLimits && limits.maxBufferSize != wgpu::kLimitU64Undefined)
   {
     ctx->m_maxBufferSize = limits.maxBufferSize;
   }
@@ -474,8 +478,24 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = false;
-  f.storageBuffers = false;
+  // Both or neither, so both need eight storage buffers in every stage.
+  // Compatibility mode may give the vertex and fragment stages none.
+  if (hasLimits && !compatibilityMode &&
+      backendType != wgpu::BackendType::OpenGLES &&
+      limits.maxStorageBuffersPerShaderStage != wgpu::kLimitU32Undefined &&
+      limits.maxStorageBuffersPerShaderStage >= 8)
+  {
+    f.computeShaders = true;
+    f.storageBuffers = true;
+    f.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
+    f.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY;
+    f.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ;
+    f.maxComputeInvocationsPerWorkgroup =
+        limits.maxComputeInvocationsPerWorkgroup;
+    f.maxComputeWorkgroupStorageSize = limits.maxComputeWorkgroupStorageSize;
+    f.maxComputeWorkgroupsPerDimension = limits
+                                             .maxComputeWorkgroupsPerDimension;
+  }
   f.bc = false;
   f.etc2 = true;
   f.astc = false;
@@ -496,6 +516,7 @@ void ContextWGPU::beginFrame(const FrameDescriptor& desc)
   m_wgpuCommandEncoder = std::move(
       *static_cast<wgpu::CommandEncoder*>(desc.externalCommandBuffer));
   ++m_frameSerial;
+  m_wgpuPassOpen = false;
 }
 
 void ContextWGPU::waitForGPU() {} // WGPU submit is synchronous for Dawn.
@@ -515,8 +536,11 @@ void ContextWGPU::endFrame()
 
 rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
 {
-  if (refusesBuffer(desc))
+  if (desc.usage == BufferUsage::storage && !m_features.storageBuffers)
+  {
+    setLastError("makeBuffer: this device has no storage buffers");
     return nullptr;
+  }
   auto buffer = rcp<BufferWGPU>(new BufferWGPU(desc.size, desc.usage));
   buffer->m_wgpuQueue = m_wgpuQueue; // addref'd copy for WriteBuffer
   buffer->m_wgpuDevice = m_wgpuDevice;
@@ -538,7 +562,7 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
       usage |= wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
       break;
     case BufferUsage::storage:
-      RIVE_UNREACHABLE();
+      usage |= wgpu::BufferUsage::Storage;
       break;
   }
   buffer->m_wgpuUsage = usage;
@@ -579,7 +603,8 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
       memcpy(tail, bytes + whole, desc.size - whole);
       m_wgpuQueue.WriteBuffer(buffer->current(), whole, tail, 4);
     }
-    if (!desc.immutable)
+    // The GPU writes a storage buffer, so no mirror of it stays true.
+    if (!desc.immutable && desc.usage != BufferUsage::storage)
     {
       buffer->m_shadow.assign(bytes, bytes + desc.size);
       buffer->m_shadow.resize(buffer->backingSize(), 0);
@@ -587,6 +612,52 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
   }
 
   return buffer;
+}
+
+void ContextWGPU::writeStorageBuffer(
+    BufferWGPU* buffer,
+    const void* data,
+    uint32_t size,
+    uint32_t offset)
+{
+  if (size == 0)
+    return;
+  if ((offset | size) % 4 != 0)
+  {
+    setLastError("Buffer.update: a storage buffer is updated in whole 4 byte "
+                 "words");
+    return;
+  }
+  // The encoder takes no copy beside an open pass, and one here would run
+  // ahead of a pass still recording.
+  if (m_wgpuPassOpen || hasOpenPasses())
+  {
+    setLastError("Buffer.update: a storage buffer cannot be updated while a "
+                 "pass is open");
+    return;
+  }
+  // With no frame open the host has submitted the last one, so a queue
+  // write lands after it.
+  if (m_wgpuCommandEncoder == nullptr)
+  {
+    m_wgpuQueue.WriteBuffer(buffer->current(), offset, data, size);
+    return;
+  }
+  wgpu::BufferDescriptor stagingDesc{};
+  stagingDesc.size = size;
+  stagingDesc.usage = wgpu::BufferUsage::CopySrc;
+  stagingDesc.mappedAtCreation = true;
+  wgpu::Buffer staging = m_wgpuDevice.CreateBuffer(&stagingDesc);
+  void* mapped = staging != nullptr ? staging.GetMappedRange(0, size) : nullptr;
+  if (mapped == nullptr)
+  {
+    setLastError("Buffer.update: WebGPU could not allocate %u bytes", size);
+    return;
+  }
+  memcpy(mapped, data, size);
+  staging.Unmap();
+  m_wgpuCommandEncoder
+      .CopyBufferToBuffer(staging, 0, buffer->current(), offset, size);
 }
 
 // ============================================================================
@@ -911,22 +982,10 @@ rcp<Pipeline> ContextWGPU::makePipeline(
     }
   }
 
-  // --- Assemble the pipeline layout from user-supplied BGLs ---
-  wgpu::BindGroupLayout rawBGLs[kWGPUMaxGroups];
-  for (uint32_t g = 0; g < desc.bindGroupLayoutCount && g < kWGPUMaxGroups; ++g)
-  {
-    if (auto bindGroupLayouts = lite_rtti_cast<BindGroupLayoutWGPU*>(
-            desc.bindGroupLayouts[g]);
-        bindGroupLayouts != nullptr)
-    {
-      rawBGLs[g] = bindGroupLayouts->m_wgpuBGL;
-    }
-  }
-  wgpu::PipelineLayoutDescriptor plDesc{};
-  plDesc.label = desc.label ? desc.label : "";
-  plDesc.bindGroupLayoutCount = desc.bindGroupLayoutCount;
-  plDesc.bindGroupLayouts = desc.bindGroupLayoutCount > 0 ? rawBGLs : nullptr;
-  pipeline->m_wgpuPipelineLayout = m_wgpuDevice.CreatePipelineLayout(&plDesc);
+  pipeline->m_wgpuPipelineLayout = wgpuCreatePipelineLayout(
+      desc.bindGroupLayouts,
+      desc.bindGroupLayoutCount,
+      desc.label);
 
   // --- Assemble the render pipeline ---
   wgpu::RenderPipelineDescriptor rpDesc{};
@@ -995,7 +1054,11 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
     setLastError("makeBindGroup: BindGroupDesc::layout is null");
     return nullptr;
   }
-  if (std::string err; !validateBindGroupDesc(desc, &err))
+  if (std::string err; !validateBindGroupDesc(
+          desc,
+          &err,
+          m_features.storageBuffers ? StorageBinding::bound
+                                    : StorageBinding::refused))
   {
     setLastError("makeBindGroup: %s", err.c_str());
     return nullptr;
@@ -1078,6 +1141,20 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
     bg->m_retainedBuffers.push_back(ref_rcp(buffer));
   }
 
+  // Storage entries, which validateBindGroupDesc matched to the layout.
+  for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+  {
+    const auto& entry = desc.storageBuffers[i];
+    auto buffer = lite_rtti_cast<BufferWGPU*>(entry.buffer);
+    assert(buffer != nullptr);
+    bg->m_uboEntries.push_back(
+        {buffer,
+         entry.slot,
+         entry.offset,
+         (entry.size > 0) ? entry.size : buffer->size() - entry.offset});
+    bg->m_retainedBuffers.push_back(ref_rcp(buffer));
+  }
+
   for (uint32_t i = 0; i < desc.textureCount; ++i)
   {
     const auto& tex = desc.textures[i];
@@ -1107,6 +1184,78 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
   return bg;
 }
 
+wgpu::PipelineLayout ContextWGPU::wgpuCreatePipelineLayout(
+    BindGroupLayout* const* layouts,
+    uint32_t count,
+    const char* label)
+{
+  wgpu::BindGroupLayout rawBGLs[kWGPUMaxGroups];
+  count = std::min(count, kWGPUMaxGroups);
+  for (uint32_t g = 0; g < count; ++g)
+  {
+    if (auto* layout = lite_rtti_cast<BindGroupLayoutWGPU*>(layouts[g]))
+      rawBGLs[g] = layout->m_wgpuBGL;
+  }
+  wgpu::PipelineLayoutDescriptor plDesc{};
+  plDesc.label = label ? label : "";
+  plDesc.bindGroupLayoutCount = count;
+  plDesc.bindGroupLayouts = count > 0 ? rawBGLs : nullptr;
+  return m_wgpuDevice.CreatePipelineLayout(&plDesc);
+}
+
+// ============================================================================
+// Compute
+// ============================================================================
+
+rcp<ComputePipeline> ContextWGPU::makeComputePipelineImpl(
+    const ComputePipelineDesc& desc,
+    std::string* outError)
+{
+  auto pipeline = rcp<ComputePipelineWGPU>(new ComputePipelineWGPU(desc));
+  pipeline->m_wgpuPipelineLayout = wgpuCreatePipelineLayout(
+      desc.bindGroupLayouts,
+      desc.bindGroupLayoutCount,
+      desc.label);
+
+  auto* module = lite_rtti_cast<ShaderModuleWGPU*>(desc.module);
+  assert(module != nullptr);
+  wgpu::ComputePipelineDescriptor cpDesc{};
+  cpDesc.label = desc.label;
+  cpDesc.layout = pipeline->m_wgpuPipelineLayout;
+  cpDesc.compute.module = module->m_wgpuShaderModule;
+  cpDesc.compute.entryPoint = desc.entryPoint;
+  pipeline->m_wgpuPipeline = m_wgpuDevice.CreateComputePipeline(&cpDesc);
+  if (pipeline->m_wgpuPipeline == nullptr)
+  {
+    refuse(
+        "makeComputePipeline",
+        "CreateComputePipeline returned null",
+        outError);
+    return nullptr;
+  }
+  return pipeline;
+}
+
+std::unique_ptr<ComputePass> ContextWGPU::beginComputePass(
+    const ComputePassDesc& desc,
+    std::string* outError)
+{
+  if (!m_features.computeShaders)
+    return Context::beginComputePass(desc, outError);
+  if (refusesPass(
+          "beginComputePass",
+          m_wgpuCommandEncoder != nullptr,
+          m_wgpuPassOpen,
+          outError))
+    return nullptr;
+  wgpu::ComputePassDescriptor passDesc{};
+  passDesc.label = desc.label;
+  m_wgpuPassOpen = true;
+  return std::make_unique<ComputePassWGPU>(
+      this,
+      m_wgpuCommandEncoder.BeginComputePass(&passDesc));
+}
+
 // ============================================================================
 // beginRenderPass
 // ============================================================================
@@ -1115,9 +1264,12 @@ std::unique_ptr<RenderPass> ContextWGPU::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-  assert(
-      m_wgpuCommandEncoder != nullptr &&
-      "beginFrame must be called before beginRenderPass");
+  if (refusesPass(
+          "beginRenderPass",
+          m_wgpuCommandEncoder != nullptr,
+          m_wgpuPassOpen,
+          outError))
+    return nullptr;
 
   std::unique_ptr<RenderPassWGPU> pass = std::make_unique<RenderPassWGPU>();
   pass->m_context = this;
@@ -1194,6 +1346,7 @@ std::unique_ptr<RenderPass> ContextWGPU::beginRenderPass(
   passDesc.depthStencilAttachment = pDepthStencil;
 
   pass->m_wgpuPassEncoder = m_wgpuCommandEncoder.BeginRenderPass(&passDesc);
+  m_wgpuPassOpen = true;
 
   return pass;
 }

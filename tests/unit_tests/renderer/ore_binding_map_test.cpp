@@ -1077,4 +1077,93 @@ TEST_CASE(
   CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
 }
 
+// HLSL reads a read only storage buffer through a t register, so on Direct3D
+// 12 it shares numbers with the textures and not with the uniform buffers.
+TEST_CASE(
+    "split-stage storage buffers collide by their hlsl register",
+    "[ore_binding_map]")
+{
+  auto splitPair = [](ResourceKind vertexKind) {
+    BindingMap m;
+    m.push(makeEntry(
+        0,
+        0,
+        vertexKind,
+        0,
+        BindingMap::kAbsent,
+        BindingMap::kAbsent,
+        BindingMap::kStageVertex));
+    m.push(makeEntry(
+        0,
+        1,
+        ResourceKind::StorageBufferRO,
+        BindingMap::kAbsent,
+        0,
+        BindingMap::kAbsent,
+        BindingMap::kStageFragment));
+    m.finalize();
+    return m;
+  };
+  std::string error;
+
+  SplitLayouts besideUniform(splitPair(ResourceKind::UniformBuffer));
+  CHECK(besideUniform.check(true, NativeSlotScope::perRegister, &error));
+  CHECK(!besideUniform.check(true, NativeSlotScope::perKind, &error));
+
+  SplitLayouts besideTexture(splitPair(ResourceKind::SampledTexture));
+  CHECK(!besideTexture.check(true, NativeSlotScope::perRegister, &error));
+  CHECK(error.find("both land on native slot 0") != std::string::npos);
+  CHECK(besideTexture.check(true, NativeSlotScope::perKind, &error));
+}
+
+// A compute pipeline given another shader's layout would bind at that
+// shader's registers on a backend that shares them between stages.
+TEST_CASE(
+    "a compute pipeline's layout must bind where its shader reads",
+    "[ore_binding_map]")
+{
+  // The other file's two uniforms, as its draw stages number them.
+  BindingMap theirs;
+  theirs.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  theirs.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1));
+  theirs.finalize();
+  // This file's compute entry reads the second one only.
+  auto computeMap = [](uint16_t slot) {
+    BindingMap m;
+    m.push(makeEntry(
+        0,
+        1,
+        ResourceKind::UniformBuffer,
+        BindingMap::kAbsent,
+        BindingMap::kAbsent,
+        slot,
+        BindingMap::kStageCompute));
+    m.finalize();
+    return m;
+  };
+
+  cmd::DeferredOreContext ctx{nullptr};
+  rcp<BindGroupLayout> theirLayout = makeBindGroupLayoutFromBindingMap(
+      ctx,
+      theirs,
+      0);
+  REQUIRE(theirLayout != nullptr);
+  BindGroupLayout* layouts[] = {theirLayout.get()};
+  std::string error;
+  CHECK(!validateComputeLayoutSlots(computeMap(0), layouts, 1, &error));
+  CHECK(error.find("numbers its slots differently") != std::string::npos);
+  // A file that numbers it the same way may share the layout.
+  CHECK(validateComputeLayoutSlots(computeMap(1), layouts, 1, &error));
+
+  // The entry point's own layout names only a compute slot.
+  const BindingMap ours = computeMap(0);
+  rcp<BindGroupLayout> ownLayout = makeBindGroupLayoutFromBindingMap(
+      ctx,
+      ours,
+      0);
+  REQUIRE(ownLayout != nullptr);
+  BindGroupLayout* own[] = {ownLayout.get()};
+  CHECK(validateComputeLayoutSlots(ours, own, 1, &error));
+}
+
 } // namespace rive::ore

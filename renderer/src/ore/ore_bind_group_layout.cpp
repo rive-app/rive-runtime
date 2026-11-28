@@ -696,6 +696,19 @@ bool validateLayoutsAgainstBindingMap(
   return true;
 }
 
+static std::string slotMismatch(
+    const BindingMap::Entry& e,
+    uint32_t layoutSlot,
+    uint16_t shaderSlot)
+{
+  return bindingTag(e.group, e.binding) +
+         ": the layout binds it at native slot " + std::to_string(layoutSlot) +
+         " but this pipeline's shader reads it from slot " +
+         std::to_string(shaderSlot) +
+         ". The layout was built from a shader that numbers its slots "
+         "differently; build it from this pipeline's own shader";
+}
+
 bool validateLayoutSlots(
     const BindingMap& bindingMap,
     BindGroupLayout* const* layouts,
@@ -722,16 +735,41 @@ bool validateLayoutSlots(
           layoutSlot == shaderSlot)
         continue;
       if (outError != nullptr)
-        *outError = bindingTag(e.group, e.binding) +
-                    ": the layout binds it at native slot " +
-                    std::to_string(layoutSlot) +
-                    " but this pipeline's shader reads it from slot " +
-                    std::to_string(shaderSlot) +
-                    ". The layout was built from a shader that numbers its "
-                    "slots differently; build it from this pipeline's own "
-                    "shader";
+        *outError = slotMismatch(e, layoutSlot, shaderSlot);
       return false;
     }
+  }
+  return true;
+}
+
+uint32_t stageSharedSlot(const BindGroupLayoutEntry& entry)
+{
+  constexpr uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
+  return entry.nativeSlotVS != kAbsent   ? entry.nativeSlotVS
+         : entry.nativeSlotFS != kAbsent ? entry.nativeSlotFS
+                                         : entry.nativeSlotCS;
+}
+
+bool validateComputeLayoutSlots(
+    const BindingMap& computeMap,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError)
+{
+  const size_t compute = static_cast<size_t>(BindingMap::Stage::CS);
+  for (size_t i = 0; i < computeMap.size(); ++i)
+  {
+    const BindingMap::Entry& e = computeMap.at(i);
+    const uint16_t shaderSlot = e.backendSlot[compute];
+    if (shaderSlot == BindingMap::kAbsent || e.group >= layoutCount ||
+        layouts[e.group] == nullptr)
+      continue;
+    const BindGroupLayoutEntry* le = layouts[e.group]->findEntry(e.binding);
+    if (le == nullptr || stageSharedSlot(*le) == shaderSlot)
+      continue;
+    if (outError != nullptr)
+      *outError = slotMismatch(e, stageSharedSlot(*le), shaderSlot);
+    return false;
   }
   return true;
 }
@@ -765,10 +803,44 @@ struct SlotUse
 {
   uint32_t group;
   uint32_t binding;
-  SlotSpace space;
+  BindingKind kind;
   uint32_t vs;
   uint32_t fs;
 };
+
+// HLSL's b, t, s and u registers, in that order.
+uint32_t hlslRegisterLetter(BindingKind kind)
+{
+  switch (kind)
+  {
+    case BindingKind::uniformBuffer:
+      return 0;
+    case BindingKind::sampledTexture:
+    case BindingKind::storageBufferRO:
+      return 1;
+    case BindingKind::sampler:
+    case BindingKind::comparisonSampler:
+      return 2;
+    case BindingKind::storageBufferRW:
+    case BindingKind::storageTexture:
+      return 3;
+  }
+  return 0;
+}
+
+// The namespace `use` draws its slot from.
+uint32_t slotNamespace(const SlotUse& use, NativeSlotScope scope)
+{
+  switch (scope)
+  {
+    case NativeSlotScope::perGroup:
+      return use.group;
+    case NativeSlotScope::perRegister:
+      return hlslRegisterLetter(use.kind);
+    default:
+      return static_cast<uint32_t>(slotSpace(use.kind));
+  }
+}
 
 bool checkSplitStageUses(
     const std::vector<SlotUse>& uses,
@@ -806,9 +878,7 @@ bool checkSplitStageUses(
     const uint32_t slot = use.vs != kAbsent ? use.vs : use.fs;
     if (slot == kAbsent)
       continue;
-    const uint32_t scopeKey = scope == NativeSlotScope::perGroup
-                                  ? use.group
-                                  : static_cast<uint32_t>(use.space);
+    const uint32_t scopeKey = slotNamespace(use, scope);
     for (const Claim& c : claimed)
     {
       if (c.scopeKey != scopeKey || c.slot != slot)
@@ -854,7 +924,7 @@ bool validateSplitStageSlots(
       uses.push_back(
           {layouts[l]->groupIndex(),
            e.binding,
-           slotSpace(e.kind),
+           e.kind,
            e.nativeSlotVS,
            e.nativeSlotFS});
     }
@@ -882,7 +952,7 @@ bool validateSplitStageSlots(
     uses.push_back(
         {e.group,
          e.binding,
-         slotSpace(e.kind),
+         bindingKindFromResource(e.kind),
          widen(e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)]),
          widen(e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)])});
   }

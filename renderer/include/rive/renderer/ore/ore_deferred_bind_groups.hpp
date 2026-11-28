@@ -14,9 +14,8 @@
 namespace rive::ore
 {
 
-// setBindGroup calls a script makes before its first setPipeline. WebGPU
-// allows that order, but Vulkan and D3D12 record a bind against the bound
-// pipeline's layout, so the call waits for the pipeline.
+// setBindGroup calls a script makes before its first setPipeline, which
+// WebGPU allows. They wait here for the pipeline.
 class DeferredBindGroups
 {
 public:

@@ -15,7 +15,10 @@
 
 namespace rive::ore
 {
+class BindGroupD3D12;
+class BufferD3D12;
 class D3D12DescriptorSlots;
+struct D3D12GroupRootParams;
 
 // One slot in a CPU descriptor heap, given back when this goes away.
 struct D3D12DescriptorSlot
@@ -182,6 +185,12 @@ public:
   std::unique_ptr<RenderPass> beginRenderPass(
       const RenderPassDesc& desc,
       std::string* outError = nullptr) override;
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* outError) override;
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
+      std::string* outError = nullptr) override;
 
   void beginFrame(const FrameDescriptor&) override;
   void endFrame() override;
@@ -210,6 +219,7 @@ public:
 
 private:
   friend class RenderPassD3D12;
+  friend class ComputePassD3D12;
   friend class BindGroupD3D12;
   friend class TextureD3D12;
   friend class BufferD3D12;
@@ -260,6 +270,43 @@ private:
   void d3d12QueuePendingTextureUpload(D3D12PendingTextureUpload pending);
   void d3d12FlushPendingTextureUploads();
 
+  // A storage buffer takes its bytes by a copy on the command list, staged
+  // the same way and recorded in the order the updates were made.
+  struct D3D12PendingStorageCopy
+  {
+    rcp<Buffer> buffer;
+    rcp<Buffer> staging;
+    uint32_t offset;
+    uint32_t size;
+  };
+  void d3d12QueueStorageCopy(
+      BufferD3D12* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
+  void d3d12WriteStorageBuffer(
+      BufferD3D12* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
+  void d3d12FlushPendingStorageCopies();
+  // Moves a storage buffer to `state` for the open pass, after any copy
+  // into it that is still waiting.
+  void d3d12UseStorage(BufferD3D12* buffer, D3D12_RESOURCE_STATES state);
+  // Buffers fall back to the common state whenever the host executes the
+  // list, so a pass leaves the ones it used there.
+  void d3d12RestStorage();
+  // Writes a group's descriptor tables at slots already taken and sets them
+  // for a draw, or for a dispatch when `compute`.
+  void d3d12SetGroupTables(
+      const D3D12GroupRootParams& params,
+      BindGroupD3D12* group,
+      const uint32_t* dynamicOffsets,
+      uint32_t dynamicOffsetCount,
+      UINT srvStart,
+      UINT samplerStart,
+      bool compute);
+
   Microsoft::WRL::ComPtr<ID3D12Device> m_d3dDevice;
   // Compiled HLSL shared by every module this context makes, so a shader a
   // script reloads is compiled once per source rather than once per module.
@@ -273,6 +320,11 @@ private:
   ID3D12GraphicsCommandList* m_d3dCmdList = nullptr;
   // Drained at the next beginFrame or beginRenderPass.
   std::vector<D3D12PendingTextureUpload> m_d3dPendingUploads;
+  std::vector<D3D12PendingStorageCopy> m_d3dPendingStorageCopies;
+  std::vector<rcp<Buffer>> m_d3dStorageInUse;
+  // A compute pass cannot share the list with another pass.
+  bool m_d3dPassOpen = false;
+  bool m_d3dComputeOpen = false;
   // resource-creation time.
   // Destroyed views and samplers give their slots back.
   rcp<D3D12DescriptorSlots> m_d3dCpuSrvSlots;
@@ -283,6 +335,7 @@ private:
   // and the null descriptors keep theirs. Held for the context's life.
   D3D12DescriptorSlot m_d3dTargetRtvSlot;
   D3D12DescriptorSlot m_d3dNullSrvSlot;
+  D3D12DescriptorSlot m_d3dNullUavSlot;
   D3D12DescriptorSlot m_d3dNullSamplerSlot;
   // Draws read their tables when they execute, so a full heap waits in its
   // pool until its frame is safe.

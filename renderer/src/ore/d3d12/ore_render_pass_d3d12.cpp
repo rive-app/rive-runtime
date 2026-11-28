@@ -166,7 +166,7 @@ void RenderPassD3D12::setPipeline(Pipeline* inPipeline)
     m_d3dCurrentRootSig = rootSig;
     // Bound groups outlive the pipeline as in WebGPU, so the next draw
     // applies the ones the caller didn't bind again.
-    d3d12MarkBoundGroupsUnapplied();
+    unapplyBoundGroups();
   }
   // Stencil / blend colour — re-apply with new pipeline state.
   m_d3dCmdList->OMSetStencilRef(m_d3dStencilRef);
@@ -257,12 +257,8 @@ void RenderPassD3D12::setBindGroup(
   validate();
   auto bg = lite_rtti_cast<BindGroupD3D12*>(inBg);
   assert(bg != nullptr);
+  // The draw applies it, once, against the root signature bound by then.
   storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
-  // Applying needs a root sig, so without a pipeline the next draw does.
-  if (m_d3dCurrentPipeline != nullptr)
-  {
-    d3d12ApplyBindGroup(groupIndex);
-  }
 #else
   (void)groupIndex;
   (void)bg;
@@ -359,10 +355,13 @@ void RenderPassD3D12::setBlendColor(float r, float g, float b, float a)
 bool RenderPassD3D12::d3d12FlushBindGroups()
 {
 #if defined(ORE_BACKEND_D3D12)
-  if (m_d3dCurrentPipeline == nullptr)
+  // A pass that outlived its frame has no list left to draw on.
+  if (m_d3dCurrentPipeline == nullptr || m_d3dCmdList == nullptr ||
+      m_d3dContext->m_d3dCmdList != m_d3dCmdList)
   {
     return false;
   }
+  rebindAfterBufferMoves();
   const uint8_t groups = m_d3dCurrentPipeline->d3d12GroupMask();
   // Again if a heap filled meanwhile, since that dropped the tables set
   // before it.
@@ -384,17 +383,6 @@ bool RenderPassD3D12::d3d12FlushBindGroups()
 #else
   return false;
 #endif
-}
-
-void RenderPassD3D12::d3d12MarkBoundGroupsUnapplied()
-{
-  for (uint32_t g = 0; g < kMaxBindGroups; ++g)
-  {
-    if (m_boundGroups[g] != nullptr)
-    {
-      m_unappliedGroups |= groupBit(g);
-    }
-  }
 }
 
 void RenderPassD3D12::draw(
@@ -582,6 +570,8 @@ void RenderPassD3D12::finish()
         m_d3dDepthTexture->m_d3dCurrentState);
   }
 
+  m_d3dContext->d3d12RestStorage();
+  m_d3dContext->m_d3dPassOpen = false;
   m_d3dCmdList = nullptr;
   m_d3dDevice = nullptr;
   m_d3dContext = nullptr;

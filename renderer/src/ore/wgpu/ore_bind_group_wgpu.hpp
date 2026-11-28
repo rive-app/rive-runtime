@@ -48,6 +48,7 @@ private:
     uint32_t binding;
     wgpu::Sampler sampler;
   };
+  // Storage buffers too, which stay on one backing.
   std::vector<UBOEntry> m_uboEntries;
   std::vector<TexEntry> m_texEntries;
   std::vector<SampEntry> m_sampEntries;

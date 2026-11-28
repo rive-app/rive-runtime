@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
+#include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_compute_pipeline.hpp"
 #include "rive/renderer/ore/ore_pass.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
@@ -14,19 +15,18 @@
 namespace rive::ore
 {
 
-class BindGroup;
-
 class ComputePass : public Pass
 {
 public:
   inline void setPipeline(ComputePipeline* pipeline);
 
   // Bind a pre-created BindGroup, optionally overriding dynamic UBO offsets.
-  virtual void setBindGroup(
+  // Applied at each dispatch, which reads a uniform as updated by then.
+  inline virtual void setBindGroup(
       uint32_t groupIndex,
       BindGroup* bg,
       const uint32_t* dynamicOffsets = nullptr,
-      uint32_t dynamicOffsetCount = 0) = 0;
+      uint32_t dynamicOffsetCount = 0);
 
   // Refused, with the context's last error set, without a pipeline or past
   // the device's workgroup count.
@@ -42,6 +42,9 @@ protected:
   virtual void end() = 0;
 
   rcp<ComputePipeline> m_pipeline;
+  rcp<BindGroup> m_groups[kMaxBindGroups];
+  uint32_t m_groupOffsets[kMaxBindGroups][kMaxDynamicOffsets] = {};
+  uint32_t m_groupOffsetCounts[kMaxBindGroups] = {};
 };
 
 } // namespace rive::ore

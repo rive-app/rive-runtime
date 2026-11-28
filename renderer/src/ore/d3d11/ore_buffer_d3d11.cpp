@@ -3,6 +3,7 @@
  */
 
 #include "ore_buffer_d3d11.hpp"
+#include "rive/renderer/ore/ore_context_d3d11.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -17,6 +18,13 @@ void BufferD3D11::update(const void* data, uint32_t size, uint32_t offset)
   assert(offset + size <= m_size);
   assert(m_d3d11Context != nullptr);
   assert(m_d3d11Buffer != nullptr);
+
+  // The GPU writes it too, so an update lands in place, in command order.
+  if (usage() == BufferUsage::storage)
+  {
+    m_ctx->d3d11WriteStorageBuffer(m_d3d11Buffer.Get(), data, size, offset);
+    return;
+  }
 
   // Always WRITE_DISCARD: it allocates fresh GPU memory and is safe
   // for any update pattern, including the common dynamic-VB case

@@ -61,6 +61,15 @@ public:
   };
   const std::vector<StorageUse>& storageUses() const { return m_storageUses; }
 
+  // Changes whenever a buffer it binds moves to a fresh backing.
+  uint32_t bufferMoves() const
+  {
+    uint32_t moves = 0;
+    for (const rcp<Buffer>& buffer : m_retainedBuffers)
+      moves += buffer->moves();
+    return moves;
+  }
+
   virtual ~BindGroup() = default;
 
 protected:

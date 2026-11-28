@@ -71,7 +71,10 @@ void BufferMetal::update(const void* data, uint32_t size, uint32_t offset)
   {
     // On allocation failure keep the current backing and retry next update.
     if (acquireFreshBacking(offset, size))
+    {
       m_boundSinceUpdate = false;
+      m_ctx->noteBufferMoved(this);
+    }
   }
   memcpy(
       static_cast<uint8_t*>([m_pool[m_currentIndex].mtl contents]) + offset,

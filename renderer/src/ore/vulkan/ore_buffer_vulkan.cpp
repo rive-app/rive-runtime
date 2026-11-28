@@ -3,6 +3,7 @@
  */
 
 #include "ore_buffer_vulkan.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
 
@@ -107,11 +108,21 @@ bool BufferVulkan::acquireFreshBacking(uint32_t writeOffset, uint32_t writeSize)
 void BufferVulkan::update(const void* data, uint32_t size, uint32_t offset)
 {
   assert(offset + size <= m_size);
+  // The GPU writes it, so it cannot move to a fresh backing: the update is a
+  // copy among the frame's commands.
+  if (usage() == BufferUsage::storage)
+  {
+    m_context->writeStorageBuffer(this, data, size, offset);
+    return;
+  }
   if (m_boundSinceUpdate && !m_pool.empty())
   {
     // On allocation failure keep the current backing and retry next update.
     if (acquireFreshBacking(offset, size))
+    {
       m_boundSinceUpdate = false;
+      m_context->noteBufferMoved(this);
+    }
   }
   assert(m_vkMappedPtr != nullptr);
   memcpy(static_cast<uint8_t*>(m_vkMappedPtr) + offset, data, size);

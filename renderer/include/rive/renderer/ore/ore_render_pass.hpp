@@ -111,8 +111,24 @@ protected:
   inline uint8_t movedGroups(const Pipeline* previous, const Pipeline* next)
       const;
 
+  void unapplyBoundGroups()
+  {
+    for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+    {
+      if (m_boundGroups[g] != nullptr)
+        m_unappliedGroups |= static_cast<uint8_t>(1u << g);
+    }
+  }
+
+  // A draw reads each uniform as it is at the draw, so a group applies again
+  // after an update moved a buffer it holds to a fresh backing.
+  inline void rebindAfterBufferMoves();
+  uint32_t m_seenBufferMoves = 0;
+  uint32_t m_groupBufferMoves[kMaxBindGroups] = {};
+
   template <typename Apply> void flushBindGroups(Apply&& apply)
   {
+    rebindAfterBufferMoves();
     for (uint32_t g = 0; m_unappliedGroups != 0; ++g)
     {
       if (m_unappliedGroups & (1u << g))

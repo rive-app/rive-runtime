@@ -65,7 +65,7 @@ enum class ShaderTarget : uint8_t
 //   ore_context_d3d12.hpp    → ContextD3D12::Make(ID3D12Device*,
 //                                                 ID3D12CommandQueue*)
 //   ore_context_wgpu.hpp     → ContextWGPU::Make(wgpu::Device, wgpu::Queue,
-//                                                wgpu::BackendType)
+//                                                wgpu::BackendType, bool)
 //   ore_context_vulkan.hpp   → ContextVulkan::Make(VkInstance, ...,
 //   VmaAllocator,
 //                                                  PFN_vkGetInstanceProcAddr)
@@ -556,6 +556,15 @@ public:
   const std::string& lastError() const { return m_lastError; }
   void clearLastError() { m_lastError.clear(); }
 
+  // Counts updates that moved a buffer to a fresh backing, so a render pass
+  // can tell when a group it has bound holds one.
+  uint32_t bufferMoves() const { return m_bufferMoves; }
+  void noteBufferMoved(Buffer* buffer)
+  {
+    ++buffer->m_moves;
+    ++m_bufferMoves;
+  }
+
   // Populate m_lastError with a printf-style message. Used by factory
   // methods to report construction failures to the Lua layer in lieu of
   // fprintf(stderr) / assert — which either spam the console or abort
@@ -616,6 +625,7 @@ protected:
   }
 
   Features m_features;
+  uint32_t m_bufferMoves = 0;
 
   static constexpr const char*
       kNoCompute = "this backend does not run compute shaders";
@@ -637,6 +647,22 @@ protected:
       *outError = why;
     else
       setLastError("%s: %s", call, why);
+  }
+
+  // True, with the reason reported, when a pass cannot begin.
+  bool refusesPass(
+      const char* call,
+      bool frameOpen,
+      bool passOpen,
+      std::string* outError)
+  {
+    if (frameOpen && !passOpen)
+      return false;
+    refuse(
+        call,
+        frameOpen ? "another pass is still open" : "no frame is open",
+        outError);
+    return true;
   }
 
   struct GpuPassTiming
@@ -759,10 +785,28 @@ inline void RenderPass::storeBindGroup(
     uint32_t offsetCount)
 {
   m_boundGroups[groupIndex] = ref_rcp(group);
+  m_groupBufferMoves[groupIndex] = group != nullptr ? group->bufferMoves() : 0;
   const uint32_t count = std::min(offsetCount, kMaxDynamicOffsets);
   m_groupOffsetCounts[groupIndex] = count;
   std::copy_n(offsets, count, m_groupOffsets[groupIndex]);
   m_unappliedGroups |= static_cast<uint8_t>(1u << groupIndex);
+}
+
+inline void RenderPass::rebindAfterBufferMoves()
+{
+  if (m_context == nullptr || m_seenBufferMoves == m_context->bufferMoves())
+    return;
+  m_seenBufferMoves = m_context->bufferMoves();
+  for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+  {
+    const BindGroup* group = m_boundGroups[g].get();
+    const uint32_t moves = group != nullptr ? group->bufferMoves() : 0;
+    if (moves != m_groupBufferMoves[g])
+    {
+      m_groupBufferMoves[g] = moves;
+      m_unappliedGroups |= static_cast<uint8_t>(1u << g);
+    }
+  }
 }
 
 inline uint8_t RenderPass::movedGroups(
@@ -856,6 +900,20 @@ inline void ComputePass::setPipeline(ComputePipeline* pipeline)
   applyPipeline(pipeline);
 }
 
+inline void ComputePass::setBindGroup(
+    uint32_t groupIndex,
+    BindGroup* group,
+    const uint32_t* offsets,
+    uint32_t offsetCount)
+{
+  if (m_finished || groupIndex >= kMaxBindGroups)
+    return;
+  m_groups[groupIndex] = ref_rcp(group);
+  const uint32_t count = std::min(offsetCount, kMaxDynamicOffsets);
+  m_groupOffsetCounts[groupIndex] = count;
+  std::copy_n(offsets, count, m_groupOffsets[groupIndex]);
+}
+
 inline void ComputePass::dispatchWorkgroups(uint32_t x, uint32_t y, uint32_t z)
 {
   if (m_finished || m_context == nullptr)
@@ -882,6 +940,8 @@ inline void ComputePass::finish()
   m_finished = true;
   end();
   m_pipeline.reset();
+  for (rcp<BindGroup>& group : m_groups)
+    group.reset();
 }
 
 } // namespace rive::ore

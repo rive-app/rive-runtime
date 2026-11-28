@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/renderer/ore/ore_types.hpp"
 #include <cstddef>
 #include <list>
 #include <mutex>
@@ -13,6 +14,12 @@
 
 namespace rive::ore
 {
+inline const char* oreD3DShaderProfile(ShaderStage stage)
+{
+  return stage == ShaderStage::fragment  ? "ps_5_0"
+         : stage == ShaderStage::compute ? "cs_5_0"
+                                         : "vs_5_0";
+}
 
 // fxc has no cache of its own: D3DCompile recompiles identical HLSL every time
 // it is asked, and a scripted shader takes hundreds of milliseconds at O3. The

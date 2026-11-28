@@ -296,37 +296,37 @@ rcp<Pipeline> ContextVulkan::makePipeline(
     }
   }
 
-  // --- Pipeline layout — composed from user-supplied BGLs ---
-  // Vulkan spec (VUID-VkPipelineLayoutCreateInfo-
-  // graphicsPipelineLibrary-06753) requires every pSetLayouts entry to
-  // be a valid handle. Null slots get the shared empty DSL.
-  VkDescriptorSetLayout dsls[kVkMaxGroups] = {};
-  VkDescriptorSetLayout emptyDSL = VK_NULL_HANDLE;
-  for (uint32_t g = 0; g < desc.bindGroupLayoutCount && g < kVkMaxGroups; ++g)
+  // The layouts may hold more storage buffers than the device takes, and none
+  // could be bound.
+  if (!m_features.storageBuffers)
   {
-    if (desc.bindGroupLayouts[g] != nullptr)
+    for (uint32_t g = 0; g < desc.bindGroupLayoutCount; ++g)
     {
-      auto layout = lite_rtti_cast<BindGroupLayoutVulkan*>(
-          desc.bindGroupLayouts[g]);
-      dsls[g] = layout->m_vkDSL;
-    }
-    else
-    {
-      if (emptyDSL == VK_NULL_HANDLE)
-        emptyDSL = vkGetOrCreateEmptyDSL();
-      dsls[g] = emptyDSL;
+      if (desc.bindGroupLayouts[g] == nullptr)
+        continue;
+      for (const BindGroupLayoutEntry& entry :
+           desc.bindGroupLayouts[g]->entries())
+      {
+        if (entry.kind == BindingKind::storageBufferRO ||
+            entry.kind == BindingKind::storageBufferRW)
+        {
+          refuse("makePipeline", kVkNoStorage, outError);
+          return nullptr;
+        }
+      }
     }
   }
-  VkPipelineLayoutCreateInfo layoutCI{};
-  layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layoutCI.setLayoutCount = desc.bindGroupLayoutCount;
-  layoutCI.pSetLayouts = desc.bindGroupLayoutCount > 0 ? dsls : nullptr;
-  m_vk->CreatePipelineLayout(
-      m_vk->device,
-      &layoutCI,
-      nullptr,
-      &pipeline->m_vkPipelineLayout);
+
+  // --- Pipeline layout — composed from user-supplied BGLs ---
+  pipeline->m_vkPipelineLayout = vkCreatePipelineLayout(
+      desc.bindGroupLayouts,
+      desc.bindGroupLayoutCount);
   pipeline->m_vkDestroyPipelineLayout = m_vk->DestroyPipelineLayout;
+  if (pipeline->m_vkPipelineLayout == VK_NULL_HANDLE)
+  {
+    refuse("makePipeline", "vkCreatePipelineLayout failed", outError);
+    return nullptr;
+  }
 
   // --- Shader stages --- (depth-only pipelines omit the fragment stage)
   VkShaderModule entryModules[2]{};

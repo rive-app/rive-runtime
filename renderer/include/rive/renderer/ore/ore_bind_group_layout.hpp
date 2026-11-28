@@ -62,6 +62,13 @@ protected:
   Context* m_context = nullptr;
 };
 
+// A pipeline binds a group only where its layout has entries, as in WebGPU,
+// where an empty layout counts as none.
+inline bool hasEntries(const rcp<BindGroupLayout>& layout)
+{
+  return layout != nullptr && !layout->entries().empty();
+}
+
 // Binding map covering both stages of a pipeline. When the two stages come
 // from different modules, each stage's rows come from the module that
 // compiled it — a single module's map only describes its own slots, so
@@ -189,15 +196,28 @@ bool validateLayoutSlots(
     uint32_t layoutCount,
     std::string* outError);
 
+// The slot a backend that shares its slots between stages binds `entry` at.
+uint32_t stageSharedSlot(const BindGroupLayoutEntry& entry);
+
+// The same for a compute pipeline on such a backend, where a layout taken
+// from a whole file or from draw entry points names no compute slot.
+bool validateComputeLayoutSlots(
+    const BindingMap& computeMap,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError);
+
 // How far a backend's native slot numbers reach. Metal / D3D11 give each
 // stage its own namespace; Vulkan numbers bindings within a descriptor set;
-// D3D12 and GL share one namespace per resource kind across the whole
-// pipeline.
+// GL shares one namespace per resource kind across the whole pipeline, and
+// D3D12 one per HLSL register letter, where a read only storage buffer sits
+// among the textures.
 enum class NativeSlotScope : uint8_t
 {
   perStage,
   perGroup,
   perKind,
+  perRegister,
 };
 
 // A pipeline whose stages come from different modules draws its slots from

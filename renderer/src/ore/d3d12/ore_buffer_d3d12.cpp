@@ -78,13 +78,21 @@ void BufferD3D12::update(const void* data, uint32_t size, uint32_t offset)
 {
   assert(offset + size <= m_size);
   assert(m_d3dBuffer != nullptr);
+  if (m_usage == BufferUsage::storage)
+  {
+    m_ctx->d3d12WriteStorageBuffer(this, data, size, offset);
+    return;
+  }
   assert(m_d3dMappedPtr != nullptr);
 
   if (m_boundSinceUpdate)
   {
     // On allocation failure keep the current backing and retry next update.
     if (acquireFreshBacking(offset, size))
+    {
       m_boundSinceUpdate = false;
+      m_ctx->noteBufferMoved(this);
+    }
   }
   // UPLOAD heap buffer is persistently mapped so write directly.
   memcpy(static_cast<uint8_t*>(m_d3dMappedPtr) + offset, data, size);

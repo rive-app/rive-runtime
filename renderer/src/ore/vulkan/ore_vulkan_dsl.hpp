@@ -59,6 +59,17 @@ inline VkShaderStageFlags oreVisibilityToVk(StageVisibility v)
   return out;
 }
 
+// The descriptor binding the SPIR-V uses for a layout entry: the slot the
+// allocator gave it in whichever stage sees it, else its WGSL `@binding`.
+inline uint32_t nativeBindingOf(const BindGroupLayoutEntry& e)
+{
+  const uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
+  return e.nativeSlotVS != kAbsent   ? e.nativeSlotVS
+         : e.nativeSlotFS != kAbsent ? e.nativeSlotFS
+         : e.nativeSlotCS != kAbsent ? e.nativeSlotCS
+                                     : e.binding;
+}
+
 // Build a `VkDescriptorSetLayout` from a public `BindGroupLayoutDesc`.
 // One entry → one VkDescriptorSetLayoutBinding.
 //
@@ -83,15 +94,7 @@ inline VkDescriptorSetLayout createDSLFromLayoutDesc(
     const bool dynamic = e.kind == BindingKind::uniformBuffer &&
                          e.hasDynamicOffset;
     VkDescriptorSetLayoutBinding& b = bindings[i];
-    // Prefer pre-resolved native slot; fall back to FS for FS-only
-    // resources; final fallback to WGSL @binding (identity for
-    // shader paths that don't compact).
-    const uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
-    const uint32_t nativeBinding = (e.nativeSlotVS != kAbsent) ? e.nativeSlotVS
-                                   : (e.nativeSlotFS != kAbsent)
-                                       ? e.nativeSlotFS
-                                       : e.binding;
-    b.binding = nativeBinding;
+    b.binding = nativeBindingOf(e);
     b.descriptorType = oreBindingKindToVk(e.kind, dynamic);
     b.descriptorCount = 1;
     b.stageFlags = oreVisibilityToVk(e.visibility);

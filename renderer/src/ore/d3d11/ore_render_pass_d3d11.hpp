@@ -3,6 +3,7 @@
 #include "ore_pipeline_d3d11.hpp"
 #include "rive/refcnt.hpp"
 #include <d3d11.h>
+#include <vector>
 #include <cstdint>
 
 namespace rive::ore
@@ -70,6 +71,10 @@ private:
   // At the pipeline's registers, which differ from the layout's when the
   // layout came from another shader.
   void applyBindGroup(uint32_t groupIndex);
+  // Direct3D takes a fragment shader's writable buffers as one set.
+  void applyUAVs();
+  void clearUAVs();
+  void unbindStorage();
 
   ID3D11DeviceContext* m_d3d11Context = nullptr; // weak ref
   rcp<PipelineD3D11> m_currentPipeline;
@@ -79,6 +84,13 @@ private:
   uint32_t m_d3d11IndexOffset = 0;
   uint32_t m_d3d11StencilRef = 0;
   float m_d3d11BlendFactor[4] = {};
+  // The slots this pass bound storage buffers at, cleared when it finishes.
+  std::vector<uint32_t> m_d3d11StorageVS;
+  std::vector<uint32_t> m_d3d11StoragePS;
+  bool m_d3d11UAVsDirty = false;
+  // The range the last draw set, to clear when the pass finishes.
+  uint32_t m_d3d11FirstUAV = 0;
+  uint32_t m_d3d11UAVCount = 0;
   uint32_t m_d3d11ResolveCount = 0;
   D3D11ResolveEntry m_d3d11Resolves[4];
 };

@@ -7,8 +7,6 @@
 #include "ore_buffer_metal.hpp"
 #include "rive/renderer/ore/ore_context_metal.hpp"
 
-#include <algorithm>
-
 namespace rive::ore
 {
 
@@ -20,20 +18,6 @@ ComputePassMetal::ComputePassMetal(
 {}
 
 ComputePassMetal::~ComputePassMetal() { finish(); }
-
-void ComputePassMetal::setBindGroup(
-    uint32_t groupIndex,
-    BindGroup* bg,
-    const uint32_t* dynamicOffsets,
-    uint32_t dynamicOffsetCount)
-{
-  if (isFinished() || groupIndex >= kMaxBindGroups)
-    return;
-  m_groups[groupIndex] = ref_rcp(bg);
-  const uint32_t count = std::min(dynamicOffsetCount, kMaxDynamicOffsets);
-  std::copy_n(dynamicOffsets, count, m_groupOffsets[groupIndex]);
-  m_groupOffsetCounts[groupIndex] = count;
-}
 
 void ComputePassMetal::applyPipeline(ComputePipeline* pipeline)
 {
@@ -117,8 +101,6 @@ void ComputePassMetal::end()
 {
   [m_mtlEncoder endEncoding];
   m_mtlEncoder = nil;
-  for (rcp<BindGroup>& group : m_groups)
-    group.reset();
   m_metal->encoderEnded();
 }
 

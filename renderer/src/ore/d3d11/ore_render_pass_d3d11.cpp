@@ -12,6 +12,7 @@
 #include "rive/renderer/ore/ore_context_d3d11.hpp" // for RenderPassD3D11 inline bodies
 #include "rive/rive_types.hpp"
 
+#include <algorithm>
 #include <d3d11.h>
 
 namespace rive::ore
@@ -138,6 +139,8 @@ void RenderPassD3D11::setPipeline(Pipeline* inPipeline)
   if (!checkPipelineCompat(pipeline))
     return;
   m_unappliedGroups |= movedGroups(m_currentPipeline.get(), pipeline);
+  // What the last pipeline wrote, this one may bind elsewhere or not at all.
+  m_d3d11UAVsDirty = true;
   m_currentPipeline = ref_rcp(pipeline);
 
   const auto& desc = pipeline->desc();
@@ -284,13 +287,9 @@ void RenderPassD3D11::applyBindGroup(uint32_t groupIndex)
     }
     const bool
         useOffsetPath = (offsetBytes != 0 && ctx1 != nullptr && ubo.size != 0);
-    const UINT firstConstant = useOffsetPath ? (offsetBytes / 16) : 0;
-    const UINT numConstantsRaw = (ubo.size + 15) / 16;
-    const UINT numConstants = useOffsetPath
-                                  ? (numConstantsRaw < 16
-                                         ? 16u
-                                         : ((numConstantsRaw + 15u) & ~15u))
-                                  : 0;
+    const D3D11ConstantRange range = d3d11ConstantRange(offsetBytes, ubo.size);
+    const UINT firstConstant = range.first;
+    const UINT numConstants = range.count;
     if (slots.vs != BindingMap::kAbsent)
     {
       if (useOffsetPath)
@@ -344,6 +343,105 @@ void RenderPassD3D11::applyBindGroup(uint32_t groupIndex)
     if (slots.fs != BindingMap::kAbsent)
       m_d3d11Context->PSSetSamplers(slots.fs, 1, &samp.sampler);
   }
+
+  for (const auto& storage : bg->m_d3d11Storage)
+  {
+    const Pipeline::StageSlots slots = pipeline->slots(
+        groupIndex,
+        storage.binding,
+        SlotSpace::buffer);
+    if (storage.uav != nullptr)
+    {
+      // Only a fragment shader writes one. The draw sets them all at once.
+      m_d3d11UAVsDirty = true;
+      continue;
+    }
+    ID3D11ShaderResourceView* srv = storage.srv.Get();
+    if (slots.vs != BindingMap::kAbsent)
+    {
+      m_d3d11Context->VSSetShaderResources(slots.vs, 1, &srv);
+      m_d3d11StorageVS.push_back(slots.vs);
+    }
+    if (slots.fs != BindingMap::kAbsent)
+    {
+      m_d3d11Context->PSSetShaderResources(slots.fs, 1, &srv);
+      m_d3d11StoragePS.push_back(slots.fs);
+    }
+  }
+}
+
+void RenderPassD3D11::applyUAVs()
+{
+  if (!m_d3d11UAVsDirty)
+    return;
+  m_d3d11UAVsDirty = false;
+  // Rebuilt from the groups this pipeline reads, so a view an earlier
+  // pipeline bound cannot stay set beside another view of its buffer.
+  ID3D11UnorderedAccessView* uavs[D3D11_1_UAV_SLOT_COUNT] = {};
+  uint32_t first = D3D11_1_UAV_SLOT_COUNT;
+  uint32_t end = 0;
+  for (uint32_t g = 0; g < kMaxBindGroups; ++g)
+  {
+    auto* group = static_cast<BindGroupD3D11*>(m_boundGroups[g].get());
+    if (group == nullptr)
+      continue;
+    for (const auto& storage : group->m_d3d11Storage)
+    {
+      const uint32_t slot = m_currentPipeline
+                                ->slots(g, storage.binding, SlotSpace::buffer)
+                                .fs;
+      if (storage.uav == nullptr || slot >= D3D11_1_UAV_SLOT_COUNT)
+        continue;
+      uavs[slot] = storage.uav.Get();
+      first = std::min(first, slot);
+      end = std::max(end, slot + 1);
+    }
+  }
+  if (end == 0)
+  {
+    clearUAVs();
+    return;
+  }
+  m_d3d11FirstUAV = first;
+  m_d3d11UAVCount = end - first;
+  // One call takes the whole set, and unbinds every slot outside its range.
+  m_d3d11Context->OMSetRenderTargetsAndUnorderedAccessViews(
+      D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL,
+      nullptr,
+      nullptr,
+      first,
+      end - first,
+      &uavs[first],
+      nullptr);
+}
+
+void RenderPassD3D11::clearUAVs()
+{
+  if (m_d3d11UAVCount == 0)
+    return;
+  m_d3d11Context->OMSetRenderTargetsAndUnorderedAccessViews(
+      D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL,
+      nullptr,
+      nullptr,
+      m_d3d11FirstUAV,
+      m_d3d11UAVCount,
+      kD3D11NoUAVs,
+      nullptr);
+  m_d3d11UAVCount = 0;
+}
+
+void RenderPassD3D11::unbindStorage()
+{
+  // Left bound, a storage buffer could not be written by a later dispatch,
+  // nor one this pass wrote read by a later draw.
+  ID3D11ShaderResourceView* noSRV = nullptr;
+  for (uint32_t slot : m_d3d11StorageVS)
+    m_d3d11Context->VSSetShaderResources(slot, 1, &noSRV);
+  for (uint32_t slot : m_d3d11StoragePS)
+    m_d3d11Context->PSSetShaderResources(slot, 1, &noSRV);
+  m_d3d11StorageVS.clear();
+  m_d3d11StoragePS.clear();
+  clearUAVs();
 }
 
 void RenderPassD3D11::setViewport(
@@ -428,6 +526,7 @@ void RenderPassD3D11::draw(
   if (m_currentPipeline == nullptr) // dropped under a straddling frame
     return;
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applyUAVs();
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   if (instanceCount > 1 || firstInstance != 0)
   {
@@ -451,6 +550,7 @@ void RenderPassD3D11::drawIndexed(
   if (m_currentPipeline == nullptr) // dropped under a straddling frame
     return;
   flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
+  applyUAVs();
   flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
   if (instanceCount > 1 || firstInstance != 0 || baseVertex != 0)
   {
@@ -473,8 +573,11 @@ void RenderPassD3D11::finish()
     return;
   m_finished = true;
   releaseBoundResources();
+  if (m_context != nullptr)
+    static_cast<ContextD3D11*>(m_context)->m_d3d11PassOpen = false;
   if (m_d3d11Context != nullptr)
   {
+    unbindStorage();
     // Unbind render targets so attached textures can be used as SRVs.
     m_d3d11Context->OMSetRenderTargets(0, nullptr, nullptr);
 

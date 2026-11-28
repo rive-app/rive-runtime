@@ -45,7 +45,7 @@ public:
     // Hold a strong reference so GC cannot free the group before replay.
     if (groupIndex < kMaxBindGroups)
     {
-      m_boundGroups[groupIndex] = ref_rcp(bg);
+      m_groups[groupIndex] = ref_rcp(bg);
     }
     settlePass(m_context, this, *m_cmd);
     noteBoundStorage(m_context, this, bg);
@@ -82,10 +82,6 @@ protected:
       m_context->finishNestedPasses(this);
     }
     m_cmd->appendOpcode(CommandType::finish);
-    for (rcp<BindGroup>& group : m_boundGroups)
-    {
-      group = nullptr;
-    }
     if (m_context != nullptr)
     {
       m_context->finishOpenPass(this);
@@ -94,7 +90,6 @@ protected:
 
 private:
   OreCommandBuffer* m_cmd;
-  rcp<BindGroup> m_boundGroups[kMaxBindGroups];
 };
 
 } // namespace rive::ore::cmd

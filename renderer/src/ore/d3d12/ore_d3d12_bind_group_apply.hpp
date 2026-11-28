@@ -1,10 +1,11 @@
 /*
  * Copyright 2026 Rive
  *
- * Shared D3D12 body for `RenderPass::setBindGroup`. Builds one merged
- * CBV/SRV/UAV descriptor table per group + one sampler table per group
- * using the per-pipeline root sig (RFC v5 §3.2.2 / "Commit 7b"). See
- * `ore_d3d12_root_sig.hpp` for the root-sig layout.
+ * Shared D3D12 body for `RenderPass::setBindGroup`. Takes the slots for one
+ * merged CBV/SRV/UAV descriptor table per group + one sampler table per
+ * group under the per-pipeline root sig (RFC v5 §3.2.2 / "Commit 7b"), which
+ * `ContextD3D12::d3d12SetGroupTables` then writes as it does for a dispatch.
+ * See `ore_d3d12_root_sig.hpp` for the root-sig layout.
  *
  * Defined inline here because two translation units need to call it:
  * the D3D12-only build compiles `ore_render_pass_d3d12.cpp`
@@ -45,7 +46,6 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
       "every Ore D3D12 pipeline must ship with a populated binding map");
 
   const auto& gp = pipe->m_d3dGroupParams[groupIndex];
-  uint32_t dynIdx = 0;
 
   // Both ranges before any table, since taking either can swap a full heap,
   // which drops the tables already set.
@@ -66,7 +66,7 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
   if (m_d3dHeapGeneration != m_d3dContext->m_d3dGpuHeapGeneration)
   {
     m_d3dHeapGeneration = m_d3dContext->m_d3dGpuHeapGeneration;
-    d3d12MarkBoundGroupsUnapplied();
+    unapplyBoundGroups();
   }
   if (srvStart == UINT_MAX || samplerStart == UINT_MAX)
   {
@@ -76,143 +76,14 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex)
     return;
   }
   m_unappliedGroups &= static_cast<uint8_t>(~groupBit(groupIndex));
-
-  // Merged CBV/SRV/UAV table.
-  if (gp.cbvSrvUavRootParamIdx >= 0)
-  {
-    gpu::D3D12DescriptorHeap* srvHeap = m_d3dContext->m_d3dGpuSrvHeap.heap
-                                            .get();
-    uint32_t offset = 0;
-
-    // CBVs: create D3D12_CONSTANT_BUFFER_VIEW_DESC descriptors in
-    // the shader-visible heap on the fly, one per slot covered by
-    // this group's CBV range. Null CBVs are left as default-init
-    // descriptor slots (CreateConstantBufferView(nullptr, ...)
-    // writes the D3D12-defined null CBV per the spec).
-    for (uint8_t i = 0; i < gp.cbvCount; ++i)
-    {
-      uint8_t globalSlot = gp.cbvBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
-          srvStart + offset++);
-      if (bg->m_d3dUBOSlotMask & (1u << globalSlot))
-      {
-        // Resolve the live backing now and mark it bound so a later
-        // update() orphans instead of racing this draw.
-        BufferD3D12* ubo = bg->m_d3dUBOBuffers[globalSlot];
-        ubo->markBound();
-        D3D12_GPU_VIRTUAL_ADDRESS gpuVA = ubo->currentGpuVA() +
-                                          bg->m_d3dUBOOffsets[globalSlot];
-        if ((bg->m_d3dUBODynamicOffsetMask & (1u << globalSlot)) &&
-            dynIdx < dynamicOffsetCount)
-        {
-          gpuVA += dynamicOffsets[dynIdx];
-          ++dynIdx;
-        }
-        // CBV sizes must be 256-byte aligned per D3D12 spec.
-        uint32_t size = bg->m_d3dUBOSizes[globalSlot];
-        size = (size + 255u) & ~255u;
-        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv = {};
-        cbv.BufferLocation = gpuVA;
-        cbv.SizeInBytes = size;
-        m_d3dDevice->CreateConstantBufferView(&cbv, dst);
-      }
-      else
-      {
-        m_d3dDevice->CreateConstantBufferView(nullptr, dst);
-      }
-    }
-
-    // SRVs: copy each group-local SRV slot's CPU handle into the
-    // heap. Missing slots fall back to the context's null SRV
-    // descriptor so the table stays well-defined.
-    //
-    // Ore owned textures already rest in both shader resource states, so
-    // this only moves external or never uploaded ones, which a pass does
-    // not also attach.
-    for (uint8_t i = 0; i < gp.srvCount; ++i)
-    {
-      uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
-      if (!(bg->m_d3dSrvSlotMask & (1u << globalSlot)))
-        continue;
-      TextureD3D12* tex = lite_rtti_cast<TextureD3D12*>(
-          bg->m_d3dSrvTextures[globalSlot]);
-      if (tex == nullptr)
-        continue;
-      if ((tex->m_d3dCurrentState & kD3D12ShaderResourceStates) ==
-          kD3D12ShaderResourceStates)
-        continue;
-      D3D12_RESOURCE_BARRIER barrier = {};
-      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-      barrier.Transition.pResource = tex->m_d3dTexture.Get();
-      barrier.Transition.StateBefore = tex->m_d3dCurrentState;
-      barrier.Transition.StateAfter = kD3D12ShaderResourceStates;
-      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-      m_d3dCmdList->ResourceBarrier(1, &barrier);
-      tex->m_d3dCurrentState = kD3D12ShaderResourceStates;
-    }
-    for (uint8_t i = 0; i < gp.srvCount; ++i)
-    {
-      uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
-          srvStart + offset++);
-      D3D12_CPU_DESCRIPTOR_HANDLE
-      src = (bg->m_d3dSrvSlotMask & (1u << globalSlot))
-                ? bg->m_d3dSrvHandles[globalSlot]
-                : m_d3dContext->m_d3dNullSrvSlot.handle();
-      m_d3dDevice->CopyDescriptorsSimple(
-          1,
-          dst,
-          src,
-          D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    }
-
-    // UAVs: Ore doesn't ship storage buffers/textures on day 1,
-    // but the helper reserves slots for forward-compat. Null-fill
-    // for now; the loop no-ops at gp.uavCount == 0.
-    for (uint8_t i = 0; i < gp.uavCount; ++i)
-    {
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
-          srvStart + offset++);
-      m_d3dDevice->CopyDescriptorsSimple(
-          1,
-          dst,
-          m_d3dContext->m_d3dNullSrvSlot.handle(),
-          D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    }
-
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = srvHeap->gpuHandleForIndex(
-        srvStart);
-    m_d3dCmdList->SetGraphicsRootDescriptorTable(
-        static_cast<UINT>(gp.cbvSrvUavRootParamIdx),
-        gpuHandle);
-  }
-
-  // Sampler table (separate heap type).
-  if (gp.samplerRootParamIdx >= 0)
-  {
-    gpu::D3D12DescriptorHeap* samplerHeap = m_d3dContext->m_d3dGpuSamplerHeap
-                                                .heap.get();
-    for (uint8_t i = 0; i < gp.samplerCount; ++i)
-    {
-      uint8_t globalSlot = gp.samplerBaseGlobalSlot + i;
-      D3D12_CPU_DESCRIPTOR_HANDLE dst = samplerHeap->cpuHandleForUpload(
-          samplerStart + i);
-      D3D12_CPU_DESCRIPTOR_HANDLE
-      src = (bg->m_d3dSamplerSlotMask & (1u << globalSlot))
-                ? bg->m_d3dSamplerHandles[globalSlot]
-                : m_d3dContext->m_d3dNullSamplerSlot.handle();
-      m_d3dDevice->CopyDescriptorsSimple(
-          1,
-          dst,
-          src,
-          D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-    }
-    D3D12_GPU_DESCRIPTOR_HANDLE
-    gpuHandle = samplerHeap->gpuHandleForIndex(samplerStart);
-    m_d3dCmdList->SetGraphicsRootDescriptorTable(
-        static_cast<UINT>(gp.samplerRootParamIdx),
-        gpuHandle);
-  }
+  m_d3dContext->d3d12SetGroupTables(
+      gp,
+      bg,
+      dynamicOffsets,
+      dynamicOffsetCount,
+      srvStart,
+      samplerStart,
+      false);
 }
 
 } // namespace rive::ore

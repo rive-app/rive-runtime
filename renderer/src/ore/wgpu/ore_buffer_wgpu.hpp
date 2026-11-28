@@ -11,7 +11,7 @@ class ContextWGPU;
 // An update after a bind orphans onto a fresh backing so the GPU keeps reading
 // the value it was bound with. WriteBuffer copies are queued ahead of the frame
 // submit, so without this both draws in a frame would read the last write.
-// Never rebound buffers stay at one backing.
+// Never rebound buffers stay at one backing, as does every storage buffer.
 class BufferWGPU : public LITE_RTTI_OVERRIDE(Buffer, BufferWGPU)
 {
 public:

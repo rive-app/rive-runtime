@@ -103,7 +103,9 @@ public:
   F(CmdBindVertexBuffers)                                                      \
   F(CmdBlitImage)                                                              \
   F(CmdClearColorImage)                                                        \
+  F(CmdCopyBuffer)                                                             \
   F(CmdCopyBufferToImage)                                                      \
+  F(CmdDispatch)                                                               \
   F(CmdDraw)                                                                   \
   F(CmdDrawIndexed)                                                            \
   F(CmdEndRenderPass)                                                          \
@@ -124,6 +126,7 @@ public:
   F(CmdSetViewport)                                                            \
   F(CmdWriteTimestamp)                                                         \
   F(CreateCommandPool)                                                         \
+  F(CreateComputePipelines)                                                    \
   F(CreateDescriptorPool)                                                      \
   F(CreateDescriptorSetLayout)                                                 \
   F(CreateFramebuffer)                                                         \

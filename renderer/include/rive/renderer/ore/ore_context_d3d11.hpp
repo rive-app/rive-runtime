@@ -40,6 +40,12 @@ public:
   std::unique_ptr<RenderPass> beginRenderPass(
       const RenderPassDesc& desc,
       std::string* outError = nullptr) override;
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* outError) override;
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
+      std::string* outError = nullptr) override;
 
   void beginFrame(const FrameDescriptor&) override;
   void endFrame() override;
@@ -59,6 +65,8 @@ public:
 
 private:
   friend class RenderPassD3D11;
+  friend class ComputePassD3D11;
+  friend class BufferD3D11;
   friend class BindGroupD3D11;
   friend class TextureD3D11;
 
@@ -96,6 +104,25 @@ private:
   // Make(); nullptr on pre-11.1 drivers, in which case static-offset and
   // dynamic-offset UBOs fall back to whole-buffer binds.
   Microsoft::WRL::ComPtr<ID3D11DeviceContext1> m_d3d11Context1;
+
+  // HLSL has no workgroup count, so each dispatch writes it here and binds it
+  // at the register the bake reserved.
+  void d3d11BindWorkgroupCounts(uint32_t x, uint32_t y, uint32_t z);
+  Microsoft::WRL::ComPtr<ID3D11Buffer> m_d3d11WorkgroupCounts;
+
+  // Writes a storage buffer in place, in command order. Refused while a pass
+  // is open.
+  void d3d11WriteStorageBuffer(
+      ID3D11Buffer* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
+  // Between beginFrame and endFrame, which is where a compute pass may open.
+  bool m_d3d11FrameOpen = false;
+  // A pass is begun and not finished, and whether it is a compute pass, which
+  // no render pass may open inside.
+  bool m_d3d11PassOpen = false;
+  bool m_d3d11ComputeOpen = false;
 };
 
 } // namespace rive::ore

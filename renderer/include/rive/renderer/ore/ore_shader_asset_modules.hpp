@@ -108,14 +108,15 @@ inline std::vector<uint8_t> moduleWorkgroupBytes(
 }
 
 // Calls visit(desc, first, count, entries) once per module the asset's variant
-// for target builds: one per vertex or fragment entry on per entry targets
-// (GLSL, HLSL), else one shared by entries [first, first + count). visit
-// returns false to stop. False when the variant is missing or malformed.
+// for target builds: one per entry on per entry targets (GLSL, HLSL), else
+// one shared by entries [first, first + count). visit returns false to stop.
+// False when the variant is missing or malformed.
 template <typename Visit>
 bool visitShaderAssetModules(
     ShaderTarget target,
     const ShaderAsset& asset,
-    Visit&& visit)
+    Visit&& visit,
+    bool compute = true)
 {
   auto blob = asset.findShader(static_cast<uint8_t>(target));
   if (blob.empty())
@@ -130,8 +131,14 @@ bool visitShaderAssetModules(
   std::vector<RstbEntryBindings> assetEntries;
   auto entryBindings = asset.entryBindings();
   decodeEntryBindings(entryBindings.data(), entryBindings.size(), assetEntries);
+  std::vector<RstbWorkgroup> assetWorkgroups;
+  auto workgroups = asset.workgroups();
+  decodeWorkgroups(workgroups.data(), workgroups.size(), assetWorkgroups);
 
   ShaderModuleDesc desc;
+  // WebGPU backends go by the desc's language, which defaults to GLSL.
+  if (target == ShaderTarget::wgsl)
+    desc.language = ShaderLanguage::wgsl;
   desc.bindingMapBytes = bindingMap.empty() ? nullptr : bindingMap.data();
   desc.bindingMapSize = static_cast<uint32_t>(bindingMap.size());
   desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
@@ -151,14 +158,18 @@ bool visitShaderAssetModules(
     for (uint32_t i = 0; i < entries.size(); i++)
     {
       const auto& entry = entries[i];
-      // These containers only carry vertex and fragment modules.
-      if (entry.stage > 1)
+      // Only HLSL has compute entries, and a context that cannot run them
+      // passes `compute` false, as it could not build their modules either.
+      if (entry.stage > (target == ShaderTarget::hlsl && compute ? 2 : 1))
       {
         continue;
       }
+      static const ShaderStage kStages[] = {
+          ShaderStage::vertex,
+          ShaderStage::fragment,
+          ShaderStage::compute};
       ShaderModuleDesc entryDesc = desc;
-      entryDesc.stage = entry.stage == 0 ? ShaderStage::vertex
-                                         : ShaderStage::fragment;
+      entryDesc.stage = kStages[entry.stage];
       if (target == ShaderTarget::hlsl)
       {
         entryDesc.hlslSource = reinterpret_cast<const char*>(entry.source);
@@ -183,6 +194,15 @@ bool visitShaderAssetModules(
                                         : entryBindingBytes.data();
       entryDesc.entryBindingSize = static_cast<uint32_t>(
           entryBindingBytes.size());
+      std::vector<uint8_t> workgroupBytes = moduleWorkgroupBytes(
+          assetWorkgroups,
+          entries,
+          i,
+          1u);
+      entryDesc.workgroupBytes = workgroupBytes.empty() ? nullptr
+                                                        : workgroupBytes.data();
+      entryDesc.workgroupBytesSize = static_cast<uint32_t>(
+          workgroupBytes.size());
       if (!visit(entryDesc, i, 1u, entries))
       {
         break;
@@ -215,10 +235,6 @@ bool visitShaderAssetModules(
   desc.entryBindingBytes = entryBindingBytes.empty() ? nullptr
                                                      : entryBindingBytes.data();
   desc.entryBindingSize = static_cast<uint32_t>(entryBindingBytes.size());
-  // Compute entries only reach the targets that share one module.
-  std::vector<RstbWorkgroup> assetWorkgroups;
-  auto workgroups = asset.workgroups();
-  decodeWorkgroups(workgroups.data(), workgroups.size(), assetWorkgroups);
   std::vector<uint8_t> workgroupBytes = moduleWorkgroupBytes(
       assetWorkgroups,
       entries,

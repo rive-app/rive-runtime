@@ -76,7 +76,6 @@ private:
   // Applies what's pending for the pipeline's groups. False when a draw
   // can't run.
   bool d3d12FlushBindGroups();
-  void d3d12MarkBoundGroupsUnapplied();
   static uint8_t groupBit(uint32_t groupIndex)
   {
     return static_cast<uint8_t>(1u << groupIndex);

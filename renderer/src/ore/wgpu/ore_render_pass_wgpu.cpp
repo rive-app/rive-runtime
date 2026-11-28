@@ -69,6 +69,9 @@ void RenderPassWGPU::setPipeline(Pipeline* inPipeline)
     return;
   auto pipeline = lite_rtti_cast<PipelineWGPU*>(inPipeline);
   assert(pipeline);
+  // A group the last pipeline had no use for may be one this one binds.
+  if (pipeline != m_currentPipeline.get())
+    unapplyBoundGroups();
   m_currentPipeline = ref_rcp(pipeline);
   m_wgpuPassEncoder.SetPipeline(pipeline->m_wgpuPipeline);
 }
@@ -110,33 +113,39 @@ void RenderPassWGPU::setIndexBuffer(
 
 void RenderPassWGPU::setBindGroup(
     uint32_t groupIndex,
-    BindGroup* inBg,
+    BindGroup* bg,
     const uint32_t* dynamicOffsets,
     uint32_t dynamicOffsetCount)
 {
   validate();
-  auto bg = lite_rtti_cast<BindGroupWGPU*>(inBg);
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+}
+
+void RenderPassWGPU::applyBindGroup(uint32_t groupIndex)
+{
+  // A group left at an index this pipeline binds nothing at stays out.
+  if (m_currentPipeline == nullptr ||
+      !hasEntries(m_currentPipeline->m_layouts[groupIndex]))
+  {
+    return;
+  }
+  auto* bg = lite_rtti_cast<BindGroupWGPU*>(m_boundGroups[groupIndex].get());
   assert(bg != nullptr);
-  // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
-  // successful resolve, so a failed (OOM) resolve doesn't force later
-  // update()s to orphan needlessly.
+  // Stamped bound only once resolved, so a failed resolve orphans nothing.
   const wgpu::BindGroup& wgpuBg = bg->resolveBindGroup();
   if (wgpuBg == nullptr)
   {
-    // Bind group creation failed (device OOM). Report instead of binding
-    // null; the Lua layer reads lastError after the call.
     m_wgpuContext->setLastError(
         "ore: WGPU bind group creation failed for group %u",
         groupIndex);
     return;
   }
   bg->markUBOsBound();
-  m_wgpuPassEncoder
-      .SetBindGroup(groupIndex, wgpuBg, dynamicOffsetCount, dynamicOffsets);
-
-  // Hold a strong ref so the BindGroup (and its retained resources) stay
-  // alive until the render pass is finished.
-  m_boundGroups[groupIndex] = ref_rcp(bg);
+  m_wgpuPassEncoder.SetBindGroup(
+      groupIndex,
+      wgpuBg,
+      m_groupOffsetCounts[groupIndex],
+      m_groupOffsets[groupIndex]);
 }
 
 void RenderPassWGPU::setViewport(
@@ -183,6 +192,7 @@ void RenderPassWGPU::draw(
   validate();
   assert(m_currentPipeline != nullptr && "setPipeline must be called first");
 
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   m_wgpuPassEncoder
       .Draw(vertexCount, instanceCount, firstVertex, firstInstance);
 }
@@ -197,6 +207,7 @@ void RenderPassWGPU::drawIndexed(
   validate();
   assert(m_currentPipeline != nullptr && "setPipeline must be called first");
 
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   m_wgpuPassEncoder.DrawIndexed(
       indexCount,
       instanceCount,
@@ -215,6 +226,7 @@ void RenderPassWGPU::finish()
   {
     m_wgpuPassEncoder.End();
     m_wgpuPassEncoder = nullptr;
+    m_wgpuContext->m_wgpuPassOpen = false;
   }
 
   m_wgpuContext = nullptr;

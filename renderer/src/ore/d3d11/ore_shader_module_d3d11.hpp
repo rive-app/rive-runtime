@@ -20,6 +20,7 @@ struct D3D11CompiledShader
   std::vector<uint8_t> bytecode;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+  Microsoft::WRL::ComPtr<ID3D11ComputeShader> computeShader;
 };
 
 // Owned by the ContextD3D11 whose device compiled the entries.
@@ -53,6 +54,7 @@ private:
   std::string m_hlslEntryPoint;
   Microsoft::WRL::ComPtr<ID3D11VertexShader> m_d3dVertexShader;
   Microsoft::WRL::ComPtr<ID3D11PixelShader> m_d3dPixelShader;
+  Microsoft::WRL::ComPtr<ID3D11ComputeShader> m_d3dComputeShader;
   std::vector<uint8_t> m_bytecode;
 
   // Guards ensureD3DShaders against concurrent first-call from two

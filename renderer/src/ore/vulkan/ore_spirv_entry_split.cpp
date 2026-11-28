@@ -53,6 +53,7 @@ constexpr uint32_t kMagic = 0x07230203u;
 constexpr size_t kHeaderWords = 5;
 constexpr uint32_t kStorageInput = 1;
 constexpr uint32_t kStorageOutput = 3;
+constexpr uint32_t kStorageWorkgroup = 4;
 constexpr uint32_t kNoFunction = ~0u;
 
 enum IdFlag : uint8_t
@@ -273,8 +274,11 @@ bool spirvEntryModule(
         return false;
       }
       flags[id] |= kDeclared;
+      // Only compute functions reach a workgroup variable, and a driver may
+      // refuse one left in a vertex or fragment module.
       if (op == OpVariable && length >= 4 &&
-          (w[3] == kStorageInput || w[3] == kStorageOutput))
+          (w[3] == kStorageInput || w[3] == kStorageOutput ||
+           (w[3] == kStorageWorkgroup && executionModel != kSpirvComputeModel)))
       {
         flags[id] |= kInterface;
       }

@@ -15,6 +15,7 @@
 
 namespace rive::ore
 {
+class BufferVulkan;
 class TextureVulkan;
 
 // What a host exposes of a Vulkan target to scripts, hidden unless its format
@@ -126,6 +127,12 @@ public:
   std::unique_ptr<RenderPass> beginRenderPass(
       const RenderPassDesc& desc,
       std::string* outError = nullptr) override;
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* outError) override;
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
+      std::string* outError = nullptr) override;
 
   void beginFrame(const FrameDescriptor&) override;
   void endFrame() override;
@@ -151,10 +158,44 @@ public:
 
 private:
   friend class RenderPassVulkan;
+  friend class ComputePassVulkan;
   friend class BindGroupVulkan;
+  friend class BufferVulkan;
   friend class TextureVulkan;
 
   ContextVulkan(const rcp<rive::gpu::VulkanContext> vk);
+
+  // The layout a pipeline binds its groups through, with the shared empty
+  // layout where `layouts` has none.
+  VkPipelineLayout vkCreatePipelineLayout(
+      BindGroupLayout* const* layouts,
+      uint32_t count);
+
+  // Copies `data` into a storage buffer in command order, at the next frame's
+  // start when none is open. Refused while a pass is open.
+  void writeStorageBuffer(
+      BufferVulkan* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
+  void vkFlushPendingStorageCopies();
+  // Later shaders and copies wait for `stages` and see what they wrote with
+  // `access`.
+  void vkBarrierAfter(VkPipelineStageFlags stages, VkAccessFlags access);
+
+  static constexpr const char*
+      kVkNoStorage = "this device has no storage buffers";
+
+  struct VkPendingStorageCopy
+  {
+    rcp<Buffer> staging;
+    rcp<Buffer> buffer;
+    uint32_t offset;
+    uint32_t size;
+  };
+  std::vector<VkPendingStorageCopy> m_vkPendingStorageCopies;
+  // A render or compute pass is begun and not finished. Vulkan nests none.
+  bool m_vkPassOpen = false;
 
   rcp<TextureView> wrapTargetImage(
       gpu::RenderTarget*,
@@ -175,8 +216,8 @@ private:
 
   VkDescriptorPool m_vkDescriptorPool = VK_NULL_HANDLE;
   VkFence m_vkFrameFence = VK_NULL_HANDLE;
-  // True between BeginCommandBuffer and EndCommandBuffer. Gates the
-  // auto-reopen path; orphan recordings get flushed at next beginFrame.
+  // True from beginFrame to endFrame, while the host's command buffer takes
+  // commands.
   bool m_vkCmdBufRecording = false;
   // Active generation. makeBindGroup rolls a new one when full.
   rcp<DescriptorPoolGeneration> m_currentDescriptorPool;

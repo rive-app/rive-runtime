@@ -13,16 +13,18 @@
 
 namespace rive::ore
 {
+class BufferWGPU;
 
 class ContextWGPU : public Context
 {
 public:
-  // backendType is wgpu::BackendType::OpenGLES or wgpu::BackendType::Vulkan,
-  // obtained from RenderContextWebGPUImpl::capabilities().backendType.
+  // backendType is RenderContextWebGPUImpl::capabilities().backendType, and
+  // compatibilityMode what the embedder asked for, which no device reports.
   static std::unique_ptr<ContextWGPU> Make(
       wgpu::Device device,
       wgpu::Queue queue,
-      wgpu::BackendType backendType);
+      wgpu::BackendType backendType,
+      bool compatibilityMode);
 
   ~ContextWGPU() override;
 
@@ -40,6 +42,12 @@ public:
 
   std::unique_ptr<RenderPass> beginRenderPass(
       const RenderPassDesc& desc,
+      std::string* outError = nullptr) override;
+  rcp<ComputePipeline> makeComputePipelineImpl(
+      const ComputePipelineDesc& desc,
+      std::string* outError) override;
+  std::unique_ptr<ComputePass> beginComputePass(
+      const ComputePassDesc& desc,
       std::string* outError = nullptr) override;
 
   void beginFrame(const FrameDescriptor&) override;
@@ -83,7 +91,9 @@ public:
 
 private:
   friend class RenderPassWGPU;
+  friend class ComputePassWGPU;
   friend class BindGroupWGPU;
+  friend class BufferWGPU;
   friend class TextureWGPU;
 
   ContextWGPU() : Context(nullptr) {}
@@ -98,6 +108,21 @@ private:
   wgpu::Queue m_wgpuQueue;
   wgpu::CommandEncoder m_wgpuCommandEncoder;
   uint64_t m_frameSerial = 0;
+  // A render or compute pass is begun and not finished. The encoder takes
+  // neither a copy nor another pass until it ends.
+  bool m_wgpuPassOpen = false;
+
+  wgpu::PipelineLayout wgpuCreatePipelineLayout(
+      BindGroupLayout* const* layouts,
+      uint32_t count,
+      const char* label);
+  // Writes `data` into a storage buffer after the commands recorded so far.
+  // Refused while a pass is open, and off a 4 byte boundary.
+  void writeStorageBuffer(
+      BufferWGPU* buffer,
+      const void* data,
+      uint32_t size,
+      uint32_t offset);
   // WebGPU's default, for a device that does not report its limits.
   uint64_t m_maxBufferSize = 256 * 1024 * 1024;
 };

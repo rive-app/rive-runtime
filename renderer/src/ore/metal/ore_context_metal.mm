@@ -1038,11 +1038,12 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
 inline std::unique_ptr<RenderPass> ContextMetal::mtlBeginRenderPass(
     const RenderPassDesc& desc, std::string* outError)
 {
-  assert(m_mtlCommandBuffer != nil);
-  // Metal aborts on a second encoder.
-  if (m_openEncoders != 0)
+  if (refusesPass(
+          "beginRenderPass",
+          m_mtlCommandBuffer != nil,
+          m_openEncoders != 0,
+          outError))
   {
-    refuse("beginRenderPass", "another pass is still open", outError);
     return nullptr;
   }
 
@@ -1373,13 +1374,12 @@ rcp<ComputePipeline> ContextMetal::makeComputePipelineImpl(
 std::unique_ptr<ComputePass> ContextMetal::beginComputePass(
     const ComputePassDesc& desc, std::string* outError)
 {
-  if (m_mtlCommandBuffer == nil || m_openEncoders != 0)
+  if (refusesPass(
+          "beginComputePass",
+          m_mtlCommandBuffer != nil,
+          m_openEncoders != 0,
+          outError))
   {
-    refuse(
-        "beginComputePass",
-        m_mtlCommandBuffer == nil ? "no frame is open"
-                                  : "another pass is still open",
-        outError);
     return nullptr;
   }
   id<MTLComputeCommandEncoder>

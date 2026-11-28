@@ -56,6 +56,8 @@ public:
 private:
   friend class ContextWGPU;
 
+  void applyBindGroup(uint32_t groupIndex);
+
   ContextWGPU* m_wgpuContext = nullptr; // weak ref
   rcp<Pipeline> m_currentPipeline;
   wgpu::RenderPassEncoder m_wgpuPassEncoder;

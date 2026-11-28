@@ -8,6 +8,7 @@
 #include "rive/renderer/ore/ore_draw_bindings.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
 #include "rive/renderer/ore/ore_shader_asset_modules.hpp"
+#include "ore_compute_shaders.rstb.hpp"
 #include <algorithm>
 #include <catch.hpp>
 #include <string>
@@ -994,4 +995,59 @@ TEST_CASE(
   CHECK(found->memory == std::vector<uint32_t>{256, 4});
   CHECK(module.workgroup("main") == nullptr);
   CHECK(module.workgroup("vs_main_") == nullptr);
+}
+
+// Dawn asserts on a module that does not say so.
+TEST_CASE("a WGSL module built from an asset says it is WGSL", "[ore]")
+{
+  const uint32_t* offsets = ore_compute_shaders::kShaderOffsets;
+  ShaderAsset asset;
+  REQUIRE(decodeBareRstb(
+      asset,
+      ore_compute_shaders::kShaderData + offsets[0],
+      offsets[1] - offsets[0]));
+  for (ShaderTarget target : {ShaderTarget::wgsl, ShaderTarget::msl})
+  {
+    ShaderLanguage language = ShaderLanguage::glsl;
+    REQUIRE(visitShaderAssetModules(
+        target,
+        asset,
+        [&](const ShaderModuleDesc& desc,
+            uint32_t,
+            uint32_t,
+            const std::vector<RstbEntryView>&) {
+          language = desc.language;
+          return true;
+        }));
+    CHECK((language == ShaderLanguage::wgsl) == (target == ShaderTarget::wgsl));
+  }
+}
+
+// Unreal and Direct3D 12 read HLSL too, and cannot build a compute module.
+TEST_CASE("a context without compute gets no compute modules", "[ore]")
+{
+  const uint32_t* offsets = ore_compute_shaders::kShaderOffsets;
+  ShaderAsset asset;
+  REQUIRE(decodeBareRstb(
+      asset,
+      ore_compute_shaders::kShaderData + offsets[0],
+      offsets[1] - offsets[0]));
+  for (bool compute : {true, false})
+  {
+    int computeModules = 0;
+    int drawModules = 0;
+    REQUIRE(visitShaderAssetModules(
+        ShaderTarget::hlsl,
+        asset,
+        [&](const ShaderModuleDesc& desc,
+            uint32_t,
+            uint32_t,
+            const std::vector<RstbEntryView>&) {
+          (desc.stage == ShaderStage::compute ? computeModules : drawModules)++;
+          return true;
+        },
+        compute));
+    CHECK(computeModules == (compute ? 1 : 0));
+    CHECK(drawModules == 2);
+  }
 }

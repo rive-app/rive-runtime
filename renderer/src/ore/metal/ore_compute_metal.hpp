@@ -36,12 +36,6 @@ public:
   ComputePassMetal(ContextMetal* context, id<MTLComputeCommandEncoder> encoder);
   ~ComputePassMetal() override;
 
-  void setBindGroup(
-      uint32_t groupIndex,
-      BindGroup* bg,
-      const uint32_t* dynamicOffsets = nullptr,
-      uint32_t dynamicOffsetCount = 0) override;
-
 protected:
   void applyPipeline(ComputePipeline* pipeline) override;
   void dispatch(uint32_t x, uint32_t y, uint32_t z) override;
@@ -53,9 +47,6 @@ private:
 
   ContextMetal* m_metal;
   id<MTLComputeCommandEncoder> m_mtlEncoder = nil;
-  rcp<BindGroup> m_groups[kMaxBindGroups];
-  uint32_t m_groupOffsets[kMaxBindGroups][kMaxDynamicOffsets] = {};
-  uint32_t m_groupOffsetCounts[kMaxBindGroups] = {};
   std::vector<uint32_t> m_sizes;
 };
 } // namespace rive::ore

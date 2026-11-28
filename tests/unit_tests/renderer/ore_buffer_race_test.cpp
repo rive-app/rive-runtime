@@ -15,6 +15,8 @@
  *     later frame; reusing one the GPU still reads would corrupt the pixel.
  *   - The D3D12 reuse-the-just-retired-backing self-copy guard (bind in one
  *     frame, update in the next), which aborts an ASan build if it regresses.
+ *   - One bind for two draws with an update ahead of each, where a draw must
+ *     read the color as it is at the draw.
  *
  * Runs on the racy backends the fix changed (Metal, D3D12, Vulkan, WebGPU) that
  * are both compiled in and creatable headless: Metal in the macOS job, D3D12 in
@@ -50,6 +52,8 @@ struct Uniforms
   float r, g, b, a;
 };
 constexpr Uniforms kGreen = {0.0f, 1.0f, 0.0f, 1.0f};
+constexpr Uniforms kRed = {1.0f, 0.0f, 0.0f, 1.0f};
+constexpr Uniforms kBlue = {0.0f, 0.0f, 1.0f, 1.0f};
 constexpr Uniforms kZero = {0.0f, 0.0f, 0.0f, 0.0f};
 constexpr int kW = 64;
 constexpr int kH = 32;
@@ -225,6 +229,51 @@ void runScenario(TestingWindow* window)
     return pixels;
   };
 
+  // One pass and one bind. The color is updated after the bind for the left
+  // half and again, with no bind between, for the right.
+  auto runOneBindFrame = [&]() -> std::vector<uint8_t> {
+    auto renderer = window->beginFrame({
+        .name = "ore_buffer_race_one_bind",
+        .clearColor = 0xff000000,
+        .doClear = true,
+    });
+    oreGM.beginFrame(renderContext);
+    colorBuf->update(&kGreen, sizeof(kGreen), 0);
+
+    ColorAttachment ca{};
+    ca.view = canvasTarget.get();
+    ca.loadOp = LoadOp::clear;
+    ca.storeOp = StoreOp::store;
+    ca.clearColor = {0, 0, 0, 1};
+    RenderPassDesc rpDesc{};
+    rpDesc.colorAttachments[0] = ca;
+    rpDesc.colorCount = 1;
+    rpDesc.label = "ore_buffer_race_one_bind";
+    auto pass = ctx.beginRenderPass(rpDesc);
+    // Bound ahead of its pipeline, which every backend takes.
+    pass->setBindGroup(0, bg.get());
+    pass->setPipeline(pipeline.get());
+    pass->setViewport(0, 0, kW, kH);
+    colorBuf->update(&kRed, sizeof(kRed), 0);
+    pass->setScissorRect(0, 0, kW / 2, kH);
+    pass->draw(3);
+    colorBuf->update(&kBlue, sizeof(kBlue), 0);
+    pass->setScissorRect(kW / 2, 0, kW / 2, kH);
+    pass->draw(3);
+    pass->finish();
+
+    oreGM.endFrame(renderContext);
+    ore_gm::invalidateGLStateAfterOre(renderContext);
+    renderer->drawImage(
+        canvas->renderImage(),
+        {.filter = ImageFilter::nearest},
+        BlendMode::srcOver,
+        1);
+    std::vector<uint8_t> pixels;
+    window->endFrame(&pixels);
+    return pixels;
+  };
+
   auto pixelAt = [](const std::vector<uint8_t>& px, int x, int y) {
     return &px[(static_cast<size_t>(y) * kW + x) * 4];
   };
@@ -268,6 +317,26 @@ void runScenario(TestingWindow* window)
     CHECK(high(left[1]));
     CHECK(low(right[0]));
     CHECK(high(right[1]));
+  }
+
+  // Phase 3, where a draw reads the uniform as it is at the draw, whenever its
+  // group was bound. Two frames, so the second starts from moved backings.
+  for (int frame = 0; frame < 2; ++frame)
+  {
+    auto px = runOneBindFrame();
+    REQUIRE(px.size() == static_cast<size_t>(kW) * kH * 4);
+    const uint8_t* left = pixelAt(px, kW / 4, kH / 2);
+    const uint8_t* right = pixelAt(px, 3 * kW / 4, kH / 2);
+    INFO(
+        "frame " << frame << " left=" << +left[0] << "," << +left[1] << ","
+                 << +left[2] << " right=" << +right[0] << "," << +right[1]
+                 << "," << +right[2]);
+    CHECK(high(left[0]));
+    CHECK(low(left[1]));
+    CHECK(low(left[2]));
+    CHECK(low(right[0]));
+    CHECK(low(right[1]));
+    CHECK(high(right[2]));
   }
 }
 } // namespace

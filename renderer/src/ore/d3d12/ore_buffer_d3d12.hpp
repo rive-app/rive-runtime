@@ -59,6 +59,9 @@ private:
   uint64_t m_currentSerial = 0;   // frame the live backing was last bound in
   bool m_boundSinceUpdate = false;
   UINT64 m_allocatedSize = 0; // aligned size for fresh backings
+  // A storage buffer keeps one backing, in a default heap where shaders can
+  // write it, and this is the state the command list last left it in.
+  D3D12_RESOURCE_STATES m_d3dState = D3D12_RESOURCE_STATE_COMMON;
   ContextD3D12* m_ctx = nullptr;
 };
 } // namespace rive::ore

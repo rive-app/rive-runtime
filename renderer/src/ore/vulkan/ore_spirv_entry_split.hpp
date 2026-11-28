@@ -12,6 +12,7 @@ namespace rive::ore
 {
 constexpr uint32_t kSpirvVertexModel = 0;
 constexpr uint32_t kSpirvFragmentModel = 4;
+constexpr uint32_t kSpirvComputeModel = 5;
 
 // Buffers a cut reuses, so cutting only allocates while they grow.
 struct SpirvEntryScratch

@@ -50,6 +50,7 @@ enum class ShaderStage : uint8_t
   autoDetect, // Infer from source content (legacy gl_Position heuristic).
   vertex,
   fragment,
+  compute,
 };
 
 enum class TextureFormat : uint8_t

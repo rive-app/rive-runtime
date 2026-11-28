@@ -10,6 +10,7 @@
 #include "ore_pipeline_d3d12.hpp"
 #include "ore_bind_group_d3d12.hpp"
 #include "ore_bind_group_layout_d3d12.hpp"
+#include "ore_compute_d3d12.hpp"
 #include "ore_render_pass_d3d12.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
@@ -518,6 +519,20 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
     device->CreateShaderResourceView(nullptr, &srvDesc, handle);
   }
 
+  // --- Null UAV, which the second binding tier wants in every unused slot
+  // of a writable range ---
+  {
+    ctx->m_d3dNullUavSlot = ctx->m_d3dCpuSrvSlots->take();
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    device->CreateUnorderedAccessView(
+        nullptr,
+        nullptr,
+        &uavDesc,
+        ctx->m_d3dNullUavSlot.handle());
+  }
+
   // --- Null Sampler ---
   {
     ctx->m_d3dNullSamplerSlot = ctx->m_d3dCpuSamplerSlots->take();
@@ -545,8 +560,25 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
   f.texture3D = true;
   f.textureArrays = true;
   f.multisampledTextureRead = true;
-  f.computeShaders = false;
-  f.storageBuffers = false;
+  // Both or neither. The first binding tier holds too few writable views.
+  D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+  if (SUCCEEDED(device->CheckFeatureSupport(
+          D3D12_FEATURE_D3D12_OPTIONS,
+          &options,
+          sizeof(options))) &&
+      options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_2)
+  {
+    f.computeShaders = true;
+    f.storageBuffers = true;
+    f.maxComputeWorkgroupSizeX = D3D12_CS_THREAD_GROUP_MAX_X;
+    f.maxComputeWorkgroupSizeY = D3D12_CS_THREAD_GROUP_MAX_Y;
+    f.maxComputeWorkgroupSizeZ = D3D12_CS_THREAD_GROUP_MAX_Z;
+    f.maxComputeInvocationsPerWorkgroup =
+        D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
+    f.maxComputeWorkgroupStorageSize = D3D12_CS_TGSM_REGISTER_COUNT * 4;
+    f.maxComputeWorkgroupsPerDimension =
+        D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION;
+  }
   f.bc = true;
   f.etc2 = false;
   f.astc = false;
@@ -628,9 +660,12 @@ void ContextD3D12::beginFrame(const FrameDescriptor& desc)
   // Root sig is bound by `RenderPass::setPipeline` at the first pipeline
   // use — every pipeline ships with its own (RFC v5 §3.2.2).
   d3d12SetGpuHeaps();
+  m_d3dPassOpen = false;
+  m_d3dComputeOpen = false;
 
   // Record uploads staged while no frame was open onto this frame's list.
   d3d12FlushPendingTextureUploads();
+  d3d12FlushPendingStorageCopies();
 #endif
 }
 
@@ -639,6 +674,10 @@ void ContextD3D12::waitForGPU() {}
 void ContextD3D12::endFrame()
 {
 #if defined(ORE_BACKEND_D3D12)
+  // A pass left open still holds its storage buffers out of their rest
+  // state.
+  if (m_d3dCmdList != nullptr)
+    d3d12RestStorage();
   // The list belongs to the host's frame; a pass begun after this frame
   // must fail the beginRenderPass guard, not record onto a retired list.
   m_d3dCmdList = nullptr;
@@ -709,6 +748,129 @@ void ContextD3D12::d3d12FlushPendingTextureUploads()
 
   // Purgatory keeps the staging buffers alive until safeFrameNumber.
   m_d3dPendingUploads.clear();
+}
+
+// A transition, or the wait for a write to land when the buffer stays
+// writable.
+static void d3d12MoveStorage(
+    ID3D12GraphicsCommandList* list,
+    ID3D12Resource* resource,
+    D3D12_RESOURCE_STATES& current,
+    D3D12_RESOURCE_STATES state)
+{
+  D3D12_RESOURCE_BARRIER barrier = {};
+  if (current != state)
+  {
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = resource;
+    barrier.Transition.StateBefore = current;
+    barrier.Transition.StateAfter = state;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    current = state;
+  }
+  else if (state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+  {
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    barrier.UAV.pResource = resource;
+  }
+  else
+  {
+    return;
+  }
+  list->ResourceBarrier(1, &barrier);
+}
+
+void ContextD3D12::d3d12QueueStorageCopy(
+    BufferD3D12* buffer,
+    const void* data,
+    uint32_t size,
+    uint32_t offset)
+{
+  if (size == 0)
+    return;
+  BufferDesc stagingDesc;
+  stagingDesc.usage = BufferUsage::upload;
+  stagingDesc.size = size;
+  stagingDesc.data = data;
+  rcp<Buffer> staging = d3d12MakeBuffer(stagingDesc);
+  if (staging == nullptr)
+  {
+    setLastError("Buffer.update: no memory to stage a storage buffer's bytes");
+    return;
+  }
+  m_d3dPendingStorageCopies.push_back(
+      {ref_rcp(buffer), std::move(staging), offset, size});
+}
+
+void ContextD3D12::d3d12WriteStorageBuffer(
+    BufferD3D12* buffer,
+    const void* data,
+    uint32_t size,
+    uint32_t offset)
+{
+  // As on the other backends, where a copy cannot sit beside an open pass.
+  if (m_d3dPassOpen || hasOpenPasses())
+  {
+    setLastError("Buffer.update: a storage buffer cannot be updated while a "
+                 "pass is open");
+    return;
+  }
+  d3d12QueueStorageCopy(buffer, data, size, offset);
+}
+
+void ContextD3D12::d3d12FlushPendingStorageCopies()
+{
+  if (m_d3dPendingStorageCopies.empty() || m_d3dCmdList == nullptr)
+    return;
+  for (const D3D12PendingStorageCopy& copy : m_d3dPendingStorageCopies)
+  {
+    auto* buffer = lite_rtti_cast<BufferD3D12*>(copy.buffer.get());
+    auto* staging = lite_rtti_cast<BufferD3D12*>(copy.staging.get());
+    ID3D12Resource* resource = buffer->m_d3dBuffer.Get();
+    const D3D12_RESOURCE_STATES before = buffer->m_d3dState;
+    d3d12MoveStorage(
+        m_d3dCmdList,
+        resource,
+        buffer->m_d3dState,
+        D3D12_RESOURCE_STATE_COPY_DEST);
+    m_d3dCmdList->CopyBufferRegion(
+        resource,
+        copy.offset,
+        staging->m_d3dBuffer.Get(),
+        0,
+        copy.size);
+    d3d12MoveStorage(m_d3dCmdList, resource, buffer->m_d3dState, before);
+  }
+  // Purgatory keeps the staging buffers alive until safeFrameNumber.
+  m_d3dPendingStorageCopies.clear();
+}
+
+void ContextD3D12::d3d12UseStorage(
+    BufferD3D12* buffer,
+    D3D12_RESOURCE_STATES state)
+{
+  d3d12FlushPendingStorageCopies();
+  if (buffer->m_d3dState == D3D12_RESOURCE_STATE_COMMON)
+    m_d3dStorageInUse.push_back(ref_rcp(buffer));
+  d3d12MoveStorage(
+      m_d3dCmdList,
+      buffer->m_d3dBuffer.Get(),
+      buffer->m_d3dState,
+      state);
+}
+
+void ContextD3D12::d3d12RestStorage()
+{
+  for (const rcp<Buffer>& used : m_d3dStorageInUse)
+  {
+    auto* buffer = lite_rtti_cast<BufferD3D12*>(used.get());
+    d3d12MoveStorage(
+        m_d3dCmdList,
+        buffer->m_d3dBuffer.Get(),
+        buffer->m_d3dState,
+        D3D12_RESOURCE_STATE_COMMON);
+  }
+  m_d3dStorageInUse.clear();
 }
 #endif
 
@@ -833,6 +995,38 @@ rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 #if defined(ORE_BACKEND_D3D12)
   auto buffer = rcp<BufferD3D12>(
       new BufferD3D12(m_manager, desc.size, desc.usage));
+
+  if (desc.usage == BufferUsage::storage)
+  {
+    // A shader writes it, which an upload heap does not allow. Direct3D
+    // hands a committed resource over zeroed.
+    D3D12_HEAP_PROPERTIES heapProps = {};
+    heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+    D3D12_RESOURCE_DESC resDesc = {};
+    resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    resDesc.Width = desc.size;
+    resDesc.Height = 1;
+    resDesc.DepthOrArraySize = 1;
+    resDesc.MipLevels = 1;
+    resDesc.Format = DXGI_FORMAT_UNKNOWN;
+    resDesc.SampleDesc.Count = 1;
+    resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    if (FAILED(m_d3dDevice->CreateCommittedResource(
+            &heapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &resDesc,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            IID_PPV_ARGS(buffer->m_d3dBuffer.GetAddressOf()))))
+    {
+      return nullptr;
+    }
+    buffer->m_ctx = this;
+    if (desc.data)
+      d3d12QueueStorageCopy(buffer.get(), desc.data, desc.size, 0);
+    return buffer;
+  }
 
   UINT64 alignedSize = desc.size;
   if (desc.usage == BufferUsage::uniform)
@@ -1249,8 +1443,7 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
   std::string source(desc.hlslSource, desc.hlslSourceSize);
   source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
 
-  const char* target = (desc.stage == ShaderStage::fragment) ? "ps_5_0"
-                                                             : "vs_5_0";
+  const char* target = oreD3DShaderProfile(desc.stage);
   const char* entry = (desc.hlslEntryPoint && *desc.hlslEntryPoint)
                           ? desc.hlslEntryPoint
                           : "main";
@@ -1327,7 +1520,7 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(
     if (!validatePipelineDesc(
             desc,
             pipeline->m_bindingMap,
-            NativeSlotScope::perKind,
+            NativeSlotScope::perRegister,
             LayoutSlots::bound,
             &err))
     {
@@ -1527,6 +1720,9 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(
 // d3d12MakeBindGroup
 // ============================================================================
 
+// At namespace scope, since MSVC takes no local as a default argument.
+constexpr uint32_t kD3D12GroupSlots = 8;
+
 rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
@@ -1535,7 +1731,11 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
     setLastError("makeBindGroup: BindGroupDesc::layout is null");
     return nullptr;
   }
-  if (std::string err; !validateBindGroupDesc(desc, &err))
+  if (std::string err; !validateBindGroupDesc(
+          desc,
+          &err,
+          m_features.storageBuffers ? StorageBinding::bound
+                                    : StorageBinding::refused))
   {
     setLastError("makeBindGroup: %s", err.c_str());
     return nullptr;
@@ -1564,10 +1764,13 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
   bg->m_dynamicOffsetCount = dynamicCount;
 
   // Native HLSL register slot per binding comes from the layout's
-  // pre-resolved nativeSlotVS/FS (D3D12 root tables are stage-shared,
-  // so VS slot suffices; fall back to FS for FS-only resources).
-  auto nativeSlot =
-      [&](uint32_t binding, BindingKind expected, uint32_t* outSlot) -> bool {
+  // pre-resolved native slots (D3D12 root tables are stage-shared, so
+  // whichever stage reads the resource names it). Uniform buffers, textures
+  // and samplers sit in tables of `kD3D12GroupSlots`.
+  auto nativeSlot = [&](uint32_t binding,
+                        BindingKind expected,
+                        uint32_t* outSlot,
+                        uint32_t slotLimit = kD3D12GroupSlots) -> bool {
     const BindGroupLayoutEntry* le = layout->findEntry(binding);
     if (le == nullptr)
     {
@@ -1592,9 +1795,7 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
           binding);
       return false;
     }
-    uint32_t s = (le->nativeSlotVS != BindGroupLayoutEntry::kNativeSlotAbsent)
-                     ? le->nativeSlotVS
-                     : le->nativeSlotFS;
+    uint32_t s = stageSharedSlot(*le);
     if (s == BindGroupLayoutEntry::kNativeSlotAbsent)
     {
       setLastError(
@@ -1603,6 +1804,19 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
           "makeLayoutFromShader",
           groupIndex,
           binding);
+      return false;
+    }
+    // Registers count across a shader file's groups, and read only storage
+    // buffers share the textures'.
+    if (s >= slotLimit)
+    {
+      setLastError(
+          "makeBindGroup: (group=%u, binding=%u) is register %u, past the "
+          "%u of a kind a shader file can bind on Direct3D 12",
+          groupIndex,
+          binding,
+          s,
+          slotLimit);
       return false;
     }
     *outSlot = s;
@@ -1665,6 +1879,60 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
     bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
   }
 
+  // Storage entries, which validateBindGroupDesc matched to the layout. The
+  // shaders read them as ByteAddressBuffers, so the views are raw words.
+  for (uint32_t i = 0; i < desc.storageBufferCount; ++i)
+  {
+    const auto& entry = desc.storageBuffers[i];
+    auto buffer = lite_rtti_cast<BufferD3D12*>(entry.buffer);
+    assert(buffer != nullptr);
+    const BindingKind kind = layout->findEntry(entry.slot)->kind;
+    BindGroupD3D12::D3D12StorageBinding binding;
+    if (!nativeSlot(entry.slot, kind, &binding.slot, UINT8_MAX) ||
+        !d3d12TakeSlot(
+            *m_d3dCpuSrvSlots,
+            binding.view,
+            "makeBindGroup",
+            "storage buffer view"))
+    {
+      return nullptr;
+    }
+    const uint32_t size = entry.size != 0 ? entry.size
+                                          : buffer->size() - entry.offset;
+    binding.buffer = buffer;
+    binding.writable = kind == BindingKind::storageBufferRW;
+    if (binding.writable)
+    {
+      D3D12_UNORDERED_ACCESS_VIEW_DESC view = {};
+      view.Format = DXGI_FORMAT_R32_TYPELESS;
+      view.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+      view.Buffer.FirstElement = entry.offset / 4;
+      view.Buffer.NumElements = size / 4;
+      view.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+      m_d3dDevice->CreateUnorderedAccessView(
+          buffer->m_d3dBuffer.Get(),
+          nullptr,
+          &view,
+          binding.view.handle());
+    }
+    else
+    {
+      D3D12_SHADER_RESOURCE_VIEW_DESC view = {};
+      view.Format = DXGI_FORMAT_R32_TYPELESS;
+      view.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+      view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+      view.Buffer.FirstElement = entry.offset / 4;
+      view.Buffer.NumElements = size / 4;
+      view.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+      m_d3dDevice->CreateShaderResourceView(
+          buffer->m_d3dBuffer.Get(),
+          &view,
+          binding.view.handle());
+    }
+    bg->m_d3dStorage.push_back(std::move(binding));
+    bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
+  }
+
   return bg;
 #else
   (void)desc;
@@ -1706,6 +1974,246 @@ rcp<BindGroupLayout> ContextD3D12::d3d12MakeBindGroupLayout(
 }
 
 // ============================================================================
+// d3d12SetGroupTables
+// ============================================================================
+
+#if defined(ORE_BACKEND_D3D12)
+void ContextD3D12::d3d12SetGroupTables(
+    const D3D12GroupRootParams& gp,
+    BindGroupD3D12* bg,
+    const uint32_t* dynamicOffsets,
+    uint32_t dynamicOffsetCount,
+    UINT srvStart,
+    UINT samplerStart,
+    bool compute)
+{
+  uint32_t dynIdx = 0;
+
+  // Merged CBV/SRV/UAV table.
+  if (gp.cbvSrvUavRootParamIdx >= 0)
+  {
+    gpu::D3D12DescriptorHeap* srvHeap = m_d3dGpuSrvHeap.heap.get();
+    uint32_t offset = 0;
+
+    // CBVs: create D3D12_CONSTANT_BUFFER_VIEW_DESC descriptors in
+    // the shader-visible heap on the fly, one per slot covered by
+    // this group's CBV range. Null CBVs are left as default-init
+    // descriptor slots (CreateConstantBufferView(nullptr, ...)
+    // writes the D3D12-defined null CBV per the spec).
+    for (uint8_t i = 0; i < gp.cbvCount; ++i)
+    {
+      uint8_t globalSlot = gp.cbvBaseGlobalSlot + i;
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = srvHeap->cpuHandleForUpload(
+          srvStart + offset++);
+      if (bg->m_d3dUBOSlotMask & (1u << globalSlot))
+      {
+        // Resolve the live backing now and mark it bound so a later
+        // update() orphans instead of racing this draw.
+        BufferD3D12* ubo = bg->m_d3dUBOBuffers[globalSlot];
+        ubo->markBound();
+        D3D12_GPU_VIRTUAL_ADDRESS gpuVA = ubo->currentGpuVA() +
+                                          bg->m_d3dUBOOffsets[globalSlot];
+        if ((bg->m_d3dUBODynamicOffsetMask & (1u << globalSlot)) &&
+            dynIdx < dynamicOffsetCount)
+        {
+          gpuVA += dynamicOffsets[dynIdx];
+          ++dynIdx;
+        }
+        // CBV sizes must be 256-byte aligned per D3D12 spec.
+        uint32_t size = bg->m_d3dUBOSizes[globalSlot];
+        size = (size + 255u) & ~255u;
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv = {};
+        cbv.BufferLocation = gpuVA;
+        cbv.SizeInBytes = size;
+        m_d3dDevice->CreateConstantBufferView(&cbv, dst);
+      }
+      else
+      {
+        m_d3dDevice->CreateConstantBufferView(nullptr, dst);
+      }
+    }
+
+    // Ore owned textures already rest in both shader resource states, so
+    // this only moves external or never uploaded ones, which a pass does
+    // not also attach.
+    for (uint8_t i = 0; i < gp.srvCount; ++i)
+    {
+      uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
+      if (globalSlot >= 8 || !(bg->m_d3dSrvSlotMask & (1u << globalSlot)))
+        continue;
+      TextureD3D12* tex = lite_rtti_cast<TextureD3D12*>(
+          bg->m_d3dSrvTextures[globalSlot]);
+      if (tex == nullptr)
+        continue;
+      if ((tex->m_d3dCurrentState & kD3D12ShaderResourceStates) ==
+          kD3D12ShaderResourceStates)
+        continue;
+      D3D12_RESOURCE_BARRIER barrier = {};
+      barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+      barrier.Transition.pResource = tex->m_d3dTexture.Get();
+      barrier.Transition.StateBefore = tex->m_d3dCurrentState;
+      barrier.Transition.StateAfter = kD3D12ShaderResourceStates;
+      barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+      m_d3dCmdList->ResourceBarrier(1, &barrier);
+      tex->m_d3dCurrentState = kD3D12ShaderResourceStates;
+    }
+
+    // SRVs, then UAVs: copy each register's CPU descriptor into the heap.
+    // A register nothing binds takes the null descriptor, so the table
+    // stays well defined.
+    const uint32_t viewCount = uint32_t(gp.srvCount) + gp.uavCount;
+    for (uint32_t i = 0; i < viewCount; ++i)
+    {
+      const bool writable = i >= gp.srvCount;
+      const uint32_t globalSlot = writable
+                                      ? gp.uavBaseGlobalSlot + (i - gp.srvCount)
+                                      : gp.srvBaseGlobalSlot + i;
+      D3D12_CPU_DESCRIPTOR_HANDLE src = writable ? m_d3dNullUavSlot.handle()
+                                                 : m_d3dNullSrvSlot.handle();
+      if (!writable && globalSlot < 8 &&
+          (bg->m_d3dSrvSlotMask & (1u << globalSlot)))
+      {
+        src = bg->m_d3dSrvHandles[globalSlot];
+      }
+      else if (const auto* storage = bg->d3d12Storage(globalSlot, writable))
+      {
+        d3d12UseStorage(
+            storage->buffer,
+            writable ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                     : kD3D12ShaderResourceStates);
+        src = storage->view.handle();
+      }
+      m_d3dDevice->CopyDescriptorsSimple(
+          1,
+          srvHeap->cpuHandleForUpload(srvStart + offset++),
+          src,
+          D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    }
+
+    const D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = srvHeap->gpuHandleForIndex(
+        srvStart);
+    const UINT param = static_cast<UINT>(gp.cbvSrvUavRootParamIdx);
+    if (compute)
+      m_d3dCmdList->SetComputeRootDescriptorTable(param, gpuHandle);
+    else
+      m_d3dCmdList->SetGraphicsRootDescriptorTable(param, gpuHandle);
+  }
+
+  // Sampler table (separate heap type).
+  if (gp.samplerRootParamIdx >= 0)
+  {
+    gpu::D3D12DescriptorHeap* samplerHeap = m_d3dGpuSamplerHeap.heap.get();
+    for (uint8_t i = 0; i < gp.samplerCount; ++i)
+    {
+      uint8_t globalSlot = gp.samplerBaseGlobalSlot + i;
+      D3D12_CPU_DESCRIPTOR_HANDLE dst = samplerHeap->cpuHandleForUpload(
+          samplerStart + i);
+      D3D12_CPU_DESCRIPTOR_HANDLE
+      src = (bg->m_d3dSamplerSlotMask & (1u << globalSlot))
+                ? bg->m_d3dSamplerHandles[globalSlot]
+                : m_d3dNullSamplerSlot.handle();
+      m_d3dDevice->CopyDescriptorsSimple(
+          1,
+          dst,
+          src,
+          D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+    }
+    const D3D12_GPU_DESCRIPTOR_HANDLE
+        gpuHandle = samplerHeap->gpuHandleForIndex(samplerStart);
+    const UINT param = static_cast<UINT>(gp.samplerRootParamIdx);
+    if (compute)
+      m_d3dCmdList->SetComputeRootDescriptorTable(param, gpuHandle);
+    else
+      m_d3dCmdList->SetGraphicsRootDescriptorTable(param, gpuHandle);
+  }
+}
+#endif
+
+// ============================================================================
+// Compute
+// ============================================================================
+
+rcp<ComputePipeline> ContextD3D12::makeComputePipelineImpl(
+    const ComputePipelineDesc& desc,
+    std::string* outError)
+{
+#if defined(ORE_BACKEND_D3D12)
+  auto pipeline = rcp<ComputePipelineD3D12>(
+      new ComputePipelineD3D12(m_manager, desc));
+  // The root signature takes its registers from the layouts.
+  if (std::string error; !validateComputeLayoutSlots(
+          pipeline->m_bindingMap,
+          desc.bindGroupLayouts,
+          desc.bindGroupLayoutCount,
+          &error))
+  {
+    refuse("makeComputePipeline", error.c_str(), outError);
+    return nullptr;
+  }
+  HRESULT hr = S_OK;
+  pipeline->m_d3dRootSig = buildPerPipelineRootSig(
+      m_d3dDevice.Get(),
+      desc.bindGroupLayouts,
+      desc.bindGroupLayoutCount,
+      pipeline->m_d3dGroupParams,
+      &hr,
+      nullptr,
+      &pipeline->m_d3dWorkgroupCountParam);
+  auto module = lite_rtti_cast<ShaderModuleD3D12*>(desc.module);
+  assert(module != nullptr);
+  if (pipeline->m_d3dRootSig != nullptr)
+  {
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = pipeline->m_d3dRootSig.Get();
+    psoDesc.CS.pShaderBytecode = module->m_d3dBytecode.data();
+    psoDesc.CS.BytecodeLength = module->m_d3dBytecode.size();
+    hr = m_d3dDevice->CreateComputePipelineState(
+        &psoDesc,
+        IID_PPV_ARGS(pipeline->m_d3dPSO.GetAddressOf()));
+  }
+  if (pipeline->m_d3dPSO == nullptr)
+  {
+    char message[96];
+    snprintf(
+        message,
+        sizeof(message),
+        "Direct3D 12 could not build the pipeline (hr=0x%08lx)",
+        static_cast<unsigned long>(hr));
+    refuse("makeComputePipeline", message, outError);
+    return nullptr;
+  }
+  return pipeline;
+#else
+  return Context::makeComputePipelineImpl(desc, outError);
+#endif
+}
+
+std::unique_ptr<ComputePass> ContextD3D12::beginComputePass(
+    const ComputePassDesc& desc,
+    std::string* outError)
+{
+#if defined(ORE_BACKEND_D3D12)
+  if (!m_features.computeShaders)
+    return Context::beginComputePass(desc, outError);
+  if (refusesPass(
+          "beginComputePass",
+          m_d3dCmdList != nullptr,
+          m_d3dPassOpen,
+          outError))
+  {
+    return nullptr;
+  }
+  m_d3dPassOpen = true;
+  m_d3dComputeOpen = true;
+  d3d12FlushPendingTextureUploads();
+  d3d12FlushPendingStorageCopies();
+  return std::make_unique<ComputePassD3D12>(this);
+#else
+  return Context::beginComputePass(desc, outError);
+#endif
+}
+
+// ============================================================================
 // d3d12BeginRenderPass
 // ============================================================================
 
@@ -1714,17 +2222,18 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
     std::string* outError)
 {
 #if defined(ORE_BACKEND_D3D12)
-  if (m_d3dCmdList == nullptr)
+  if (refusesPass(
+          "beginRenderPass",
+          m_d3dCmdList != nullptr,
+          m_d3dComputeOpen,
+          outError))
   {
-    setLastError("Ore D3D12: beginRenderPass without an open frame");
-    if (outError != nullptr)
-    {
-      *outError = lastError();
-    }
     return nullptr;
   }
   // Drain uploads staged mid-frame before the pass reads the textures.
   d3d12FlushPendingTextureUploads();
+  d3d12FlushPendingStorageCopies();
+  m_d3dPassOpen = true;
 
   std::unique_ptr<RenderPassD3D12> pass(new RenderPassD3D12(this));
   pass->m_d3dCmdList = m_d3dCmdList;
@@ -2155,8 +2664,11 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(
 
 rcp<Buffer> ContextD3D12::makeBuffer(const BufferDesc& desc)
 {
-  if (refusesBuffer(desc))
+  if (desc.usage == BufferUsage::storage && !m_features.storageBuffers)
+  {
+    setLastError("makeBuffer: this device has no storage buffers");
     return nullptr;
+  }
   return d3d12MakeBuffer(desc);
 }
 

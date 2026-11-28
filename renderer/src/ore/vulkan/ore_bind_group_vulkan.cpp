@@ -42,7 +42,7 @@ VkDescriptorSet BindGroupVulkan::resolveDescriptorSet()
 
   auto alloc = ctx->vkAllocateDescriptorSet(m_vkDSL);
   // Only fails on device OOM (the generation auto rolls on capacity). Return
-  // null so setBindGroup reports it via setLastError instead of aborting.
+  // null so the draw or dispatch reports it instead of aborting.
   if (alloc.set == VK_NULL_HANDLE)
     return VK_NULL_HANDLE;
 

@@ -98,7 +98,7 @@ public:
     for (uint32_t g = 0; g < kMaxBindGroups; ++g)
     {
       const BindGroupLayout* layout = layouts[g].get();
-      if (layout == nullptr || layout->entries().empty())
+      if (!hasEntries(layouts[g]))
         continue;
       const BindGroup* group = m_groups[g].get();
       // An older bake's layouts cover whole files, so an unset group
@@ -175,8 +175,7 @@ private:
 
   bool groupInUse(const rcp<BindGroupLayout>* layouts, uint32_t g) const
   {
-    return layouts[g] != nullptr && !layouts[g]->entries().empty() &&
-           m_groups[g] != nullptr;
+    return hasEntries(layouts[g]) && m_groups[g] != nullptr;
   }
 
   // Null, or why a draw or dispatch that writes through `written` is refused.

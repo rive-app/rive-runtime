@@ -32,7 +32,7 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
       std::remove(m_hlslSource.begin(), m_hlslSource.end(), '\r'),
       m_hlslSource.end());
 
-  const char* target = (m_stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
+  const char* target = oreD3DShaderProfile(m_stage);
   const char* entry = m_hlslEntryPoint.empty() ? "main"
                                                : m_hlslEntryPoint.c_str();
 
@@ -49,6 +49,7 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
     m_bytecode = std::move(cached.bytecode);
     m_d3dVertexShader = std::move(cached.vertexShader);
     m_d3dPixelShader = std::move(cached.pixelShader);
+    m_d3dComputeShader = std::move(cached.computeShader);
     return;
   }
 
@@ -113,6 +114,14 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
         nullptr,
         m_d3dVertexShader.GetAddressOf());
   }
+  else if (m_stage == ShaderStage::compute)
+  {
+    createHr = device->CreateComputeShader(
+        code,
+        codeSize,
+        nullptr,
+        m_d3dComputeShader.GetAddressOf());
+  }
   else
   {
     createHr = device->CreateVertexShader(
@@ -138,7 +147,11 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(
   {
     cache.store(
         cacheKey,
-        D3D11CompiledShader{m_bytecode, m_d3dVertexShader, m_d3dPixelShader},
+        D3D11CompiledShader{
+            m_bytecode,
+            m_d3dVertexShader,
+            m_d3dPixelShader,
+            m_d3dComputeShader},
         m_bytecode.size());
   }
 }

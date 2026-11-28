@@ -586,7 +586,9 @@ static bool buildShaderEntries(
           out->entries.push_back(std::move(e));
         }
         return true;
-      });
+      },
+      // Luau has no compute pipelines to give a compute entry to.
+      false);
   return parsed && !failed && !out->entries.empty();
 }
 

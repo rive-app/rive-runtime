@@ -18,6 +18,8 @@ class Buffer : public rive::gpu::GPUResource, public ENABLE_LITE_RTTI(Buffer)
 public:
   uint32_t size() const { return m_size; }
   BufferUsage usage() const { return m_usage; }
+  // How many updates moved it to a fresh backing.
+  uint32_t moves() const { return m_moves; }
 
   virtual void update(const void* data, uint32_t size, uint32_t offset = 0) = 0;
 
@@ -44,6 +46,7 @@ protected:
 
   uint32_t m_size;
   BufferUsage m_usage;
+  uint32_t m_moves = 0;
 };
 
 } // namespace rive::ore

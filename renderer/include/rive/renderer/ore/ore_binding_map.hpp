@@ -30,6 +30,10 @@
 namespace rive::ore
 {
 
+// The cbuffer register a compute shader baked to HLSL reads its workgroup
+// count from, which the backend fills at each dispatch. D3D11's last.
+constexpr uint32_t kHlslWorkgroupCountRegister = 13;
+
 // ----------------------------------------------------------------------------
 // Reserved native slots
 //

@@ -60,6 +60,13 @@ bool BufferWGPU::acquireFreshBacking()
 void BufferWGPU::update(const void* data, uint32_t size, uint32_t offset)
 {
   assert(offset + size <= m_size);
+  // The GPU writes it, so it cannot move to a fresh backing: the update is a
+  // copy among the frame's commands.
+  if (usage() == BufferUsage::storage)
+  {
+    m_ctx->writeStorageBuffer(this, data, size, offset);
+    return;
+  }
   bool orphaned = false;
   if (m_boundSinceUpdate)
   {
@@ -68,6 +75,7 @@ void BufferWGPU::update(const void* data, uint32_t size, uint32_t offset)
     {
       m_boundSinceUpdate = false;
       orphaned = true;
+      m_ctx->noteBufferMoved(this);
     }
   }
   // Allocate the shadow on first write so a never updated buffer pays

@@ -49,6 +49,7 @@ private:
   };
   std::vector<UBOWrite> m_uboWrites;
   std::vector<ImageWrite> m_imageWrites;
+  bool m_hasStorage = false;
 
   VkDescriptorSetLayout m_vkDSL = VK_NULL_HANDLE;
 

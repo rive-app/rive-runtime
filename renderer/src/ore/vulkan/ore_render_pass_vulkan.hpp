@@ -64,6 +64,8 @@ public:
 private:
   friend class ContextVulkan;
 
+  void applyBindGroup(uint32_t groupIndex);
+
   ContextVulkan* m_vkContext = nullptr; // weak ref
   rcp<PipelineVulkan> m_currentPipeline;
   VkCommandBuffer m_vkCmdBuf = VK_NULL_HANDLE;
@@ -95,5 +97,6 @@ private:
   uint32_t m_vkStencilRef = 0;
   // Opening timestamp query when profiled; finish() writes the closing one.
   uint32_t m_vkProfileQuery = UINT32_MAX;
+  bool m_vkBoundStorage = false;
 };
 } // namespace rive::ore

@@ -1,8 +1,10 @@
 #pragma once
 #include "rive/renderer/ore/ore_bind_group.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include <d3d12.h>
 #include <cstdint>
+#include <vector>
 
 namespace rive::ore
 {
@@ -36,5 +38,25 @@ private:
   // Sampler slots. CPU descriptor handles.
   D3D12_CPU_DESCRIPTOR_HANDLE m_d3dSamplerHandles[8] = {};
   uint8_t m_d3dSamplerSlotMask = 0;
+
+  // A raw view of a storage buffer's bound range. Read only ones share the
+  // t registers with textures, writable ones take u registers.
+  struct D3D12StorageBinding
+  {
+    BufferD3D12* buffer = nullptr; // kept alive by m_retainedBuffers
+    D3D12DescriptorSlot view;
+    uint32_t slot = 0;
+    bool writable = false;
+  };
+  std::vector<D3D12StorageBinding> m_d3dStorage;
+  const D3D12StorageBinding* d3d12Storage(uint32_t slot, bool writable) const
+  {
+    for (const D3D12StorageBinding& storage : m_d3dStorage)
+    {
+      if (storage.slot == slot && storage.writable == writable)
+        return &storage;
+    }
+    return nullptr;
+  }
 };
 } // namespace rive::ore

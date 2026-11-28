@@ -32,6 +32,9 @@ void RenderPassVulkan::setPipeline(Pipeline* inPipeline)
     return;
   auto pipeline = lite_rtti_cast<PipelineVulkan*>(inPipeline);
   assert(pipeline != nullptr);
+  // Sets bound under another pipeline's layout need not carry over.
+  if (pipeline != m_currentPipeline.get())
+    unapplyBoundGroups();
   m_currentPipeline = ref_rcp(pipeline);
   m_vkContext->m_vk->CmdBindPipeline(
       m_vkCmdBuf,
@@ -80,26 +83,29 @@ void RenderPassVulkan::setIndexBuffer(
 
 void RenderPassVulkan::setBindGroup(
     uint32_t groupIndex,
-    BindGroup* inBg,
+    BindGroup* bg,
     const uint32_t* dynamicOffsets,
     uint32_t dynamicOffsetCount)
 {
-  assert(inBg != nullptr);
-  assert(
-      m_currentPipeline != nullptr &&
-      "setPipeline must be called before setBindGroup");
+  storeBindGroup(groupIndex, bg, dynamicOffsets, dynamicOffsetCount);
+  if (auto* group = lite_rtti_cast<BindGroupVulkan*>(bg))
+    m_vkBoundStorage |= group->m_hasStorage;
+}
 
-  auto bg = lite_rtti_cast<BindGroupVulkan*>(inBg);
+void RenderPassVulkan::applyBindGroup(uint32_t groupIndex)
+{
+  // A group left at an index this pipeline binds nothing at stays out.
+  if (m_currentPipeline == nullptr ||
+      !hasEntries(m_currentPipeline->m_layouts[groupIndex]))
+  {
+    return;
+  }
+  auto* bg = lite_rtti_cast<BindGroupVulkan*>(m_boundGroups[groupIndex].get());
   assert(bg != nullptr);
-  // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
-  // successful resolve, so a failed (OOM) resolve doesn't force later
-  // update()s to orphan needlessly.
+  // Stamped bound only once resolved, so a failed resolve orphans nothing.
   VkDescriptorSet set = bg->resolveDescriptorSet();
   if (set == VK_NULL_HANDLE)
   {
-    // Descriptor set allocation failed (device OOM). Report it instead of
-    // binding null; the Lua layer reads lastError after the call. Pre-fix
-    // this surfaced at makeBindGroup time.
     m_vkContext->setLastError(
         "ore: Vulkan descriptor set allocation failed for group %u",
         groupIndex);
@@ -113,12 +119,8 @@ void RenderPassVulkan::setBindGroup(
       groupIndex,
       1,
       &set,
-      dynamicOffsetCount,
-      dynamicOffsets);
-
-  // Hold a strong ref so the BindGroup (and its retained resources) stay
-  // alive until the render pass is finished.
-  m_boundGroups[groupIndex] = ref_rcp(bg);
+      m_groupOffsetCounts[groupIndex],
+      m_groupOffsets[groupIndex]);
 }
 
 void RenderPassVulkan::setViewport(
@@ -189,6 +191,7 @@ void RenderPassVulkan::draw(
     uint32_t firstVertex,
     uint32_t firstInstance)
 {
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   m_vkContext->m_vk->CmdDraw(
       m_vkCmdBuf,
       vertexCount,
@@ -204,6 +207,7 @@ void RenderPassVulkan::drawIndexed(
     int32_t baseVertex,
     uint32_t firstInstance)
 {
+  flushBindGroups([this](uint32_t g) { applyBindGroup(g); });
   m_vkContext->m_vk->CmdDrawIndexed(
       m_vkCmdBuf,
       indexCount,
@@ -221,6 +225,16 @@ void RenderPassVulkan::finish()
   releaseBoundResources();
 
   m_vkContext->m_vk->CmdEndRenderPass(m_vkCmdBuf);
+  m_vkContext->m_vkPassOpen = false;
+  // A later write of a storage buffer waits for these shaders to read it,
+  // and a later read for them to write it.
+  if (m_vkBoundStorage)
+  {
+    m_vkContext->vkBarrierAfter(
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT);
+  }
   if (m_vkProfileQuery != UINT32_MAX)
   {
     m_vkContext->m_vk->CmdWriteTimestamp(
@@ -422,6 +436,7 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
   m_vkDepthTexture = std::move(other.m_vkDepthTexture);
   m_vkStencilRef = other.m_vkStencilRef;
   m_vkProfileQuery = std::exchange(other.m_vkProfileQuery, UINT32_MAX);
+  m_vkBoundStorage = other.m_vkBoundStorage;
   other.m_vkDepthImage = VK_NULL_HANDLE;
   other.m_vkStencilRef = 0;
 #endif
